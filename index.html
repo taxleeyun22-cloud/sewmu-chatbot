@@ -317,7 +317,7 @@ function showChat(){
           var dlMs=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate()).getTime();
           var diff=Math.round((dlMs-todayMs)/86400000);
           var aid=nm.replace(/\s/g,'')+'_'+mo;
-          if(diff>=0&&diff<=3&&!dis[aid]){
+          if(diff>=0&&diff<=2&&!dis[aid]){
             var lb=diff===0?'오늘 마감':diff===1?'내일 마감':diff+'일 남음';
             h+='<div class="tax-alert" data-aid="'+aid+'">';
             h+='<span class="tax-alert-icon">\uD83D\uDCCC</span>';
