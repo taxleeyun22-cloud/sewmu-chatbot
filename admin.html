@@ -190,17 +190,17 @@ async function loadSessions(page) {
       ? `<img src="${esc(s.user_profile_image)}" alt="">`
       : `<span class="initials">${hasUser ? esc(s.user_name[0]) : '?'}</span>`;
     return `
-    <div class="session-item" onclick="loadDetail('${esc(s.group_id || s.session_id)}')">
+    <div class="session-item" onclick="loadDetail('${esc(s.group_id)}')">
       <div class="session-avatar">${avatar}</div>
       <div class="session-info">
-        <div class="session-user">${displayName}${phone ? ' ('+phone+')' : ''}</div>
+        <div class="session-user">${displayName}</div>
         <div class="session-meta">
           ${provider ? '<span class="session-provider '+provider+'">'+provider+'</span>' : ''}
-          <span class="session-id">${esc(s.session_id)}</span>
+          <span>${s.last_at || s.started_at || ''}</span>
         </div>
       </div>
       <div class="session-right">
-        <span class="session-time">${s.started_at || ''}</span>
+        <span class="session-time">${s.started_at ? s.started_at.substring(5,16) : ''}</span>
         <span class="session-count">${s.message_count}건</span>
       </div>
     </div>`;
