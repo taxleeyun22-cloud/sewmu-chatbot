@@ -106,6 +106,6 @@ export async function onRequestGet(context) {
     });
   } catch (e) {
     console.error("Kakao auth error:", e);
-    return Response.redirect(url.origin + "/?login_error=server_error", 302);
+    return new Response("카카오 로그인 오류: " + e.message, { status: 500 });
   }
 }
