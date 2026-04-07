@@ -228,24 +228,6 @@ function extractArticlesFromText(text, keywords) {
 
 // ===== 메인 핸들러 =====
 export async function onRequestPost(context) {
-  // 토큰 검증
-  const auth = context.request.headers.get("Authorization") || "";
-  const token = auth.replace("Bearer ", "");
-
-  const password = context.env.SITE_PASSWORD;
-  const secret = context.env.TOKEN_SECRET || "sewmu2025";
-
-  const encoder = new TextEncoder();
-  const verifyData = encoder.encode(password + secret);
-  const verifyHash = await crypto.subtle.digest("SHA-256", verifyData);
-  const expectedToken = Array.from(new Uint8Array(verifyHash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-
-  if (token !== expectedToken) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const apiKey = context.env.OPENAI_API_KEY;
   if (!apiKey) {
     return Response.json({ error: "API key not configured" }, { status: 500 });
