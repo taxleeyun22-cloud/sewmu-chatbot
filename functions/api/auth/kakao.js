@@ -32,23 +32,27 @@ export async function onRequestGet(context) {
   }
 
   const clientId = context.env.KAKAO_CLIENT_ID;
+  const clientSecret = context.env.KAKAO_CLIENT_SECRET;
   const redirectUri = url.origin + "/api/auth/kakao";
 
   try {
     // 1. 인가 코드로 토큰 발급
+    const tokenParams = {
+      grant_type: "authorization_code",
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      code: code,
+    };
+    if (clientSecret) tokenParams.client_secret = clientSecret;
+
     const tokenRes = await fetch("https://kauth.kakao.com/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        code: code,
-      }),
+      body: new URLSearchParams(tokenParams),
     });
     const tokenData = await tokenRes.json();
     if (!tokenData.access_token) {
-      return Response.redirect(url.origin + "/?login_error=token_failed", 302);
+      return new Response("토큰 발급 실패: " + JSON.stringify(tokenData), { status: 400 });
     }
 
     // 2. 사용자 정보 조회
