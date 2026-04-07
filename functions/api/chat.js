@@ -591,6 +591,12 @@ ${lawContext ? "\n\n===== 참고 법령 조문 =====" + lawContext : "\n\n(관�
       ...userMessages.filter((m) => m.role !== "system"),
     ];
 
+    // 사용자 질문 먼저 DB에 저장
+    if (db) {
+      try { await saveMessage(db, sessionId, "user", question, userId); } catch {}
+    }
+
+    // 스트리밍 요청
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -602,20 +608,69 @@ ${lawContext ? "\n\n===== 참고 법령 조문 =====" + lawContext : "\n\n(관�
         messages: finalMessages,
         max_tokens: 1500,
         temperature: 0.3,
+        stream: true,
       }),
     });
 
-    const data = await res.json();
+    // SSE 스트리밍 응답 전달
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const encoder = new TextEncoder();
+    let fullResponse = "";
 
-    // DB에 대화 저장 (optional)
-    if (db && data.choices && data.choices[0]) {
-      try {
-        await saveMessage(db, sessionId, "user", question, userId);
-        await saveMessage(db, sessionId, "assistant", data.choices[0].message.content, userId);
-      } catch (e) { console.error("DB save error:", e); }
-    }
+    const pump = async () => {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
 
-    return Response.json(data);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6).trim();
+            if (data === "[DONE]") {
+              await writer.write(encoder.encode("data: [DONE]\n\n"));
+              // AI 답변 DB에 저장
+              if (db && fullResponse) {
+                try { await saveMessage(db, sessionId, "assistant", fullResponse, userId); } catch {}
+              }
+              await writer.close();
+              return;
+            }
+            try {
+              const json = JSON.parse(data);
+              const content = json.choices?.[0]?.delta?.content || "";
+              if (content) {
+                fullResponse += content;
+                await writer.write(encoder.encode("data: " + JSON.stringify({ content }) + "\n\n"));
+              }
+            } catch {}
+          }
+        }
+      }
+      // 스트림 끝
+      if (db && fullResponse) {
+        try { await saveMessage(db, sessionId, "assistant", fullResponse, userId); } catch {}
+      }
+      await writer.write(encoder.encode("data: [DONE]\n\n"));
+      await writer.close();
+    };
+
+    pump();
+
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }

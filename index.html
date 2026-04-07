@@ -308,10 +308,46 @@ async function sendMessage(){
     loading=true;document.getElementById("sendBtn").disabled=true;showDots();
     try{
         const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages,sessionId:sid})});
-        if(r.status===401){showLogin();return}
-        if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||`오류 (${r.status})`);
-        const d=await r.json();const reply=d.choices[0].message.content;
-        messages.push({role:"assistant",content:reply});hideDots();add("ai",reply);
+        if(r.status===401){hideDots();showLogin();return}
+        if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.error||`오류 (${r.status})`);}
+
+        // 스트리밍 응답 처리
+        hideDots();
+        const c=document.getElementById("chatArea");
+        const msgDiv=document.createElement("div");
+        msgDiv.className="msg msg-ai";
+        msgDiv.innerHTML=`<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble" id="streamBubble"></div></div>`;
+        c.appendChild(msgDiv);
+
+        const bubble=document.getElementById("streamBubble");
+        let fullText="";
+        const reader=r.body.getReader();
+        const decoder=new TextDecoder();
+        let buf="";
+
+        while(true){
+            const{done,value}=await reader.read();
+            if(done)break;
+            buf+=decoder.decode(value,{stream:true});
+            const lines=buf.split("\n");
+            buf=lines.pop()||"";
+            for(const line of lines){
+                if(line.startsWith("data: ")){
+                    const data=line.slice(6).trim();
+                    if(data==="[DONE]")break;
+                    try{
+                        const j=JSON.parse(data);
+                        if(j.content){
+                            fullText+=j.content;
+                            bubble.innerHTML=esc(fullText);
+                            c.scrollTop=c.scrollHeight;
+                        }
+                    }catch{}
+                }
+            }
+        }
+        bubble.removeAttribute("id");
+        messages.push({role:"assistant",content:fullText});
     }catch(e){hideDots();add("ai","오류가 발생했습니다: "+e.message)}
     finally{loading=false;document.getElementById("sendBtn").disabled=false;i.focus()}
 }
