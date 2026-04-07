@@ -93,18 +93,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
 .login-btn svg{width:20px;height:20px;flex-shrink:0}
 
 /* ── 사용자 정보 ── */
-.user-info{display:flex;align-items:center;gap:8px;margin-left:auto}
-.user-avatar{width:28px;height:28px;border-radius:50%;overflow:hidden}
+.user-info{display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0}
+.user-avatar{width:26px;height:26px;border-radius:50%;overflow:hidden;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.65em;font-weight:600;flex-shrink:0}
 .user-avatar img{width:100%;height:100%;object-fit:cover}
-.user-name{font-size:.78em;color:var(--text2);font-weight:500;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.logout-btn{font-size:.75em;color:var(--text2);text-decoration:none;padding:4px 10px;border-radius:12px;transition:.15s}
+.user-name{font-size:.72em;color:var(--text2);font-weight:500;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.logout-btn{font-size:.7em;color:var(--text2);text-decoration:none;padding:3px 8px;border-radius:10px;transition:.15s;white-space:nowrap}
 .logout-btn:hover{background:rgba(0,0,0,.05)}
+.header-right{display:flex;align-items:center;gap:4px;margin-left:auto;flex-shrink:0}
 
 /* ── 모바일 ── */
 @media(max-width:480px){
     .msg{max-width:82%}
-    .header{padding:10px 16px}
-    .header-logo{height:38px}
+    .header{padding:10px 12px;gap:8px}
+    .header-logo{height:32px}
+    .user-name{display:none}
     .welcome{padding:60px 24px 32px}
     .welcome-logo{width:100px}
     .welcome h2{font-size:1.3em}
@@ -118,12 +120,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
 
 <div class="header">
     <img src="logo.png" alt="세무회계 이윤" class="header-logo">
-    <div class="header-right"><a href="/articles.html">칼럼</a></div>
-    <div class="user-info" id="userInfo" style="display:none">
-        <div class="user-avatar" id="userAvatar"></div>
-        <span class="user-name" id="userName"></span>
-        <a href="javascript:void(0)" onclick="resetChat()" class="logout-btn">초기화</a>
-        <a href="/api/auth/logout" class="logout-btn">로그아웃</a>
+    <div class="header-right">
+        <a href="/articles.html" class="logout-btn">칼럼</a>
+        <div class="user-info" id="userInfo" style="display:none">
+            <div class="user-avatar" id="userAvatar"></div>
+            <span class="user-name" id="userName"></span>
+            <a href="javascript:void(0)" onclick="resetChat()" class="logout-btn">초기화</a>
+            <a href="/api/auth/logout" class="logout-btn">나가기</a>
+        </div>
     </div>
 </div>
 
@@ -239,9 +243,9 @@ function showChat(){
     info.style.display='flex';
     const avatar=document.getElementById('userAvatar');
     if(currentUser.profile_image){
-        avatar.innerHTML='<img src="'+currentUser.profile_image+'" alt="">';
+        avatar.innerHTML='<img src="'+currentUser.profile_image+'" alt="" onerror="this.parentElement.textContent=\''+ ((currentUser.name||'?')[0]) +'\'">';
     }else{
-        avatar.innerHTML='<div style="width:100%;height:100%;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.7em;font-weight:600">'+((currentUser.name||'?')[0])+'</div>';
+        avatar.textContent=(currentUser.name||'?')[0];
     }
     document.getElementById('userName').textContent=currentUser.name||'';
     loadHistory();
