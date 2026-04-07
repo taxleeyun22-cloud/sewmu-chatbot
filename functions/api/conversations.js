@@ -17,7 +17,29 @@ export async function onRequestGet(context) {
   const offset = (page - 1) * limit;
 
   try {
-    // users 테이블이 없을 수도 있으니 안전하게 처리
+    // 테이블 생성
+    await db.prepare(`CREATE TABLE IF NOT EXISTS conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL,
+      user_id INTEGER,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`).run();
+
+    await db.prepare(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT NOT NULL,
+      provider_id TEXT NOT NULL,
+      name TEXT,
+      email TEXT,
+      phone TEXT,
+      profile_image TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      last_login_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(provider, provider_id)
+    )`).run();
+
     const { results } = await db.prepare(`
       SELECT
         c.session_id,
@@ -25,7 +47,6 @@ export async function onRequestGet(context) {
         COUNT(*) as message_count,
         c.user_id,
         u.name as user_name,
-        u.phone as user_phone,
         u.email as user_email,
         u.provider as user_provider,
         u.profile_image as user_profile_image
@@ -36,15 +57,15 @@ export async function onRequestGet(context) {
       LIMIT ? OFFSET ?
     `).bind(limit, offset).all();
 
-    const countResult = await db.prepare(`
-      SELECT COUNT(DISTINCT session_id) as total FROM conversations
-    `).first();
+    const countResult = await db.prepare(
+      `SELECT COUNT(DISTINCT session_id) as total FROM conversations`
+    ).first();
 
     return Response.json({
       sessions: results,
-      total: countResult.total,
+      total: countResult?.total || 0,
       page,
-      totalPages: Math.ceil(countResult.total / limit)
+      totalPages: Math.ceil((countResult?.total || 0) / limit)
     });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
