@@ -41,7 +41,7 @@ async function extractLawKeywords(question, apiKey) {
       Authorization: "Bearer " + apiKey,
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-mini",
       messages: [
         {
           role: "system",
@@ -317,7 +317,7 @@ ${lawContext ? "\n\n===== 참고 법령 조문 =====" + lawContext : "\n\n(관�
         Authorization: "Bearer " + apiKey,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4.1-mini",
         messages: finalMessages,
         max_tokens: 1500,
         temperature: 0.3,
