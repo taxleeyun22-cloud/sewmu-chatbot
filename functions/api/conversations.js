@@ -17,7 +17,11 @@ export async function onRequestGet(context) {
   const offset = (page - 1) * limit;
 
   try {
-    // 테이블 생성
+    // 테이블 재생성 (user_id 컬럼 추가)
+    try {
+      await db.prepare(`ALTER TABLE conversations ADD COLUMN user_id INTEGER`).run();
+    } catch {}
+
     await db.prepare(`CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       session_id TEXT NOT NULL,
