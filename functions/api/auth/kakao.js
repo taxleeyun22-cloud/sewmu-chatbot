@@ -37,12 +37,14 @@ export async function onRequestGet(context) {
 
   try {
     // 1. 인가 코드로 토큰 발급
+    const clientSecret = context.env.KAKAO_CLIENT_SECRET;
     const tokenParams = {
       grant_type: "authorization_code",
       client_id: clientId,
       redirect_uri: redirectUri,
       code: code,
     };
+    if (clientSecret) tokenParams.client_secret = clientSecret;
 
     const tokenRes = await fetch("https://kauth.kakao.com/oauth/token", {
       method: "POST",
