@@ -12,13 +12,10 @@ export async function onRequestGet(context) {
     } catch {}
   }
 
-  // 카카오 로그아웃 URL로 리다이렉트 (카카오 세션도 끊기)
-  const kakaoLogoutUrl = `https://kauth.kakao.com/oauth/logout?client_id=${context.env.KAKAO_CLIENT_ID}&logout_redirect_uri=${encodeURIComponent(url.origin + '/')}`;
-
   return new Response(null, {
     status: 302,
     headers: {
-      Location: kakaoLogoutUrl,
+      Location: url.origin + "/",
       "Set-Cookie": "session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
     },
   });
