@@ -28,6 +28,20 @@ body{font-family:'Malgun Gothic',sans-serif;background:#f0f2f5;color:#333}
 .article-view .body{font-size:.92em;line-height:1.8;white-space:pre-wrap}
 .back-btn{background:none;border:1px solid #ddd;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.85em;margin-bottom:16px}
 .empty{text-align:center;color:#888;padding:40px}
+
+/* 칼럼 본문 스타일 */
+.article-view .body h2{font-size:1.3em;color:#1a2d4e;margin:24px 0 12px;padding-bottom:8px;border-bottom:2px solid #4a6cf7}
+.article-view .body h3{font-size:1.05em;color:#1a2d4e;margin:20px 0 10px}
+.article-view .body p{margin:10px 0;line-height:1.8}
+.article-view .body ul,.article-view .body ol{margin:10px 0 10px 20px;line-height:2}
+.article-view .body blockquote{background:#f8f9ff;border-left:4px solid #4a6cf7;padding:12px 16px;margin:12px 0;color:#555;font-style:italic}
+.article-view .body table{width:100%;border-collapse:collapse;margin:12px 0}
+.article-view .body th{background:#1a2d4e;color:#fff;padding:10px 12px;text-align:left;font-size:.88em}
+.article-view .body td{padding:8px 12px;border:1px solid #ddd;font-size:.88em}
+.article-view .body tr:nth-child(even) td{background:#f8f9fa}
+.article-view .body hr{border:none;border-top:1px solid #eee;margin:20px 0}
+.article-view .body .example-box{background:#f0faf4;border:1px solid #c3e6cb;border-radius:8px;padding:16px;margin:12px 0}
+.article-view .body .law-ref{background:#f8f9ff;border:1px solid #d0d8f0;border-radius:6px;padding:10px 14px;margin-top:20px;font-size:.82em;color:#4a6cf7}
 @media(max-width:600px){
     .header img{height:36px}
     .content{padding:0 12px}
@@ -80,7 +94,7 @@ async function showDetail(file, title, category, date) {
     const text = await res.text();
     document.getElementById("viewTitle").textContent = title;
     document.getElementById("viewMeta").textContent = category + " | " + date;
-    document.getElementById("viewBody").textContent = text;
+    document.getElementById("viewBody").innerHTML = text;
     document.getElementById("listView").style.display = "none";
     document.getElementById("detailView").style.display = "block";
 }
