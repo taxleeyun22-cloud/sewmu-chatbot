@@ -318,9 +318,12 @@ export async function onRequestPost(context) {
     try { await initDB(db); } catch (e) { console.error("DB init error:", e); }
   }
 
-  // 로그인 사용자 확인
+  // 로그인 사용자 확인 (로그인 필수)
   const cookieHeader = context.request.headers.get("Cookie");
   const userId = db ? await getUserFromSession(db, cookieHeader) : null;
+  if (!userId) {
+    return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  }
 
   try {
     const body = await context.request.json();
