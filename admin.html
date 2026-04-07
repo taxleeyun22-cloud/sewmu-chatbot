@@ -61,6 +61,35 @@ body{font-family:'Noto Sans KR',sans-serif;background:#fff;color:#1d1d1f;min-hei
 .msg-item .msg-meta{font-size:.7em;opacity:.6;margin-top:8px}
 
 .empty{text-align:center;padding:60px 20px;color:#86868b;font-size:.9em}
+
+/* 탭 버튼 */
+.tab-btn{background:#f5f5f7;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#86868b;transition:.15s}
+.tab-btn.active{background:#007aff;color:#fff}
+.tab-btn:hover{background:#e8e8ed}
+.tab-btn.active:hover{background:#0066d6}
+
+/* 분석 */
+.analytics-grid{display:flex;flex-direction:column;gap:24px}
+.stat-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.stat-card{background:#f5f5f7;border-radius:12px;padding:20px;text-align:center}
+.stat-card .num{font-size:1.8em;font-weight:700;color:#007aff}
+.stat-card .label{font-size:.75em;color:#86868b;margin-top:4px}
+.section-title{font-size:1em;font-weight:700;margin-bottom:12px;color:#1d1d1f}
+.cat-list{display:flex;flex-direction:column;gap:6px}
+.cat-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:#f5f5f7;border-radius:10px}
+.cat-name{font-size:.88em;font-weight:600;width:120px;flex-shrink:0}
+.cat-bar{flex:1;height:24px;background:#e8e8ed;border-radius:6px;overflow:hidden}
+.cat-fill{height:100%;background:#007aff;border-radius:6px;display:flex;align-items:center;padding-left:8px;font-size:.7em;color:#fff;font-weight:600;min-width:24px}
+.cat-count{font-size:.8em;color:#86868b;width:40px;text-align:right;flex-shrink:0}
+.cat-samples{margin-top:4px;font-size:.75em;color:#86868b;line-height:1.5}
+.kw-list{display:flex;flex-wrap:wrap;gap:8px}
+.kw-tag{background:#f5f5f7;padding:6px 14px;border-radius:16px;font-size:.82em;color:#1d1d1f}
+.kw-tag .kw-count{color:#007aff;font-weight:600;margin-left:4px}
+.daily-chart{display:flex;align-items:flex-end;gap:4px;height:120px;padding:12px 0}
+.daily-bar{flex:1;background:#007aff;border-radius:4px 4px 0 0;min-width:16px;position:relative}
+.daily-bar .daily-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:.6em;color:#86868b;white-space:nowrap}
+.daily-bar .daily-num{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:.65em;color:#1d1d1f;font-weight:600}
+@media(max-width:480px){.stat-cards{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -79,11 +108,22 @@ body{font-family:'Noto Sans KR',sans-serif;background:#fff;color:#1d1d1f;min-hei
 <!-- 세션 목록 -->
 <div class="admin" id="adminPanel">
   <div class="admin-header">
-    <h1>대화 세션 목록</h1>
+    <div style="display:flex;gap:12px;align-items:center">
+      <h1 id="adminTitle">대화 세션 목록</h1>
+      <button onclick="showTab('sessions')" class="tab-btn active" id="tabSessions">대화</button>
+      <button onclick="showTab('analytics')" class="tab-btn" id="tabAnalytics">분석</button>
+    </div>
     <button onclick="doLogout()">로그아웃</button>
   </div>
-  <div id="sessionList" class="session-list"></div>
-  <div id="pagination" class="pagination"></div>
+  <div id="sessionsView">
+    <div id="sessionList" class="session-list"></div>
+    <div id="pagination" class="pagination"></div>
+  </div>
+
+  <!-- 분석 뷰 -->
+  <div id="analyticsView" style="display:none">
+    <div class="analytics-grid" id="analyticsGrid"></div>
+  </div>
 </div>
 
 <!-- 대화 상세 -->
@@ -198,6 +238,73 @@ async function loadDetail(sessionId) {
 function showList() {
   document.getElementById('detailPanel').style.display = 'none';
   document.getElementById('adminPanel').style.display = 'block';
+}
+
+function showTab(tab) {
+  document.getElementById('tabSessions').classList.toggle('active', tab==='sessions');
+  document.getElementById('tabAnalytics').classList.toggle('active', tab==='analytics');
+  document.getElementById('sessionsView').style.display = tab==='sessions' ? 'block' : 'none';
+  document.getElementById('analyticsView').style.display = tab==='analytics' ? 'block' : 'none';
+  if (tab==='analytics') loadAnalytics();
+}
+
+async function loadAnalytics() {
+  const grid = document.getElementById('analyticsGrid');
+  grid.innerHTML = '<div class="empty">분석 중...</div>';
+
+  const r = await fetch('/api/analytics?key=' + encodeURIComponent(KEY));
+  const d = await r.json();
+  if (d.error) { grid.innerHTML = '<div class="empty">오류: '+esc(d.error)+'</div>'; return; }
+
+  const s = d.summary;
+  const maxCat = Math.max(...d.categories.map(c => c.count), 1);
+  const maxDaily = Math.max(...(d.daily || []).map(x => x.count), 1);
+
+  let html = '';
+
+  // 요약 카드
+  html += `<div class="stat-cards">
+    <div class="stat-card"><div class="num">${s.total_messages}</div><div class="label">전체 메시지</div></div>
+    <div class="stat-card"><div class="num">${s.total_sessions}</div><div class="label">대화 세션</div></div>
+    <div class="stat-card"><div class="num">${s.total_users}</div><div class="label">가입 사용자</div></div>
+    <div class="stat-card"><div class="num">${s.total_questions}</div><div class="label">질문 수</div></div>
+  </div>`;
+
+  // 일별 차트
+  if (d.daily && d.daily.length > 0) {
+    html += '<div class="section-title">일별 대화 추이 (최근 14일)</div>';
+    html += '<div class="daily-chart">';
+    for (const day of d.daily.reverse()) {
+      const h = Math.max((day.count / maxDaily) * 100, 4);
+      const label = day.date ? day.date.substring(5) : '';
+      html += `<div class="daily-bar" style="height:${h}%"><span class="daily-num">${day.count}</span><span class="daily-label">${label}</span></div>`;
+    }
+    html += '</div><div style="height:24px"></div>';
+  }
+
+  // 질문 유형
+  html += '<div class="section-title">질문 유형 분석</div><div class="cat-list">';
+  for (const cat of d.categories) {
+    if (cat.count === 0) continue;
+    const w = Math.max((cat.count / maxCat) * 100, 4);
+    html += `<div class="cat-item">
+      <span class="cat-name">${esc(cat.name)}</span>
+      <div class="cat-bar"><div class="cat-fill" style="width:${w}%">${cat.count}</div></div>
+      <span class="cat-count">${cat.count}건</span>
+    </div>`;
+  }
+  html += '</div>';
+
+  // 인기 키워드
+  if (d.topKeywords && d.topKeywords.length > 0) {
+    html += '<div class="section-title" style="margin-top:24px">인기 검색 키워드</div><div class="kw-list">';
+    for (const kw of d.topKeywords) {
+      html += `<span class="kw-tag">${esc(kw.keyword)}<span class="kw-count">${kw.count}</span></span>`;
+    }
+    html += '</div>';
+  }
+
+  grid.innerHTML = html;
 }
 </script>
 </body>
