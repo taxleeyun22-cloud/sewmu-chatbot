@@ -7,92 +7,118 @@
 <meta name="description" content="대구 달서구 세무회계 이윤의 세무 칼럼. 종합소득세, 부가세, 상속세, 증여세 등 세무 정보를 알기 쉽게 안내합니다.">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Malgun Gothic',sans-serif;background:#0f1923;color:#fff}
+body{font-family:'Nanum Myeongjo','Batang','Georgia','Times New Roman',serif;background:#faf9f6;color:#2c2c2c}
 
-.header{background:linear-gradient(135deg,#1a2d4e 0%,#243b5e 100%);padding:16px 20px;display:flex;align-items:center;gap:14px;box-shadow:0 4px 20px rgba(0,0,0,.3)}
-.header img{height:42px;filter:brightness(1.1)}
-.header a{color:#fff;text-decoration:none}
-.header h1{color:#fff;font-size:1.05em;letter-spacing:.5px}
-.header p{color:rgba(255,255,255,.55);font-size:.7em;margin-top:2px}
-.chat-link{margin-left:auto;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.85);padding:7px 14px;border-radius:20px;text-decoration:none;font-size:.78em;transition:.3s;backdrop-filter:blur(4px)}
-.chat-link:hover{background:rgba(255,255,255,.18);color:#fff}
+/* 헤더 */
+.header{background:#fff;border-bottom:1px solid #e0ddd5;padding:20px 0;text-align:center}
+.header-inner{max-width:720px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:14px}
+.header img{height:36px}
+.header-text h1{font-size:1.05em;font-weight:700;color:#1a2d4e;letter-spacing:1px}
+.header-text p{font-size:.7em;color:#999;margin-top:2px;font-family:'Malgun Gothic',sans-serif}
+.chat-link{margin-left:auto;color:#1a2d4e;font-size:.78em;text-decoration:none;border:1px solid #ccc;padding:6px 16px;border-radius:4px;font-family:'Malgun Gothic',sans-serif;transition:.2s}
+.chat-link:hover{background:#1a2d4e;color:#fff;border-color:#1a2d4e}
 
-.content{max-width:800px;margin:28px auto;padding:0 20px}
-.content h2{color:rgba(255,255,255,.9);margin-bottom:20px;font-size:1.3em;font-weight:600}
+/* 메인 */
+.main{max-width:720px;margin:0 auto;padding:48px 24px 80px}
+.page-title{font-size:1.8em;font-weight:700;color:#1a1a1a;margin-bottom:8px;letter-spacing:-0.5px}
+.page-subtitle{font-size:.88em;color:#999;margin-bottom:48px;padding-bottom:32px;border-bottom:2px solid #1a2d4e;font-family:'Malgun Gothic',sans-serif}
 
-.article-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:22px 24px;margin-bottom:14px;cursor:pointer;transition:.3s;border-left:4px solid #4a6cf7;backdrop-filter:blur(4px)}
-.article-card:hover{background:rgba(74,108,247,.08);border-color:rgba(74,108,247,.2);transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,.2)}
-.article-card .title{font-size:1.02em;font-weight:600;color:rgba(255,255,255,.9);margin-bottom:6px}
-.article-card .meta{font-size:.76em;color:rgba(255,255,255,.35)}
-.article-card .cat{background:rgba(74,108,247,.15);color:#6b8cff;padding:3px 10px;border-radius:10px;font-size:.72em;margin-left:8px}
-.article-card .preview{font-size:.84em;color:rgba(255,255,255,.45);margin-top:10px;line-height:1.6}
+/* 글 목록 */
+.article-item{padding:32px 0;border-bottom:1px solid #e8e5de;cursor:pointer;transition:.2s}
+.article-item:hover{padding-left:8px}
+.article-item:first-child{padding-top:0}
+.article-item .category{font-size:.72em;color:#1a2d4e;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;font-family:'Malgun Gothic',sans-serif;font-weight:600}
+.article-item .title{font-size:1.25em;font-weight:700;color:#1a1a1a;line-height:1.5;margin-bottom:8px;letter-spacing:-0.3px}
+.article-item .preview{font-size:.9em;color:#777;line-height:1.7;margin-bottom:10px}
+.article-item .date{font-size:.75em;color:#bbb;font-family:'Malgun Gothic',sans-serif}
 
-.article-view{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:32px;display:none;backdrop-filter:blur(4px)}
-.article-view h1{font-size:1.4em;color:rgba(255,255,255,.95);margin-bottom:10px;font-weight:600}
-.article-view .meta{font-size:.82em;color:rgba(255,255,255,.35);margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.08)}
-.article-view .body{font-size:.92em;line-height:1.9;color:rgba(255,255,255,.75)}
-.article-view .body h2{font-size:1.25em;color:rgba(255,255,255,.9);margin:28px 0 14px;padding-bottom:10px;border-bottom:2px solid #4a6cf7}
-.article-view .body h3{font-size:1.05em;color:rgba(255,255,255,.85);margin:22px 0 10px}
-.article-view .body p{margin:10px 0;line-height:1.9}
-.article-view .body ul,.article-view .body ol{margin:12px 0 12px 20px;line-height:2.1}
-.article-view .body li{color:rgba(255,255,255,.7)}
-.article-view .body blockquote{background:rgba(74,108,247,.08);border-left:4px solid #4a6cf7;padding:14px 18px;margin:16px 0;color:rgba(255,255,255,.7);border-radius:0 8px 8px 0}
-.article-view .body table{width:100%;border-collapse:collapse;margin:16px 0}
-.article-view .body th{background:rgba(74,108,247,.2);color:rgba(255,255,255,.9);padding:11px 14px;text-align:left;font-size:.86em;border:1px solid rgba(255,255,255,.1)}
-.article-view .body td{padding:10px 14px;border:1px solid rgba(255,255,255,.08);font-size:.86em;color:rgba(255,255,255,.7)}
-.article-view .body tr:nth-child(even) td{background:rgba(255,255,255,.03)}
-.article-view .body hr{border:none;border-top:1px solid rgba(255,255,255,.08);margin:24px 0}
-.article-view .body .example-box{background:rgba(39,174,96,.08);border:1px solid rgba(39,174,96,.2);border-radius:10px;padding:18px;margin:16px 0}
-.article-view .body .example-box strong{color:rgba(255,255,255,.85)}
-.article-view .body .law-ref{background:rgba(74,108,247,.08);border:1px solid rgba(74,108,247,.2);border-radius:8px;padding:12px 16px;margin-top:24px;font-size:.82em;color:#6b8cff}
+/* 글 상세 */
+.article-view{display:none}
+.back-btn{background:none;border:none;color:#999;cursor:pointer;font-size:.85em;margin-bottom:32px;padding:0;font-family:'Malgun Gothic',sans-serif;transition:.2s}
+.back-btn:hover{color:#1a2d4e}
+.article-view .view-category{font-size:.72em;color:#1a2d4e;text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;font-family:'Malgun Gothic',sans-serif;font-weight:600}
+.article-view .view-title{font-size:1.8em;font-weight:700;color:#1a1a1a;line-height:1.4;margin-bottom:12px;letter-spacing:-0.5px}
+.article-view .view-meta{font-size:.82em;color:#bbb;margin-bottom:36px;padding-bottom:28px;border-bottom:1px solid #e8e5de;font-family:'Malgun Gothic',sans-serif}
+.article-view .view-meta .author{color:#555}
+.article-view .body{font-size:1.02em;line-height:2;color:#3a3a3a}
+.article-view .body h2{font-size:1.3em;color:#1a1a1a;margin:40px 0 16px;padding-bottom:12px;border-bottom:1px solid #e8e5de;font-weight:700;letter-spacing:-0.3px}
+.article-view .body h3{font-size:1.1em;color:#2c2c2c;margin:32px 0 12px;font-weight:700}
+.article-view .body p{margin:14px 0;line-height:2}
+.article-view .body ul,.article-view .body ol{margin:16px 0 16px 24px;line-height:2.2}
+.article-view .body li{margin:4px 0}
+.article-view .body blockquote{background:none;border-left:3px solid #1a2d4e;padding:4px 0 4px 20px;margin:24px 0;color:#555;font-style:italic;font-size:1.02em;line-height:1.9}
+.article-view .body table{width:100%;border-collapse:collapse;margin:24px 0}
+.article-view .body th{background:#1a2d4e;color:#fff;padding:12px 16px;text-align:left;font-size:.88em;font-family:'Malgun Gothic',sans-serif;font-weight:600}
+.article-view .body td{padding:11px 16px;border-bottom:1px solid #e8e5de;font-size:.92em;color:#444}
+.article-view .body tr:last-child td{border-bottom:none}
+.article-view .body hr{border:none;border-top:1px solid #e8e5de;margin:32px 0}
+.article-view .body .example-box{background:#f5f4f0;border:none;border-radius:0;padding:24px;margin:24px 0;border-left:3px solid #c9a96e}
+.article-view .body .example-box strong{color:#1a1a1a}
+.article-view .body .law-ref{background:none;border:none;border-top:1px solid #e8e5de;padding:20px 0 0;margin-top:40px;font-size:.85em;color:#999;font-family:'Malgun Gothic',sans-serif}
 
-.back-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.7);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:.85em;margin-bottom:16px;transition:.3s}
-.back-btn:hover{background:rgba(255,255,255,.12)}
-.empty{text-align:center;color:rgba(255,255,255,.3);padding:60px 20px}
+/* 푸터 */
+.footer{text-align:center;padding:40px 24px;color:#ccc;font-size:.75em;border-top:1px solid #e8e5de;margin-top:48px;font-family:'Malgun Gothic',sans-serif}
+.footer a{color:#999;text-decoration:none}
+
+.empty{text-align:center;color:#bbb;padding:80px 20px;font-size:1em}
 
 @media(max-width:600px){
-    .header img{height:34px}
-    .content{padding:0 14px;margin:20px auto}
-    .article-card{padding:16px 18px}
-    .article-view{padding:22px}
+    .main{padding:32px 18px 60px}
+    .page-title{font-size:1.4em}
+    .article-item .title{font-size:1.1em}
+    .article-view .view-title{font-size:1.4em}
+    .article-view .body{font-size:.95em}
+    .header-inner{padding:0 16px}
 }
 </style>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
 <div class="header">
-    <a href="/"><img src="logo.png" alt="세무회계 이윤"></a>
-    <div>
-        <h1><a href="/articles.html">세무 칼럼</a></h1>
-        <p>세무회계 이윤</p>
+    <div class="header-inner">
+        <a href="/"><img src="logo.png" alt="세무회계 이윤"></a>
+        <div class="header-text">
+            <h1>세무 칼럼</h1>
+            <p>Tax Column by 세무회계 이윤</p>
+        </div>
+        <a href="/" class="chat-link">AI 상담</a>
     </div>
-    <a href="/" class="chat-link">AI 상담하기</a>
 </div>
-<div class="content">
+
+<div class="main">
     <div id="listView">
-        <h2>세무 칼럼</h2>
+        <div class="page-title">세무 칼럼</div>
+        <div class="page-subtitle">세무회계 이윤 대표세무사 이재윤이 전하는 세무 이야기</div>
         <div id="articleList"></div>
     </div>
+
     <div id="detailView" class="article-view">
-        <button class="back-btn" onclick="showList()">← 목록으로</button>
-        <h1 id="viewTitle"></h1>
-        <div class="meta" id="viewMeta"></div>
+        <button class="back-btn" onclick="showList()">← 목록으로 돌아가기</button>
+        <div class="view-category" id="viewCategory"></div>
+        <div class="view-title" id="viewTitle"></div>
+        <div class="view-meta"><span class="author">세무회계 이윤 · 대표세무사 이재윤</span> · <span id="viewDate"></span></div>
         <div class="body" id="viewBody"></div>
+        <div class="footer">
+            <p>세무회계 이윤 | 대구광역시 달서구 와룡로 221 4층</p>
+            <p style="margin-top:4px"><a href="tel:053-269-1213">053-269-1213</a></p>
+        </div>
     </div>
 </div>
+
 <script>
 async function loadList() {
     const res = await fetch("/articles/index.json");
     const articles = await res.json();
     const list = document.getElementById("articleList");
     if (!articles || articles.length === 0) {
-        list.innerHTML = '<div class="empty">아직 등록된 칼럼이 없습니다</div>';
+        list.innerHTML = '<div class="empty">준비 중입니다.</div>';
         return;
     }
     list.innerHTML = "";
     for (const a of articles) {
         const div = document.createElement("div");
-        div.className = "article-card";
-        div.innerHTML = `<div class="title">${a.title}<span class="cat">${a.category}</span></div><div class="meta">${a.date}</div><div class="preview">${a.preview || ""}</div>`;
+        div.className = "article-item";
+        div.innerHTML = `<div class="category">${a.category}</div><div class="title">${a.title}</div><div class="preview">${a.preview || ""}</div><div class="date">${a.date}</div>`;
         div.onclick = () => showDetail(a.file, a.title, a.category, a.date);
         list.appendChild(div);
     }
@@ -100,8 +126,9 @@ async function loadList() {
 async function showDetail(file, title, category, date) {
     const res = await fetch("/articles/" + file);
     const text = await res.text();
+    document.getElementById("viewCategory").textContent = category;
     document.getElementById("viewTitle").textContent = title;
-    document.getElementById("viewMeta").textContent = category + " | " + date;
+    document.getElementById("viewDate").textContent = date;
     document.getElementById("viewBody").innerHTML = text;
     document.getElementById("listView").style.display = "none";
     document.getElementById("detailView").style.display = "block";
@@ -110,6 +137,7 @@ async function showDetail(file, title, category, date) {
 function showList() {
     document.getElementById("listView").style.display = "block";
     document.getElementById("detailView").style.display = "none";
+    window.scrollTo(0, 0);
 }
 loadList();
 </script>
