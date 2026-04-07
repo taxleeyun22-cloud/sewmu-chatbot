@@ -125,6 +125,51 @@ async function searchTaxRulings(keywords) {
   } catch { return ""; }
 }
 
+// ===== 판례 검색 =====
+async function searchPrecedents(keywords) {
+  try {
+    const query = keywords.slice(0, 2).join(" ");
+    const url = `https://www.law.go.kr/DRF/lawSearch.do?OC=test&target=prec&type=JSON&query=${encodeURIComponent(query)}&display=3`;
+    const res = await fetch(url);
+    const text = await res.text();
+    let results = [];
+    try {
+      const data = JSON.parse(text);
+      const precData = data.PrecSearch || data.LawSearch || data;
+      const items = precData.prec || precData.law || [];
+      const arr = Array.isArray(items) ? items : [items];
+
+      for (const item of arr.slice(0, 3)) {
+        const caseName = item.사건명 || "";
+        const caseNum = item.사건번호 || "";
+        const court = item.법원명 || "";
+        const date = item.선고일자 || "";
+        const serialNum = item.판례일련번호 || "";
+
+        if (!caseName) continue;
+
+        // 판례 본문 요약 가져오기
+        let summary = "";
+        if (serialNum) {
+          try {
+            const detailUrl = `https://www.law.go.kr/DRF/lawService.do?OC=test&target=prec&ID=${serialNum}&type=JSON`;
+            const detailRes = await fetch(detailUrl);
+            const detailText = await detailRes.text();
+            const detailData = JSON.parse(detailText);
+            const precDetail = detailData.판례정보 || detailData;
+            summary = (precDetail.판례내용 || precDetail.요지 || precDetail.판시사항 || "").substring(0, 300);
+          } catch {}
+        }
+
+        let entry = `[${court} ${caseNum}] ${caseName} (${date})`;
+        if (summary) entry += `\n요지: ${summary}`;
+        results.push(entry);
+      }
+    } catch {}
+    return results.length ? "\n\n[관련 판례]\n" + results.join("\n\n") : "";
+  } catch { return ""; }
+}
+
 function extractArticlesFromJSON(data, keywords) {
   let articles = [];
   try {
@@ -204,12 +249,13 @@ export async function onRequestPost(context) {
       searchLawArticles(lawName, keywords || []).then((a) => a ? `\n\n[${lawName}]\n${a}` : "")
     );
     const expcPromise = search_expc ? searchTaxRulings(keywords || []) : Promise.resolve("");
+    const precPromise = searchPrecedents(keywords || []);
 
     // 칼럼 검색
     const baseUrl = new URL(context.request.url).origin;
     const columnPromise = searchColumns(question, keywords || [], baseUrl);
 
-    const results = await Promise.all([...lawPromises, expcPromise, columnPromise]);
+    const results = await Promise.all([...lawPromises, expcPromise, precPromise, columnPromise]);
     const lawContext = results.filter(Boolean).join("");
 
     // 3단계: GPT 답변
@@ -228,6 +274,7 @@ export async function onRequestPost(context) {
 1. 반드시 아래 제공된 실제 법령 조문을 근거로 답변해. 법령에 없는 내용을 지어내지 마.
 2. 답변에 "근거: OO법 제X조 제X항" 형태로 법령 근거를 반드시 명시해.
 3. 시행령에 구체적 금액/기준이 있으면 시행령 조문도 반드시 인용해.
+4. 관련 판례가 있으면 "참고 판례: OO법원 XXXX-XXXX" 형태로 언급해.
 4. 법령 조문이 제공되지 않은 내용은 추측하지 말고 "정확한 상담은 세무회계 이윤에 문의해 주세요"로 안내해.
 5. 전문용어는 쉽게 풀어서 설명해. 거래처 사장님들이 이해할 수 있는 수준으로.
 6. 항상 한국어로, 존댓말로 답변해.
