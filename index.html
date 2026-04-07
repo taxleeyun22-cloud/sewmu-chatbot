@@ -505,7 +505,15 @@ function renderTaxAlerts(){
   }
 }
 
-if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').then(function(reg){
+    reg.update();
+  });
+  // 새 SW 활성화되면 자동 새로고침
+  navigator.serviceWorker.addEventListener('controllerchange',function(){
+    location.reload();
+  });
+}
 </script>
 </body>
 </html>
