@@ -152,6 +152,38 @@ function extractArticlesFromText(text, keywords) {
   return result.slice(0, 3).join("\n\n");
 }
 
+// ===== 칼럼 검색 (JSON 파일 기반) =====
+async function searchColumns(question, keywords, baseUrl) {
+  try {
+    const res = await fetch(baseUrl + "/articles/index.json");
+    if (!res.ok) return "";
+    const articles = await res.json();
+
+    let matched = [];
+    for (const a of articles) {
+      const titleMatch = keywords.some(kw => a.title.includes(kw));
+      const previewMatch = keywords.some(kw => (a.preview || "").includes(kw));
+      if (titleMatch || previewMatch) {
+        // 본문 가져오기
+        try {
+          const contentRes = await fetch(baseUrl + "/articles/" + a.file);
+          if (contentRes.ok) {
+            let content = await contentRes.text();
+            // HTML 태그 제거
+            content = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            matched.push(`[${a.title}]\n${content.substring(0, 500)}`);
+          }
+        } catch {}
+      }
+    }
+
+    if (matched.length === 0) return "";
+    return "\n\n[세무회계 이윤 칼럼]\n" + matched.slice(0, 2).join("\n\n");
+  } catch {
+    return "";
+  }
+}
+
 // ===== 메인 핸들러 =====
 export async function onRequestPost(context) {
   const apiKey = context.env.OPENAI_API_KEY;
@@ -173,7 +205,11 @@ export async function onRequestPost(context) {
     );
     const expcPromise = search_expc ? searchTaxRulings(keywords || []) : Promise.resolve("");
 
-    const results = await Promise.all([...lawPromises, expcPromise]);
+    // 칼럼 검색
+    const baseUrl = new URL(context.request.url).origin;
+    const columnPromise = searchColumns(question, keywords || [], baseUrl);
+
+    const results = await Promise.all([...lawPromises, expcPromise, columnPromise]);
     const lawContext = results.filter(Boolean).join("");
 
     // 3단계: GPT 답변
