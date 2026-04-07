@@ -1,6 +1,6 @@
 {
-  "name": "세무보살 - AI 세무 상담",
-  "short_name": "세무보살",
+  "name": "세무회계 이윤 - AI 세무 상담",
+  "short_name": "세무회계 이윤",
   "description": "세무회계 이윤의 AI 세무 상담 서비스",
   "start_url": "/",
   "display": "standalone",
