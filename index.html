@@ -24,7 +24,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Malgun Gothic',
 .msg{display:flex;gap:8px;max-width:76%;animation:fadeIn .35s ease}
 .msg-ai{align-self:flex-start}
 .msg-user{align-self:flex-end;flex-direction:row-reverse}
-.msg-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.6em;flex-shrink:0;font-weight:600;background:linear-gradient(135deg,#1a2d4e,#2c4a7c);color:#fff}
+.msg-avatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;overflow:hidden}
+.msg-avatar img{width:100%;height:100%;object-fit:cover}
 .msg-user .msg-avatar{display:none}
 .msg-content{display:flex;flex-direction:column;gap:2px}
 .msg-ai .msg-name{font-size:.65em;color:#86868b;margin-bottom:1px;margin-left:4px;font-weight:500}
@@ -68,8 +69,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Malgun Gothic',
 
 /* 웰컴 */
 .welcome{text-align:center;padding:60px 24px}
-.welcome-icon{width:56px;height:56px;background:linear-gradient(135deg,#1a2d4e,#2c4a7c);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;box-shadow:0 4px 12px rgba(26,45,78,.25)}
-.welcome-icon img{height:30px;border-radius:6px}
+.welcome-icon{width:100px;height:100px;background:#fff;border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;box-shadow:0 2px 12px rgba(0,0,0,.06)}
+.welcome-icon img{height:100%;width:100%;object-fit:contain;padding:6px}
 .welcome h2{color:#1d1d1f;margin-bottom:8px;font-size:1.15em;font-weight:600;letter-spacing:-.3px}
 .welcome p{font-size:.84em;line-height:1.55;color:#86868b;font-weight:400}
 
@@ -99,7 +100,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Malgun Gothic',
 
 <div class="chat-area" id="chatArea">
     <div class="welcome">
-        <div class="welcome-icon"><img src="logo.png" alt=""></div>
+        <div class="welcome-icon"><img src="logo-vertical.jpg" alt="세무회계 이윤"></div>
         <h2>무엇이든 물어보세요</h2>
         <p>종합소득세, 양도소득세, 상속세, 증여세,<br>부가세, 법인세 등 세무 상담을 도와드립니다.</p>
     </div>
@@ -142,7 +143,7 @@ function addMessage(role, content) {
     if (role === "user") {
         div.innerHTML = `<div class="msg-content"><div class="msg-bubble">${escapeHtml(content)}</div></div>`;
     } else {
-        div.innerHTML = `<div class="msg-avatar">이윤</div><div class="msg-content"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble">${escapeHtml(content)}</div></div>`;
+        div.innerHTML = `<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-content"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble">${escapeHtml(content)}</div></div>`;
     }
     chatArea.appendChild(div);
     chatArea.scrollTop = chatArea.scrollHeight;
