@@ -12,18 +12,19 @@ export async function onRequestGet(context) {
     return Response.json({ error: "DB not configured" }, { status: 500 });
   }
 
-  const sessionId = url.searchParams.get("session");
-  if (!sessionId) {
+  const groupId = url.searchParams.get("session");
+  if (!groupId) {
     return Response.json({ error: "session parameter required" }, { status: 400 });
   }
 
   try {
+    // user_id 또는 session_id로 조회
     const { results } = await db.prepare(`
-      SELECT id, session_id, role, content, created_at
+      SELECT id, session_id, user_id, role, content, created_at
       FROM conversations
-      WHERE session_id = ?
+      WHERE user_id = ? OR session_id = ?
       ORDER BY created_at ASC
-    `).bind(sessionId).all();
+    `).bind(groupId, groupId).all();
 
     return Response.json({ messages: results });
   } catch (e) {

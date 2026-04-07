@@ -147,7 +147,7 @@ async function loadSessions(page) {
       ? `<img src="${esc(s.user_profile_image)}" alt="">`
       : `<span class="initials">${hasUser ? esc(s.user_name[0]) : '?'}</span>`;
     return `
-    <div class="session-item" onclick="loadDetail('${esc(s.session_id)}')">
+    <div class="session-item" onclick="loadDetail('${esc(s.group_id || s.session_id)}')">
       <div class="session-avatar">${avatar}</div>
       <div class="session-info">
         <div class="session-user">${displayName}${phone ? ' ('+phone+')' : ''}</div>

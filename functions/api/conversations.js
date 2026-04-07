@@ -44,25 +44,27 @@ export async function onRequestGet(context) {
       UNIQUE(provider, provider_id)
     )`).run();
 
+    // user_id 기준으로 묶어서 표시 (같은 사용자는 하나로)
     const { results } = await db.prepare(`
       SELECT
-        c.session_id,
-        MIN(c.created_at) as started_at,
-        COUNT(*) as message_count,
+        COALESCE(c.user_id, c.session_id) as group_id,
         c.user_id,
+        MIN(c.created_at) as started_at,
+        MAX(c.created_at) as last_at,
+        COUNT(*) as message_count,
         u.name as user_name,
         u.email as user_email,
         u.provider as user_provider,
         u.profile_image as user_profile_image
       FROM conversations c
       LEFT JOIN users u ON c.user_id = u.id
-      GROUP BY c.session_id
+      GROUP BY COALESCE(c.user_id, c.session_id)
       ORDER BY MAX(c.created_at) DESC
       LIMIT ? OFFSET ?
     `).bind(limit, offset).all();
 
     const countResult = await db.prepare(
-      `SELECT COUNT(DISTINCT session_id) as total FROM conversations`
+      `SELECT COUNT(DISTINCT COALESCE(user_id, session_id)) as total FROM conversations`
     ).first();
 
     return Response.json({
