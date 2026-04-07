@@ -17,6 +17,16 @@ export async function onRequestGet(context) {
   const offset = (page - 1) * limit;
 
   try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
+
     const { results } = await db.prepare(`
       SELECT
         session_id,
