@@ -119,6 +119,7 @@ const SYSTEM_PROMPT = `너는 대구 달서구 세무회계 이윤의 AI 세무 
 
 let messages = [{ role: "system", content: SYSTEM_PROMPT }];
 let isLoading = false;
+const sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
 
 function addMessage(role, content) {
     const chatArea = document.getElementById("chatArea");
@@ -176,7 +177,7 @@ async function sendMessage() {
         const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: messages })
+            body: JSON.stringify({ messages: messages, sessionId: sessionId })
         });
 
         if (!res.ok) {
