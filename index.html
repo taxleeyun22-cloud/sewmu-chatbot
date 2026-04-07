@@ -79,6 +79,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
 .welcome h2{font-size:1.5em;font-weight:700;letter-spacing:-.5px;color:var(--text);margin-bottom:10px}
 .welcome p{font-size:.95em;color:var(--text2);line-height:1.55;font-weight:400}
 
+/* ── 로그인 화면 ── */
+.login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:40px 20px;text-align:center}
+.login-screen .welcome-logo{width:120px;margin-bottom:28px}
+.login-screen .welcome-logo img{width:100%;height:auto}
+.login-screen h2{font-size:1.5em;font-weight:700;letter-spacing:-.5px;color:var(--text);margin-bottom:10px}
+.login-screen p{font-size:.95em;color:var(--text2);line-height:1.55;margin-bottom:36px}
+.login-buttons{display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px}
+.login-btn{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 20px;border:none;border-radius:12px;font-size:.92em;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;text-decoration:none;color:#fff}
+.login-btn:active{transform:scale(.97)}
+.login-btn.kakao{background:#FEE500;color:#000}
+.login-btn.naver{background:#03C75A;color:#fff}
+.login-btn svg{width:20px;height:20px;flex-shrink:0}
+
+/* ── 사용자 정보 ── */
+.user-info{display:flex;align-items:center;gap:8px;margin-left:auto}
+.user-avatar{width:28px;height:28px;border-radius:50%;overflow:hidden}
+.user-avatar img{width:100%;height:100%;object-fit:cover}
+.user-name{font-size:.78em;color:var(--text2);font-weight:500;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.logout-btn{font-size:.75em;color:var(--text2);text-decoration:none;padding:4px 10px;border-radius:12px;transition:.15s}
+.logout-btn:hover{background:rgba(0,0,0,.05)}
+
 /* ── 모바일 ── */
 @media(max-width:480px){
     .msg{max-width:82%}
@@ -87,6 +108,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
     .welcome{padding:60px 24px 32px}
     .welcome-logo{width:100px}
     .welcome h2{font-size:1.3em}
+    .login-screen h2{font-size:1.3em}
+    .login-screen .welcome-logo{width:100px}
+    .user-name{display:none}
 }
 </style>
 </head>
@@ -95,9 +119,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
 <div class="header">
     <img src="logo.png" alt="세무회계 이윤" class="header-logo">
     <div class="header-right"><a href="/articles.html">칼럼</a></div>
+    <div class="user-info" id="userInfo" style="display:none">
+        <div class="user-avatar" id="userAvatar"></div>
+        <span class="user-name" id="userName"></span>
+        <a href="/api/auth/logout" class="logout-btn">로그아웃</a>
+    </div>
 </div>
 
-<div class="chat-area" id="chatArea">
+<!-- 로그인 화면 -->
+<div class="login-screen" id="loginScreen" style="display:none">
+    <div class="welcome-logo"><img src="logo-vertical.png" alt="세무회계 이윤"></div>
+    <h2>AI 세무 상담</h2>
+    <p>로그인 후 세무 상담을 이용하실 수 있습니다</p>
+    <div class="login-buttons">
+        <a class="login-btn kakao" id="kakaoLoginBtn">
+            <svg viewBox="0 0 24 24"><path fill="#000" d="M12 3C6.48 3 2 6.36 2 10.44c0 2.62 1.75 4.93 4.38 6.24l-1.12 4.16c-.1.36.32.65.64.44l4.94-3.26c.38.04.76.06 1.16.06 5.52 0 10-3.36 10-7.64C22 6.36 17.52 3 12 3z"/></svg>
+            카카오 로그인
+        </a>
+        <a class="login-btn naver" id="naverLoginBtn">
+            <svg viewBox="0 0 24 24"><path fill="#fff" d="M16.27 3H7.73A4.73 4.73 0 003 7.73v8.54A4.73 4.73 0 007.73 21h8.54A4.73 4.73 0 0021 16.27V7.73A4.73 4.73 0 0016.27 3zm.46 12.7l-3.58-5.17v5.17h-2.3V8.3h2.45l3.58 5.17V8.3h2.3v7.4h-2.45z"/></svg>
+            네이버 로그인
+        </a>
+    </div>
+</div>
+
+<div class="chat-area" id="chatArea" style="display:none">
     <div class="welcome">
         <div class="welcome-logo"><img src="logo-vertical.png" alt="세무회계 이윤"></div>
         <h2>무엇이든 물어보세요</h2>
@@ -105,14 +151,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
     </div>
 </div>
 
-<div class="quick" id="quickArea">
+<div class="quick" id="quickArea" style="display:none">
     <button onclick="askQuick(this)">사업 처음 시작하려면?</button>
     <button onclick="askQuick(this)">부가세 신고 기한</button>
     <button onclick="askQuick(this)">폐업 후 세금 신고</button>
     <button onclick="askQuick(this)">연금저축 세액공제</button>
 </div>
 
-<div class="cta-bar">
+<div class="cta-bar" id="ctaBar" style="display:none">
     <a href="tel:053-269-1213">
         <div class="cta-icon"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg></div>
         <span class="cta-text">구체적인 적용은 세무회계 이윤에 문의해 주세요</span>
@@ -120,7 +166,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
     </a>
 </div>
 
-<div class="input-bar">
+<div class="input-bar" id="inputBar" style="display:none">
     <input type="text" id="userInput" placeholder="메시지 보내기" onkeydown="if(event.key==='Enter')sendMessage()">
     <button class="send" id="sendBtn" onclick="sendMessage()">
         <svg viewBox="0 0 24 24"><path d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a.993.993 0 00-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z"/></svg>
@@ -132,6 +178,74 @@ const S=`세무회계 이윤 AI`;
 let messages=[{role:"system",content:S}];
 let loading=false;
 const sid='s_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+let currentUser=null;
+
+// 로그인 상태 체크
+async function checkAuth(){
+    try{
+        const r=await fetch('/api/auth/me');
+        const d=await r.json();
+        if(d.logged_in){
+            currentUser=d.user;
+            showChat();
+        }else{
+            showLogin();
+        }
+    }catch{showLogin()}
+}
+
+function showLogin(){
+    document.getElementById('loginScreen').style.display='flex';
+    document.getElementById('chatArea').style.display='none';
+    document.getElementById('quickArea').style.display='none';
+    document.getElementById('ctaBar').style.display='none';
+    document.getElementById('inputBar').style.display='none';
+    document.getElementById('userInfo').style.display='none';
+
+    // OAuth 로그인 URL 설정
+    const origin=location.origin;
+    const kakaoBtn=document.getElementById('kakaoLoginBtn');
+    const naverBtn=document.getElementById('naverLoginBtn');
+
+    // 카카오 로그인 URL (KAKAO_CLIENT_ID는 환경변수에서 가져와야 하므로 API로 처리)
+    kakaoBtn.href='javascript:void(0)';
+    naverBtn.href='javascript:void(0)';
+
+    kakaoBtn.onclick=async function(){
+        const r=await fetch('/api/auth/config');
+        const c=await r.json();
+        const url='https://kauth.kakao.com/oauth/authorize?client_id='+c.kakao_client_id+'&redirect_uri='+encodeURIComponent(origin+'/api/auth/kakao')+'&response_type=code&scope=profile_nickname,account_email,phone_number';
+        location.href=url;
+    };
+    naverBtn.onclick=async function(){
+        const r=await fetch('/api/auth/config');
+        const c=await r.json();
+        const state=Math.random().toString(36).slice(2);
+        const url='https://nid.naver.com/oauth2.0/authorize?client_id='+c.naver_client_id+'&redirect_uri='+encodeURIComponent(origin+'/api/auth/naver')+'&response_type=code&state='+state;
+        location.href=url;
+    };
+}
+
+function showChat(){
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('chatArea').style.display='flex';
+    document.getElementById('quickArea').style.display='flex';
+    document.getElementById('ctaBar').style.display='block';
+    document.getElementById('inputBar').style.display='flex';
+
+    // 사용자 정보 표시
+    const info=document.getElementById('userInfo');
+    info.style.display='flex';
+    const avatar=document.getElementById('userAvatar');
+    if(currentUser.profile_image){
+        avatar.innerHTML='<img src="'+currentUser.profile_image+'" alt="">';
+    }else{
+        avatar.innerHTML='<div style="width:100%;height:100%;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.7em;font-weight:600">'+((currentUser.name||'?')[0])+'</div>';
+    }
+    document.getElementById('userName').textContent=currentUser.name||'';
+}
+
+checkAuth();
 
 function add(role,text){
     const c=document.getElementById("chatArea");

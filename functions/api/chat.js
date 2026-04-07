@@ -17,22 +17,54 @@ function checkRateLimit(ip) {
 
 // ===== D1 DB 대화 저장 =====
 async function initDB(db) {
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS conversations (
+  await db.batch([
+    db.prepare(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT NOT NULL,
+      provider_id TEXT NOT NULL,
+      name TEXT,
+      email TEXT,
+      phone TEXT,
+      profile_image TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      last_login_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(provider, provider_id)
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      expires_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       session_id TEXT NOT NULL,
+      user_id INTEGER,
       role TEXT NOT NULL,
       content TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
-    )
-  `).run();
+    )`)
+  ]);
 }
 
-async function saveMessage(db, sessionId, role, content) {
+async function getUserFromSession(db, cookieHeader) {
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(/session=([^;]+)/);
+  if (!match) return null;
+  try {
+    const session = await db.prepare(`
+      SELECT s.user_id FROM sessions s
+      WHERE s.token = ? AND s.expires_at > datetime('now')
+    `).bind(match[1]).first();
+    return session ? session.user_id : null;
+  } catch { return null; }
+}
+
+async function saveMessage(db, sessionId, role, content, userId) {
   try {
     await db.prepare(
-      `INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)`
-    ).bind(sessionId, role, content).run();
+      `INSERT INTO conversations (session_id, user_id, role, content) VALUES (?, ?, ?, ?)`
+    ).bind(sessionId, userId || null, role, content).run();
   } catch (e) {
     console.error("DB saveMessage error:", e);
   }
@@ -286,6 +318,10 @@ export async function onRequestPost(context) {
     try { await initDB(db); } catch (e) { console.error("DB init error:", e); }
   }
 
+  // 로그인 사용자 확인
+  const cookieHeader = context.request.headers.get("Cookie");
+  const userId = db ? await getUserFromSession(db, cookieHeader) : null;
+
   try {
     const body = await context.request.json();
     const userMessages = body.messages || [];
@@ -382,8 +418,8 @@ ${lawContext ? "\n\n===== 참고 법령 조문 =====" + lawContext : "\n\n(관�
     // DB에 대화 저장 (optional)
     if (db && data.choices && data.choices[0]) {
       try {
-        await saveMessage(db, sessionId, "user", question);
-        await saveMessage(db, sessionId, "assistant", data.choices[0].message.content);
+        await saveMessage(db, sessionId, "user", question, userId);
+        await saveMessage(db, sessionId, "assistant", data.choices[0].message.content, userId);
       } catch (e) { console.error("DB save error:", e); }
     }
 
