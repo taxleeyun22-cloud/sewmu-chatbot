@@ -43,7 +43,6 @@ export async function onRequestGet(context) {
       redirect_uri: redirectUri,
       code: code,
     };
-    if (clientSecret) tokenParams.client_secret = clientSecret;
 
     const tokenRes = await fetch("https://kauth.kakao.com/oauth/token", {
       method: "POST",
@@ -52,7 +51,7 @@ export async function onRequestGet(context) {
     });
     const tokenData = await tokenRes.json();
     if (!tokenData.access_token) {
-      return new Response("토큰 발급 실패: " + JSON.stringify(tokenData), { status: 400 });
+      return new Response("토큰 발급 실패: " + JSON.stringify(tokenData) + " | client_id: " + clientId + " | redirect_uri: " + redirectUri, { status: 400 });
     }
 
     // 2. 사용자 정보 조회
