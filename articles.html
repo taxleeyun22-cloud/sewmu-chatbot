@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>세무 칼럼 - 세무회계 이윤</title>
+<meta name="description" content="대구 달서구 세무회계 이윤의 세무 칼럼. 종합소득세, 부가세, 상속세, 증여세 등 세무 정보를 알기 쉽게 안내합니다.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Malgun Gothic',sans-serif;background:#f0f2f5;color:#333}
+.header{background:#1a2d4e;padding:14px 20px;display:flex;align-items:center;gap:12px}
+.header img{height:44px}
+.header a{color:#fff;text-decoration:none}
+.header h1{color:#fff;font-size:1.1em}
+.header p{color:rgba(255,255,255,.7);font-size:.72em}
+.header .chat-link{margin-left:auto;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:.82em}
+.content{max-width:800px;margin:24px auto;padding:0 20px}
+.content h2{color:#1a2d4e;margin-bottom:16px;font-size:1.3em}
+.article-card{background:#fff;border-radius:10px;padding:20px 24px;margin-bottom:12px;cursor:pointer;transition:.2s;border-left:4px solid #4a6cf7}
+.article-card:hover{box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.article-card .title{font-size:1.05em;font-weight:600;color:#1a2d4e;margin-bottom:4px}
+.article-card .meta{font-size:.78em;color:#888}
+.article-card .cat{background:#eef1ff;color:#4a6cf7;padding:2px 8px;border-radius:4px;font-size:.75em;margin-left:8px}
+.article-card .preview{font-size:.85em;color:#666;margin-top:8px;line-height:1.5}
+.article-view{background:#fff;border-radius:10px;padding:28px;display:none}
+.article-view h1{font-size:1.4em;color:#1a2d4e;margin-bottom:8px}
+.article-view .meta{font-size:.82em;color:#888;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #eee}
+.article-view .body{font-size:.92em;line-height:1.8;white-space:pre-wrap}
+.back-btn{background:none;border:1px solid #ddd;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.85em;margin-bottom:16px}
+.empty{text-align:center;color:#888;padding:40px}
+@media(max-width:600px){
+    .header img{height:36px}
+    .content{padding:0 12px}
+    .article-card{padding:16px}
+}
+</style>
+</head>
+<body>
+<div class="header">
+    <a href="/"><img src="logo.png" alt="세무회계 이윤"></a>
+    <div>
+        <h1><a href="/articles.html">세무 칼럼</a></h1>
+        <p>세무회계 이윤</p>
+    </div>
+    <a href="/" class="chat-link">AI 상담하기</a>
+</div>
+<div class="content">
+    <div id="listView">
+        <h2>세무 칼럼</h2>
+        <div id="articleList"></div>
+    </div>
+    <div id="detailView" class="article-view">
+        <button class="back-btn" onclick="showList()">목록으로</button>
+        <h1 id="viewTitle"></h1>
+        <div class="meta" id="viewMeta"></div>
+        <div class="body" id="viewBody"></div>
+    </div>
+</div>
+<script>
+// articles/index.json 에서 글 목록 로드
+async function loadList() {
+    const res = await fetch("/articles/index.json");
+    const articles = await res.json();
+    const list = document.getElementById("articleList");
+    if (!articles || articles.length === 0) {
+        list.innerHTML = '<div class="empty">아직 등록된 칼럼이 없습니다</div>';
+        return;
+    }
+    list.innerHTML = "";
+    for (const a of articles) {
+        const div = document.createElement("div");
+        div.className = "article-card";
+        div.innerHTML = `<div class="title">${a.title}<span class="cat">${a.category}</span></div><div class="meta">${a.date}</div><div class="preview">${a.preview || ""}</div>`;
+        div.onclick = () => showDetail(a.file, a.title, a.category, a.date);
+        list.appendChild(div);
+    }
+}
+async function showDetail(file, title, category, date) {
+    const res = await fetch("/articles/" + file);
+    const text = await res.text();
+    document.getElementById("viewTitle").textContent = title;
+    document.getElementById("viewMeta").textContent = category + " | " + date;
+    document.getElementById("viewBody").textContent = text;
+    document.getElementById("listView").style.display = "none";
+    document.getElementById("detailView").style.display = "block";
+}
+function showList() {
+    document.getElementById("listView").style.display = "block";
+    document.getElementById("detailView").style.display = "none";
+}
+loadList();
+</script>
+</body>
+</html>
