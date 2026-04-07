@@ -445,7 +445,7 @@ function checkTaxAlerts(){
     const key=d.name+'_'+d.date.getTime();
     if(dismissed[key]) continue;
     const diff=Math.ceil((d.date-today)/(1000*60*60*24));
-    if(diff>=0 && diff<=2){
+    if(diff>=0 && diff<=3){
       const dday=diff===0?'오늘 마감':diff===1?'내일 마감':diff+'일 남음';
       const mm=d.date.getMonth()+1;
       const dd=d.date.getDate();
