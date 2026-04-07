@@ -5,73 +5,73 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>세무 칼럼 - 세무회계 이윤</title>
 <meta name="description" content="대구 달서구 세무회계 이윤의 세무 칼럼. 종합소득세, 부가세, 상속세, 증여세 등 세무 정보를 알기 쉽게 안내합니다.">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Nanum Myeongjo','Batang','Georgia','Times New Roman',serif;background:#faf9f6;color:#2c2c2c}
+body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;background:#fff;color:#222;-webkit-font-smoothing:antialiased}
 
 /* 헤더 */
-.header{background:#fff;border-bottom:1px solid #e0ddd5;padding:20px 0;text-align:center}
-.header-inner{max-width:720px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:14px}
-.header img{height:36px}
-.header-text h1{font-size:1.05em;font-weight:700;color:#1a2d4e;letter-spacing:1px}
-.header-text p{font-size:.7em;color:#999;margin-top:2px;font-family:'Malgun Gothic',sans-serif}
-.chat-link{margin-left:auto;color:#1a2d4e;font-size:.78em;text-decoration:none;border:1px solid #ccc;padding:6px 16px;border-radius:4px;font-family:'Malgun Gothic',sans-serif;transition:.2s}
-.chat-link:hover{background:#1a2d4e;color:#fff;border-color:#1a2d4e}
+.header{border-bottom:1px solid #eee;padding:16px 0}
+.header-inner{max-width:680px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:14px}
+.header img{height:32px}
+.header-text h1{font-size:.95em;font-weight:700;color:#111}
+.header-text p{font-size:.65em;color:#aaa;font-weight:400;margin-top:1px}
+.chat-link{margin-left:auto;color:#007aff;font-size:.8em;text-decoration:none;font-weight:500}
 
 /* 메인 */
-.main{max-width:720px;margin:0 auto;padding:48px 24px 80px}
-.page-title{font-size:1.8em;font-weight:700;color:#1a1a1a;margin-bottom:8px;letter-spacing:-0.5px}
-.page-subtitle{font-size:.88em;color:#999;margin-bottom:48px;padding-bottom:32px;border-bottom:2px solid #1a2d4e;font-family:'Malgun Gothic',sans-serif}
+.main{max-width:680px;margin:0 auto;padding:48px 24px 100px}
+.page-title{font-size:2em;font-weight:900;color:#111;letter-spacing:-.5px;margin-bottom:4px}
+.page-subtitle{font-size:.85em;color:#aaa;font-weight:400;margin-bottom:40px;padding-bottom:24px;border-bottom:2px solid #111}
 
 /* 글 목록 */
-.article-item{padding:32px 0;border-bottom:1px solid #e8e5de;cursor:pointer;transition:.2s}
-.article-item:hover{padding-left:8px}
+.article-item{padding:28px 0;border-bottom:1px solid #f0f0f0;cursor:pointer;transition:.15s}
+.article-item:hover .item-title{color:#007aff}
 .article-item:first-child{padding-top:0}
-.article-item .category{font-size:.72em;color:#1a2d4e;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;font-family:'Malgun Gothic',sans-serif;font-weight:600}
-.article-item .title{font-size:1.25em;font-weight:700;color:#1a1a1a;line-height:1.5;margin-bottom:8px;letter-spacing:-0.3px}
-.article-item .preview{font-size:.9em;color:#777;line-height:1.7;margin-bottom:10px}
-.article-item .date{font-size:.75em;color:#bbb;font-family:'Malgun Gothic',sans-serif}
+.item-cat{font-size:.7em;color:#007aff;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.item-title{font-size:1.2em;font-weight:700;color:#111;line-height:1.45;margin-bottom:8px;letter-spacing:-.3px;transition:.15s}
+.item-preview{font-size:.88em;color:#888;line-height:1.6;font-weight:300}
+.item-date{font-size:.72em;color:#ccc;margin-top:8px;font-weight:400}
 
 /* 글 상세 */
 .article-view{display:none}
-.back-btn{background:none;border:none;color:#999;cursor:pointer;font-size:.85em;margin-bottom:32px;padding:0;font-family:'Malgun Gothic',sans-serif;transition:.2s}
-.back-btn:hover{color:#1a2d4e}
-.article-view .view-category{font-size:.72em;color:#1a2d4e;text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;font-family:'Malgun Gothic',sans-serif;font-weight:600}
-.article-view .view-title{font-size:1.8em;font-weight:700;color:#1a1a1a;line-height:1.4;margin-bottom:12px;letter-spacing:-0.5px}
-.article-view .view-meta{font-size:.82em;color:#bbb;margin-bottom:36px;padding-bottom:28px;border-bottom:1px solid #e8e5de;font-family:'Malgun Gothic',sans-serif}
-.article-view .view-meta .author{color:#555}
-.article-view .body{font-size:1.02em;line-height:2;color:#3a3a3a}
-.article-view .body h2{font-size:1.3em;color:#1a1a1a;margin:40px 0 16px;padding-bottom:12px;border-bottom:1px solid #e8e5de;font-weight:700;letter-spacing:-0.3px}
-.article-view .body h3{font-size:1.1em;color:#2c2c2c;margin:32px 0 12px;font-weight:700}
-.article-view .body p{margin:14px 0;line-height:2}
-.article-view .body ul,.article-view .body ol{margin:16px 0 16px 24px;line-height:2.2}
-.article-view .body li{margin:4px 0}
-.article-view .body blockquote{background:none;border-left:3px solid #1a2d4e;padding:4px 0 4px 20px;margin:24px 0;color:#555;font-style:italic;font-size:1.02em;line-height:1.9}
-.article-view .body table{width:100%;border-collapse:collapse;margin:24px 0}
-.article-view .body th{background:#1a2d4e;color:#fff;padding:12px 16px;text-align:left;font-size:.88em;font-family:'Malgun Gothic',sans-serif;font-weight:600}
-.article-view .body td{padding:11px 16px;border-bottom:1px solid #e8e5de;font-size:.92em;color:#444}
-.article-view .body tr:last-child td{border-bottom:none}
-.article-view .body hr{border:none;border-top:1px solid #e8e5de;margin:32px 0}
-.article-view .body .example-box{background:#f5f4f0;border:none;border-radius:0;padding:24px;margin:24px 0;border-left:3px solid #c9a96e}
-.article-view .body .example-box strong{color:#1a1a1a}
-.article-view .body .law-ref{background:none;border:none;border-top:1px solid #e8e5de;padding:20px 0 0;margin-top:40px;font-size:.85em;color:#999;font-family:'Malgun Gothic',sans-serif}
+.back-btn{background:none;border:none;color:#007aff;cursor:pointer;font-size:.85em;padding:0;font-weight:500;margin-bottom:32px;font-family:inherit}
+.back-btn:hover{text-decoration:underline}
+.view-cat{font-size:.7em;color:#007aff;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.view-title{font-size:1.8em;font-weight:900;color:#111;line-height:1.35;margin-bottom:12px;letter-spacing:-.5px}
+.view-meta{font-size:.8em;color:#bbb;margin-bottom:32px;padding-bottom:24px;border-bottom:1px solid #f0f0f0;font-weight:400}
+.view-meta .author{color:#666;font-weight:500}
+
+/* 본문 스타일 */
+.body{font-size:.95em;line-height:1.85;color:#333;font-weight:300}
+.body h2{font-size:1.25em;color:#111;margin:36px 0 14px;font-weight:700;letter-spacing:-.3px}
+.body h3{font-size:1.05em;color:#111;margin:28px 0 10px;font-weight:700}
+.body p{margin:12px 0;line-height:1.85}
+.body ul,.body ol{margin:14px 0 14px 20px;line-height:2}
+.body li{color:#444;font-weight:300}
+.body blockquote{background:#f8f9fa;border-left:3px solid #007aff;padding:16px 20px;margin:20px 0;color:#555;font-size:.9em;line-height:1.7;border-radius:0 6px 6px 0}
+.body table{width:100%;border-collapse:collapse;margin:20px 0;font-size:.88em}
+.body th{background:#111;color:#fff;padding:10px 14px;text-align:left;font-weight:500;font-size:.85em}
+.body td{padding:9px 14px;border-bottom:1px solid #f0f0f0;color:#444;font-weight:300}
+.body tr:last-child td{border-bottom:none}
+.body hr{border:none;border-top:1px solid #f0f0f0;margin:28px 0}
+.body .example-box{background:#f8fbff;border:1px solid #e4edfa;border-radius:8px;padding:20px;margin:20px 0}
+.body .example-box strong{color:#111;font-weight:700}
+.body .law-ref{background:#f8f9fa;border-radius:6px;padding:14px 18px;margin-top:32px;font-size:.82em;color:#007aff;font-weight:400}
 
 /* 푸터 */
-.footer{text-align:center;padding:40px 24px;color:#ccc;font-size:.75em;border-top:1px solid #e8e5de;margin-top:48px;font-family:'Malgun Gothic',sans-serif}
-.footer a{color:#999;text-decoration:none}
+.footer{text-align:center;padding:32px 24px;color:#ccc;font-size:.75em;border-top:1px solid #f0f0f0;margin-top:48px}
+.footer a{color:#aaa;text-decoration:none}
 
-.empty{text-align:center;color:#bbb;padding:80px 20px;font-size:1em}
+.empty{text-align:center;color:#ccc;padding:80px 20px;font-weight:300}
 
 @media(max-width:600px){
     .main{padding:32px 18px 60px}
-    .page-title{font-size:1.4em}
-    .article-item .title{font-size:1.1em}
-    .article-view .view-title{font-size:1.4em}
-    .article-view .body{font-size:.95em}
-    .header-inner{padding:0 16px}
+    .page-title{font-size:1.5em}
+    .item-title{font-size:1.05em}
+    .view-title{font-size:1.4em}
+    .body{font-size:.9em}
 }
 </style>
-<link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
 <div class="header">
@@ -79,7 +79,7 @@ body{font-family:'Nanum Myeongjo','Batang','Georgia','Times New Roman',serif;bac
         <a href="/"><img src="logo.png" alt="세무회계 이윤"></a>
         <div class="header-text">
             <h1>세무 칼럼</h1>
-            <p>Tax Column by 세무회계 이윤</p>
+            <p>Tax Column</p>
         </div>
         <a href="/" class="chat-link">AI 상담</a>
     </div>
@@ -88,18 +88,18 @@ body{font-family:'Nanum Myeongjo','Batang','Georgia','Times New Roman',serif;bac
 <div class="main">
     <div id="listView">
         <div class="page-title">세무 칼럼</div>
-        <div class="page-subtitle">세무회계 이윤 대표세무사 이재윤이 전하는 세무 이야기</div>
+        <div class="page-subtitle">대표세무사 이재윤</div>
         <div id="articleList"></div>
     </div>
 
     <div id="detailView" class="article-view">
-        <button class="back-btn" onclick="showList()">← 목록으로 돌아가기</button>
-        <div class="view-category" id="viewCategory"></div>
+        <button class="back-btn" onclick="showList()">← 목록</button>
+        <div class="view-cat" id="viewCategory"></div>
         <div class="view-title" id="viewTitle"></div>
-        <div class="view-meta"><span class="author">세무회계 이윤 · 대표세무사 이재윤</span> · <span id="viewDate"></span></div>
+        <div class="view-meta"><span class="author">세무회계 이윤</span> · <span id="viewDate"></span></div>
         <div class="body" id="viewBody"></div>
         <div class="footer">
-            <p>세무회계 이윤 | 대구광역시 달서구 와룡로 221 4층</p>
+            <p>세무회계 이윤 · 대구광역시 달서구 와룡로 221 4층</p>
             <p style="margin-top:4px"><a href="tel:053-269-1213">053-269-1213</a></p>
         </div>
     </div>
@@ -118,7 +118,7 @@ async function loadList() {
     for (const a of articles) {
         const div = document.createElement("div");
         div.className = "article-item";
-        div.innerHTML = `<div class="category">${a.category}</div><div class="title">${a.title}</div><div class="preview">${a.preview || ""}</div><div class="date">${a.date}</div>`;
+        div.innerHTML = `<div class="item-cat">${a.category}</div><div class="item-title">${a.title}</div><div class="item-preview">${a.preview || ""}</div><div class="item-date">${a.date}</div>`;
         div.onclick = () => showDetail(a.file, a.title, a.category, a.date);
         list.appendChild(div);
     }
