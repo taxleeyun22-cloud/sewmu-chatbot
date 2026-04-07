@@ -32,63 +32,6 @@ const TAX_LAWS = [
 
 const ALL_LAW_NAMES = TAX_LAWS.map(l => l.name).join(", ");
 
-// ===== DB 초기화 =====
-async function initDB(db) {
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS conversations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      session_id TEXT NOT NULL,
-      role TEXT NOT NULL,
-      content TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `).run();
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS articles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      category TEXT DEFAULT '',
-      content TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `).run();
-}
-
-// ===== 대화 저장 =====
-async function saveMessage(db, sessionId, role, content) {
-  try {
-    await db.prepare(
-      "INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)"
-    ).bind(sessionId, role, content).run();
-  } catch {}
-}
-
-// ===== 칼럼에서 관련 글 검색 =====
-async function searchArticles(db, keywords) {
-  try {
-    let results = [];
-    for (const kw of keywords.slice(0, 3)) {
-      const rows = await db.prepare(
-        "SELECT title, content FROM articles WHERE content LIKE ? OR title LIKE ? LIMIT 2"
-      ).bind(`%${kw}%`, `%${kw}%`).all();
-      if (rows.results) {
-        for (const row of rows.results) {
-          if (!results.find(r => r.title === row.title)) {
-            results.push(row);
-          }
-        }
-      }
-    }
-    if (results.length === 0) return "";
-    return "\n\n[세무회계 이윤 칼럼]\n" + results.slice(0, 3).map(r =>
-      `[${r.title}]\n${r.content.substring(0, 500)}`
-    ).join("\n\n");
-  } catch {
-    return "";
-  }
-}
-
 // ===== 1단계: 질문에서 관련 법령 + 키워드 추출 =====
 async function extractLawKeywords(question, apiKey) {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -214,19 +157,12 @@ export async function onRequestPost(context) {
   const apiKey = context.env.OPENAI_API_KEY;
   if (!apiKey) return Response.json({ error: "API key not configured" }, { status: 500 });
 
-  const db = context.env.DB;
-  if (db) await initDB(db);
-
   try {
     const body = await context.request.json();
     const userMessages = body.messages || [];
-    const sessionId = body.sessionId || "anonymous";
 
     const lastUserMsg = [...userMessages].reverse().find((m) => m.role === "user");
     const question = lastUserMsg ? lastUserMsg.content : "";
-
-    // 대화 저장
-    if (db && question) await saveMessage(db, sessionId, "user", question);
 
     // 1단계: 관련 법령 & 키워드 추출
     const { laws, keywords, search_expc } = await extractLawKeywords(question, apiKey);
@@ -236,9 +172,8 @@ export async function onRequestPost(context) {
       searchLawArticles(lawName, keywords || []).then((a) => a ? `\n\n[${lawName}]\n${a}` : "")
     );
     const expcPromise = search_expc ? searchTaxRulings(keywords || []) : Promise.resolve("");
-    const articlePromise = db ? searchArticles(db, keywords || []) : Promise.resolve("");
 
-    const results = await Promise.all([...lawPromises, expcPromise, articlePromise]);
+    const results = await Promise.all([...lawPromises, expcPromise]);
     const lawContext = results.filter(Boolean).join("");
 
     // 3단계: GPT 답변
@@ -307,11 +242,6 @@ ${lawContext ? "\n\n===== 참고 법령 조문 =====" + lawContext : "\n\n(관�
     });
 
     const data = await res.json();
-    const reply = data.choices?.[0]?.message?.content || "";
-
-    // AI 답변 저장
-    if (db && reply) await saveMessage(db, sessionId, "assistant", reply);
-
     return Response.json(data);
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
