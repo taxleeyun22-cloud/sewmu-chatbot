@@ -4,121 +4,126 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>세무회계 이윤 - AI 세무 상담</title>
-<meta name="theme-color" content="#007aff">
+<meta name="theme-color" content="#191f28">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="세무회계 이윤">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--blue:#007aff;--bg:#ffffff;--bg2:#f5f5f7;--text:#1d1d1f;--text2:#86868b;--text3:#d2d2d7;--bubble-ai:#f5f5f7;--bubble-user:#007aff;--sep:rgba(0,0,0,.06)}
+:root{--bg:#f2f4f6;--card:#fff;--navy:#191f28;--blue:#3182f6;--blue-light:#e8f3ff;--text:#191f28;--text2:#8b95a1;--text3:#b0b8c1;--border:#e5e8eb;--success:#00c471;--shadow:0 2px 8px rgba(0,0,0,.04)}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue','Malgun Gothic',sans-serif;background:var(--bg);height:100vh;height:100dvh;display:flex;flex-direction:column;color:var(--text);-webkit-font-smoothing:antialiased}
+body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;background:var(--bg);height:100vh;height:100dvh;display:flex;flex-direction:column;color:var(--text);-webkit-font-smoothing:antialiased}
 
 /* ── 헤더 ── */
-.header{background:rgba(255,255,255,.72);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);padding:12px 20px;display:flex;align-items:center;border-bottom:0.5px solid var(--sep);position:sticky;top:0;z-index:10}
-.header-logo{height:44px}
-.header-right{margin-left:auto}
-.header-right a{color:var(--blue);font-size:.88em;text-decoration:none;font-weight:500;padding:6px 14px;border-radius:16px;transition:.15s}
-.header-right a:hover{background:rgba(0,122,255,.08)}
-
-/* ── 채팅 ── */
-.chat-area{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:4px;background:var(--bg)}
-.chat-area::-webkit-scrollbar{display:none}
-
-.msg{display:flex;gap:10px;max-width:72%;animation:msgIn .3s ease}
-.msg-ai{align-self:flex-start}
-.msg-user{align-self:flex-end;flex-direction:row-reverse}
-.msg-avatar{width:36px;height:36px;border-radius:50%;flex-shrink:0;overflow:hidden;margin-top:2px}
-.msg-avatar img{width:100%;height:100%;object-fit:cover}
-.msg-user .msg-avatar{display:none}
-.msg-wrap{display:flex;flex-direction:column;gap:1px}
-.msg-name{font-size:.65em;color:var(--text2);margin-left:2px;margin-bottom:2px;font-weight:500}
-.msg-bubble{padding:10px 16px;font-size:.9em;line-height:1.6;word-break:break-word;white-space:pre-wrap;letter-spacing:-.1px}
-.msg-ai .msg-bubble{background:var(--bubble-ai);color:var(--text);border-radius:4px 20px 20px 20px}
-.msg-user .msg-bubble{background:var(--bubble-user);color:#fff;border-radius:20px 4px 20px 20px}
-
-/* ── 로딩 ── */
-.dots{display:flex;gap:4px;padding:4px 0}
-.dots span{width:6px;height:6px;background:var(--text3);border-radius:50%;animation:pulse 1.2s infinite}
-.dots span:nth-child(2){animation-delay:.15s}
-.dots span:nth-child(3){animation-delay:.3s}
-@keyframes pulse{0%,100%{opacity:.2;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
-@keyframes msgIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-
-/* ── 빠른질문 ── */
-.quick{padding:8px 20px;display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.quick::-webkit-scrollbar{display:none}
-.quick button{background:var(--bg);border:1px solid var(--sep);color:var(--text);padding:10px 18px;border-radius:22px;font-size:.82em;cursor:pointer;white-space:nowrap;font-weight:500;transition:.15s;flex-shrink:0;font-family:inherit}
-.quick button:hover{background:var(--bg2)}
-.quick button:active{transform:scale(.96)}
-
-/* ── 전화바 ── */
-.cta-bar{padding:4px 20px}
-.cta-bar a{display:flex;align-items:center;gap:10px;background:var(--bg2);border-radius:14px;padding:12px 16px;text-decoration:none;transition:.15s}
-.cta-bar a:active{transform:scale(.99)}
-.cta-icon{display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:var(--blue);border-radius:50%}
-.cta-icon svg{width:16px;height:16px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.cta-text{flex:1;font-size:.75em;color:var(--text2);line-height:1.4}
-.cta-phone{font-size:.88em;font-weight:600;color:var(--blue)}
-
-/* ── 입력 ── */
-.input-bar{padding:10px 20px 16px;background:rgba(255,255,255,.72);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);display:flex;gap:8px;align-items:flex-end;border-top:0.5px solid var(--sep)}
-.input-bar input{flex:1;padding:12px 18px;background:var(--bg2);border:0.5px solid var(--sep);border-radius:22px;font-size:.9em;outline:none;color:var(--text);font-family:inherit;transition:.2s}
-.input-bar input::placeholder{color:var(--text3)}
-.input-bar input:focus{border-color:var(--blue);box-shadow:0 0 0 3.5px rgba(0,122,255,.12)}
-.send{width:36px;height:36px;border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.15s;background:var(--blue)}
-.send:active{transform:scale(.88)}
-.send:disabled{background:var(--text3);cursor:default;transform:none}
-.send svg{width:16px;height:16px;fill:#fff}
-
-/* ── 웰컴 ── */
-.welcome{text-align:center;padding:80px 32px 40px;display:flex;flex-direction:column;align-items:center}
-.welcome-logo{width:120px;margin-bottom:28px}
-.welcome-logo img{width:100%;height:auto}
-.welcome h2{font-size:1.5em;font-weight:700;letter-spacing:-.5px;color:var(--text);margin-bottom:10px}
-.welcome p{font-size:.95em;color:var(--text2);line-height:1.55;font-weight:400}
-
-/* ── 로그인 화면 ── */
-.login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:40px 20px;text-align:center}
-.login-screen .welcome-logo{width:120px;margin-bottom:28px}
-.login-screen .welcome-logo img{width:100%;height:auto}
-.login-screen h2{font-size:1.5em;font-weight:700;letter-spacing:-.5px;color:var(--text);margin-bottom:10px}
-.login-screen p{font-size:.95em;color:var(--text2);line-height:1.55;margin-bottom:36px}
-.login-buttons{display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px}
-.login-btn{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 20px;border:none;border-radius:12px;font-size:.92em;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;text-decoration:none;color:#fff}
-.login-btn:active{transform:scale(.97)}
-.login-btn.kakao{background:#FEE500;color:#000}
-.login-btn.naver{background:#03C75A;color:#fff}
-.login-btn svg{width:20px;height:20px;flex-shrink:0}
-
-/* ── 헤더 버튼 ── */
-.header-right{display:flex;align-items:center;gap:2px;margin-left:auto;flex-shrink:0}
-.hdr-btn{font-size:.75em;color:var(--text2);text-decoration:none;padding:5px 10px;border-radius:10px;transition:.15s;white-space:nowrap}
-.hdr-btn:hover{background:rgba(0,0,0,.05)}
-
-/* ── AI 고지 ── */
-.ai-notice{font-size:.72em;color:var(--blue);margin-top:12px;font-weight:500}
-.disclaimer{padding:2px 20px;background:var(--bg)}
-.disclaimer p{font-size:.65em;color:var(--text3);text-align:center;line-height:1.4}
+.header{background:var(--card);padding:0 20px;height:56px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+.header-logo{height:32px}
+.header-right{display:flex;align-items:center;gap:4px;margin-left:auto}
+.hdr-btn{font-size:.78em;color:var(--text2);text-decoration:none;padding:6px 12px;border-radius:8px;transition:.15s;font-weight:500}
+.hdr-btn:hover{background:var(--bg)}
 
 /* ── 사용자 정보 ── */
 .user-info{display:flex;align-items:center;flex-shrink:0}
 .user-avatar{width:28px;height:28px;border-radius:50%;overflow:hidden;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.65em;font-weight:600;flex-shrink:0}
 .user-avatar img{width:100%;height:100%;object-fit:cover}
 
+/* ── 채팅 ── */
+.chat-area{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+.chat-area::-webkit-scrollbar{display:none}
+
+.msg{display:flex;gap:10px;max-width:80%;animation:msgIn .3s ease}
+.msg-ai{align-self:flex-start}
+.msg-user{align-self:flex-end;flex-direction:row-reverse}
+.msg-avatar{width:36px;height:36px;border-radius:12px;flex-shrink:0;overflow:hidden;margin-top:2px;background:var(--navy);display:flex;align-items:center;justify-content:center}
+.msg-avatar img{width:100%;height:100%;object-fit:cover;padding:4px}
+.msg-user .msg-avatar{display:none}
+.msg-wrap{display:flex;flex-direction:column;gap:2px}
+.msg-name{font-size:.68em;color:var(--text2);margin-left:4px;margin-bottom:2px;font-weight:500}
+.msg-bubble{padding:12px 16px;font-size:.9em;line-height:1.65;word-break:break-word;white-space:pre-wrap;letter-spacing:-.2px}
+.msg-ai .msg-bubble{background:var(--card);color:var(--text);border-radius:4px 16px 16px 16px;box-shadow:var(--shadow)}
+.msg-user .msg-bubble{background:var(--blue);color:#fff;border-radius:16px 4px 16px 16px}
+
+/* ── 로딩 ── */
+.dots{display:flex;gap:5px;padding:4px 0}
+.dots span{width:6px;height:6px;background:var(--text3);border-radius:50%;animation:pulse 1.2s infinite}
+.dots span:nth-child(2){animation-delay:.15s}
+.dots span:nth-child(3){animation-delay:.3s}
+@keyframes pulse{0%,100%{opacity:.2;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ── 빠른질문 ── */
+.quick{padding:8px 20px;display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.quick::-webkit-scrollbar{display:none}
+.quick button{background:var(--card);border:1px solid var(--border);color:var(--text);padding:10px 18px;border-radius:20px;font-size:.82em;cursor:pointer;white-space:nowrap;font-weight:500;transition:.15s;flex-shrink:0;font-family:inherit;box-shadow:var(--shadow)}
+.quick button:hover{border-color:var(--blue);color:var(--blue)}
+.quick button:active{transform:scale(.96)}
+
+/* ── 환급 조회 ── */
+.refund-bar{padding:4px 20px;background:var(--bg)}
+.refund-btn{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#e8f3ff,#f0f7ff);border:1px solid #d0e4f7;border-radius:14px;padding:14px 16px;text-decoration:none;transition:.15s;box-shadow:var(--shadow)}
+.refund-btn:active{transform:scale(.99)}
+.refund-icon{font-size:1.5em}
+.refund-text{flex:1;display:flex;flex-direction:column;gap:2px}
+.refund-title{font-size:.88em;font-weight:700;color:var(--blue)}
+.refund-desc{font-size:.72em;color:var(--text2)}
+
+/* ── AI 고지 ── */
+.ai-notice{font-size:.72em;color:var(--blue);margin-top:14px;font-weight:500}
+.disclaimer{padding:4px 20px;background:var(--bg)}
+.disclaimer p{font-size:.68em;color:var(--text3);text-align:center;line-height:1.4}
+
+/* ── 전화바 ── */
+.cta-bar{padding:4px 20px;background:var(--bg)}
+.cta-bar a{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 16px;text-decoration:none;transition:.15s;box-shadow:var(--shadow)}
+.cta-bar a:active{transform:scale(.99)}
+.cta-icon{display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:var(--blue-light);border-radius:10px}
+.cta-icon svg{width:18px;height:18px;fill:none;stroke:var(--blue);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.cta-text{flex:1;font-size:.78em;color:var(--text2);line-height:1.4}
+.cta-phone{font-size:.9em;font-weight:700;color:var(--blue)}
+
+/* ── 입력 ── */
+.input-bar{padding:10px 20px 16px;background:var(--card);display:flex;gap:8px;align-items:flex-end;border-top:1px solid var(--border)}
+.input-bar input{flex:1;padding:12px 18px;background:var(--bg);border:1px solid var(--border);border-radius:12px;font-size:.9em;outline:none;color:var(--text);font-family:inherit;transition:.2s}
+.input-bar input::placeholder{color:var(--text3)}
+.input-bar input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(49,130,246,.12)}
+.send{width:40px;height:40px;border:none;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.15s;background:var(--blue)}
+.send:active{transform:scale(.9)}
+.send:disabled{background:var(--text3);cursor:default;transform:none}
+.send svg{width:18px;height:18px;fill:#fff}
+
+/* ── 웰컴 ── */
+.welcome{text-align:center;padding:72px 32px 32px;display:flex;flex-direction:column;align-items:center}
+.welcome-logo{width:72px;height:72px;background:var(--navy);border-radius:18px;display:flex;align-items:center;justify-content:center;margin-bottom:24px;box-shadow:0 4px 16px rgba(25,31,40,.12)}
+.welcome-logo img{width:48px;height:48px;object-fit:contain}
+.welcome h2{font-size:1.4em;font-weight:700;letter-spacing:-.5px;color:var(--text);margin-bottom:8px}
+.welcome p{font-size:.9em;color:var(--text2);line-height:1.55;font-weight:400}
+
+/* ── 로그인 화면 ── */
+.login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:40px 20px;text-align:center;background:var(--bg)}
+.login-screen .welcome-logo{width:80px;height:80px;background:var(--navy);border-radius:20px;display:flex;align-items:center;justify-content:center;margin-bottom:28px;box-shadow:0 4px 16px rgba(25,31,40,.12)}
+.login-screen .welcome-logo img{width:52px;height:52px;object-fit:contain}
+.login-screen h2{font-size:1.4em;font-weight:700;letter-spacing:-.5px;color:var(--text);margin-bottom:8px}
+.login-screen p{font-size:.9em;color:var(--text2);line-height:1.55;margin-bottom:36px}
+.login-buttons{display:flex;flex-direction:column;gap:10px;width:100%;max-width:320px}
+.login-btn{display:flex;align-items:center;justify-content:center;gap:10px;padding:15px 20px;border:none;border-radius:12px;font-size:.92em;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;text-decoration:none;color:#fff;box-shadow:var(--shadow)}
+.login-btn:active{transform:scale(.97)}
+.login-btn.kakao{background:#FEE500;color:#191f28}
+.login-btn.naver{background:#03C75A;color:#fff}
+.login-btn svg{width:20px;height:20px;flex-shrink:0}
+
 /* ── 모바일 ── */
 @media(max-width:480px){
-    .msg{max-width:82%}
-    .header{padding:10px 12px;gap:6px}
+    .msg{max-width:88%}
+    .header{padding:0 14px;height:52px;gap:6px}
     .header-logo{height:28px}
-    .hdr-btn{font-size:.7em;padding:4px 8px}
-    .welcome{padding:60px 24px 32px}
-    .welcome-logo{width:100px}
-    .welcome h2{font-size:1.3em}
-    .login-screen h2{font-size:1.3em}
-    .login-screen .welcome-logo{width:100px}
-    .user-name{display:none}
+    .hdr-btn{font-size:.72em;padding:4px 8px}
+    .welcome{padding:48px 24px 24px}
+    .welcome-logo{width:60px;height:60px;border-radius:14px}
+    .welcome-logo img{width:40px;height:40px}
+    .welcome h2{font-size:1.2em}
+    .login-screen h2{font-size:1.2em}
+    .login-screen .welcome-logo{width:64px;height:64px;border-radius:16px}
 }
 </style>
 </head>
@@ -138,12 +143,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
 
 <!-- 로그인 화면 -->
 <div class="login-screen" id="loginScreen" style="display:none">
-    <div class="welcome-logo"><img src="logo-vertical.png" alt="세무회계 이윤"></div>
+    <div class="welcome-logo"><img src="logo-icon.png" alt="세무회계 이윤"></div>
     <h2>AI 세무 상담</h2>
     <p>로그인 후 세무 상담을 이용하실 수 있습니다</p>
     <div class="login-buttons">
         <a class="login-btn kakao" id="kakaoLoginBtn">
-            <svg viewBox="0 0 24 24"><path fill="#000" d="M12 3C6.48 3 2 6.36 2 10.44c0 2.62 1.75 4.93 4.38 6.24l-1.12 4.16c-.1.36.32.65.64.44l4.94-3.26c.38.04.76.06 1.16.06 5.52 0 10-3.36 10-7.64C22 6.36 17.52 3 12 3z"/></svg>
+            <svg viewBox="0 0 24 24"><path fill="#191f28" d="M12 3C6.48 3 2 6.36 2 10.44c0 2.62 1.75 4.93 4.38 6.24l-1.12 4.16c-.1.36.32.65.64.44l4.94-3.26c.38.04.76.06 1.16.06 5.52 0 10-3.36 10-7.64C22 6.36 17.52 3 12 3z"/></svg>
             카카오 로그인
         </a>
         <a class="login-btn naver" id="naverLoginBtn">
@@ -155,10 +160,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
 
 <div class="chat-area" id="chatArea" style="display:none">
     <div class="welcome">
-        <div class="welcome-logo"><img src="logo-vertical.png" alt="세무회계 이윤"></div>
+        <div class="welcome-logo"><img src="logo-icon.png" alt="세무회계 이윤"></div>
         <h2>무엇이든 물어보세요</h2>
         <p>종합소득세, 양도소득세, 상속세, 증여세<br>부가세, 법인세 등 세무 상담을 도와드립니다</p>
-        <p class="ai-notice">AI 기반 세무 상담 서비스입니다</p>
+        <p class="ai-notice">AI 기반 세무 상담 서비스</p>
     </div>
 </div>
 
@@ -167,6 +172,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
     <button onclick="askQuick(this)">부가세 신고 기한</button>
     <button onclick="askQuick(this)">폐업 후 세금 신고</button>
     <button onclick="askQuick(this)">연금저축 세액공제</button>
+</div>
+
+<div class="refund-bar" id="refundBar" style="display:none">
+    <a href="https://taxfriends.etaxmate.co.kr/index_default?USERID=taxfriends" target="_blank" class="refund-btn">
+        <div class="refund-icon">💰</div>
+        <div class="refund-text">
+            <span class="refund-title">AI 자동 환급 조회</span>
+            <span class="refund-desc">내가 더 낸 세금, 무료로 확인해보세요</span>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b95a1" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </a>
 </div>
 
 <div class="disclaimer" id="disclaimer" style="display:none">
@@ -195,17 +211,12 @@ let loading=false;
 const sid='s_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
 let currentUser=null;
 
-// 로그인 상태 체크
 async function checkAuth(){
     try{
         const r=await fetch('/api/auth/me');
         const d=await r.json();
-        if(d.logged_in){
-            currentUser=d.user;
-            showChat();
-        }else{
-            showLogin();
-        }
+        if(d.logged_in){currentUser=d.user;showChat()}
+        else{showLogin()}
     }catch{showLogin()}
 }
 
@@ -215,29 +226,17 @@ function showLogin(){
     document.getElementById('quickArea').style.display='none';
     document.getElementById('ctaBar').style.display='none';
     document.getElementById('inputBar').style.display='none';
+    document.getElementById('disclaimer').style.display='none';
     document.getElementById('userInfo').style.display='none';
-
-    // OAuth 로그인 URL 설정
     const origin=location.origin;
-    const kakaoBtn=document.getElementById('kakaoLoginBtn');
-    const naverBtn=document.getElementById('naverLoginBtn');
-
-    // 카카오 로그인 URL (KAKAO_CLIENT_ID는 환경변수에서 가져와야 하므로 API로 처리)
-    kakaoBtn.href='javascript:void(0)';
-    naverBtn.href='javascript:void(0)';
-
-    kakaoBtn.onclick=async function(){
-        const r=await fetch('/api/auth/config');
-        const c=await r.json();
-        const url='https://kauth.kakao.com/oauth/authorize?client_id='+c.kakao_client_id+'&redirect_uri='+encodeURIComponent(origin+'/api/auth/kakao')+'&response_type=code';
-        location.href=url;
+    document.getElementById('kakaoLoginBtn').onclick=async function(){
+        const r=await fetch('/api/auth/config');const c=await r.json();
+        location.href='https://kauth.kakao.com/oauth/authorize?client_id='+c.kakao_client_id+'&redirect_uri='+encodeURIComponent(origin+'/api/auth/kakao')+'&response_type=code';
     };
-    naverBtn.onclick=async function(){
-        const r=await fetch('/api/auth/config');
-        const c=await r.json();
+    document.getElementById('naverLoginBtn').onclick=async function(){
+        const r=await fetch('/api/auth/config');const c=await r.json();
         const state=Math.random().toString(36).slice(2);
-        const url='https://nid.naver.com/oauth2.0/authorize?client_id='+c.naver_client_id+'&redirect_uri='+encodeURIComponent(origin+'/api/auth/naver')+'&response_type=code&state='+state;
-        location.href=url;
+        location.href='https://nid.naver.com/oauth2.0/authorize?client_id='+c.naver_client_id+'&redirect_uri='+encodeURIComponent(origin+'/api/auth/naver')+'&response_type=code&state='+state;
     };
 }
 
@@ -245,11 +244,10 @@ function showChat(){
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('chatArea').style.display='flex';
     document.getElementById('quickArea').style.display='flex';
+    document.getElementById('refundBar').style.display='block';
     document.getElementById('disclaimer').style.display='block';
     document.getElementById('ctaBar').style.display='block';
     document.getElementById('inputBar').style.display='flex';
-
-    // 사용자 정보 표시
     document.getElementById('userInfo').style.display='flex';
     document.getElementById('resetBtn').style.display='inline';
     document.getElementById('logoutBtn').style.display='inline';
@@ -290,6 +288,7 @@ function add(role,text){
         :`<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble">${esc(text)}</div></div>`;
     c.appendChild(d);c.scrollTop=c.scrollHeight;
 }
+
 function showDots(){
     const c=document.getElementById("chatArea");const d=document.createElement("div");
     d.className="msg msg-ai";d.id="dots";
@@ -298,6 +297,7 @@ function showDots(){
 }
 function hideDots(){const d=document.getElementById("dots");if(d)d.remove()}
 function esc(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")}
+
 async function sendMessage(){
     if(loading)return;const i=document.getElementById("userInput");const t=i.value.trim();if(!t)return;
     i.value="";add("user",t);messages.push({role:"user",content:t});
@@ -305,23 +305,24 @@ async function sendMessage(){
     loading=true;document.getElementById("sendBtn").disabled=true;showDots();
     try{
         const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages,sessionId:sid})});
+        if(r.status===401){showLogin();return}
         if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||`오류 (${r.status})`);
         const d=await r.json();const reply=d.choices[0].message.content;
         messages.push({role:"assistant",content:reply});hideDots();add("ai",reply);
     }catch(e){hideDots();add("ai","오류가 발생했습니다: "+e.message)}
     finally{loading=false;document.getElementById("sendBtn").disabled=false;i.focus()}
 }
+
 function askQuick(b){document.getElementById("userInput").value=b.textContent;sendMessage()}
 
 async function resetChat(){
     await fetch('/api/auth/clear-history',{method:'POST'});
     const c=document.getElementById("chatArea");
-    c.innerHTML=`<div class="welcome"><div class="welcome-logo"><img src="logo-vertical.png" alt="세무회계 이윤"></div><h2>무엇이든 물어보세요</h2><p>종합소득세, 양도소득세, 상속세, 증여세<br>부가세, 법인세 등 세무 상담을 도와드립니다</p></div>`;
+    c.innerHTML=`<div class="welcome"><div class="welcome-logo"><img src="logo-icon.png" alt="세무회계 이윤"></div><h2>무엇이든 물어보세요</h2><p>종합소득세, 양도소득세, 상속세, 증여세<br>부가세, 법인세 등 세무 상담을 도와드립니다</p><p class="ai-notice">AI 기반 세무 상담 서비스</p></div>`;
     messages=[{role:"system",content:S}];
     document.getElementById("quickArea").style.display="flex";
 }
 
-// PWA 서비스워커 등록
 if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}
 </script>
 </body>
