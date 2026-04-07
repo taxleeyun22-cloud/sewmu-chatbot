@@ -457,9 +457,15 @@ function checkTaxAlerts(){
 
 function renderTaxAlerts(){
   var area=document.getElementById('taxAlertArea');
-  if(!area)return;
+  if(!area){console.log('taxAlertArea not found');return;}
   var alerts=checkTaxAlerts();
-  if(alerts.length===0){area.style.display='none';return;}
+  console.log('Tax alerts found:',alerts.length,JSON.stringify(alerts));
+  if(alerts.length===0){
+    // 테스트: 알림 없어도 강제로 1개 표시
+    area.style.display='block';
+    area.innerHTML='<div class="tax-alert"><span class="tax-alert-icon">📌</span><span class="tax-alert-text">원천세 3월분 (4월 10일) - 3일 남음 [테스트]</span><button class="tax-alert-close" onclick="this.closest(\'.tax-alert\').remove()">✕</button></div>';
+    return;
+  }
   area.style.display='block';
   var hide=localStorage.getItem('hideWoncheon')==='true';
   var h='';
