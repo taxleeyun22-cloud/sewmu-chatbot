@@ -44,18 +44,17 @@ export async function onRequestGet(context) {
       UNIQUE(provider, provider_id)
     )`).run();
 
-    // 단순 session_id 기준으로 표시
+    // user_id가 있으면 user_id로 묶고, 없으면 session_id로 표시
     const { results } = await db.prepare(`
       SELECT
-        c.session_id,
-        c.session_id as group_id,
-        c.user_id,
-        MIN(c.created_at) as started_at,
-        MAX(c.created_at) as last_at,
+        CASE WHEN user_id IS NOT NULL THEN CAST(user_id AS TEXT) ELSE session_id END as group_id,
+        user_id,
+        MIN(created_at) as started_at,
+        MAX(created_at) as last_at,
         COUNT(*) as message_count
-      FROM conversations c
-      GROUP BY c.session_id
-      ORDER BY MAX(c.created_at) DESC
+      FROM conversations
+      GROUP BY CASE WHEN user_id IS NOT NULL THEN CAST(user_id AS TEXT) ELSE session_id END
+      ORDER BY MAX(created_at) DESC
       LIMIT ? OFFSET ?
     `).bind(limit, offset).all();
 
@@ -75,7 +74,7 @@ export async function onRequestGet(context) {
     }
 
     const countResult = await db.prepare(
-      `SELECT COUNT(DISTINCT session_id) as total FROM conversations`
+      `SELECT COUNT(DISTINCT CASE WHEN user_id IS NOT NULL THEN CAST(user_id AS TEXT) ELSE session_id END) as total FROM conversations`
     ).first();
 
     return Response.json({

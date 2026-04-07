@@ -18,13 +18,25 @@ export async function onRequestGet(context) {
   }
 
   try {
-    // user_id 또는 session_id로 조회
-    const { results } = await db.prepare(`
-      SELECT id, session_id, user_id, role, content, created_at
-      FROM conversations
-      WHERE user_id = ? OR session_id = ?
-      ORDER BY created_at ASC
-    `).bind(groupId, groupId).all();
+    // user_id 또는 session_id로 조회 (숫자면 user_id, 아니면 session_id)
+    let results;
+    if (/^\d+$/.test(groupId)) {
+      const r = await db.prepare(`
+        SELECT id, session_id, user_id, role, content, created_at
+        FROM conversations
+        WHERE user_id = ?
+        ORDER BY created_at ASC
+      `).bind(parseInt(groupId)).all();
+      results = r.results;
+    } else {
+      const r = await db.prepare(`
+        SELECT id, session_id, user_id, role, content, created_at
+        FROM conversations
+        WHERE session_id = ?
+        ORDER BY created_at ASC
+      `).bind(groupId).all();
+      results = r.results;
+    }
 
     return Response.json({ messages: results });
   } catch (e) {
