@@ -11,11 +11,9 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue','Malgun Gothic',sans-serif;background:var(--bg);height:100vh;height:100dvh;display:flex;flex-direction:column;color:var(--text);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 
 /* ── 헤더 ── */
-.header{background:rgba(255,255,255,.72);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);padding:0 16px;height:72px;display:flex;align-items:center;gap:8px;border-bottom:0.5px solid var(--separator);position:sticky;top:0;z-index:10}
-.header img{height:52px}
-.header-center{flex:1;text-align:center}
-.header-center h1{font-size:1em;font-weight:600;color:var(--text);letter-spacing:-.2px}
-.header-center p{font-size:.68em;color:var(--text2);font-weight:400;margin-top:1px}
+.header{background:rgba(255,255,255,.72);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);padding:0 16px;height:60px;display:flex;align-items:center;border-bottom:0.5px solid var(--separator);position:sticky;top:0;z-index:10}
+.header-logo{height:40px}
+.header-right{margin-left:auto}
 .header-right a{color:var(--blue);font-size:.85em;text-decoration:none;font-weight:500}
 
 /* ── 채팅 ── */
@@ -86,10 +84,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
 <body>
 
 <div class="header">
-    <img src="logo.png" alt="">
-    <div class="header-center">
-        <h1>AI 세무 상담</h1>
-    </div>
+    <img src="logo.png" alt="세무회계 이윤" class="header-logo">
     <div class="header-right"><a href="/articles.html">칼럼</a></div>
 </div>
 
