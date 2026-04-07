@@ -92,21 +92,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
 .login-btn.naver{background:#03C75A;color:#fff}
 .login-btn svg{width:20px;height:20px;flex-shrink:0}
 
+/* ── 헤더 버튼 ── */
+.header-right{display:flex;align-items:center;gap:2px;margin-left:auto;flex-shrink:0}
+.hdr-btn{font-size:.75em;color:var(--text2);text-decoration:none;padding:5px 10px;border-radius:10px;transition:.15s;white-space:nowrap}
+.hdr-btn:hover{background:rgba(0,0,0,.05)}
+
 /* ── 사용자 정보 ── */
-.user-info{display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0}
-.user-avatar{width:26px;height:26px;border-radius:50%;overflow:hidden;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.65em;font-weight:600;flex-shrink:0}
+.user-info{display:flex;align-items:center;flex-shrink:0}
+.user-avatar{width:28px;height:28px;border-radius:50%;overflow:hidden;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.65em;font-weight:600;flex-shrink:0}
 .user-avatar img{width:100%;height:100%;object-fit:cover}
-.user-name{font-size:.72em;color:var(--text2);font-weight:500;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.logout-btn{font-size:.7em;color:var(--text2);text-decoration:none;padding:3px 8px;border-radius:10px;transition:.15s;white-space:nowrap}
-.logout-btn:hover{background:rgba(0,0,0,.05)}
-.header-right{display:flex;align-items:center;gap:4px;margin-left:auto;flex-shrink:0}
 
 /* ── 모바일 ── */
 @media(max-width:480px){
     .msg{max-width:82%}
-    .header{padding:10px 12px;gap:8px}
-    .header-logo{height:32px}
-    .user-name{display:none}
+    .header{padding:10px 12px;gap:6px}
+    .header-logo{height:28px}
+    .hdr-btn{font-size:.7em;padding:4px 8px}
     .welcome{padding:60px 24px 32px}
     .welcome-logo{width:100px}
     .welcome h2{font-size:1.3em}
@@ -119,15 +120,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text'
 <body>
 
 <div class="header">
-    <img src="logo.png" alt="세무회계 이윤" class="header-logo">
+    <img src="logo-icon.png" alt="세무회계 이윤" class="header-logo">
     <div class="header-right">
-        <a href="/articles.html" class="logout-btn">칼럼</a>
-        <div class="user-info" id="userInfo" style="display:none">
-            <div class="user-avatar" id="userAvatar"></div>
-            <span class="user-name" id="userName"></span>
-            <a href="javascript:void(0)" onclick="resetChat()" class="logout-btn">초기화</a>
-            <a href="/api/auth/logout" class="logout-btn">나가기</a>
-        </div>
+        <a href="/articles.html" class="hdr-btn">칼럼</a>
+        <a href="javascript:void(0)" onclick="resetChat()" class="hdr-btn" id="resetBtn" style="display:none">초기화</a>
+        <a href="/api/auth/logout" class="hdr-btn" id="logoutBtn" style="display:none">로그아웃</a>
+    </div>
+    <div class="user-info" id="userInfo" style="display:none">
+        <div class="user-avatar" id="userAvatar"></div>
     </div>
 </div>
 
@@ -239,15 +239,15 @@ function showChat(){
     document.getElementById('inputBar').style.display='flex';
 
     // 사용자 정보 표시
-    const info=document.getElementById('userInfo');
-    info.style.display='flex';
+    document.getElementById('userInfo').style.display='flex';
+    document.getElementById('resetBtn').style.display='inline';
+    document.getElementById('logoutBtn').style.display='inline';
     const avatar=document.getElementById('userAvatar');
     if(currentUser.profile_image){
         avatar.innerHTML='<img src="'+currentUser.profile_image+'" alt="" onerror="this.parentElement.textContent=\''+ ((currentUser.name||'?')[0]) +'\'">';
     }else{
         avatar.textContent=(currentUser.name||'?')[0];
     }
-    document.getElementById('userName').textContent=currentUser.name||'';
     loadHistory();
 }
 
