@@ -9,8 +9,8 @@ async function initTables(db) {
       email TEXT,
       phone TEXT,
       profile_image TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      last_login_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT (datetime('now', '+9 hours')),
+      last_login_at TEXT DEFAULT (datetime('now', '+9 hours')),
       UNIQUE(provider, provider_id)
     )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS sessions (
@@ -79,13 +79,13 @@ export async function onRequestGet(context) {
     // UPSERT: 이미 있으면 업데이트, 없으면 삽입
     await db.prepare(`
       INSERT INTO users (provider, provider_id, name, email, phone, profile_image, last_login_at)
-      VALUES ('kakao', ?, ?, ?, ?, ?, datetime('now'))
+      VALUES ('kakao', ?, ?, ?, ?, ?, datetime('now', '+9 hours'))
       ON CONFLICT(provider, provider_id) DO UPDATE SET
         name = excluded.name,
         email = excluded.email,
         phone = excluded.phone,
         profile_image = excluded.profile_image,
-        last_login_at = datetime('now')
+        last_login_at = datetime('now', '+9 hours')
     `).bind(kakaoId, name, email, phone, profileImage).run();
 
     // 사용자 ID 조회

@@ -60,11 +60,16 @@ async function getUserFromSession(db, cookieHeader) {
   } catch { return null; }
 }
 
+function getKST() {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+}
+
 async function saveMessage(db, sessionId, role, content, userId) {
   try {
+    const kst = getKST();
     await db.prepare(
-      `INSERT INTO conversations (session_id, user_id, role, content) VALUES (?, ?, ?, ?)`
-    ).bind(sessionId, userId || null, role, content).run();
+      `INSERT INTO conversations (session_id, user_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)`
+    ).bind(sessionId, userId || null, role, content, kst).run();
   } catch (e) {
     console.error("DB saveMessage error:", e);
   }

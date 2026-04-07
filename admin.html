@@ -10,304 +10,199 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Noto Sans KR',sans-serif;background:#fff;color:#1d1d1f;min-height:100vh}
+body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-height:100vh}
+.wrap{max-width:800px;margin:0 auto;padding:20px}
 
-.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
-.login-box{width:100%;max-width:360px;text-align:center}
-.login-box h1{font-size:1.4em;font-weight:700;margin-bottom:8px}
-.login-box p{font-size:.85em;color:#86868b;margin-bottom:32px}
-.login-box input{width:100%;padding:14px 18px;border:1px solid #e5e5e7;border-radius:12px;font-size:.9em;font-family:inherit;outline:none;transition:.2s}
-.login-box input:focus{border-color:#007aff;box-shadow:0 0 0 3px rgba(0,122,255,.1)}
-.login-box button{width:100%;margin-top:12px;padding:14px;background:#007aff;color:#fff;border:none;border-radius:12px;font-size:.9em;font-weight:500;cursor:pointer;font-family:inherit;transition:.15s}
-.login-box button:hover{background:#0066d6}
-.login-error{color:#ff3b30;font-size:.8em;margin-top:12px;display:none}
+/* 로그인 */
+.login{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:100%;max-width:360px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.login-box h1{font-size:1.3em;margin-bottom:8px}
+.login-box p{font-size:.85em;color:#8b95a1;margin-bottom:24px}
+.login-box input{width:100%;padding:14px;border:1px solid #e5e8eb;border-radius:12px;font-size:.9em;outline:none;font-family:inherit}
+.login-box input:focus{border-color:#3182f6}
+.login-box button{width:100%;margin-top:12px;padding:14px;background:#3182f6;color:#fff;border:none;border-radius:12px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit}
+.login-err{color:#f04452;font-size:.8em;margin-top:10px;display:none}
 
-.admin{display:none;max-width:960px;margin:0 auto;padding:24px 20px}
-.admin-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;padding-bottom:16px;border-bottom:1px solid #f0f0f0}
-.admin-header h1{font-size:1.2em;font-weight:700}
-.admin-header button{background:none;border:1px solid #e5e5e7;padding:8px 16px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#86868b;transition:.15s}
-.admin-header button:hover{border-color:#007aff;color:#007aff}
+/* 헤더 */
+.hdr{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.hdr h1{font-size:1.1em;font-weight:700}
+.hdr .tabs{display:flex;gap:6px;margin-left:12px}
+.hdr .tabs button{background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500}
+.hdr .tabs button.on{background:#3182f6;color:#fff}
+.hdr .logout{margin-left:auto;background:none;border:1px solid #e5e8eb;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1}
 
-.session-list{display:flex;flex-direction:column;gap:2px}
-.session-item{display:flex;align-items:center;padding:16px 20px;border-radius:12px;cursor:pointer;transition:.15s;gap:12px}
-.session-item:hover{background:#f5f5f7}
-.session-avatar{width:36px;height:36px;border-radius:50%;overflow:hidden;flex-shrink:0;background:#f5f5f7;display:flex;align-items:center;justify-content:center}
-.session-avatar img{width:100%;height:100%;object-fit:cover}
-.session-avatar .initials{font-size:.75em;font-weight:600;color:#86868b}
-.session-info{flex:1;overflow:hidden}
-.session-user{font-size:.88em;font-weight:500;color:#1d1d1f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.session-meta{font-size:.75em;color:#86868b;margin-top:2px;display:flex;gap:8px;align-items:center}
-.session-provider{font-size:.65em;background:#f0f0f0;color:#86868b;padding:2px 8px;border-radius:8px;font-weight:500}
-.session-provider.kakao{background:#FEE500;color:#000}
-.session-provider.naver{background:#03C75A;color:#fff}
-.session-id{font-size:.7em;color:#86868b;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.session-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
-.session-time{font-size:.75em;color:#86868b;white-space:nowrap}
-.session-count{font-size:.7em;background:#f5f5f7;color:#86868b;padding:3px 8px;border-radius:10px;white-space:nowrap}
+/* 리스트 */
+.item{display:flex;align-items:center;gap:14px;padding:16px;background:#fff;border-radius:12px;margin-bottom:8px;cursor:pointer;transition:.15s;box-shadow:0 1px 4px rgba(0,0,0,.03)}
+.item:hover{background:#f8f9fa}
+.avatar{width:40px;height:40px;border-radius:50%;background:#3182f6;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.8em;font-weight:600;overflow:hidden;flex-shrink:0}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.info{flex:1;min-width:0}
+.info .name{font-size:.9em;font-weight:600}
+.info .meta{font-size:.72em;color:#8b95a1;margin-top:2px}
+.badge{font-size:.7em;background:#e8f3ff;color:#3182f6;padding:2px 8px;border-radius:8px;font-weight:600}
+.right{text-align:right;flex-shrink:0}
+.right .time{font-size:.72em;color:#8b95a1}
+.right .cnt{font-size:.72em;color:#3182f6;font-weight:600}
+.empty{text-align:center;padding:60px;color:#8b95a1}
 
-.pagination{display:flex;justify-content:center;gap:8px;margin-top:24px}
-.pagination button{background:#f5f5f7;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;transition:.15s}
-.pagination button:hover{background:#e8e8ed}
-.pagination button.active{background:#007aff;color:#fff}
-
-/* 대화 상세 */
-.detail{display:none;max-width:960px;margin:0 auto;padding:24px 20px}
-.detail-header{display:flex;align-items:center;gap:12px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #f0f0f0}
-.detail-back{background:none;border:none;font-size:1.2em;cursor:pointer;padding:4px 8px;border-radius:8px;transition:.15s}
-.detail-back:hover{background:#f5f5f7}
-.detail-title{font-size:.85em;color:#86868b;font-family:monospace}
-
-.msg-list{display:flex;flex-direction:column;gap:12px}
-.msg-item{padding:16px 20px;border-radius:12px;font-size:.88em;line-height:1.7;white-space:pre-wrap;word-break:break-word}
-.msg-item.user{background:#007aff;color:#fff;align-self:flex-end;max-width:80%;margin-left:auto;border-radius:16px 4px 16px 16px}
-.msg-item.assistant{background:#f5f5f7;color:#1d1d1f;align-self:flex-start;max-width:80%;border-radius:4px 16px 16px 16px}
-.msg-item .msg-meta{font-size:.7em;opacity:.6;margin-top:8px}
-
-.empty{text-align:center;padding:60px 20px;color:#86868b;font-size:.9em}
-
-/* 탭 버튼 */
-.tab-btn{background:#f5f5f7;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#86868b;transition:.15s}
-.tab-btn.active{background:#007aff;color:#fff}
-.tab-btn:hover{background:#e8e8ed}
-.tab-btn.active:hover{background:#0066d6}
+/* 상세 */
+.detail{display:none}
+.back{background:none;border:none;font-size:1em;cursor:pointer;padding:4px 8px;border-radius:8px;margin-bottom:16px}
+.back:hover{background:#e5e8eb}
+.msg{padding:14px 18px;border-radius:12px;font-size:.88em;line-height:1.7;margin-bottom:6px;max-width:85%;white-space:pre-wrap;word-break:break-word}
+.msg.user{background:#3182f6;color:#fff;margin-left:auto;border-radius:16px 4px 16px 16px}
+.msg.assistant{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.03);border-radius:4px 16px 16px 16px}
+.msg .ts{font-size:.65em;opacity:.5;margin-top:6px}
 
 /* 분석 */
-.analytics-grid{display:flex;flex-direction:column;gap:24px}
-.stat-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.stat-card{background:#f5f5f7;border-radius:12px;padding:20px;text-align:center}
-.stat-card .num{font-size:1.8em;font-weight:700;color:#007aff}
-.stat-card .label{font-size:.75em;color:#86868b;margin-top:4px}
-.section-title{font-size:1em;font-weight:700;margin-bottom:12px;color:#1d1d1f}
-.cat-list{display:flex;flex-direction:column;gap:6px}
-.cat-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:#f5f5f7;border-radius:10px}
-.cat-name{font-size:.88em;font-weight:600;width:120px;flex-shrink:0}
-.cat-bar{flex:1;height:24px;background:#e8e8ed;border-radius:6px;overflow:hidden}
-.cat-fill{height:100%;background:#007aff;border-radius:6px;display:flex;align-items:center;padding-left:8px;font-size:.7em;color:#fff;font-weight:600;min-width:24px}
-.cat-count{font-size:.8em;color:#86868b;width:40px;text-align:right;flex-shrink:0}
-.cat-samples{margin-top:4px;font-size:.75em;color:#86868b;line-height:1.5}
-.kw-list{display:flex;flex-wrap:wrap;gap:8px}
-.kw-tag{background:#f5f5f7;padding:6px 14px;border-radius:16px;font-size:.82em;color:#1d1d1f}
-.kw-tag .kw-count{color:#007aff;font-weight:600;margin-left:4px}
-.daily-chart{display:flex;align-items:flex-end;gap:4px;height:120px;padding:12px 0}
-.daily-bar{flex:1;background:#007aff;border-radius:4px 4px 0 0;min-width:16px;position:relative}
-.daily-bar .daily-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:.6em;color:#86868b;white-space:nowrap}
-.daily-bar .daily-num{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:.65em;color:#1d1d1f;font-weight:600}
-@media(max-width:480px){.stat-cards{grid-template-columns:repeat(2,1fr)}}
+.analytics{display:none}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.stat{background:#fff;border-radius:12px;padding:16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.03)}
+.stat .n{font-size:1.6em;font-weight:700;color:#3182f6}
+.stat .l{font-size:.72em;color:#8b95a1;margin-top:2px}
+.sec{font-size:.95em;font-weight:700;margin:20px 0 10px}
+.bar-item{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.bar-label{width:100px;font-size:.82em;font-weight:500;flex-shrink:0}
+.bar-track{flex:1;height:24px;background:#e5e8eb;border-radius:6px;overflow:hidden}
+.bar-fill{height:100%;background:#3182f6;border-radius:6px;display:flex;align-items:center;padding-left:8px;font-size:.7em;color:#fff;font-weight:600;min-width:20px}
+.bar-cnt{width:40px;text-align:right;font-size:.8em;color:#8b95a1;flex-shrink:0}
+.kw-wrap{display:flex;flex-wrap:wrap;gap:6px}
+.kw{background:#fff;padding:6px 14px;border-radius:14px;font-size:.82em;box-shadow:0 1px 4px rgba(0,0,0,.03)}
+.kw b{color:#3182f6;margin-left:4px}
+@media(max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
 
 <!-- 로그인 -->
-<div class="login-wrap" id="loginWrap">
-  <div class="login-box">
-    <h1>관리자 로그인</h1>
-    <p>세무회계 이윤 챗봇 관리 페이지</p>
-    <input type="password" id="adminKey" placeholder="관리자 키 입력" onkeydown="if(event.key==='Enter')doLogin()">
-    <button onclick="doLogin()">로그인</button>
-    <div class="login-error" id="loginError">인증에 실패했습니다. 키를 확인해주세요.</div>
-  </div>
+<div class="login" id="loginView">
+<div class="login-box">
+<h1>관리자</h1>
+<p>세무회계 이윤 챗봇 관리</p>
+<input type="password" id="keyInput" placeholder="관리자 키" onkeydown="if(event.key==='Enter')login()">
+<button onclick="login()">로그인</button>
+<div class="login-err" id="err">키를 확인해주세요</div>
+</div>
 </div>
 
-<!-- 세션 목록 -->
-<div class="admin" id="adminPanel">
-  <div class="admin-header">
-    <div style="display:flex;gap:12px;align-items:center">
-      <h1 id="adminTitle">대화 세션 목록</h1>
-      <button onclick="showTab('sessions')" class="tab-btn active" id="tabSessions">대화</button>
-      <button onclick="showTab('analytics')" class="tab-btn" id="tabAnalytics">분석</button>
-    </div>
-    <button onclick="doLogout()">로그아웃</button>
-  </div>
-  <div id="sessionsView">
-    <div id="sessionList" class="session-list"></div>
-    <div id="pagination" class="pagination"></div>
-  </div>
-
-  <!-- 분석 뷰 -->
-  <div id="analyticsView" style="display:none">
-    <div class="analytics-grid" id="analyticsGrid"></div>
-  </div>
+<!-- 메인 -->
+<div class="wrap" id="mainView" style="display:none">
+<div class="hdr">
+<h1>관리자</h1>
+<div class="tabs">
+<button class="on" id="tabChat" onclick="tab('chat')">대화</button>
+<button id="tabAnal" onclick="tab('anal')">분석</button>
+</div>
+<button class="logout" onclick="logout()">로그아웃</button>
 </div>
 
-<!-- 대화 상세 -->
-<div class="detail" id="detailPanel">
-  <div class="detail-header">
-    <button class="detail-back" onclick="showList()">&larr;</button>
-    <span class="detail-title" id="detailTitle"></span>
-  </div>
-  <div id="msgList" class="msg-list"></div>
+<div id="chatView">
+<div id="list"></div>
+</div>
+
+<div class="detail" id="detailView">
+<button class="back" onclick="backToList()">← 목록</button>
+<div id="msgs"></div>
+</div>
+
+<div class="analytics" id="analView"></div>
 </div>
 
 <script>
-let KEY = '';
-let currentPage = 1;
+let KEY='';
+function e(t){return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
-function esc(t) {
-  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+async function login(){
+KEY=document.getElementById('keyInput').value.trim();
+if(!KEY)return;
+try{
+const r=await fetch('/api/conversations?key='+encodeURIComponent(KEY)+'&page=1');
+if(!r.ok)throw 0;
+document.getElementById('loginView').style.display='none';
+document.getElementById('mainView').style.display='block';
+loadList();
+}catch{document.getElementById('err').style.display='block'}
 }
 
-async function doLogin() {
-  KEY = document.getElementById('adminKey').value.trim();
-  if (!KEY) return;
-  try {
-    const r = await fetch('/api/conversations?key=' + encodeURIComponent(KEY) + '&page=1');
-    if (!r.ok) throw new Error();
-    document.getElementById('loginWrap').style.display = 'none';
-    document.getElementById('adminPanel').style.display = 'block';
-    loadSessions(1);
-  } catch {
-    document.getElementById('loginError').style.display = 'block';
-  }
+function logout(){
+KEY='';
+document.getElementById('loginView').style.display='flex';
+document.getElementById('mainView').style.display='none';
 }
 
-function doLogout() {
-  KEY = '';
-  document.getElementById('loginWrap').style.display = 'flex';
-  document.getElementById('adminPanel').style.display = 'none';
-  document.getElementById('detailPanel').style.display = 'none';
-  document.getElementById('adminKey').value = '';
-  document.getElementById('loginError').style.display = 'none';
+function tab(t){
+document.getElementById('tabChat').className=t==='chat'?'on':'';
+document.getElementById('tabAnal').className=t==='anal'?'on':'';
+document.getElementById('chatView').style.display=t==='chat'?'block':'none';
+document.getElementById('detailView').style.display='none';
+document.getElementById('analView').style.display=t==='anal'?'block':'none';
+if(t==='anal')loadAnalytics();
 }
 
-async function loadSessions(page) {
-  currentPage = page;
-  const r = await fetch('/api/conversations?key=' + encodeURIComponent(KEY) + '&page=' + page);
-  const data = await r.json();
-  const list = document.getElementById('sessionList');
-
-  if (!data.sessions || data.sessions.length === 0) {
-    list.innerHTML = '<div class="empty">저장된 대화가 없습니다.</div>';
-    document.getElementById('pagination').innerHTML = '';
-    return;
-  }
-
-  list.innerHTML = data.sessions.map(s => {
-    const hasUser = s.user_name;
-    const displayName = hasUser ? esc(s.user_name) : '비로그인 사용자';
-    const phone = s.user_phone ? esc(s.user_phone) : '';
-    const provider = s.user_provider || '';
-    const avatar = s.user_profile_image
-      ? `<img src="${esc(s.user_profile_image)}" alt="">`
-      : `<span class="initials">${hasUser ? esc(s.user_name[0]) : '?'}</span>`;
-    return `
-    <div class="session-item" onclick="loadDetail('${esc(s.group_id)}')">
-      <div class="session-avatar">${avatar}</div>
-      <div class="session-info">
-        <div class="session-user">${displayName}</div>
-        <div class="session-meta">
-          ${provider ? '<span class="session-provider '+provider+'">'+provider+'</span>' : ''}
-          <span>${s.last_at || s.started_at || ''}</span>
-        </div>
-      </div>
-      <div class="session-right">
-        <span class="session-time">${s.started_at ? s.started_at.substring(5,16) : ''}</span>
-        <span class="session-count">${s.message_count}건</span>
-      </div>
-    </div>`;
-  }).join('');
-
-  // 페이지네이션
-  const pg = document.getElementById('pagination');
-  if (data.totalPages <= 1) { pg.innerHTML = ''; return; }
-  let html = '';
-  for (let i = 1; i <= data.totalPages; i++) {
-    html += `<button class="${i === page ? 'active' : ''}" onclick="loadSessions(${i})">${i}</button>`;
-  }
-  pg.innerHTML = html;
+async function loadList(){
+const r=await fetch('/api/conversations?key='+encodeURIComponent(KEY)+'&page=1');
+const d=await r.json();
+const el=document.getElementById('list');
+if(!d.sessions||d.sessions.length===0){el.innerHTML='<div class="empty">대화 없음</div>';return}
+el.innerHTML=d.sessions.map(s=>{
+const nm=s.user_name||'비로그인';
+const av=s.user_profile_image
+?'<img src="'+e(s.user_profile_image)+'" alt="">'
+:nm[0];
+const pv=s.user_provider||'';
+return '<div class="item" onclick="detail(\''+e(s.group_id)+'\')">'
++'<div class="avatar">'+av+'</div>'
++'<div class="info"><div class="name">'+e(nm)+'</div>'
++'<div class="meta">'+(pv?'<span class="badge">'+pv+'</span> ':'')+e(s.last_at||s.started_at||'')+'</div></div>'
++'<div class="right"><div class="cnt">'+s.message_count+'건</div></div>'
++'</div>';
+}).join('');
 }
 
-async function loadDetail(sessionId) {
-  const r = await fetch('/api/conversation-detail?key=' + encodeURIComponent(KEY) + '&session=' + encodeURIComponent(sessionId));
-  const data = await r.json();
-
-  document.getElementById('adminPanel').style.display = 'none';
-  document.getElementById('detailPanel').style.display = 'block';
-  document.getElementById('detailTitle').textContent = sessionId;
-
-  const list = document.getElementById('msgList');
-  if (!data.messages || data.messages.length === 0) {
-    list.innerHTML = '<div class="empty">메시지가 없습니다.</div>';
-    return;
-  }
-
-  list.innerHTML = data.messages.map(m => `
-    <div class="msg-item ${esc(m.role)}">
-      ${esc(m.content)}
-      <div class="msg-meta">${m.role === 'user' ? '사용자' : 'AI'} | ${m.created_at || ''}</div>
-    </div>
-  `).join('');
+async function detail(gid){
+const r=await fetch('/api/conversation-detail?key='+encodeURIComponent(KEY)+'&session='+encodeURIComponent(gid));
+const d=await r.json();
+document.getElementById('chatView').style.display='none';
+document.getElementById('detailView').style.display='block';
+const el=document.getElementById('msgs');
+if(!d.messages||d.messages.length===0){el.innerHTML='<div class="empty">메시지 없음</div>';return}
+el.innerHTML=d.messages.filter(m=>m.role==='user'||m.role==='assistant').map(m=>
+'<div class="msg '+e(m.role)+'">'+e(m.content)+'<div class="ts">'+(m.role==='user'?'사용자':'AI')+' · '+e(m.created_at||'')+'</div></div>'
+).join('');
 }
 
-function showList() {
-  document.getElementById('detailPanel').style.display = 'none';
-  document.getElementById('adminPanel').style.display = 'block';
+function backToList(){
+document.getElementById('detailView').style.display='none';
+document.getElementById('chatView').style.display='block';
 }
 
-function showTab(tab) {
-  document.getElementById('tabSessions').classList.toggle('active', tab==='sessions');
-  document.getElementById('tabAnalytics').classList.toggle('active', tab==='analytics');
-  document.getElementById('sessionsView').style.display = tab==='sessions' ? 'block' : 'none';
-  document.getElementById('analyticsView').style.display = tab==='analytics' ? 'block' : 'none';
-  if (tab==='analytics') loadAnalytics();
+async function loadAnalytics(){
+const el=document.getElementById('analView');
+el.innerHTML='<div class="empty">분석 중...</div>';
+try{
+const r=await fetch('/api/analytics?key='+encodeURIComponent(KEY));
+const d=await r.json();
+if(d.error){el.innerHTML='<div class="empty">'+e(d.error)+'</div>';return}
+const s=d.summary;
+const mx=Math.max(...d.categories.map(c=>c.count),1);
+let h='<div class="stats">'
++'<div class="stat"><div class="n">'+s.total_messages+'</div><div class="l">메시지</div></div>'
++'<div class="stat"><div class="n">'+s.total_sessions+'</div><div class="l">세션</div></div>'
++'<div class="stat"><div class="n">'+s.total_users+'</div><div class="l">사용자</div></div>'
++'<div class="stat"><div class="n">'+s.total_questions+'</div><div class="l">질문</div></div>'
++'</div>';
+h+='<div class="sec">질문 유형</div>';
+d.categories.filter(c=>c.count>0).forEach(c=>{
+const w=Math.max(c.count/mx*100,4);
+h+='<div class="bar-item"><span class="bar-label">'+e(c.name)+'</span><div class="bar-track"><div class="bar-fill" style="width:'+w+'%">'+c.count+'</div></div><span class="bar-cnt">'+c.count+'건</span></div>';
+});
+if(d.topKeywords&&d.topKeywords.length>0){
+h+='<div class="sec">인기 키워드</div><div class="kw-wrap">';
+d.topKeywords.forEach(k=>{h+='<span class="kw">'+e(k.keyword)+'<b>'+k.count+'</b></span>'});
+h+='</div>';
 }
-
-async function loadAnalytics() {
-  const grid = document.getElementById('analyticsGrid');
-  grid.innerHTML = '<div class="empty">분석 중...</div>';
-
-  const r = await fetch('/api/analytics?key=' + encodeURIComponent(KEY));
-  const d = await r.json();
-  if (d.error) { grid.innerHTML = '<div class="empty">오류: '+esc(d.error)+'</div>'; return; }
-
-  const s = d.summary;
-  const maxCat = Math.max(...d.categories.map(c => c.count), 1);
-  const maxDaily = Math.max(...(d.daily || []).map(x => x.count), 1);
-
-  let html = '';
-
-  // 요약 카드
-  html += `<div class="stat-cards">
-    <div class="stat-card"><div class="num">${s.total_messages}</div><div class="label">전체 메시지</div></div>
-    <div class="stat-card"><div class="num">${s.total_sessions}</div><div class="label">대화 세션</div></div>
-    <div class="stat-card"><div class="num">${s.total_users}</div><div class="label">가입 사용자</div></div>
-    <div class="stat-card"><div class="num">${s.total_questions}</div><div class="label">질문 수</div></div>
-  </div>`;
-
-  // 일별 차트
-  if (d.daily && d.daily.length > 0) {
-    html += '<div class="section-title">일별 대화 추이 (최근 14일)</div>';
-    html += '<div class="daily-chart">';
-    for (const day of d.daily.reverse()) {
-      const h = Math.max((day.count / maxDaily) * 100, 4);
-      const label = day.date ? day.date.substring(5) : '';
-      html += `<div class="daily-bar" style="height:${h}%"><span class="daily-num">${day.count}</span><span class="daily-label">${label}</span></div>`;
-    }
-    html += '</div><div style="height:24px"></div>';
-  }
-
-  // 질문 유형
-  html += '<div class="section-title">질문 유형 분석</div><div class="cat-list">';
-  for (const cat of d.categories) {
-    if (cat.count === 0) continue;
-    const w = Math.max((cat.count / maxCat) * 100, 4);
-    html += `<div class="cat-item">
-      <span class="cat-name">${esc(cat.name)}</span>
-      <div class="cat-bar"><div class="cat-fill" style="width:${w}%">${cat.count}</div></div>
-      <span class="cat-count">${cat.count}건</span>
-    </div>`;
-  }
-  html += '</div>';
-
-  // 인기 키워드
-  if (d.topKeywords && d.topKeywords.length > 0) {
-    html += '<div class="section-title" style="margin-top:24px">인기 검색 키워드</div><div class="kw-list">';
-    for (const kw of d.topKeywords) {
-      html += `<span class="kw-tag">${esc(kw.keyword)}<span class="kw-count">${kw.count}</span></span>`;
-    }
-    html += '</div>';
-  }
-
-  grid.innerHTML = html;
+el.innerHTML=h;
+}catch(err){el.innerHTML='<div class="empty">오류</div>'}
 }
 </script>
 </body>
