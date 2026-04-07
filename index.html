@@ -16,6 +16,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#f2f4f6;--card:#fff;--navy:#191f28;--blue:#3182f6;--blue-light:#e8f3ff;--text:#191f28;--text2:#8b95a1;--text3:#b0b8c1;--border:#e5e8eb;--success:#00c471;--shadow:0 2px 8px rgba(0,0,0,.04)}
+body.dark{--bg:#17171c;--card:#232329;--navy:#0d0d11;--blue:#4a9eff;--blue-light:#1a2a3f;--text:#e4e4e8;--text2:#8e8e96;--text3:#55555e;--border:#333339;--shadow:0 2px 8px rgba(0,0,0,.2)}
+body.dark .header{background:var(--card);border-bottom-color:var(--border)}
+body.dark .msg-ai .msg-bubble{background:var(--card);color:var(--text)}
+body.dark .msg-user .msg-bubble{background:var(--blue)}
+body.dark .quick button{background:var(--card);border-color:var(--border);color:var(--text)}
+body.dark .input-bar{background:var(--card);border-top-color:var(--border)}
+body.dark .input-bar input{background:var(--bg);border-color:var(--border);color:var(--text)}
+body.dark .cta-bar a{background:var(--card);border-color:var(--border)}
+body.dark .refund-btn{background:linear-gradient(135deg,#1a2a3f,#1e2d42);border-color:#2a3f5a}
+body.dark .login-screen{background:var(--bg)}
+body.dark .login-btn.kakao{background:#FEE500;color:#191f28}
+body.dark .welcome-logo{background:var(--card)}
+body.dark .tax-alert{background:linear-gradient(135deg,#2a2518,#33291a);border-color:#5a4a20}
+body.dark .tax-alert-text{color:#ffd866}
+.theme-toggle{background:none;border:none;font-size:1.15em;cursor:pointer;padding:4px 6px;border-radius:8px;line-height:1}
+.theme-toggle:active{transform:scale(.9)}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;background:var(--bg);height:100vh;height:100dvh;display:flex;flex-direction:column;color:var(--text);-webkit-font-smoothing:antialiased}
 
@@ -146,6 +162,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
         <a href="/articles.html" class="hdr-btn">칼럼</a>
         <a href="javascript:void(0)" onclick="resetChat()" class="hdr-btn" id="resetBtn" style="display:none">초기화</a>
         <a href="/api/auth/logout" class="hdr-btn" id="logoutBtn" style="display:none">로그아웃</a>
+        <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()">🌙</button>
     </div>
     <div class="user-info" id="userInfo" style="display:none">
         <div class="user-avatar" id="userAvatar"></div>
@@ -442,6 +459,18 @@ async function resetChat(){
     messages=[{role:"system",content:S}];
     document.getElementById("quickArea").style.display="flex";
 }
+
+// 다크모드
+function toggleTheme(){
+  var d=document.body.classList.toggle('dark');
+  localStorage.setItem('theme',d?'dark':'light');
+  document.getElementById('themeBtn').textContent=d?'☀️':'🌙';
+  document.querySelector('meta[name="theme-color"]').content=d?'#232329':'#191f28';
+}
+(function(){
+  var t=localStorage.getItem('theme');
+  if(t==='dark'){document.body.classList.add('dark');document.getElementById('themeBtn').textContent='☀️';document.querySelector('meta[name="theme-color"]').content='#232329';}
+})();
 
 if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}
 </script>
