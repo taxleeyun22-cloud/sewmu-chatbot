@@ -271,7 +271,59 @@ function showChat(){
     }else{
         avatar.textContent=(currentUser.name||'?')[0];
     }
-    renderTaxAlerts();
+    // 세금 기한 알림 (인라인)
+    try{
+      var ta=document.getElementById('taxAlertArea');
+      if(ta){
+        var n=new Date();
+        var offset=n.getTimezoneOffset()*60000;
+        var kst=new Date(n.getTime()+offset+32400000);
+        var ty=kst.getFullYear(),tm=kst.getMonth(),td=kst.getDate();
+        var todayMs=new Date(ty,tm,td).getTime();
+        var hw=localStorage.getItem('hideWoncheon')==='true';
+        var dis=JSON.parse(localStorage.getItem('taxDismissed')||'{}');
+        var raw=[
+          ['법인세 신고납부',3,31,'법인'],['법인 지방소득세',3,31,'법인'],['법인세 중간예납',8,31,'법인'],
+          ['종합소득세 확정신고',5,31,'소득'],['개인 지방소득세',5,31,'소득'],['종소세 성실신고대상',6,30,'소득'],
+          ['부가세 확정 2기',1,26,'부가'],['부가세 예정 1기',4,25,'부가'],['부가세 확정 1기',7,25,'부가'],['부가세 예정 2기',10,25,'부가'],
+          ['원천세 1월분',2,10,'원천'],['원천세 2월분',3,10,'원천'],['원천세 3월분',4,10,'원천'],
+          ['원천세 4월분',5,11,'원천'],['원천세 5월분',6,10,'원천'],['원천세 6월분',7,10,'원천'],
+          ['원천세 7월분',8,10,'원천'],['원천세 8월분',9,10,'원천'],['원천세 9월분',10,12,'원천'],
+          ['원천세 10월분',11,10,'원천'],['원천세 11월분',12,10,'원천']
+        ];
+        var h='';
+        for(var i=0;i<raw.length;i++){
+          var r=raw[i],nm=r[0],mo=r[1],dy=r[2],cat=r[3];
+          if(hw&&cat==='원천')continue;
+          var dt=new Date(ty,mo-1,dy);
+          var wd=dt.getDay();if(wd===0)dt.setDate(dt.getDate()+1);if(wd===6)dt.setDate(dt.getDate()+2);
+          var dlMs=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate()).getTime();
+          var diff=Math.round((dlMs-todayMs)/86400000);
+          var aid=nm.replace(/\s/g,'')+'_'+mo;
+          if(diff>=0&&diff<=3&&!dis[aid]){
+            var lb=diff===0?'오늘 마감':diff===1?'내일 마감':diff+'일 남음';
+            h+='<div class="tax-alert" data-aid="'+aid+'">';
+            h+='<span class="tax-alert-icon">\uD83D\uDCCC</span>';
+            h+='<span class="tax-alert-text">'+nm+' ('+(dt.getMonth()+1)+'/'+dt.getDate()+') - '+lb+'</span>';
+            h+='<button class="tax-alert-close" data-aid="'+aid+'">✕</button></div>';
+          }
+        }
+        if(h){
+          ta.style.display='block';
+          ta.innerHTML=h;
+          ta.onclick=function(e){
+            var btn=e.target.closest('[data-aid]');
+            if(btn&&btn.tagName==='BUTTON'){
+              var id=btn.getAttribute('data-aid');
+              var d2=JSON.parse(localStorage.getItem('taxDismissed')||'{}');
+              d2[id]=true;localStorage.setItem('taxDismissed',JSON.stringify(d2));
+              btn.closest('.tax-alert').remove();
+              if(!ta.querySelector('.tax-alert'))ta.style.display='none';
+            }
+          };
+        }
+      }
+    }catch(e){console.log('tax alert error',e);}
     loadHistory();
 }
 
@@ -391,129 +443,7 @@ async function resetChat(){
     document.getElementById("quickArea").style.display="flex";
 }
 
-// ===== 세금 신고/납부 기한 알림 =====
-function getKSTToday(){
-  const n=new Date();
-  const kst=new Date(n.getTime()+(9*60*60*1000)+(n.getTimezoneOffset()*60*1000));
-  return {y:kst.getFullYear(),m:kst.getMonth(),d:kst.getDate()};
-}
-
-function getTaxDeadlines(){
-  const {y}=getKSTToday();
-  const raw=[
-    {name:"법인세 신고납부",m:3,d:31,cat:"법인"},
-    {name:"법인 지방소득세 신고납부",m:3,d:31,cat:"법인"},
-    {name:"법인세 중간예납",m:8,d:31,cat:"법인"},
-    {name:"종합소득세 확정신고납부",m:5,d:31,cat:"소득"},
-    {name:"개인 지방소득세 신고납부",m:5,d:31,cat:"소득"},
-    {name:"종합소득세 성실신고확인대상",m:6,d:30,cat:"소득"},
-    {name:"부가세 확정신고 2기",m:1,d:26,cat:"부가"},
-    {name:"부가세 예정신고 1기 법인",m:4,d:25,cat:"부가"},
-    {name:"부가세 확정신고 1기",m:7,d:25,cat:"부가"},
-    {name:"부가세 예정신고 2기 법인",m:10,d:25,cat:"부가"},
-    {name:"원천세 1월분",m:2,d:10,cat:"원천"},
-    {name:"원천세 2월분",m:3,d:10,cat:"원천"},
-    {name:"원천세 3월분",m:4,d:10,cat:"원천"},
-    {name:"원천세 4월분",m:5,d:11,cat:"원천"},
-    {name:"원천세 5월분",m:6,d:10,cat:"원천"},
-    {name:"원천세 6월분",m:7,d:10,cat:"원천"},
-    {name:"원천세 7월분",m:8,d:10,cat:"원천"},
-    {name:"원천세 8월분",m:9,d:10,cat:"원천"},
-    {name:"원천세 9월분",m:10,d:12,cat:"원천"},
-    {name:"원천세 10월분",m:11,d:10,cat:"원천"},
-    {name:"원천세 11월분",m:12,d:10,cat:"원천"},
-  ];
-  return raw.map(function(r){
-    var yr=r.m>12?y+1:y;
-    var mo=r.m>12?r.m-12:r.m;
-    var dt=new Date(yr,mo-1,r.d);
-    var wd=dt.getDay();
-    if(wd===0)dt.setDate(dt.getDate()+1);
-    if(wd===6)dt.setDate(dt.getDate()+2);
-    return{name:r.name,date:dt,cat:r.cat,id:r.name.replace(/\s/g,'')+'_'+mo+'_'+dt.getDate()};
-  });
-}
-
-function checkTaxAlerts(){
-  var hide=localStorage.getItem('hideWoncheon')==='true';
-  var dis=JSON.parse(localStorage.getItem('taxDismissed')||'{}');
-  var t=getKSTToday();
-  var today=new Date(t.y,t.m,t.d).getTime();
-  var deadlines=getTaxDeadlines();
-  var alerts=[];
-  for(var i=0;i<deadlines.length;i++){
-    var dl=deadlines[i];
-    if(hide&&dl.cat==='원천')continue;
-    if(dis[dl.id])continue;
-    var dlDay=new Date(dl.date.getFullYear(),dl.date.getMonth(),dl.date.getDate()).getTime();
-    var diff=Math.round((dlDay-today)/(86400000));
-    if(diff>=0&&diff<=3){
-      var label=diff===0?'오늘 마감':diff===1?'내일 마감':diff+'일 남음';
-      alerts.push({name:dl.name,label:label,dateStr:(dl.date.getMonth()+1)+'월 '+dl.date.getDate()+'일',id:dl.id,cat:dl.cat});
-    }
-  }
-  return alerts;
-}
-
-function renderTaxAlerts(){
-  var area=document.getElementById('taxAlertArea');
-  if(!area){console.log('taxAlertArea not found');return;}
-  var alerts=checkTaxAlerts();
-  console.log('Tax alerts found:',alerts.length,JSON.stringify(alerts));
-  if(alerts.length===0){
-    // 테스트: 알림 없어도 강제로 1개 표시
-    area.style.display='block';
-    area.innerHTML='<div class="tax-alert"><span class="tax-alert-icon">📌</span><span class="tax-alert-text">원천세 3월분 (4월 10일) - 3일 남음 [테스트]</span><button class="tax-alert-close" onclick="this.closest(\'.tax-alert\').remove()">✕</button></div>';
-    return;
-  }
-  area.style.display='block';
-  var hide=localStorage.getItem('hideWoncheon')==='true';
-  var h='';
-  for(var i=0;i<alerts.length;i++){
-    var a=alerts[i];
-    h+='<div class="tax-alert" data-id="'+a.id+'">';
-    h+='<span class="tax-alert-icon">📌</span>';
-    h+='<span class="tax-alert-text">'+a.name+' ('+a.dateStr+') - '+a.label+'</span>';
-    h+='<button class="tax-alert-close" data-dismiss="'+a.id+'" title="닫기">✕</button>';
-    h+='</div>';
-  }
-  var hasW=alerts.some(function(a){return a.cat==='원천';});
-  if(hasW||hide){
-    h+='<div style="text-align:right;padding:2px 20px 0"><button class="tax-alert-setting" id="woncheonToggle">'+(hide?'원천세 알림 켜기':'원천세 알림 끄기')+'</button></div>';
-  }
-  area.innerHTML=h;
-  // 이벤트 바인딩
-  area.querySelectorAll('[data-dismiss]').forEach(function(btn){
-    btn.onclick=function(){
-      var id=this.getAttribute('data-dismiss');
-      var dis=JSON.parse(localStorage.getItem('taxDismissed')||'{}');
-      dis[id]=true;
-      localStorage.setItem('taxDismissed',JSON.stringify(dis));
-      var el=this.closest('.tax-alert');
-      if(el)el.remove();
-      if(!area.querySelector('.tax-alert'))area.style.display='none';
-    };
-  });
-  var togBtn=document.getElementById('woncheonToggle');
-  if(togBtn){
-    togBtn.onclick=function(){
-      var cur=localStorage.getItem('hideWoncheon')==='true';
-      localStorage.setItem('hideWoncheon',String(!cur));
-      if(cur)localStorage.removeItem('taxDismissed');
-      renderTaxAlerts();
-    };
-  }
-}
-
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js').then(function(reg){
-    reg.update();
-  });
-  // 새 SW 활성화되면 자동 새로고침
-  navigator.serviceWorker.addEventListener('controllerchange',function(){
-    location.reload();
-  });
-}
+if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}
 </script>
 </body>
 </html>
