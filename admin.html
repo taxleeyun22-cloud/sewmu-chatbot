@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>관리자 - 세무회계 이윤</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR',sans-serif;background:#fff;color:#1d1d1f;min-height:100vh}
+
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.login-box{width:100%;max-width:360px;text-align:center}
+.login-box h1{font-size:1.4em;font-weight:700;margin-bottom:8px}
+.login-box p{font-size:.85em;color:#86868b;margin-bottom:32px}
+.login-box input{width:100%;padding:14px 18px;border:1px solid #e5e5e7;border-radius:12px;font-size:.9em;font-family:inherit;outline:none;transition:.2s}
+.login-box input:focus{border-color:#007aff;box-shadow:0 0 0 3px rgba(0,122,255,.1)}
+.login-box button{width:100%;margin-top:12px;padding:14px;background:#007aff;color:#fff;border:none;border-radius:12px;font-size:.9em;font-weight:500;cursor:pointer;font-family:inherit;transition:.15s}
+.login-box button:hover{background:#0066d6}
+.login-error{color:#ff3b30;font-size:.8em;margin-top:12px;display:none}
+
+.admin{display:none;max-width:960px;margin:0 auto;padding:24px 20px}
+.admin-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;padding-bottom:16px;border-bottom:1px solid #f0f0f0}
+.admin-header h1{font-size:1.2em;font-weight:700}
+.admin-header button{background:none;border:1px solid #e5e5e7;padding:8px 16px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#86868b;transition:.15s}
+.admin-header button:hover{border-color:#007aff;color:#007aff}
+
+.session-list{display:flex;flex-direction:column;gap:2px}
+.session-item{display:flex;align-items:center;padding:16px 20px;border-radius:12px;cursor:pointer;transition:.15s;gap:16px}
+.session-item:hover{background:#f5f5f7}
+.session-id{font-size:.8em;color:#86868b;font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-time{font-size:.78em;color:#86868b;white-space:nowrap}
+.session-count{font-size:.75em;background:#f5f5f7;color:#86868b;padding:4px 10px;border-radius:12px;white-space:nowrap}
+
+.pagination{display:flex;justify-content:center;gap:8px;margin-top:24px}
+.pagination button{background:#f5f5f7;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;transition:.15s}
+.pagination button:hover{background:#e8e8ed}
+.pagination button.active{background:#007aff;color:#fff}
+
+/* 대화 상세 */
+.detail{display:none;max-width:960px;margin:0 auto;padding:24px 20px}
+.detail-header{display:flex;align-items:center;gap:12px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #f0f0f0}
+.detail-back{background:none;border:none;font-size:1.2em;cursor:pointer;padding:4px 8px;border-radius:8px;transition:.15s}
+.detail-back:hover{background:#f5f5f7}
+.detail-title{font-size:.85em;color:#86868b;font-family:monospace}
+
+.msg-list{display:flex;flex-direction:column;gap:12px}
+.msg-item{padding:16px 20px;border-radius:12px;font-size:.88em;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.msg-item.user{background:#007aff;color:#fff;align-self:flex-end;max-width:80%;margin-left:auto;border-radius:16px 4px 16px 16px}
+.msg-item.assistant{background:#f5f5f7;color:#1d1d1f;align-self:flex-start;max-width:80%;border-radius:4px 16px 16px 16px}
+.msg-item .msg-meta{font-size:.7em;opacity:.6;margin-top:8px}
+
+.empty{text-align:center;padding:60px 20px;color:#86868b;font-size:.9em}
+</style>
+</head>
+<body>
+
+<!-- 로그인 -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-box">
+    <h1>관리자 로그인</h1>
+    <p>세무회계 이윤 챗봇 관리 페이지</p>
+    <input type="password" id="adminKey" placeholder="관리자 키 입력" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">로그인</button>
+    <div class="login-error" id="loginError">인증에 실패했습니다. 키를 확인해주세요.</div>
+  </div>
+</div>
+
+<!-- 세션 목록 -->
+<div class="admin" id="adminPanel">
+  <div class="admin-header">
+    <h1>대화 세션 목록</h1>
+    <button onclick="doLogout()">로그아웃</button>
+  </div>
+  <div id="sessionList" class="session-list"></div>
+  <div id="pagination" class="pagination"></div>
+</div>
+
+<!-- 대화 상세 -->
+<div class="detail" id="detailPanel">
+  <div class="detail-header">
+    <button class="detail-back" onclick="showList()">&larr;</button>
+    <span class="detail-title" id="detailTitle"></span>
+  </div>
+  <div id="msgList" class="msg-list"></div>
+</div>
+
+<script>
+let KEY = '';
+let currentPage = 1;
+
+function esc(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function doLogin() {
+  KEY = document.getElementById('adminKey').value.trim();
+  if (!KEY) return;
+  try {
+    const r = await fetch('/api/conversations?key=' + encodeURIComponent(KEY) + '&page=1');
+    if (!r.ok) throw new Error();
+    document.getElementById('loginWrap').style.display = 'none';
+    document.getElementById('adminPanel').style.display = 'block';
+    loadSessions(1);
+  } catch {
+    document.getElementById('loginError').style.display = 'block';
+  }
+}
+
+function doLogout() {
+  KEY = '';
+  document.getElementById('loginWrap').style.display = 'flex';
+  document.getElementById('adminPanel').style.display = 'none';
+  document.getElementById('detailPanel').style.display = 'none';
+  document.getElementById('adminKey').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+async function loadSessions(page) {
+  currentPage = page;
+  const r = await fetch('/api/conversations?key=' + encodeURIComponent(KEY) + '&page=' + page);
+  const data = await r.json();
+  const list = document.getElementById('sessionList');
+
+  if (!data.sessions || data.sessions.length === 0) {
+    list.innerHTML = '<div class="empty">저장된 대화가 없습니다.</div>';
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = data.sessions.map(s => `
+    <div class="session-item" onclick="loadDetail('${esc(s.session_id)}')">
+      <span class="session-id">${esc(s.session_id)}</span>
+      <span class="session-time">${s.started_at || ''}</span>
+      <span class="session-count">${s.message_count}건</span>
+    </div>
+  `).join('');
+
+  // 페이지네이션
+  const pg = document.getElementById('pagination');
+  if (data.totalPages <= 1) { pg.innerHTML = ''; return; }
+  let html = '';
+  for (let i = 1; i <= data.totalPages; i++) {
+    html += `<button class="${i === page ? 'active' : ''}" onclick="loadSessions(${i})">${i}</button>`;
+  }
+  pg.innerHTML = html;
+}
+
+async function loadDetail(sessionId) {
+  const r = await fetch('/api/conversation-detail?key=' + encodeURIComponent(KEY) + '&session=' + encodeURIComponent(sessionId));
+  const data = await r.json();
+
+  document.getElementById('adminPanel').style.display = 'none';
+  document.getElementById('detailPanel').style.display = 'block';
+  document.getElementById('detailTitle').textContent = sessionId;
+
+  const list = document.getElementById('msgList');
+  if (!data.messages || data.messages.length === 0) {
+    list.innerHTML = '<div class="empty">메시지가 없습니다.</div>';
+    return;
+  }
+
+  list.innerHTML = data.messages.map(m => `
+    <div class="msg-item ${esc(m.role)}">
+      ${esc(m.content)}
+      <div class="msg-meta">${m.role === 'user' ? '사용자' : 'AI'} | ${m.created_at || ''}</div>
+    </div>
+  `).join('');
+}
+
+function showList() {
+  document.getElementById('detailPanel').style.display = 'none';
+  document.getElementById('adminPanel').style.display = 'block';
+}
+</script>
+</body>
+</html>
