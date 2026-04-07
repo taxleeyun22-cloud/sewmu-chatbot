@@ -312,14 +312,12 @@ async function sendMessage(){
         if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.error||`오류 (${r.status})`);}
 
         // 스트리밍 응답 처리
-        hideDots();
         const c=document.getElementById("chatArea");
-        const msgDiv=document.createElement("div");
-        msgDiv.className="msg msg-ai";
-        msgDiv.innerHTML=`<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble" id="streamBubble"></div></div>`;
-        c.appendChild(msgDiv);
+        const statusEl=document.getElementById("dots");
 
-        const bubble=document.getElementById("streamBubble");
+        // 상태 표시 영역 (로딩 dots를 상태 메시지로 교체)
+        let streamStarted=false;
+        let msgDiv,bubble;
         let fullText="";
         const reader=r.body.getReader();
         const decoder=new TextDecoder();
@@ -337,7 +335,25 @@ async function sendMessage(){
                     if(data==="[DONE]")break;
                     try{
                         const j=JSON.parse(data);
+                        // 상태 메시지 표시
+                        if(j.status){
+                            if(statusEl){
+                                const b=statusEl.querySelector(".msg-bubble");
+                                if(b) b.innerHTML='<div style="display:flex;align-items:center;gap:8px"><div class="dots"><span></span><span></span><span></span></div><span style="font-size:.82em;color:var(--text2)">'+esc(j.status)+'</span></div>';
+                                c.scrollTop=c.scrollHeight;
+                            }
+                        }
+                        // 실제 답변 컨텐츠
                         if(j.content){
+                            if(!streamStarted){
+                                streamStarted=true;
+                                hideDots();
+                                msgDiv=document.createElement("div");
+                                msgDiv.className="msg msg-ai";
+                                msgDiv.innerHTML='<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble" id="streamBubble"></div></div>';
+                                c.appendChild(msgDiv);
+                                bubble=document.getElementById("streamBubble");
+                            }
                             fullText+=j.content;
                             bubble.innerHTML=esc(fullText);
                             c.scrollTop=c.scrollHeight;
@@ -346,7 +362,8 @@ async function sendMessage(){
                 }
             }
         }
-        bubble.removeAttribute("id");
+        if(!streamStarted)hideDots();
+        if(bubble)bubble.removeAttribute("id");
         messages.push({role:"assistant",content:fullText});
     }catch(e){hideDots();add("ai","오류가 발생했습니다: "+e.message)}
     finally{loading=false;document.getElementById("sendBtn").disabled=false;i.focus()}

@@ -338,25 +338,11 @@ export async function onRequestPost(context) {
     const lastUserMsg = [...userMessages].reverse().find((m) => m.role === "user");
     const question = lastUserMsg ? lastUserMsg.content : "";
 
-    // 1단계: 관련 법령 & 키워드 추출
-    const { laws, keywords, search_expc } = await extractLawKeywords(question, apiKey);
+    // 사용자 질문 먼저 DB에 저장 (중복 방지용 플래그)
+    const _dbSaveHandled = true;
 
-    // 2단계: 법령 + 칼럼 + 예규 병렬 검색
-    const lawPromises = (laws || []).slice(0, 3).map((lawName) =>
-      searchLawArticles(lawName, keywords || []).then((a) => a ? `\n\n[${lawName}]\n${a}` : "")
-    );
-    const expcPromise = search_expc ? searchTaxRulings(keywords || []) : Promise.resolve("");
-    const precPromise = searchPrecedents(keywords || []);
-
-    // 칼럼 검색
-    const baseUrl = new URL(context.request.url).origin;
-    const columnPromise = searchColumns(question, keywords || [], baseUrl);
-
-    const results = await Promise.all([...lawPromises, expcPromise, precPromise, columnPromise]);
-    const lawContext = results.filter(Boolean).join("");
-
-    // 3단계: GPT 답변
-    const systemPrompt = `너는 대구 달서구 세무회계 이윤의 AI 세무 상담 어시스턴트야.
+    // buildSystemPrompt 함수 정의
+    const buildSystemPrompt = (lawContext) => `너는 대구 달서구 세무회계 이윤의 AI 세무 상담 어시스턴트야.
 세무회계 이윤은 대표세무사 이재윤이 운영하며, 주요 거래처는 음식점, 휴대폰매장, 배달업, 소매업 등 개인사업자와 중소 법인이야.
 
 ===== 절대 금지 사항 =====
@@ -586,18 +572,128 @@ export async function onRequestPost(context) {
 
 ${lawContext ? "\n\n===== 참고 법령 조문 =====" + lawContext : "\n\n(관련 법령 조문을 찾지 못했습니다. 일반적인 세무 지식으로 답변하되, 반드시 '정확한 내용은 세무회계 이윤에 문의해 주세요'로 마무리하세요.)"}`;
 
-    const finalMessages = [
-      { role: "system", content: systemPrompt },
-      ...userMessages.filter((m) => m.role !== "system"),
-    ];
-
     // 사용자 질문 먼저 DB에 저장
     if (db) {
       try { await saveMessage(db, sessionId, "user", question, userId); } catch {}
     }
 
-    // 스트리밍 요청
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    // 스트리밍 응답 설정
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const enc = new TextEncoder();
+
+    const sendStatus = async (msg) => {
+      await writer.write(enc.encode("data: " + JSON.stringify({ status: msg }) + "\n\n"));
+    };
+
+    // 백그라운드에서 검색 + GPT 스트리밍 처리
+    const process = async () => {
+      try {
+        // 1단계: 키워드 추출
+        await sendStatus("질문 분석 중...");
+        const { laws, keywords, search_expc } = await extractLawKeywords(question, apiKey);
+
+        // 2단계: 법령 검색
+        const lawResults = [];
+        for (const lawName of (laws || []).slice(0, 3)) {
+          await sendStatus(lawName + " 조문 검색 중...");
+          const articles = await searchLawArticles(lawName, keywords || []);
+          if (articles) lawResults.push("\n\n[" + lawName + "]\n" + articles);
+        }
+
+        // 3단계: 판례/예규 검색
+        if (search_expc) {
+          await sendStatus("관련 예규 검색 중...");
+        }
+        const expcResult = search_expc ? await searchTaxRulings(keywords || []) : "";
+
+        await sendStatus("관련 판례 검색 중...");
+        const precResult = await searchPrecedents(keywords || []);
+
+        // 4단계: 칼럼 검색
+        await sendStatus("세무회계 이윤 칼럼 확인 중...");
+        const baseUrl = new URL(context.request.url).origin;
+        const colResult = await searchColumns(question, keywords || [], baseUrl);
+
+        const lawContext = [...lawResults, expcResult, precResult, colResult].filter(Boolean).join("");
+
+        await sendStatus("답변 생성 중...");
+
+        // 시스템 프롬프트 구성 (기존과 동일)
+        const systemPrompt = buildSystemPrompt(lawContext);
+
+        const finalMessages = [
+          { role: "system", content: systemPrompt },
+          ...userMessages.filter((m) => m.role !== "system"),
+        ];
+
+        // GPT 스트리밍 호출
+        const res = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + apiKey,
+          },
+          body: JSON.stringify({
+            model: "gpt-4.1-mini",
+            messages: finalMessages,
+            max_tokens: 1500,
+            temperature: 0.3,
+            stream: true,
+          }),
+        });
+
+        // GPT 스트림 전달
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        let fullResponse = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() || "";
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const data = line.slice(6).trim();
+              if (data === "[DONE]") break;
+              try {
+                const json = JSON.parse(data);
+                const content = json.choices?.[0]?.delta?.content || "";
+                if (content) {
+                  fullResponse += content;
+                  await writer.write(enc.encode("data: " + JSON.stringify({ content }) + "\n\n"));
+                }
+              } catch {}
+            }
+          }
+        }
+
+        // DB 저장
+        if (db && fullResponse) {
+          try { await saveMessage(db, sessionId, "assistant", fullResponse, userId); } catch {}
+        }
+
+        await writer.write(enc.encode("data: [DONE]\n\n"));
+        await writer.close();
+      } catch (e) {
+        await writer.write(enc.encode("data: " + JSON.stringify({ content: "\n\n오류가 발생했습니다: " + e.message }) + "\n\n"));
+        await writer.write(enc.encode("data: [DONE]\n\n"));
+        await writer.close();
+      }
+    };
+
+    process();
+
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    });
       method: "POST",
       headers: {
         "Content-Type": "application/json",
