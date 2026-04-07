@@ -64,6 +64,17 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
 
 .empty{text-align:center;color:#ccc;padding:80px 20px;font-weight:300}
 
+/* 페이지네이션 */
+.pagination{display:flex;justify-content:center;gap:6px;margin-top:32px;padding:16px 0}
+.pagination button{width:36px;height:36px;border:1px solid #e0e0e0;background:#fff;color:#666;border-radius:8px;cursor:pointer;font-size:.85em;font-weight:500;font-family:inherit;transition:.15s}
+.pagination button:hover{border-color:#007aff;color:#007aff}
+.pagination button.active{background:#111;color:#fff;border-color:#111}
+
+/* 플로팅 목록 버튼 */
+.float-back{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111;color:#fff;border:none;padding:10px 24px;border-radius:24px;font-size:.82em;font-weight:500;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:50;font-family:inherit;transition:.15s;display:none}
+.float-back:hover{background:#333}
+.float-back:active{transform:translateX(-50%) scale(.96)}
+
 @media(max-width:600px){
     .main{padding:32px 18px 60px}
     .page-title{font-size:1.5em}
@@ -90,7 +101,10 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
         <div class="page-title">세무 칼럼</div>
         <div class="page-subtitle">대표세무사 이재윤</div>
         <div id="articleList"></div>
+        <div class="pagination" id="pagination"></div>
     </div>
+
+    <button class="float-back" id="floatBack" onclick="showList()">← 목록으로</button>
 
     <div id="detailView" class="article-view">
         <button class="back-btn" onclick="showList()">← 목록</button>
@@ -106,23 +120,49 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
 </div>
 
 <script>
+const PER_PAGE = 7;
+let allArticles = [];
+let currentPage = 1;
+
 async function loadList() {
     const res = await fetch("/articles/index.json");
-    const articles = await res.json();
-    const list = document.getElementById("articleList");
-    if (!articles || articles.length === 0) {
-        list.innerHTML = '<div class="empty">준비 중입니다.</div>';
+    allArticles = await res.json();
+    if (!allArticles || allArticles.length === 0) {
+        document.getElementById("articleList").innerHTML = '<div class="empty">준비 중입니다.</div>';
         return;
     }
+    renderPage(1);
+}
+
+function renderPage(page) {
+    currentPage = page;
+    const list = document.getElementById("articleList");
+    const totalPages = Math.ceil(allArticles.length / PER_PAGE);
+    const start = (page - 1) * PER_PAGE;
+    const items = allArticles.slice(start, start + PER_PAGE);
+
     list.innerHTML = "";
-    for (const a of articles) {
+    for (const a of items) {
         const div = document.createElement("div");
         div.className = "article-item";
         div.innerHTML = `<div class="item-cat">${a.category}</div><div class="item-title">${a.title}</div><div class="item-preview">${a.preview || ""}</div><div class="item-date">${a.date}</div>`;
         div.onclick = () => showDetail(a.file, a.title, a.category, a.date);
         list.appendChild(div);
     }
+
+    // 페이지네이션
+    const pag = document.getElementById("pagination");
+    if (totalPages <= 1) { pag.innerHTML = ""; return; }
+    pag.innerHTML = "";
+    for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement("button");
+        btn.textContent = i;
+        if (i === page) btn.className = "active";
+        btn.onclick = () => { renderPage(i); window.scrollTo(0, 0); };
+        pag.appendChild(btn);
+    }
 }
+
 async function showDetail(file, title, category, date) {
     const res = await fetch("/articles/" + file);
     const text = await res.text();
@@ -132,13 +172,17 @@ async function showDetail(file, title, category, date) {
     document.getElementById("viewBody").innerHTML = text;
     document.getElementById("listView").style.display = "none";
     document.getElementById("detailView").style.display = "block";
+    document.getElementById("floatBack").style.display = "block";
     window.scrollTo(0, 0);
 }
+
 function showList() {
     document.getElementById("listView").style.display = "block";
     document.getElementById("detailView").style.display = "none";
+    document.getElementById("floatBack").style.display = "none";
     window.scrollTo(0, 0);
 }
+
 loadList();
 </script>
 </body>
