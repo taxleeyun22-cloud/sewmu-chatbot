@@ -243,6 +243,23 @@ function showChat(){
         avatar.innerHTML='<div style="width:100%;height:100%;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.7em;font-weight:600">'+((currentUser.name||'?')[0])+'</div>';
     }
     document.getElementById('userName').textContent=currentUser.name||'';
+    loadHistory();
+}
+
+async function loadHistory(){
+    try{
+        const r=await fetch('/api/auth/history');
+        const d=await r.json();
+        if(d.messages && d.messages.length>0){
+            const c=document.getElementById("chatArea");
+            const w=c.querySelector(".welcome");if(w)w.remove();
+            document.getElementById("quickArea").style.display="none";
+            for(const m of d.messages){
+                add(m.role,m.content);
+                messages.push({role:m.role,content:m.content});
+            }
+        }
+    }catch{}
 }
 
 checkAuth();
