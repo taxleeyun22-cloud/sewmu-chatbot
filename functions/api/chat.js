@@ -281,7 +281,12 @@ function extractArticlesFromJSON(data, keywords) {
       let hangArray = jo.항 ? (Array.isArray(jo.항) ? jo.항 : [jo.항]) : [];
       if (hangArray.length > 0 && hangArray[0].항단위) hangArray = Array.isArray(hangArray[0].항단위) ? hangArray[0].항단위 : [hangArray[0].항단위];
       let fullText = `제${jo.조문번호 || ""}조(${jo.조문제목 || ""}) ${jo.조문내용 || ""}`;
-      for (const hang of hangArray) { if (hang && hang.항내용) fullText += "\n" + hang.항내용; }
+      for (const hang of hangArray) {
+        if (hang && hang.항내용) fullText += "\n" + hang.항내용;
+        let hoArray = hang && hang.호 ? (Array.isArray(hang.호) ? hang.호 : [hang.호]) : [];
+        if (hoArray.length > 0 && hoArray[0].호단위) hoArray = Array.isArray(hoArray[0].호단위) ? hoArray[0].호단위 : [hoArray[0].호단위];
+        for (const ho of hoArray) { if (ho && ho.호내용) fullText += "\n  " + ho.호내용; }
+      }
       // 키워드 매칭 점수 계산 (더 많은 키워드가 매칭될수록 높은 점수)
       let score = 0;
       for (const kw of keywords) {
@@ -289,7 +294,7 @@ function extractArticlesFromJSON(data, keywords) {
         // 조문 제목에 키워드가 있으면 가산점
         if ((jo.조문제목 || "").includes(kw)) score += 2;
       }
-      if (score > 0) scored.push({ text: fullText.substring(0, 800), score });
+      if (score > 0) scored.push({ text: fullText.substring(0, 1500), score });
     }
   } catch {}
   // 점수 높은 순으로 정렬 후 최대 8개
@@ -304,8 +309,8 @@ function extractArticlesFromText(text, keywords) {
     while (result.length < 5) {
       const idx = text.indexOf(kw, startIdx);
       if (idx === -1) break;
-      result.push(text.substring(Math.max(0, idx - 300), Math.min(text.length, idx + 500)));
-      startIdx = idx + 500;
+      result.push(text.substring(Math.max(0, idx - 300), Math.min(text.length, idx + 800)));
+      startIdx = idx + 800;
     }
   }
   return result.slice(0, 5).join("\n\n");
@@ -393,6 +398,21 @@ export async function onRequestPost(context) {
 - 컨설팅 비용, 세무조정 비용 등 구체적 금액을 말하지 마.
 - 답변에 볼드체(별표 **)를 절대 사용하지 마. 강조가 필요하면 따옴표("")나 대괄호([])를 사용해.
 
+===== 구라 방지 (할루시네이션 차단) - 최우선 규칙 =====
+- 아래 "참고 법령 조문"에 실제로 제공된 조문만 인용해. 제공되지 않은 법조문 번호를 절대 지어내지 마.
+- 법령 근거를 쓸 때 반드시 아래 제공된 조문에서 조번호를 확인 후 인용해. 확인 안 되면 "관련 법령 확인이 필요합니다"로 안내해.
+- 판례번호, 예규번호를 지어내지 마. 아래 제공된 판례/예규만 언급해.
+- 세율, 공제금액, 한도 등 숫자를 말할 때는 프롬프트에 하드코딩된 수치 또는 제공된 법령 조문의 수치만 사용해.
+- 확실하지 않은 내용은 "정확한 확인이 필요한 사항입니다. 세무회계 이윤(053-269-1213)에 문의해 주세요."로 안내해.
+- 세법은 자주 바뀌므로 모르면 명확히 "확인이 필요합니다"라고 해.
+- 질문이 지식 범위를 벗어나면 솔직히 "해당 내용은 정확한 답변이 어렵습니다"라고 말해.
+
+===== 답변 신뢰도 표시 =====
+답변 끝에 아래 중 하나를 반드시 표시해:
+- [신뢰도: 높음] - 제공된 법령 조문에 명시된 내용을 근거로 답변한 경우
+- [신뢰도: 보통] - 일반적인 세무 지식으로 답변했으나 법령에서 직접 확인하지 못한 경우
+- [신뢰도: 낮음 - 전문가 확인 필요] - 복잡한 사안이거나 여러 해석이 가능한 경우
+
 ===== 상담 원칙 =====
 - 비과세 질문에는 항상 실제 지출 요건과 한도 금액을 같이 알려줘.
 - 양도세 질문에는 보유기간, 거주기간, 조정대상지역 여부를 먼저 확인해.
@@ -409,6 +429,7 @@ export async function onRequestPost(context) {
 5. 전문용어는 쉽게 풀어서 설명해. 거래처 사장님들이 이해할 수 있는 수준으로.
 6. 항상 한국어로, 존댓말로 답변해.
 7. 답변 마지막에 "※ 위 내용은 현행 법령 기준이며, 구체적인 적용은 세무회계 이윤(053-269-1213)에 문의해 주세요."를 붙여.
+8. 위 "답변 신뢰도 표시" 규칙에 따라 답변 끝에 신뢰도 표시를 반드시 포함해.
 
 ===== 2026년 세금 신고/납부 기한 (반드시 정확하게 안내할 것) =====
 
