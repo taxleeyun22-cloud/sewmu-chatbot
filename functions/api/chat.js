@@ -69,6 +69,24 @@ function extractConfidence(content) {
   return m ? m[1] : null;
 }
 
+// 자동 플래그: 위험 답변 감지 (할루시네이션 의심)
+function shouldAutoFlag(content, confidence) {
+  if (!content) return false;
+  // 1. 신뢰도가 "낮음"이면 무조건 플래그
+  if (confidence === "낮음") return true;
+  // 2. 신뢰도가 "보통"이고 구체적 수치(금액/%)가 있는데 "근거:" 없으면 플래그
+  if (confidence === "보통") {
+    const hasMoney = /\d{1,3}(,\d{3})*\s*(원|만원|억원|천만원)|\d+%/.test(content);
+    const hasBasis = content.includes("근거:") || content.includes("근거 :");
+    if (hasMoney && !hasBasis) return true;
+  }
+  // 3. "확인이 필요" 같은 불확실 표현이 많으면 플래그
+  const uncertainWords = ["확인이 필요", "정확하지 않을 수", "다를 수 있", "대략", "아마"];
+  const uncertainCount = uncertainWords.filter(w => content.includes(w)).length;
+  if (uncertainCount >= 2) return true;
+  return false;
+}
+
 async function getUserFromSession(db, cookieHeader) {
   if (!cookieHeader) return null;
   const match = cookieHeader.match(/session=([^;]+)/);
@@ -90,9 +108,11 @@ async function saveMessage(db, sessionId, role, content, userId) {
   try {
     const kst = getKST();
     const confidence = role === "assistant" ? extractConfidence(content) : null;
+    // 자동 플래그: 위험 답변은 자동으로 reported=1
+    const autoFlag = (role === "assistant" && shouldAutoFlag(content, confidence)) ? 1 : 0;
     await db.prepare(
-      `INSERT INTO conversations (session_id, user_id, role, content, confidence, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-    ).bind(sessionId, userId || null, role, content, confidence, kst).run();
+      `INSERT INTO conversations (session_id, user_id, role, content, confidence, reported, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).bind(sessionId, userId || null, role, content, confidence, autoFlag, kst).run();
   } catch (e) {
     console.error("DB saveMessage error:", e);
   }

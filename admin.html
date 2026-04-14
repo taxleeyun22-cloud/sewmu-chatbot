@@ -205,7 +205,7 @@ else bg.style.display='none';
 el.innerHTML=d.items.map(x=>{
 const conf=x.confidence||'미분류';
 const confClass=conf==='높음'?'high':conf==='보통'?'medium':conf==='낮음'?'low':'medium';
-const reportMark=x.reported?' 📢신고':'';
+const reportMark=x.reported?' 🚨자동감지':'';
 return '<div class="review-card" id="card_'+x.id+'">'
 +'<div class="r-head"><span>'+e(x.user_name||'비로그인')+'</span> · <span>'+e(x.created_at||'')+'</span> <span class="conf '+confClass+'">'+e(conf)+'</span>'+reportMark+'</div>'
 +'<div class="r-q">'+e(x.question||'(질문 없음)').substring(0,200)+'</div>'
