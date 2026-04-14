@@ -69,6 +69,28 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 .kw-wrap{display:flex;flex-wrap:wrap;gap:6px}
 .kw{background:#fff;padding:6px 14px;border-radius:14px;font-size:.82em;box-shadow:0 1px 4px rgba(0,0,0,.03)}
 .kw b{color:#3182f6;margin-left:4px}
+
+/* 신뢰도 뱃지 */
+.conf{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.68em;font-weight:700;margin-left:4px}
+.conf.high{background:#e0f5ec;color:#10b981}
+.conf.medium{background:#fef3c7;color:#b45309}
+.conf.low{background:#fee2e2;color:#dc2626}
+
+/* 검증 탭 */
+.review{display:none}
+.review-filters{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.review-filters button{background:#fff;border:1px solid #e5e8eb;padding:6px 12px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500}
+.review-filters button.on{background:#3182f6;color:#fff;border-color:#3182f6}
+.review-card{background:#fff;border-radius:12px;padding:16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.03)}
+.review-card .r-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.78em;color:#8b95a1}
+.review-card .r-q{background:#f2f4f6;padding:10px 14px;border-radius:8px;font-size:.85em;margin-bottom:8px;font-weight:500}
+.review-card .r-q::before{content:"Q. ";color:#3182f6;font-weight:700}
+.review-card .r-a{font-size:.85em;line-height:1.6;white-space:pre-wrap;padding:4px 2px;max-height:200px;overflow-y:auto}
+.review-card .r-actions{display:flex;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #f2f4f6}
+.review-card .r-actions button{flex:1;padding:8px;border:none;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit}
+.review-card .btn-ok{background:#e0f5ec;color:#10b981}
+.review-card .btn-fix{background:#fef3c7;color:#b45309}
+.review-card .btn-del{background:#fee2e2;color:#dc2626}
 @media(max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
@@ -92,6 +114,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 <div class="tabs">
 <button class="on" id="tabChat" onclick="tab('chat')">대화</button>
 <button id="tabAnal" onclick="tab('anal')">분석</button>
+<button id="tabReview" onclick="tab('review')">검증 <span id="reviewBadge" style="display:none;background:#f04452;color:#fff;padding:1px 6px;border-radius:10px;font-size:.9em;margin-left:2px"></span></button>
 </div>
 <button class="logout" onclick="logout()">로그아웃</button>
 </div>
@@ -106,6 +129,17 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 </div>
 
 <div class="analytics" id="analView"></div>
+
+<div class="review" id="reviewView">
+<div class="review-filters">
+<button class="on" id="fltPending" onclick="filt('pending')">⚠️ 검증 대기</button>
+<button id="fltMedium" onclick="filt('medium')">🟡 보통</button>
+<button id="fltLow" onclick="filt('low')">🔴 낮음</button>
+<button id="fltReported" onclick="filt('reported')">📢 신고</button>
+<button id="fltAll" onclick="filt('all')">전체</button>
+</div>
+<div id="reviewList"></div>
+</div>
 </div>
 
 <script>
@@ -133,10 +167,67 @@ document.getElementById('mainView').style.display='none';
 function tab(t){
 document.getElementById('tabChat').className=t==='chat'?'on':'';
 document.getElementById('tabAnal').className=t==='anal'?'on':'';
+document.getElementById('tabReview').className=t==='review'?'on':'';
 document.getElementById('chatView').style.display=t==='chat'?'block':'none';
 document.getElementById('detailView').style.display='none';
 document.getElementById('analView').style.display=t==='anal'?'block':'none';
+document.getElementById('reviewView').style.display=t==='review'?'block':'none';
 if(t==='anal')loadAnalytics();
+if(t==='review')loadReview('pending');
+}
+
+let curFilter='pending';
+function filt(f){
+curFilter=f;
+document.getElementById('fltPending').className=f==='pending'?'on':'';
+document.getElementById('fltMedium').className=f==='medium'?'on':'';
+document.getElementById('fltLow').className=f==='low'?'on':'';
+document.getElementById('fltReported').className=f==='reported'?'on':'';
+document.getElementById('fltAll').className=f==='all'?'on':'';
+loadReview(f);
+}
+
+async function loadReview(f){
+const el=document.getElementById('reviewList');
+el.innerHTML='<div class="empty">로딩 중...</div>';
+try{
+const r=await fetch('/api/admin-review?key='+encodeURIComponent(KEY)+'&filter='+f);
+const d=await r.json();
+if(d.error){el.innerHTML='<div class="empty">'+e(d.error)+'</div>';return}
+if(!d.items||d.items.length===0){el.innerHTML='<div class="empty">해당 항목 없음</div>';return}
+// 검증 대기 개수 뱃지 업데이트
+if(f==='pending'){
+const bg=document.getElementById('reviewBadge');
+if(d.items.length>0){bg.style.display='inline-block';bg.textContent=d.items.length}
+else bg.style.display='none';
+}
+el.innerHTML=d.items.map(x=>{
+const conf=x.confidence||'미분류';
+const confClass=conf==='높음'?'high':conf==='보통'?'medium':conf==='낮음'?'low':'medium';
+const reportMark=x.reported?' 📢신고':'';
+return '<div class="review-card" id="card_'+x.id+'">'
++'<div class="r-head"><span>'+e(x.user_name||'비로그인')+'</span> · <span>'+e(x.created_at||'')+'</span> <span class="conf '+confClass+'">'+e(conf)+'</span>'+reportMark+'</div>'
++'<div class="r-q">'+e(x.question||'(질문 없음)').substring(0,200)+'</div>'
++'<div class="r-a">'+e(x.content||'')+'</div>'
++'<div class="r-actions">'
++'<button class="btn-ok" onclick="rev('+x.id+',\'mark_reviewed\')">✅ 정답 확인</button>'
++'<button class="btn-fix" onclick="rev('+x.id+',\'report\')">⚠️ 수정 필요</button>'
++'</div></div>';
+}).join('');
+}catch(err){el.innerHTML='<div class="empty">오류: '+e(err.message)+'</div>'}
+}
+
+async function rev(id,action){
+try{
+await fetch('/api/admin-review?key='+encodeURIComponent(KEY),{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({id,action})
+});
+const c=document.getElementById('card_'+id);
+if(c)c.style.opacity='.3';
+setTimeout(()=>{loadReview(curFilter)},500);
+}catch(err){alert('오류: '+err.message)}
 }
 
 async function loadList(){
@@ -150,9 +241,13 @@ const av=s.user_profile_image
 ?'<img src="'+e(s.user_profile_image)+'" alt="">'
 :nm[0];
 const pv=s.user_provider||'';
+let confBadges='';
+if(s.count_high>0)confBadges+='<span class="conf high">높음 '+s.count_high+'</span>';
+if(s.count_medium>0)confBadges+='<span class="conf medium">보통 '+s.count_medium+'</span>';
+if(s.count_low>0)confBadges+='<span class="conf low">낮음 '+s.count_low+'</span>';
 return '<div class="item" onclick="detail(\''+e(s.group_id)+'\')">'
 +'<div class="avatar">'+av+'</div>'
-+'<div class="info"><div class="name">'+e(nm)+'</div>'
++'<div class="info"><div class="name">'+e(nm)+confBadges+'</div>'
 +'<div class="meta">'+(pv?'<span class="badge">'+pv+'</span> ':'')+e(s.last_at||s.started_at||'')+'</div></div>'
 +'<div class="right"><div class="cnt">'+s.message_count+'건</div></div>'
 +'</div>';
@@ -166,9 +261,14 @@ document.getElementById('chatView').style.display='none';
 document.getElementById('detailView').style.display='block';
 const el=document.getElementById('msgs');
 if(!d.messages||d.messages.length===0){el.innerHTML='<div class="empty">메시지 없음</div>';return}
-el.innerHTML=d.messages.filter(m=>m.role==='user'||m.role==='assistant').map(m=>
-'<div class="msg '+e(m.role)+'">'+e(m.content)+'<div class="ts">'+(m.role==='user'?'사용자':'AI')+' · '+e(m.created_at||'')+'</div></div>'
-).join('');
+el.innerHTML=d.messages.filter(m=>m.role==='user'||m.role==='assistant').map(m=>{
+let conf='';
+if(m.role==='assistant'){
+const cm=String(m.content||'').match(/\[신뢰도:\s*(높음|보통|낮음)/);
+if(cm){const c=cm[1];const cls=c==='높음'?'high':c==='보통'?'medium':'low';conf=' <span class="conf '+cls+'">'+c+'</span>';}
+}
+return '<div class="msg '+e(m.role)+'">'+e(m.content)+'<div class="ts">'+(m.role==='user'?'사용자':'AI')+conf+' · '+e(m.created_at||'')+'</div></div>';
+}).join('');
 }
 
 function backToList(){
