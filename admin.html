@@ -137,6 +137,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 <button id="fltLow" onclick="filt('low')">🔴 낮음</button>
 <button id="fltReported" onclick="filt('reported')">📢 신고</button>
 <button id="fltAll" onclick="filt('all')">전체</button>
+<button onclick="migrateConf()" style="margin-left:auto;background:#e5e8eb;color:#555;font-size:.72em">🔄 기존답변 분류</button>
 </div>
 <div id="reviewList"></div>
 </div>
@@ -215,6 +216,17 @@ return '<div class="review-card" id="card_'+x.id+'">'
 +'</div></div>';
 }).join('');
 }catch(err){el.innerHTML='<div class="empty">오류: '+e(err.message)+'</div>'}
+}
+
+async function migrateConf(){
+if(!confirm('기존 답변의 신뢰도를 소급해서 분류합니다. 실행할까요?'))return;
+try{
+const r=await fetch('/api/admin-migrate-confidence?key='+encodeURIComponent(KEY),{method:'POST'});
+const d=await r.json();
+if(d.error){alert('오류: '+d.error);return}
+alert('완료!\n검사: '+d.total_checked+'건\n업데이트: '+d.updated+'건\n높음: '+d.stats.high+' / 보통: '+d.stats.medium+' / 낮음: '+d.stats.low+' / 미표시: '+d.stats.none);
+loadReview(curFilter);
+}catch(err){alert('오류: '+err.message)}
 }
 
 async function rev(id,action){
