@@ -139,6 +139,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 <button id="fltAll" onclick="filt('all')">전체</button>
 <button onclick="migrateConf()" style="margin-left:auto;background:#e5e8eb;color:#555;font-size:.72em">🔄 기존답변 분류</button>
 <button onclick="syncGithub()" style="background:#191f28;color:#fff;font-size:.72em">🚀 Claude 호출</button>
+<button onclick="bulkReview()" style="background:#10b981;color:#fff;font-size:.72em">✅ 일괄 처리완료</button>
 </div>
 <div id="reviewList"></div>
 </div>
@@ -213,10 +214,25 @@ return '<div class="review-card" id="card_'+x.id+'">'
 +'<div class="r-a">'+e(x.content||'')+'</div>'
 +'<div class="r-actions">'
 +'<button class="btn-ok" onclick="rev('+x.id+',\'mark_reviewed\')">✅ 정답 확인</button>'
-+'<button class="btn-fix" onclick="rev('+x.id+',\'report\')">⚠️ 수정 필요</button>'
++'<button class="btn-fix" onclick="rev('+x.id+',\'report_and_review\')">⚠️ 수정필요+처리완료</button>'
 +'</div></div>';
 }).join('');
 }catch(err){el.innerHTML='<div class="empty">오류: '+e(err.message)+'</div>'}
+}
+
+async function bulkReview(){
+if(!confirm('신고된 모든 답변을 처리완료 처리합니다.\nClaude가 이미 검토/수정한 후 누르세요. 계속할까요?'))return;
+try{
+const r=await fetch('/api/admin-review?key='+encodeURIComponent(KEY),{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({id:0,action:'bulk_review_all_reported'})
+});
+const d=await r.json();
+if(d.error){alert('오류: '+d.error);return}
+alert('✅ 완료! 리스트가 정리되었습니다.');
+loadReview(curFilter);
+}catch(err){alert('오류: '+err.message)}
 }
 
 async function syncGithub(){

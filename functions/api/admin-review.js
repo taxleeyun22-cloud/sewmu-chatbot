@@ -19,11 +19,11 @@ export async function onRequestGet(context) {
   if (filter === "pending") {
     whereClause = "(c.confidence IN ('보통','낮음') OR c.reported = 1) AND (c.reviewed = 0 OR c.reviewed IS NULL)";
   } else if (filter === "low") {
-    whereClause = "c.confidence = '낮음'";
+    whereClause = "c.confidence = '낮음' AND (c.reviewed = 0 OR c.reviewed IS NULL)";
   } else if (filter === "medium") {
-    whereClause = "c.confidence = '보통'";
+    whereClause = "c.confidence = '보통' AND (c.reviewed = 0 OR c.reviewed IS NULL)";
   } else if (filter === "reported") {
-    whereClause = "c.reported = 1";
+    whereClause = "c.reported = 1 AND (c.reviewed = 0 OR c.reviewed IS NULL)";
   } else {
     whereClause = "c.role = 'assistant'";
   }
@@ -76,6 +76,12 @@ export async function onRequestPost(context) {
       await db.prepare(`UPDATE conversations SET reported = 1 WHERE id = ?`).bind(id).run();
     } else if (action === "unreport") {
       await db.prepare(`UPDATE conversations SET reported = 0 WHERE id = ?`).bind(id).run();
+    } else if (action === "report_and_review") {
+      // 수정필요 표시 + 처리완료 (리스트에서 제거)
+      await db.prepare(`UPDATE conversations SET reported = 1, reviewed = 1 WHERE id = ?`).bind(id).run();
+    } else if (action === "bulk_review_all_reported") {
+      // 신고된 전체 일괄 처리완료
+      await db.prepare(`UPDATE conversations SET reviewed = 1 WHERE reported = 1 AND (reviewed = 0 OR reviewed IS NULL)`).run();
     } else {
       return Response.json({ error: "unknown action" }, { status: 400 });
     }
