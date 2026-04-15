@@ -468,15 +468,22 @@ export async function onRequestPost(context) {
     const dailyLimit = getDailyLimit(approvalStatus);
     const usage = await checkAndIncrementDaily(db, userId, dailyLimit);
     if (!usage.ok) {
-      const msg = approvalStatus === 'pending'
-        ? `오늘 무료 질문 ${dailyLimit}건을 모두 사용하셨습니다.\n세무회계 이윤의 승인을 받으시면 하루 30건까지 이용 가능합니다.`
-        : `오늘 질문 ${dailyLimit}건을 모두 사용하셨습니다. 내일 다시 이용해 주세요.`;
+      let msg;
+      if (approvalStatus === 'pending') {
+        msg = `오늘 무료 상담 ${dailyLimit}건을 모두 이용하셨습니다.\n\n더 자세한 상담은 세무회계 이윤 세무사에게 바로 문의해 주세요.\n\n💬 카톡상담: http://pf.kakao.com/_sgnsxj/chat\n📞 전화: 053-269-1213\n\n기장거래처이신 경우 담당자에게 말씀하시면 무제한 이용이 가능합니다.`;
+      } else if (approvalStatus === 'approved_guest') {
+        msg = `오늘 무료 상담 ${dailyLimit}건을 모두 이용하셨습니다.\n\n더 자세한 상담은 세무회계 이윤 세무사에게 바로 문의해 주세요.\n\n💬 카톡상담: http://pf.kakao.com/_sgnsxj/chat\n📞 전화: 053-269-1213`;
+      } else {
+        msg = `오늘 이용 한도(${dailyLimit}건)를 모두 사용하셨습니다.\n\n💬 카톡상담: http://pf.kakao.com/_sgnsxj/chat\n📞 전화: 053-269-1213`;
+      }
       return Response.json({
         error: msg,
         code: "daily_limit_exceeded",
         used: usage.used,
         limit: dailyLimit,
-        approval_status: approvalStatus
+        approval_status: approvalStatus,
+        kakao_channel: "http://pf.kakao.com/_sgnsxj/chat",
+        phone: "053-269-1213"
       }, { status: 429 });
     }
   }
