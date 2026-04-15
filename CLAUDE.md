@@ -26,22 +26,27 @@ Cloudflare Pages + D1 DB + OpenAI GPT-4.1-mini + 국가법령정보센터 API.
 5. 처리 결과 요약 보고 (반영 N건 / 제외 N건 / 사유)
 6. 처리 완료 항목은 `flagged-items.json`에서 제거 또는 `processed: true` 마킹
 
-### `flagged-items.json` 포맷
+### `flagged-items.json` 실제 포맷 (관리자 → GitHub 동기화 방식)
+`admin-sync-to-github` API가 **검증 대기중인 실제 답변들**을 GitHub에 올리는 파일. 필드:
 ```json
 {
+  "exported_at": "...",
+  "total": N,
   "items": [
     {
-      "id": 1,
-      "topic": "간이과세자 전환",
-      "question": "간이과세자 기준이 언제 바뀌었나요?",
-      "proposed_answer": "2024년 7월부터 연매출 8,000만원 → 1억400만원으로 상향",
-      "source_hint": "부가세법 제61조, 시행령 제109조",
-      "section": "2026년 세무 개정사항",
-      "processed": false
+      "id": 136,
+      "created_at": "...",
+      "user_name": "...",
+      "confidence": "보통",
+      "reported": true,
+      "question": "사용자가 실제로 물어본 질문",
+      "answer": "AI가 답변한 내용 (검증 대상)"
     }
   ]
 }
 ```
+
+**처리 후**: `/api/admin-review` 엔드포인트로 각 id를 `mark_reviewed` 또는 `report_and_review` 처리.
 
 ## 아키텍처 요약
 - **프런트**: `index.html`(챗), `admin.html`(관리자), `articles.html`(칼럼), `sw.js`(PWA)

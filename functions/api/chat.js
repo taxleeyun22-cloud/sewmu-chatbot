@@ -1,3 +1,14 @@
+// ====================================================
+// 📌 하드코딩 수치 정기 검증
+// - 매월 1일 검증 (4대보험 요율, 세율, 공제한도, 신고기한)
+// - 세법개정안 발표 직후 추가 검증 (1월, 9월)
+// 마지막 검증: 2026-04-13 (FAQ 32개 추가 + 취득세율/증여공제 하드코딩)
+// 다음 검증: 2026-05-01
+// ====================================================
+
+// FAQ 모듈 (Q1~Q70) - 별도 파일로 분리하여 관리 (_faq.js)
+import { FAQ_SECTION } from "./_faq.js";
+
 // ===== Rate Limit (메모리 기반) =====
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW = 60000; // 1분
@@ -42,9 +53,41 @@ async function initDB(db) {
       user_id INTEGER,
       role TEXT NOT NULL,
       content TEXT NOT NULL,
+      confidence TEXT,
+      reviewed INTEGER DEFAULT 0,
+      reported INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     )`)
   ]);
+  // 기존 테이블에 컬럼 추가 (없으면)
+  try { await db.prepare(`ALTER TABLE conversations ADD COLUMN confidence TEXT`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE conversations ADD COLUMN reviewed INTEGER DEFAULT 0`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE conversations ADD COLUMN reported INTEGER DEFAULT 0`).run(); } catch {}
+}
+
+// 신뢰도 파싱
+function extractConfidence(content) {
+  if (!content) return null;
+  const m = content.match(/\[신뢰도:\s*(높음|보통|낮음)(?:[^\]]*)?\]/);
+  return m ? m[1] : null;
+}
+
+// 자동 플래그: 위험 답변 감지 (할루시네이션 의심)
+function shouldAutoFlag(content, confidence) {
+  if (!content) return false;
+  // 1. 신뢰도가 "낮음"이면 무조건 플래그
+  if (confidence === "낮음") return true;
+  // 2. 신뢰도가 "보통"이고 구체적 수치(금액/%)가 있는데 "근거:" 없으면 플래그
+  if (confidence === "보통") {
+    const hasMoney = /\d{1,3}(,\d{3})*\s*(원|만원|억원|천만원)|\d+%/.test(content);
+    const hasBasis = content.includes("근거:") || content.includes("근거 :");
+    if (hasMoney && !hasBasis) return true;
+  }
+  // 3. "확인이 필요" 같은 불확실 표현이 많으면 플래그
+  const uncertainWords = ["확인이 필요", "정확하지 않을 수", "다를 수 있", "대략", "아마"];
+  const uncertainCount = uncertainWords.filter(w => content.includes(w)).length;
+  if (uncertainCount >= 2) return true;
+  return false;
 }
 
 async function getUserFromSession(db, cookieHeader) {
@@ -102,9 +145,12 @@ function getKST() {
 async function saveMessage(db, sessionId, role, content, userId) {
   try {
     const kst = getKST();
+    const confidence = role === "assistant" ? extractConfidence(content) : null;
+    // 자동 플래그: 위험 답변은 자동으로 reported=1
+    const autoFlag = (role === "assistant" && shouldAutoFlag(content, confidence)) ? 1 : 0;
     await db.prepare(
-      `INSERT INTO conversations (session_id, user_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)`
-    ).bind(sessionId, userId || null, role, content, kst).run();
+      `INSERT INTO conversations (session_id, user_id, role, content, confidence, reported, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).bind(sessionId, userId || null, role, content, confidence, autoFlag, kst).run();
   } catch (e) {
     console.error("DB saveMessage error:", e);
   }
@@ -485,6 +531,57 @@ export async function onRequestPost(context) {
 - 질문자의 상황을 먼저 파악하고, 부족한 정보는 되물어봐.
 - 금액 기준이 있는 항목은 반드시 구체적 금액과 한도를 제시해.
 
+===== 수익전환 (리드 확보) 원칙 =====
+
+1. 고가치 상담 신호가 포착되면 자연스럽게 전문가 상담으로 유도하되, 영업적 느낌이 나지 않도록 "이 사안은 개별 상황에 따라 달라져서 정확한 절세는 상담이 필요합니다" 식으로 안내.
+
+2. 수익전환 트리거 분류:
+
+[🔥 고가치 - 강한 CTA]
+- 상속세/증여세 (1억 이상 재산 관련)
+- 부동산 양도세 (다주택/고가)
+- 세무조사 언급
+- 법인 전환/합병/분할
+- 가업승계
+- 체납/압류/가산세 위험
+→ 답변 마지막에 "이 사안은 매우 복잡하고 절세 여지가 크니, 반드시 전화(053-269-1213)로 상담 받으시는 걸 권장드립니다. 상담료 없이 초기 상담 가능합니다." 추가
+
+[🟡 기장 유치 - 중간 CTA]
+- "사업을 처음 시작" 관련 질문
+- "간이에서 일반으로 전환" 질문
+- "직원 채용" / "4대보험 가입" 질문
+- "법인 전환" 고민 질문
+→ "세무회계 이윤에서는 기장/신고 대행 전 과정을 도와드립니다. 자세한 상담은 053-269-1213으로 연락주세요." 자연스럽게 안내
+
+[⚡ 긴급 - 즉시 연락 유도]
+- "신고기한이 지났다"
+- "가산세가 나왔다"
+- "세무서에서 연락 왔다"
+- "홈택스에서 고지서 왔다"
+→ 답변 첫 줄에 "⏰ 긴급한 사안이니 바로 053-269-1213로 연락 주시는 게 좋겠습니다. 시간이 지체될수록 가산세가 늘어날 수 있습니다." 먼저 안내
+
+[🟢 일반 - 약한 CTA]
+- 단순 정보 질문 (세율, 신고기한 등)
+- 개념 설명
+→ 기존 마무리 문구만 유지 ("※ 구체적인 적용은 세무회계 이윤에 문의해 주세요")
+
+3. 금지 사항 (역효과 방지):
+- "우리한테 맡기세요" 같은 직접 영업 표현 금지
+- 수수료/견적 언급 절대 금지 (Q: "얼마예요?" A: "상담 시 안내드립니다")
+- 다른 세무사와 비교 금지
+- 과장된 절세 약속 금지 ("무조건 ○○만원 아껴드립니다" X)
+
+4. 신뢰 구축 멘션 (적절히 활용):
+- "대표세무사 이재윤" (자격/경력 강조)
+- "대구 달서구에서 음식점/배달업/소매업 등 다양한 거래처 보유"
+- "현장 경험 기반 실무 중심"
+- 근거 조문 명시로 전문성 어필
+
+5. 답변 형태별 CTA 위치:
+- 답변 앞: ⚡ 긴급한 사안
+- 답변 중간: 🟡 기장 관련 자연스러운 언급
+- 답변 뒤: 🔥 고가치 상담 + 🟢 일반 (마무리 문구)
+
 ===== 답변 규칙 =====
 1. 반드시 아래 제공된 실제 법령 조문을 근거로 답변해. 법령에 없는 내용을 지어내지 마.
 2. 답변에 "근거: OO법 제X조 제X항" 형태로 법령 근거를 반드시 명시해.
@@ -768,6 +865,8 @@ export async function onRequestPost(context) {
 - "두루누리" 지원 대상인 경우 지원 가능 여부도 안내
 - 원 단위 절사하여 계산
 - 계산 결과 뒤에 "※ 위 계산은 2026년 기준 요율이며, 실제 보험료는 보수총액 신고/정산 결과에 따라 차이가 날 수 있습니다."를 추가
+
+${FAQ_SECTION}
 
 [사무실 정보]
 - 세무회계 이윤 대표세무사: 이재윤
