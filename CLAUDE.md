@@ -48,6 +48,45 @@ Cloudflare Pages + D1 DB + OpenAI GPT-4.1-mini + 국가법령정보센터 API.
 
 **처리 후**: `/api/admin-review` 엔드포인트로 각 id를 `mark_reviewed` 또는 `report_and_review` 처리.
 
+## 🚨 자동 검증 시스템 (세션 바뀌어도 절대 까먹지 말 것)
+
+이 프로젝트는 **AI 답변 자동 검증 파이프라인**이 구축되어 있음. 흐름:
+
+```
+1. 사용자 질문 → chat.js (GPT 답변 생성)
+2. chat.js가 답변 끝에 [신뢰도: 높음/보통/낮음] 자동 태깅
+3. 할루시네이션 의심 패턴 자동 감지 → DB에 reported=1 마킹
+4. admin.html "검증" 탭에서 신뢰도 낮은/신고된 답변 확인
+5. admin → "🚀 Claude 호출" 버튼 → /api/admin-sync-to-github → 
+   검증 대상들이 flagged-items.json으로 GitHub에 올라감
+6. 사용자가 Claude한테 "flagged-items.json 처리해줘" 말함
+7. Claude(나)가 파일 읽고 → 법령 재검증 → _faq.js에 Q번호 신규 추가 또는 수정
+8. 처리 끝난 항목은 /api/admin-review (action: mark_reviewed/report_and_review)로 클린업
+```
+
+### 관련 파일/엔드포인트
+- `functions/api/_faq.js` — FAQ 하드코딩 본체 (현재 Q1~Q70 + Q35-2 총 71개)
+- `functions/api/admin-review.js` — 검증 대기 목록 조회 + 처리완료 마킹
+- `functions/api/admin-sync-to-github.js` — 검증 대상을 flagged-items.json으로 GitHub 푸시
+- `functions/api/admin-migrate-confidence.js` — 기존 답변 소급 신뢰도 분류
+- `functions/api/admin-dashboard.js` — 대시보드
+- `flagged-items.json` — 검증 대상 데이터 (자동생성, 수동편집 금지)
+
+### ⭐ Claude가 "flagged-items.json 처리해줘" 받으면 무조건 실행
+1. `flagged-items.json` 읽기 (로컬 우선 → 없으면 `git pull`로 당기기)
+2. 각 item의 `question` + `answer` 검토:
+   - 답변 틀렸으면 → `_faq.js`에 올바른 Q 항목 신규 추가(다음 번호) 또는 기존 Q 수정
+   - 답변 맞으면 → FAQ 추가 없이 mark_reviewed만
+3. `_faq.js` 수정 시 형식 준수: `[Q{N}. 제목]\n내용\n근거: 법령` + `FAQ_SECTION` export 유지
+4. 사용자에게 "신규 FAQ N개 추가 / 기존 Q{N} 수정 / mark_reviewed만 M건" 형태로 보고
+5. 승인받으면 커밋 + 푸시
+
+### FAQ 추가 원칙 (_faq.js)
+- Q번호는 마지막 번호 다음부터 연속
+- 답변 끝에 **근거: 법령명 제N조** 반드시 포함
+- 2026년 기준 수치 (국세청 최신 고시 확인)
+- 모르면 "확인이 필요합니다" — 추측 금지
+
 ## 아키텍처 요약
 - **프런트**: `index.html`(챗), `admin.html`(관리자), `articles.html`(칼럼), `sw.js`(PWA)
 - **API**: `functions/api/chat.js`(843줄, 핵심 로직 + 시스템 프롬프트), `functions/api/auth/*`(카톡/네이버 로그인), `functions/api/admin-users.js`(승인관리)
