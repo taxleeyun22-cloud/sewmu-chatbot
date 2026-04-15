@@ -77,12 +77,7 @@ function shouldAutoFlag(content, confidence) {
   if (!content) return false;
   // 1. 신뢰도가 "낮음"이면 무조건 플래그
   if (confidence === "낮음") return true;
-  // 2. 신뢰도가 "보통"이고 구체적 수치(금액/%)가 있는데 "근거:" 없으면 플래그
-  if (confidence === "보통") {
-    const hasMoney = /\d{1,3}(,\d{3})*\s*(원|만원|억원|천만원)|\d+%/.test(content);
-    const hasBasis = content.includes("근거:") || content.includes("근거 :");
-    if (hasMoney && !hasBasis) return true;
-  }
+  // 2. "근거:" 표기는 이제 사용자에게 숨기기로 했으므로 근거 여부로 플래그하지 않음 (사장님 요청)
   // 3. "확인이 필요" 같은 불확실 표현이 많으면 플래그
   const uncertainWords = ["확인이 필요", "정확하지 않을 수", "다를 수 있", "대략", "아마"];
   const uncertainCount = uncertainWords.filter(w => content.includes(w)).length;
@@ -107,10 +102,10 @@ async function getUserFromSession(db, cookieHeader) {
 
 // 승인상태별 일일 한도
 function getDailyLimit(status) {
-  if (status === 'approved_client') return 30;
-  if (status === 'approved_guest') return 10;
+  if (status === 'approved_client') return 999999; // 기장거래처 무제한
+  if (status === 'approved_guest') return 5; // 무료 사용
   if (status === 'rejected') return 0;
-  return 3; // pending
+  return 3; // pending (승인 대기)
 }
 
 // 일일 사용량 체크 + 증가 (KST 기준)
@@ -583,14 +578,13 @@ export async function onRequestPost(context) {
 - 답변 뒤: 🔥 고가치 상담 + 🟢 일반 (마무리 문구)
 
 ===== 답변 규칙 =====
-1. 반드시 아래 제공된 실제 법령 조문을 근거로 답변해. 법령에 없는 내용을 지어내지 마.
-2. 답변에 "근거: OO법 제X조 제X항" 형태로 법령 근거를 반드시 명시해.
-3. 시행령에 구체적 금액/기준이 있으면 시행령 조문도 반드시 인용해.
-4. 관련 판례가 있으면 "참고 판례: OO법원 XXXX-XXXX" 형태로 언급해.
+1. 반드시 아래 제공된 실제 법령 조문이나 FAQ를 근거로 답변해. 법령에 없는 내용을 지어내지 마.
+2. ⚠️ 답변에 "근거: OO법 제X조" 같은 법령 조문 문구를 절대 표시하지 마. FAQ 기반이든 법령 조문 기반이든 답변 본문에 조문번호 표기 금지. 내부적으로만 활용하고 사용자에게는 보여주지 말 것. (사장님 요청)
+3. 법령명 자체는 필요시 자연스럽게 언급 가능 (예: "소득세법상"). 하지만 "제X조 제X항" 같은 구체 조문 번호는 금지.
 4. 법령 조문이 제공되지 않은 내용은 추측하지 말고 "정확한 상담은 세무회계 이윤에 문의해 주세요"로 안내해.
 5. 전문용어는 쉽게 풀어서 설명해. 거래처 사장님들이 이해할 수 있는 수준으로.
 6. 항상 한국어로, 존댓말로 답변해.
-7. 답변 마지막에 "※ 위 내용은 현행 법령 기준이며, 구체적인 적용은 세무회계 이윤(053-269-1213)에 문의해 주세요."를 붙여.
+7. 답변 마지막에 "※ 구체적인 적용은 세무회계 이윤(053-269-1213)에 문의해 주세요."를 붙여. "현행 법령 기준" 문구는 빼도 됨.
 8. 위 "답변 신뢰도 표시" 규칙에 따라 답변 끝에 신뢰도 표시를 반드시 포함해.
 
 ===== 2026년 세금 신고/납부 기한 (반드시 정확하게 안내할 것) =====

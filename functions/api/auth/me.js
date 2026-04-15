@@ -32,8 +32,9 @@ export async function onRequestGet(context) {
 
     // 승인상태별 일일 한도
     const status = session.approval_status || 'pending';
-    const dailyLimit = status === 'approved_client' ? 30
-                     : status === 'approved_guest' ? 10
+    const dailyLimit = status === 'approved_client' ? 999999
+                     : status === 'approved_guest' ? 5
+                     : status === 'rejected' ? 0
                      : 3;
 
     return Response.json({

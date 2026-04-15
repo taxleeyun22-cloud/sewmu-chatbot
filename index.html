@@ -176,16 +176,40 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
 <!-- 세금 기한 알림 -->
 <div id="taxAlertArea" style="display:none;padding-top:8px"></div>
 
-<!-- 본명 확인 모달 -->
+<!-- 가입 정보 확인 모달 -->
 <div id="nameModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--bg);color:var(--text);border-radius:16px;padding:24px;width:100%;max-width:360px;box-shadow:0 10px 40px rgba(0,0,0,.2)">
-    <h3 style="font-size:1.1em;margin:0 0 8px">본명 확인</h3>
-    <p style="font-size:.85em;color:var(--text2);margin:0 0 4px">세무 상담을 위해 <b>실명</b>으로 등록해 주세요.</p>
+  <div style="background:var(--bg);color:var(--text);border-radius:16px;padding:22px;width:100%;max-width:380px;box-shadow:0 10px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto">
+    <h3 style="font-size:1.15em;margin:0 0 8px">가입 정보 확인</h3>
+    <p style="font-size:.85em;color:var(--text2);margin:0 0 4px">세무 상담을 위해 <b>실명·연락처</b>와 이용 유형을 선택해 주세요.</p>
     <p id="nameKakao" style="font-size:.72em;color:var(--text2);margin:0 0 14px"></p>
-    <input id="nameInput" type="text" placeholder="홍길동" maxlength="20" style="width:100%;padding:12px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;font-size:.95em;outline:none;font-family:inherit" onkeydown="if(event.key==='Enter')submitName()">
-    <div id="nameErr" style="display:none;color:#f04452;font-size:.78em;margin-top:8px"></div>
-    <button onclick="submitName()" style="margin-top:14px;width:100%;padding:12px;background:#3182f6;color:#fff;border:none;border-radius:10px;font-size:.95em;font-weight:600;cursor:pointer;font-family:inherit">확인</button>
-    <p style="font-size:.7em;color:var(--text2);margin:10px 0 0;text-align:center">가명/닉네임은 승인이 거절될 수 있습니다</p>
+
+    <label style="font-size:.8em;font-weight:600;display:block;margin:6px 0 4px">본명</label>
+    <input id="nameInput" type="text" placeholder="홍길동" maxlength="20" style="width:100%;padding:12px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;font-size:.95em;outline:none;font-family:inherit">
+
+    <label style="font-size:.8em;font-weight:600;display:block;margin:12px 0 4px">휴대폰 번호</label>
+    <input id="phoneInput" type="tel" placeholder="010-1234-5678" maxlength="13" style="width:100%;padding:12px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;font-size:.95em;outline:none;font-family:inherit" oninput="formatPhone(this)">
+
+    <label style="font-size:.8em;font-weight:600;display:block;margin:14px 0 6px">이용 유형</label>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <label style="display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--border);background:var(--card);border-radius:10px;cursor:pointer">
+        <input type="radio" name="userType" value="client" style="margin-top:3px">
+        <div style="flex:1">
+          <div style="font-size:.9em;font-weight:600">🏢 세무회계 이윤 기장거래처</div>
+          <div style="font-size:.75em;color:var(--text2);margin-top:2px">승인 후 <b>무제한</b> 이용 (사장님 확인 후 승인)</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--border);background:var(--card);border-radius:10px;cursor:pointer">
+        <input type="radio" name="userType" value="guest" checked style="margin-top:3px">
+        <div style="flex:1">
+          <div style="font-size:.9em;font-weight:600">✨ 무료 이용</div>
+          <div style="font-size:.75em;color:var(--text2);margin-top:2px">바로 시작 · <b>일 5건</b> 무료</div>
+        </div>
+      </label>
+    </div>
+
+    <div id="nameErr" style="display:none;color:#f04452;font-size:.78em;margin-top:10px"></div>
+    <button onclick="submitName()" style="margin-top:16px;width:100%;padding:13px;background:#3182f6;color:#fff;border:none;border-radius:10px;font-size:.95em;font-weight:600;cursor:pointer;font-family:inherit">가입 완료</button>
+    <p style="font-size:.68em;color:var(--text2);margin:12px 0 0;text-align:center;line-height:1.5">가명/허위 입력 시 이용이 제한될 수 있습니다<br>입력 정보는 세무상담 목적으로만 사용됩니다</p>
   </div>
 </div>
 
@@ -219,10 +243,6 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
         <a class="login-btn kakao" id="kakaoLoginBtn">
             <svg viewBox="0 0 24 24"><path fill="#191f28" d="M12 3C6.48 3 2 6.36 2 10.44c0 2.62 1.75 4.93 4.38 6.24l-1.12 4.16c-.1.36.32.65.64.44l4.94-3.26c.38.04.76.06 1.16.06 5.52 0 10-3.36 10-7.64C22 6.36 17.52 3 12 3z"/></svg>
             카카오 로그인
-        </a>
-        <a class="login-btn naver" id="naverLoginBtn">
-            <svg viewBox="0 0 24 24"><path fill="#fff" d="M16.27 3H7.73A4.73 4.73 0 003 7.73v8.54A4.73 4.73 0 007.73 21h8.54A4.73 4.73 0 0021 16.27V7.73A4.73 4.73 0 0016.27 3zm.46 12.7l-3.58-5.17v5.17h-2.3V8.3h2.45l3.58 5.17V8.3h2.3v7.4h-2.45z"/></svg>
-            네이버 로그인
         </a>
     </div>
 </div>
@@ -301,11 +321,6 @@ function showLogin(){
     document.getElementById('kakaoLoginBtn').onclick=async function(){
         const r=await fetch('/api/auth/config');const c=await r.json();
         location.href='https://kauth.kakao.com/oauth/authorize?client_id='+c.kakao_client_id+'&redirect_uri='+encodeURIComponent(origin+'/api/auth/kakao')+'&response_type=code';
-    };
-    document.getElementById('naverLoginBtn').onclick=async function(){
-        const r=await fetch('/api/auth/config');const c=await r.json();
-        const state=Math.random().toString(36).slice(2);
-        location.href='https://nid.naver.com/oauth2.0/authorize?client_id='+c.naver_client_id+'&redirect_uri='+encodeURIComponent(origin+'/api/auth/naver')+'&response_type=code&state='+state;
     };
 }
 
@@ -517,25 +532,44 @@ function toggleTheme(){
 
 if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}
 
-/* ===== 본명 확인 모달 ===== */
-function showNameModal(defaultName){
+/* ===== 가입 정보 모달 ===== */
+function showNameModal(defaultName,defaultPhone){
   var m=document.getElementById('nameModal');
   document.getElementById('nameInput').value=defaultName||'';
+  var pi=document.getElementById('phoneInput');
+  if(pi)pi.value=defaultPhone||'';
   document.getElementById('nameKakao').textContent='카카오 프로필명: '+(defaultName||'(없음)');
   m.style.display='flex';
   setTimeout(function(){document.getElementById('nameInput').focus()},100);
 }
+function formatPhone(el){
+  var d=el.value.replace(/\D/g,'').slice(0,11);
+  if(d.length<4)el.value=d;
+  else if(d.length<8)el.value=d.slice(0,3)+'-'+d.slice(3);
+  else el.value=d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);
+}
 async function submitName(){
   var v=document.getElementById('nameInput').value.trim();
+  var p=document.getElementById('phoneInput').value.trim();
+  var typeEl=document.querySelector('input[name="userType"]:checked');
+  var userType=typeEl?typeEl.value:'guest';
   var err=document.getElementById('nameErr');err.style.display='none';
-  if(v.length<2||v.length>20){err.textContent='2~20자 이내로 입력해 주세요.';err.style.display='block';return}
+  if(v.length<2||v.length>20){err.textContent='이름을 2~20자로 입력해 주세요.';err.style.display='block';return}
   if(!/^[가-힣a-zA-Z\s]+$/.test(v)){err.textContent='한글 또는 영문 이름만 입력 가능합니다.';err.style.display='block';return}
+  var digits=p.replace(/\D/g,'');
+  if(digits.length!==10&&digits.length!==11){err.textContent='올바른 휴대폰 번호를 입력해 주세요.';err.style.display='block';return}
   try{
-    var r=await fetch('/api/auth/confirm-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({real_name:v})});
+    var r=await fetch('/api/auth/confirm-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({real_name:v,phone:p,user_type:userType})});
     var d=await r.json();
     if(d.ok){
       document.getElementById('nameModal').style.display='none';
-      if(currentUser){currentUser.real_name=v;currentUser.name_confirmed=true}
+      if(currentUser){
+        currentUser.real_name=v;
+        currentUser.phone=p;
+        currentUser.name_confirmed=true;
+        currentUser.approval_status=d.approval_status||currentUser.approval_status;
+        if(userType==='guest'){currentUser.daily_limit=10}
+      }
       showApprovalBanner();
     } else {err.textContent=d.error||'오류';err.style.display='block'}
   }catch(e){err.textContent='네트워크 오류';err.style.display='block'}
@@ -551,10 +585,10 @@ function showApprovalBanner(){
   if(st==='pending'){
     bar.style.display='block';
     bar.style.background='#fff8e1';bar.style.color='#8b6914';
-    bar.innerHTML='⏳ 승인 대기 중 · 오늘 '+used+'/'+lim+'건 이용 · 세무회계 이윤 승인 후 30건까지 이용 가능';
+    bar.innerHTML='⏳ 승인 대기 중 · 오늘 '+used+'/'+lim+'건 이용 · 기장거래처 승인 시 무제한 이용 가능';
   } else if(st==='approved_client'){
     bar.style.display='block';bar.style.background='#e8f5e9';bar.style.color='#1b5e20';
-    bar.innerHTML='✓ 기장거래처 · 오늘 '+used+'/'+lim+'건 이용';
+    bar.innerHTML='✓ 기장거래처 · 무제한 이용 (오늘 '+used+'건)';
   } else if(st==='approved_guest'){
     bar.style.display='block';bar.style.background='#e3f2fd';bar.style.color='#0d47a1';
     bar.innerHTML='✓ 일반 승인 · 오늘 '+used+'/'+lim+'건 이용';
@@ -667,7 +701,7 @@ async function triggerInstallPrompt(){
         currentUser=d.user;
         showChat();
         setTimeout(function(){
-          if(!currentUser.name_confirmed){showNameModal(currentUser.name||'')}
+          if(!currentUser.name_confirmed){showNameModal(currentUser.name||'',currentUser.phone||'')}
           else{showApprovalBanner()}
         },300);
       } else {showLogin()}
