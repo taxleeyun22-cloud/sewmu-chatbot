@@ -1,0 +1,13 @@
+{
+  "_comment": "사장님이 추가하고 싶은 FAQ 항목을 여기에 적어두세요. Claude한테 '처리해줘' 말하면 법령 검증 후 chat.js에 하드코딩합니다.",
+  "_format_example": {
+    "id": 1,
+    "topic": "주제 (예: 간이과세자 전환)",
+    "question": "자주 받는 질문",
+    "proposed_answer": "(선택) 대략 이런 답이면 좋겠다 - 비워도 됨, Claude가 검증·보강",
+    "source_hint": "(선택) 관련 법령/조문 힌트",
+    "section": "(선택) chat.js의 어느 섹션에 넣을지 - 예: 2026년 세무 개정사항",
+    "processed": false
+  },
+  "items": []
+}

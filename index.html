@@ -160,6 +160,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
     <img src="logo-icon.png" alt="세무회계 이윤" class="header-logo">
     <div class="header-right">
         <a href="/articles.html" class="hdr-btn">칼럼</a>
+        <a href="javascript:void(0)" onclick="showInstallGuide()" class="hdr-btn" id="installBtn" style="display:none">📱 설치</a>
         <a href="javascript:void(0)" onclick="resetChat()" class="hdr-btn" id="resetBtn" style="display:none">초기화</a>
         <a href="/api/auth/logout" class="hdr-btn" id="logoutBtn" style="display:none">로그아웃</a>
         <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()">🌙</button>
@@ -169,8 +170,45 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
     </div>
 </div>
 
+<!-- 승인 상태 배너 -->
+<div id="approvalBar" style="display:none;padding:10px 16px;font-size:.82em;border-radius:10px;margin:10px 12px 0;text-align:center"></div>
+
 <!-- 세금 기한 알림 -->
 <div id="taxAlertArea" style="display:none;padding-top:8px"></div>
+
+<!-- 본명 확인 모달 -->
+<div id="nameModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg);color:var(--text);border-radius:16px;padding:24px;width:100%;max-width:360px;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <h3 style="font-size:1.1em;margin:0 0 8px">본명 확인</h3>
+    <p style="font-size:.85em;color:var(--text2);margin:0 0 4px">세무 상담을 위해 <b>실명</b>으로 등록해 주세요.</p>
+    <p id="nameKakao" style="font-size:.72em;color:var(--text2);margin:0 0 14px"></p>
+    <input id="nameInput" type="text" placeholder="홍길동" maxlength="20" style="width:100%;padding:12px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;font-size:.95em;outline:none;font-family:inherit" onkeydown="if(event.key==='Enter')submitName()">
+    <div id="nameErr" style="display:none;color:#f04452;font-size:.78em;margin-top:8px"></div>
+    <button onclick="submitName()" style="margin-top:14px;width:100%;padding:12px;background:#3182f6;color:#fff;border:none;border-radius:10px;font-size:.95em;font-weight:600;cursor:pointer;font-family:inherit">확인</button>
+    <p style="font-size:.7em;color:var(--text2);margin:10px 0 0;text-align:center">가명/닉네임은 승인이 거절될 수 있습니다</p>
+  </div>
+</div>
+
+<!-- 설치 가이드 모달 -->
+<div id="installModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg);color:var(--text);border-radius:16px;padding:24px;width:100%;max-width:380px;box-shadow:0 10px 40px rgba(0,0,0,.2);max-height:85vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h3 style="font-size:1.1em;margin:0">📱 홈 화면에 추가</h3>
+      <button onclick="document.getElementById('installModal').style.display='none'" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--text2)">✕</button>
+    </div>
+    <p style="font-size:.85em;color:var(--text2);margin:0 0 16px">매번 주소 치지 말고 <b>카톡처럼</b> 바로 열어보세요!</p>
+    <div id="installBody"></div>
+    <button onclick="document.getElementById('installModal').style.display='none'" style="margin-top:16px;width:100%;padding:10px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;font-size:.85em;cursor:pointer;font-family:inherit">다음에 하기</button>
+  </div>
+</div>
+
+<style>
+.ig-step{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);font-size:.9em;line-height:1.5}
+.ig-step:last-child{border-bottom:none}
+.ig-num{width:26px;height:26px;border-radius:50%;background:#3182f6;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.78em;font-weight:700;flex-shrink:0}
+#nameModal,#installModal{display:none}
+#nameModal[style*="flex"],#installModal[style*="flex"]{display:flex!important}
+</style>
 
 <!-- 로그인 화면 -->
 <div class="login-screen" id="loginScreen" style="display:none">
@@ -282,6 +320,11 @@ function showChat(){
     document.getElementById('userInfo').style.display='flex';
     document.getElementById('resetBtn').style.display='inline';
     document.getElementById('logoutBtn').style.display='inline';
+    var instBtn=document.getElementById('installBtn');
+    if(instBtn){
+      var p=detectPlatform?detectPlatform():'desktop';
+      if(p!=='installed')instBtn.style.display='inline';
+    }
     const avatar=document.getElementById('userAvatar');
     if(currentUser.profile_image){
         avatar.innerHTML='<img src="'+currentUser.profile_image+'" alt="" onerror="this.parentElement.textContent=\''+ ((currentUser.name||'?')[0]) +'\'">';
@@ -473,6 +516,238 @@ function toggleTheme(){
 })();
 
 if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}
+
+/* ===== 본명 확인 모달 ===== */
+function showNameModal(defaultName){
+  var m=document.getElementById('nameModal');
+  document.getElementById('nameInput').value=defaultName||'';
+  document.getElementById('nameKakao').textContent='카카오 프로필명: '+(defaultName||'(없음)');
+  m.style.display='flex';
+  setTimeout(function(){document.getElementById('nameInput').focus()},100);
+}
+async function submitName(){
+  var v=document.getElementById('nameInput').value.trim();
+  var err=document.getElementById('nameErr');err.style.display='none';
+  if(v.length<2||v.length>20){err.textContent='2~20자 이내로 입력해 주세요.';err.style.display='block';return}
+  if(!/^[가-힣a-zA-Z\s]+$/.test(v)){err.textContent='한글 또는 영문 이름만 입력 가능합니다.';err.style.display='block';return}
+  try{
+    var r=await fetch('/api/auth/confirm-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({real_name:v})});
+    var d=await r.json();
+    if(d.ok){
+      document.getElementById('nameModal').style.display='none';
+      if(currentUser){currentUser.real_name=v;currentUser.name_confirmed=true}
+      showApprovalBanner();
+    } else {err.textContent=d.error||'오류';err.style.display='block'}
+  }catch(e){err.textContent='네트워크 오류';err.style.display='block'}
+}
+
+/* ===== 승인 상태 배너 ===== */
+function showApprovalBanner(){
+  if(!currentUser)return;
+  var bar=document.getElementById('approvalBar');
+  var st=currentUser.approval_status||'pending';
+  var used=currentUser.daily_used||0;
+  var lim=currentUser.daily_limit||3;
+  if(st==='pending'){
+    bar.style.display='block';
+    bar.style.background='#fff8e1';bar.style.color='#8b6914';
+    bar.innerHTML='⏳ 승인 대기 중 · 오늘 '+used+'/'+lim+'건 이용 · 세무회계 이윤 승인 후 30건까지 이용 가능';
+  } else if(st==='approved_client'){
+    bar.style.display='block';bar.style.background='#e8f5e9';bar.style.color='#1b5e20';
+    bar.innerHTML='✓ 기장거래처 · 오늘 '+used+'/'+lim+'건 이용';
+  } else if(st==='approved_guest'){
+    bar.style.display='block';bar.style.background='#e3f2fd';bar.style.color='#0d47a1';
+    bar.innerHTML='✓ 일반 승인 · 오늘 '+used+'/'+lim+'건 이용';
+  } else if(st==='rejected'){
+    bar.style.display='block';bar.style.background='#ffebee';bar.style.color='#c62828';
+    bar.innerHTML='✕ 이용이 제한된 계정입니다. 세무회계 이윤에 문의해 주세요';
+  }
+}
+
+/* ===== PWA 설치 가이드 ===== */
+function detectPlatform(){
+  var ua=navigator.userAgent;
+  var isIOS=/iPad|iPhone|iPod/.test(ua);
+  var isAndroid=/Android/.test(ua);
+  var isSafari=/^((?!chrome|android|crios|fxios).)*safari/i.test(ua);
+  var isStandalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+  if(isStandalone)return 'installed';
+  if(isIOS&&isSafari)return 'ios_safari';
+  if(isIOS)return 'ios_other';
+  if(isAndroid)return 'android';
+  return 'desktop';
+}
+function showInstallGuide(){
+  var p=detectPlatform();
+  if(p==='installed'){alert('이미 앱으로 설치되어 있습니다 ✓');return}
+  var m=document.getElementById('installModal');
+  var body=document.getElementById('installBody');
+  var html='';
+  if(p==='ios_safari'){
+    html='<div style="font-size:.85em;color:var(--text2);margin-bottom:14px">아이폰 Safari 기준</div>'
+    +'<div class="ig-step"><div class="ig-num">1</div><div>하단 <svg width="18" height="22" viewBox="0 0 18 22" fill="none" stroke="#3182f6" stroke-width="2" style="vertical-align:-5px"><path d="M9 1v15M4 6l5-5 5 5M2 13v7h14v-7"/></svg> <b>공유 버튼</b> 누르기</div></div>'
+    +'<div class="ig-step"><div class="ig-num">2</div><div>메뉴에서 <b>"홈 화면에 추가"</b> 선택</div></div>'
+    +'<div class="ig-step"><div class="ig-num">3</div><div>우측 상단 <b>"추가"</b> 누르면 완료!</div></div>';
+  } else if(p==='ios_other'){
+    html='<div style="background:#fff3cd;padding:12px;border-radius:8px;margin-bottom:14px;font-size:.85em">⚠️ 아이폰은 <b>Safari 브라우저</b>에서만 설치할 수 있어요.</div>'
+    +'<div class="ig-step"><div class="ig-num">1</div><div>현재 페이지 주소 복사</div></div>'
+    +'<div class="ig-step"><div class="ig-num">2</div><div><b>Safari 앱</b> 열고 주소 붙여넣기</div></div>'
+    +'<div class="ig-step"><div class="ig-num">3</div><div>하단 <b>공유 → 홈 화면에 추가</b></div></div>';
+  } else if(p==='android'){
+    html='<div style="font-size:.85em;color:var(--text2);margin-bottom:14px">안드로이드 기준</div>'
+    +'<div class="ig-step"><div class="ig-num">1</div><div>우측 상단 <b>⋮ 메뉴</b> 누르기</div></div>'
+    +'<div class="ig-step"><div class="ig-num">2</div><div><b>"홈 화면에 추가"</b> 또는 <b>"앱 설치"</b> 선택</div></div>'
+    +'<div class="ig-step"><div class="ig-num">3</div><div><b>"추가"</b> 누르면 완료!</div></div>'
+    +'<button onclick="triggerInstallPrompt()" style="margin-top:14px;width:100%;padding:12px;background:#3182f6;color:#fff;border:none;border-radius:10px;font-size:.9em;font-weight:600;font-family:inherit;cursor:pointer">📱 바로 설치하기</button>';
+  } else {
+    html='<div style="font-size:.85em;color:var(--text2);margin-bottom:14px">PC 크롬/엣지 기준</div>'
+    +'<div class="ig-step"><div class="ig-num">1</div><div>주소창 우측 <b>⊕ 설치 아이콘</b> 클릭</div></div>'
+    +'<div class="ig-step"><div class="ig-num">2</div><div>또는 <b>⋮ 메뉴 → "앱 설치"</b></div></div>'
+    +'<div class="ig-step"><div class="ig-num">3</div><div><b>"설치"</b> 누르면 바탕화면에 추가</div></div>';
+  }
+  body.innerHTML=html;
+  m.style.display='flex';
+}
+var deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferredPrompt=e});
+async function triggerInstallPrompt(){
+  if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;document.getElementById('installModal').style.display='none'}
+  else alert('메뉴에서 수동으로 설치해 주세요');
+}
+
+/* ===== 코드 보호 ===== */
+(function(){
+  // 우클릭 차단
+  document.addEventListener('contextmenu',function(e){
+    // 입력창/답변 영역은 허용 (사장님이 답변 복사 필요)
+    var t=e.target;
+    if(t.closest('.msg-bubble')||t.tagName==='INPUT'||t.tagName==='TEXTAREA')return;
+    e.preventDefault();
+  });
+  // 주요 단축키 차단 (F12, Ctrl+U, Ctrl+Shift+I/J/C)
+  document.addEventListener('keydown',function(e){
+    var k=e.key;
+    if(k==='F12'){e.preventDefault();return}
+    if((e.ctrlKey||e.metaKey)&&k==='u'){e.preventDefault();return}
+    if((e.ctrlKey||e.metaKey)&&e.shiftKey&&(k==='I'||k==='i'||k==='J'||k==='j'||k==='C'||k==='c')){e.preventDefault();return}
+  });
+  // 드래그 선택 제한 (답변은 허용)
+  document.addEventListener('selectstart',function(e){
+    var t=e.target;
+    if(t.closest('.msg-bubble')||t.tagName==='INPUT'||t.tagName==='TEXTAREA')return;
+    e.preventDefault();
+  });
+  // DevTools 열림 감지 (간접)
+  var devtoolsOpen=false;
+  setInterval(function(){
+    var threshold=160;
+    var open=(window.outerWidth-window.innerWidth>threshold)||(window.outerHeight-window.innerHeight>threshold);
+    if(open&&!devtoolsOpen){
+      devtoolsOpen=true;
+      console.clear();
+      console.log('%c⚠️ 경고','color:#f04452;font-size:28px;font-weight:bold');
+      console.log('%c세무회계 이윤 AI 세무상담 - 무단 복제 및 역공학 금지','color:#333;font-size:14px');
+    }
+  },2000);
+  // 콘솔 경고
+  setTimeout(function(){
+    console.log('%c잠깐!','color:#f04452;font-size:40px;font-weight:bold');
+    console.log('%c이 화면은 개발자 도구입니다. 본 서비스의 코드는 저작권 보호를 받으며 무단 복제 시 법적 책임이 따를 수 있습니다.','color:#333;font-size:14px');
+  },1000);
+})();
+
+/* checkAuth 확장: name_confirmed, approval 처리 */
+(function(){
+  var orig=checkAuth;
+  checkAuth=async function(){
+    try{
+      var r=await fetch('/api/auth/me');
+      var d=await r.json();
+      if(d.logged_in){
+        currentUser=d.user;
+        showChat();
+        setTimeout(function(){
+          if(!currentUser.name_confirmed){showNameModal(currentUser.name||'')}
+          else{showApprovalBanner()}
+        },300);
+      } else {showLogin()}
+    }catch{showLogin()}
+  };
+})();
+
+/* sendMessage 에러 처리 확장 */
+(function(){
+  var orig=sendMessage;
+  sendMessage=async function(){
+    if(loading)return;
+    var i=document.getElementById("userInput");var t=i.value.trim();if(!t)return;
+    i.value="";add("user",t);messages.push({role:"user",content:t});
+    document.getElementById("quickArea").style.display="none";
+    loading=true;document.getElementById("sendBtn").disabled=true;showDots();
+    try{
+      var r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages,sessionId:sid})});
+      if(r.status===401){hideDots();showLogin();return}
+      if(r.status===400){
+        var err=await r.json().catch(function(){return{}});
+        hideDots();
+        if(err.code==='name_required'){showNameModal(currentUser?currentUser.name:'');return}
+        add("ai","오류: "+(err.error||'400'));return;
+      }
+      if(r.status===429){
+        var err2=await r.json().catch(function(){return{}});
+        hideDots();
+        if(err2.code==='daily_limit_exceeded'){
+          add("ai",err2.error+'\n\n📞 세무회계 이윤: 053-269-1213');
+          if(currentUser){currentUser.daily_used=err2.used||currentUser.daily_limit;showApprovalBanner()}
+          return;
+        }
+        add("ai",err2.error||'요청 제한');return;
+      }
+      if(r.status===403){var e3=await r.json().catch(function(){return{}});hideDots();add("ai",e3.error||'이용 제한');return}
+      if(!r.ok){var e4=await r.json().catch(function(){return{}});throw new Error(e4.error||'오류('+r.status+')')}
+      var c=document.getElementById("chatArea");
+      var statusEl=document.getElementById("dots");
+      var streamStarted=false,msgDiv,bubble,fullText="";
+      var reader=r.body.getReader();var decoder=new TextDecoder();var buf="";
+      while(true){
+        var chunk=await reader.read();
+        if(chunk.done)break;
+        buf+=decoder.decode(chunk.value,{stream:true});
+        var lines=buf.split("\n");buf=lines.pop()||"";
+        for(var L=0;L<lines.length;L++){
+          var line=lines[L];
+          if(line.indexOf("data: ")===0){
+            var data=line.slice(6).trim();
+            if(data==="[DONE]")break;
+            try{
+              var j=JSON.parse(data);
+              if(j.status&&statusEl){
+                var b=statusEl.querySelector(".msg-bubble");
+                if(b)b.innerHTML='<div style="display:flex;align-items:center;gap:8px"><div class="dots"><span></span><span></span><span></span></div><span style="font-size:.82em;color:var(--text2)">'+esc(j.status)+'</span></div>';
+                c.scrollTop=c.scrollHeight;
+              }
+              if(j.content){
+                if(!streamStarted){
+                  streamStarted=true;hideDots();
+                  msgDiv=document.createElement("div");msgDiv.className="msg msg-ai";
+                  msgDiv.innerHTML='<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble" id="streamBubble"></div></div>';
+                  c.appendChild(msgDiv);bubble=document.getElementById("streamBubble");
+                }
+                fullText+=j.content;bubble.innerHTML=esc(fullText);c.scrollTop=c.scrollHeight;
+              }
+            }catch{}
+          }
+        }
+      }
+      if(!streamStarted)hideDots();
+      if(bubble)bubble.removeAttribute("id");
+      messages.push({role:"assistant",content:fullText});
+      // 사용량 갱신
+      if(currentUser){currentUser.daily_used=(currentUser.daily_used||0)+1;showApprovalBanner()}
+    }catch(e){hideDots();add("ai","오류: "+e.message)}
+    finally{loading=false;document.getElementById("sendBtn").disabled=false;i.focus()}
+  };
+})();
 </script>
 </body>
 </html>

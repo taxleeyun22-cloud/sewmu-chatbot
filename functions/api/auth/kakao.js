@@ -6,9 +6,15 @@ async function initTables(db) {
       provider TEXT NOT NULL,
       provider_id TEXT NOT NULL,
       name TEXT,
+      real_name TEXT,
       email TEXT,
       phone TEXT,
       profile_image TEXT,
+      approval_status TEXT DEFAULT 'pending',
+      approved_at TEXT,
+      approved_by TEXT,
+      rejection_reason TEXT,
+      name_confirmed INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now', '+9 hours')),
       last_login_at TEXT DEFAULT (datetime('now', '+9 hours')),
       UNIQUE(provider, provider_id)
@@ -18,8 +24,22 @@ async function initTables(db) {
       user_id INTEGER NOT NULL,
       expires_at TEXT NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id)
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS daily_usage (
+      user_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      count INTEGER DEFAULT 0,
+      PRIMARY KEY (user_id, date)
     )`)
   ]);
+  // 기존 테이블에 컬럼 추가 (이미 있는 배포 환경 대응)
+  const addCol = async (sql) => { try { await db.prepare(sql).run(); } catch {} };
+  await addCol(`ALTER TABLE users ADD COLUMN real_name TEXT`);
+  await addCol(`ALTER TABLE users ADD COLUMN approval_status TEXT DEFAULT 'pending'`);
+  await addCol(`ALTER TABLE users ADD COLUMN approved_at TEXT`);
+  await addCol(`ALTER TABLE users ADD COLUMN approved_by TEXT`);
+  await addCol(`ALTER TABLE users ADD COLUMN rejection_reason TEXT`);
+  await addCol(`ALTER TABLE users ADD COLUMN name_confirmed INTEGER DEFAULT 0`);
 }
 
 export async function onRequestGet(context) {

@@ -91,6 +91,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 <h1>관리자</h1>
 <div class="tabs">
 <button class="on" id="tabChat" onclick="tab('chat')">대화</button>
+<button id="tabUsers" onclick="tab('users')">사용자<span id="pendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
 <button id="tabAnal" onclick="tab('anal')">분석</button>
 </div>
 <button class="logout" onclick="logout()">로그아웃</button>
@@ -106,6 +107,17 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 </div>
 
 <div class="analytics" id="analView"></div>
+
+<!-- 사용자 승인 관리 -->
+<div id="usersView" style="display:none">
+<div class="tabs" style="margin-bottom:14px;display:flex;gap:6px;flex-wrap:wrap">
+<button class="on" id="uStPending" onclick="userStatus('pending')" style="background:#f04452;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#fff;font-weight:500">대기 <span id="cPending">0</span></button>
+<button id="uStClient" onclick="userStatus('approved_client')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">기장거래처 <span id="cClient">0</span></button>
+<button id="uStGuest" onclick="userStatus('approved_guest')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">일반승인 <span id="cGuest">0</span></button>
+<button id="uStRejected" onclick="userStatus('rejected')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">거절 <span id="cRejected">0</span></button>
+</div>
+<div id="userList"></div>
+</div>
 </div>
 
 <script>
@@ -121,6 +133,8 @@ if(!r.ok)throw 0;
 document.getElementById('loginView').style.display='none';
 document.getElementById('mainView').style.display='block';
 loadList();
+refreshPendingBadge();
+setInterval(refreshPendingBadge,30000);
 }catch{document.getElementById('err').style.display='block'}
 }
 
@@ -132,11 +146,103 @@ document.getElementById('mainView').style.display='none';
 
 function tab(t){
 document.getElementById('tabChat').className=t==='chat'?'on':'';
+document.getElementById('tabUsers').className=t==='users'?'on':'';
 document.getElementById('tabAnal').className=t==='anal'?'on':'';
 document.getElementById('chatView').style.display=t==='chat'?'block':'none';
 document.getElementById('detailView').style.display='none';
+document.getElementById('usersView').style.display=t==='users'?'block':'none';
 document.getElementById('analView').style.display=t==='anal'?'block':'none';
 if(t==='anal')loadAnalytics();
+if(t==='users')loadUsers(currentStatus||'pending');
+}
+
+let currentStatus='pending';
+async function refreshPendingBadge(){
+try{
+const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&status=pending');
+const d=await r.json();
+const n=(d.counts&&d.counts.pending)||0;
+const b=document.getElementById('pendingBadge');
+if(n>0){b.textContent=n;b.style.display='inline-block'}else{b.style.display='none'}
+}catch{}
+}
+
+function userStatus(s){
+currentStatus=s;
+['Pending','Client','Guest','Rejected'].forEach(k=>{
+const el=document.getElementById('uSt'+k);
+const active=('uSt'+k).toLowerCase().indexOf(s.replace('approved_','').toLowerCase())>=0;
+el.style.background=active?(s==='rejected'?'#8b95a1':s==='pending'?'#f04452':'#3182f6'):'#e5e8eb';
+el.style.color=active?'#fff':'#8b95a1';
+});
+loadUsers(s);
+}
+
+async function loadUsers(status){
+const el=document.getElementById('userList');
+el.innerHTML='<div class="empty">불러오는 중...</div>';
+try{
+const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&status='+encodeURIComponent(status));
+const d=await r.json();
+if(d.counts){
+document.getElementById('cPending').textContent=d.counts.pending||0;
+document.getElementById('cClient').textContent=d.counts.approved_client||0;
+document.getElementById('cGuest').textContent=d.counts.approved_guest||0;
+document.getElementById('cRejected').textContent=d.counts.rejected||0;
+}
+if(!d.users||d.users.length===0){el.innerHTML='<div class="empty">해당 상태의 사용자가 없습니다</div>';return}
+el.innerHTML=d.users.map(u=>{
+const nm=u.real_name||u.name||'이름없음';
+const av=u.profile_image?'<img src="'+e(u.profile_image)+'" alt="">':nm[0];
+const pv=u.provider||'';
+const phone=u.phone?' · '+e(u.phone):'';
+const nameConf=u.name_confirmed?'':'<span style="color:#f04452;font-size:.72em">⚠️본명미확인</span> ';
+const todayCnt=u.today_count||0;
+let actions='';
+if(status==='pending'){
+actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
++'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✓ 기장거래처 승인</button>'
++'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#00c471;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">○ 일반 승인</button>'
++'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✕ 거절</button>'
++'</div>';
+}else{
+actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
++(status!=='approved_client'?'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 기장거래처</button>':'')
++(status!=='approved_guest'?'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#00c471;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 일반승인</button>':'')
++(status!=='pending'?'<button onclick="approveUser('+u.id+',\'pending\')" style="background:#8b95a1;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 대기로</button>':'')
++(status!=='rejected'?'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 거절</button>':'')
++'</div>';
+}
+return '<div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.03)">'
++'<div style="display:flex;align-items:center;gap:14px">'
++'<div class="avatar">'+av+'</div>'
++'<div class="info"><div class="name">'+e(nm)+(u.name&&u.real_name&&u.name!==u.real_name?' <span style="font-size:.72em;color:#8b95a1">(카톡: '+e(u.name)+')</span>':'')+'</div>'
++'<div class="meta">'+nameConf+(pv?'<span class="badge">'+pv+'</span> ':'')+e(u.email||'')+phone+'</div>'
++'<div class="meta" style="margin-top:3px">가입 '+e(u.created_at||'')+' · 오늘 '+todayCnt+'건</div>'
++'</div></div>'
++actions
++'</div>';
+}).join('');
+}catch(err){el.innerHTML='<div class="empty">오류: '+e(err.message)+'</div>'}
+}
+
+async function approveUser(id,action){
+try{
+const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id,action:action})});
+const d=await r.json();
+if(d.ok){loadUsers(currentStatus);refreshPendingBadge()}
+else alert('실패: '+(d.error||'unknown'));
+}catch(err){alert('오류: '+err.message)}
+}
+
+async function rejectUser(id){
+const reason=prompt('거절 사유 (선택):','')||null;
+try{
+const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id,action:'reject',reason:reason})});
+const d=await r.json();
+if(d.ok){loadUsers(currentStatus);refreshPendingBadge()}
+else alert('실패: '+(d.error||'unknown'));
+}catch(err){alert('오류: '+err.message)}
 }
 
 async function loadList(){

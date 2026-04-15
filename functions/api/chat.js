@@ -53,11 +53,46 @@ async function getUserFromSession(db, cookieHeader) {
   if (!match) return null;
   try {
     const session = await db.prepare(`
-      SELECT s.user_id FROM sessions s
+      SELECT s.user_id, u.approval_status, u.name_confirmed
+      FROM sessions s
+      JOIN users u ON s.user_id = u.id
       WHERE s.token = ? AND s.expires_at > datetime('now')
     `).bind(match[1]).first();
-    return session ? session.user_id : null;
+    return session ? session : null;
   } catch { return null; }
+}
+
+// 승인상태별 일일 한도
+function getDailyLimit(status) {
+  if (status === 'approved_client') return 30;
+  if (status === 'approved_guest') return 10;
+  if (status === 'rejected') return 0;
+  return 3; // pending
+}
+
+// 일일 사용량 체크 + 증가 (KST 기준)
+async function checkAndIncrementDaily(db, userId, limit) {
+  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  try {
+    const row = await db.prepare(
+      `SELECT count FROM daily_usage WHERE user_id = ? AND date = ?`
+    ).bind(userId, today).first();
+    const current = row ? row.count : 0;
+    if (current >= limit) return { ok: false, used: current, limit };
+    if (row) {
+      await db.prepare(
+        `UPDATE daily_usage SET count = count + 1 WHERE user_id = ? AND date = ?`
+      ).bind(userId, today).run();
+    } else {
+      await db.prepare(
+        `INSERT INTO daily_usage (user_id, date, count) VALUES (?, ?, 1)`
+      ).bind(userId, today).run();
+    }
+    return { ok: true, used: current + 1, limit };
+  } catch (e) {
+    console.error("daily usage error:", e);
+    return { ok: true, used: 0, limit }; // DB 오류 시 통과
+  }
 }
 
 function getKST() {
@@ -370,9 +405,39 @@ export async function onRequestPost(context) {
 
   // 로그인 사용자 확인 (로그인 필수)
   const cookieHeader = context.request.headers.get("Cookie");
-  const userId = db ? await getUserFromSession(db, cookieHeader) : null;
-  if (!userId) {
+  const sessionInfo = db ? await getUserFromSession(db, cookieHeader) : null;
+  if (!sessionInfo) {
     return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  }
+  const userId = sessionInfo.user_id;
+  const approvalStatus = sessionInfo.approval_status || 'pending';
+
+  // 거절된 사용자 차단
+  if (approvalStatus === 'rejected') {
+    return Response.json({ error: "이용이 제한된 계정입니다. 세무회계 이윤에 문의해 주세요." }, { status: 403 });
+  }
+
+  // 본명 미확인 차단
+  if (!sessionInfo.name_confirmed) {
+    return Response.json({ error: "본명 확인이 필요합니다.", code: "name_required" }, { status: 400 });
+  }
+
+  // 일일 사용량 체크
+  if (db) {
+    const dailyLimit = getDailyLimit(approvalStatus);
+    const usage = await checkAndIncrementDaily(db, userId, dailyLimit);
+    if (!usage.ok) {
+      const msg = approvalStatus === 'pending'
+        ? `오늘 무료 질문 ${dailyLimit}건을 모두 사용하셨습니다.\n세무회계 이윤의 승인을 받으시면 하루 30건까지 이용 가능합니다.`
+        : `오늘 질문 ${dailyLimit}건을 모두 사용하셨습니다. 내일 다시 이용해 주세요.`;
+      return Response.json({
+        error: msg,
+        code: "daily_limit_exceeded",
+        used: usage.used,
+        limit: dailyLimit,
+        approval_status: approvalStatus
+      }, { status: 429 });
+    }
   }
 
   try {
