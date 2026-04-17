@@ -566,12 +566,19 @@ return '<div class="review-card" id="card_'+x.id+'">'
 }
 
 async function bulkReview(){
-if(!confirm('신고된 모든 답변을 처리완료 처리합니다.\nClaude가 이미 검토/수정한 후 누르세요. 계속할까요?'))return;
+// 현재 필터에 따라 다르게 처리
+var act='bulk_review_all_reported';
+var msg='신고된 모든 답변을 처리완료 처리합니다.\nClaude가 이미 검토/수정한 후 누르세요. 계속할까요?';
+if(curFilter==='pending'){
+act='bulk_review_pending';
+msg='검증 대기 중인 모든 답변(신뢰도 보통/낮음 + 신고된 것)을 처리완료 처리합니다.\nClaude가 이미 검토/수정한 후 누르세요. 계속할까요?';
+}
+if(!confirm(msg))return;
 try{
-const r=await fetch('/api/admin-review?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:0,action:'bulk_review_all_reported'})});
+const r=await fetch('/api/admin-review?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:act})});
 const d=await r.json();
 if(d.error){alert('오류: '+d.error);return}
-alert('✅ 완료! 리스트가 정리되었습니다.');
+alert('✅ 완료! '+(d.updated||0)+'건 처리되었습니다.');
 loadReview(curFilter);
 }catch(err){alert('오류: '+err.message)}
 }

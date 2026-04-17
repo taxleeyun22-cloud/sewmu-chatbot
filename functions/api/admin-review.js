@@ -66,9 +66,16 @@ export async function onRequestPost(context) {
 
   try {
     const body = await context.request.json();
-    const action = body.action; // mark_reviewed / report / unreport
+    const action = body.action;
     const id = body.id;
-    if (!id) return Response.json({ error: "id required" }, { status: 400 });
+
+    // 일괄 처리 액션은 id 불필요
+    const bulkActions = ["bulk_review_all_reported", "bulk_review_pending"];
+    const isBulk = bulkActions.includes(action);
+
+    if (!isBulk && !id) {
+      return Response.json({ error: "id required" }, { status: 400 });
+    }
 
     if (action === "mark_reviewed") {
       await db.prepare(`UPDATE conversations SET reviewed = 1 WHERE id = ?`).bind(id).run();
@@ -77,11 +84,19 @@ export async function onRequestPost(context) {
     } else if (action === "unreport") {
       await db.prepare(`UPDATE conversations SET reported = 0 WHERE id = ?`).bind(id).run();
     } else if (action === "report_and_review") {
-      // 수정필요 표시 + 처리완료 (리스트에서 제거)
       await db.prepare(`UPDATE conversations SET reported = 1, reviewed = 1 WHERE id = ?`).bind(id).run();
     } else if (action === "bulk_review_all_reported") {
-      // 신고된 전체 일괄 처리완료
-      await db.prepare(`UPDATE conversations SET reviewed = 1 WHERE reported = 1 AND (reviewed = 0 OR reviewed IS NULL)`).run();
+      // 신고된(reported=1) 전체 일괄 처리완료
+      const r = await db.prepare(
+        `UPDATE conversations SET reviewed = 1 WHERE reported = 1 AND (reviewed = 0 OR reviewed IS NULL)`
+      ).run();
+      return Response.json({ ok: true, updated: r.meta?.changes || 0 });
+    } else if (action === "bulk_review_pending") {
+      // 검증 대기(신뢰도 보통/낮음 or 신고) 전체 일괄 처리완료
+      const r = await db.prepare(
+        `UPDATE conversations SET reviewed = 1 WHERE role = 'assistant' AND (confidence IN ('보통','낮음') OR reported = 1) AND (reviewed = 0 OR reviewed IS NULL)`
+      ).run();
+      return Response.json({ ok: true, updated: r.meta?.changes || 0 });
     } else {
       return Response.json({ error: "unknown action" }, { status: 400 });
     }
