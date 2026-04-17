@@ -237,12 +237,16 @@ export async function onRequestPost(context) {
     // ── 세무사 메시지 전송 ──
     if (action === "send") {
       const content = (body.content || "").trim();
-      if (!content) return Response.json({ error: "content required" }, { status: 400 });
+      const imageUrl = (body.image_url || "").trim();
+      if (!content && !imageUrl) return Response.json({ error: "content or image_url required" }, { status: 400 });
       if (content.length > 5000) return Response.json({ error: "메시지가 너무 깁니다" }, { status: 400 });
+      const finalContent = imageUrl
+        ? (content ? `[IMG]${imageUrl}\n${content}` : `[IMG]${imageUrl}`)
+        : content;
       await db.prepare(`
         INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at)
         VALUES (?, NULL, 'human_advisor', ?, ?, ?)
-      `).bind('room_' + roomId, content, roomId, now).run();
+      `).bind('room_' + roomId, finalContent, roomId, now).run();
       return Response.json({ ok: true });
     }
 

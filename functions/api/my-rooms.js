@@ -186,13 +186,19 @@ export async function onRequestPost(context) {
         return Response.json({ error: "종료된 방입니다" }, { status: 403 });
       }
       const content = (body.content || "").trim();
-      if (!content) return Response.json({ error: "content required" }, { status: 400 });
+      const imageUrl = (body.image_url || "").trim();
+      if (!content && !imageUrl) return Response.json({ error: "content or image_url required" }, { status: 400 });
       if (content.length > 3000) return Response.json({ error: "메시지가 너무 깁니다" }, { status: 400 });
+
+      // 이미지 메시지는 content에 "[IMG]url" 형식으로 인코딩 (스키마 변경 없이)
+      const finalContent = imageUrl
+        ? (content ? `[IMG]${imageUrl}\n${content}` : `[IMG]${imageUrl}`)
+        : content;
 
       await db.prepare(`
         INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at)
         VALUES (?, ?, 'user', ?, ?, ?)
-      `).bind('room_' + roomId, user.user_id, content, roomId, now).run();
+      `).bind('room_' + roomId, user.user_id, finalContent, roomId, now).run();
 
       // 내 last_read_at 갱신
       await db.prepare(
