@@ -334,6 +334,23 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 let KEY='';
 function e(t){return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
+/* [IMG]url 프리픽스가 있으면 이미지 + 텍스트 렌더링 */
+function parseMsg(content){
+  if(!content)return {image:null,text:''};
+  const m=/^\[IMG\](\S+)(\n([\s\S]*))?$/.exec(content);
+  if(m)return {image:m[1],text:m[3]||''};
+  return {image:null,text:content};
+}
+function renderMsgBody(content){
+  const p=parseMsg(content);
+  let h='';
+  if(p.image){
+    h+='<a href="'+e(p.image)+'" target="_blank" download style="display:inline-block;max-width:220px;border-radius:10px;overflow:hidden;background:rgba(0,0,0,.06);cursor:pointer"><img src="'+e(p.image)+'" alt="이미지" loading="lazy" style="display:block;width:100%;max-width:220px;max-height:300px;object-fit:cover" onerror="this.parentElement.innerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'"></a>';
+  }
+  if(p.text)h+=(p.image?'<div style="margin-top:6px">':'')+e(p.text)+(p.image?'</div>':'');
+  return h;
+}
+
 async function login(){
 KEY=document.getElementById('keyInput').value.trim();
 if(!KEY)return;
@@ -444,11 +461,11 @@ async function loadRoomDetail(){
     container.innerHTML=(d.messages||[]).map(m=>{
       const nm=m.real_name||m.name||'';
       if(m.role==='user'){
-        return '<div style="margin-bottom:10px"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+'</div><div style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+e(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
+        return '<div style="margin-bottom:10px"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+'</div><div style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
       } else if(m.role==='assistant'){
-        return '<div style="margin-bottom:10px"><div style="display:inline-block;background:#f2f4f6;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+e(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div></div>';
+        return '<div style="margin-bottom:10px"><div style="display:inline-block;background:#f2f4f6;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div></div>';
       } else if(m.role==='human_advisor'){
-        return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end"><div style="background:#10b981;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+e(m.content)+'<div style="font-size:.65em;opacity:.9;margin-top:4px">👨‍💼 세무사 · '+e(m.created_at||'')+'</div></div></div>';
+        return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end"><div style="background:#10b981;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;opacity:.9;margin-top:4px">👨‍💼 세무사 · '+e(m.created_at||'')+'</div></div></div>';
       }
       return '';
     }).join('');
@@ -713,11 +730,11 @@ async function loadLiveMessages(){
     container.innerHTML=(d.messages||[]).map(m=>{
       const role=m.role;
       if(role==='user'){
-        return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end"><div style="background:#3182f6;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+e(m.content)+'<div style="font-size:.65em;opacity:.8;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
+        return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end"><div style="background:#3182f6;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;opacity:.8;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
       } else if(role==='assistant'){
-        return '<div style="margin-bottom:10px"><div style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+e(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div></div>';
+        return '<div style="margin-bottom:10px"><div style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div></div>';
       } else if(role==='human_advisor'){
-        return '<div style="margin-bottom:10px"><div style="display:inline-block;background:#e0f5ec;border:1px solid #86efac;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+e(m.content)+'<div style="font-size:.65em;color:#10b981;margin-top:4px;font-weight:600">👨‍💼 세무사 · '+e(m.created_at||'')+'</div></div></div>';
+        return '<div style="margin-bottom:10px"><div style="display:inline-block;background:#e0f5ec;border:1px solid #86efac;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#10b981;margin-top:4px;font-weight:600">👨‍💼 세무사 · '+e(m.created_at||'')+'</div></div></div>';
       }
       return '';
     }).join('');
@@ -1246,7 +1263,7 @@ if(m.role==='assistant'){
 const cm=String(m.content||'').match(/\[신뢰도:\s*(높음|보통|낮음)/);
 if(cm){const c=cm[1];const cls=c==='높음'?'high':c==='보통'?'medium':'low';conf=' <span class="conf '+cls+'">'+c+'</span>';}
 }
-return '<div class="msg '+e(m.role)+'">'+e(m.content)+'<div class="ts">'+(m.role==='user'?'사용자':'AI')+conf+' · '+e(m.created_at||'')+'</div></div>';
+return '<div class="msg '+e(m.role)+'">'+renderMsgBody(m.content)+'<div class="ts">'+(m.role==='user'?'사용자':'AI')+conf+' · '+e(m.created_at||'')+'</div></div>';
 }).join('');
 }
 
