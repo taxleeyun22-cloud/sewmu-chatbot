@@ -100,34 +100,55 @@ async function getUserFromSession(db, cookieHeader) {
   } catch { return null; }
 }
 
-// 기장거래처 프로필 조회 (시스템 프롬프트에 주입용)
-async function getClientProfile(db, userId) {
-  if (!db || !userId) return null;
+// 기장거래처 사업장 조회 (복수 지원)
+async function getClientBusinesses(db, userId) {
+  if (!db || !userId) return [];
+  // 신규 client_businesses 우선 조회
   try {
-    return await db.prepare(
+    const { results } = await db.prepare(
       `SELECT company_name, business_number, ceo_name, industry, business_type,
               tax_type, establishment_date, phone, employee_count, last_revenue,
-              vat_period, notes FROM client_profiles WHERE user_id = ?`
+              vat_period, notes, is_primary FROM client_businesses
+       WHERE user_id = ? ORDER BY is_primary DESC, id ASC`
+    ).bind(userId).all();
+    if (results && results.length > 0) return results;
+  } catch {}
+  // fallback: 기존 client_profiles 1:1 테이블
+  try {
+    const old = await db.prepare(
+      `SELECT company_name, business_number, ceo_name, industry, business_type,
+              tax_type, establishment_date, phone, employee_count, last_revenue,
+              vat_period, notes, 1 as is_primary FROM client_profiles WHERE user_id = ?`
     ).bind(userId).first();
-  } catch { return null; }
+    return old ? [old] : [];
+  } catch { return []; }
 }
 
-function buildClientContext(profile, userRealName) {
-  if (!profile) return "";
+function businessLine(b, idx) {
   const parts = [];
-  if (profile.company_name) parts.push(`- 상호: ${profile.company_name}`);
-  if (userRealName) parts.push(`- 대화 상대: ${userRealName}님`);
-  else if (profile.ceo_name) parts.push(`- 대표자: ${profile.ceo_name}님`);
-  if (profile.business_type) parts.push(`- 사업 형태: ${profile.business_type}`);
-  if (profile.tax_type) parts.push(`- 과세 유형: ${profile.tax_type}`);
-  if (profile.industry) parts.push(`- 업종: ${profile.industry}`);
-  if (profile.vat_period) parts.push(`- 부가세 신고 주기: ${profile.vat_period}`);
-  if (profile.establishment_date) parts.push(`- 개업일: ${profile.establishment_date}`);
-  if (profile.employee_count != null) parts.push(`- 직원 수: ${profile.employee_count}명`);
-  if (profile.last_revenue != null) parts.push(`- 최근 매출: ${profile.last_revenue.toLocaleString()}원`);
-  if (profile.notes) parts.push(`- 특이사항(세무사 메모): ${profile.notes}`);
-  if (parts.length === 0) return "";
-  return `\n\n===== 현재 상담 거래처 정보 (기장거래처 전용) =====\n${parts.join('\n')}\n\n[활용 지침]\n- 답변 시 위 정보를 자연스럽게 반영해. 예) "○○상사님(간이과세자)은..." 같이 맞춤 호칭·상황 반영.\n- 과세유형(일반/간이/면세/법인)에 맞는 규정을 우선 안내.\n- 업종 특수 사항(예: 음식점은 의제매입세액 공제)도 고려.\n- 세무사 메모가 있으면 그 맥락을 반드시 고려하여 답변.\n- 사업자번호·매출 같은 민감정보는 답변에 직접 노출하지 마 (알고 있지만 언급 자제).\n`;
+  const prefix = idx != null ? `[사업장 ${idx + 1}${b.is_primary ? ' · 주 사업장' : ''}]` : '';
+  if (prefix) parts.push(prefix);
+  if (b.company_name) parts.push(`- 상호: ${b.company_name}`);
+  if (b.business_type) parts.push(`- 사업 형태: ${b.business_type}`);
+  if (b.tax_type) parts.push(`- 과세 유형: ${b.tax_type}`);
+  if (b.industry) parts.push(`- 업종: ${b.industry}`);
+  if (b.vat_period) parts.push(`- 부가세 신고 주기: ${b.vat_period}`);
+  if (b.establishment_date) parts.push(`- 개업일: ${b.establishment_date}`);
+  if (b.employee_count != null) parts.push(`- 직원 수: ${b.employee_count}명`);
+  if (b.notes) parts.push(`- 특이사항: ${b.notes}`);
+  return parts.join('\n');
+}
+
+function buildClientContext(businesses, userRealName) {
+  if (!businesses || businesses.length === 0) return "";
+  const header = userRealName ? `- 대화 상대: ${userRealName}님\n` : "";
+  if (businesses.length === 1) {
+    const lines = businessLine(businesses[0], null);
+    return `\n\n===== 현재 상담 거래처 정보 (기장거래처) =====\n${header}${lines}\n\n[활용 지침]\n- 답변 시 위 정보를 자연스럽게 반영. "○○상사님(간이과세)은..." 같이 맞춤 호칭·상황 반영.\n- 과세유형·업종 특수 사항 고려 (예: 음식점 의제매입세액, 건설업 기성고 등).\n- 세무사 메모가 있으면 그 맥락 반영.\n- 사업자번호·매출 같은 민감정보는 답변에 노출하지 마.\n`;
+  }
+  // 복수 사업장
+  const blocks = businesses.map((b, i) => businessLine(b, i)).join('\n\n');
+  return `\n\n===== 현재 상담 거래처 정보 (기장거래처 · ${businesses.length}개 사업장) =====\n${header}${blocks}\n\n[활용 지침]\n- 위 ${businesses.length}개 사업장을 운영 중이신 대표자입니다.\n- 질문이 특정 사업장에 해당하는지 맥락 파악 필요 (예: "우리 음식점"이라면 음식점 사업장 기준).\n- 사업장별 과세유형·업종이 다를 수 있으므로 구분해서 안내.\n- 사업자별 매출 합산·비교 등 질문 가능성도 고려.\n- 세무사 메모가 있으면 그 맥락 반영.\n- 민감정보(사업자번호·매출)는 직접 노출 자제.\n`;
 }
 
 // 승인상태별 일일 한도
@@ -584,15 +605,15 @@ export async function onRequestPost(context) {
     // 사용자 질문 먼저 DB에 저장 (중복 방지용 플래그)
     const _dbSaveHandled = true;
 
-    // 기장거래처면 프로필 조회 + 사용자 실명 조회
+    // 기장거래처면 사업장 목록 조회 + 사용자 실명 조회 (복수 사업장 지원)
     let clientContext = "";
     let userRealName = null;
     if (db && approvalStatus === 'approved_client') {
       try {
         const u = await db.prepare(`SELECT real_name FROM users WHERE id = ?`).bind(userId).first();
         userRealName = u ? u.real_name : null;
-        const profile = await getClientProfile(db, userId);
-        clientContext = buildClientContext(profile, userRealName);
+        const businesses = await getClientBusinesses(db, userId);
+        clientContext = buildClientContext(businesses, userRealName);
       } catch {}
     }
 

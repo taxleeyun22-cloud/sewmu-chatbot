@@ -13,32 +13,44 @@ export async function onRequestGet(context) {
     ).bind(match[1]).first();
     if (!session) return Response.json({ error: "세션 만료" }, { status: 401 });
 
-    // client_profiles 테이블 없으면 null 반환
-    let profile = null;
+    // 복수 사업장 조회 (우선 client_businesses, fallback client_profiles)
+    let businesses = [];
     try {
-      profile = await db.prepare(`
+      const { results } = await db.prepare(`
         SELECT company_name, business_number, ceo_name, industry, business_type,
                tax_type, establishment_date, address, phone, employee_count,
-               vat_period, notes, updated_at
-        FROM client_profiles WHERE user_id = ?
-      `).bind(session.user_id).first();
+               vat_period, notes, is_primary, updated_at
+        FROM client_businesses WHERE user_id = ?
+        ORDER BY is_primary DESC, id ASC
+      `).bind(session.user_id).all();
+      businesses = results || [];
     } catch {}
-
-    // 사업자번호 마스킹 (앞 3자리만 표시)
-    if (profile && profile.business_number) {
-      const biz = profile.business_number;
-      profile.business_number_masked = biz.length >= 10
-        ? `${biz.slice(0,3)}-**-*****`
-        : biz;
-      delete profile.business_number; // 원본 노출 X
+    if (businesses.length === 0) {
+      try {
+        const old = await db.prepare(`
+          SELECT company_name, business_number, ceo_name, industry, business_type,
+                 tax_type, establishment_date, address, phone, employee_count,
+                 vat_period, notes, 1 as is_primary, updated_at
+          FROM client_profiles WHERE user_id = ?
+        `).bind(session.user_id).first();
+        if (old) businesses = [old];
+      } catch {}
     }
 
-    // 세무사 메모는 표시하되 민감 정보라 짧게
-    if (profile && profile.notes && profile.notes.length > 500) {
-      profile.notes = profile.notes.slice(0, 500) + '...';
+    // 마스킹·메모 길이 제한
+    for (const b of businesses) {
+      if (b.business_number) {
+        const biz = b.business_number;
+        b.business_number_masked = biz.length >= 10 ? `${biz.slice(0,3)}-**-*****` : biz;
+        delete b.business_number;
+      }
+      if (b.notes && b.notes.length > 500) b.notes = b.notes.slice(0, 500) + '...';
     }
 
-    return Response.json({ profile: profile || null });
+    return Response.json({
+      profile: businesses[0] || null, // 하위호환
+      businesses,
+    });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
