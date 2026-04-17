@@ -472,22 +472,39 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
 </div>
 
 <!-- 상담방 대화창 (풀스크린 오버레이) -->
-<div id="roomChatView" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:50;flex-direction:column">
-  <div style="background:var(--card);padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
-    <button onclick="closeRoomChat()" style="background:none;border:none;font-size:1.4em;cursor:pointer;color:var(--text)">←</button>
-    <div style="flex:1;min-width:0">
-      <div id="rcTitle" style="font-size:.95em;font-weight:700;color:var(--text)">-</div>
-      <div id="rcMembers" style="font-size:.7em;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+<div id="roomChatView" class="room-chat-view">
+  <div class="rc-header">
+    <button onclick="closeRoomChat()" class="rc-back-btn">←</button>
+    <div class="rc-title-wrap">
+      <div id="rcTitle">-</div>
+      <div id="rcMembers"></div>
     </div>
-    <button onclick="leaveRoom()" style="background:none;border:1px solid var(--border);color:var(--text2);padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit">나가기</button>
+    <button onclick="leaveRoom()" class="rc-leave-btn">나가기</button>
   </div>
-  <div id="rcMessages" style="flex:1;overflow-y:auto;padding:14px;background:var(--bg)"></div>
-  <div id="rcInputArea" style="padding:10px 12px;background:var(--card);border-top:1px solid var(--border);display:flex;gap:8px">
-    <input id="rcInput" type="text" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter')sendRoomMsg()" style="flex:1;padding:10px 14px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:10px;font-size:.9em;outline:none;font-family:inherit">
-    <button onclick="sendRoomMsg()" style="background:var(--blue);color:#fff;border:none;padding:10px 16px;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit">전송</button>
+  <div id="rcMessages" class="rc-messages"></div>
+  <div id="rcClosedNotice" class="rc-closed-notice" style="display:none">이 상담방은 종료되었습니다. 대화는 열람만 가능합니다.</div>
+  <div id="rcInputArea" class="rc-input-area">
+    <input id="rcInput" type="text" placeholder="메시지 입력..." autocomplete="off" onkeydown="if(event.key==='Enter')sendRoomMsg()">
+    <button onclick="sendRoomMsg()" class="rc-send-btn">전송</button>
   </div>
-  <div id="rcClosedNotice" style="display:none;padding:10px;text-align:center;background:#fef3c7;color:#8b6914;font-size:.8em">이 상담방은 종료되었습니다. 대화는 열람만 가능합니다.</div>
 </div>
+
+<style>
+.room-chat-view{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:50;flex-direction:column;height:100vh;height:100dvh}
+.room-chat-view.open{display:flex}
+.rc-header{background:var(--card);padding:12px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0;padding-top:max(12px, env(safe-area-inset-top))}
+.rc-back-btn{background:none;border:none;font-size:1.5em;cursor:pointer;color:var(--text);padding:4px 8px;line-height:1}
+.rc-title-wrap{flex:1;min-width:0}
+#rcTitle{font-size:.95em;font-weight:700;color:var(--text)}
+#rcMembers{font-size:.7em;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.rc-leave-btn{background:none;border:1px solid var(--border);color:var(--text2);padding:6px 10px;border-radius:7px;font-size:.72em;cursor:pointer;font-family:inherit}
+.rc-messages{flex:1;overflow-y:auto;padding:14px;background:var(--bg);-webkit-overflow-scrolling:touch}
+.rc-messages::-webkit-scrollbar{display:none}
+.rc-input-area{padding:10px 12px max(10px, env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
+.rc-input-area input{flex:1;padding:11px 14px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:10px;font-size:16px;outline:none;font-family:inherit}
+.rc-send-btn{background:var(--blue);color:#fff;border:none;padding:11px 18px;border-radius:10px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0}
+.rc-closed-notice{padding:10px;text-align:center;background:#fef3c7;color:#8b6914;font-size:.8em;flex-shrink:0}
+</style>
 
 
 <!-- 내 정보 수정 모달 -->
@@ -862,7 +879,8 @@ async function loadMyRooms(){
 
 async function openMyRoom(roomId){
   rcRoomId=roomId;
-  document.getElementById('roomChatView').style.display='flex';
+  document.getElementById('roomChatView').classList.add('open');
+  document.body.style.overflow='hidden';
   await loadRoomChat();
   if(rcMsgPollTimer)clearInterval(rcMsgPollTimer);
   rcMsgPollTimer=setInterval(loadRoomChat,5000);
@@ -870,7 +888,8 @@ async function openMyRoom(roomId){
 
 function closeRoomChat(){
   rcRoomId=null;
-  document.getElementById('roomChatView').style.display='none';
+  document.getElementById('roomChatView').classList.remove('open');
+  document.body.style.overflow='';
   if(rcMsgPollTimer)clearInterval(rcMsgPollTimer);
   loadMyRooms();
 }
@@ -886,7 +905,8 @@ async function loadRoomChat(){
     document.getElementById('rcTitle').textContent=d.room.name||'상담방';
     var mm=(d.members||[]).map(function(m){return m.real_name||m.name||'이름없음'});
     document.getElementById('rcMembers').textContent='👥 '+mm.join(', ')+' + 🏢 세무회계 이윤';
-    document.getElementById('rcInputArea').style.display=rcIsActive?'flex':'none';
+    var inputArea=document.getElementById('rcInputArea');
+    inputArea.style.display=rcIsActive?'flex':'none';
     document.getElementById('rcClosedNotice').style.display=rcIsActive?'none':'block';
     var container=document.getElementById('rcMessages');
     var atBottom=container.scrollHeight-container.scrollTop-container.clientHeight<50;
