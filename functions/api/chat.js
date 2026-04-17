@@ -493,6 +493,61 @@ export async function onRequestPost(context) {
     return Response.json({ error: "본명 확인이 필요합니다.", code: "name_required" }, { status: 400 });
   }
 
+  // 세션 ID 사전 추출 (direct 모드 체크용)
+  let earlySessionId = null;
+  try {
+    const clonedReq = context.request.clone();
+    const earlyBody = await clonedReq.json();
+    earlySessionId = earlyBody.sessionId || null;
+  } catch {}
+
+  // live_sessions 테이블 보장
+  if (db) {
+    try {
+      await db.prepare(`CREATE TABLE IF NOT EXISTS live_sessions (
+        session_id TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        ai_mode TEXT DEFAULT 'on',
+        advisor_unread INTEGER DEFAULT 0,
+        user_unread INTEGER DEFAULT 0,
+        last_user_msg_at TEXT,
+        last_advisor_msg_at TEXT,
+        updated_at TEXT,
+        PRIMARY KEY (session_id, user_id)
+      )`).run();
+    } catch {}
+  }
+
+  // AI 모드 체크: 세무사가 직접답변 모드로 돌려놨으면 OpenAI 호출 X
+  if (db && earlySessionId) {
+    try {
+      const live = await db.prepare(
+        `SELECT ai_mode FROM live_sessions WHERE session_id = ? AND user_id = ?`
+      ).bind(earlySessionId, userId).first();
+      if (live && live.ai_mode === 'off') {
+        // 사용자 메시지만 저장 + advisor_unread 증가
+        const clonedReq2 = context.request.clone();
+        const body2 = await clonedReq2.json();
+        const lastUser = [...(body2.messages || [])].reverse().find(m => m.role === 'user');
+        if (lastUser && lastUser.content) {
+          const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+          try { await saveMessage(db, earlySessionId, "user", lastUser.content, userId); } catch {}
+          try {
+            await db.prepare(`
+              UPDATE live_sessions SET advisor_unread = advisor_unread + 1,
+                last_user_msg_at = ?, updated_at = ?
+              WHERE session_id = ? AND user_id = ?
+            `).bind(kstNow, kstNow, earlySessionId, userId).run();
+          } catch {}
+        }
+        return Response.json({
+          mode: 'direct',
+          status: '세무사가 직접 답변 드립니다. 잠시만 기다려 주세요.',
+        }, { status: 200 });
+      }
+    } catch {}
+  }
+
   // 일일 사용량 체크
   if (db) {
     const dailyLimit = getDailyLimit(approvalStatus);

@@ -520,6 +520,8 @@ function showChat(){
     document.getElementById('resetBtn').style.display='inline';
     document.getElementById('logoutBtn').style.display='none'; /* 마이페이지에서 로그아웃 */
     document.getElementById('bottomNav').style.display='block';
+    /* 세무사 직접 답변 polling 시작 */
+    startAdvisorPolling();
     var instBtn=document.getElementById('installBtn');
     if(instBtn){
       var p=detectPlatform?detectPlatform():'desktop';
@@ -718,6 +720,59 @@ function toggleTheme(){
 })();
 
 if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}
+
+/* ===== 세무사 직접 답변 polling ===== */
+var lastAdvisorTs=null;
+var advisorPollTimer=null;
+var currentAiMode='on';
+
+function addAdvisorMessage(content,ts){
+  var c=document.getElementById("chatArea");
+  var d=document.createElement("div");
+  d.className="msg msg-ai";
+  d.innerHTML='<div class="msg-avatar" style="background:#10b981;color:#fff;font-size:.85em;font-weight:700;padding:0">👨‍💼</div>'
+    +'<div class="msg-wrap">'
+    +'<div class="msg-name" style="color:#10b981;font-weight:600">이재윤 세무사 · 직접 답변</div>'
+    +'<div class="msg-bubble" style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;border-radius:4px 16px 16px 16px">'+esc(content)+'</div>'
+    +'</div>';
+  c.appendChild(d);
+  c.scrollTop=c.scrollHeight;
+  try{
+    /* 알림음 (Web Audio API) */
+    var ctx=new(window.AudioContext||window.webkitAudioContext)();
+    var osc=ctx.createOscillator();var gain=ctx.createGain();
+    osc.connect(gain);gain.connect(ctx.destination);
+    osc.frequency.value=880;gain.gain.setValueAtTime(0.1,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);
+    osc.start();osc.stop(ctx.currentTime+0.3);
+  }catch{}
+  if(navigator.vibrate)try{navigator.vibrate(100)}catch{}
+}
+
+async function pollAdvisorMessages(){
+  try{
+    var url='/api/live-poll?session='+encodeURIComponent(sid);
+    if(lastAdvisorTs)url+='&since='+encodeURIComponent(lastAdvisorTs);
+    var r=await fetch(url);
+    if(!r.ok)return;
+    var d=await r.json();
+    currentAiMode=d.ai_mode||'on';
+    if(d.messages&&d.messages.length>0){
+      d.messages.forEach(function(m){
+        addAdvisorMessage(m.content,m.created_at);
+        messages.push({role:"assistant",content:"[세무사 직접 답변] "+m.content});
+        lastAdvisorTs=m.created_at;
+      });
+    }
+  }catch{}
+}
+
+function startAdvisorPolling(){
+  if(advisorPollTimer)clearInterval(advisorPollTimer);
+  lastAdvisorTs=new Date(Date.now()+9*60*60*1000).toISOString().replace('T',' ').substring(0,19);
+  advisorPollTimer=setInterval(pollAdvisorMessages,5000);
+}
+function stopAdvisorPolling(){if(advisorPollTimer)clearInterval(advisorPollTimer)}
 
 /* ===== 탭 전환 & 마이페이지 ===== */
 function switchTab(tab){
@@ -1081,6 +1136,22 @@ async function triggerInstallPrompt(){
       }
       if(r.status===403){var e3=await r.json().catch(function(){return{}});hideDots();add("ai",e3.error||'이용 제한');return}
       if(!r.ok){var e4=await r.json().catch(function(){return{}});throw new Error(e4.error||'오류('+r.status+')')}
+      // 세무사 직접답변 모드 감지 (streaming 아님)
+      var ctype=r.headers.get('content-type')||'';
+      if(ctype.indexOf('application/json')>=0){
+        var dj=await r.json().catch(function(){return{}});
+        if(dj.mode==='direct'){
+          hideDots();
+          var c2=document.getElementById("chatArea");
+          var nd=document.createElement("div");nd.className="msg msg-ai";
+          nd.innerHTML='<div class="msg-avatar" style="background:#fef3c7;color:#8b6914"><span style="font-size:1.2em">⏳</span></div>'
+            +'<div class="msg-wrap"><div class="msg-name" style="color:#8b6914">세무사 직접 답변 모드</div>'
+            +'<div class="msg-bubble" style="background:#fef3c7;color:#8b6914;border-radius:4px 16px 16px 16px">'+esc(dj.status||'세무사가 직접 답변 드립니다.')+'</div></div>';
+          c2.appendChild(nd);c2.scrollTop=c2.scrollHeight;
+          /* polling은 이미 돌고 있음 — 세무사 답변 오면 자동 표시 */
+          return;
+        }
+      }
       var c=document.getElementById("chatArea");
       var statusEl=document.getElementById("dots");
       var streamStarted=false,msgDiv,bubble,fullText="";
