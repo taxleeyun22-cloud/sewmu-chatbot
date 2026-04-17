@@ -61,7 +61,7 @@ export async function onRequestPost(context) {
     return Response.json({
       ok: true,
       key,
-      url: `/api/image/${key}`,
+      url: `/api/image?k=${encodeURIComponent(key)}`,
       size,
       type,
     });
