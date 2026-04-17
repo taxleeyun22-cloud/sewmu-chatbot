@@ -264,7 +264,7 @@ loadList();
 refreshPendingBadge();
 refreshLiveBadge();
 setInterval(refreshPendingBadge,30000);
-setInterval(refreshLiveBadge,15000);
+setInterval(refreshLiveBadge,10000);
 }catch{document.getElementById('err').style.display='block'}
 }
 
@@ -332,16 +332,19 @@ async function loadLiveSessions(){
     el.innerHTML=d.sessions.map(s=>{
       const nm=s.real_name||s.user_name||'이름없음';
       const av=s.profile_image?'<img src="'+e(s.profile_image)+'" style="width:32px;height:32px;border-radius:50%;object-fit:cover">':'<div style="width:32px;height:32px;border-radius:50%;background:#3182f6;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.78em;font-weight:600">'+nm[0]+'</div>';
-      const unread=s.advisor_unread>0?'<span style="background:#f04452;color:#fff;border-radius:8px;padding:1px 6px;font-size:.7em;margin-left:auto">'+s.advisor_unread+'</span>':'';
+      const unread=s.advisor_unread>0?'<span style="background:#f04452;color:#fff;border-radius:8px;padding:1px 6px;font-size:.7em">'+s.advisor_unread+'</span>':'';
       const modeIcon=s.ai_mode==='off'?'👨‍💼':'🤖';
       const active=liveCurrentSession===s.session_id&&liveCurrentUserId===s.user_id?'background:#e8f3ff':'';
-      return '<div onclick="openLiveSession(\''+e(s.session_id)+'\','+s.user_id+')" style="display:flex;align-items:center;gap:10px;padding:10px;cursor:pointer;border-radius:8px;'+active+'">'
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;'+active+'">'
+        +'<div onclick="openLiveSession(\''+e(s.session_id)+'\','+s.user_id+')" style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;min-width:0">'
         +av
         +'<div style="flex:1;min-width:0">'
         +'<div style="display:flex;align-items:center;gap:4px"><span style="font-size:.85em;font-weight:600">'+e(nm)+'</span><span style="font-size:.7em">'+modeIcon+'</span>'+unread+'</div>'
         +'<div style="font-size:.72em;color:#8b95a1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(s.last_user_message||'(메시지 없음)')+'</div>'
         +'<div style="font-size:.65em;color:#b0b8c1">'+e(s.last_at||'')+'</div>'
-        +'</div></div>';
+        +'</div></div>'
+        +'<button onclick="deleteLiveSession(\''+e(s.session_id)+'\','+s.user_id+',\''+e(nm)+'\')" title="이 대화 삭제" style="background:none;border:none;color:#b0b8c1;font-size:1em;cursor:pointer;padding:6px;border-radius:6px;flex-shrink:0" onmouseover="this.style.background=\'#fee2e2\';this.style.color=\'#f04452\'" onmouseout="this.style.background=\'none\';this.style.color=\'#b0b8c1\'">🗑️</button>'
+        +'</div>';
     }).join('');
   }catch(err){document.getElementById('liveSessionList').innerHTML='<div style="padding:20px;color:#f04452">오류: '+e(err.message)+'</div>'}
 }
@@ -350,10 +353,20 @@ async function openLiveSession(sid,uid){
   liveCurrentSession=sid;liveCurrentUserId=uid;
   document.getElementById('liveAiToggle').style.display='block';
   document.getElementById('liveInputArea').style.display='flex';
+  // 제목에 사용자 이름 표시
+  try{
+    const lst=document.querySelectorAll('#liveSessionList > div');
+    lst.forEach(el=>{
+      if(el.innerHTML.indexOf('openLiveSession(\\\''+sid+'\\\','+uid)>=0){
+        const nameEl=el.querySelector('span');
+        if(nameEl)document.getElementById('liveChatTitle').innerHTML='<b>'+nameEl.textContent+'</b>';
+      }
+    });
+  }catch{}
   await loadLiveMessages();
-  loadLiveSessions(); // 리스트 하이라이트 갱신
+  loadLiveSessions();
   if(liveMsgPollTimer)clearInterval(liveMsgPollTimer);
-  liveMsgPollTimer=setInterval(loadLiveMessages,5000); // 5초마다 메시지 갱신
+  liveMsgPollTimer=setInterval(loadLiveMessages,5000);
 }
 
 async function loadLiveMessages(){
@@ -392,6 +405,28 @@ async function sendLiveMessage(){
     const d=await r.json();
     if(d.ok){loadLiveMessages()}
     else alert('실패: '+(d.error||'unknown'));
+  }catch(err){alert('오류: '+err.message)}
+}
+
+async function deleteLiveSession(sid,uid,nm){
+  if(!confirm('"'+nm+'"님의 대화를 완전히 삭제합니다.\n(메시지·기록 복구 불가)\n계속할까요?'))return;
+  try{
+    const r=await fetch('/api/admin-live?key='+encodeURIComponent(KEY)+'&session='+encodeURIComponent(sid)+'&user_id='+uid,{method:'DELETE'});
+    const d=await r.json();
+    if(d.ok){
+      if(liveCurrentSession===sid&&liveCurrentUserId==uid){
+        liveCurrentSession=null;liveCurrentUserId=null;
+        document.getElementById('liveMessages').innerHTML='';
+        document.getElementById('liveChatTitle').textContent='좌측 세션을 선택하세요';
+        document.getElementById('liveAiToggle').style.display='none';
+        document.getElementById('liveInputArea').style.display='none';
+        if(liveMsgPollTimer)clearInterval(liveMsgPollTimer);
+      }
+      loadLiveSessions();
+      refreshLiveBadge();
+    } else {
+      alert('삭제 실패: '+(d.error||'unknown'));
+    }
   }catch(err){alert('오류: '+err.message)}
 }
 

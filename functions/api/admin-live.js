@@ -99,15 +99,53 @@ export async function onRequestGet(context) {
       s.last_user_message = lastUser ? lastUser.content.slice(0, 80) : '';
     }
 
-    // 전체 unread 카운트
-    const unreadRow = await db.prepare(
-      `SELECT SUM(advisor_unread) as total FROM live_sessions WHERE advisor_unread > 0`
-    ).first();
+    // 전체 unread 카운트 = 최근 30분 내 사용자 메시지 수 (방금 온 것 중심)
+    // + live_sessions.advisor_unread (direct 모드 대기 큐)
+    let totalUnread = 0;
+    try {
+      // 30분 내 유저 메시지 수 (세무사가 아직 확인 안 한 것)
+      const recentUser = await db.prepare(`
+        SELECT COUNT(*) as c FROM conversations
+        WHERE role = 'user' AND user_id IS NOT NULL
+          AND datetime(created_at) > datetime('now', '+9 hours', '-30 minutes')
+      `).first();
+      totalUnread = recentUser?.c || 0;
+    } catch {}
 
     return Response.json({
       sessions: results || [],
-      total_unread: unreadRow?.total || 0,
+      total_unread: totalUnread,
     });
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
+}
+
+// DELETE: 세션 삭제 (conversations + live_sessions)
+export async function onRequestDelete(context) {
+  const url = new URL(context.request.url);
+  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const db = context.env.DB;
+  if (!db) return Response.json({ error: "DB error" }, { status: 500 });
+
+  await ensureTables(db);
+
+  const sessionId = url.searchParams.get("session");
+  const userId = url.searchParams.get("user_id");
+  if (!sessionId || !userId) {
+    return Response.json({ error: "session and user_id required" }, { status: 400 });
+  }
+
+  try {
+    // conversations 삭제
+    const r1 = await db.prepare(
+      `DELETE FROM conversations WHERE session_id = ? AND user_id = ?`
+    ).bind(sessionId, userId).run();
+    // live_sessions 삭제
+    await db.prepare(
+      `DELETE FROM live_sessions WHERE session_id = ? AND user_id = ?`
+    ).bind(sessionId, userId).run();
+    return Response.json({ ok: true, deleted: r1.meta?.changes || 0 });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
