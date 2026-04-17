@@ -206,6 +206,17 @@ export async function onRequestPost(context) {
       return Response.json({ ok: true });
     }
 
+    // ── 방 이름 수정 ──
+    if (action === "rename") {
+      const name = (body.name || "").trim();
+      if (!name) return Response.json({ error: "이름을 입력해 주세요" }, { status: 400 });
+      if (name.length > 50) return Response.json({ error: "이름이 너무 깁니다 (50자 이내)" }, { status: 400 });
+      await db.prepare(
+        `UPDATE chat_rooms SET name = ? WHERE id = ?`
+      ).bind(name, roomId).run();
+      return Response.json({ ok: true });
+    }
+
     // ── 방 재개 ──
     if (action === "reopen") {
       await db.prepare(
