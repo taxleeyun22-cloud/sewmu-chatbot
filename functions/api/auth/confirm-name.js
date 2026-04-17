@@ -60,7 +60,48 @@ export async function onRequestPost(context) {
        WHERE id = ?`
     ).bind(realName, phone, approvalStatus, declaredClient, approvedAt, session.user_id).run();
 
-    return Response.json({ ok: true, approval_status: approvalStatus });
+    // 📋 unbound_client_profiles 에 이 전화번호로 매칭되는 거래처 있으면 자동 승격
+    let autoMatched = false;
+    try {
+      const unbound = await db.prepare(
+        `SELECT * FROM unbound_client_profiles WHERE phone = ? LIMIT 1`
+      ).bind(phone).first();
+      if (unbound) {
+        await db.prepare(`
+          INSERT INTO client_profiles (
+            user_id, company_name, business_number, ceo_name, industry,
+            business_type, tax_type, establishment_date, address, phone,
+            employee_count, last_revenue, vat_period, notes, updated_at, updated_by
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto-match')
+          ON CONFLICT(user_id) DO UPDATE SET
+            company_name = excluded.company_name,
+            business_number = excluded.business_number,
+            updated_at = excluded.updated_at
+        `).bind(
+          session.user_id,
+          unbound.company_name, unbound.business_number, unbound.ceo_name,
+          unbound.industry, unbound.business_type, unbound.tax_type,
+          unbound.establishment_date, unbound.address, unbound.phone,
+          unbound.employee_count, unbound.last_revenue, unbound.vat_period,
+          unbound.notes, kst
+        ).run();
+        try {
+          await db.prepare(
+            `UPDATE unbound_client_profiles SET matched_user_id = ? WHERE id = ?`
+          ).bind(session.user_id, unbound.id).run();
+        } catch {}
+        await db.prepare(
+          `UPDATE users SET approval_status = 'approved_client', approved_at = ?, approved_by = 'auto-match' WHERE id = ?`
+        ).bind(kst, session.user_id).run();
+        autoMatched = true;
+      }
+    } catch (e) { console.error("unbound match error:", e); }
+
+    return Response.json({
+      ok: true,
+      approval_status: autoMatched ? 'approved_client' : approvalStatus,
+      auto_matched: autoMatched
+    });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }

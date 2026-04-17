@@ -133,13 +133,71 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 
 <!-- 사용자 승인 관리 -->
 <div id="usersView" style="display:none">
-<div class="tabs" style="margin-bottom:14px;display:flex;gap:6px;flex-wrap:wrap">
+<div class="tabs" style="margin-bottom:14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
 <button class="on" id="uStPending" onclick="userStatus('pending')" style="background:#f04452;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#fff;font-weight:500">대기 <span id="cPending">0</span></button>
 <button id="uStClient" onclick="userStatus('approved_client')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">기장거래처 <span id="cClient">0</span></button>
 <button id="uStGuest" onclick="userStatus('approved_guest')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">일반승인 <span id="cGuest">0</span></button>
 <button id="uStRejected" onclick="userStatus('rejected')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">거절 <span id="cRejected">0</span></button>
+<button onclick="showBulkUpload()" style="margin-left:auto;background:#191f28;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📤 CSV 일괄 업로드</button>
 </div>
 <div id="userList"></div>
+</div>
+
+<!-- 거래처 프로필 편집 모달 -->
+<div id="profileModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
+<div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+<h3 style="font-size:1.1em;margin:0">거래처 정보 편집</h3>
+<button onclick="closeProfileModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#8b95a1">✕</button>
+</div>
+<p id="pmUserInfo" style="font-size:.8em;color:#8b95a1;margin:0 0 14px"></p>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+<div><label style="font-size:.75em;font-weight:600;color:#555">상호</label><input id="pmCompany" type="text" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div><label style="font-size:.75em;font-weight:600;color:#555">사업자번호</label><input id="pmBizNo" type="text" placeholder="1234567890" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div><label style="font-size:.75em;font-weight:600;color:#555">대표자</label><input id="pmCEO" type="text" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div><label style="font-size:.75em;font-weight:600;color:#555">연락처</label><input id="pmPhone" type="text" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div><label style="font-size:.75em;font-weight:600;color:#555">업종</label><input id="pmIndustry" type="text" placeholder="음식점/도소매/서비스 등" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div><label style="font-size:.75em;font-weight:600;color:#555">사업형태</label><select id="pmBizType" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"><option value="">선택</option><option value="개인">개인사업자</option><option value="법인">법인사업자</option></select></div>
+<div><label style="font-size:.75em;font-weight:600;color:#555">과세유형</label><select id="pmTaxType" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"><option value="">선택</option><option value="일반과세">일반과세</option><option value="간이과세">간이과세</option><option value="면세">면세</option><option value="법인">법인세</option></select></div>
+<div><label style="font-size:.75em;font-weight:600;color:#555">부가세 주기</label><select id="pmVatPeriod" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"><option value="">선택</option><option value="연 2회 (1/7월)">연 2회 (1/7월)</option><option value="연 4회 (예정+확정)">연 4회</option><option value="면세(신고 없음)">면세(없음)</option></select></div>
+<div><label style="font-size:.75em;font-weight:600;color:#555">개업일</label><input id="pmEstDate" type="date" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div><label style="font-size:.75em;font-weight:600;color:#555">직원수</label><input id="pmEmp" type="number" min="0" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div style="grid-column:span 2"><label style="font-size:.75em;font-weight:600;color:#555">주소</label><input id="pmAddr" type="text" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div style="grid-column:span 2"><label style="font-size:.75em;font-weight:600;color:#555">최근 매출 (원)</label><input id="pmRevenue" type="number" min="0" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div style="grid-column:span 2"><label style="font-size:.75em;font-weight:600;color:#555">세무사 메모 (AI가 참조)</label><textarea id="pmNotes" rows="3" placeholder="예: 배달 비중 큼. 올해 시설투자 예정. 가지급금 이슈 있음." style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;resize:vertical"></textarea></div>
+</div>
+<div style="display:flex;gap:8px;margin-top:14px">
+<button onclick="saveProfile()" style="flex:1;background:#3182f6;color:#fff;border:none;padding:11px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">저장</button>
+<button onclick="closeProfileModal()" style="background:#e5e8eb;color:#555;border:none;padding:11px 20px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
+</div>
+</div>
+</div>
+
+<!-- CSV 일괄 업로드 모달 -->
+<div id="bulkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
+<div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+<h3 style="font-size:1.1em;margin:0">📤 거래처 CSV 일괄 업로드</h3>
+<button onclick="closeBulkModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#8b95a1">✕</button>
+</div>
+<p style="font-size:.85em;color:#555;margin:0 0 8px">위하고/세무사랑에서 거래처 목록 <b>Excel 다운로드 → CSV 저장</b> 후 업로드</p>
+<div style="background:#f2f4f6;padding:10px 12px;border-radius:8px;font-size:.72em;color:#555;margin-bottom:12px;line-height:1.55">
+<b>지원 컬럼명 (순서 무관, 한 줄 헤더):</b><br>
+상호, 사업자번호, 대표자, 업종, 사업형태, 과세유형, 개업일, 주소, 전화, 직원수, 매출, 부가세주기, 메모<br>
+<span style="color:#8b95a1">* 영문도 인식: company_name, business_number, ceo_name, industry, business_type, tax_type, establishment_date, address, phone, employee_count, last_revenue, vat_period, notes</span>
+</div>
+<input type="file" id="bulkFile" accept=".csv,.txt" onchange="previewCSV(this)" style="width:100%;padding:9px;border:1px dashed #3182f6;border-radius:8px;font-family:inherit">
+<div id="bulkPreview" style="margin-top:12px;font-size:.8em;color:#555"></div>
+<label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:.85em">
+<input type="checkbox" id="bulkAutoApprove" checked>
+<span>사업자번호·연락처 매칭되는 기존 가입자를 <b>기장거래처로 자동 승격</b></span>
+</label>
+<div style="display:flex;gap:8px;margin-top:14px">
+<button id="bulkUploadBtn" onclick="submitBulk()" disabled style="flex:1;background:#3182f6;color:#fff;border:none;padding:11px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit;opacity:.5">업로드</button>
+<button onclick="closeBulkModal()" style="background:#e5e8eb;color:#555;border:none;padding:11px 20px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
+</div>
+<div id="bulkResult" style="margin-top:14px"></div>
+</div>
 </div>
 
 <!-- 검증 (답변 품질 관리) -->
@@ -244,10 +302,12 @@ if(status==='pending'){
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✓ 기장거래처 승인</button>'
 +'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#00c471;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">○ 일반 승인</button>'
++'<button onclick="openProfile('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✕ 거절</button>'
 +'</div>';
 }else{
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
++'<button onclick="openProfile('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +(status!=='approved_client'?'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 기장거래처</button>':'')
 +(status!=='approved_guest'?'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#00c471;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 일반승인</button>':'')
 +(status!=='pending'?'<button onclick="approveUser('+u.id+',\'pending\')" style="background:#8b95a1;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 대기로</button>':'')
@@ -284,6 +344,184 @@ const d=await r.json();
 if(d.ok){loadUsers(currentStatus);refreshPendingBadge()}
 else alert('실패: '+(d.error||'unknown'));
 }catch(err){alert('오류: '+err.message)}
+}
+
+/* ===== 거래처 프로필 편집 ===== */
+let currentProfileUserId=null;
+async function openProfile(userId,displayName){
+currentProfileUserId=userId;
+document.getElementById('pmUserInfo').textContent='사용자: '+displayName+' (ID '+userId+')';
+['pmCompany','pmBizNo','pmCEO','pmPhone','pmIndustry','pmAddr','pmEstDate','pmEmp','pmRevenue','pmNotes'].forEach(id=>document.getElementById(id).value='');
+document.getElementById('pmBizType').value='';
+document.getElementById('pmTaxType').value='';
+document.getElementById('pmVatPeriod').value='';
+try{
+const r=await fetch('/api/admin-client-profile?key='+encodeURIComponent(KEY)+'&user_id='+userId);
+const d=await r.json();
+if(d.profile){
+const p=d.profile;
+document.getElementById('pmCompany').value=p.company_name||'';
+document.getElementById('pmBizNo').value=p.business_number||'';
+document.getElementById('pmCEO').value=p.ceo_name||'';
+document.getElementById('pmPhone').value=p.phone||'';
+document.getElementById('pmIndustry').value=p.industry||'';
+document.getElementById('pmBizType').value=p.business_type||'';
+document.getElementById('pmTaxType').value=p.tax_type||'';
+document.getElementById('pmVatPeriod').value=p.vat_period||'';
+document.getElementById('pmEstDate').value=p.establishment_date||'';
+document.getElementById('pmEmp').value=p.employee_count||'';
+document.getElementById('pmAddr').value=p.address||'';
+document.getElementById('pmRevenue').value=p.last_revenue||'';
+document.getElementById('pmNotes').value=p.notes||'';
+}
+}catch{}
+document.getElementById('profileModal').style.display='flex';
+}
+function closeProfileModal(){document.getElementById('profileModal').style.display='none'}
+async function saveProfile(){
+if(!currentProfileUserId)return;
+const payload={
+user_id:currentProfileUserId,
+company_name:document.getElementById('pmCompany').value.trim(),
+business_number:document.getElementById('pmBizNo').value.trim().replace(/\D/g,''),
+ceo_name:document.getElementById('pmCEO').value.trim(),
+phone:document.getElementById('pmPhone').value.trim(),
+industry:document.getElementById('pmIndustry').value.trim(),
+business_type:document.getElementById('pmBizType').value,
+tax_type:document.getElementById('pmTaxType').value,
+vat_period:document.getElementById('pmVatPeriod').value,
+establishment_date:document.getElementById('pmEstDate').value,
+employee_count:document.getElementById('pmEmp').value,
+address:document.getElementById('pmAddr').value.trim(),
+last_revenue:document.getElementById('pmRevenue').value,
+notes:document.getElementById('pmNotes').value.trim(),
+};
+try{
+const r=await fetch('/api/admin-client-profile?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+const d=await r.json();
+if(d.ok){closeProfileModal();loadUsers(currentStatus);alert('✅ 저장 완료')}
+else alert('실패: '+(d.error||'unknown'));
+}catch(err){alert('오류: '+err.message)}
+}
+
+/* ===== CSV 일괄 업로드 ===== */
+let bulkRows=null;
+function showBulkUpload(){
+document.getElementById('bulkFile').value='';
+document.getElementById('bulkPreview').innerHTML='';
+document.getElementById('bulkResult').innerHTML='';
+document.getElementById('bulkUploadBtn').disabled=true;
+document.getElementById('bulkUploadBtn').style.opacity='.5';
+bulkRows=null;
+document.getElementById('bulkModal').style.display='flex';
+}
+function closeBulkModal(){document.getElementById('bulkModal').style.display='none'}
+
+// CSV 파서 (따옴표 고려)
+function parseCSV(text){
+const lines=text.split(/\r?\n/).filter(l=>l.trim());
+if(lines.length<2)return [];
+const parseLine=(line)=>{
+const out=[];let cur='';let inQ=false;
+for(let i=0;i<line.length;i++){
+const c=line[i];
+if(c==='"'){
+if(inQ&&line[i+1]==='"'){cur+='"';i++}
+else inQ=!inQ;
+}else if(c===','&&!inQ){out.push(cur);cur=''}
+else cur+=c;
+}
+out.push(cur);
+return out;
+};
+const headers=parseLine(lines[0]).map(h=>h.trim());
+const rows=[];
+for(let i=1;i<lines.length;i++){
+const vals=parseLine(lines[i]);
+const obj={};
+headers.forEach((h,j)=>{obj[h]=(vals[j]||'').trim()});
+rows.push(obj);
+}
+return {headers,rows};
+}
+
+// 컬럼명 매핑 (한글→영문 표준)
+const COL_MAP={
+'상호':'company_name','company_name':'company_name','사업체명':'company_name','거래처명':'company_name','업체명':'company_name',
+'사업자번호':'business_number','사업자등록번호':'business_number','business_number':'business_number','등록번호':'business_number',
+'대표자':'ceo_name','대표자명':'ceo_name','ceo_name':'ceo_name','대표':'ceo_name',
+'업종':'industry','industry':'industry','종목':'industry',
+'사업형태':'business_type','business_type':'business_type','법인구분':'business_type','개인법인':'business_type',
+'과세유형':'tax_type','tax_type':'tax_type','과세구분':'tax_type',
+'개업일':'establishment_date','establishment_date':'establishment_date','개업일자':'establishment_date',
+'주소':'address','address':'address','사업장주소':'address',
+'전화':'phone','phone':'phone','연락처':'phone','휴대폰':'phone','전화번호':'phone',
+'직원수':'employee_count','employee_count':'employee_count','종업원수':'employee_count',
+'매출':'last_revenue','last_revenue':'last_revenue','전년매출':'last_revenue','연매출':'last_revenue',
+'부가세주기':'vat_period','vat_period':'vat_period','신고주기':'vat_period',
+'메모':'notes','notes':'notes','특이사항':'notes','비고':'notes',
+};
+function mapRows(parsed){
+const mapped=[];
+for(const row of parsed.rows){
+const o={};
+for(const h of parsed.headers){
+const key=COL_MAP[h]||COL_MAP[h.replace(/\s/g,'')];
+if(key)o[key]=row[h];
+}
+if(o.business_number)mapped.push(o);
+}
+return mapped;
+}
+
+function previewCSV(input){
+const file=input.files[0];
+if(!file)return;
+const reader=new FileReader();
+reader.onload=()=>{
+try{
+// EUC-KR 대응: 먼저 UTF-8로 시도
+let text=reader.result;
+const parsed=parseCSV(text);
+if(!parsed.headers||parsed.headers.length===0){document.getElementById('bulkPreview').innerHTML='<span style="color:#f04452">CSV 파싱 실패</span>';return}
+bulkRows=mapRows(parsed);
+if(bulkRows.length===0){
+document.getElementById('bulkPreview').innerHTML='<span style="color:#f04452">사업자번호 포함된 행이 없습니다. 헤더를 확인하세요.<br>받은 헤더: '+e(parsed.headers.join(', '))+'</span>';
+return;
+}
+const sample=bulkRows.slice(0,3).map(r=>
+'• '+e(r.company_name||'(상호없음)')+' / '+e(r.business_number||'')+' / '+e(r.ceo_name||'-')
+).join('<br>');
+document.getElementById('bulkPreview').innerHTML='<b>'+bulkRows.length+'개 행 인식됨</b> (매핑 성공)<br><div style="margin-top:6px;font-size:.75em;color:#666">'+sample+(bulkRows.length>3?'<br>...':'')+'</div>';
+document.getElementById('bulkUploadBtn').disabled=false;
+document.getElementById('bulkUploadBtn').style.opacity='1';
+}catch(err){document.getElementById('bulkPreview').innerHTML='<span style="color:#f04452">오류: '+e(err.message)+'</span>'}
+};
+// UTF-8이 기본, 한글 깨지면 EUC-KR 재시도는 추후 보강
+reader.readAsText(file,'UTF-8');
+}
+
+async function submitBulk(){
+if(!bulkRows||bulkRows.length===0)return;
+const auto=document.getElementById('bulkAutoApprove').checked;
+document.getElementById('bulkUploadBtn').disabled=true;
+document.getElementById('bulkUploadBtn').textContent='업로드 중...';
+try{
+const r=await fetch('/api/admin-client-profile-bulk?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:bulkRows,auto_approve:auto})});
+const d=await r.json();
+if(d.error){document.getElementById('bulkResult').innerHTML='<div style="color:#f04452">실패: '+e(d.error)+'</div>';return}
+document.getElementById('bulkResult').innerHTML=
+'<div style="background:#e0f5ec;padding:12px;border-radius:8px;font-size:.85em">'
++'<b style="color:#10b981">✅ 완료</b><br>'
++'총 '+d.total+'건 중<br>'
++'• 기존 가입자 매칭+승격: <b>'+d.matched_approved+'</b>건<br>'
++'• 대기 프로필 생성(미가입): <b>'+d.unbound_created+'</b>건<br>'
++'• 건너뜀(사업자번호 오류): '+d.skipped+'건<br>'
++'• 에러: '+d.error_count+'건'
++'</div>';
+loadUsers(currentStatus);refreshPendingBadge();
+}catch(err){document.getElementById('bulkResult').innerHTML='<div style="color:#f04452">오류: '+e(err.message)+'</div>'}
+finally{document.getElementById('bulkUploadBtn').disabled=false;document.getElementById('bulkUploadBtn').textContent='업로드'}
 }
 
 /* ===== 검증 탭 (원격 유지) ===== */

@@ -100,6 +100,36 @@ async function getUserFromSession(db, cookieHeader) {
   } catch { return null; }
 }
 
+// 기장거래처 프로필 조회 (시스템 프롬프트에 주입용)
+async function getClientProfile(db, userId) {
+  if (!db || !userId) return null;
+  try {
+    return await db.prepare(
+      `SELECT company_name, business_number, ceo_name, industry, business_type,
+              tax_type, establishment_date, phone, employee_count, last_revenue,
+              vat_period, notes FROM client_profiles WHERE user_id = ?`
+    ).bind(userId).first();
+  } catch { return null; }
+}
+
+function buildClientContext(profile, userRealName) {
+  if (!profile) return "";
+  const parts = [];
+  if (profile.company_name) parts.push(`- 상호: ${profile.company_name}`);
+  if (userRealName) parts.push(`- 대화 상대: ${userRealName}님`);
+  else if (profile.ceo_name) parts.push(`- 대표자: ${profile.ceo_name}님`);
+  if (profile.business_type) parts.push(`- 사업 형태: ${profile.business_type}`);
+  if (profile.tax_type) parts.push(`- 과세 유형: ${profile.tax_type}`);
+  if (profile.industry) parts.push(`- 업종: ${profile.industry}`);
+  if (profile.vat_period) parts.push(`- 부가세 신고 주기: ${profile.vat_period}`);
+  if (profile.establishment_date) parts.push(`- 개업일: ${profile.establishment_date}`);
+  if (profile.employee_count != null) parts.push(`- 직원 수: ${profile.employee_count}명`);
+  if (profile.last_revenue != null) parts.push(`- 최근 매출: ${profile.last_revenue.toLocaleString()}원`);
+  if (profile.notes) parts.push(`- 특이사항(세무사 메모): ${profile.notes}`);
+  if (parts.length === 0) return "";
+  return `\n\n===== 현재 상담 거래처 정보 (기장거래처 전용) =====\n${parts.join('\n')}\n\n[활용 지침]\n- 답변 시 위 정보를 자연스럽게 반영해. 예) "○○상사님(간이과세자)은..." 같이 맞춤 호칭·상황 반영.\n- 과세유형(일반/간이/면세/법인)에 맞는 규정을 우선 안내.\n- 업종 특수 사항(예: 음식점은 의제매입세액 공제)도 고려.\n- 세무사 메모가 있으면 그 맥락을 반드시 고려하여 답변.\n- 사업자번호·매출 같은 민감정보는 답변에 직접 노출하지 마 (알고 있지만 언급 자제).\n`;
+}
+
 // 승인상태별 일일 한도
 function getDailyLimit(status) {
   if (status === 'approved_client') return 999999; // 기장거래처 무제한
@@ -499,6 +529,18 @@ export async function onRequestPost(context) {
     // 사용자 질문 먼저 DB에 저장 (중복 방지용 플래그)
     const _dbSaveHandled = true;
 
+    // 기장거래처면 프로필 조회 + 사용자 실명 조회
+    let clientContext = "";
+    let userRealName = null;
+    if (db && approvalStatus === 'approved_client') {
+      try {
+        const u = await db.prepare(`SELECT real_name FROM users WHERE id = ?`).bind(userId).first();
+        userRealName = u ? u.real_name : null;
+        const profile = await getClientProfile(db, userId);
+        clientContext = buildClientContext(profile, userRealName);
+      } catch {}
+    }
+
     // buildSystemPrompt 함수 정의
     const buildSystemPrompt = (lawContext) => `너는 대구 달서구 세무회계 이윤의 AI 세무 상담 어시스턴트야.
 세무회계 이윤은 대표세무사 이재윤이 운영하며, 주요 거래처는 음식점, 휴대폰매장, 배달업, 소매업 등 개인사업자와 중소 법인이야.
@@ -875,7 +917,7 @@ ${FAQ_SECTION}
 - 업무시간: 평일 09:00~18:00
 - 이메일: tax_leeyun@naver.com
 
-${lawContext ? "\n\n===== 참고 법령 조문 =====" + lawContext : "\n\n(관련 법령 조문을 찾지 못했습니다. 일반적인 세무 지식으로 답변하되, 반드시 '정확한 내용은 세무회계 이윤에 문의해 주세요'로 마무리하세요.)"}`;
+${clientContext}${lawContext ? "\n\n===== 참고 법령 조문 =====" + lawContext : "\n\n(관련 법령 조문을 찾지 못했습니다. 일반적인 세무 지식으로 답변하되, 반드시 '정확한 내용은 세무회계 이윤에 문의해 주세요'로 마무리하세요.)"}`;
 
     // 사용자 질문 먼저 DB에 저장
     if (db) {
