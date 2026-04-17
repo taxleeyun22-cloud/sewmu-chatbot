@@ -83,7 +83,13 @@ export async function onRequestGet(context) {
 
       const { results: messages } = await db.prepare(`
         SELECT c.id, c.role, c.content, c.created_at, c.user_id,
-               u.real_name, u.name, u.profile_image
+               u.real_name, u.name, u.profile_image,
+               (SELECT COUNT(*) FROM room_members rm
+                WHERE rm.room_id = c.room_id
+                  AND rm.user_id != COALESCE(c.user_id, -1)
+                  AND rm.left_at IS NULL
+                  AND (rm.last_read_at IS NULL OR rm.last_read_at < c.created_at)
+               ) as unread_count
         FROM conversations c
         LEFT JOIN users u ON c.user_id = u.id
         WHERE c.room_id = ?

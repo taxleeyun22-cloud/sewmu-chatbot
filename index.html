@@ -363,6 +363,12 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
     <div class="mp-client-notes" id="mpClientNotes" style="display:none"></div>
   </div>
 
+  <!-- 내 상담방 -->
+  <div class="mp-section" id="mpRoomsSection" style="display:none">
+    <div class="mp-section-title">💬 내 상담방 <span id="mpRoomsCount" style="color:var(--blue);font-weight:700"></span></div>
+    <div id="mpRoomsList"></div>
+  </div>
+
   <!-- 내 정보 -->
   <div class="mp-section">
     <div class="mp-section-title">내 정보</div>
@@ -443,8 +449,26 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
   </div>
 </div>
 
+<!-- 상담방 대화창 (풀스크린 오버레이) -->
+<div id="roomChatView" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:50;flex-direction:column">
+  <div style="background:var(--card);padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
+    <button onclick="closeRoomChat()" style="background:none;border:none;font-size:1.4em;cursor:pointer;color:var(--text)">←</button>
+    <div style="flex:1;min-width:0">
+      <div id="rcTitle" style="font-size:.95em;font-weight:700;color:var(--text)">-</div>
+      <div id="rcMembers" style="font-size:.7em;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    </div>
+    <button onclick="leaveRoom()" style="background:none;border:1px solid var(--border);color:var(--text2);padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit">나가기</button>
+  </div>
+  <div id="rcMessages" style="flex:1;overflow-y:auto;padding:14px;background:var(--bg)"></div>
+  <div id="rcInputArea" style="padding:10px 12px;background:var(--card);border-top:1px solid var(--border);display:flex;gap:8px">
+    <input id="rcInput" type="text" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter')sendRoomMsg()" style="flex:1;padding:10px 14px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:10px;font-size:.9em;outline:none;font-family:inherit">
+    <button onclick="sendRoomMsg()" style="background:var(--blue);color:#fff;border:none;padding:10px 16px;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit">전송</button>
+  </div>
+  <div id="rcClosedNotice" style="display:none;padding:10px;text-align:center;background:#fef3c7;color:#8b6914;font-size:.8em">이 상담방은 종료되었습니다. 대화는 열람만 가능합니다.</div>
+</div>
+
 <!-- 하단 탭 네비게이션 -->
-<div class="bottom-nav" id="bottomNav">
+<div class="bottom-nav" id="bottomNav"
   <div class="bottom-nav-inner">
     <button class="nav-tab active" id="navChat" onclick="switchTab('chat')">
       <span class="nav-tab-icon">💬</span>
@@ -522,6 +546,9 @@ function showChat(){
     document.getElementById('bottomNav').style.display='block';
     /* 세무사 직접 답변 polling 시작 */
     startAdvisorPolling();
+    /* 상담방 주기적 갱신 (마이페이지에서 쓰임) */
+    loadMyRooms();
+    setInterval(loadMyRooms,15000);
     var instBtn=document.getElementById('installBtn');
     if(instBtn){
       var p=detectPlatform?detectPlatform():'desktop';
@@ -794,8 +821,135 @@ function switchTab(tab){
   if(isMy)loadMyPage();
 }
 
+/* ===== 상담방 기능 ===== */
+var rcRoomId=null;
+var rcIsActive=false;
+var rcMsgPollTimer=null;
+
+async function loadMyRooms(){
+  try{
+    var r=await fetch('/api/my-rooms');
+    if(!r.ok)return;
+    var d=await r.json();
+    var sec=document.getElementById('mpRoomsSection');
+    var list=document.getElementById('mpRoomsList');
+    if(!d.rooms||d.rooms.length===0){sec.style.display='none';return}
+    sec.style.display='block';
+    var totalUnread=0;
+    d.rooms.forEach(function(rm){totalUnread+=(rm.unread_count||0)});
+    var cntEl=document.getElementById('mpRoomsCount');
+    cntEl.textContent=totalUnread>0?'('+totalUnread+'개 새 메시지)':'';
+    list.innerHTML=d.rooms.map(function(rm){
+      var last=rm.last_msg?esc(rm.last_msg).slice(0,40):'(메시지 없음)';
+      var ur=rm.unread_count>0?'<span style="background:#f04452;color:#fff;border-radius:10px;padding:2px 8px;font-size:.7em;font-weight:700;flex-shrink:0">'+rm.unread_count+'</span>':'';
+      var closed=rm.status==='closed'?'<span style="font-size:.65em;background:#e5e8eb;padding:1px 6px;border-radius:4px;color:#8b95a1;margin-left:4px">종료</span>':'';
+      return '<div class="mp-item" onclick="openMyRoom(\''+rm.id+'\')">'
+        +'<div class="mp-item-icon">💬</div>'
+        +'<div class="mp-item-main">'
+        +'<div class="mp-item-label">'+esc(rm.name||'상담방')+closed+'</div>'
+        +'<div class="mp-item-value">'+last+'</div>'
+        +'</div>'
+        +ur
+        +'<div class="mp-item-arrow">›</div>'
+        +'</div>';
+    }).join('');
+  }catch{}
+}
+
+async function openMyRoom(roomId){
+  rcRoomId=roomId;
+  document.getElementById('roomChatView').style.display='flex';
+  await loadRoomChat();
+  if(rcMsgPollTimer)clearInterval(rcMsgPollTimer);
+  rcMsgPollTimer=setInterval(loadRoomChat,5000);
+}
+
+function closeRoomChat(){
+  rcRoomId=null;
+  document.getElementById('roomChatView').style.display='none';
+  if(rcMsgPollTimer)clearInterval(rcMsgPollTimer);
+  loadMyRooms();
+}
+
+async function loadRoomChat(){
+  if(!rcRoomId)return;
+  try{
+    var r=await fetch('/api/my-rooms?room_id='+rcRoomId);
+    if(!r.ok){closeRoomChat();return}
+    var d=await r.json();
+    if(!d.room){closeRoomChat();return}
+    rcIsActive=d.room.status==='active';
+    document.getElementById('rcTitle').textContent=d.room.name||'상담방';
+    var mm=(d.members||[]).map(function(m){return m.real_name||m.name||'이름없음'});
+    document.getElementById('rcMembers').textContent='👥 '+mm.join(', ')+' + 🏢 세무회계 이윤';
+    document.getElementById('rcInputArea').style.display=rcIsActive?'flex':'none';
+    document.getElementById('rcClosedNotice').style.display=rcIsActive?'none':'block';
+    var container=document.getElementById('rcMessages');
+    var atBottom=container.scrollHeight-container.scrollTop-container.clientHeight<50;
+    container.innerHTML=(d.messages||[]).map(function(m){
+      var nm=m.real_name||m.name||'';
+      var isMe=currentUser&&m.user_id===currentUser.id;
+      var ur=m.unread_count>0?'<span style="font-size:.65em;color:#f4c430;font-weight:700;margin:0 4px;align-self:flex-end;margin-bottom:4px">'+m.unread_count+'</span>':'';
+      if(m.role==='user'){
+        if(isMe){
+          return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end;align-items:flex-end">'
+            +ur
+            +'<div style="background:var(--blue);color:#fff;padding:9px 13px;border-radius:14px 4px 14px 14px;max-width:75%;font-size:.88em;white-space:pre-wrap;word-break:break-word">'+esc(m.content)
+            +'<div style="font-size:.62em;opacity:.8;margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>';
+        } else {
+          return '<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
+            +'<div style="max-width:75%"><div style="font-size:.68em;color:var(--text2);margin-bottom:2px;margin-left:4px">'+esc(nm)+'</div>'
+            +'<div style="background:var(--card);color:var(--text);padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+esc(m.content)
+            +'<div style="font-size:.62em;color:var(--text2);margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>'
+            +ur+'</div>';
+        }
+      } else if(m.role==='assistant'){
+        return '<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
+          +'<div style="max-width:75%"><div style="font-size:.68em;color:var(--text2);margin-bottom:2px;margin-left:4px">🤖 세무회계 이윤 AI</div>'
+          +'<div style="background:var(--card);color:var(--text);padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+esc(m.content)
+          +'<div style="font-size:.62em;color:var(--text2);margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>'
+          +ur+'</div>';
+      } else if(m.role==='human_advisor'){
+        return '<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
+          +'<div style="max-width:75%"><div style="font-size:.68em;color:#10b981;margin-bottom:2px;margin-left:4px;font-weight:600">👨‍💼 이재윤 세무사</div>'
+          +'<div style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word">'+esc(m.content)
+          +'<div style="font-size:.62em;color:#10b981;margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>'
+          +ur+'</div>';
+      }
+      return '';
+    }).join('');
+    if(atBottom)container.scrollTop=container.scrollHeight;
+  }catch(e){console.error(e)}
+}
+
+async function sendRoomMsg(){
+  if(!rcRoomId||!rcIsActive)return;
+  var input=document.getElementById('rcInput');
+  var content=input.value.trim();
+  if(!content)return;
+  input.value='';
+  try{
+    var r=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,content:content})});
+    var d=await r.json();
+    if(d.ok)loadRoomChat();
+    else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+
+async function leaveRoom(){
+  if(!rcRoomId)return;
+  if(!confirm('이 상담방에서 나가시겠어요?\n(대화 기록은 유지됩니다)'))return;
+  try{
+    var r=await fetch('/api/my-rooms?action=leave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId})});
+    var d=await r.json();
+    if(d.ok)closeRoomChat();
+    else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+
 async function loadMyPage(){
   if(!currentUser)return;
+  loadMyRooms();
   var nm=currentUser.real_name||currentUser.name||'사용자';
   document.getElementById('mpName').textContent=nm;
   document.getElementById('mpPhone').textContent=currentUser.phone||'연락처 미등록';
