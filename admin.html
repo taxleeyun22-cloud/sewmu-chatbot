@@ -145,14 +145,23 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 <div id="userList"></div>
 </div>
 
-<!-- 거래처 프로필 편집 모달 -->
+<!-- 거래처 사업장 관리 모달 (복수 지원) -->
 <div id="profileModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
-<div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-<h3 style="font-size:1.1em;margin:0">거래처 정보 편집</h3>
+<div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:600px;max-height:92vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+<h3 style="font-size:1.1em;margin:0" id="pmTitle">거래처 사업장 관리</h3>
 <button onclick="closeProfileModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#8b95a1">✕</button>
 </div>
 <p id="pmUserInfo" style="font-size:.8em;color:#8b95a1;margin:0 0 14px"></p>
+
+<!-- 목록 화면 -->
+<div id="pmListView">
+  <button onclick="pmNewBusiness()" style="width:100%;background:#3182f6;color:#fff;border:none;padding:10px;border-radius:8px;font-size:.85em;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:10px">＋ 사업장 추가</button>
+  <div id="pmBizList"></div>
+</div>
+
+<!-- 편집 화면 (숨김) -->
+<div id="pmEditView" style="display:none">
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
 <div><label style="font-size:.75em;font-weight:600;color:#555">상호</label><input id="pmCompany" type="text" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
 <div><label style="font-size:.75em;font-weight:600;color:#555">사업자번호</label><input id="pmBizNo" type="text" placeholder="1234567890" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
@@ -167,10 +176,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 <div style="grid-column:span 2"><label style="font-size:.75em;font-weight:600;color:#555">주소</label><input id="pmAddr" type="text" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
 <div style="grid-column:span 2"><label style="font-size:.75em;font-weight:600;color:#555">최근 매출 (원)</label><input id="pmRevenue" type="number" min="0" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
 <div style="grid-column:span 2"><label style="font-size:.75em;font-weight:600;color:#555">세무사 메모 (AI가 참조)</label><textarea id="pmNotes" rows="3" placeholder="예: 배달 비중 큼. 올해 시설투자 예정. 가지급금 이슈 있음." style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;resize:vertical"></textarea></div>
+<div style="grid-column:span 2"><label style="display:flex;align-items:center;gap:8px;font-size:.8em;font-weight:600;color:#555"><input type="checkbox" id="pmIsPrimary"><span>⭐ 주 사업장으로 설정 (대표 사업장)</span></label></div>
 </div>
 <div style="display:flex;gap:8px;margin-top:14px">
-<button onclick="saveProfile()" style="flex:1;background:#3182f6;color:#fff;border:none;padding:11px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">저장</button>
-<button onclick="closeProfileModal()" style="background:#e5e8eb;color:#555;border:none;padding:11px 20px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
+<button onclick="saveBusiness()" style="flex:1;background:#3182f6;color:#fff;border:none;padding:11px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">저장</button>
+<button onclick="pmBackToList()" style="background:#e5e8eb;color:#555;border:none;padding:11px 20px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">← 목록</button>
+<button id="pmDeleteBtn" onclick="deleteBusiness()" style="display:none;background:#fee2e2;color:#f04452;border:none;padding:11px 16px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">🗑️ 삭제</button>
+</div>
 </div>
 </div>
 </div>
