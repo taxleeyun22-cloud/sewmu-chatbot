@@ -452,6 +452,14 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       </div>
       <div class="mp-item-toggle">›</div>
     </div>
+    <div class="mp-item" onclick="togglePushNotification()">
+      <div class="mp-item-icon" id="mpPushIcon">🔔</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">알림 받기</div>
+        <div class="mp-item-value" id="mpPushValue">허용하면 세무사 답변 시 "띵"</div>
+      </div>
+      <div class="mp-item-toggle" id="mpPushToggle">›</div>
+    </div>
   </div>
 
   <!-- 로그아웃 -->
@@ -943,9 +951,93 @@ async function leaveRoom(){
   }catch(e){alert('오류: '+e.message)}
 }
 
+/* ===== Web Push 알림 ===== */
+function urlBase64ToUint8Array(base64String){
+  const padding='='.repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
+  const raw=window.atob(base64);
+  const output=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)output[i]=raw.charCodeAt(i);
+  return output;
+}
+
+async function togglePushNotification(){
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)){
+    alert('이 브라우저는 웹 푸시를 지원하지 않습니다.\niPhone은 Safari 16.4+ & 홈화면에 추가 후 사용 가능합니다.');
+    return;
+  }
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const existing=await reg.pushManager.getSubscription();
+    if(existing){
+      // 이미 구독 중 → 해제
+      if(!confirm('알림을 끄시겠어요?'))return;
+      await existing.unsubscribe();
+      await fetch('/api/push-subscribe?endpoint='+encodeURIComponent(existing.endpoint),{method:'DELETE'});
+      updatePushUI(false);
+      alert('알림이 꺼졌습니다');
+      return;
+    }
+    // 권한 요청
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){
+      alert('알림 권한이 거부되었습니다. 브라우저 설정에서 다시 허용해 주세요.');
+      return;
+    }
+    // VAPID 공개키 가져오기
+    const cfg=await fetch('/api/push-subscribe').then(r=>r.json());
+    if(!cfg.vapid_public_key){
+      alert('서버에 VAPID 키가 설정되지 않았습니다. 세무사에게 문의해 주세요.');
+      return;
+    }
+    // 구독
+    const sub=await reg.pushManager.subscribe({
+      userVisibleOnly:true,
+      applicationServerKey:urlBase64ToUint8Array(cfg.vapid_public_key)
+    });
+    // 서버 저장
+    const body=sub.toJSON();
+    await fetch('/api/push-subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    updatePushUI(true);
+    alert('✅ 알림이 켜졌습니다\n세무사 답변 시 "띵" 알림이 옵니다');
+  }catch(e){
+    alert('오류: '+e.message);
+  }
+}
+
+async function updatePushUI(subscribed){
+  const icon=document.getElementById('mpPushIcon');
+  const val=document.getElementById('mpPushValue');
+  if(subscribed==null){
+    // 자동 체크
+    try{
+      const reg=await navigator.serviceWorker.ready;
+      const s=await reg.pushManager.getSubscription();
+      subscribed=!!s;
+    }catch{subscribed=false}
+  }
+  if(subscribed){icon.textContent='🔔';val.textContent='켜짐 (탭하여 끄기)'}
+  else{icon.textContent='🔕';val.textContent='허용하면 세무사 답변 시 "띵"'}
+}
+
+async function reapplyAccount(){
+  if(!confirm('재신청하시겠어요?\n세무사 검토 후 연락드리며, 하루 1회만 가능합니다.'))return;
+  try{
+    var r=await fetch('/api/auth/reapply',{method:'POST'});
+    var d=await r.json();
+    if(d.ok){
+      alert('✅ '+(d.message||'재신청 완료'));
+      location.reload();
+    } else {
+      alert('실패: '+(d.error||'unknown'));
+    }
+  }catch(e){alert('오류: '+e.message)}
+}
+
 async function loadMyPage(){
   if(!currentUser)return;
   loadMyRooms();
+  updatePushUI(null);
   var nm=currentUser.real_name||currentUser.name||'사용자';
   document.getElementById('mpName').textContent=nm;
   document.getElementById('mpPhone').textContent=currentUser.phone||'연락처 미등록';
@@ -971,7 +1063,8 @@ async function loadMyPage(){
     statusHtml+='<div style="margin-top:8px;font-size:.75em;opacity:.9">기장거래처이시면 카톡으로 문의해 주세요 ↓</div>';
   } else if(st==='rejected'){
     statusHtml='<div style="font-weight:700;color:#ffcdd2">✕ 이용 제한된 계정</div>';
-    statusHtml+='<div style="font-size:.75em;margin-top:4px;opacity:.9">세무회계 이윤에 문의해 주세요</div>';
+    statusHtml+='<div style="font-size:.75em;margin-top:4px;opacity:.9">재신청 또는 세무사에게 문의해 주세요</div>';
+    statusHtml+='<button onclick="reapplyAccount()" style="margin-top:10px;background:#fff;color:#c62828;border:none;padding:8px 14px;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">📨 재신청 요청</button>';
   }
   statusEl.innerHTML=statusHtml;
 
