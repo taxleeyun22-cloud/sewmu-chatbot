@@ -1,5 +1,5 @@
 {
-  "exported_at": "2026-04-18 12:02:49",
+  "exported_at": "2026-04-18 12:03:35",
   "total": 0,
   "items": [],
   "instructions": "이 파일의 각 아이템을 검토 후, 틀린 내용은 functions/api/chat.js의 FAQ 섹션에 하드코딩을 추가하고, 처리된 id는 /api/admin-review로 reviewed=1 처리해주세요."
