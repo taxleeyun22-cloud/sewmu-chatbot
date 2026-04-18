@@ -93,6 +93,13 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 .review-card .btn-del{background:#fee2e2;color:#dc2626}
 .review-card .conf-set{flex:1;min-width:130px;padding:8px;border:1px solid #e5e8eb;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit;background:#f9fafb;color:#4b5563}
 
+/* 전역 검색 */
+.sr-group{margin-bottom:14px}
+.sr-title{font-size:.78em;font-weight:700;color:#555;margin-bottom:6px;padding:0 4px}
+.sr-item{background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:10px 12px;margin-bottom:6px;font-size:.85em;cursor:pointer;transition:background .15s}
+.sr-item:hover{background:#f2f4f6}
+.sr-sub{font-size:.75em;color:#8b95a1;margin-top:3px}
+
 /* 상담방 모바일 반응형 */
 #roomsBackBtn{display:none}
 @media(max-width:768px){
@@ -136,7 +143,21 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 <button id="tabAnal" onclick="tab('anal')">분석</button>
 <button id="tabReview" onclick="tab('review')">검증 <span id="reviewBadge" style="display:none;background:#f04452;color:#fff;padding:1px 6px;border-radius:10px;font-size:.9em;margin-left:2px"></span></button>
 </div>
+<button class="logout" onclick="openSearch()" style="margin-left:auto" title="전역 검색">🔍 검색</button>
 <button class="logout" onclick="logout()">로그아웃</button>
+</div>
+
+<!-- 전역 검색 모달 -->
+<div id="searchModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="padding:14px 16px;border-bottom:1px solid #e5e8eb;display:flex;gap:8px;align-items:center">
+      <input id="searchInput" type="text" placeholder="사용자·대화·상담방 전체 검색 (2자 이상)..." oninput="onSearchInput()" style="flex:1;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.9em;font-family:inherit;outline:none">
+      <button onclick="document.getElementById('searchModal').style.display='none'" style="background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:10px;font-size:.85em;cursor:pointer;font-family:inherit">✕</button>
+    </div>
+    <div id="searchResults" style="flex:1;overflow-y:auto;padding:14px 16px;background:#f9fafb">
+      <div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 0">검색어를 입력하세요</div>
+    </div>
+  </div>
 </div>
 
 <div id="chatView">
@@ -398,6 +419,89 @@ try{localStorage.removeItem('admin_key')}catch{}
 if(showErr)document.getElementById('err').style.display='block';
 return false;
 }
+}
+
+/* ===== 전역 검색 ===== */
+let searchTimer=null;
+function openSearch(){
+  document.getElementById('searchModal').style.display='flex';
+  setTimeout(function(){document.getElementById('searchInput').focus()},100);
+}
+function onSearchInput(){
+  if(searchTimer)clearTimeout(searchTimer);
+  searchTimer=setTimeout(doSearch,300);
+}
+async function doSearch(){
+  const q=document.getElementById('searchInput').value.trim();
+  const el=document.getElementById('searchResults');
+  if(q.length<2){el.innerHTML='<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 0">2자 이상 입력하세요</div>';return}
+  el.innerHTML='<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 0">검색 중...</div>';
+  try{
+    const r=await fetch('/api/admin-search?key='+encodeURIComponent(KEY)+'&q='+encodeURIComponent(q));
+    const d=await r.json();
+    if(d.error){el.innerHTML='<div style="color:#f04452;font-size:.85em;padding:20px 0">오류: '+e(d.error)+'</div>';return}
+    let html='';
+    const totalN=(d.users||[]).length+(d.conversations||[]).length+(d.rooms||[]).length+(d.room_messages||[]).length;
+    if(totalN===0){
+      el.innerHTML='<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 0">"'+e(q)+'"에 대한 검색 결과가 없습니다</div>';return;
+    }
+    if(d.users&&d.users.length){
+      html+='<div class="sr-group"><div class="sr-title">👤 사용자 '+d.users.length+'명</div>';
+      html+=d.users.map(function(u){
+        const nm=u.real_name||u.name||'이름없음';
+        const badge=u.is_admin?' <span style="background:#8b6914;color:#fff;font-size:.65em;padding:1px 5px;border-radius:4px;font-weight:700">👑</span>':'';
+        const st=u.approval_status||'pending';
+        return '<div class="sr-item" onclick="jumpToUser('+u.id+')"><b>'+e(nm)+'</b>'+badge+'<div class="sr-sub">'+e(u.email||'')+' · '+e(u.phone||'')+' · '+e(st)+'</div></div>';
+      }).join('');
+      html+='</div>';
+    }
+    if(d.rooms&&d.rooms.length){
+      html+='<div class="sr-group"><div class="sr-title">💬 상담방 '+d.rooms.length+'개</div>';
+      html+=d.rooms.map(function(r){
+        const st=r.status==='closed'?' <span style="color:#8b95a1;font-size:.72em">(종료)</span>':'';
+        return '<div class="sr-item" onclick="jumpToRoom(\''+e(r.id).replace(/\'/g,'')+'\')"><b>'+e(r.name||'상담방')+'</b>'+st+'<div class="sr-sub">ID: '+e(r.id)+' · 메시지 '+(r.msg_count||0)+'건 · '+e(r.created_at||'')+'</div></div>';
+      }).join('');
+      html+='</div>';
+    }
+    if(d.room_messages&&d.room_messages.length){
+      html+='<div class="sr-group"><div class="sr-title">📨 상담방 메시지 '+d.room_messages.length+'건</div>';
+      html+=d.room_messages.map(function(m){
+        const who=m.role==='human_advisor'?'👨‍💼 세무사':m.role==='assistant'?'🤖 AI':'👤 '+(m.real_name||m.name||'사용자');
+        const snip=String(m.content||'').slice(0,120);
+        return '<div class="sr-item" onclick="jumpToRoom(\''+e(m.room_id).replace(/\'/g,'')+'\')"><b>'+e(m.room_name||m.room_id)+'</b> · '+who+'<div class="sr-sub">'+e(snip)+(m.content&&m.content.length>120?'…':'')+'</div><div class="sr-sub" style="color:#c6cdd2">'+e(m.created_at||'')+'</div></div>';
+      }).join('');
+      html+='</div>';
+    }
+    if(d.conversations&&d.conversations.length){
+      html+='<div class="sr-group"><div class="sr-title">💭 일반 대화 '+d.conversations.length+'건</div>';
+      html+=d.conversations.map(function(m){
+        const who=m.role==='assistant'?'🤖 AI'+(m.confidence?'['+e(m.confidence)+']':''):'👤 '+(m.real_name||m.name||'사용자');
+        const snip=String(m.content||'').slice(0,120);
+        return '<div class="sr-item" onclick="jumpToConversation(\''+e(m.session_id).replace(/\'/g,'')+'\')">'+who+'<div class="sr-sub">'+e(snip)+(m.content&&m.content.length>120?'…':'')+'</div><div class="sr-sub" style="color:#c6cdd2">'+e(m.created_at||'')+'</div></div>';
+      }).join('');
+      html+='</div>';
+    }
+    el.innerHTML=html;
+  }catch(err){el.innerHTML='<div style="color:#f04452;font-size:.85em;padding:20px 0">오류: '+e(err.message)+'</div>'}
+}
+function closeSearchModal(){document.getElementById('searchModal').style.display='none'}
+function jumpToUser(id){
+  closeSearchModal();
+  tab('users');
+  setTimeout(function(){
+    const card=document.querySelector('[data-user-id="'+id+'"]');
+    if(card){card.scrollIntoView({behavior:'smooth',block:'center'});card.style.outline='3px solid #3182f6';setTimeout(function(){card.style.outline=''},2000)}
+  },400);
+}
+function jumpToRoom(roomId){
+  closeSearchModal();
+  tab('rooms');
+  setTimeout(function(){if(typeof openRoom==='function')openRoom(roomId)},300);
+}
+function jumpToConversation(sessionId){
+  closeSearchModal();
+  tab('chat');
+  /* 대화 탭은 세션 단위로 열기 로직이 있으면 붙일 수 있음. 일단 탭만 전환 */
 }
 
 function logout(){
@@ -942,7 +1046,7 @@ actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +adminBtn
 +'</div>';
 }
-return '<div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.03)">'
+return '<div data-user-id="'+u.id+'" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.03)">'
 +'<div style="display:flex;align-items:center;gap:14px">'
 +'<div class="avatar">'+av+'</div>'
 +'<div class="info"><div class="name">'+e(nm)+(u.name&&u.real_name&&u.name!==u.real_name?' <span style="font-size:.72em;color:#8b95a1">(카톡: '+e(u.name)+')</span>':'')+adminMark+'</div>'
