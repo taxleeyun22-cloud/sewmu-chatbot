@@ -85,6 +85,22 @@ export async function onRequestPost(context) {
       await db.prepare(`UPDATE conversations SET reported = 0 WHERE id = ?`).bind(id).run();
     } else if (action === "report_and_review") {
       await db.prepare(`UPDATE conversations SET reported = 1, reviewed = 1 WHERE id = ?`).bind(id).run();
+    } else if (action === "set_confidence") {
+      // 신뢰도 수동 변경 (강등/승급). 보통·낮음으로 강등 시 reviewed=0 + reported=1 로 검증 파이프라인 재투입.
+      const newConf = body.confidence;
+      if (!["높음", "보통", "낮음"].includes(newConf)) {
+        return Response.json({ error: "confidence must be 높음/보통/낮음" }, { status: 400 });
+      }
+      const downgrade = newConf === "보통" || newConf === "낮음";
+      if (downgrade) {
+        await db.prepare(
+          `UPDATE conversations SET confidence = ?, reviewed = 0, reported = 1 WHERE id = ?`
+        ).bind(newConf, id).run();
+      } else {
+        await db.prepare(
+          `UPDATE conversations SET confidence = ? WHERE id = ?`
+        ).bind(newConf, id).run();
+      }
     } else if (action === "bulk_review_all_reported") {
       // 신고된(reported=1) 전체 일괄 처리완료
       const r = await db.prepare(
