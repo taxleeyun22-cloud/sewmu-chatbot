@@ -251,7 +251,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
     </div>
     <div id="roomMembers" style="display:none;padding:8px 16px;border-bottom:1px solid #e5e8eb;background:#f9fafb;font-size:.75em;color:#555"></div>
     <div id="roomMessages" style="flex:1;overflow-y:auto;padding:14px 16px;background:#f9fafb"></div>
-    <div id="roomInputArea" style="display:none;padding:10px 12px;border-top:1px solid #e5e8eb;display:flex;gap:8px">
+    <div id="roomInputArea" style="display:none;padding:10px 12px;border-top:1px solid #e5e8eb;display:flex;gap:8px;align-items:center">
+      <label for="roomFileInput" title="사진 첨부" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;line-height:0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      </label>
+      <input id="roomFileInput" type="file" accept="image/*" onchange="sendRoomImage(this)" style="display:none">
       <input id="roomInput" type="text" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter')sendRoomMessage()" style="flex:1;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit">
       <button onclick="sendRoomMessage()" style="background:#3182f6;color:#fff;border:none;padding:10px 18px;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit">전송</button>
     </div>
@@ -505,6 +509,24 @@ async function sendRoomMessage(){
     const d=await r.json();
     if(d.ok)loadRoomDetail();
     else alert('실패: '+(d.error||'unknown'));
+  }catch(err){alert('오류: '+err.message)}
+}
+
+async function sendRoomImage(fileInput){
+  if(!currentRoomId)return;
+  const file=fileInput.files[0];
+  fileInput.value='';
+  if(!file)return;
+  if(file.size>10*1024*1024){alert('10MB 이하 이미지만 업로드 가능합니다');return}
+  try{
+    const fd=new FormData();fd.append('file',file);
+    const r=await fetch('/api/upload-image?key='+encodeURIComponent(KEY),{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.ok){alert('업로드 실패: '+(d.error||'unknown'));return}
+    const r2=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId,image_url:d.url})});
+    const d2=await r2.json();
+    if(d2.ok)loadRoomDetail();
+    else alert('전송 실패: '+(d2.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
 }
 
