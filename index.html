@@ -578,7 +578,15 @@ async function checkAuth(){
     try{
         const r=await fetch('/api/auth/me');
         const d=await r.json();
-        if(d.logged_in){currentUser=d.user;showChat()}
+        if(d.logged_in){
+            currentUser=d.user;
+            showChat();
+            setTimeout(function(){
+                if(!currentUser.name_confirmed){showNameModal(currentUser.name||'',currentUser.phone||'')}
+                else if(!currentUser.consent_overseas){showConsentModal()}
+                else if(typeof showApprovalBanner==='function'){showApprovalBanner()}
+            },300);
+        }
         else{showLogin()}
     }catch{showLogin()}
 }
@@ -1303,7 +1311,8 @@ async function submitName(){
         currentUser.approval_status=d.approval_status||currentUser.approval_status;
         if(userType==='guest'){currentUser.daily_limit=10}
       }
-      showApprovalBanner();
+      if(currentUser&&!currentUser.consent_overseas){showConsentModal()}
+      else{showApprovalBanner()}
     } else {err.textContent=d.error||'오류';err.style.display='block'}
   }catch(e){err.textContent='네트워크 오류';err.style.display='block'}
 }
@@ -1443,26 +1452,6 @@ async function triggerInstallPrompt(){
     console.log('%c잠깐!','color:#f04452;font-size:40px;font-weight:bold');
     console.log('%c이 화면은 개발자 도구입니다. 본 서비스의 코드는 저작권 보호를 받으며 무단 복제 시 법적 책임이 따를 수 있습니다.','color:#333;font-size:14px');
   },1000);
-})();
-
-/* checkAuth 확장: name_confirmed, consent_overseas, approval 처리 */
-(function(){
-  var orig=checkAuth;
-  checkAuth=async function(){
-    try{
-      var r=await fetch('/api/auth/me');
-      var d=await r.json();
-      if(d.logged_in){
-        currentUser=d.user;
-        showChat();
-        setTimeout(function(){
-          if(!currentUser.name_confirmed){showNameModal(currentUser.name||'',currentUser.phone||'')}
-          else if(!currentUser.consent_overseas){showConsentModal()}
-          else{showApprovalBanner()}
-        },300);
-      } else {showLogin()}
-    }catch{showLogin()}
-  };
 })();
 
 function showConsentModal(){
