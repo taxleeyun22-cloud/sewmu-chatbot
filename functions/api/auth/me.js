@@ -18,10 +18,11 @@ export async function onRequestGet(context) {
     try { await db.prepare(`ALTER TABLE users ADD COLUMN consent_privacy INTEGER DEFAULT 0`).run(); } catch {}
     try { await db.prepare(`ALTER TABLE users ADD COLUMN consent_marketing INTEGER DEFAULT 0`).run(); } catch {}
     try { await db.prepare(`ALTER TABLE users ADD COLUMN consent_all_at TEXT`).run(); } catch {}
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0`).run(); } catch {}
 
     const session = await db.prepare(`
       SELECT s.user_id, s.expires_at, u.name, u.real_name, u.email, u.phone, u.provider, u.profile_image,
-             u.approval_status, u.name_confirmed,
+             u.approval_status, u.name_confirmed, u.is_admin,
              u.consent_age_14, u.consent_tos, u.consent_privacy, u.consent_overseas,
              u.consent_marketing, u.consent_all_at, u.consent_overseas_at
       FROM sessions s
@@ -60,6 +61,7 @@ export async function onRequestGet(context) {
         profile_image: session.profile_image,
         approval_status: status,
         name_confirmed: session.name_confirmed ? true : false,
+        is_admin: session.is_admin ? true : false,
         consent_age_14: session.consent_age_14 ? true : false,
         consent_tos: session.consent_tos ? true : false,
         consent_privacy: session.consent_privacy ? true : false,

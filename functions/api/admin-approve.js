@@ -1,10 +1,7 @@
 // 관리자: 사용자 승인/거절/기장승인 관리
 const APPROVAL_STATUSES = ['pending', 'approved_client', 'approved_guest', 'rejected'];
 
-function checkAuth(url, env) {
-  const key = url.searchParams.get("key");
-  return env.ADMIN_KEY && key === env.ADMIN_KEY;
-}
+import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
 
 async function ensureColumns(db) {
   const addCol = async (sql) => { try { await db.prepare(sql).run(); } catch {} };
@@ -27,17 +24,18 @@ async function ensureColumns(db) {
 // GET: 승인상태별 사용자 목록
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
-  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
   await ensureColumns(db);
+  try { await db.prepare(`ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0`).run(); } catch {}
 
   const status = url.searchParams.get("status");
   try {
     let query = `
       SELECT id, provider, name, real_name, email, phone, profile_image,
-             approval_status, approved_at, created_at, last_login_at, name_confirmed
+             approval_status, approved_at, created_at, last_login_at, name_confirmed, is_admin
       FROM users
     `;
     const binds = [];
@@ -76,7 +74,7 @@ export async function onRequestGet(context) {
 // POST: 승인 처리
 export async function onRequestPost(context) {
   const url = new URL(context.request.url);
-  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 

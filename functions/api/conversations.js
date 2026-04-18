@@ -1,12 +1,9 @@
+import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+
 export async function onRequestGet(context) {
+  if (!(await checkAdmin(context))) return adminUnauthorized();
+
   const url = new URL(context.request.url);
-  const key = url.searchParams.get("key");
-  const adminKey = context.env.ADMIN_KEY;
-
-  if (!adminKey || key !== adminKey) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const db = context.env.DB;
   if (!db) {
     return Response.json({ error: "DB not configured" }, { status: 500 });

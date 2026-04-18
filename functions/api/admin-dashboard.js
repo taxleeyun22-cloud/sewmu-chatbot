@@ -1,12 +1,8 @@
 // 관리자 대시보드 요약 데이터
-export async function onRequestGet(context) {
-  const url = new URL(context.request.url);
-  const key = url.searchParams.get("key");
-  const adminKey = context.env.ADMIN_KEY;
+import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
 
-  if (!adminKey || key !== adminKey) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export async function onRequestGet(context) {
+  if (!(await checkAdmin(context))) return adminUnauthorized();
 
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB not configured" }, { status: 500 });

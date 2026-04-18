@@ -1,10 +1,7 @@
 // 관리자: CSV 일괄 업로드 (위하고/세무사랑 Export 대응)
 // body: { rows: [ { company_name, business_number, ceo_name, industry, ... }, ... ], auto_approve: true }
 
-function checkAuth(url, env) {
-  const key = url.searchParams.get("key");
-  return env.ADMIN_KEY && key === env.ADMIN_KEY;
-}
+import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
 
 async function ensureTables(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS client_profiles (
@@ -60,7 +57,7 @@ function normPhone(v) {
 
 export async function onRequestPost(context) {
   const url = new URL(context.request.url);
-  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 

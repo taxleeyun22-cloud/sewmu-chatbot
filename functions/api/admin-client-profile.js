@@ -1,10 +1,7 @@
 // 관리자: 거래처 정보(client_profiles) 조회/저장/삭제
 // CSV 일괄 업로드는 admin-client-profile-bulk.js 로 분리
 
-function checkAuth(url, env) {
-  const key = url.searchParams.get("key");
-  return env.ADMIN_KEY && key === env.ADMIN_KEY;
-}
+import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
 
 async function ensureTable(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS client_profiles (
@@ -36,7 +33,7 @@ async function ensureTable(db) {
 // GET /api/admin-client-profile?user_id=123
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
-  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
@@ -58,7 +55,7 @@ export async function onRequestGet(context) {
 // POST /api/admin-client-profile  (저장/업데이트, upsert)
 export async function onRequestPost(context) {
   const url = new URL(context.request.url);
-  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
@@ -129,7 +126,7 @@ export async function onRequestPost(context) {
 // DELETE /api/admin-client-profile?user_id=123
 export async function onRequestDelete(context) {
   const url = new URL(context.request.url);
-  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 

@@ -405,12 +405,32 @@ document.getElementById('loginView').style.display='flex';
 document.getElementById('mainView').style.display='none';
 }
 
-/* 페이지 로드 시 저장된 키로 자동 로그인 */
-(function(){
-try{
-var saved=localStorage.getItem('admin_key');
-if(saved)doLogin(saved,false);
-}catch{}
+/* 세션 기반 자동 로그인: 사장님이 is_admin=1로 승인한 사용자는 카톡/네이버 로그인 상태로 admin 접근 */
+async function tryAdminBySession(){
+  try{
+    const r=await fetch('/api/auth/me');
+    const d=await r.json();
+    if(d.logged_in&&d.user&&d.user.is_admin){
+      KEY='';  /* 세션 쿠키로 인증되므로 key 불필요 */
+      document.getElementById('loginView').style.display='none';
+      document.getElementById('mainView').style.display='block';
+      IS_OWNER=false;
+      loadList();refreshPendingBadge();refreshLiveBadge();
+      setInterval(refreshPendingBadge,30000);setInterval(refreshLiveBadge,10000);
+      return true;
+    }
+  }catch{}
+  return false;
+}
+
+/* 페이지 로드: 저장된 ADMIN_KEY 우선, 없으면 세션 기반 admin 시도 */
+let IS_OWNER=true;  /* true면 전체 기능, false면 직원(세션) */
+(async function(){
+  try{
+    var saved=localStorage.getItem('admin_key');
+    if(saved){IS_OWNER=true;await doLogin(saved,false);return}
+  }catch{}
+  await tryAdminBySession();
 })();
 
 function tab(t){
@@ -895,14 +915,20 @@ const av=u.profile_image?'<img src="'+e(u.profile_image)+'" alt="">':nm[0];
 const pv=u.provider||'';
 const phone=u.phone?' · '+e(u.phone):'';
 const nameConf=u.name_confirmed?'':'<span style="color:#f04452;font-size:.72em">⚠️본명미확인</span> ';
+const adminMark=u.is_admin?' <span style="color:#fff;background:#8b6914;font-size:.65em;padding:2px 6px;border-radius:4px;font-weight:700">👑 관리자</span>':'';
 const todayCnt=u.today_count||0;
 let actions='';
+const adminBtn=IS_OWNER?(u.is_admin
+  ?'<button onclick="setAdminFlag('+u.id+',0)" style="background:#fff;color:#8b6914;border:1px solid #8b6914;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">👑 관리자 해제</button>'
+  :'<button onclick="setAdminFlag('+u.id+',1)" style="background:#fff;color:#8b6914;border:1px dashed #8b6914;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">👑 관리자 승급</button>'
+):'';
 if(status==='pending'){
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✓ 기장거래처 승인</button>'
 +'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#00c471;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">○ 일반 승인</button>'
 +'<button onclick="openProfile('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✕ 거절</button>'
++adminBtn
 +'</div>';
 }else{
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
@@ -911,12 +937,13 @@ actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +(status!=='approved_guest'?'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#00c471;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 일반승인</button>':'')
 +(status!=='pending'?'<button onclick="approveUser('+u.id+',\'pending\')" style="background:#8b95a1;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 대기로</button>':'')
 +(status!=='rejected'?'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 거절</button>':'')
++adminBtn
 +'</div>';
 }
 return '<div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.03)">'
 +'<div style="display:flex;align-items:center;gap:14px">'
 +'<div class="avatar">'+av+'</div>'
-+'<div class="info"><div class="name">'+e(nm)+(u.name&&u.real_name&&u.name!==u.real_name?' <span style="font-size:.72em;color:#8b95a1">(카톡: '+e(u.name)+')</span>':'')+'</div>'
++'<div class="info"><div class="name">'+e(nm)+(u.name&&u.real_name&&u.name!==u.real_name?' <span style="font-size:.72em;color:#8b95a1">(카톡: '+e(u.name)+')</span>':'')+adminMark+'</div>'
 +'<div class="meta">'+nameConf+(pv?'<span class="badge">'+pv+'</span> ':'')+e(u.email||'')+phone+'</div>'
 +'<div class="meta" style="margin-top:3px">가입 '+e(u.created_at||'')+' · 오늘 '+todayCnt+'건</div>'
 +'</div></div>'
@@ -933,6 +960,18 @@ const d=await r.json();
 if(d.ok){loadUsers(currentStatus);refreshPendingBadge()}
 else alert('실패: '+(d.error||'unknown'));
 }catch(err){alert('오류: '+err.message)}
+}
+
+async function setAdminFlag(id,flag){
+  if(!IS_OWNER){alert('owner 권한이 필요합니다');return}
+  const msg=flag?'이 사용자를 관리자로 승급하시겠습니까?\n(승급 후 카톡/네이버 로그인 상태로 admin.html 접근 가능)':'관리자 권한을 해제하시겠습니까?';
+  if(!confirm(msg))return;
+  try{
+    const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=set_admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id,is_admin:flag})});
+    const d=await r.json();
+    if(d.ok){loadUsers(currentStatus);alert(flag?'✅ 관리자로 승급되었습니다':'✅ 관리자 권한이 해제되었습니다')}
+    else alert('실패: '+(d.error||'unknown'));
+  }catch(err){alert('오류: '+err.message)}
 }
 
 async function rejectUser(id){

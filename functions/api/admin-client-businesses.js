@@ -4,10 +4,7 @@
 // - PUT  /api/admin-client-businesses?id=XX : 업데이트
 // - DELETE /api/admin-client-businesses?id=XX : 삭제
 
-function checkAuth(url, env) {
-  const key = url.searchParams.get("key");
-  return env.ADMIN_KEY && key === env.ADMIN_KEY;
-}
+import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
 
 async function ensureTable(db) {
   // 신규 테이블 (복수 사업장 지원)
@@ -67,7 +64,7 @@ function kst() {
 // GET 목록
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
-  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
@@ -90,7 +87,7 @@ export async function onRequestGet(context) {
 // POST 신규 추가
 export async function onRequestPost(context) {
   const url = new URL(context.request.url);
-  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
@@ -143,7 +140,7 @@ export async function onRequestPost(context) {
 // PUT 업데이트
 export async function onRequestPut(context) {
   const url = new URL(context.request.url);
-  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
@@ -198,7 +195,7 @@ export async function onRequestPut(context) {
 // DELETE 삭제
 export async function onRequestDelete(context) {
   const url = new URL(context.request.url);
-  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 

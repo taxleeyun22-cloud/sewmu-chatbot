@@ -10,10 +10,7 @@
 // - POST /api/admin-rooms?action=toggle_ai : { room_id, ai_mode }
 // - DELETE /api/admin-rooms?room_id=XX : 방 + 메시지 전체 삭제 (신중)
 
-function checkAuth(url, env) {
-  const key = url.searchParams.get("key");
-  return env.ADMIN_KEY && key === env.ADMIN_KEY;
-}
+import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
 
 async function ensureTables(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS chat_rooms (
@@ -56,7 +53,7 @@ function genRoomId() {
 // GET 목록 or 상세
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
-  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
@@ -120,7 +117,7 @@ export async function onRequestGet(context) {
 // POST: 생성/멤버관리/종료/메시지/AI토글
 export async function onRequestPost(context) {
   const url = new URL(context.request.url);
-  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
@@ -259,7 +256,7 @@ export async function onRequestPost(context) {
 // DELETE: 방 + 모든 메시지 삭제 (영구)
 export async function onRequestDelete(context) {
   const url = new URL(context.request.url);
-  if (!checkAuth(url, context.env)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
