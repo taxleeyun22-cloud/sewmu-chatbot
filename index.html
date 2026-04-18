@@ -643,8 +643,8 @@ async function checkAuth(){
             currentUser=d.user;
             showChat();
             setTimeout(function(){
-                if(!currentUser.name_confirmed){showNameModal(currentUser.name||'',currentUser.phone||'')}
-                else if(!currentUser.consent_required_ok){showConsentModal()}
+                if(!currentUser.consent_required_ok){showConsentModal()}
+                else if(!currentUser.name_confirmed){showNameModal(currentUser.name||'',currentUser.phone||'')}
                 else if(typeof showApprovalBanner==='function'){showApprovalBanner()}
             },300);
         }
@@ -1372,8 +1372,7 @@ async function submitName(){
         currentUser.approval_status=d.approval_status||currentUser.approval_status;
         if(userType==='guest'){currentUser.daily_limit=10}
       }
-      if(currentUser&&!currentUser.consent_required_ok){showConsentModal()}
-      else{showApprovalBanner()}
+      showApprovalBanner();
     } else {err.textContent=d.error||'오류';err.style.display='block'}
   }catch(e){err.textContent='네트워크 오류';err.style.display='block'}
 }
@@ -1575,7 +1574,11 @@ async function submitConsent(){
         currentUser.consent_required_ok=true;
         currentUser.consent_all_at=d.consent_all_at;
       }
-      if(typeof showApprovalBanner==='function')showApprovalBanner();
+      if(currentUser&&!currentUser.name_confirmed){
+        showNameModal(currentUser.name||'',currentUser.phone||'');
+      } else if(typeof showApprovalBanner==='function'){
+        showApprovalBanner();
+      }
     } else {
       err.textContent='오류: '+(d.error||'unknown');err.style.display='block';
     }
