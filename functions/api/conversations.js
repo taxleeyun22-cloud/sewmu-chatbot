@@ -21,6 +21,7 @@ export async function onRequestGet(context) {
     try { await db.prepare(`ALTER TABLE conversations ADD COLUMN confidence TEXT`).run(); } catch {}
     try { await db.prepare(`ALTER TABLE conversations ADD COLUMN reviewed INTEGER DEFAULT 0`).run(); } catch {}
     try { await db.prepare(`ALTER TABLE conversations ADD COLUMN reported INTEGER DEFAULT 0`).run(); } catch {}
+    try { await db.prepare(`ALTER TABLE conversations ADD COLUMN room_id TEXT`).run(); } catch {}
 
     await db.prepare(`CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,15 +49,15 @@ export async function onRequestGet(context) {
     )`).run();
 
     // 세션 그룹화 (user_id 또는 session_id)
-    // 신뢰도/검색 필터 적용
+    // 상담방(room_id 있는) 메시지는 별도 탭에서 조회하므로 여기서 제외
     let filterCondition = "";
     const params = [];
     if (confidence) {
-      filterCondition += ` AND EXISTS (SELECT 1 FROM conversations c2 WHERE c2.session_id = conversations.session_id AND c2.confidence = ?)`;
+      filterCondition += ` AND EXISTS (SELECT 1 FROM conversations c2 WHERE c2.session_id = conversations.session_id AND (c2.room_id IS NULL OR c2.room_id = '') AND c2.confidence = ?)`;
       params.push(confidence);
     }
     if (search) {
-      filterCondition += ` AND EXISTS (SELECT 1 FROM conversations c3 WHERE c3.session_id = conversations.session_id AND c3.content LIKE ?)`;
+      filterCondition += ` AND EXISTS (SELECT 1 FROM conversations c3 WHERE c3.session_id = conversations.session_id AND (c3.room_id IS NULL OR c3.room_id = '') AND c3.content LIKE ?)`;
       params.push(`%${search}%`);
     }
 
@@ -78,7 +79,7 @@ export async function onRequestGet(context) {
         SUM(CASE WHEN confidence = '낮음' THEN 1 ELSE 0 END) as count_low,
         SUM(CASE WHEN reported = 1 THEN 1 ELSE 0 END) as count_reported
       FROM conversations
-      WHERE 1=1 ${filterCondition} ${providerFilter}
+      WHERE (room_id IS NULL OR room_id = '') ${filterCondition} ${providerFilter}
       GROUP BY CASE WHEN user_id IS NOT NULL THEN CAST(user_id AS TEXT) ELSE session_id END
       ORDER BY MAX(created_at) DESC
       LIMIT ? OFFSET ?
@@ -103,7 +104,7 @@ export async function onRequestGet(context) {
     }
 
     const countResult = await db.prepare(
-      `SELECT COUNT(DISTINCT CASE WHEN user_id IS NOT NULL THEN CAST(user_id AS TEXT) ELSE session_id END) as total FROM conversations`
+      `SELECT COUNT(DISTINCT CASE WHEN user_id IS NOT NULL THEN CAST(user_id AS TEXT) ELSE session_id END) as total FROM conversations WHERE (room_id IS NULL OR room_id = '')`
     ).first();
 
     return Response.json({
