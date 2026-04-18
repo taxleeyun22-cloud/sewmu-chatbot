@@ -10,9 +10,13 @@ export async function onRequestGet(context) {
   const token = match[1];
 
   try {
+    // 컬럼 보장
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN consent_overseas INTEGER DEFAULT 0`).run(); } catch {}
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN consent_overseas_at TEXT`).run(); } catch {}
+
     const session = await db.prepare(`
       SELECT s.user_id, s.expires_at, u.name, u.real_name, u.email, u.phone, u.provider, u.profile_image,
-             u.approval_status, u.name_confirmed
+             u.approval_status, u.name_confirmed, u.consent_overseas, u.consent_overseas_at
       FROM sessions s
       JOIN users u ON s.user_id = u.id
       WHERE s.token = ? AND s.expires_at > datetime('now')
@@ -49,6 +53,8 @@ export async function onRequestGet(context) {
         profile_image: session.profile_image,
         approval_status: status,
         name_confirmed: session.name_confirmed ? true : false,
+        consent_overseas: session.consent_overseas ? true : false,
+        consent_overseas_at: session.consent_overseas_at || null,
         daily_limit: dailyLimit,
         daily_used: todayCount,
         daily_remaining: Math.max(0, dailyLimit - todayCount),

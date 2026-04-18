@@ -263,6 +263,38 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
   </div>
 </div>
 
+<!-- 개인정보 국외이전 동의 모달 (개인정보보호법 제28조의8) -->
+<div id="consentModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg);color:var(--text);border-radius:16px;padding:22px;width:100%;max-width:420px;box-shadow:0 10px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto">
+    <h3 style="font-size:1.1em;margin:0 0 6px">개인정보 국외이전 동의</h3>
+    <p style="font-size:.78em;color:var(--text2);margin:0 0 14px">개인정보보호법 제28조의8에 따라 동의가 필요합니다</p>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:.8em;line-height:1.65">
+      <div style="font-weight:700;margin-bottom:8px">본 챗봇은 답변 생성을 위해 OpenAI사의 해외 서버에 입력 내용을 전송합니다.</div>
+      <table style="width:100%;font-size:.92em;border-collapse:collapse">
+        <tr><td style="padding:4px 0;color:var(--text2);width:38%;vertical-align:top">이전받는 자</td><td style="padding:4px 0;font-weight:600">OpenAI, L.L.C. (미국)</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text2);vertical-align:top">이전 국가</td><td style="padding:4px 0">미국 (United States)</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text2);vertical-align:top">이전 항목</td><td style="padding:4px 0">사용자가 입력한 질문 텍스트, 첨부 이미지(선택)</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text2);vertical-align:top">이전 목적</td><td style="padding:4px 0">AI 답변 생성</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text2);vertical-align:top">이전 일시·방법</td><td style="padding:4px 0">질문 입력 즉시 / HTTPS API</td></tr>
+        <tr><td style="padding:4px 0;color:var(--text2);vertical-align:top">보유·이용 기간</td><td style="padding:4px 0">OpenAI 정책상 최대 30일 (학습에 사용되지 않음)</td></tr>
+      </table>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:.92em;color:var(--text2)">
+        ※ 동의를 거부하실 수 있으나, 거부 시 본 AI 챗봇 서비스 이용이 제한됩니다. (회원 탈퇴는 가능합니다)
+      </div>
+    </div>
+
+    <label style="display:flex;align-items:center;gap:10px;margin-top:14px;padding:12px;border:1px solid var(--border);background:var(--card);border-radius:10px;cursor:pointer">
+      <input type="checkbox" id="consentCheck" style="width:18px;height:18px;flex-shrink:0">
+      <span style="font-size:.88em;font-weight:600">위 내용을 모두 확인하였으며, 개인정보의 국외이전에 동의합니다</span>
+    </label>
+
+    <div id="consentErr" style="display:none;color:#f04452;font-size:.78em;margin-top:10px"></div>
+    <button onclick="submitConsent()" style="margin-top:14px;width:100%;padding:13px;background:#3182f6;color:#fff;border:none;border-radius:10px;font-size:.95em;font-weight:600;cursor:pointer;font-family:inherit">동의하고 시작하기</button>
+    <button onclick="rejectConsent()" style="margin-top:8px;width:100%;padding:11px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:10px;font-size:.85em;cursor:pointer;font-family:inherit">동의하지 않음 (서비스 이용 불가)</button>
+  </div>
+</div>
+
 <!-- 설치 가이드 모달 -->
 <div id="installModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--bg);color:var(--text);border-radius:16px;padding:24px;width:100%;max-width:380px;box-shadow:0 10px 40px rgba(0,0,0,.2);max-height:85vh;overflow-y:auto">
@@ -280,8 +312,8 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
 .ig-step{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);font-size:.9em;line-height:1.5}
 .ig-step:last-child{border-bottom:none}
 .ig-num{width:26px;height:26px;border-radius:50%;background:#3182f6;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.78em;font-weight:700;flex-shrink:0}
-#nameModal,#installModal{display:none}
-#nameModal[style*="flex"],#installModal[style*="flex"]{display:flex!important}
+#nameModal,#installModal,#consentModal{display:none}
+#nameModal[style*="flex"],#installModal[style*="flex"],#consentModal[style*="flex"]{display:flex!important}
 </style>
 
 <!-- 로그인 화면 -->
@@ -1413,7 +1445,7 @@ async function triggerInstallPrompt(){
   },1000);
 })();
 
-/* checkAuth 확장: name_confirmed, approval 처리 */
+/* checkAuth 확장: name_confirmed, consent_overseas, approval 처리 */
 (function(){
   var orig=checkAuth;
   checkAuth=async function(){
@@ -1425,12 +1457,42 @@ async function triggerInstallPrompt(){
         showChat();
         setTimeout(function(){
           if(!currentUser.name_confirmed){showNameModal(currentUser.name||'',currentUser.phone||'')}
+          else if(!currentUser.consent_overseas){showConsentModal()}
           else{showApprovalBanner()}
         },300);
       } else {showLogin()}
     }catch{showLogin()}
   };
 })();
+
+function showConsentModal(){
+  var m=document.getElementById('consentModal');
+  document.getElementById('consentCheck').checked=false;
+  document.getElementById('consentErr').style.display='none';
+  m.style.display='flex';
+}
+async function submitConsent(){
+  var err=document.getElementById('consentErr');
+  if(!document.getElementById('consentCheck').checked){
+    err.textContent='동의 체크박스를 선택해 주세요';err.style.display='block';return;
+  }
+  err.style.display='none';
+  try{
+    var r=await fetch('/api/auth/consent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agree:true})});
+    var d=await r.json();
+    if(d.ok){
+      document.getElementById('consentModal').style.display='none';
+      if(currentUser){currentUser.consent_overseas=true;currentUser.consent_overseas_at=d.consent_overseas_at}
+      showApprovalBanner();
+    } else {
+      err.textContent='오류: '+(d.error||'unknown');err.style.display='block';
+    }
+  }catch(e){err.textContent='오류: '+e.message;err.style.display='block'}
+}
+function rejectConsent(){
+  if(!confirm('동의하지 않으면 챗봇 서비스를 이용하실 수 없습니다.\n로그아웃하시겠습니까?'))return;
+  fetch('/api/auth/logout',{method:'POST'}).finally(function(){location.reload()});
+}
 
 /* sendMessage 에러 처리 확장 */
 (function(){
@@ -1448,6 +1510,7 @@ async function triggerInstallPrompt(){
         var err=await r.json().catch(function(){return{}});
         hideDots();
         if(err.code==='name_required'){showNameModal(currentUser?currentUser.name:'');return}
+        if(err.code==='consent_required'){showConsentModal();return}
         add("ai","오류: "+(err.error||'400'));return;
       }
       if(r.status===429){

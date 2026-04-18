@@ -91,7 +91,7 @@ async function getUserFromSession(db, cookieHeader) {
   if (!match) return null;
   try {
     const session = await db.prepare(`
-      SELECT s.user_id, u.approval_status, u.name_confirmed
+      SELECT s.user_id, u.approval_status, u.name_confirmed, u.consent_overseas
       FROM sessions s
       JOIN users u ON s.user_id = u.id
       WHERE s.token = ? AND s.expires_at > datetime('now')
@@ -512,6 +512,11 @@ export async function onRequestPost(context) {
   // 본명 미확인 차단
   if (!sessionInfo.name_confirmed) {
     return Response.json({ error: "본명 확인이 필요합니다.", code: "name_required" }, { status: 400 });
+  }
+
+  // 개인정보 국외이전 동의 미확인 차단 (개인정보보호법 제28조의8)
+  if (!sessionInfo.consent_overseas) {
+    return Response.json({ error: "개인정보 국외이전 동의가 필요합니다.", code: "consent_required" }, { status: 400 });
   }
 
   // 세션 ID 사전 추출 (direct 모드 체크용)
