@@ -372,11 +372,17 @@ function renderMsgBody(content){
 }
 
 async function login(){
-KEY=document.getElementById('keyInput').value.trim();
-if(!KEY)return;
+var k=document.getElementById('keyInput').value.trim();
+if(!k)return;
+await doLogin(k,true);
+}
+
+async function doLogin(k,showErr){
 try{
-const r=await fetch('/api/conversations?key='+encodeURIComponent(KEY)+'&page=1');
+const r=await fetch('/api/conversations?key='+encodeURIComponent(k)+'&page=1');
 if(!r.ok)throw 0;
+KEY=k;
+try{localStorage.setItem('admin_key',k)}catch{}
 document.getElementById('loginView').style.display='none';
 document.getElementById('mainView').style.display='block';
 loadList();
@@ -384,14 +390,28 @@ refreshPendingBadge();
 refreshLiveBadge();
 setInterval(refreshPendingBadge,30000);
 setInterval(refreshLiveBadge,10000);
-}catch{document.getElementById('err').style.display='block'}
+return true;
+}catch{
+try{localStorage.removeItem('admin_key')}catch{}
+if(showErr)document.getElementById('err').style.display='block';
+return false;
+}
 }
 
 function logout(){
 KEY='';
+try{localStorage.removeItem('admin_key')}catch{}
 document.getElementById('loginView').style.display='flex';
 document.getElementById('mainView').style.display='none';
 }
+
+/* 페이지 로드 시 저장된 키로 자동 로그인 */
+(function(){
+try{
+var saved=localStorage.getItem('admin_key');
+if(saved)doLogin(saved,false);
+}catch{}
+})();
 
 function tab(t){
 document.getElementById('tabChat').className=t==='chat'?'on':'';
