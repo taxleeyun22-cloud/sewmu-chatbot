@@ -263,35 +263,96 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
   </div>
 </div>
 
-<!-- 개인정보 국외이전 동의 모달 (개인정보보호법 제28조의8) -->
+<!-- 약관 동의 모달 (카톡/네이버 가입 스타일) -->
 <div id="consentModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--bg);color:var(--text);border-radius:16px;padding:22px;width:100%;max-width:420px;box-shadow:0 10px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto">
-    <h3 style="font-size:1.1em;margin:0 0 6px">개인정보 국외이전 동의</h3>
-    <p style="font-size:.78em;color:var(--text2);margin:0 0 14px">개인정보보호법 제28조의8에 따라 동의가 필요합니다</p>
+  <div style="background:var(--bg);color:var(--text);border-radius:16px;padding:20px;width:100%;max-width:420px;box-shadow:0 10px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto">
+    <h3 style="font-size:1.1em;margin:0 0 4px">약관 동의</h3>
+    <p style="font-size:.76em;color:var(--text2);margin:0 0 14px">서비스 이용을 위해 아래 항목에 동의해 주세요</p>
 
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:.8em;line-height:1.65">
-      <div style="font-weight:700;margin-bottom:8px">본 챗봇은 답변 생성을 위해 OpenAI사의 해외 서버에 입력 내용을 전송합니다.</div>
-      <table style="width:100%;font-size:.92em;border-collapse:collapse">
-        <tr><td style="padding:4px 0;color:var(--text2);width:38%;vertical-align:top">이전받는 자</td><td style="padding:4px 0;font-weight:600">OpenAI, L.L.C. (미국)</td></tr>
-        <tr><td style="padding:4px 0;color:var(--text2);vertical-align:top">이전 국가</td><td style="padding:4px 0">미국 (United States)</td></tr>
-        <tr><td style="padding:4px 0;color:var(--text2);vertical-align:top">이전 항목</td><td style="padding:4px 0">사용자가 직접 입력·첨부한 범위 내의 질문 텍스트, 이미지, 그리고 사업자등록증·재무제표·손익계산서·세무조정계산서·원천징수영수증·부가세/종소세/법인세 신고자료·매입매출내역·거래처 정보 등 <b>세무·회계 자료 일체</b></td></tr>
-        <tr><td style="padding:4px 0;color:var(--text2);vertical-align:top">이전 목적</td><td style="padding:4px 0">AI 답변 생성</td></tr>
-        <tr><td style="padding:4px 0;color:var(--text2);vertical-align:top">이전 일시·방법</td><td style="padding:4px 0">질문 입력 즉시 / HTTPS API</td></tr>
-        <tr><td style="padding:4px 0;color:var(--text2);vertical-align:top">보유·이용 기간</td><td style="padding:4px 0">OpenAI 정책상 최대 30일 (학습에 사용되지 않음)</td></tr>
-      </table>
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:.92em;color:var(--text2)">
-        ※ 동의를 거부하실 수 있으나, 거부 시 본 AI 챗봇 서비스 이용이 제한됩니다. (회원 탈퇴는 가능합니다)
+    <!-- 전체 동의 -->
+    <label style="display:flex;align-items:center;gap:10px;padding:13px;border:1.5px solid var(--border);background:var(--card);border-radius:10px;cursor:pointer;margin-bottom:10px">
+      <input type="checkbox" id="csAll" onchange="toggleAllConsent(this)" style="width:20px;height:20px;flex-shrink:0">
+      <span style="font-size:.92em;font-weight:700">전체 동의 (선택 항목 포함)</span>
+    </label>
+
+    <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="padding:8px 12px;background:var(--card);font-size:.72em;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border)">필수</div>
+      <label class="cs-row" style="display:flex;align-items:center;gap:8px;padding:11px 12px;cursor:pointer;border-bottom:1px solid var(--border)">
+        <input type="checkbox" class="cs-req" data-key="age_14" onchange="updateConsentState()" style="width:17px;height:17px;flex-shrink:0">
+        <span style="flex:1;font-size:.85em">만 14세 이상입니다 <span style="color:#3182f6;font-size:.85em">(필수)</span></span>
+      </label>
+      <div class="cs-item" style="border-bottom:1px solid var(--border)">
+        <label style="display:flex;align-items:center;gap:8px;padding:11px 12px;cursor:pointer">
+          <input type="checkbox" class="cs-req" data-key="tos" onchange="updateConsentState()" style="width:17px;height:17px;flex-shrink:0">
+          <span style="flex:1;font-size:.85em">이용약관 동의 <span style="color:#3182f6;font-size:.85em">(필수)</span></span>
+          <button type="button" onclick="toggleCsDetail(this)" style="background:none;border:none;color:var(--text2);font-size:.78em;cursor:pointer;padding:2px 6px">자세히 ▼</button>
+        </label>
+        <div class="cs-detail" style="display:none;padding:10px 14px 14px;background:var(--card);font-size:.78em;line-height:1.65;color:var(--text2)">
+          <b style="color:var(--text)">[세무회계 이윤 AI 세무상담 이용약관]</b><br><br>
+          제1조 (목적) 본 약관은 세무회계 이윤(이하 "회사")이 제공하는 AI 기반 세무상담 챗봇 서비스(이하 "서비스") 이용에 관한 사항을 정합니다.<br><br>
+          제2조 (서비스 성격) 본 서비스는 <b>참고용 AI 상담</b>이며, 제공되는 답변은 법적 효력이 없고 정식 세무대리·기장 업무를 대체하지 않습니다. 실제 신고·결정 전 반드시 자격 있는 세무사의 개별 상담을 받으셔야 합니다.<br><br>
+          제3조 (AI 한계) AI는 할루시네이션(부정확한 정보 생성)이 발생할 수 있으며, 회원은 이를 이해하고 이용합니다. 회사는 AI 답변의 정확성을 보증하지 않으며 이에 따른 직·간접적 손해에 대해 책임을 지지 않습니다.<br><br>
+          제4조 (금지행위) 타인 명의 도용, 허위 정보 제공, 서비스 무단 복제·역공학, 자동화 프로그램 이용, 타 세무사의 영업 방해 등은 금지됩니다. 위반 시 이용 제한될 수 있습니다.<br><br>
+          제5조 (이용 제한) 일일 이용 한도는 승인 상태에 따라 3~무제한건이며, 회사는 사전 고지 없이 조정할 수 있습니다.<br><br>
+          제6조 (탈퇴·해지) 회원은 언제든 내정보 > 로그아웃 또는 탈퇴 요청을 통해 서비스 이용을 종료할 수 있습니다.<br><br>
+          제7조 (준거법·관할) 본 약관은 대한민국 법령에 따르며, 분쟁 시 대구지방법원을 제1심 관할법원으로 합니다.
+        </div>
+      </div>
+      <div class="cs-item" style="border-bottom:1px solid var(--border)">
+        <label style="display:flex;align-items:center;gap:8px;padding:11px 12px;cursor:pointer">
+          <input type="checkbox" class="cs-req" data-key="privacy" onchange="updateConsentState()" style="width:17px;height:17px;flex-shrink:0">
+          <span style="flex:1;font-size:.85em">개인정보 수집·이용 동의 <span style="color:#3182f6;font-size:.85em">(필수)</span></span>
+          <button type="button" onclick="toggleCsDetail(this)" style="background:none;border:none;color:var(--text2);font-size:.78em;cursor:pointer;padding:2px 6px">자세히 ▼</button>
+        </label>
+        <div class="cs-detail" style="display:none;padding:10px 14px 14px;background:var(--card);font-size:.78em;line-height:1.65;color:var(--text2)">
+          <b style="color:var(--text)">수집 항목</b><br>
+          카카오/네이버 로그인 정보(이름·이메일·연락처·프로필 이미지), 본인 입력 정보(본명·휴대폰·이용유형·사업장 정보), 질문 내용, 첨부 이미지, 이용 기록(접속일시·IP)<br><br>
+          <b style="color:var(--text)">수집·이용 목적</b><br>
+          AI 세무상담 서비스 제공, 이용자 식별·관리, 기장거래처 승인, 서비스 개선, 법령상 의무 이행<br><br>
+          <b style="color:var(--text)">보유·이용 기간</b><br>
+          회원 탈퇴 시까지. 단, 관계 법령에 따른 보존 의무가 있는 경우 해당 기간까지 보관 (전자상거래법 5년, 전자금융거래법 5년 등)<br><br>
+          <b style="color:var(--text)">처리 위탁</b><br>
+          · Cloudflare Inc. (서버·DB·이미지 저장, 미국)<br>
+          · OpenAI, L.L.C. (AI 답변 생성, 미국) — 별도 국외이전 동의 항목 참조<br><br>
+          ※ 동의를 거부하실 수 있으나, 거부 시 서비스 이용이 제한됩니다.
+        </div>
+      </div>
+      <div class="cs-item">
+        <label style="display:flex;align-items:center;gap:8px;padding:11px 12px;cursor:pointer">
+          <input type="checkbox" class="cs-req" data-key="overseas" onchange="updateConsentState()" style="width:17px;height:17px;flex-shrink:0">
+          <span style="flex:1;font-size:.85em">개인정보 국외이전 동의 <span style="color:#3182f6;font-size:.85em">(필수)</span></span>
+          <button type="button" onclick="toggleCsDetail(this)" style="background:none;border:none;color:var(--text2);font-size:.78em;cursor:pointer;padding:2px 6px">자세히 ▼</button>
+        </label>
+        <div class="cs-detail" style="display:none;padding:10px 14px 14px;background:var(--card);font-size:.78em;line-height:1.65;color:var(--text2)">
+          AI 답변 생성을 위해 아래와 같이 개인정보가 국외로 이전됩니다 (개인정보보호법 §28의8).<br><br>
+          <b style="color:var(--text)">이전받는 자</b>: OpenAI, L.L.C. (미국)<br>
+          <b style="color:var(--text)">이전 국가</b>: 미국<br>
+          <b style="color:var(--text)">이전 항목</b>: 사용자가 직접 입력·첨부한 범위 내의 질문 텍스트, 이미지, 그리고 사업자등록증·재무제표·손익계산서·세무조정계산서·원천징수영수증·부가세/종소세/법인세 신고자료·매입매출내역·거래처 정보 등 <b>세무·회계 자료 일체</b><br>
+          <b style="color:var(--text)">이전 목적</b>: AI 답변 생성<br>
+          <b style="color:var(--text)">이전 일시·방법</b>: 질문 입력 즉시 / HTTPS API<br>
+          <b style="color:var(--text)">보유·이용 기간</b>: OpenAI 정책상 최대 30일 (학습에 사용되지 않음)<br><br>
+          ※ 동의 거부 시 본 AI 챗봇 서비스 이용이 제한됩니다.
+        </div>
+      </div>
+      <div style="padding:8px 12px;background:var(--card);font-size:.72em;font-weight:600;color:var(--text2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">선택</div>
+      <div class="cs-item">
+        <label style="display:flex;align-items:center;gap:8px;padding:11px 12px;cursor:pointer">
+          <input type="checkbox" id="csMarketing" onchange="updateConsentState()" style="width:17px;height:17px;flex-shrink:0">
+          <span style="flex:1;font-size:.85em">세무 칼럼·이벤트 소식 수신 <span style="color:var(--text2);font-size:.85em">(선택)</span></span>
+          <button type="button" onclick="toggleCsDetail(this)" style="background:none;border:none;color:var(--text2);font-size:.78em;cursor:pointer;padding:2px 6px">자세히 ▼</button>
+        </label>
+        <div class="cs-detail" style="display:none;padding:10px 14px 14px;background:var(--card);font-size:.78em;line-height:1.65;color:var(--text2)">
+          개정세법 안내, 세무 칼럼 업데이트, 절세 팁, 이벤트·혜택 소식을 푸시 알림 또는 이메일로 받아보실 수 있습니다.<br><br>
+          동의하지 않으셔도 서비스 이용에는 제한이 없으며, 마이페이지에서 언제든 변경 가능합니다.
+        </div>
       </div>
     </div>
 
-    <label style="display:flex;align-items:center;gap:10px;margin-top:14px;padding:12px;border:1px solid var(--border);background:var(--card);border-radius:10px;cursor:pointer">
-      <input type="checkbox" id="consentCheck" style="width:18px;height:18px;flex-shrink:0">
-      <span style="font-size:.88em;font-weight:600">위 내용을 모두 확인하였으며, 개인정보의 국외이전에 동의합니다</span>
-    </label>
-
     <div id="consentErr" style="display:none;color:#f04452;font-size:.78em;margin-top:10px"></div>
-    <button onclick="submitConsent()" style="margin-top:14px;width:100%;padding:13px;background:#3182f6;color:#fff;border:none;border-radius:10px;font-size:.95em;font-weight:600;cursor:pointer;font-family:inherit">동의하고 시작하기</button>
-    <button onclick="rejectConsent()" style="margin-top:8px;width:100%;padding:11px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:10px;font-size:.85em;cursor:pointer;font-family:inherit">동의하지 않음 (서비스 이용 불가)</button>
+    <button id="consentBtn" onclick="submitConsent()" disabled style="margin-top:14px;width:100%;padding:13px;background:#3182f6;color:#fff;border:none;border-radius:10px;font-size:.95em;font-weight:600;cursor:pointer;font-family:inherit;opacity:.4">시작하기</button>
+    <div style="text-align:center;margin-top:10px">
+      <a href="javascript:rejectConsent()" style="font-size:.75em;color:var(--text2);text-decoration:underline">동의하지 않음</a>
+    </div>
   </div>
 </div>
 
@@ -583,7 +644,7 @@ async function checkAuth(){
             showChat();
             setTimeout(function(){
                 if(!currentUser.name_confirmed){showNameModal(currentUser.name||'',currentUser.phone||'')}
-                else if(!currentUser.consent_overseas){showConsentModal()}
+                else if(!currentUser.consent_required_ok){showConsentModal()}
                 else if(typeof showApprovalBanner==='function'){showApprovalBanner()}
             },300);
         }
@@ -1311,7 +1372,7 @@ async function submitName(){
         currentUser.approval_status=d.approval_status||currentUser.approval_status;
         if(userType==='guest'){currentUser.daily_limit=10}
       }
-      if(currentUser&&!currentUser.consent_overseas){showConsentModal()}
+      if(currentUser&&!currentUser.consent_required_ok){showConsentModal()}
       else{showApprovalBanner()}
     } else {err.textContent=d.error||'오류';err.style.display='block'}
   }catch(e){err.textContent='네트워크 오류';err.style.display='block'}
@@ -1456,30 +1517,72 @@ async function triggerInstallPrompt(){
 
 function showConsentModal(){
   var m=document.getElementById('consentModal');
-  document.getElementById('consentCheck').checked=false;
+  document.getElementById('csAll').checked=false;
+  document.querySelectorAll('#consentModal .cs-req').forEach(function(c){c.checked=false});
+  var mk=document.getElementById('csMarketing');if(mk)mk.checked=false;
+  document.querySelectorAll('#consentModal .cs-detail').forEach(function(d){d.style.display='none'});
+  document.querySelectorAll('#consentModal [onclick^="toggleCsDetail"]').forEach(function(b){b.textContent='자세히 ▼'});
   document.getElementById('consentErr').style.display='none';
+  updateConsentState();
   m.style.display='flex';
+}
+function toggleCsDetail(btn){
+  var item=btn.closest('.cs-item');
+  if(!item)return;
+  var d=item.querySelector('.cs-detail');
+  if(!d)return;
+  var open=d.style.display==='block';
+  d.style.display=open?'none':'block';
+  btn.textContent=open?'자세히 ▼':'접기 ▲';
+}
+function toggleAllConsent(cb){
+  var v=cb.checked;
+  document.querySelectorAll('#consentModal .cs-req').forEach(function(c){c.checked=v});
+  var mk=document.getElementById('csMarketing');if(mk)mk.checked=v;
+  updateConsentState();
+}
+function updateConsentState(){
+  var reqs=document.querySelectorAll('#consentModal .cs-req');
+  var allReq=true;reqs.forEach(function(c){if(!c.checked)allReq=false});
+  var mk=document.getElementById('csMarketing');
+  var allAll=allReq&&mk&&mk.checked;
+  document.getElementById('csAll').checked=!!allAll;
+  var btn=document.getElementById('consentBtn');
+  btn.disabled=!allReq;
+  btn.style.opacity=allReq?'1':'.4';
 }
 async function submitConsent(){
   var err=document.getElementById('consentErr');
-  if(!document.getElementById('consentCheck').checked){
-    err.textContent='동의 체크박스를 선택해 주세요';err.style.display='block';return;
+  var payload={};
+  document.querySelectorAll('#consentModal .cs-req').forEach(function(c){payload[c.dataset.key]=c.checked});
+  var mk=document.getElementById('csMarketing');
+  payload.marketing=mk?mk.checked:false;
+  if(!payload.age_14||!payload.tos||!payload.privacy||!payload.overseas){
+    err.textContent='필수 항목 4가지에 모두 동의해 주세요';err.style.display='block';return;
   }
   err.style.display='none';
   try{
-    var r=await fetch('/api/auth/consent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agree:true})});
+    var r=await fetch('/api/auth/consent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     var d=await r.json();
     if(d.ok){
       document.getElementById('consentModal').style.display='none';
-      if(currentUser){currentUser.consent_overseas=true;currentUser.consent_overseas_at=d.consent_overseas_at}
-      showApprovalBanner();
+      if(currentUser){
+        currentUser.consent_age_14=true;
+        currentUser.consent_tos=true;
+        currentUser.consent_privacy=true;
+        currentUser.consent_overseas=true;
+        currentUser.consent_marketing=!!payload.marketing;
+        currentUser.consent_required_ok=true;
+        currentUser.consent_all_at=d.consent_all_at;
+      }
+      if(typeof showApprovalBanner==='function')showApprovalBanner();
     } else {
       err.textContent='오류: '+(d.error||'unknown');err.style.display='block';
     }
   }catch(e){err.textContent='오류: '+e.message;err.style.display='block'}
 }
 function rejectConsent(){
-  if(!confirm('동의하지 않으면 챗봇 서비스를 이용하실 수 없습니다.\n로그아웃하시겠습니까?'))return;
+  if(!confirm('동의하지 않으면 서비스를 이용하실 수 없습니다.\n로그아웃하시겠습니까?'))return;
   fetch('/api/auth/logout',{method:'POST'}).finally(function(){location.reload()});
 }
 

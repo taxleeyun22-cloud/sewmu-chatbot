@@ -1,10 +1,21 @@
-// 개인정보 국외이전 동의 (개인정보보호법 제28조의8)
-// GET  : 현재 로그인 사용자의 동의 상태 반환
-// POST : 동의 처리 (consent_overseas=1, consent_overseas_at=now)
+// 통합 동의 처리 (이용약관·개인정보 수집이용·국외이전·만14세·마케팅)
+// GET  : 현재 사용자의 동의 상태 반환
+// POST : 동의 처리 ({age_14, tos, privacy, overseas, marketing})
+//        필수 4개(age_14/tos/privacy/overseas)는 true여야 성공, marketing은 선택
+
+const REQUIRED = ['age_14', 'tos', 'privacy', 'overseas'];
 
 async function ensureColumns(db) {
-  try { await db.prepare(`ALTER TABLE users ADD COLUMN consent_overseas INTEGER DEFAULT 0`).run(); } catch {}
-  try { await db.prepare(`ALTER TABLE users ADD COLUMN consent_overseas_at TEXT`).run(); } catch {}
+  const cols = [
+    `ALTER TABLE users ADD COLUMN consent_age_14 INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN consent_tos INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN consent_privacy INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN consent_overseas INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN consent_overseas_at TEXT`,
+    `ALTER TABLE users ADD COLUMN consent_marketing INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN consent_all_at TEXT`,
+  ];
+  for (const q of cols) { try { await db.prepare(q).run(); } catch {} }
 }
 
 async function getUserId(db, request) {
@@ -19,6 +30,10 @@ async function getUserId(db, request) {
   } catch { return null; }
 }
 
+function kst() {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+}
+
 export async function onRequestGet(context) {
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
@@ -27,10 +42,17 @@ export async function onRequestGet(context) {
   if (!userId) return Response.json({ error: "로그인 필요" }, { status: 401 });
   try {
     const u = await db.prepare(
-      `SELECT consent_overseas, consent_overseas_at FROM users WHERE id = ?`
+      `SELECT consent_age_14, consent_tos, consent_privacy, consent_overseas, consent_marketing,
+              consent_overseas_at, consent_all_at
+       FROM users WHERE id = ?`
     ).bind(userId).first();
     return Response.json({
-      consent_overseas: u?.consent_overseas ? true : false,
+      age_14: u?.consent_age_14 ? true : false,
+      tos: u?.consent_tos ? true : false,
+      privacy: u?.consent_privacy ? true : false,
+      overseas: u?.consent_overseas ? true : false,
+      marketing: u?.consent_marketing ? true : false,
+      consent_all_at: u?.consent_all_at || null,
       consent_overseas_at: u?.consent_overseas_at || null,
     });
   } catch (e) {
@@ -47,15 +69,31 @@ export async function onRequestPost(context) {
 
   let body = {};
   try { body = await context.request.json(); } catch {}
-  const agree = body.agree === true || body.agree === 1 || body.agree === "1";
-  if (!agree) return Response.json({ error: "동의가 필요합니다" }, { status: 400 });
 
-  const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+  const age_14 = body.age_14 === true || body.age_14 === 1;
+  const tos = body.tos === true || body.tos === 1;
+  const privacy = body.privacy === true || body.privacy === 1;
+  const overseas = body.overseas === true || body.overseas === 1;
+  const marketing = body.marketing === true || body.marketing === 1;
+
+  if (!age_14 || !tos || !privacy || !overseas) {
+    return Response.json({ error: "필수 항목 4가지 모두 동의해 주세요" }, { status: 400 });
+  }
+
+  const now = kst();
   try {
     await db.prepare(
-      `UPDATE users SET consent_overseas = 1, consent_overseas_at = ? WHERE id = ?`
-    ).bind(now, userId).run();
-    return Response.json({ ok: true, consent_overseas_at: now });
+      `UPDATE users SET
+         consent_age_14 = 1,
+         consent_tos = 1,
+         consent_privacy = 1,
+         consent_overseas = 1,
+         consent_overseas_at = COALESCE(consent_overseas_at, ?),
+         consent_marketing = ?,
+         consent_all_at = ?
+       WHERE id = ?`
+    ).bind(now, marketing ? 1 : 0, now, userId).run();
+    return Response.json({ ok: true, consent_all_at: now, marketing });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
