@@ -609,10 +609,14 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
   <div id="rcMessages" class="rc-messages"></div>
   <div id="rcClosedNotice" class="rc-closed-notice" style="display:none">이 상담방은 종료되었습니다. 대화는 열람만 가능합니다.</div>
   <div id="rcInputArea" class="rc-input-area">
-    <label for="rcFileInput" class="rc-photo-btn" title="사진 첨부">
+    <label for="rcFileInput" class="rc-photo-btn" title="사진첩">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
     </label>
-    <input id="rcFileInput" type="file" accept="image/*" capture="environment" onchange="sendRoomImage(this)" style="display:none">
+    <input id="rcFileInput" type="file" accept="image/*" onchange="sendRoomImage(this)" style="display:none">
+    <label for="rcCamInput" class="rc-photo-btn" title="카메라">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    </label>
+    <input id="rcCamInput" type="file" accept="image/*" capture="environment" onchange="sendRoomImage(this)" style="display:none">
     <label for="rcDocInput" class="rc-photo-btn" title="파일 첨부">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
     </label>
@@ -1122,9 +1126,15 @@ async function loadRoomChat(){
       var nm=m.real_name||m.name||'';
       var isMe=currentUser&&m.user_id===currentUser.id;
       var ur=m.unread_count>0?'<span style="font-size:.65em;color:#f4c430;font-weight:700;margin:0 4px;align-self:flex-end;margin-bottom:4px">'+m.unread_count+'</span>':'';
+      /* 삭제된 메시지 */
+      if(m.deleted_at){
+        return '<div style="margin-bottom:10px;text-align:center;opacity:.55"><span style="display:inline-block;background:var(--card);color:var(--text2);padding:6px 14px;border-radius:10px;font-size:.72em;font-style:italic;border:1px solid var(--border)">삭제된 메시지입니다</span></div>';
+      }
       if(m.role==='user'){
         if(isMe){
+          var delBtn=' <button onclick="deleteMyMessage('+m.id+')" style="background:none;border:none;cursor:pointer;font-size:.78em;color:#f04452;padding:0 4px;margin-left:4px;align-self:flex-end;margin-bottom:3px" title="삭제 (5분 이내)">🗑️</button>';
           return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end;align-items:flex-end">'
+            +delBtn
             +ur
             +'<div style="background:var(--blue);color:#fff;padding:9px 13px;border-radius:14px 4px 14px 14px;max-width:75%;font-size:.88em;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content)
             +'<div style="font-size:.62em;opacity:.8;margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>';
@@ -1152,6 +1162,17 @@ async function loadRoomChat(){
     }).join('');
     if(atBottom)container.scrollTop=container.scrollHeight;
   }catch(e){console.error(e)}
+}
+
+async function deleteMyMessage(messageId){
+  if(!rcRoomId||!messageId)return;
+  if(!confirm('이 메시지를 삭제하시겠어요?\n(전송 후 5분 이내만 삭제 가능)'))return;
+  try{
+    var r=await fetch('/api/my-rooms?action=delete_message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,message_id:messageId})});
+    var d=await r.json();
+    if(d.ok)loadRoomChat();
+    else alert('삭제 실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
 }
 
 async function sendRoomMsg(){
