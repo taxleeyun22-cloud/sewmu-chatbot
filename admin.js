@@ -1470,7 +1470,7 @@ async function submitFaq(){
   const question=$g('faqFormQ').value.trim();
   const answer=$g('faqFormA').value.trim();
   console.log('[submitFaq] Q len:', question.length, 'A len:', answer.length);
-  if(!question||!answer){err.textContent='질문과 답변을 입력해 주세요';err.style.display='block';return}
+  if(!question||!answer){err.textContent='질문과 답변을 입력해 주세요';err.style.display='block';alert('질문과 답변을 모두 입력해 주세요');return}
   const payload={
     q_number:$g('faqFormQnum').value?Number($g('faqFormQnum').value):null,
     category:$g('faqFormCat').value,
@@ -1480,14 +1480,27 @@ async function submitFaq(){
   };
   if(editingFaqId)payload.id=editingFaqId;
   const action=editingFaqId?'update':'create';
+  console.log('[submitFaq] payload:', payload, 'action:', action, 'KEY set?', !!KEY);
   try{
     const r=await fetch('/api/admin-faq?key='+encodeURIComponent(KEY)+'&action='+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    console.log('[submitFaq] response status:', r.status);
     const d=await r.json();
-    if(!d.ok){err.textContent=d.error||'저장 실패';err.style.display='block';return}
-    if(d.warning)alert('⚠️ '+d.warning);
+    console.log('[submitFaq] response body:', d);
+    if(!d.ok){
+      const msg=d.error||'저장 실패 (status '+r.status+')';
+      err.textContent=msg;err.style.display='block';
+      alert('저장 실패: '+msg);
+      return;
+    }
+    if(d.warning)alert('⚠️ 저장은 됐지만 경고: '+d.warning);
     $g('faqFormModal').style.display='none';
     loadFaqStatus();loadFaqs();
-  }catch(er){err.textContent='오류: '+er.message;err.style.display='block'}
+    alert('✅ 저장 완료');
+  }catch(er){
+    console.error('[submitFaq] exception:', er);
+    err.textContent='오류: '+er.message;err.style.display='block';
+    alert('네트워크 오류: '+er.message);
+  }
 }
 
 async function deleteFaq(){
