@@ -352,6 +352,7 @@
   <button onclick="syncFaqsToGithub()" style="background:#111827;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="의심·틀림 FAQ를 GitHub flagged-faqs.json 에 업로드 (Claude가 재검토·수정)">🚀 Claude 재검토 요청</button>
   <button onclick="applyReverifyV1()" style="background:#ec4899;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="Claude 재검토 결과 V1 적용 (내용 수정 + 상태 승격)">✨ 재검증 V1 적용</button>
   <button onclick="reembedAllFaqs()" style="background:#8b6914;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">♻️ 전체 재임베딩</button>
+  <button onclick="downloadBackup()" style="background:#059669;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="전체 데이터(D1) 백업 JSON 다운로드">📦 백업 다운로드</button>
 </div>
 <div style="background:#fff;border-radius:12px;padding:10px 14px;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
   <input id="faqSearchInput" type="text" placeholder="FAQ 검색 (질문·답변·근거)..." oninput="onFaqSearchInput()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit;outline:none">

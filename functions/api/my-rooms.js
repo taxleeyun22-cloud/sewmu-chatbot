@@ -223,6 +223,51 @@ export async function onRequestPost(context) {
 
   try {
     const body = await context.request.json();
+
+    // ── 상담방 생성 (고객이 직접) ──
+    if (action === "create") {
+      // approved_client 만 생성 가능 (승인 안 된 사용자 제한)
+      const u = await db.prepare(`SELECT approval_status FROM users WHERE id = ?`).bind(user.user_id).first();
+      if (!u || !['approved_client', 'approved_guest'].includes(u.approval_status)) {
+        return Response.json({ error: "승인된 사용자만 상담방을 만들 수 있습니다. 먼저 가입 승인을 받아주세요." }, { status: 403 });
+      }
+
+      const name = (body.name || "").trim() || "상담방";
+      if (name.length > 50) return Response.json({ error: "이름은 50자 이내" }, { status: 400 });
+
+      // 본인이 만든 활성 방 개수 제한 (과도한 생성 방지, 최대 3개)
+      const cnt = await db.prepare(
+        `SELECT COUNT(*) as n FROM chat_rooms WHERE created_by_user_id = ? AND status = 'active'`
+      ).bind(user.user_id).first();
+      if ((cnt?.n || 0) >= 3) {
+        return Response.json({ error: "활성 상담방은 최대 3개까지 만들 수 있습니다. 기존 방을 종료 후 다시 시도해 주세요." }, { status: 400 });
+      }
+
+      // 6자리 ID 생성
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let roomId = "";
+      for (let i = 0; i < 20; i++) {
+        let s = '';
+        for (let j = 0; j < 6; j++) s += chars[Math.floor(Math.random() * chars.length)];
+        const exists = await db.prepare(`SELECT id FROM chat_rooms WHERE id = ?`).bind(s).first();
+        if (!exists) { roomId = s; break; }
+      }
+      if (!roomId) return Response.json({ error: "방 ID 생성 실패" }, { status: 500 });
+
+      const now = kst();
+      await db.prepare(`
+        INSERT INTO chat_rooms (id, name, created_by_admin, created_by_user_id, max_members, ai_mode, status, created_at)
+        VALUES (?, ?, 0, ?, 5, 'on', 'active', ?)
+      `).bind(roomId, name, user.user_id, now).run();
+
+      await db.prepare(`
+        INSERT INTO room_members (room_id, user_id, role, joined_at)
+        VALUES (?, ?, 'creator', ?)
+      `).bind(roomId, user.user_id, now).run();
+
+      return Response.json({ ok: true, room_id: roomId });
+    }
+
     const roomId = body.room_id;
     if (!roomId) return Response.json({ error: "room_id required" }, { status: 400 });
 

@@ -1600,6 +1600,11 @@ async function syncFaqsToGithub(){
   finally{if(btn){btn.disabled=false;btn.textContent='🚀 Claude 재검토 요청'}}
 }
 
+function downloadBackup(){
+  if(!confirm('전체 데이터 백업 JSON을 다운로드합니다.\n(users, conversations, rooms, faqs, client 등 포함)\n\n계속할까요?'))return;
+  location.href='/api/admin-backup?key='+encodeURIComponent(KEY);
+}
+
 async function applyReverifyV1(){
   if(!confirm('Claude 재검증 V1 결과를 적용합니다.\n- 의심 11건을 verified로 승격\n- 4건은 답변 내용 수정 + 재임베딩 (Q38, Q63, Q67, Q70, Q123)\n- 1건(Q93)은 삭제(active=0)\n\n계속할까요?'))return;
   const btn=event?event.target:null;

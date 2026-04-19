@@ -528,30 +528,36 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
     </div>
   </div>
 
-  <!-- 빠른 문의 -->
+  <!-- 상담방 -->
   <div class="mp-section">
-    <div class="mp-section-title">세무사 직접 상담</div>
-    <a href="http://pf.kakao.com/_sgnsxj/chat" target="_blank" rel="noopener" class="mp-item">
+    <div class="mp-section-title">상담방</div>
+    <div class="mp-item" onclick="createMyRoom()">
       <div class="mp-item-icon">💬</div>
       <div class="mp-item-main">
-        <div class="mp-item-label">카카오톡 상담</div>
-        <div class="mp-item-value">세무회계 이윤 채널 · 평일 9~18시</div>
+        <div class="mp-item-label">＋ 새 상담방 만들기</div>
+        <div class="mp-item-value">세무사 이재윤과 1:1 채팅방 개설</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </div>
+    <div id="mpMyRooms"></div>
+  </div>
+
+  <!-- 세무 칼럼 -->
+  <div class="mp-section">
+    <div class="mp-section-title">더 알아보기</div>
+    <a href="/articles.html" class="mp-item">
+      <div class="mp-item-icon">📚</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">세무 칼럼</div>
+        <div class="mp-item-value">증여·상속·양도·법인세 등 29편</div>
       </div>
       <div class="mp-item-arrow">›</div>
     </a>
     <a href="tel:053-269-1213" class="mp-item">
       <div class="mp-item-icon">📞</div>
       <div class="mp-item-main">
-        <div class="mp-item-label">전화 상담</div>
-        <div class="mp-item-value">053-269-1213</div>
-      </div>
-      <div class="mp-item-arrow">›</div>
-    </a>
-    <a href="/articles.html" class="mp-item">
-      <div class="mp-item-icon">📚</div>
-      <div class="mp-item-main">
-        <div class="mp-item-label">세무 칼럼</div>
-        <div class="mp-item-value">증여·상속·양도·법인세 등 29편</div>
+        <div class="mp-item-label">사무실 전화</div>
+        <div class="mp-item-value">053-269-1213 · 평일 09~18시</div>
       </div>
       <div class="mp-item-arrow">›</div>
     </a>
@@ -1058,6 +1064,21 @@ function switchTab(tab){
 var rcRoomId=null;
 var rcIsActive=false;
 var rcMsgPollTimer=null;
+
+async function createMyRoom(){
+  var name=prompt('상담방 이름을 입력하세요.\n(예: 부가세 문의, 양도세 검토)','');
+  if(!name||!name.trim())return;
+  try{
+    var r=await fetch('/api/my-rooms?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim()})});
+    var d=await r.json();
+    if(d.ok){
+      alert('✅ 상담방 생성 완료\n\n방 ID: '+d.room_id+'\n\n세무사가 참여하여 답변드립니다.');
+      loadMyRooms();
+    } else {
+      alert('생성 실패: '+(d.error||'unknown'));
+    }
+  }catch(e){alert('오류: '+e.message)}
+}
 
 async function loadMyRooms(){
   try{
@@ -1666,8 +1687,8 @@ function showLimitExceeded(err){
     ? '오늘 무료 상담 '+(err.limit||3)+'건을 모두 이용하셨습니다'
     : '오늘 상담 한도('+(err.limit||5)+'건)를 모두 이용하셨습니다';
   var subline=st==='pending'
-    ? '기장거래처이시면 담당 세무사에게 말씀하시면 무제한 이용이 가능합니다. 내일 다시 이용하시거나, 더 자세한 상담은 내정보 > 세무사 직접 상담으로 문의해 주세요.'
-    : '내일 다시 이용하시거나, 내정보 > 세무사 직접 상담으로 문의해 주세요.';
+    ? '기장거래처이시면 담당 세무사에게 말씀하시면 무제한 이용이 가능합니다. 내일 다시 이용하시거나, 마이페이지 > 상담방 만들기로 세무사에게 직접 문의해 주세요.'
+    : '내일 다시 이용하시거나, 마이페이지 > 상담방 만들기로 세무사에게 직접 문의해 주세요.';
   var html=''
     +'<div class="msg msg-ai"><div class="msg-avatar"><img src="logo-icon.png" alt=""></div>'
     +'<div class="msg-wrap"><div class="msg-name">세무회계 이윤</div>'
