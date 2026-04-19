@@ -60,8 +60,66 @@ export async function onRequestGet(context) {
   await ensureTables(db);
 
   const roomId = url.searchParams.get("room_id");
+  const view = url.searchParams.get("view") || "";  // "media" | "search"
+  const searchQ = (url.searchParams.get("search") || "").trim();
 
   try {
+    if (roomId && view === "media") {
+      // 방 미디어·링크 갤러리
+      const { results: photos } = await db.prepare(`
+        SELECT c.id, c.content, c.created_at, c.user_id, c.role,
+               u.real_name, u.name
+        FROM conversations c
+        LEFT JOIN users u ON c.user_id = u.id
+        WHERE c.room_id = ? AND c.content LIKE '[IMG]%'
+        ORDER BY c.created_at DESC
+        LIMIT 200
+      `).bind(roomId).all();
+
+      const { results: linkCandidates } = await db.prepare(`
+        SELECT c.id, c.content, c.created_at, c.user_id, c.role,
+               u.real_name, u.name
+        FROM conversations c
+        LEFT JOIN users u ON c.user_id = u.id
+        WHERE c.room_id = ? AND (c.content LIKE '%http://%' OR c.content LIKE '%https://%')
+        ORDER BY c.created_at DESC
+        LIMIT 200
+      `).bind(roomId).all();
+
+      // 링크 추출 (http(s)://... 정규식, 같은 행에 여러 개 가능)
+      const urlRe = /https?:\/\/[^\s<>"']+/gi;
+      const links = [];
+      for (const m of (linkCandidates || [])) {
+        const matches = String(m.content || '').match(urlRe) || [];
+        for (const u of matches) {
+          links.push({
+            url: u,
+            message_id: m.id,
+            created_at: m.created_at,
+            role: m.role,
+            user_name: m.real_name || m.name || null,
+          });
+        }
+      }
+
+      return Response.json({ photos: photos || [], links });
+    }
+
+    if (roomId && searchQ) {
+      // 방 내부 검색
+      const pat = `%${searchQ}%`;
+      const { results: matches } = await db.prepare(`
+        SELECT c.id, c.role, c.content, c.created_at, c.user_id,
+               u.real_name, u.name
+        FROM conversations c
+        LEFT JOIN users u ON c.user_id = u.id
+        WHERE c.room_id = ? AND c.content LIKE ?
+        ORDER BY c.created_at DESC
+        LIMIT 100
+      `).bind(roomId, pat).all();
+      return Response.json({ matches: matches || [], query: searchQ });
+    }
+
     if (roomId) {
       // 상세
       const room = await db.prepare(
