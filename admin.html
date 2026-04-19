@@ -8,7 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/admin.css?v=4">
+<link rel="stylesheet" href="/admin.css?v=5">
 </head>
 <body>
 
@@ -34,6 +34,7 @@
 <button id="tabUsers" onclick="tab('users')">사용자<span id="pendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
 <button id="tabAnal" onclick="tab('anal')">분석</button>
 <button id="tabReview" onclick="tab('review')">검증 <span id="reviewBadge" style="display:none;background:#f04452;color:#fff;padding:1px 6px;border-radius:10px;font-size:.9em;margin-left:2px"></span></button>
+<button id="tabFaq" onclick="tab('faq')">📚 FAQ</button>
 </div>
 <button class="logout" onclick="openSearch()" style="margin-left:auto" title="전역 검색">🔍 검색</button>
 <button class="logout" onclick="logout()">로그아웃</button>
@@ -331,8 +332,77 @@
 </div>
 <div id="reviewList"></div>
 </div>
+
+<!-- FAQ 관리 (RAG) -->
+<div id="faqView" style="display:none">
+<div style="background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+  <div style="flex:1;min-width:200px">
+    <div style="font-size:.92em;font-weight:700;margin-bottom:4px">📚 FAQ 관리</div>
+    <div id="faqStatus" style="font-size:.72em;color:#8b95a1">불러오는 중...</div>
+  </div>
+  <button onclick="openFaqForm(null)" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">＋ 새 FAQ</button>
+  <button onclick="migrateFaqs()" style="background:#f59e0b;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">🚀 마이그레이션</button>
+  <button onclick="reembedAllFaqs()" style="background:#8b6914;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">♻️ 전체 재임베딩</button>
+</div>
+<div style="background:#fff;border-radius:12px;padding:10px 14px;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+  <input id="faqSearchInput" type="text" placeholder="FAQ 검색 (질문·답변·근거)..." oninput="onFaqSearchInput()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit;outline:none">
+  <select id="faqCatFilter" onchange="loadFaqs()" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.82em;font-family:inherit;background:#fff">
+    <option value="all">전체 카테고리</option>
+  </select>
+</div>
+<div id="faqList"></div>
 </div>
 
-<script src="/admin.js?v=4"></script>
+<!-- FAQ 작성/수정 모달 -->
+<div id="faqFormModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;align-items:flex-start;justify-content:center;padding:30px 14px;overflow-y:auto">
+  <div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:560px;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h3 id="faqFormTitle" style="font-size:1.05em;margin:0">새 FAQ 추가</h3>
+      <button onclick="document.getElementById('faqFormModal').style.display='none'" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div>
+        <label style="font-size:.75em;font-weight:600;color:#555">Q 번호 (선택)</label>
+        <input id="faqFormQnum" type="number" placeholder="자동 부여" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit">
+      </div>
+      <div>
+        <label style="font-size:.75em;font-weight:600;color:#555">카테고리</label>
+        <select id="faqFormCat" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;background:#fff">
+          <option value="부가세">부가세</option>
+          <option value="법인세">법인세</option>
+          <option value="종소세">종소세</option>
+          <option value="양도세">양도세</option>
+          <option value="상속/증여">상속/증여</option>
+          <option value="원천세">원천세</option>
+          <option value="연말정산">연말정산</option>
+          <option value="경비">경비</option>
+          <option value="조사·가산">조사·가산</option>
+          <option value="사업자">사업자</option>
+          <option value="노무">노무</option>
+          <option value="기타">기타</option>
+        </select>
+      </div>
+    </div>
+    <label style="font-size:.75em;font-weight:600;color:#555;display:block;margin-bottom:4px">질문 (제목)</label>
+    <input id="faqFormQ" type="text" placeholder="예: 간이과세자에서 일반과세자 전환 시점" maxlength="200" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px">
+    <label style="font-size:.75em;font-weight:600;color:#555;display:block;margin-bottom:4px">답변 내용</label>
+    <textarea id="faqFormA" maxlength="10000" placeholder="답변 본문. 근거 법령은 별도 필드에." style="width:100%;height:180px;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit;outline:none;resize:vertical;margin-bottom:10px"></textarea>
+    <label style="font-size:.75em;font-weight:600;color:#555;display:block;margin-bottom:4px">근거 법령 (선택)</label>
+    <input id="faqFormLaw" type="text" placeholder="예: 부가가치세법 제61조" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px">
+    <label id="faqFormActiveLabel" style="display:none;align-items:center;gap:8px;margin-bottom:12px;font-size:.85em">
+      <input id="faqFormActive" type="checkbox" checked>
+      <span>활성 (체크 해제하면 RAG 검색에서 제외)</span>
+    </label>
+    <div id="faqFormErr" style="display:none;color:#f04452;font-size:.78em;margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="submitFaq()" style="flex:1;background:#3182f6;color:#fff;border:none;padding:11px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">저장 + 임베딩</button>
+      <button id="faqFormDeleteBtn" onclick="deleteFaq()" style="display:none;background:#fee2e2;color:#f04452;border:none;padding:11px 16px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">🗑️ 삭제</button>
+      <button onclick="document.getElementById('faqFormModal').style.display='none'" style="background:#e5e8eb;color:#555;border:none;padding:11px 18px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="/admin.js?v=5"></script>
 </body>
 </html>

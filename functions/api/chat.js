@@ -8,6 +8,7 @@
 
 // FAQ 모듈 (Q1~Q70) - 별도 파일로 분리하여 관리 (_faq.js)
 import { FAQ_SECTION } from "./_faq.js";
+import { retrieveTopK, formatRetrievedFAQs } from "./_rag.js";
 
 // ===== Rate Limit (메모리 기반) =====
 const rateLimitMap = new Map();
@@ -623,8 +624,8 @@ export async function onRequestPost(context) {
       } catch {}
     }
 
-    // buildSystemPrompt 함수 정의
-    const buildSystemPrompt = (lawContext) => `너는 대구 달서구 세무회계 이윤의 AI 세무 상담 어시스턴트야.
+    // buildSystemPrompt 함수 정의 (faqSection: RAG 결과 있으면 그것, 없으면 전체 하드코딩)
+    const buildSystemPrompt = (lawContext, faqSection) => `너는 대구 달서구 세무회계 이윤의 AI 세무 상담 어시스턴트야.
 세무회계 이윤은 대표세무사 이재윤이 운영하며, 주요 거래처는 음식점, 휴대폰매장, 배달업, 소매업 등 개인사업자와 중소 법인이야.
 
 ===== 절대 금지 사항 =====
@@ -991,7 +992,7 @@ export async function onRequestPost(context) {
 - 원 단위 절사하여 계산
 - 계산 결과 뒤에 "※ 위 계산은 2026년 기준 요율이며, 실제 보험료는 보수총액 신고/정산 결과에 따라 차이가 날 수 있습니다."를 추가
 
-${FAQ_SECTION}
+${faqSection}
 
 [사무실 정보]
 - 세무회계 이윤 대표세무사: 이재윤
@@ -1051,8 +1052,19 @@ ${clientContext}${lawContext ? "\n\n===== 참고 법령 조문 =====" + lawConte
 
         await sendStatus("답변 생성 중...");
 
-        // 시스템 프롬프트 구성 (기존과 동일)
-        const systemPrompt = buildSystemPrompt(lawContext);
+        // RAG: 사용자 질문과 유사한 FAQ top 5 조회. 실패하면 기존 하드코딩 FAQ_SECTION 폴백
+        let faqSection = FAQ_SECTION;
+        try {
+          const retrieved = await retrieveTopK(db, context.env, question, 5);
+          if (retrieved && retrieved.length > 0) {
+            faqSection = formatRetrievedFAQs(retrieved);
+          }
+        } catch (e) {
+          console.error("RAG retrieval failed, fallback to FAQ_SECTION:", e.message);
+        }
+
+        // 시스템 프롬프트 구성
+        const systemPrompt = buildSystemPrompt(lawContext, faqSection);
 
         const finalMessages = [
           { role: "system", content: systemPrompt },

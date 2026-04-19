@@ -71,7 +71,7 @@ setInterval(refreshLiveBadge,10000);
 /* 이전 탭 복원 (유효한 owner 탭만) */
 try{
   var saved=localStorage.getItem('admin_last_tab');
-  if(saved&&['chat','live','rooms','users','anal','review'].indexOf(saved)>=0)tab(saved);
+  if(saved&&['chat','live','rooms','users','anal','review','faq'].indexOf(saved)>=0)tab(saved);
 }catch{}
 return true;
 }catch{
@@ -184,16 +184,18 @@ async function tryAdminBySession(){
   return false;
 }
 
-/* 페이지 로드: 저장된 ADMIN_KEY 우선, 없으면 세션 기반 admin 시도 */
-/* staff.html은 자체 staffBoot() 사용하므로 이 IIFE 스킵 */
-let IS_OWNER=true;  /* true면 전체 기능, false면 직원(세션) */
+/* 페이지 로드: 저장된 ADMIN_KEY가 있으면 자동 로그인. 없으면 로그인 폼 표시.
+   (staff.html은 자체 staffBoot() 사용하므로 이 IIFE 스킵)
+   이전: 저장된 키 없으면 /staff.html 로 자동 리다이렉트했는데,
+   이 경우 사장님 본인이 카톡 로그인 상태면 staff로 튕겨서 ADMIN_KEY 입력 기회가 없었음.
+   해결: admin.html은 항상 ADMIN_KEY 입력을 기다린다. 직원은 /staff.html 직접 방문 또는 마이페이지 버튼 사용. */
+let IS_OWNER=true;
 (async function(){
   if(location.pathname.endsWith('/staff.html'))return;
   try{
     var saved=localStorage.getItem('admin_key');
-    if(saved){IS_OWNER=true;await doLogin(saved,false);return}
+    if(saved){IS_OWNER=true;await doLogin(saved,false)}
   }catch{}
-  await tryAdminBySession();
 })();
 
 function tab(t){
@@ -204,6 +206,7 @@ $g('tabRooms').className=t==='rooms'?'on':'';
 $g('tabUsers').className=t==='users'?'on':'';
 $g('tabAnal').className=t==='anal'?'on':'';
 $g('tabReview').className=t==='review'?'on':'';
+$g('tabFaq').className=t==='faq'?'on':'';
 $g('chatView').style.display=t==='chat'?'block':'none';
 $g('detailView').style.display='none';
 $g('liveView').style.display=t==='live'?'block':'none';
@@ -211,9 +214,11 @@ $g('roomsView').style.display=t==='rooms'?'block':'none';
 $g('usersView').style.display=t==='users'?'block':'none';
 $g('analView').style.display=t==='anal'?'block':'none';
 $g('reviewView').style.display=t==='review'?'block':'none';
+$g('faqView').style.display=t==='faq'?'block':'none';
 if(t==='anal')loadAnalytics();
 if(t==='users')loadUsers(currentStatus||'pending');
 if(t==='review')loadReview('pending');
+if(t==='faq'){loadFaqStatus();loadFaqs()}
 if(t==='live')startLivePolling();
 else stopLivePolling();
 if(t==='rooms')startRoomsPolling();
@@ -1373,4 +1378,151 @@ h+='</div>';
 }
 el.innerHTML=h;
 }catch(err){el.innerHTML='<div class="empty">오류</div>'}
+}
+
+/* ===== FAQ 관리 (RAG) ===== */
+let faqSearchTimer=null;
+let editingFaqId=null;
+
+function onFaqSearchInput(){
+  if(faqSearchTimer)clearTimeout(faqSearchTimer);
+  faqSearchTimer=setTimeout(loadFaqs,250);
+}
+
+async function loadFaqStatus(){
+  try{
+    const r=await fetch('/api/admin-faq-migrate?key='+encodeURIComponent(KEY));
+    const d=await r.json();
+    if(d.error){$g('faqStatus').textContent='오류: '+d.error;return}
+    $g('faqStatus').textContent='DB '+d.db_total+'건 (활성 '+d.db_active+', 임베딩 '+d.db_embedded+') · _faq.js 하드코딩 '+d.faq_js_count+'건';
+  }catch(e){$g('faqStatus').textContent='상태 확인 실패: '+e.message}
+}
+
+async function loadFaqs(){
+  const el=$g('faqList');
+  el.innerHTML='<div class="empty">불러오는 중...</div>';
+  try{
+    const q=$g('faqSearchInput').value.trim();
+    const cat=$g('faqCatFilter').value;
+    const params=new URLSearchParams({key:KEY});
+    if(q)params.set('search',q);
+    if(cat&&cat!=='all')params.set('category',cat);
+    const r=await fetch('/api/admin-faq?'+params.toString());
+    const d=await r.json();
+    if(d.error){el.innerHTML='<div class="empty">'+e(d.error)+'</div>';return}
+    /* 카테고리 드롭다운 갱신 */
+    const sel=$g('faqCatFilter');
+    const cur=sel.value;
+    sel.innerHTML='<option value="all">전체 카테고리</option>'+(d.categories||[]).map(c=>'<option value="'+e(c.category||'기타')+'">'+e(c.category||'기타')+' ('+c.n+')</option>').join('');
+    sel.value=cur||'all';
+    if(!d.faqs||d.faqs.length===0){el.innerHTML='<div class="empty">FAQ 없음 — "🚀 마이그레이션" 버튼으로 _faq.js 에서 가져오세요</div>';return}
+    el.innerHTML=d.faqs.map(f=>{
+      const embMark=f.has_embedding?'<span style="background:#e0f5ec;color:#10b981;font-size:.68em;padding:1px 6px;border-radius:5px;font-weight:700">임베딩 ✓</span>':'<span style="background:#fee2e2;color:#f04452;font-size:.68em;padding:1px 6px;border-radius:5px;font-weight:700">임베딩 ✗</span>';
+      const actMark=f.active?'':'<span style="background:#e5e8eb;color:#8b95a1;font-size:.68em;padding:1px 6px;border-radius:5px;font-weight:700;margin-left:4px">비활성</span>';
+      const catMark=f.category?'<span style="background:#e8f3ff;color:#3182f6;font-size:.68em;padding:1px 6px;border-radius:5px;font-weight:700;margin-right:4px">'+e(f.category)+'</span>':'';
+      return '<div class="item" onclick="openFaqForm('+f.id+')" style="align-items:flex-start">'
+        +'<div style="flex-shrink:0;background:#f2f4f6;color:#6b7684;width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:700;font-size:.78em">Q'+(f.q_number||'?')+'</div>'
+        +'<div class="info">'
+          +'<div class="name">'+catMark+e(f.question)+actMark+'</div>'
+          +'<div class="meta" style="overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal">'+e(String(f.answer||'').slice(0,150))+'</div>'
+          +(f.law_refs?'<div class="meta" style="color:#3182f6;margin-top:3px">📖 '+e(f.law_refs)+'</div>':'')
+        +'</div>'
+        +'<div class="right">'+embMark+'</div>'
+        +'</div>';
+    }).join('');
+  }catch(err){el.innerHTML='<div class="empty">오류: '+e(err.message)+'</div>'}
+}
+
+function openFaqForm(id){
+  editingFaqId=id;
+  $g('faqFormErr').style.display='none';
+  if(id){
+    $g('faqFormTitle').textContent='FAQ 수정';
+    $g('faqFormDeleteBtn').style.display='inline-block';
+    $g('faqFormActiveLabel').style.display='flex';
+    /* 상세 로드 */
+    fetch('/api/admin-faq?key='+encodeURIComponent(KEY)+'&id='+id).then(r=>r.json()).then(d=>{
+      if(!d.faq)return;
+      $g('faqFormQnum').value=d.faq.q_number||'';
+      $g('faqFormCat').value=d.faq.category||'기타';
+      $g('faqFormQ').value=d.faq.question||'';
+      $g('faqFormA').value=d.faq.answer||'';
+      $g('faqFormLaw').value=d.faq.law_refs||'';
+      $g('faqFormActive').checked=d.faq.active!==0;
+    });
+  } else {
+    $g('faqFormTitle').textContent='새 FAQ 추가';
+    $g('faqFormDeleteBtn').style.display='none';
+    $g('faqFormActiveLabel').style.display='none';
+    $g('faqFormQnum').value='';
+    $g('faqFormCat').value='기타';
+    $g('faqFormQ').value='';
+    $g('faqFormA').value='';
+    $g('faqFormLaw').value='';
+    $g('faqFormActive').checked=true;
+  }
+  $g('faqFormModal').style.display='flex';
+}
+
+async function submitFaq(){
+  const err=$g('faqFormErr');err.style.display='none';
+  const question=$g('faqFormQ').value.trim();
+  const answer=$g('faqFormA').value.trim();
+  if(!question||!answer){err.textContent='질문과 답변을 입력해 주세요';err.style.display='block';return}
+  const payload={
+    q_number:$g('faqFormQnum').value?Number($g('faqFormQnum').value):null,
+    category:$g('faqFormCat').value,
+    question,answer,
+    law_refs:$g('faqFormLaw').value.trim()||null,
+    active:$g('faqFormActive').checked?1:0,
+  };
+  if(editingFaqId)payload.id=editingFaqId;
+  const action=editingFaqId?'update':'create';
+  try{
+    const r=await fetch('/api/admin-faq?key='+encodeURIComponent(KEY)+'&action='+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d=await r.json();
+    if(!d.ok){err.textContent=d.error||'저장 실패';err.style.display='block';return}
+    if(d.warning)alert('⚠️ '+d.warning);
+    $g('faqFormModal').style.display='none';
+    loadFaqStatus();loadFaqs();
+  }catch(er){err.textContent='오류: '+er.message;err.style.display='block'}
+}
+
+async function deleteFaq(){
+  if(!editingFaqId)return;
+  if(!confirm('이 FAQ를 영구 삭제합니다. 계속할까요?'))return;
+  try{
+    const r=await fetch('/api/admin-faq?key='+encodeURIComponent(KEY)+'&action=delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:editingFaqId})});
+    const d=await r.json();
+    if(d.ok){$g('faqFormModal').style.display='none';loadFaqStatus();loadFaqs()}
+    else alert('실패: '+(d.error||'unknown'));
+  }catch(er){alert('오류: '+er.message)}
+}
+
+async function migrateFaqs(){
+  if(!confirm('_faq.js 하드코딩 FAQ를 D1로 이관하고 임베딩을 생성합니다.\n기존 동일 내용은 스킵, 변경된 것만 재임베딩.\n\n계속할까요?'))return;
+  const btn=event?event.target:null;
+  if(btn){btn.disabled=true;btn.textContent='마이그레이션 중...'}
+  try{
+    const r=await fetch('/api/admin-faq-migrate?key='+encodeURIComponent(KEY),{method:'POST'});
+    const d=await r.json();
+    if(d.error){alert('실패: '+d.error);return}
+    alert('✅ 완료\n\n파싱: '+d.parsed_count+'건\n신규: '+d.inserted+'건\n수정: '+d.updated+'건\n임베딩: '+d.embedded+'건\n스킵: '+d.skipped+'건\n실패: '+d.failed+'건');
+    loadFaqStatus();loadFaqs();
+  }catch(er){alert('오류: '+er.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent='🚀 마이그레이션'}}
+}
+
+async function reembedAllFaqs(){
+  if(!confirm('활성 FAQ 전체를 재임베딩합니다.\n(API 비용 소량 발생 + 시간 걸림)\n\n계속할까요?'))return;
+  const btn=event?event.target:null;
+  if(btn){btn.disabled=true;btn.textContent='재임베딩 중...'}
+  try{
+    const r=await fetch('/api/admin-faq?key='+encodeURIComponent(KEY)+'&action=reembed_all',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const d=await r.json();
+    if(d.error){alert('실패: '+d.error);return}
+    alert('✅ 완료\n\n재임베딩: '+d.reembedded+'건\n실패: '+d.failed+'건');
+    loadFaqStatus();loadFaqs();
+  }catch(er){alert('오류: '+er.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent='♻️ 전체 재임베딩'}}
 }
