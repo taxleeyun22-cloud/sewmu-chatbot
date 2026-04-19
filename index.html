@@ -804,7 +804,13 @@ function showChat(){
       var rid=qp.get('room');
       if(rid){
         setTimeout(function(){openMyRoom(rid)},400);
-        history.replaceState(null,'',location.pathname);
+        history.replaceState(null,'',location.pathname+location.hash);
+      }
+    }catch{}
+    /* URL hash로 마지막 탭 복원 (새로고침해도 내정보 그대로) */
+    try{
+      if(location.hash==='#mypage'){
+        switchTab('mypage');
       }
     }catch{}
     // 세금 기한 알림 (인라인)
@@ -1092,6 +1098,13 @@ function switchTab(tab){
   var logo=document.querySelector('.header-logo');
   if(logo)logo.style.display=isMy?'none':'inline-block';
   if(isMy)loadMyPage();
+  /* 새로고침해도 현재 탭 유지되도록 URL hash 갱신 */
+  try{
+    var newHash=isMy?'#mypage':'';
+    if(location.hash!==newHash){
+      history.replaceState(null,'',location.pathname+location.search+newHash);
+    }
+  }catch{}
 }
 
 /* ===== 상담방 기능 ===== */
