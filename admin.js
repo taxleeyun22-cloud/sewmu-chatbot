@@ -1465,9 +1465,11 @@ function openFaqForm(id){
 }
 
 async function submitFaq(){
+  console.log('[submitFaq] clicked, editingFaqId=', editingFaqId);
   const err=$g('faqFormErr');err.style.display='none';
   const question=$g('faqFormQ').value.trim();
   const answer=$g('faqFormA').value.trim();
+  console.log('[submitFaq] Q len:', question.length, 'A len:', answer.length);
   if(!question||!answer){err.textContent='질문과 답변을 입력해 주세요';err.style.display='block';return}
   const payload={
     q_number:$g('faqFormQnum').value?Number($g('faqFormQnum').value):null,
