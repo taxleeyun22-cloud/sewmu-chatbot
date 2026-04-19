@@ -1497,6 +1497,11 @@ if(cm){const c=cm[1];const cls=c==='높음'?'high':c==='보통'?'medium':'low';c
 }
 return '<div class="msg '+e(m.role)+'">'+renderMsgBody(m.content)+'<div class="ts">'+(m.role==='user'?'사용자':'AI')+conf+' · '+e(m.created_at||'')+'</div></div>';
 }).join('');
+/* 최신 메시지로 스크롤 (카톡 스타일) */
+setTimeout(function(){
+  el.scrollTop=el.scrollHeight;
+  window.scrollTo(0,document.body.scrollHeight);
+},50);
 }
 
 function backToList(){
