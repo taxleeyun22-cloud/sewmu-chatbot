@@ -1,0 +1,125 @@
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-height:100vh}
+.wrap{max-width:800px;margin:0 auto;padding:20px}
+
+/* 로그인 */
+.login{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:100%;max-width:360px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.login-box h1{font-size:1.3em;margin-bottom:8px}
+.login-box p{font-size:.85em;color:#8b95a1;margin-bottom:24px}
+.login-box input{width:100%;padding:14px;border:1px solid #e5e8eb;border-radius:12px;font-size:.9em;outline:none;font-family:inherit}
+.login-box input:focus{border-color:#3182f6}
+.login-box button{width:100%;margin-top:12px;padding:14px;background:#3182f6;color:#fff;border:none;border-radius:12px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit}
+.login-err{color:#f04452;font-size:.8em;margin-top:10px;display:none}
+
+/* 헤더 */
+.hdr{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.hdr h1{font-size:1.1em;font-weight:700}
+.hdr .tabs{display:flex;gap:6px;margin-left:12px;flex-wrap:wrap}
+.hdr .tabs button{background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500}
+.hdr .tabs button.on{background:#3182f6;color:#fff}
+.hdr .logout{margin-left:auto;background:none;border:1px solid #e5e8eb;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1}
+.staff-badge{background:#8b6914;color:#fff;padding:3px 10px;border-radius:12px;font-size:.7em;font-weight:700;margin-left:8px}
+
+/* 리스트 */
+.item{display:flex;align-items:center;gap:14px;padding:16px;background:#fff;border-radius:12px;margin-bottom:8px;cursor:pointer;transition:.15s;box-shadow:0 1px 4px rgba(0,0,0,.03)}
+.item:hover{background:#f8f9fa}
+.avatar{width:40px;height:40px;border-radius:50%;background:#3182f6;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.8em;font-weight:600;overflow:hidden;flex-shrink:0}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.info{flex:1;min-width:0}
+.info .name{font-size:.9em;font-weight:600}
+.info .meta{font-size:.72em;color:#8b95a1;margin-top:2px}
+.badge{font-size:.7em;background:#e8f3ff;color:#3182f6;padding:2px 8px;border-radius:8px;font-weight:600}
+.right{text-align:right;flex-shrink:0}
+.right .time{font-size:.72em;color:#8b95a1}
+.right .cnt{font-size:.72em;color:#3182f6;font-weight:600}
+.empty{text-align:center;padding:60px;color:#8b95a1}
+
+/* 상세 */
+.detail{display:none}
+.back{background:none;border:none;font-size:1em;cursor:pointer;padding:4px 8px;border-radius:8px;margin-bottom:16px}
+.back:hover{background:#e5e8eb}
+.msg{padding:14px 18px;border-radius:12px;font-size:.88em;line-height:1.7;margin-bottom:6px;max-width:85%;white-space:pre-wrap;word-break:break-word}
+.msg.user{background:#3182f6;color:#fff;margin-left:auto;border-radius:16px 4px 16px 16px}
+.msg.assistant{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.03);border-radius:4px 16px 16px 16px}
+.msg .ts{font-size:.65em;opacity:.5;margin-top:6px}
+
+/* 분석 */
+.analytics{display:none}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.stat{background:#fff;border-radius:12px;padding:16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.03)}
+.stat .n{font-size:1.6em;font-weight:700;color:#3182f6}
+.stat .l{font-size:.72em;color:#8b95a1;margin-top:2px}
+.sec{font-size:.95em;font-weight:700;margin:20px 0 10px}
+.bar-item{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.bar-label{width:100px;font-size:.82em;font-weight:500;flex-shrink:0}
+.bar-track{flex:1;height:24px;background:#e5e8eb;border-radius:6px;overflow:hidden}
+.bar-fill{height:100%;background:#3182f6;border-radius:6px;display:flex;align-items:center;padding-left:8px;font-size:.7em;color:#fff;font-weight:600;min-width:20px}
+.bar-cnt{width:40px;text-align:right;font-size:.8em;color:#8b95a1;flex-shrink:0}
+.kw-wrap{display:flex;flex-wrap:wrap;gap:6px}
+.kw{background:#fff;padding:6px 14px;border-radius:14px;font-size:.82em;box-shadow:0 1px 4px rgba(0,0,0,.03)}
+.kw b{color:#3182f6;margin-left:4px}
+
+/* 신뢰도 뱃지 */
+.conf{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.68em;font-weight:700;margin-left:4px}
+.conf.high{background:#e0f5ec;color:#10b981}
+.conf.medium{background:#fef3c7;color:#b45309}
+.conf.low{background:#fee2e2;color:#dc2626}
+
+/* 검증 탭 */
+.review{display:none}
+.review-filters{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.review-filters button{background:#fff;border:1px solid #e5e8eb;padding:6px 12px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500}
+.review-filters button.on{background:#3182f6;color:#fff;border-color:#3182f6}
+.review-card{background:#fff;border-radius:12px;padding:16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.03)}
+.review-card .r-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.78em;color:#8b95a1}
+.review-card .r-q{background:#f2f4f6;padding:10px 14px;border-radius:8px;font-size:.85em;margin-bottom:8px;font-weight:500}
+.review-card .r-q::before{content:"Q. ";color:#3182f6;font-weight:700}
+.review-card .r-a{font-size:.85em;line-height:1.6;white-space:pre-wrap;padding:4px 2px;max-height:200px;overflow-y:auto}
+.review-card .r-actions{display:flex;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #f2f4f6;flex-wrap:wrap}
+.review-card .r-actions button{flex:1;padding:8px;border:none;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit;min-width:110px}
+.review-card .btn-ok{background:#e0f5ec;color:#10b981}
+.review-card .btn-fix{background:#fef3c7;color:#b45309}
+.review-card .btn-del{background:#fee2e2;color:#dc2626}
+.review-card .conf-set{flex:1;min-width:130px;padding:8px;border:1px solid #e5e8eb;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit;background:#f9fafb;color:#4b5563}
+
+/* 전역 검색 */
+.sr-group{margin-bottom:14px}
+.sr-title{font-size:.78em;font-weight:700;color:#555;margin-bottom:6px;padding:0 4px}
+.sr-item{background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:10px 12px;margin-bottom:6px;font-size:.85em;cursor:pointer;transition:background .15s}
+.sr-item:hover{background:#f2f4f6}
+.sr-sub{font-size:.75em;color:#8b95a1;margin-top:3px}
+
+/* 상담방 정보 탭 */
+.ri-tab{flex:1;background:#fff;border:none;padding:10px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit;color:#8b95a1;border-bottom:2px solid transparent}
+.ri-tab.on{color:#3182f6;border-bottom-color:#3182f6}
+.ri-panel{min-height:200px}
+.ri-photo{aspect-ratio:1;background:#e5e8eb;border-radius:6px;overflow:hidden;cursor:pointer}
+.ri-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.ri-link-item{background:#fff;border:1px solid #e5e8eb;border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:.8em}
+.ri-link-item a{color:#3182f6;word-break:break-all;text-decoration:none}
+.ri-link-item a:hover{text-decoration:underline}
+.ri-link-item .ri-meta{font-size:.72em;color:#8b95a1;margin-top:4px}
+.ri-match{background:#fff;border:1px solid #e5e8eb;border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:.8em}
+.ri-match .ri-who{font-size:.72em;color:#8b95a1;margin-bottom:3px}
+.ri-match mark{background:#fef3c7;color:inherit;padding:0 2px;border-radius:2px}
+
+/* 직원 모드: owner 전용 탭/기능 숨김 (admin.html 공유 시 사용 안 함, staff.html은 그냥 없음) */
+body.staff-mode .owner-only{display:none !important}
+
+/* 상담방 모바일 반응형 */
+#roomsBackBtn{display:none}
+@media(max-width:768px){
+  #roomsLayout{flex-direction:column;height:calc(100vh - 160px) !important}
+  #roomsLayout > .room-list-panel{width:100% !important;max-height:none;flex:1}
+  #roomsLayout > .room-chat-panel{display:none !important}
+  #roomsLayout.show-chat > .room-list-panel{display:none !important}
+  #roomsLayout.show-chat > .room-chat-panel{display:flex !important;width:100%;flex:1;border-radius:0 !important;box-shadow:none !important}
+  #roomsBackBtn{display:inline-flex;align-items:center;background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;flex-shrink:0}
+  #roomChatHeader{flex-wrap:wrap}
+  #roomActions{flex-wrap:wrap;justify-content:flex-end;gap:4px !important}
+  #roomActions button{font-size:.7em !important;padding:4px 7px !important}
+  #roomInputArea{padding:10px 10px max(10px, env(safe-area-inset-bottom)) !important;gap:6px !important}
+  #roomInput{font-size:16px !important}
+}
+@media(max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}}

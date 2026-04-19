@@ -3,42 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>관리자 - 세무회계 이윤</title>
+<title>직원 관리자 - 세무회계 이윤</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/admin.css">
 </head>
-<body>
+<body class="staff-mode">
 
-<!-- 로그인 -->
-<div class="login" id="loginView">
-<div class="login-box">
-<h1>관리자</h1>
-<p>세무회계 이윤 챗봇 관리</p>
-<input type="password" id="keyInput" placeholder="관리자 키" onkeydown="if(event.key==='Enter')login()">
-<button onclick="login()">로그인</button>
-<div class="login-err" id="err">키를 확인해주세요</div>
-</div>
-</div>
-
-<!-- 메인 -->
+<!-- 메인 (세션 기반 자동 진입) -->
 <div class="wrap" id="mainView" style="display:none">
 <div class="hdr">
-<h1>관리자</h1>
+<h1>관리자<span class="staff-badge">직원</span></h1>
 <div class="tabs">
-<button class="on" id="tabChat" onclick="tab('chat')">대화</button>
+<button class="on" id="tabRooms" onclick="tab('rooms')">💬 상담방</button>
 <button id="tabLive" onclick="tab('live')" style="position:relative">📡 실시간<span id="liveBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
-<button id="tabRooms" onclick="tab('rooms')">💬 상담방</button>
-<button id="tabUsers" onclick="tab('users')">사용자<span id="pendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
-<button id="tabAnal" onclick="tab('anal')">분석</button>
-<button id="tabReview" onclick="tab('review')">검증 <span id="reviewBadge" style="display:none;background:#f04452;color:#fff;padding:1px 6px;border-radius:10px;font-size:.9em;margin-left:2px"></span></button>
+<button id="tabClients" onclick="tab('clients')">🏢 거래처</button>
 </div>
 <button class="logout" onclick="openSearch()" style="margin-left:auto" title="전역 검색">🔍 검색</button>
-<button class="logout" onclick="logout()">로그아웃</button>
+<button class="logout" onclick="staffLogout()">로그아웃</button>
 </div>
-
 <!-- 전역 검색 모달 -->
 <div id="searchModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">
@@ -52,27 +35,84 @@
   </div>
 </div>
 
-<div id="chatView">
-<div id="list"></div>
+<!-- 상담방 (단톡방) -->
+<div id="roomsView" style="display:none">
+<div id="roomsLayout" style="display:flex;gap:14px;height:calc(100vh - 180px);min-height:500px">
+  <!-- 좌: 방 목록 + 생성 버튼 -->
+  <div class="room-list-panel" style="width:300px;background:#fff;border-radius:12px;padding:10px;overflow-y:auto;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.03);display:flex;flex-direction:column">
+    <button onclick="openCreateRoom()" style="background:#3182f6;color:#fff;border:none;padding:10px;border-radius:8px;font-size:.85em;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:8px">＋ 상담방 개설</button>
+    <div id="roomList" style="flex:1;overflow-y:auto"></div>
+  </div>
+  <!-- 우: 방 대화창 -->
+  <div class="room-chat-panel" style="flex:1;background:#fff;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.03);min-width:0">
+    <div id="roomChatHeader" style="padding:12px 16px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;gap:6px">
+      <button id="roomsBackBtn" onclick="closeRoomOnMobile()">← 목록</button>
+      <div id="roomChatTitle" style="font-size:.9em;color:#8b95a1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">좌측 상담방을 선택하세요</div>
+      <div id="roomActions" style="display:none;gap:6px">
+        <button onclick="openRoomInfo()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" title="미디어·링크·검색">📂 정보</button>
+        <button onclick="renameRoom()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" title="이름 변경">✏️ 이름</button>
+        <button onclick="addMemberPrompt()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit">＋ 멤버</button>
+        <button onclick="toggleRoomStatus()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" id="roomStatusBtn">종료</button>
+        <button onclick="deleteCurrentRoom()" style="background:#fee2e2;color:#f04452;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit">🗑️ 삭제</button>
+      </div>
+    </div>
+    <div id="roomMembers" style="display:none;padding:8px 16px;border-bottom:1px solid #e5e8eb;background:#f9fafb;font-size:.75em;color:#555"></div>
+    <div id="roomMessages" style="flex:1;overflow-y:auto;padding:14px 16px;background:#f9fafb"></div>
+    <div id="roomInputArea" style="display:none;padding:10px 12px;border-top:1px solid #e5e8eb;display:flex;gap:8px;align-items:center">
+      <label for="roomFileInput" title="사진 첨부" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;line-height:0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      </label>
+      <input id="roomFileInput" type="file" accept="image/*" onchange="sendRoomImage(this)" style="display:none">
+      <label for="roomDocInput" title="파일 첨부" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;line-height:0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+      </label>
+      <input id="roomDocInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip" onchange="sendRoomFile(this)" style="display:none">
+      <input id="roomInput" type="text" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter')sendRoomMessage()" style="flex:1;min-width:0;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit">
+      <button onclick="sendRoomMessage()" style="background:#3182f6;color:#fff;border:none;padding:10px 16px;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">전송</button>
+    </div>
+  </div>
+</div>
 </div>
 
-<div class="detail" id="detailView">
-<button class="back" onclick="backToList()">← 목록</button>
-<div id="msgs"></div>
+<!-- 실시간 대화 개입 -->
+<div id="liveView" style="display:none">
+<div style="display:flex;gap:14px;height:calc(100vh - 180px);min-height:500px">
+  <!-- 좌: 세션 목록 -->
+  <div style="width:280px;background:#fff;border-radius:12px;padding:10px;overflow-y:auto;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+    <div style="padding:6px 10px;font-size:.78em;color:#8b95a1;font-weight:600;display:flex;justify-content:space-between;align-items:center">
+      <span>최근 30분 활성 세션</span>
+      <span id="liveTotalUnread" style="display:none;background:#f04452;color:#fff;border-radius:8px;padding:1px 8px;font-size:.9em"></span>
+    </div>
+    <div id="liveSessionList" style="margin-top:6px"></div>
+  </div>
+  <!-- 우: 대화창 -->
+  <div style="flex:1;background:#fff;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+    <div id="liveChatHeader" style="padding:12px 16px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
+      <div id="liveChatTitle" style="font-size:.9em;color:#8b95a1">좌측 세션을 선택하세요</div>
+      <div id="liveAiToggle" style="display:none">
+        <label style="display:flex;align-items:center;gap:6px;font-size:.78em;cursor:pointer">
+          <input type="checkbox" id="liveAiOn" onchange="toggleAiMode(this.checked)" checked>
+          <span>🤖 AI 자동답변</span>
+        </label>
+      </div>
+    </div>
+    <div id="liveMessages" style="flex:1;overflow-y:auto;padding:14px 16px;background:#f9fafb"></div>
+    <div id="liveInputArea" style="display:none;padding:10px 12px;border-top:1px solid #e5e8eb;display:flex;gap:8px">
+      <input id="liveInput" type="text" placeholder="거래처에게 직접 답변..." onkeydown="if(event.key==='Enter')sendLiveMessage()" style="flex:1;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit">
+      <button onclick="sendLiveMessage()" style="background:#3182f6;color:#fff;border:none;padding:10px 18px;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit">전송</button>
+    </div>
+  </div>
+</div>
 </div>
 
-<div class="analytics" id="analView"></div>
 
-<!-- 사용자 승인 관리 -->
-<div id="usersView" style="display:none">
-<div class="tabs" style="margin-bottom:14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-<button class="on" id="uStPending" onclick="userStatus('pending')" style="background:#f04452;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#fff;font-weight:500">대기 <span id="cPending">0</span></button>
-<button id="uStClient" onclick="userStatus('approved_client')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">기장거래처 <span id="cClient">0</span></button>
-<button id="uStGuest" onclick="userStatus('approved_guest')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">일반승인 <span id="cGuest">0</span></button>
-<button id="uStRejected" onclick="userStatus('rejected')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">거절 <span id="cRejected">0</span></button>
-<button onclick="showBulkUpload()" style="margin-left:auto;background:#191f28;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📤 CSV 일괄 업로드</button>
+<!-- 거래처 사업장 관리 (직원용 간소화) -->
+<div id="clientsView" style="display:none">
+<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+<input id="clientsSearchInput" type="text" placeholder="이름·전화·사업자명으로 검색..." oninput="onClientsSearchInput()" style="flex:1;min-width:200px;padding:9px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit;outline:none">
+<span style="font-size:.75em;color:#8b95a1">기장거래처만 표시</span>
 </div>
-<div id="userList"></div>
+<div id="clientsList"><div class="empty">불러오는 중...</div></div>
 </div>
 
 <!-- 거래처 사업장 관리 모달 (복수 지원) -->
@@ -114,72 +154,6 @@
 <button id="pmDeleteBtn" onclick="deleteBusiness()" style="display:none;background:#fee2e2;color:#f04452;border:none;padding:11px 16px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">🗑️ 삭제</button>
 </div>
 </div>
-</div>
-</div>
-
-<!-- CSV 일괄 업로드 모달 -->
-<div id="bulkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
-<div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-<h3 style="font-size:1.1em;margin:0">📤 거래처 CSV 일괄 업로드</h3>
-<button onclick="closeBulkModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#8b95a1">✕</button>
-</div>
-<p style="font-size:.85em;color:#555;margin:0 0 8px">위하고/세무사랑에서 거래처 목록 <b>Excel 다운로드 → CSV 저장</b> 후 업로드</p>
-<div style="background:#f2f4f6;padding:10px 12px;border-radius:8px;font-size:.72em;color:#555;margin-bottom:12px;line-height:1.55">
-<b>지원 컬럼명 (순서 무관, 한 줄 헤더):</b><br>
-상호, 사업자번호, 대표자, 업종, 사업형태, 과세유형, 개업일, 주소, 전화, 직원수, 매출, 부가세주기, 메모<br>
-<span style="color:#8b95a1">* 영문도 인식: company_name, business_number, ceo_name, industry, business_type, tax_type, establishment_date, address, phone, employee_count, last_revenue, vat_period, notes</span>
-</div>
-<input type="file" id="bulkFile" accept=".csv,.txt" onchange="previewCSV(this)" style="width:100%;padding:9px;border:1px dashed #3182f6;border-radius:8px;font-family:inherit">
-<div id="bulkPreview" style="margin-top:12px;font-size:.8em;color:#555"></div>
-<label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:.85em">
-<input type="checkbox" id="bulkAutoApprove" checked>
-<span>사업자번호·연락처 매칭되는 기존 가입자를 <b>기장거래처로 자동 승격</b></span>
-</label>
-<div style="display:flex;gap:8px;margin-top:14px">
-<button id="bulkUploadBtn" onclick="submitBulk()" disabled style="flex:1;background:#3182f6;color:#fff;border:none;padding:11px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit;opacity:.5">업로드</button>
-<button onclick="closeBulkModal()" style="background:#e5e8eb;color:#555;border:none;padding:11px 20px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
-</div>
-<div id="bulkResult" style="margin-top:14px"></div>
-</div>
-</div>
-
-<!-- 상담방 (단톡방) -->
-<div id="roomsView" style="display:none">
-<div id="roomsLayout" style="display:flex;gap:14px;height:calc(100vh - 180px);min-height:500px">
-  <!-- 좌: 방 목록 + 생성 버튼 -->
-  <div class="room-list-panel" style="width:300px;background:#fff;border-radius:12px;padding:10px;overflow-y:auto;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.03);display:flex;flex-direction:column">
-    <button onclick="openCreateRoom()" style="background:#3182f6;color:#fff;border:none;padding:10px;border-radius:8px;font-size:.85em;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:8px">＋ 상담방 개설</button>
-    <div id="roomList" style="flex:1;overflow-y:auto"></div>
-  </div>
-  <!-- 우: 방 대화창 -->
-  <div class="room-chat-panel" style="flex:1;background:#fff;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.03);min-width:0">
-    <div id="roomChatHeader" style="padding:12px 16px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;gap:6px">
-      <button id="roomsBackBtn" onclick="closeRoomOnMobile()">← 목록</button>
-      <div id="roomChatTitle" style="font-size:.9em;color:#8b95a1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">좌측 상담방을 선택하세요</div>
-      <div id="roomActions" style="display:none;gap:6px">
-        <button onclick="openRoomInfo()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" title="미디어·링크·검색">📂 정보</button>
-        <button onclick="renameRoom()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" title="이름 변경">✏️ 이름</button>
-        <button onclick="addMemberPrompt()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit">＋ 멤버</button>
-        <button onclick="toggleRoomStatus()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" id="roomStatusBtn">종료</button>
-        <button onclick="deleteCurrentRoom()" style="background:#fee2e2;color:#f04452;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit">🗑️ 삭제</button>
-      </div>
-    </div>
-    <div id="roomMembers" style="display:none;padding:8px 16px;border-bottom:1px solid #e5e8eb;background:#f9fafb;font-size:.75em;color:#555"></div>
-    <div id="roomMessages" style="flex:1;overflow-y:auto;padding:14px 16px;background:#f9fafb"></div>
-    <div id="roomInputArea" style="display:none;padding:10px 12px;border-top:1px solid #e5e8eb;display:flex;gap:8px;align-items:center">
-      <label for="roomFileInput" title="사진 첨부" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;line-height:0">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-      </label>
-      <input id="roomFileInput" type="file" accept="image/*" onchange="sendRoomImage(this)" style="display:none">
-      <label for="roomDocInput" title="파일 첨부" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;line-height:0">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
-      </label>
-      <input id="roomDocInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip" onchange="sendRoomFile(this)" style="display:none">
-      <input id="roomInput" type="text" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter')sendRoomMessage()" style="flex:1;min-width:0;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit">
-      <button onclick="sendRoomMessage()" style="background:#3182f6;color:#fff;border:none;padding:10px 16px;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">전송</button>
-    </div>
-  </div>
 </div>
 </div>
 
@@ -286,53 +260,102 @@
 </div>
 </div>
 
-<!-- 실시간 대화 개입 -->
-<div id="liveView" style="display:none">
-<div style="display:flex;gap:14px;height:calc(100vh - 180px);min-height:500px">
-  <!-- 좌: 세션 목록 -->
-  <div style="width:280px;background:#fff;border-radius:12px;padding:10px;overflow-y:auto;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.03)">
-    <div style="padding:6px 10px;font-size:.78em;color:#8b95a1;font-weight:600;display:flex;justify-content:space-between;align-items:center">
-      <span>최근 30분 활성 세션</span>
-      <span id="liveTotalUnread" style="display:none;background:#f04452;color:#fff;border-radius:8px;padding:1px 8px;font-size:.9em"></span>
-    </div>
-    <div id="liveSessionList" style="margin-top:6px"></div>
-  </div>
-  <!-- 우: 대화창 -->
-  <div style="flex:1;background:#fff;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.03)">
-    <div id="liveChatHeader" style="padding:12px 16px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
-      <div id="liveChatTitle" style="font-size:.9em;color:#8b95a1">좌측 세션을 선택하세요</div>
-      <div id="liveAiToggle" style="display:none">
-        <label style="display:flex;align-items:center;gap:6px;font-size:.78em;cursor:pointer">
-          <input type="checkbox" id="liveAiOn" onchange="toggleAiMode(this.checked)" checked>
-          <span>🤖 AI 자동답변</span>
-        </label>
-      </div>
-    </div>
-    <div id="liveMessages" style="flex:1;overflow-y:auto;padding:14px 16px;background:#f9fafb"></div>
-    <div id="liveInputArea" style="display:none;padding:10px 12px;border-top:1px solid #e5e8eb;display:flex;gap:8px">
-      <input id="liveInput" type="text" placeholder="거래처에게 직접 답변..." onkeydown="if(event.key==='Enter')sendLiveMessage()" style="flex:1;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit">
-      <button onclick="sendLiveMessage()" style="background:#3182f6;color:#fff;border:none;padding:10px 18px;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit">전송</button>
-    </div>
-  </div>
-</div>
-</div>
+</div><!-- /mainView -->
 
-<!-- 검증 (답변 품질 관리) -->
-<div class="review" id="reviewView">
-<div class="review-filters">
-<button class="on" id="fltPending" onclick="filt('pending')">⚠️ 검증 대기</button>
-<button id="fltMedium" onclick="filt('medium')">🟡 보통</button>
-<button id="fltLow" onclick="filt('low')">🔴 낮음</button>
-<button id="fltReported" onclick="filt('reported')">📢 신고</button>
-<button id="fltAll" onclick="filt('all')">전체</button>
-<button onclick="migrateConf()" style="margin-left:auto;background:#e5e8eb;color:#555;font-size:.72em">🔄 기존답변 분류</button>
-<button onclick="syncGithub()" style="background:#191f28;color:#fff;font-size:.72em">🚀 Claude 호출</button>
-<button onclick="bulkReview()" style="background:#10b981;color:#fff;font-size:.72em">✅ 일괄 처리완료</button>
-</div>
-<div id="reviewList"></div>
+<!-- 미승인 접근 차단 안내 -->
+<div id="notAuthView" style="display:none;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+<div style="background:#fff;border-radius:16px;padding:40px;max-width:360px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.04)">
+<h2 style="font-size:1.1em;margin-bottom:10px">접근 권한이 없습니다</h2>
+<p style="font-size:.85em;color:#8b95a1;margin-bottom:20px">관리자 승인을 받은 계정으로 로그인해 주세요.</p>
+<a href="/" style="display:inline-block;background:#3182f6;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:.88em;font-weight:600">홈으로</a>
 </div>
 </div>
 
 <script src="/admin.js"></script>
+<script>
+/* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
+IS_OWNER=false;
+
+async function staffBoot(){
+  try{
+    const r=await fetch('/api/auth/me');
+    const d=await r.json();
+    if(!d.logged_in||!d.user||!d.user.is_admin){
+      document.getElementById('notAuthView').style.display='flex';
+      return;
+    }
+    KEY='';
+    document.getElementById('mainView').style.display='block';
+    if(typeof loadRoomList==='function'){try{loadRoomList()}catch(e){}}
+    if(typeof refreshLiveBadge==='function'){try{refreshLiveBadge();setInterval(refreshLiveBadge,10000)}catch(e){}}
+    tab('rooms');
+  }catch(e){
+    document.getElementById('notAuthView').style.display='flex';
+  }
+}
+
+/* admin.js의 tab()에 거래처 탭 추가 처리 */
+(function(){
+  const _origTab=tab;
+  tab=function(t){
+    try{_origTab(t)}catch(e){}
+    const cv=document.getElementById('clientsView');
+    if(cv)cv.style.display=t==='clients'?'block':'none';
+    const tc=document.getElementById('tabClients');
+    if(tc)tc.className=t==='clients'?'on':'';
+    /* staff 탭 활성 표시 */
+    const tr=document.getElementById('tabRooms');if(tr)tr.className=t==='rooms'?'on':'';
+    const tl=document.getElementById('tabLive');if(tl)tl.className=t==='live'?'on':'';
+    if(t==='clients')loadClients();
+  };
+})();
+
+/* 거래처 목록 (approved_client만) */
+let clientsTimer=null;
+function onClientsSearchInput(){
+  if(clientsTimer)clearTimeout(clientsTimer);
+  clientsTimer=setTimeout(loadClients,250);
+}
+async function loadClients(){
+  const el=document.getElementById('clientsList');
+  el.innerHTML='<div class="empty">불러오는 중...</div>';
+  try{
+    const q=document.getElementById('clientsSearchInput').value.trim();
+    const r=await fetch('/api/admin-approve?status=approved_client');
+    const d=await r.json();
+    if(d.error){el.innerHTML='<div class="empty">'+e(d.error)+'</div>';return}
+    let users=d.users||[];
+    if(q){
+      const qL=q.toLowerCase();
+      users=users.filter(u=>{
+        return (u.real_name||'').toLowerCase().includes(qL)
+          ||(u.name||'').toLowerCase().includes(qL)
+          ||(u.phone||'').includes(q)
+          ||(u.email||'').toLowerCase().includes(qL);
+      });
+    }
+    if(users.length===0){el.innerHTML='<div class="empty">'+(q?'검색 결과 없음':'등록된 기장거래처 없음')+'</div>';return}
+    el.innerHTML=users.map(u=>{
+      const nm=u.real_name||u.name||'이름없음';
+      const av=u.profile_image?'<img src="'+e(u.profile_image)+'" alt="">':nm[0];
+      const phone=u.phone?' · '+e(u.phone):'';
+      return '<div class="item" onclick="openProfile('+u.id+',\''+e(nm).replace(/\'/g,"")+'\')">'
+        +'<div class="avatar">'+av+'</div>'
+        +'<div class="info"><div class="name">'+e(nm)+'</div>'
+        +'<div class="meta">'+e(u.email||'')+phone+'</div></div>'
+        +'<div class="right"><div class="cnt">📋 거래처정보</div></div>'
+        +'</div>';
+    }).join('');
+  }catch(err){el.innerHTML='<div class="empty">오류: '+e(err.message)+'</div>'}
+}
+
+/* 로그아웃: 카톡/네이버 세션 종료 후 홈으로 */
+async function staffLogout(){
+  try{await fetch('/api/auth/logout',{method:'POST'})}catch(e){}
+  location.replace('/');
+}
+
+staffBoot();
+</script>
 </body>
 </html>
