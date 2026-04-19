@@ -1018,6 +1018,7 @@ ${clientContext}${lawContext ? "\n\n===== 참고 법령 조문 =====" + lawConte
 
     // 백그라운드에서 검색 + GPT 스트리밍 처리
     const process = async () => {
+      let fullResponse = "";  // catch에서도 접근 가능하도록 외부 선언
       try {
         // 1단계: 키워드 추출
         await sendStatus("질문 분석 중...");
@@ -1088,10 +1089,18 @@ ${clientContext}${lawContext ? "\n\n===== 참고 법령 조문 =====" + lawConte
         });
 
         // GPT 스트림 전달
+        // 중요: writer(클라이언트 연결)가 끊겨도 reader(OpenAI 연결)는 끝까지 읽어서
+        //       fullResponse 완성 → DB 저장. 사용자가 돌아오면 대화 이력에 답변 들어있음.
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = "";
-        let fullResponse = "";
+        let clientAlive = true;
+
+        const safeWrite = async (payload) => {
+          if (!clientAlive) return;
+          try { await writer.write(enc.encode(payload)); }
+          catch { clientAlive = false; }
+        };
 
         while (true) {
           const { done, value } = await reader.read();
@@ -1108,24 +1117,32 @@ ${clientContext}${lawContext ? "\n\n===== 참고 법령 조문 =====" + lawConte
                 const content = json.choices?.[0]?.delta?.content || "";
                 if (content) {
                   fullResponse += content;
-                  await writer.write(enc.encode("data: " + JSON.stringify({ content }) + "\n\n"));
+                  await safeWrite("data: " + JSON.stringify({ content }) + "\n\n");
                 }
               } catch {}
             }
           }
         }
 
-        // DB 저장
+        // DB 저장 — writer 상태와 무관하게 무조건 저장
         if (db && fullResponse) {
-          try { await saveMessage(db, sessionId, "assistant", fullResponse, userId); } catch {}
+          try { await saveMessage(db, sessionId, "assistant", fullResponse, userId); } catch (e) { console.error("saveMessage error", e); }
         }
 
-        await writer.write(enc.encode("data: [DONE]\n\n"));
-        await writer.close();
+        await safeWrite("data: [DONE]\n\n");
+        try { await writer.close(); } catch {}
       } catch (e) {
-        await writer.write(enc.encode("data: " + JSON.stringify({ content: "\n\n오류가 발생했습니다: " + e.message }) + "\n\n"));
-        await writer.write(enc.encode("data: [DONE]\n\n"));
-        await writer.close();
+        // 에러 발생해도 지금까지 쌓인 fullResponse 있으면 저장
+        try {
+          if (db && fullResponse) {
+            await saveMessage(db, sessionId, "assistant", fullResponse, userId);
+          }
+        } catch {}
+        try {
+          await writer.write(enc.encode("data: " + JSON.stringify({ content: "\n\n오류가 발생했습니다: " + e.message }) + "\n\n"));
+          await writer.write(enc.encode("data: [DONE]\n\n"));
+        } catch {}
+        try { await writer.close(); } catch {}
       }
     };
 
