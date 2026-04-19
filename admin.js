@@ -68,6 +68,11 @@ refreshPendingBadge();
 refreshLiveBadge();
 setInterval(refreshPendingBadge,30000);
 setInterval(refreshLiveBadge,10000);
+/* 이전 탭 복원 (유효한 owner 탭만) */
+try{
+  var saved=localStorage.getItem('admin_last_tab');
+  if(saved&&['chat','live','rooms','users','anal','review'].indexOf(saved)>=0)tab(saved);
+}catch{}
 return true;
 }catch{
 try{localStorage.removeItem('admin_key')}catch{}
@@ -192,6 +197,7 @@ let IS_OWNER=true;  /* true면 전체 기능, false면 직원(세션) */
 })();
 
 function tab(t){
+try{localStorage.setItem('admin_last_tab',t)}catch{}
 $g('tabChat').className=t==='chat'?'on':'';
 $g('tabLive').className=t==='live'?'on':'';
 $g('tabRooms').className=t==='rooms'?'on':'';

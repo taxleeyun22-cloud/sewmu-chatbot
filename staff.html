@@ -6,7 +6,7 @@
 <title>직원 관리자 - 세무회계 이윤</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/admin.css?v=3">
+<link rel="stylesheet" href="/admin.css?v=4">
 </head>
 <body class="staff-mode">
 
@@ -271,7 +271,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=3"></script>
+<script src="/admin.js?v=4"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;
@@ -288,7 +288,11 @@ async function staffBoot(){
     document.getElementById('mainView').style.display='block';
     if(typeof loadRoomList==='function'){try{loadRoomList()}catch(e){}}
     if(typeof refreshLiveBadge==='function'){try{refreshLiveBadge();setInterval(refreshLiveBadge,10000)}catch(e){}}
-    tab('rooms');
+    /* 이전 탭 복원 (유효한 staff 탭만) */
+    var savedTab=null;
+    try{savedTab=localStorage.getItem('admin_last_tab')}catch(e){}
+    if(savedTab&&['rooms','live','clients'].indexOf(savedTab)>=0)tab(savedTab);
+    else tab('rooms');
   }catch(e){
     document.getElementById('notAuthView').style.display='flex';
   }
