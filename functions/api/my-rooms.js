@@ -187,13 +187,21 @@ export async function onRequestPost(context) {
       }
       const content = (body.content || "").trim();
       const imageUrl = (body.image_url || "").trim();
-      if (!content && !imageUrl) return Response.json({ error: "content or image_url required" }, { status: 400 });
+      const fileUrl = (body.file_url || "").trim();
+      const fileName = (body.file_name || "").trim();
+      const fileSize = Number(body.file_size || 0);
+      if (!content && !imageUrl && !fileUrl) return Response.json({ error: "content or image_url or file_url required" }, { status: 400 });
       if (content.length > 3000) return Response.json({ error: "메시지가 너무 깁니다" }, { status: 400 });
 
-      // 이미지 메시지는 content에 "[IMG]url" 형식으로 인코딩 (스키마 변경 없이)
-      const finalContent = imageUrl
-        ? (content ? `[IMG]${imageUrl}\n${content}` : `[IMG]${imageUrl}`)
-        : content;
+      let finalContent;
+      if (fileUrl) {
+        const meta = JSON.stringify({ url: fileUrl, name: fileName, size: fileSize });
+        finalContent = content ? `[FILE]${meta}\n${content}` : `[FILE]${meta}`;
+      } else if (imageUrl) {
+        finalContent = content ? `[IMG]${imageUrl}\n${content}` : `[IMG]${imageUrl}`;
+      } else {
+        finalContent = content;
+      }
 
       await db.prepare(`
         INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at)

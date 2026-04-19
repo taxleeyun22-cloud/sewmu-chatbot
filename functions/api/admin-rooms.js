@@ -24,6 +24,17 @@ async function ensureTables(db) {
     created_at TEXT,
     closed_at TEXT
   )`).run();
+  await db.prepare(`CREATE TABLE IF NOT EXISTS room_notices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    author_user_id INTEGER,
+    pinned INTEGER DEFAULT 0,
+    created_at TEXT,
+    updated_at TEXT
+  )`).run();
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_notices_room ON room_notices(room_id)`).run(); } catch {}
   await db.prepare(`CREATE TABLE IF NOT EXISTS room_members (
     room_id TEXT,
     user_id INTEGER,
@@ -103,6 +114,34 @@ export async function onRequestGet(context) {
       }
 
       return Response.json({ photos: photos || [], links });
+    }
+
+    if (roomId && view === "files") {
+      // 파일 메시지만 모아서 반환
+      const { results } = await db.prepare(`
+        SELECT c.id, c.content, c.created_at, c.role, c.user_id,
+               u.real_name, u.name
+        FROM conversations c
+        LEFT JOIN users u ON c.user_id = u.id
+        WHERE c.room_id = ? AND c.content LIKE '[FILE]%'
+        ORDER BY c.created_at DESC
+        LIMIT 200
+      `).bind(roomId).all();
+      return Response.json({ files: results || [] });
+    }
+
+    if (roomId && view === "notices") {
+      // 게시판 목록 (pinned 우선, 최신순)
+      const { results } = await db.prepare(`
+        SELECT n.id, n.title, n.content, n.author_user_id, n.pinned, n.created_at, n.updated_at,
+               u.real_name, u.name
+        FROM room_notices n
+        LEFT JOIN users u ON n.author_user_id = u.id
+        WHERE n.room_id = ?
+        ORDER BY n.pinned DESC, n.created_at DESC
+        LIMIT 100
+      `).bind(roomId).all();
+      return Response.json({ notices: results || [] });
     }
 
     if (roomId && searchQ) {
@@ -293,15 +332,71 @@ export async function onRequestPost(context) {
     if (action === "send") {
       const content = (body.content || "").trim();
       const imageUrl = (body.image_url || "").trim();
-      if (!content && !imageUrl) return Response.json({ error: "content or image_url required" }, { status: 400 });
+      const fileUrl = (body.file_url || "").trim();
+      const fileName = (body.file_name || "").trim();
+      const fileSize = Number(body.file_size || 0);
+      if (!content && !imageUrl && !fileUrl) return Response.json({ error: "content or image_url or file_url required" }, { status: 400 });
       if (content.length > 5000) return Response.json({ error: "메시지가 너무 깁니다" }, { status: 400 });
-      const finalContent = imageUrl
-        ? (content ? `[IMG]${imageUrl}\n${content}` : `[IMG]${imageUrl}`)
-        : content;
+      let finalContent;
+      if (fileUrl) {
+        const meta = JSON.stringify({ url: fileUrl, name: fileName, size: fileSize });
+        finalContent = content ? `[FILE]${meta}\n${content}` : `[FILE]${meta}`;
+      } else if (imageUrl) {
+        finalContent = content ? `[IMG]${imageUrl}\n${content}` : `[IMG]${imageUrl}`;
+      } else {
+        finalContent = content;
+      }
       await db.prepare(`
         INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at)
         VALUES (?, NULL, 'human_advisor', ?, ?, ?)
       `).bind('room_' + roomId, finalContent, roomId, now).run();
+      return Response.json({ ok: true });
+    }
+
+    // ── 게시판: 작성 ──
+    if (action === "notice_create") {
+      const title = (body.title || "").trim();
+      const content = (body.content || "").trim();
+      if (!title || !content) return Response.json({ error: "제목과 내용을 입력해 주세요" }, { status: 400 });
+      if (title.length > 100) return Response.json({ error: "제목은 100자 이내" }, { status: 400 });
+      if (content.length > 5000) return Response.json({ error: "내용이 너무 깁니다" }, { status: 400 });
+      const r = await db.prepare(
+        `INSERT INTO room_notices (room_id, title, content, author_user_id, pinned, created_at, updated_at)
+         VALUES (?, ?, ?, NULL, 0, ?, ?)`
+      ).bind(roomId, title, content, now, now).run();
+      return Response.json({ ok: true, id: r.meta?.last_row_id });
+    }
+
+    // ── 게시판: 수정 ──
+    if (action === "notice_update") {
+      const noticeId = Number(body.notice_id);
+      const title = (body.title || "").trim();
+      const content = (body.content || "").trim();
+      if (!noticeId || !title || !content) return Response.json({ error: "필수값 누락" }, { status: 400 });
+      await db.prepare(
+        `UPDATE room_notices SET title = ?, content = ?, updated_at = ? WHERE id = ? AND room_id = ?`
+      ).bind(title, content, now, noticeId, roomId).run();
+      return Response.json({ ok: true });
+    }
+
+    // ── 게시판: 고정/해제 ──
+    if (action === "notice_pin") {
+      const noticeId = Number(body.notice_id);
+      const pinned = body.pinned ? 1 : 0;
+      if (!noticeId) return Response.json({ error: "notice_id required" }, { status: 400 });
+      await db.prepare(
+        `UPDATE room_notices SET pinned = ?, updated_at = ? WHERE id = ? AND room_id = ?`
+      ).bind(pinned, now, noticeId, roomId).run();
+      return Response.json({ ok: true });
+    }
+
+    // ── 게시판: 삭제 ──
+    if (action === "notice_delete") {
+      const noticeId = Number(body.notice_id);
+      if (!noticeId) return Response.json({ error: "notice_id required" }, { status: 400 });
+      await db.prepare(
+        `DELETE FROM room_notices WHERE id = ? AND room_id = ?`
+      ).bind(noticeId, roomId).run();
       return Response.json({ ok: true });
     }
 
@@ -326,6 +421,7 @@ export async function onRequestDelete(context) {
   try {
     await db.prepare(`DELETE FROM conversations WHERE room_id = ?`).bind(roomId).run();
     await db.prepare(`DELETE FROM room_members WHERE room_id = ?`).bind(roomId).run();
+    try { await db.prepare(`DELETE FROM room_notices WHERE room_id = ?`).bind(roomId).run(); } catch {}
     await db.prepare(`DELETE FROM chat_rooms WHERE id = ?`).bind(roomId).run();
     return Response.json({ ok: true });
   } catch (e) {
