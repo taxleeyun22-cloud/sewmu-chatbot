@@ -1584,6 +1584,28 @@ async function syncFaqsToGithub(){
   finally{if(btn){btn.disabled=false;btn.textContent='🚀 Claude 재검토 요청'}}
 }
 
+async function applyReverifyV1(){
+  if(!confirm('Claude 재검증 V1 결과를 적용합니다.\n- 의심 11건을 verified로 승격\n- 4건은 답변 내용 수정 + 재임베딩 (Q38, Q63, Q67, Q70, Q123)\n- 1건(Q93)은 삭제(active=0)\n\n계속할까요?'))return;
+  const btn=event?event.target:null;
+  if(btn){btn.disabled=true;btn.textContent='적용 중...'}
+  try{
+    const r=await fetch('/api/admin-faq-reverify-apply?key='+encodeURIComponent(KEY),{method:'POST'});
+    const d=await r.json();
+    if(d.error){alert('실패: '+d.error);return}
+    let msg='✅ 재검증 V1 적용 완료\n\n';
+    msg+='리포트 총: '+d.total_in_report+'건\n';
+    msg+='verified 승격: '+d.verified_count+'건\n';
+    msg+='내용 수정: '+d.content_updated+'건\n';
+    msg+='재임베딩: '+d.reembedded+'건\n';
+    msg+='삭제(비활성): '+d.deleted+'건\n';
+    msg+='스킵: '+d.skipped+'건';
+    if(d.missing_q&&d.missing_q.length>0)msg+='\n매칭 안된 q: '+d.missing_q.join(', ');
+    alert(msg);
+    loadFaqStatus();loadFaqs();
+  }catch(er){alert('오류: '+er.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent='✨ 재검증 V1 적용'}}
+}
+
 async function applyVerifyReport(){
   if(!confirm('Claude 삼중체크 검증 리포트를 FAQ 전체에 일괄 적용합니다.\n각 FAQ에 verified/suspicious/wrong 상태 + 메모가 기록됩니다.\n\n계속할까요?'))return;
   const btn=event?event.target:null;
