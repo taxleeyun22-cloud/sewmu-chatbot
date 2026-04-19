@@ -595,6 +595,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       <div id="rcTitle">-</div>
       <div id="rcMembers"></div>
     </div>
+    <button onclick="openRoomInfo()" class="rc-leave-btn" style="margin-right:6px" title="사진·파일·공지">📂</button>
     <button onclick="leaveRoom()" class="rc-leave-btn">나가기</button>
   </div>
   <div id="rcMessages" class="rc-messages"></div>
@@ -613,7 +614,53 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
   </div>
 </div>
 
+<!-- 상담방 정보 모달 (사용자용: 검색·사진·파일·링크·공지, 읽기 전용) -->
+<div id="roomInfoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:60;align-items:flex-start;justify-content:center;padding:30px 14px">
+  <div style="background:var(--card);color:var(--text);border-radius:14px;width:100%;max-width:520px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+      <div style="font-size:.9em;font-weight:700;flex:1">상담방 정보</div>
+      <button onclick="document.getElementById('roomInfoModal').style.display='none'" style="background:none;border:none;font-size:1.1em;cursor:pointer;color:var(--text2)">✕</button>
+    </div>
+    <div style="display:flex;border-bottom:1px solid var(--border);overflow-x:auto">
+      <button class="uri-tab on" data-tab="search" onclick="uriSwitch('search')">🔍 검색</button>
+      <button class="uri-tab" data-tab="photo" onclick="uriSwitch('photo')">📷 사진</button>
+      <button class="uri-tab" data-tab="file" onclick="uriSwitch('file')">📁 파일</button>
+      <button class="uri-tab" data-tab="link" onclick="uriSwitch('link')">🔗 링크</button>
+      <button class="uri-tab" data-tab="notice" onclick="uriSwitch('notice')">📌 공지</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;background:var(--bg)">
+      <div id="uriSearchPanel" class="uri-panel">
+        <div style="padding:10px 12px;background:var(--card);border-bottom:1px solid var(--border)">
+          <input id="uriSearchInput" type="text" placeholder="이 상담방에서 검색..." oninput="onUriSearchInput()" style="width:100%;padding:9px 12px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:8px;font-size:.85em;outline:none;font-family:inherit">
+        </div>
+        <div id="uriSearchList" style="padding:10px 12px"><div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">검색어를 입력하세요</div></div>
+      </div>
+      <div id="uriPhotoPanel" class="uri-panel" style="display:none;padding:10px 12px">
+        <div id="uriPhotoGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px"></div>
+      </div>
+      <div id="uriFilePanel" class="uri-panel" style="display:none;padding:10px 12px">
+        <div id="uriFileList"></div>
+      </div>
+      <div id="uriLinkPanel" class="uri-panel" style="display:none;padding:10px 12px">
+        <div id="uriLinkList"></div>
+      </div>
+      <div id="uriNoticePanel" class="uri-panel" style="display:none;padding:10px 12px">
+        <div id="uriNoticeList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>
+.uri-tab{flex:1;background:var(--card);border:none;padding:10px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2);border-bottom:2px solid transparent}
+.uri-tab.on{color:var(--blue);border-bottom-color:var(--blue)}
+.uri-panel{min-height:200px}
+.uri-photo{aspect-ratio:1;background:var(--border);border-radius:6px;overflow:hidden;cursor:pointer}
+.uri-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.uri-item{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:.8em}
+.uri-item a{color:var(--blue);word-break:break-all;text-decoration:none}
+.uri-meta{font-size:.7em;color:var(--text2);margin-top:4px}
+mark{background:#fef3c7;color:inherit;padding:0 2px;border-radius:2px}
 .room-chat-view{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:50;flex-direction:column;height:100vh;height:100dvh}
 .room-chat-view.open{display:flex}
 .rc-header{background:var(--card);padding:12px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0;padding-top:max(12px, env(safe-area-inset-top))}
@@ -1184,6 +1231,113 @@ function renderMessageBody(content){
   }
   if(parsed.text)html+=((parsed.image||parsed.file)?'<div style="margin-top:6px">':'')+esc(parsed.text)+((parsed.image||parsed.file)?'</div>':'');
   return html;
+}
+
+/* ===== 사용자 상담방 정보 모달 ===== */
+var uriSearchTimer=null;
+function openRoomInfo(){
+  if(!rcRoomId){return}
+  document.getElementById('uriSearchInput').value='';
+  document.getElementById('uriSearchList').innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">검색어를 입력하세요</div>';
+  document.getElementById('uriPhotoGrid').innerHTML='';
+  document.getElementById('uriFileList').innerHTML='';
+  document.getElementById('uriLinkList').innerHTML='';
+  document.getElementById('uriNoticeList').innerHTML='';
+  uriSwitch('search');
+  document.getElementById('roomInfoModal').style.display='flex';
+  loadUriMedia();
+}
+function uriSwitch(t){
+  document.querySelectorAll('#roomInfoModal .uri-tab').forEach(function(b){b.classList.toggle('on',b.dataset.tab===t)});
+  document.getElementById('uriSearchPanel').style.display=t==='search'?'block':'none';
+  document.getElementById('uriPhotoPanel').style.display=t==='photo'?'block':'none';
+  document.getElementById('uriFilePanel').style.display=t==='file'?'block':'none';
+  document.getElementById('uriLinkPanel').style.display=t==='link'?'block':'none';
+  document.getElementById('uriNoticePanel').style.display=t==='notice'?'block':'none';
+  if(t==='search')setTimeout(function(){document.getElementById('uriSearchInput').focus()},100);
+  if(t==='file')loadUriFiles();
+  if(t==='notice')loadUriNotices();
+}
+function onUriSearchInput(){
+  if(uriSearchTimer)clearTimeout(uriSearchTimer);
+  uriSearchTimer=setTimeout(doUriSearch,250);
+}
+async function doUriSearch(){
+  var q=document.getElementById('uriSearchInput').value.trim();
+  var el=document.getElementById('uriSearchList');
+  if(q.length<2){el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">2자 이상 입력하세요</div>';return}
+  el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">검색 중...</div>';
+  try{
+    var r=await fetch('/api/my-rooms?room_id='+encodeURIComponent(rcRoomId)+'&search='+encodeURIComponent(q));
+    var d=await r.json();
+    if(!d.matches||d.matches.length===0){el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">결과 없음</div>';return}
+    var qRe=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+    el.innerHTML=d.matches.map(function(m){
+      var who=m.role==='human_advisor'?'👨‍💼 세무사':m.role==='assistant'?'🤖 AI':'👤 '+(m.real_name||m.name||'나');
+      var content=String(m.content||'');
+      var imgM=content.match(/^\[IMG\]\S+\n?([\s\S]*)$/);
+      if(imgM)content='[사진] '+imgM[1];
+      var fileM=content.match(/^\[FILE\](\{[^\n]+\})\n?([\s\S]*)$/);
+      if(fileM){try{var o=JSON.parse(fileM[1]);content='[파일] '+(o.name||'')+' '+(fileM[2]||'')}catch(e){}}
+      var escaped=esc(content).slice(0,200);
+      var hi=escaped.replace(qRe,'<mark>$1</mark>');
+      return '<div class="uri-item"><div class="uri-meta">'+who+' · '+esc(m.created_at||'')+'</div>'+hi+'</div>';
+    }).join('');
+  }catch(err){el.innerHTML='<div style="color:#f04452;font-size:.8em;padding:20px">오류: '+esc(err.message)+'</div>'}
+}
+async function loadUriMedia(){
+  try{
+    var r=await fetch('/api/my-rooms?room_id='+encodeURIComponent(rcRoomId)+'&view=media');
+    var d=await r.json();
+    var photoEl=document.getElementById('uriPhotoGrid');
+    var linkEl=document.getElementById('uriLinkList');
+    if(!d.photos||d.photos.length===0)photoEl.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">사진 없음</div>';
+    else photoEl.innerHTML=d.photos.map(function(m){
+      var mm=String(m.content||'').match(/^\[IMG\](\S+)/);
+      var u=mm?mm[1]:'';if(!u)return '';
+      return '<a class="uri-photo" href="'+esc(u)+'" target="_blank"><img src="'+esc(u)+'" loading="lazy" alt=""></a>';
+    }).join('');
+    if(!d.links||d.links.length===0)linkEl.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">링크 없음</div>';
+    else linkEl.innerHTML=d.links.map(function(l){
+      var who=l.role==='human_advisor'?'세무사':l.role==='assistant'?'AI':(l.user_name||'사용자');
+      return '<div class="uri-item"><a href="'+esc(l.url)+'" target="_blank" rel="noopener">'+esc(l.url)+'</a><div class="uri-meta">'+who+' · '+esc(l.created_at||'')+'</div></div>';
+    }).join('');
+  }catch(err){console.error(err)}
+}
+async function loadUriFiles(){
+  var el=document.getElementById('uriFileList');
+  el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">불러오는 중...</div>';
+  try{
+    var r=await fetch('/api/my-rooms?room_id='+encodeURIComponent(rcRoomId)+'&view=files');
+    var d=await r.json();
+    if(!d.files||d.files.length===0){el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">파일 없음</div>';return}
+    el.innerHTML=d.files.map(function(m){
+      var obj=null;try{var mm=String(m.content||'').match(/^\[FILE\](\{[^\n]+\})/);if(mm)obj=JSON.parse(mm[1])}catch(e){}
+      if(!obj)return '';
+      var who=m.role==='human_advisor'?'세무사':m.role==='assistant'?'AI':(m.real_name||m.name||'사용자');
+      var nm=obj.name||'파일';
+      return '<a href="'+esc(obj.url||'#')+'" download="'+esc(nm)+'" class="uri-item" style="display:flex;gap:10px;text-decoration:none;color:inherit;align-items:center">'
+        +'<div style="font-size:1.7em;line-height:1">'+fileIconFor(nm)+'</div>'
+        +'<div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(nm)+'</div>'
+        +'<div class="uri-meta">'+fmtFileSize(obj.size)+' · '+who+' · '+esc(m.created_at||'')+'</div></div></a>';
+    }).join('');
+  }catch(err){el.innerHTML='<div style="color:#f04452;font-size:.8em;padding:20px">오류: '+esc(err.message)+'</div>'}
+}
+async function loadUriNotices(){
+  var el=document.getElementById('uriNoticeList');
+  el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">불러오는 중...</div>';
+  try{
+    var r=await fetch('/api/my-rooms?room_id='+encodeURIComponent(rcRoomId)+'&view=notices');
+    var d=await r.json();
+    if(!d.notices||d.notices.length===0){el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">등록된 공지 없음</div>';return}
+    el.innerHTML=d.notices.map(function(n){
+      var pinMark=n.pinned?'<span style="background:#fef3c7;color:#8b6914;font-size:.68em;padding:2px 7px;border-radius:4px;font-weight:700;margin-right:6px">📌 고정</span>':'';
+      var contentEsc=esc(n.content||'').replace(/\n/g,'<br>');
+      return '<div class="uri-item"><div style="font-weight:700;font-size:.88em;margin-bottom:4px">'+pinMark+esc(n.title)+'</div>'
+        +'<div style="font-size:.82em;line-height:1.55">'+contentEsc+'</div>'
+        +'<div class="uri-meta" style="margin-top:6px">'+esc(n.created_at||'')+'</div></div>';
+    }).join('');
+  }catch(err){el.innerHTML='<div style="color:#f04452;font-size:.8em;padding:20px">오류: '+esc(err.message)+'</div>'}
 }
 
 async function leaveRoom(){

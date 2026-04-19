@@ -59,6 +59,8 @@ export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const roomId = url.searchParams.get("room_id");
   const since = url.searchParams.get("since");
+  const view = url.searchParams.get("view") || "";
+  const searchQ = (url.searchParams.get("search") || "").trim();
 
   try {
     if (roomId) {
@@ -68,6 +70,71 @@ export async function onRequestGet(context) {
       ).bind(roomId, user.user_id).first();
       if (!membership || membership.left_at) {
         return Response.json({ error: "방에 대한 접근 권한이 없습니다" }, { status: 403 });
+      }
+
+      // 서브 뷰: 미디어·파일·공지·검색 (정보 모달용)
+      if (view === "media") {
+        const { results: photos } = await db.prepare(`
+          SELECT c.id, c.content, c.created_at, c.user_id, c.role,
+                 u.real_name, u.name
+          FROM conversations c LEFT JOIN users u ON c.user_id = u.id
+          WHERE c.room_id = ? AND c.content LIKE '[IMG]%'
+          ORDER BY c.created_at DESC LIMIT 200
+        `).bind(roomId).all();
+        const { results: linkCand } = await db.prepare(`
+          SELECT c.id, c.content, c.created_at, c.user_id, c.role,
+                 u.real_name, u.name
+          FROM conversations c LEFT JOIN users u ON c.user_id = u.id
+          WHERE c.room_id = ? AND (c.content LIKE '%http://%' OR c.content LIKE '%https://%')
+          ORDER BY c.created_at DESC LIMIT 200
+        `).bind(roomId).all();
+        const urlRe = /https?:\/\/[^\s<>"']+/gi;
+        const links = [];
+        for (const m of (linkCand || [])) {
+          const matches = String(m.content || '').match(urlRe) || [];
+          for (const u of matches) {
+            links.push({ url: u, message_id: m.id, created_at: m.created_at, role: m.role, user_name: m.real_name || m.name || null });
+          }
+        }
+        return Response.json({ photos: photos || [], links });
+      }
+
+      if (view === "files") {
+        const { results } = await db.prepare(`
+          SELECT c.id, c.content, c.created_at, c.role, c.user_id,
+                 u.real_name, u.name
+          FROM conversations c LEFT JOIN users u ON c.user_id = u.id
+          WHERE c.room_id = ? AND c.content LIKE '[FILE]%'
+          ORDER BY c.created_at DESC LIMIT 200
+        `).bind(roomId).all();
+        return Response.json({ files: results || [] });
+      }
+
+      if (view === "notices") {
+        let rows = [];
+        try {
+          const { results } = await db.prepare(`
+            SELECT id, title, content, pinned, created_at, updated_at
+            FROM room_notices
+            WHERE room_id = ?
+            ORDER BY pinned DESC, created_at DESC
+            LIMIT 100
+          `).bind(roomId).all();
+          rows = results || [];
+        } catch {}
+        return Response.json({ notices: rows });
+      }
+
+      if (searchQ) {
+        const pat = `%${searchQ}%`;
+        const { results } = await db.prepare(`
+          SELECT c.id, c.role, c.content, c.created_at, c.user_id,
+                 u.real_name, u.name
+          FROM conversations c LEFT JOIN users u ON c.user_id = u.id
+          WHERE c.room_id = ? AND c.content LIKE ?
+          ORDER BY c.created_at DESC LIMIT 100
+        `).bind(roomId, pat).all();
+        return Response.json({ matches: results || [], query: searchQ });
       }
 
       // 방 정보
