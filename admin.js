@@ -1528,6 +1528,20 @@ async function migrateFaqs(){
   finally{if(btn){btn.disabled=false;btn.textContent='🚀 마이그레이션'}}
 }
 
+async function seedFaqs(batchId){
+  if(!confirm('배치 '+batchId+' 의 FAQ를 일괄 추가합니다.\n(중복 질문은 자동 스킵)\n\n계속할까요?'))return;
+  const btn=event?event.target:null;
+  if(btn){btn.disabled=true;btn.textContent='추가 중...'}
+  try{
+    const r=await fetch('/api/admin-faq-seed?key='+encodeURIComponent(KEY)+'&batch='+encodeURIComponent(batchId),{method:'POST'});
+    const d=await r.json();
+    if(d.error){alert('실패: '+d.error);return}
+    alert('✅ 완료\n\n배치: '+d.batch_name+'\n총: '+d.total_in_batch+'건\n신규: '+d.inserted+'건\n스킵(중복): '+d.skipped+'건\n임베딩: '+d.embedded+'건\n실패: '+d.failed+'건');
+    loadFaqStatus();loadFaqs();
+  }catch(er){alert('오류: '+er.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent='📦 배치 1 추가'}}
+}
+
 async function reembedAllFaqs(){
   if(!confirm('활성 FAQ 전체를 재임베딩합니다.\n(API 비용 소량 발생 + 시간 걸림)\n\n계속할까요?'))return;
   const btn=event?event.target:null;
