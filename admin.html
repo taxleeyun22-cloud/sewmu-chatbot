@@ -272,8 +272,8 @@
     <h3 style="font-size:1.1em;margin:0">상담방 개설</h3>
     <button onclick="document.getElementById('createRoomModal').style.display='none'" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#8b95a1">✕</button>
   </div>
-  <label style="font-size:.8em;font-weight:600;display:block;margin-bottom:4px">상담방 이름</label>
-  <input id="crName" type="text" placeholder="예: 홍씨네 상속 상담" maxlength="50" style="width:100%;padding:10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit">
+  <label style="font-size:.8em;font-weight:600;display:block;margin-bottom:4px">상담방 이름 <span style="color:#8b95a1;font-weight:400">(사업자는 상호명 입력)</span></label>
+  <input id="crName" type="text" placeholder="예: ○○상회 / 홍길동 상속 상담" maxlength="50" style="width:100%;padding:10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit">
   <label style="font-size:.8em;font-weight:600;display:block;margin:14px 0 4px">초대할 거래처 (승인된 사용자만)</label>
   <input id="crSearch" type="text" placeholder="이름 검색..." oninput="filterRoomUsers()" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit;margin-bottom:8px">
   <div id="crUserList" style="max-height:260px;overflow-y:auto;border:1px solid #e5e8eb;border-radius:8px;padding:4px">불러오는 중...</div>

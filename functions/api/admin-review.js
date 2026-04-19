@@ -85,7 +85,8 @@ export async function onRequestPost(context) {
     } else if (action === "unreport") {
       await db.prepare(`UPDATE conversations SET reported = 0 WHERE id = ?`).bind(id).run();
     } else if (action === "report_and_review") {
-      await db.prepare(`UPDATE conversations SET reported = 1, reviewed = 1 WHERE id = ?`).bind(id).run();
+      // "수정필요" → reported=1만 세팅. reviewed는 Claude가 FAQ 수정 후 sync에서 처리.
+      await db.prepare(`UPDATE conversations SET reported = 1, reviewed = 0 WHERE id = ?`).bind(id).run();
     } else if (action === "set_confidence") {
       // 신뢰도 수동 변경 (강등/승급). 보통·낮음으로 강등 시 reviewed=0 + reported=1 로 검증 파이프라인 재투입.
       const newConf = body.confidence;
