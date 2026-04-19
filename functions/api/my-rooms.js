@@ -247,6 +247,27 @@ export async function onRequestPost(context) {
       return Response.json({ ok: true });
     }
 
+    // ── 메시지 삭제 (본인 메시지만, 5분 이내) ──
+    if (action === "delete_message") {
+      try { await db.prepare(`ALTER TABLE conversations ADD COLUMN deleted_at TEXT`).run(); } catch {}
+      const messageId = Number(body.message_id);
+      if (!messageId) return Response.json({ error: "message_id required" }, { status: 400 });
+      const msg = await db.prepare(
+        `SELECT id, user_id, role, created_at, deleted_at FROM conversations WHERE id = ? AND room_id = ?`
+      ).bind(messageId, roomId).first();
+      if (!msg) return Response.json({ error: "메시지 없음" }, { status: 404 });
+      if (msg.user_id !== user.user_id || msg.role !== 'user') {
+        return Response.json({ error: "본인 메시지만 삭제 가능합니다" }, { status: 403 });
+      }
+      // 5분 이내 삭제만 허용
+      const createdMs = Date.parse(msg.created_at.replace(' ', 'T'));
+      if (!isNaN(createdMs) && Date.now() - createdMs > 5 * 60 * 1000) {
+        return Response.json({ error: "전송 후 5분이 지나 삭제할 수 없습니다" }, { status: 400 });
+      }
+      await db.prepare(`UPDATE conversations SET deleted_at = ? WHERE id = ?`).bind(kst(), messageId).run();
+      return Response.json({ ok: true });
+    }
+
     // ── 메시지 전송 ──
     if (action === "send") {
       if (room.status !== 'active') {

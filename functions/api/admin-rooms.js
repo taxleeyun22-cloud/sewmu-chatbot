@@ -45,6 +45,7 @@ async function ensureTables(db) {
     PRIMARY KEY (room_id, user_id)
   )`).run();
   try { await db.prepare(`ALTER TABLE conversations ADD COLUMN room_id TEXT`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE conversations ADD COLUMN deleted_at TEXT`).run(); } catch {}
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_conv_room ON conversations(room_id)`).run(); } catch {}
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_room_members_user ON room_members(user_id)`).run(); } catch {}
 }
@@ -391,6 +392,16 @@ export async function onRequestPost(context) {
     }
 
     // ── 게시판: 삭제 ──
+    // ── 메시지 삭제 (admin은 어떤 메시지든 삭제 가능) ──
+    if (action === "delete_message") {
+      const messageId = Number(body.message_id);
+      if (!messageId) return Response.json({ error: "message_id required" }, { status: 400 });
+      await db.prepare(
+        `UPDATE conversations SET deleted_at = ? WHERE id = ? AND room_id = ?`
+      ).bind(now, messageId, roomId).run();
+      return Response.json({ ok: true });
+    }
+
     if (action === "notice_delete") {
       const noticeId = Number(body.notice_id);
       if (!noticeId) return Response.json({ error: "notice_id required" }, { status: 400 });
