@@ -299,11 +299,12 @@ async function loadRoomDetail(){
       if(m.deleted_at){
         return '<div style="margin-bottom:10px;text-align:center;opacity:.6"><span style="display:inline-block;background:#f2f4f6;color:#8b95a1;padding:6px 14px;border-radius:10px;font-size:.75em;font-style:italic">삭제된 메시지입니다</span></div>';
       }
-      const delBtn=' <button onclick="event.stopPropagation();deleteAdminMessage('+m.id+')" style="background:none;border:none;cursor:pointer;font-size:.85em;color:#f04452;padding:0 4px" title="삭제">🗑️</button>';
+      /* 상담자(세무사)는 본인이 보낸 메시지만 삭제 가능 */
+      const delBtn=(m.role==='human_advisor')?' <button onclick="event.stopPropagation();deleteAdminMessage('+m.id+')" style="background:none;border:none;cursor:pointer;font-size:.85em;color:#f04452;padding:0 4px" title="삭제">🗑️</button>':'';
       if(m.role==='user'){
-        return '<div style="margin-bottom:10px"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+delBtn+'</div><div style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
+        return '<div style="margin-bottom:10px"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+'</div><div style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
       } else if(m.role==='assistant'){
-        return '<div style="margin-bottom:10px"><div style="display:inline-block;background:#f2f4f6;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+delBtn+'</div></div></div>';
+        return '<div style="margin-bottom:10px"><div style="display:inline-block;background:#f2f4f6;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div></div>';
       } else if(m.role==='human_advisor'){
         return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end;align-items:center;gap:4px"><div style="background:#10b981;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;opacity:.9;margin-top:4px">👨‍💼 세무사 · '+e(m.created_at||'')+'</div></div>'+delBtn+'</div>';
       }

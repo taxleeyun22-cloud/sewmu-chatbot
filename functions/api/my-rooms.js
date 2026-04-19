@@ -193,7 +193,7 @@ export async function onRequestGet(context) {
              (SELECT COUNT(*) FROM conversations c
               WHERE c.room_id = r.id
                 AND c.created_at > COALESCE(rm.last_read_at, '1970-01-01')
-                AND c.user_id != ? ) as unread_count,
+                AND (c.user_id IS NULL OR c.user_id != ?) ) as unread_count,
              rm.last_read_at
       FROM chat_rooms r
       INNER JOIN room_members rm ON rm.room_id = r.id
