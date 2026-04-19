@@ -40,3 +40,7 @@ export async function checkAdmin(context) {
 export function adminUnauthorized() {
   return Response.json({ error: "Unauthorized" }, { status: 401 });
 }
+
+export function ownerOnly() {
+  return Response.json({ error: "owner 권한이 필요합니다" }, { status: 403 });
+}

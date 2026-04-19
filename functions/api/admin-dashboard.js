@@ -1,8 +1,10 @@
 // 관리자 대시보드 요약 데이터
-import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
 
 export async function onRequestGet(context) {
-  if (!(await checkAdmin(context))) return adminUnauthorized();
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
+  if (!auth.owner) return ownerOnly();
 
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB not configured" }, { status: 500 });

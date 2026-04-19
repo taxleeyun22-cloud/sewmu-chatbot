@@ -1,9 +1,11 @@
 // 검증 필요 데이터를 GitHub 레포에 JSON 파일로 동기화
 // Claude가 MCP로 읽어서 자동 처리할 수 있도록
-import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
 
 export async function onRequestPost(context) {
-  if (!(await checkAdmin(context))) return adminUnauthorized();
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
+  if (!auth.owner) return ownerOnly();
 
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB not configured" }, { status: 500 });

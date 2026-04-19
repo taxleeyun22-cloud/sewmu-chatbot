@@ -1,7 +1,7 @@
 // 관리자: 사용자 승인/거절/기장승인 관리
 const APPROVAL_STATUSES = ['pending', 'approved_client', 'approved_guest', 'rejected'];
 
-import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
 
 async function ensureColumns(db) {
   const addCol = async (sql) => { try { await db.prepare(sql).run(); } catch {} };
@@ -24,7 +24,9 @@ async function ensureColumns(db) {
 // GET: 승인상태별 사용자 목록
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
-  if (!(await checkAdmin(context))) return adminUnauthorized();
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
+  if (!auth.owner) return ownerOnly();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
@@ -74,7 +76,9 @@ export async function onRequestGet(context) {
 // POST: 승인 처리
 export async function onRequestPost(context) {
   const url = new URL(context.request.url);
-  if (!(await checkAdmin(context))) return adminUnauthorized();
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
+  if (!auth.owner) return ownerOnly();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 

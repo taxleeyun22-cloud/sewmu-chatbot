@@ -1,8 +1,10 @@
 // 기존 대화에서 [신뢰도: X] 파싱해서 confidence 컬럼 채우기 (1회성 마이그레이션)
-import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
 
 export async function onRequestPost(context) {
-  if (!(await checkAdmin(context))) return adminUnauthorized();
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
+  if (!auth.owner) return ownerOnly();
 
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB not configured" }, { status: 500 });

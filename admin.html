@@ -114,6 +114,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f2f4f6;color:#191f28;min-
 .ri-match .ri-who{font-size:.72em;color:#8b95a1;margin-bottom:3px}
 .ri-match mark{background:#fef3c7;color:inherit;padding:0 2px;border-radius:2px}
 
+/* 직원 모드: owner 전용 탭/기능 숨김 */
+body.staff-mode #tabChat,
+body.staff-mode #tabAnal,
+body.staff-mode #tabReview{display:none !important}
+body.staff-mode .owner-only{display:none !important}
+
 /* 상담방 모바일 반응형 */
 #roomsBackBtn{display:none}
 @media(max-width:768px){
@@ -621,16 +627,17 @@ document.getElementById('loginView').style.display='flex';
 document.getElementById('mainView').style.display='none';
 }
 
-/* 세션 기반 자동 로그인: 사장님이 is_admin=1로 승인한 사용자는 카톡/네이버 로그인 상태로 admin 접근 */
+/* 세션 기반 자동 로그인: is_admin=1 사용자는 staff 모드로 진입 (owner 전용 탭 숨김) */
 async function tryAdminBySession(){
   try{
     const r=await fetch('/api/auth/me');
     const d=await r.json();
     if(d.logged_in&&d.user&&d.user.is_admin){
-      KEY='';  /* 세션 쿠키로 인증되므로 key 불필요 */
+      KEY='';
+      IS_OWNER=false;
+      document.body.classList.add('staff-mode');
       document.getElementById('loginView').style.display='none';
       document.getElementById('mainView').style.display='block';
-      IS_OWNER=false;
       loadList();refreshPendingBadge();refreshLiveBadge();
       setInterval(refreshPendingBadge,30000);setInterval(refreshLiveBadge,10000);
       return true;

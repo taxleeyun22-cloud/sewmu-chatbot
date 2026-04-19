@@ -1,9 +1,11 @@
 // 관리자 검증 탭: 신뢰도 보통/낮음/신고된 답변 조회 + 검토완료 처리
-import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
 
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
-  if (!(await checkAdmin(context))) return adminUnauthorized();
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
+  if (!auth.owner) return ownerOnly();
 
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB not configured" }, { status: 500 });
@@ -56,7 +58,9 @@ export async function onRequestGet(context) {
 
 // 검토 완료 / 신고 / 해제 처리
 export async function onRequestPost(context) {
-  if (!(await checkAdmin(context))) return adminUnauthorized();
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
+  if (!auth.owner) return ownerOnly();
 
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB not configured" }, { status: 500 });
