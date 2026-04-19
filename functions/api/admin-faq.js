@@ -133,7 +133,7 @@ export async function onRequestPost(context) {
     if (action === "update") {
       const id = Number(body.id);
       if (!id) return Response.json({ error: "id 필수" }, { status: 400 });
-      const old = await db.prepare(`SELECT question, answer FROM faqs WHERE id = ?`).bind(id).first();
+      const old = await db.prepare(`SELECT question, answer, embedding FROM faqs WHERE id = ?`).bind(id).first();
       if (!old) return Response.json({ error: "FAQ 없음" }, { status: 404 });
 
       const question = (body.question || "").trim();
@@ -148,20 +148,24 @@ export async function onRequestPost(context) {
         `UPDATE faqs SET question = ?, answer = ?, category = ?, law_refs = ?, active = ?, updated_at = ? WHERE id = ?`
       ).bind(question, answer, category, law_refs, active, now, id).run();
 
-      // 질문/답변 변경되면 재임베딩
-      if (old.question !== question || old.answer !== answer) {
+      // 재임베딩 조건: 질문/답변 변경됐거나 기존 임베딩이 없으면 무조건 생성
+      const contentChanged = old.question !== question || old.answer !== answer;
+      const needsEmbedding = contentChanged || !old.embedding;
+      if (needsEmbedding) {
         try {
           const vec = await embed(`${question}\n${answer}`, context.env);
           if (vec) {
             await db.prepare(`UPDATE faqs SET embedding = ? WHERE id = ?`)
               .bind(JSON.stringify(vec), id).run();
+          } else {
+            return Response.json({ ok: true, warning: "임베딩 API 응답 비어있음" });
           }
         } catch (e) {
           return Response.json({ ok: true, warning: "재임베딩 실패: " + e.message });
         }
       }
 
-      return Response.json({ ok: true });
+      return Response.json({ ok: true, reembedded: needsEmbedding });
     }
 
     if (action === "delete") {
