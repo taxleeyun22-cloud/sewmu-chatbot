@@ -1571,6 +1571,19 @@ async function seedFaqs(batchId){
   finally{if(btn){btn.disabled=false;btn.textContent='📦 배치 1 추가'}}
 }
 
+async function syncFaqsToGithub(){
+  if(!confirm('의심·틀림 상태 FAQ 전체를 GitHub의 flagged-faqs.json 에 업로드합니다.\n이후 Claude한테 "flagged-faqs.json 처리해줘" 하시면 재검토 후 수정됩니다.\n\n계속할까요?'))return;
+  const btn=event?event.target:null;
+  if(btn){btn.disabled=true;btn.textContent='업로드 중...'}
+  try{
+    const r=await fetch('/api/admin-faq-sync-to-github?key='+encodeURIComponent(KEY),{method:'POST'});
+    const d=await r.json();
+    if(d.error){alert('실패: '+d.error+'\n\nGITHUB_TOKEN 환경변수 확인 필요');return}
+    alert('✅ 업로드 완료\n\n의심·틀림 FAQ '+d.total+'건을 GitHub에 올렸습니다.\n\n이제 Claude한테 "flagged-faqs.json 처리해줘"라고 말씀하시면\n각 항목 법령 확인 → 수정 → DB 반영 → 상태를 verified로 변경합니다.\n\n파일 위치: '+(d.github_url||'GitHub 레포 루트'));
+  }catch(er){alert('오류: '+er.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent='🚀 Claude 재검토 요청'}}
+}
+
 async function applyVerifyReport(){
   if(!confirm('Claude 삼중체크 검증 리포트를 FAQ 전체에 일괄 적용합니다.\n각 FAQ에 verified/suspicious/wrong 상태 + 메모가 기록됩니다.\n\n계속할까요?'))return;
   const btn=event?event.target:null;

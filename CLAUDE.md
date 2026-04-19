@@ -72,6 +72,27 @@ Cloudflare Pages + D1 DB + OpenAI GPT-4.1-mini + 국가법령정보센터 API.
 - `functions/api/admin-dashboard.js` — 대시보드
 - `flagged-items.json` — 검증 대상 데이터 (자동생성, 수동편집 금지)
 
+### ⭐ `flagged-faqs.json` 처리 절차 (RAG FAQ 재검토)
+사용자가 **"flagged-faqs.json 처리해줘"** 라고 하면:
+
+1. 저장소 루트의 `flagged-faqs.json` 파일 읽기
+2. 각 item(의심·틀림 FAQ)에 대해:
+   - 국가법령정보센터 API(`/api/law` 또는 WebFetch)로 법조문 재확인
+   - status='wrong' 이면: 올바른 내용으로 answer·law_refs 교체
+   - status='suspicious' 이면: 민감 숫자·시점 최신 고시 기준 확정
+3. 수정된 각 FAQ에 대해 `/api/admin-faq?action=update` 호출 (D1 업데이트 + 자동 재임베딩)
+4. 재검증 통과한 FAQ는 `/api/admin-faq?action=set_verified` 로 status='verified'로 변경
+5. 처리 결과 보고: 수정 N건 / 삭제 M건 / 변경 없음 K건
+6. 처리 완료 후 `flagged-faqs.json` 삭제 또는 processed: true 마킹
+
+**관련 엔드포인트**:
+- `functions/api/admin-faq.js` — FAQ CRUD (update 시 자동 재임베딩, set_verified)
+- `functions/api/admin-faq-sync-to-github.js` — 의심·틀림 FAQ를 flagged-faqs.json으로 푸시
+- `functions/api/_faq-verify-report.js` — Claude 검증 리포트 (q_number → status/note)
+- `functions/api/admin-faq-verify-apply.js` — 리포트를 faqs 테이블에 일괄 적용
+- `functions/api/_faq-seed-batch-1.js` — 배치 1 시드 (50개 FAQ)
+- `functions/api/admin-faq-seed.js` — 배치 로딩
+
 ### ⭐ Claude가 "flagged-items.json 처리해줘" 받으면 무조건 실행
 1. `flagged-items.json` 읽기 (로컬 우선 → 없으면 `git pull`로 당기기)
 2. 각 item의 `question` + `answer` 검토:
