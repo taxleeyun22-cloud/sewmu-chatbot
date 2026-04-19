@@ -14,16 +14,16 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f7f8fa;color:#191f28;min-
 
 /* 헤더 — 브랜드 카드 스타일 */
 .hdr{background:#fff;border-radius:16px;padding:14px 16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(17,24,39,.04);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.hdr h1{font-size:1.05em;font-weight:800;letter-spacing:-.02em;display:inline-flex;align-items:center;gap:8px;color:#111827}
-.hdr h1::before{content:"";display:inline-block;width:28px;height:28px;background:linear-gradient(135deg,#3182f6,#5da3ff);border-radius:8px;box-shadow:0 2px 6px rgba(49,130,246,.3)}
-.hdr .tabs{display:flex;gap:4px;margin-left:8px;background:#f2f4f6;padding:4px;border-radius:12px}
-.hdr .tabs button{background:transparent;border:none;padding:8px 14px;border-radius:9px;font-size:.82em;cursor:pointer;font-family:inherit;color:#6b7684;font-weight:600;transition:all .15s}
+.hdr h1{font-size:1.05em;font-weight:800;letter-spacing:-.02em;display:inline-flex;align-items:center;gap:8px;color:#111827;white-space:nowrap;flex-shrink:0}
+.hdr h1::before{content:"";display:inline-block;width:28px;height:28px;background:linear-gradient(135deg,#3182f6,#5da3ff);border-radius:8px;box-shadow:0 2px 6px rgba(49,130,246,.3);flex-shrink:0}
+.hdr .tabs{display:inline-flex;gap:4px;margin-left:8px;background:#f2f4f6;padding:4px;border-radius:12px;flex-wrap:nowrap}
+.hdr .tabs button{background:transparent;border:none;padding:8px 14px;border-radius:9px;font-size:.82em;cursor:pointer;font-family:inherit;color:#6b7684;font-weight:600;transition:all .15s;white-space:nowrap;flex-shrink:0}
 .hdr .tabs button:hover{color:#3182f6}
 .hdr .tabs button.on{background:#fff;color:#3182f6;box-shadow:0 1px 3px rgba(17,24,39,.08)}
-.hdr .logout{background:#f2f4f6;border:none;padding:8px 12px;border-radius:9px;font-size:.78em;cursor:pointer;font-family:inherit;color:#6b7684;font-weight:600;transition:background .15s}
+.hdr .logout{background:#f2f4f6;border:none;padding:8px 12px;border-radius:9px;font-size:.78em;cursor:pointer;font-family:inherit;color:#6b7684;font-weight:600;transition:background .15s;white-space:nowrap;flex-shrink:0}
 .hdr .logout:hover{background:#e5e8eb}
 .hdr > .logout:nth-of-type(1){margin-left:auto}
-.staff-badge{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:3px 9px;border-radius:10px;font-size:.65em;font-weight:700;letter-spacing:.02em}
+.staff-badge{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:3px 9px;border-radius:10px;font-size:.65em;font-weight:700;letter-spacing:.02em;white-space:nowrap;flex-shrink:0}
 
 /* 리스트 카드 */
 .item{display:flex;align-items:center;gap:14px;padding:14px 16px;background:#fff;border-radius:14px;margin-bottom:8px;cursor:pointer;transition:all .15s;box-shadow:0 1px 3px rgba(17,24,39,.04);border:1px solid transparent}
