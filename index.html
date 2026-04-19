@@ -502,6 +502,14 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       </div>
       <div class="mp-item-arrow">›</div>
     </div>
+    <div class="mp-item" id="mpAdminBtn" style="display:none" onclick="location.href='/admin.html'">
+      <div class="mp-item-icon">👑</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">관리자 페이지</div>
+        <div class="mp-item-value">상담·승인·검증 관리</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </div>
     <div class="mp-item" onclick="switchTab('chat')">
       <div class="mp-item-icon">💬</div>
       <div class="mp-item-main">
@@ -1254,6 +1262,10 @@ async function loadMyPage(){
 
   /* 내 정보 요약 */
   document.getElementById('mpInfoValue').textContent=nm+(currentUser.phone?(' · '+currentUser.phone):'');
+
+  /* 관리자 권한이 있으면 관리자 페이지 버튼 노출 */
+  var adminBtn=document.getElementById('mpAdminBtn');
+  if(adminBtn)adminBtn.style.display=currentUser.is_admin?'flex':'none';
 
   /* 테마 값 */
   var isDark=document.body.classList.contains('dark');
