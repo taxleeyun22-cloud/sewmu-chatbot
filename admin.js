@@ -1571,6 +1571,29 @@ async function seedFaqs(batchId){
   finally{if(btn){btn.disabled=false;btn.textContent='📦 배치 1 추가'}}
 }
 
+async function applyVerifyReport(){
+  if(!confirm('Claude 삼중체크 검증 리포트를 FAQ 전체에 일괄 적용합니다.\n각 FAQ에 verified/suspicious/wrong 상태 + 메모가 기록됩니다.\n\n계속할까요?'))return;
+  const btn=event?event.target:null;
+  if(btn){btn.disabled=true;btn.textContent='적용 중...'}
+  try{
+    const r=await fetch('/api/admin-faq-verify-apply?key='+encodeURIComponent(KEY),{method:'POST'});
+    const d=await r.json();
+    if(d.error){alert('실패: '+d.error);return}
+    let msg='✅ 검증 적용 완료\n\n';
+    msg+='리포트 총: '+d.total_in_report+'건\n';
+    msg+='적용: '+d.applied+'건\n';
+    msg+='스킵: '+d.skipped+'건\n';
+    if(d.missing_q&&d.missing_q.length>0){
+      msg+='\n⚠️ 매칭 안된 q_number: '+d.missing_q.slice(0,20).join(', ');
+      if(d.missing_q.length>20)msg+=' 외 '+(d.missing_q.length-20)+'건';
+      msg+='\n(해당 Q 번호의 FAQ가 DB에 없음 - 파싱 누락/삭제 가능성)';
+    }
+    alert(msg);
+    loadFaqStatus();loadFaqs();
+  }catch(er){alert('오류: '+er.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent='🔍 Claude 검증 적용'}}
+}
+
 async function reembedAllFaqs(){
   if(!confirm('활성 FAQ 전체를 재임베딩합니다.\n(API 비용 소량 발생 + 시간 걸림)\n\n계속할까요?'))return;
   const btn=event?event.target:null;
