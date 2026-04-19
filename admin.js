@@ -237,15 +237,16 @@ async function loadRoomList(){
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY));
     const d=await r.json();
     const el=$g('roomList');
-    if(!d.rooms||d.rooms.length===0){el.innerHTML='<div style="padding:20px;text-align:center;color:#8b95a1;font-size:.8em">상담방이 없습니다</div>';return}
+    if(!d.rooms||d.rooms.length===0){el.innerHTML='<div class="empty" style="padding:40px 20px">상담방이 없습니다</div>';return}
     el.innerHTML=d.rooms.map(rm=>{
-      const active=currentRoomId===rm.id?'background:#e8f3ff':'';
-      const closed=rm.status==='closed'?'opacity:.5':'';
+      const cls=['room-item'];
+      if(currentRoomId===rm.id)cls.push('active');
+      if(rm.status==='closed')cls.push('closed');
       const aiIcon=rm.ai_mode==='off'?'🙅':'🤖';
-      return '<div onclick="openRoom(\''+rm.id+'\')" style="padding:10px;cursor:pointer;border-radius:8px;margin-bottom:4px;'+active+closed+'">'
-        +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="font-size:.85em;font-weight:600">'+e(rm.name||'상담방')+'</span><span style="font-size:.7em;color:#8b95a1">'+aiIcon+'</span>'+(rm.status==='closed'?'<span style="font-size:.65em;background:#e5e8eb;padding:1px 5px;border-radius:4px;color:#8b95a1;margin-left:auto">종료</span>':'')+'</div>'
-        +'<div style="font-size:.7em;color:#8b95a1">코드 '+rm.id+' · '+rm.member_count+'명 · '+(rm.msg_count||0)+'개</div>'
-        +'<div style="font-size:.65em;color:#b0b8c1">'+e(rm.last_msg_at||rm.created_at||'')+'</div>'
+      return '<div class="'+cls.join(' ')+'" onclick="openRoom(\''+rm.id+'\')">'
+        +'<div class="ri-head"><span class="ri-name">'+e(rm.name||'상담방')+'</span><span class="ri-icon">'+aiIcon+'</span>'+(rm.status==='closed'?'<span class="ri-closed">종료</span>':'')+'</div>'
+        +'<div class="ri-sub">🆔 '+e(rm.id)+' · 👥 '+rm.member_count+' · 💬 '+(rm.msg_count||0)+'</div>'
+        +'<div class="ri-time">'+e(rm.last_msg_at||rm.created_at||'')+'</div>'
         +'</div>';
     }).join('');
   }catch(err){$g('roomList').innerHTML='<div style="padding:20px;color:#f04452">오류: '+e(err.message)+'</div>'}
