@@ -65,6 +65,10 @@ export async function ensureFaqsTable(db) {
   `).run();
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_faqs_active ON faqs(active)`).run(); } catch {}
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_faqs_qnum ON faqs(q_number)`).run(); } catch {}
+  // 검증 상태 컬럼 (unchecked | verified | suspicious | wrong)
+  try { await db.prepare(`ALTER TABLE faqs ADD COLUMN verified_status TEXT DEFAULT 'unchecked'`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE faqs ADD COLUMN verified_note TEXT`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE faqs ADD COLUMN verified_at TEXT`).run(); } catch {}
 }
 
 // 사용자 질문과 가장 유사한 FAQ top K 반환

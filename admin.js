@@ -1404,9 +1404,11 @@ async function loadFaqs(){
   try{
     const q=$g('faqSearchInput').value.trim();
     const cat=$g('faqCatFilter').value;
+    const ver=$g('faqVerifiedFilter').value;
     const params=new URLSearchParams({key:KEY});
     if(q)params.set('search',q);
     if(cat&&cat!=='all')params.set('category',cat);
+    if(ver&&ver!=='all')params.set('verified',ver);
     const r=await fetch('/api/admin-faq?'+params.toString());
     const d=await r.json();
     if(d.error){el.innerHTML='<div class="empty">'+e(d.error)+'</div>';return}
@@ -1416,16 +1418,31 @@ async function loadFaqs(){
     sel.innerHTML='<option value="all">전체 카테고리</option>'+(d.categories||[]).map(c=>'<option value="'+e(c.category||'기타')+'">'+e(c.category||'기타')+' ('+c.n+')</option>').join('');
     sel.value=cur||'all';
     if(!d.faqs||d.faqs.length===0){el.innerHTML='<div class="empty">FAQ 없음 — "🚀 마이그레이션" 버튼으로 _faq.js 에서 가져오세요</div>';return}
+    /* 검증 카운트 배지도 업데이트 */
+    if(d.verified_counts){
+      const vc=d.verified_counts;
+      const stElm=$g('faqStatus');
+      const prev=stElm.textContent||'';
+      stElm.innerHTML=prev+' <span style="margin-left:8px">❓'+vc.unchecked+' ✅'+vc.verified+' 🟡'+vc.suspicious+' ❌'+vc.wrong+'</span>';
+    }
     el.innerHTML=d.faqs.map(f=>{
       const embMark=f.has_embedding?'<span style="background:#e0f5ec;color:#10b981;font-size:.68em;padding:1px 6px;border-radius:5px;font-weight:700">임베딩 ✓</span>':'<span style="background:#fee2e2;color:#f04452;font-size:.68em;padding:1px 6px;border-radius:5px;font-weight:700">임베딩 ✗</span>';
       const actMark=f.active?'':'<span style="background:#e5e8eb;color:#8b95a1;font-size:.68em;padding:1px 6px;border-radius:5px;font-weight:700;margin-left:4px">비활성</span>';
       const catMark=f.category?'<span style="background:#e8f3ff;color:#3182f6;font-size:.68em;padding:1px 6px;border-radius:5px;font-weight:700;margin-right:4px">'+e(f.category)+'</span>':'';
+      /* 검증 상태 배지 */
+      const vs=f.verified_status||'unchecked';
+      const verBadge=vs==='verified'?'<span style="background:#e0f5ec;color:#10b981;font-size:.68em;padding:1px 6px;border-radius:5px;font-weight:700;margin-right:4px">✅ 통과</span>':
+        vs==='suspicious'?'<span style="background:#fef3c7;color:#b45309;font-size:.68em;padding:1px 6px;border-radius:5px;font-weight:700;margin-right:4px">🟡 의심</span>':
+        vs==='wrong'?'<span style="background:#fee2e2;color:#f04452;font-size:.68em;padding:1px 6px;border-radius:5px;font-weight:700;margin-right:4px">❌ 틀림</span>':
+        '<span style="background:#e5e8eb;color:#8b95a1;font-size:.68em;padding:1px 6px;border-radius:5px;font-weight:700;margin-right:4px">❓ 미검증</span>';
+      const noteLine=f.verified_note?'<div class="meta" style="color:#b45309;margin-top:3px">📝 '+e(f.verified_note).slice(0,120)+'</div>':'';
       return '<div class="item" onclick="openFaqForm('+f.id+')" style="align-items:flex-start">'
         +'<div style="flex-shrink:0;background:#f2f4f6;color:#6b7684;width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:700;font-size:.78em">Q'+(f.q_number||'?')+'</div>'
         +'<div class="info">'
-          +'<div class="name">'+catMark+e(f.question)+actMark+'</div>'
+          +'<div class="name">'+verBadge+catMark+e(f.question)+actMark+'</div>'
           +'<div class="meta" style="overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal">'+e(String(f.answer||'').slice(0,150))+'</div>'
           +(f.law_refs?'<div class="meta" style="color:#3182f6;margin-top:3px">📖 '+e(f.law_refs)+'</div>':'')
+          +noteLine
         +'</div>'
         +'<div class="right">'+embMark+'</div>'
         +'</div>';
@@ -1440,6 +1457,7 @@ function openFaqForm(id){
     $g('faqFormTitle').textContent='FAQ 수정';
     $g('faqFormDeleteBtn').style.display='inline-block';
     $g('faqFormActiveLabel').style.display='flex';
+    $g('faqFormVerifiedWrap').style.display='block';
     /* 상세 로드 */
     fetch('/api/admin-faq?key='+encodeURIComponent(KEY)+'&id='+id).then(r=>r.json()).then(d=>{
       if(!d.faq)return;
@@ -1449,17 +1467,22 @@ function openFaqForm(id){
       $g('faqFormA').value=d.faq.answer||'';
       $g('faqFormLaw').value=d.faq.law_refs||'';
       $g('faqFormActive').checked=d.faq.active!==0;
+      $g('faqFormVerifiedStatus').value=d.faq.verified_status||'unchecked';
+      $g('faqFormVerifiedNote').value=d.faq.verified_note||'';
     });
   } else {
     $g('faqFormTitle').textContent='새 FAQ 추가';
     $g('faqFormDeleteBtn').style.display='none';
     $g('faqFormActiveLabel').style.display='none';
+    $g('faqFormVerifiedWrap').style.display='none';
     $g('faqFormQnum').value='';
     $g('faqFormCat').value='기타';
     $g('faqFormQ').value='';
     $g('faqFormA').value='';
     $g('faqFormLaw').value='';
     $g('faqFormActive').checked=true;
+    $g('faqFormVerifiedStatus').value='unchecked';
+    $g('faqFormVerifiedNote').value='';
   }
   $g('faqFormModal').style.display='flex';
 }
@@ -1493,6 +1516,12 @@ async function submitFaq(){
       return;
     }
     if(d.warning)alert('⚠️ 저장은 됐지만 경고: '+d.warning);
+    /* 수정 모드면 검증 상태도 별도 업데이트 */
+    if(editingFaqId){
+      try{
+        await fetch('/api/admin-faq?key='+encodeURIComponent(KEY)+'&action=set_verified',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:editingFaqId,status:$g('faqFormVerifiedStatus').value,note:$g('faqFormVerifiedNote').value.trim()})});
+      }catch(e){console.error('set_verified fail',e)}
+    }
     $g('faqFormModal').style.display='none';
     loadFaqStatus();loadFaqs();
     alert('✅ 저장 완료');

@@ -8,7 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/admin.css?v=8">
+<link rel="stylesheet" href="/admin.css?v=9">
 </head>
 <body>
 
@@ -350,6 +350,13 @@
   <select id="faqCatFilter" onchange="loadFaqs()" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.82em;font-family:inherit;background:#fff">
     <option value="all">전체 카테고리</option>
   </select>
+  <select id="faqVerifiedFilter" onchange="loadFaqs()" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.82em;font-family:inherit;background:#fff">
+    <option value="all">전체 검증상태</option>
+    <option value="unchecked">❓ 미검증</option>
+    <option value="verified">✅ 통과</option>
+    <option value="suspicious">🟡 의심</option>
+    <option value="wrong">❌ 틀림</option>
+  </select>
 </div>
 <div id="faqList"></div>
 </div>
@@ -390,10 +397,20 @@
     <textarea id="faqFormA" maxlength="10000" placeholder="답변 본문. 근거 법령은 별도 필드에." style="width:100%;height:180px;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit;outline:none;resize:vertical;margin-bottom:10px"></textarea>
     <label style="font-size:.75em;font-weight:600;color:#555;display:block;margin-bottom:4px">근거 법령 (선택)</label>
     <input id="faqFormLaw" type="text" placeholder="예: 부가가치세법 제61조" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px">
-    <label id="faqFormActiveLabel" style="display:none;align-items:center;gap:8px;margin-bottom:12px;font-size:.85em">
+    <label id="faqFormActiveLabel" style="display:none;align-items:center;gap:8px;margin-bottom:8px;font-size:.85em">
       <input id="faqFormActive" type="checkbox" checked>
       <span>활성 (체크 해제하면 RAG 검색에서 제외)</span>
     </label>
+    <div id="faqFormVerifiedWrap" style="display:none;margin-bottom:12px">
+      <label style="font-size:.75em;font-weight:600;color:#555;display:block;margin-bottom:4px">검증 상태</label>
+      <select id="faqFormVerifiedStatus" style="width:100%;padding:8px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit;background:#fff;margin-bottom:6px">
+        <option value="unchecked">❓ 미검증</option>
+        <option value="verified">✅ 검증 통과 (안전)</option>
+        <option value="suspicious">🟡 의심 / 수정 필요</option>
+        <option value="wrong">❌ 틀림 / 삭제 권장</option>
+      </select>
+      <textarea id="faqFormVerifiedNote" maxlength="2000" placeholder="검증 메모 (왜 의심/틀림인지, 수정안)" style="width:100%;height:60px;padding:8px;border:1px solid #e5e8eb;border-radius:8px;font-size:.82em;font-family:inherit;outline:none;resize:vertical"></textarea>
+    </div>
     <div id="faqFormErr" style="display:none;color:#f04452;font-size:.78em;margin-bottom:10px"></div>
     <div style="display:flex;gap:8px">
       <button onclick="submitFaq()" style="flex:1;background:#3182f6;color:#fff;border:none;padding:11px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">저장 + 임베딩</button>
@@ -404,6 +421,6 @@
 </div>
 </div>
 
-<script src="/admin.js?v=8"></script>
+<script src="/admin.js?v=9"></script>
 </body>
 </html>

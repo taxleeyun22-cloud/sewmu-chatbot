@@ -31,12 +31,15 @@ export async function onRequestGet(context) {
     if (id) {
       const row = await db.prepare(
         `SELECT id, q_number, category, question, answer, law_refs, active, created_at, updated_at,
+                verified_status, verified_note, verified_at,
                 CASE WHEN embedding IS NULL THEN 0 ELSE 1 END as has_embedding
          FROM faqs WHERE id = ?`
       ).bind(id).first();
       if (!row) return Response.json({ error: "not found" }, { status: 404 });
       return Response.json({ faq: row });
     }
+
+    const verified = url.searchParams.get("verified") || "";
 
     let where = "1=1";
     const binds = [];
@@ -49,9 +52,19 @@ export async function onRequestGet(context) {
       where += ` AND category = ?`;
       binds.push(category);
     }
+    if (verified && verified !== "all") {
+      // 'unchecked' 은 NULL 도 포함
+      if (verified === "unchecked") {
+        where += ` AND (verified_status IS NULL OR verified_status = 'unchecked')`;
+      } else {
+        where += ` AND verified_status = ?`;
+        binds.push(verified);
+      }
+    }
 
     const { results } = await db.prepare(`
       SELECT id, q_number, category, question, answer, law_refs, active, updated_at,
+             verified_status, verified_note,
              CASE WHEN embedding IS NULL THEN 0 ELSE 1 END as has_embedding
       FROM faqs
       WHERE ${where}
@@ -64,10 +77,22 @@ export async function onRequestGet(context) {
       `SELECT category, COUNT(*) as n FROM faqs WHERE active = 1 GROUP BY category ORDER BY n DESC`
     ).all();
 
+    // 검증 상태별 카운트
+    const vu = await db.prepare(`SELECT COUNT(*) as n FROM faqs WHERE verified_status IS NULL OR verified_status = 'unchecked'`).first();
+    const vv = await db.prepare(`SELECT COUNT(*) as n FROM faqs WHERE verified_status = 'verified'`).first();
+    const vs = await db.prepare(`SELECT COUNT(*) as n FROM faqs WHERE verified_status = 'suspicious'`).first();
+    const vw = await db.prepare(`SELECT COUNT(*) as n FROM faqs WHERE verified_status = 'wrong'`).first();
+
     return Response.json({
       faqs: results || [],
       categories: catResults || [],
       total: (results || []).length,
+      verified_counts: {
+        unchecked: vu?.n || 0,
+        verified: vv?.n || 0,
+        suspicious: vs?.n || 0,
+        wrong: vw?.n || 0,
+      },
     });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
@@ -173,6 +198,37 @@ export async function onRequestPost(context) {
       if (!id) return Response.json({ error: "id 필수" }, { status: 400 });
       await db.prepare(`DELETE FROM faqs WHERE id = ?`).bind(id).run();
       return Response.json({ ok: true });
+    }
+
+    // 검증 상태 업데이트 (개별)
+    if (action === "set_verified") {
+      const id = Number(body.id);
+      const status = body.status;  // 'verified' | 'suspicious' | 'wrong' | 'unchecked'
+      const note = (body.note || "").trim() || null;
+      if (!id) return Response.json({ error: "id 필수" }, { status: 400 });
+      if (!["verified", "suspicious", "wrong", "unchecked"].includes(status)) {
+        return Response.json({ error: "status는 verified/suspicious/wrong/unchecked 중 하나" }, { status: 400 });
+      }
+      await db.prepare(
+        `UPDATE faqs SET verified_status = ?, verified_note = ?, verified_at = ? WHERE id = ?`
+      ).bind(status, note, now, id).run();
+      return Response.json({ ok: true });
+    }
+
+    // 검증 상태 일괄 업데이트 (Claude가 삼중체크 결과 업로드용)
+    if (action === "bulk_verify") {
+      const items = Array.isArray(body.items) ? body.items : [];
+      let updated = 0, skipped = 0;
+      for (const it of items) {
+        if (!it.id || !["verified", "suspicious", "wrong", "unchecked"].includes(it.status)) { skipped++; continue; }
+        try {
+          await db.prepare(
+            `UPDATE faqs SET verified_status = ?, verified_note = ?, verified_at = ? WHERE id = ?`
+          ).bind(it.status, it.note || null, now, Number(it.id)).run();
+          updated++;
+        } catch { skipped++; }
+      }
+      return Response.json({ ok: true, updated, skipped });
     }
 
     if (action === "reembed_all") {
