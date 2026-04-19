@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sewmu-v5';
+const CACHE_NAME = 'sewmu-v6';
 const STATIC_ASSETS = ['/logo.png', '/logo-icon.png', '/logo-vertical.png'];
 
 self.addEventListener('install', e => {
@@ -28,8 +28,10 @@ self.addEventListener('push', e => {
       badge: '/icon-192.png',
       tag: data.tag || 'sewmu-msg',
       requireInteraction: false,
+      silent: false,
+      renotify: true,
       data: { url: data.url || '/' },
-      vibrate: [100, 50, 100]
+      vibrate: [200, 100, 200, 100, 200]
     })
   );
 });

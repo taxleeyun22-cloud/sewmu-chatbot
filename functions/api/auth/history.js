@@ -16,16 +16,19 @@ export async function onRequestGet(context) {
 
     if (!session) return Response.json({ messages: [] });
 
-    // cleared_at 이후 대화만 조회
+    // cleared_at 이후 대화만 조회. 상담방(room_id) 메시지는 제외 (1:1 AI 챗봇만)
     let query, params;
     if (session.cleared_at) {
       query = `SELECT role, content, created_at FROM conversations
-        WHERE user_id = ? AND role IN ('user', 'assistant') AND created_at > ?
+        WHERE user_id = ? AND role IN ('user', 'assistant')
+          AND (room_id IS NULL OR room_id = '')
+          AND created_at > ?
         ORDER BY created_at DESC LIMIT 100`;
       params = [session.user_id, session.cleared_at];
     } else {
       query = `SELECT role, content, created_at FROM conversations
         WHERE user_id = ? AND role IN ('user', 'assistant')
+          AND (room_id IS NULL OR room_id = '')
         ORDER BY created_at DESC LIMIT 100`;
       params = [session.user_id];
     }

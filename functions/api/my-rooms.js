@@ -152,7 +152,7 @@ export async function onRequestGet(context) {
 
       // 메시지 + unread_count (카톡 "1" 시스템)
       let query = `
-        SELECT c.id, c.role, c.content, c.created_at, c.user_id,
+        SELECT c.id, c.role, c.content, c.created_at, c.user_id, c.deleted_at,
                u.real_name, u.name, u.profile_image,
                (SELECT COUNT(*) FROM room_members rm
                 WHERE rm.room_id = c.room_id
@@ -340,6 +340,34 @@ export async function onRequestPost(context) {
         INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at)
         VALUES (?, ?, 'user', ?, ?, ?)
       `).bind('room_' + roomId, user.user_id, finalContent, roomId, now).run();
+
+      // 푸시 알림: 방 다른 멤버 + 세무사(admin) 모두에게
+      try {
+        const _webpush = await import("./_webpush.js");
+        const roomMeta = await db.prepare(`SELECT name FROM chat_rooms WHERE id = ?`).bind(roomId).first();
+        const senderName = (await db.prepare(`SELECT real_name, name FROM users WHERE id = ?`).bind(user.user_id).first());
+        const senderLabel = senderName?.real_name || senderName?.name || '고객';
+        const bodyText = fileUrl ? '📁 파일' : imageUrl ? '📷 사진' : content.slice(0, 80);
+        const { results: others } = await db.prepare(
+          `SELECT DISTINCT m.user_id FROM room_members m
+           WHERE m.room_id = ? AND m.left_at IS NULL AND m.user_id != ? AND m.user_id IS NOT NULL`
+        ).bind(roomId, user.user_id).all();
+        // 방 멤버 + is_admin=1 인 관리자들 전원에게 (세무사 푸시)
+        const { results: admins } = await db.prepare(
+          `SELECT id as user_id FROM users WHERE is_admin = 1 AND id != ?`
+        ).bind(user.user_id).all();
+        const targetIds = new Set();
+        for (const m of (others || [])) targetIds.add(m.user_id);
+        for (const a of (admins || [])) targetIds.add(a.user_id);
+        for (const uid of targetIds) {
+          await _webpush.notifyUser(db, context.env, uid, {
+            title: '💬 ' + (roomMeta?.name || '상담방'),
+            body: senderLabel + ': ' + bodyText,
+            tag: 'room-' + roomId,
+            url: '/?room=' + roomId,
+          });
+        }
+      } catch (e) { /* push 실패는 무시 */ }
 
       // 내 last_read_at 갱신
       await db.prepare(

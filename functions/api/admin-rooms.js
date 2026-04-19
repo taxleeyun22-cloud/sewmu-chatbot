@@ -11,6 +11,7 @@
 // - DELETE /api/admin-rooms?room_id=XX : 방 + 메시지 전체 삭제 (신중)
 
 import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { notifyUser } from "./_webpush.js";
 
 async function ensureTables(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS chat_rooms (
@@ -177,7 +178,7 @@ export async function onRequestGet(context) {
       `).bind(roomId).all();
 
       const { results: messages } = await db.prepare(`
-        SELECT c.id, c.role, c.content, c.created_at, c.user_id,
+        SELECT c.id, c.role, c.content, c.created_at, c.user_id, c.deleted_at,
                u.real_name, u.name, u.profile_image,
                (SELECT COUNT(*) FROM room_members rm
                 WHERE rm.room_id = c.room_id
@@ -351,6 +352,24 @@ export async function onRequestPost(context) {
         INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at)
         VALUES (?, NULL, 'human_advisor', ?, ?, ?)
       `).bind('room_' + roomId, finalContent, roomId, now).run();
+
+      // 푸시 알림 발송 (방의 모든 멤버에게)
+      try {
+        const roomMeta = await db.prepare(`SELECT name FROM chat_rooms WHERE id = ?`).bind(roomId).first();
+        const { results: members } = await db.prepare(
+          `SELECT user_id FROM room_members WHERE room_id = ? AND left_at IS NULL AND user_id IS NOT NULL`
+        ).bind(roomId).all();
+        const bodyText = fileUrl ? '📁 파일' : imageUrl ? '📷 사진' : content.slice(0, 80);
+        for (const m of (members || [])) {
+          await notifyUser(db, context.env, m.user_id, {
+            title: '💬 ' + (roomMeta?.name || '상담방'),
+            body: '세무사: ' + bodyText,
+            tag: 'room-' + roomId,
+            url: '/?room=' + roomId,
+          });
+        }
+      } catch (e) { /* push 실패는 메시지 전송 자체에 영향 없음 */ }
+
       return Response.json({ ok: true });
     }
 
