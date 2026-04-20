@@ -617,6 +617,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       <div id="rcTitle">-</div>
       <div id="rcMembers"></div>
     </div>
+    <button onclick="toggleCurrentRoomMute()" id="rcMuteBtn" class="rc-leave-btn" style="margin-right:6px" title="알림">🔔</button>
     <button onclick="openRoomInfo()" class="rc-leave-btn" style="margin-right:6px" title="사진·파일·공지">📂</button>
     <button onclick="leaveRoom()" class="rc-leave-btn">나가기</button>
   </div>
@@ -1152,6 +1153,46 @@ var prevRoomUnread={};
 var roomsFirstLoad=true;
 var toastTimer=null;
 
+/* ===== 방별 음소거 (localStorage) ===== */
+var mutedRooms=new Set();
+try{
+  var _raw=localStorage.getItem('mutedRooms');
+  if(_raw)mutedRooms=new Set(JSON.parse(_raw));
+}catch{}
+function saveMutedRooms(){try{localStorage.setItem('mutedRooms',JSON.stringify([...mutedRooms]))}catch{}}
+function isRoomMuted(id){return mutedRooms.has(String(id))}
+function toggleRoomMute(id){
+  id=String(id);
+  if(mutedRooms.has(id))mutedRooms.delete(id);
+  else mutedRooms.add(id);
+  saveMutedRooms();
+}
+function toggleCurrentRoomMute(){
+  if(!rcRoomId)return;
+  toggleRoomMute(rcRoomId);
+  updateMuteBtn();
+  showInAppToastSilent(isRoomMuted(rcRoomId)?'🔕 알림 꺼짐':'🔔 알림 켜짐');
+  /* 리스트/뱃지 즉시 반영 */
+  loadMyRooms();
+}
+function updateMuteBtn(){
+  var btn=document.getElementById('rcMuteBtn');
+  if(!btn||!rcRoomId)return;
+  var muted=isRoomMuted(rcRoomId);
+  btn.textContent=muted?'🔕':'🔔';
+  btn.title=muted?'알림 꺼짐 (탭하여 켜기)':'알림 켜짐 (탭하여 끄기)';
+}
+/* 토스트 — 무음 짧은 알림 (소리·이동 없음) */
+function showInAppToastSilent(msg){
+  var t=document.getElementById('inAppToast');if(!t)return;
+  t.querySelector('.in-toast-title').textContent=msg;
+  t.querySelector('.in-toast-msg').textContent='';
+  t.onclick=function(){hideInAppToast()};
+  t.classList.add('show');
+  if(toastTimer)clearTimeout(toastTimer);
+  toastTimer=setTimeout(hideInAppToast,1800);
+}
+
 /* 앱아이콘 뱃지 (설치된 PWA 아이콘에 숫자) */
 async function updateAppBadge(count){
   try{
@@ -1192,6 +1233,8 @@ function notifyRoomMessage(roomName,lastMsg,roomId){
   try{
     /* 현재 보고있는 방이면 표시 안 함 */
     if(document.visibilityState==='visible'&&rcRoomId===roomId)return;
+    /* 음소거된 방: 토스트·소리·OS알림 모두 skip (미읽음 뱃지는 리스트에 유지) */
+    if(isRoomMuted(roomId))return;
     var visible=document.visibilityState==='visible';
     if(visible){
       /* 포그라운드: 인앱 토스트 + 소리 */
@@ -1238,10 +1281,15 @@ async function loadMyRooms(){
     if(!d.rooms||d.rooms.length===0){sec.style.display='none';return}
     sec.style.display='block';
     var totalUnread=0;
-    d.rooms.forEach(function(rm){totalUnread+=(rm.unread_count||0)});
+    var badgeUnread=0;
+    d.rooms.forEach(function(rm){
+      var u=rm.unread_count||0;
+      totalUnread+=u;
+      if(!isRoomMuted(rm.id))badgeUnread+=u;
+    });
     var cntEl=document.getElementById('mpRoomsCount');
     cntEl.textContent=totalUnread>0?'('+totalUnread+'개 새 메시지)':'';
-    updateAppBadge(totalUnread);
+    updateAppBadge(badgeUnread);
     /* 새 메시지 도착 감지 → 알림 (현재 보고있는 방 제외) */
     if(!roomsFirstLoad){
       d.rooms.forEach(function(rm){
@@ -1257,15 +1305,19 @@ async function loadMyRooms(){
     list.innerHTML=d.rooms.map(function(rm){
       var last=rm.last_msg?esc(rm.last_msg).slice(0,40):'(메시지 없음)';
       var hasUnread=rm.unread_count>0;
+      var muted=isRoomMuted(rm.id);
       var newBadge=hasUnread?'<span style="background:#f04452;color:#fff;border-radius:4px;padding:1px 5px;font-size:.6em;font-weight:800;margin-left:6px;letter-spacing:.5px;vertical-align:middle">N</span>':'';
-      var ur=hasUnread?'<span style="background:#f04452;color:#fff;border-radius:12px;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;padding:0 7px;font-size:.75em;font-weight:800;flex-shrink:0;box-shadow:0 1px 3px rgba(240,68,82,.4)">'+(rm.unread_count>99?'99+':rm.unread_count)+'</span>':'';
+      var urBg=muted?'#b0b8c1':'#f04452';
+      var urShadow=muted?'none':'0 1px 3px rgba(240,68,82,.4)';
+      var ur=hasUnread?'<span style="background:'+urBg+';color:#fff;border-radius:12px;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;padding:0 7px;font-size:.75em;font-weight:800;flex-shrink:0;box-shadow:'+urShadow+'">'+(rm.unread_count>99?'99+':rm.unread_count)+'</span>':'';
+      var muteIcon=muted?'<span style="font-size:.85em;margin-left:4px;opacity:.7" title="알림 꺼짐">🔕</span>':'';
       var closed=rm.status==='closed'?'<span style="font-size:.65em;background:#e5e8eb;padding:1px 6px;border-radius:4px;color:#8b95a1;margin-left:4px">종료</span>':'';
       var titleStyle=hasUnread?'font-weight:800':'';
       var lastStyle=hasUnread?'font-weight:700;color:var(--text)':'';
       return '<div class="mp-item" onclick="openMyRoom(\''+rm.id+'\')">'
         +'<div class="mp-item-icon">💬</div>'
         +'<div class="mp-item-main">'
-        +'<div class="mp-item-label" style="'+titleStyle+'">'+esc(rm.name||'상담방')+newBadge+closed+'</div>'
+        +'<div class="mp-item-label" style="'+titleStyle+'">'+esc(rm.name||'상담방')+muteIcon+newBadge+closed+'</div>'
         +'<div class="mp-item-value" style="'+lastStyle+'">'+last+'</div>'
         +'</div>'
         +ur
@@ -1307,6 +1359,7 @@ async function loadRoomChat(){
     document.getElementById('rcTitle').textContent=d.room.name||'상담방';
     var mm=(d.members||[]).map(function(m){return m.real_name||m.name||'이름없음'});
     document.getElementById('rcMembers').textContent='👥 '+mm.join(', ')+' + 🏢 세무회계 이윤';
+    updateMuteBtn();
     var inputArea=document.getElementById('rcInputArea');
     inputArea.style.display=rcIsActive?'flex':'none';
     document.getElementById('rcClosedNotice').style.display=rcIsActive?'none':'block';
