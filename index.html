@@ -680,7 +680,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       </div>
       <span>사진첩</span>
     </label>
-    <input id="rcFileInput" type="file" accept="image/*" onchange="sendRoomImage(this);closeAttachSheet()" style="display:none">
+    <input id="rcFileInput" type="file" accept="image/*" multiple onchange="sendRoomImage(this);closeAttachSheet()" style="display:none">
     <label for="rcCamInput" class="rc-attach-item">
       <div class="rc-attach-icon" style="background:#e0f5ec;color:#10b981">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -1851,14 +1851,30 @@ async function sendRoomReceipt(fileInput){
 
 async function sendRoomImage(fileInput){
   if(!rcRoomId||!rcIsActive)return;
-  var file=fileInput.files[0];
+  var all=Array.from(fileInput.files||[]);
   fileInput.value='';
-  if(!file)return;
-  if(file.size>10*1024*1024){alert('10MB 이하 이미지만 업로드 가능합니다');return}
-  /* 기장 거래처면 자동으로 OCR 영수증 처리 (AI가 세무 문서 아닌 걸로 판정하면 그냥 사진으로 남음) */
-  if(currentUser&&currentUser.approval_status==='approved_client'){
-    return sendRoomReceiptFromFile(file);
+  if(!all.length)return;
+  if(all.length>10){alert('한 번에 최대 10장까지 업로드 가능합니다');all=all.slice(0,10)}
+  /* 여러 장 지원: 순차 처리 + 진행률 토스트 */
+  var isClient=currentUser&&currentUser.approval_status==='approved_client';
+  for(var i=0;i<all.length;i++){
+    var f=all[i];
+    if(!f)continue;
+    if(f.size>10*1024*1024){alert('['+(f.name||(i+1)+'번째')+'] 10MB 초과 — 건너뜁니다');continue}
+    if(all.length>1&&typeof showInAppToastSilent==='function'){
+      showInAppToastSilent('📤 '+(i+1)+'/'+all.length+' 처리 중...');
+    }
+    if(isClient){
+      await sendRoomReceiptFromFile(f);
+    } else {
+      await sendOneLegacyImage(f);
+    }
   }
+}
+
+/* 일반 사용자(비기장거래처) 레거시 업로드 — 단일 이미지 */
+async function sendOneLegacyImage(file){
+  if(!file)return;
   var btn=document.querySelector('.rc-send-btn');
   var origText=btn?btn.textContent:'';
   if(btn){btn.textContent='업로드...';btn.disabled=true}
@@ -1874,6 +1890,9 @@ async function sendRoomImage(fileInput){
   }catch(e){alert('오류: '+e.message)}
   finally{if(btn){btn.textContent=origText;btn.disabled=false}}
 }
+
+/* 레거시 코드 경로 (approved_client 아닌 경우 & 하단 코드는 unreachable로 처리됨) */
+/* (레거시 단일 이미지 업로드 로직은 sendOneLegacyImage + sendRoomImage(multi)로 통합됨) */
 
 /* content가 [IMG]url\n text 형식이면 분리해서 반환 */
 function parseMessageContent(content){

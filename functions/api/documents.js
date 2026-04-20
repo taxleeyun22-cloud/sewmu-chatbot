@@ -134,12 +134,12 @@ export async function onRequestPost(context) {
       }
     });
 
-    // documents insert (초기)
+    // documents insert (초기) — 자동 승인 (세무사가 이상한 것만 수정·반려)
     const createdAt = kst();
     const ins = await db.prepare(
-      `INSERT INTO documents (user_id, room_id, doc_type, image_key, ocr_status, status, created_at)
-       VALUES (?, ?, ?, ?, 'pending', 'pending', ?)`
-    ).bind(user.user_id, roomId, docType, key, createdAt).run();
+      `INSERT INTO documents (user_id, room_id, doc_type, image_key, ocr_status, status, approver_id, approved_at, created_at)
+       VALUES (?, ?, ?, ?, 'pending', 'approved', 0, ?, ?)`
+    ).bind(user.user_id, roomId, docType, key, createdAt, createdAt).run();
     const docId = ins.meta?.last_row_id;
 
     // OCR 호출 (동기) — R2 put 때 쓴 buf 재사용
