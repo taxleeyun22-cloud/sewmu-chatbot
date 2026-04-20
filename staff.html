@@ -59,18 +59,52 @@
     </div>
     <div id="roomMembers" style="display:none;padding:8px 16px;border-bottom:1px solid #e5e8eb;background:#f9fafb;font-size:.75em;color:#555"></div>
     <div id="roomMessages" style="flex:1;overflow-y:auto;padding:14px 16px;background:#f9fafb"></div>
+    <!-- 첨부 시트 (+ 누르면 펼침, 카톡 스타일) -->
+    <div id="roomAttachSheet" style="display:none;padding:14px 18px;border-top:1px solid #e5e8eb;background:#f9fafb;gap:24px;justify-content:flex-start;flex-wrap:wrap">
+      <label for="roomFileInput" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;font-size:.78em;color:#555;font-family:inherit">
+        <div style="width:52px;height:52px;background:#fef3c7;color:#b45309;border-radius:50%;display:flex;align-items:center;justify-content:center">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </div>
+        <span>사진첩</span>
+      </label>
+      <input id="roomFileInput" type="file" accept="image/*" onchange="sendRoomImage(this);closeRoomAttachSheet()" style="display:none">
+      <label for="roomCamInput" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;font-size:.78em;color:#555;font-family:inherit">
+        <div style="width:52px;height:52px;background:#e0f5ec;color:#10b981;border-radius:50%;display:flex;align-items:center;justify-content:center">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </div>
+        <span>카메라</span>
+      </label>
+      <input id="roomCamInput" type="file" accept="image/*" capture="environment" onchange="sendRoomImage(this);closeRoomAttachSheet()" style="display:none">
+      <label for="roomDocInput" style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;font-size:.78em;color:#555;font-family:inherit">
+        <div style="width:52px;height:52px;background:#dbeafe;color:#1d4ed8;border-radius:50%;display:flex;align-items:center;justify-content:center">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+        </div>
+        <span>파일</span>
+      </label>
+      <input id="roomDocInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip" onchange="sendRoomFile(this);closeRoomAttachSheet()" style="display:none">
+    </div>
     <div id="roomInputArea" style="display:none;padding:10px 12px;border-top:1px solid #e5e8eb;display:flex;gap:8px;align-items:center">
-      <label for="roomFileInput" title="사진 첨부" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;line-height:0">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-      </label>
-      <input id="roomFileInput" type="file" accept="image/*" onchange="sendRoomImage(this)" style="display:none">
-      <label for="roomDocInput" title="파일 첨부" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;line-height:0">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
-      </label>
-      <input id="roomDocInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip" onchange="sendRoomFile(this)" style="display:none">
-      <input id="roomInput" type="text" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter')sendRoomMessage()" style="flex:1;min-width:0;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit">
+      <button onclick="toggleRoomAttachSheet()" id="roomAttachBtn" title="첨부" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;width:38px;height:38px;border-radius:50%;cursor:pointer;flex-shrink:0;line-height:0;padding:0;transition:transform .15s;font-family:inherit">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <input id="roomInput" type="text" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter')sendRoomMessage()" onfocus="closeRoomAttachSheet()" style="flex:1;min-width:0;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit">
       <button onclick="sendRoomMessage()" style="background:#3182f6;color:#fff;border:none;padding:10px 16px;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">전송</button>
     </div>
+    <script>
+      function toggleRoomAttachSheet(){
+        var s=document.getElementById('roomAttachSheet');
+        var b=document.getElementById('roomAttachBtn');
+        var open=s.style.display==='flex';
+        s.style.display=open?'none':'flex';
+        if(b)b.style.transform=open?'rotate(0deg)':'rotate(45deg)';
+      }
+      function closeRoomAttachSheet(){
+        var s=document.getElementById('roomAttachSheet');
+        var b=document.getElementById('roomAttachBtn');
+        s.style.display='none';
+        if(b)b.style.transform='rotate(0deg)';
+      }
+    </script>
   </div>
 </div>
 </div>
@@ -361,6 +395,102 @@ async function staffLogout(){
 }
 
 staffBoot();
+
+/* ===== 풀스크린 이미지 뷰어 (카톡 스타일) ===== */
+var ivState={srcs:[],idx:0,startX:0,startY:0,touching:false};
+function collectImagesNear(el){
+  var c=el.closest('#roomMessages')||el.closest('#riPhotoGrid')||document.body;
+  var nodes=c.querySelectorAll('img.rc-img-msg, img.ri-photo, .ri-photo img');
+  var arr=[];nodes.forEach(function(n){if(n.src)arr.push(n.src)});
+  return arr.length?arr:[el.src];
+}
+function openImgViewer(src,srcs){
+  if(!Array.isArray(srcs)||srcs.length===0)srcs=[src];
+  var i=srcs.indexOf(src);if(i<0)i=0;
+  ivState.srcs=srcs;ivState.idx=i;
+  var v=document.getElementById('imgViewer');
+  v.classList.add('open');v.classList.toggle('has-multiple',srcs.length>1);
+  document.body.style.overflow='hidden';
+  renderIvImg();
+  try{history.pushState({iv:1},'',location.href)}catch{}
+}
+function closeImgViewer(){
+  var v=document.getElementById('imgViewer');
+  if(!v||!v.classList.contains('open'))return;
+  v.classList.remove('open');document.body.style.overflow='';
+  try{if(history.state&&history.state.iv)history.back()}catch{}
+}
+function renderIvImg(){
+  var img=document.getElementById('ivImg');if(!img)return;
+  img.src=ivState.srcs[ivState.idx]||'';
+  var c=document.getElementById('ivCounter');
+  if(c)c.textContent=(ivState.idx+1)+' / '+ivState.srcs.length;
+}
+function imgViewerNav(d){
+  if(ivState.srcs.length<2)return;
+  ivState.idx=(ivState.idx+d+ivState.srcs.length)%ivState.srcs.length;
+  renderIvImg();
+}
+async function saveImgViewer(){
+  var src=ivState.srcs[ivState.idx];if(!src)return;
+  try{
+    var r=await fetch(src);if(!r.ok)throw new Error();
+    var b=await r.blob();var url=URL.createObjectURL(b);
+    var a=document.createElement('a');
+    var nm=(src.split('/').pop()||'image').split('?')[0]||'image';
+    if(!/\.\w+$/.test(nm))nm+='.jpg';
+    a.href=url;a.download=nm;document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(url);a.remove()},150);
+  }catch{window.open(src,'_blank')}
+}
+(function(){
+  var v=document.getElementById('imgViewer');if(!v)return;
+  v.addEventListener('click',function(e){if(e.target===v||e.target.id==='ivImg')closeImgViewer()});
+  v.addEventListener('touchstart',function(e){
+    if(e.touches.length!==1)return;
+    ivState.startX=e.touches[0].clientX;ivState.startY=e.touches[0].clientY;ivState.touching=true;
+  },{passive:true});
+  v.addEventListener('touchend',function(e){
+    if(!ivState.touching)return;ivState.touching=false;
+    if(!e.changedTouches||!e.changedTouches[0])return;
+    var dx=e.changedTouches[0].clientX-ivState.startX;
+    var dy=e.changedTouches[0].clientY-ivState.startY;
+    if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy))imgViewerNav(dx>0?-1:1);
+    else if(dy>120&&Math.abs(dy)>Math.abs(dx))closeImgViewer();
+  },{passive:true});
+  document.addEventListener('keydown',function(e){
+    if(!v.classList.contains('open'))return;
+    if(e.key==='Escape')closeImgViewer();
+    else if(e.key==='ArrowLeft')imgViewerNav(-1);
+    else if(e.key==='ArrowRight')imgViewerNav(1);
+  });
+  window.addEventListener('popstate',function(){
+    if(v.classList.contains('open')){v.classList.remove('open');document.body.style.overflow=''}
+  });
+})();
 </script>
+
+<style>
+#imgViewer{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:10000;display:none;align-items:center;justify-content:center;touch-action:pan-y}
+#imgViewer.open{display:flex}
+#ivImg{max-width:100vw;max-height:100vh;object-fit:contain;user-select:none;-webkit-user-drag:none}
+.iv-btn{position:absolute;background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:24px;cursor:pointer;font-family:inherit;z-index:2}
+.iv-close{top:14px;right:14px;width:42px;height:42px;font-size:1.2em;display:flex;align-items:center;justify-content:center;padding:0}
+.iv-save{top:14px;left:14px;padding:9px 16px;font-size:.88em;font-weight:600;display:flex;align-items:center;gap:6px}
+.iv-counter{position:absolute;top:20px;left:50%;transform:translateX(-50%);color:#fff;font-size:.85em;background:rgba(0,0,0,.55);padding:7px 14px;border-radius:12px;z-index:2;display:none}
+#imgViewer.has-multiple .iv-counter{display:block}
+.iv-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.4);color:#fff;border:none;width:46px;height:64px;font-size:2.2em;cursor:pointer;z-index:2;display:none;font-family:inherit;padding:0}
+.iv-prev{left:0;border-radius:0 8px 8px 0}.iv-next{right:0;border-radius:8px 0 0 8px}
+@media(min-width:601px){#imgViewer.has-multiple .iv-arrow{display:flex;align-items:center;justify-content:center}}
+</style>
+
+<div id="imgViewer">
+  <button onclick="closeImgViewer()" class="iv-btn iv-close">✕</button>
+  <button onclick="saveImgViewer()" class="iv-btn iv-save">💾 저장</button>
+  <div id="ivCounter" class="iv-counter"></div>
+  <button onclick="imgViewerNav(-1)" class="iv-arrow iv-prev">‹</button>
+  <button onclick="imgViewerNav(1)" class="iv-arrow iv-next">›</button>
+  <img id="ivImg" src="" alt="">
+</div>
 </body>
 </html>

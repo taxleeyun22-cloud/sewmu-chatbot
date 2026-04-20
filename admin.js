@@ -36,7 +36,7 @@ function renderMsgBody(content){
   const p=parseMsg(content);
   let h='';
   if(p.image){
-    h+='<a href="'+e(p.image)+'" target="_blank" download style="display:inline-block;max-width:220px;border-radius:10px;overflow:hidden;background:rgba(0,0,0,.06);cursor:pointer"><img src="'+e(p.image)+'" alt="이미지" loading="lazy" style="display:block;width:100%;max-width:220px;max-height:300px;object-fit:cover" onerror="this.parentElement.innerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'"></a>';
+    h+='<img class="rc-img-msg" src="'+e(p.image)+'" alt="이미지" loading="lazy" style="display:inline-block;max-width:220px;max-height:300px;border-radius:10px;background:rgba(0,0,0,.06);object-fit:cover;cursor:zoom-in" onclick="openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">';
   }
   if(p.file){
     const nm=p.file.name||'파일';
@@ -438,7 +438,7 @@ async function loadRoomMedia(){
         const match=String(m.content||'').match(/^\[IMG\](\S+)/);
         const url=match?match[1]:'';
         if(!url)return '';
-        return '<a class="ri-photo" href="'+e(url)+'" target="_blank"><img src="'+e(url)+'" loading="lazy" alt=""></a>';
+        return '<div class="ri-photo" style="cursor:zoom-in"><img class="rc-img-msg" src="'+e(url)+'" loading="lazy" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onclick="openImgViewer(this.src,collectImagesNear(this))"></div>';
       }).join('');
     }
     if(!d.links||d.links.length===0){
@@ -1664,3 +1664,81 @@ async function reembedAllFaqs(){
   }catch(er){alert('오류: '+er.message)}
   finally{if(btn){btn.disabled=false;btn.textContent='♻️ 전체 재임베딩'}}
 }
+
+/* ===== 풀스크린 이미지 뷰어 (카톡 스타일) ===== */
+var ivState={srcs:[],idx:0,startX:0,startY:0,touching:false};
+function collectImagesNear(el){
+  var c=el.closest(".rmsgs")||el.closest("#msgs")||el.closest("#roomChatMessages")||el.closest("#riPhotoGrid")||document.body;
+  var nodes=c.querySelectorAll("img.rc-img-msg, img.ri-photo, .ri-photo img");
+  var arr=[];nodes.forEach(function(n){if(n.src)arr.push(n.src)});
+  return arr.length?arr:[el.src];
+}
+function openImgViewer(src,srcs){
+  if(!Array.isArray(srcs)||srcs.length===0)srcs=[src];
+  var i=srcs.indexOf(src);if(i<0)i=0;
+  ivState.srcs=srcs;ivState.idx=i;
+  var v=document.getElementById("imgViewer");if(!v)return;
+  v.classList.add("open");v.classList.toggle("has-multiple",srcs.length>1);
+  document.body.style.overflow="hidden";
+  renderIvImg();
+  try{history.pushState({iv:1},"",location.href)}catch(e){}
+}
+function closeImgViewer(){
+  var v=document.getElementById("imgViewer");
+  if(!v||!v.classList.contains("open"))return;
+  v.classList.remove("open");document.body.style.overflow="";
+  try{if(history.state&&history.state.iv)history.back()}catch(e){}
+}
+function renderIvImg(){
+  var img=document.getElementById("ivImg");if(!img)return;
+  img.src=ivState.srcs[ivState.idx]||"";
+  var c=document.getElementById("ivCounter");
+  if(c)c.textContent=(ivState.idx+1)+" / "+ivState.srcs.length;
+}
+function imgViewerNav(d){
+  if(ivState.srcs.length<2)return;
+  ivState.idx=(ivState.idx+d+ivState.srcs.length)%ivState.srcs.length;
+  renderIvImg();
+}
+async function saveImgViewer(){
+  var src=ivState.srcs[ivState.idx];if(!src)return;
+  try{
+    var r=await fetch(src);if(!r.ok)throw new Error();
+    var b=await r.blob();var url=URL.createObjectURL(b);
+    var a=document.createElement("a");
+    var nm=(src.split("/").pop()||"image").split("?")[0]||"image";
+    if(!/\.\w+$/.test(nm))nm+=".jpg";
+    a.href=url;a.download=nm;document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(url);a.remove()},150);
+  }catch(e){window.open(src,"_blank")}
+}
+(function(){
+  function init(){
+    var v=document.getElementById("imgViewer");if(!v)return false;
+    v.addEventListener("click",function(e){if(e.target===v||e.target.id==="ivImg")closeImgViewer()});
+    v.addEventListener("touchstart",function(e){
+      if(e.touches.length!==1)return;
+      ivState.startX=e.touches[0].clientX;ivState.startY=e.touches[0].clientY;ivState.touching=true;
+    },{passive:true});
+    v.addEventListener("touchend",function(e){
+      if(!ivState.touching)return;ivState.touching=false;
+      if(!e.changedTouches||!e.changedTouches[0])return;
+      var dx=e.changedTouches[0].clientX-ivState.startX;
+      var dy=e.changedTouches[0].clientY-ivState.startY;
+      if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy))imgViewerNav(dx>0?-1:1);
+      else if(dy>120&&Math.abs(dy)>Math.abs(dx))closeImgViewer();
+    },{passive:true});
+    document.addEventListener("keydown",function(e){
+      if(!v.classList.contains("open"))return;
+      if(e.key==="Escape")closeImgViewer();
+      else if(e.key==="ArrowLeft")imgViewerNav(-1);
+      else if(e.key==="ArrowRight")imgViewerNav(1);
+    });
+    window.addEventListener("popstate",function(){
+      if(v.classList.contains("open")){v.classList.remove("open");document.body.style.overflow=""}
+    });
+    return true;
+  }
+  if(!init()){document.addEventListener("DOMContentLoaded",init)}
+})();
+
