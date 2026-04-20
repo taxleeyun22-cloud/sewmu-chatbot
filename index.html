@@ -3091,21 +3091,17 @@ function detectPlatform(){
 /* 친구에게 알리기 — 카톡·메시지 등 공유시트 */
 async function shareToFriend(){
   var url='https://sewmu-chatbot.pages.dev/';
-  var msg='서랍에 쌓이는 영수증,\n'
-    +'이제 사진 한 장이면 끝.\n\n'
-    +'· 영수증 → AI 자동 분류\n'
-    +'· 세무 질문 → 24시간 답변\n'
-    +'· 신고 기한 → 자동 알림\n\n'
-    +'세무가 이렇게 간단해집니다.\n\n'
-    +'세무회계 이윤\n'+url;
-  /* Web Share API — 모바일 기본 공유시트 */
+  var msg='📂 서랍에 쌓이는 영수증,\n'
+    +'이제 사진 한 장이면 끝! 📸\n\n'
+    +'🧾 영수증 → AI 자동 분류\n'
+    +'💬 세무 질문 → 24시간 답변\n'
+    +'🔔 신고 기한 → 자동 알림\n\n'
+    +'세무가 이렇게 간단해집니다 ✨\n\n'
+    +'🏢 세무회계 이윤\n'+url;
+  /* Web Share API — 공유시트. msg 안에 url이 이미 있으므로 url 필드는 생략 (중복 방지) */
   if(navigator.share){
     try{
-      await navigator.share({
-        title:'세무회계 이윤 · AI 세무상담',
-        text:msg,
-        url:url
-      });
+      await navigator.share({title:'세무회계 이윤 · AI 세무상담',text:msg});
       return;
     }catch(e){if(e&&e.name==='AbortError')return;}
   }
