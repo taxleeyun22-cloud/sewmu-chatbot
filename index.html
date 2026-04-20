@@ -1655,17 +1655,38 @@ async function loadRoomChat(){
         groupedMsgs.push(gm);
       }
     }
+    /* 날짜 구분선 렌더 헬퍼 */
+    var lastDateLabel=null;
+    function dateLabelKST(iso){
+      if(!iso)return '';
+      var s=String(iso);
+      /* 서버가 KST '2026-04-20 14:33:00' 포맷으로 내려줌 */
+      var d=s.substring(0,10);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return '';
+      var dt=new Date(d+'T00:00:00');
+      var days=['일','월','화','수','목','금','토'];
+      return d.substring(0,4)+'년 '+parseInt(d.substring(5,7),10)+'월 '+parseInt(d.substring(8,10),10)+'일 '+days[dt.getDay()]+'요일';
+    }
+    function dateSeparator(m){
+      var dlab=dateLabelKST(m.created_at);
+      if(!dlab||dlab===lastDateLabel)return '';
+      lastDateLabel=dlab;
+      return '<div style="display:flex;align-items:center;gap:10px;margin:14px 0 10px"><div style="flex:1;height:1px;background:var(--border)"></div>'
+        +'<div style="font-size:.7em;color:var(--text2);background:var(--card);padding:4px 12px;border-radius:12px;border:1px solid var(--border)">📅 '+dlab+'</div>'
+        +'<div style="flex:1;height:1px;background:var(--border)"></div></div>';
+    }
     container.innerHTML=groupedMsgs.map(function(m){
+      var sepHtml=dateSeparator(m);
       var nm=m.real_name||m.name||'';
       var isMe=currentUser&&m.user_id===currentUser.id;
       var ur=m.unread_count>0?'<span style="font-size:.65em;color:#f4c430;font-weight:700;margin:0 4px;align-self:flex-end;margin-bottom:4px">'+m.unread_count+'</span>':'';
       /* 사진 모아보기 그룹 렌더링 */
       if(m._isPhotoGroup){
-        return renderPhotoGroup(m, isMe, nm);
+        return sepHtml+renderPhotoGroup(m, isMe, nm);
       }
       /* 삭제된 메시지 */
       if(m.deleted_at){
-        return '<div style="margin-bottom:10px;text-align:center;opacity:.55"><span style="display:inline-block;background:var(--card);color:var(--text2);padding:6px 14px;border-radius:10px;font-size:.72em;font-style:italic;border:1px solid var(--border)">삭제된 메시지입니다</span></div>';
+        return sepHtml+'<div style="margin-bottom:10px;text-align:center;opacity:.55"><span style="display:inline-block;background:var(--card);color:var(--text2);padding:6px 14px;border-radius:10px;font-size:.72em;font-style:italic;border:1px solid var(--border)">삭제된 메시지입니다</span></div>';
       }
       /* 컨텍스트 메뉴용 데이터 */
       var parsed=parseMessageContent(m.content);
@@ -1680,25 +1701,25 @@ async function loadRoomChat(){
       }
       if(m.role==='user'){
         if(isMe){
-          return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end;align-items:flex-end">'
+          return sepHtml+'<div style="margin-bottom:10px;display:flex;justify-content:flex-end;align-items:flex-end">'
             +ur
             +'<div'+dataAttrs('나',1)+' style="background:var(--blue);color:#fff;padding:9px 13px;border-radius:14px 4px 14px 14px;max-width:75%;font-size:.88em;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content, m.document)
             +'<div style="font-size:.62em;opacity:.8;margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>';
         } else {
-          return '<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
+          return sepHtml+'<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
             +'<div style="max-width:75%"><div style="font-size:.68em;color:var(--text2);margin-bottom:2px;margin-left:4px">'+esc(nm)+'</div>'
             +'<div'+dataAttrs(nm,0)+' style="background:var(--card);color:var(--text);padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+renderMessageBody(m.content, m.document)
             +'<div style="font-size:.62em;color:var(--text2);margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>'
             +ur+'</div>';
         }
       } else if(m.role==='assistant'){
-        return '<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
+        return sepHtml+'<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
           +'<div style="max-width:75%"><div style="font-size:.68em;color:var(--text2);margin-bottom:2px;margin-left:4px">🤖 세무회계 이윤 AI</div>'
           +'<div'+dataAttrs('세무회계 이윤 AI',0)+' style="background:var(--card);color:var(--text);padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+esc(m.content)
           +'<div style="font-size:.62em;color:var(--text2);margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>'
           +ur+'</div>';
       } else if(m.role==='human_advisor'){
-        return '<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
+        return sepHtml+'<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
           +'<div style="max-width:75%"><div style="font-size:.68em;color:#10b981;margin-bottom:2px;margin-left:4px;font-weight:600">👨‍💼 이재윤 세무사</div>'
           +'<div'+dataAttrs('이재윤 세무사',0)+' style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content, m.document)
           +'<div style="font-size:.62em;color:#10b981;margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>'
@@ -3067,28 +3088,71 @@ function detectPlatform(){
   if(isAndroid)return 'android';
   return 'desktop';
 }
-/* 친구에게 알리기 — 카톡·메시지 등 공유시트 */
+/* 친구에게 알리기 — 카톡·메시지 등 공유시트. 멘트 여러 개 중 랜덤 */
 async function shareToFriend(){
   var url='https://sewmu-chatbot.pages.dev/';
   var name=(currentUser&&(currentUser.real_name||currentUser.name))||'';
-  var msg='[세무회계 이윤 AI 세무상담]\n\n'
-    +(name?(name+' 대표님이 추천하는 '):'')
-    +'AI가 24시간 세무 질문에 답하고, 영수증 사진 올리면 자동 분류·정리되는 세무 챗봇이에요.\n\n'
-    +'대구 달서구 세무회계 이윤 (대표세무사 이재윤)\n'
-    +url;
-  /* Web Share API (모바일·일부 데스크톱) */
+  var who=name?(name+' 대표님'):'저';
+  /* 6종 멘트 랜덤 (친구한테 보내기에 안 부끄러운 톤) */
+  var templates=[
+    /* 1. 실용 강조 */
+    '🔥 "세무사 친구" 하나 추천드려요\n\n'
+      +'영수증 사진만 찍으면 AI가 알아서 분류·정리, 세무 궁금한 거 24시간 바로 답변.\n'
+      +'세무사(이재윤·대구)가 직접 검토해주니까 세금 신고 때 불안할 일 없어요.\n\n'
+      +'✅ 회원가입 무료\n'
+      +'✅ 홈화면 3초 설치 (카톡처럼 바로 사용)\n'
+      +'✅ 기장 거래처 150곳+ 운영 중\n\n'
+      +who+'의 추천 👇\n'+url,
+    /* 2. 일상 문제 공감 */
+    '📸 "이 영수증 어디다 쓰지..." 했던 사장님들께\n\n'
+      +'사진 한 장 찍어 올리면 AI가 가맹점·금액·날짜 자동 인식하고,\n'
+      +'세무사가 월말에 한번에 정리해줍니다. 기장 받을 때 적힐거 알아서 적혀요.\n\n'
+      +'대구 달서구 세무회계 이윤 · 이재윤 대표세무사\n'
+      +'AI 세무 챗봇 (무료 체험) 👇\n'+url,
+    /* 3. 시간·비용 강조 */
+    '⏱️ 세무 일에 하루 30분씩 쓰시는 분 계세요?\n\n'
+      +'영수증 정리·세금 질문 모두 AI가 1차 처리, 세무사가 검토만.\n'
+      +'기장 거래처는 영수증 월 30장 올려도 한 번에 정리됩니다.\n\n'
+      +'세무회계 이윤 (대구) · 대표세무사 이재윤\n'
+      +'카톡처럼 써보세요 👉 '+url,
+    /* 4. 신뢰·경력 강조 */
+    '👨‍💼 대구 달서구에서 10년 넘게 기장 업무 해오신\n'
+      +'이재윤 세무사님이 직접 운영하는 AI 세무 챗봇입니다.\n\n'
+      +'• 부가세·종소세·원천세·법인세 전부 가능\n'
+      +'• 영수증·계약서 사진 올리면 자동 분류\n'
+      +'• 기장 거래처 전용 상담방 무료 제공\n\n'
+      +who+' 써보고 진짜 편해서 공유드려요.\n'+url,
+    /* 5. 짧고 강함 */
+    '🧾 "세금 혼자 해결하기" 끝.\n\n'
+      +'세무사 + AI가 같이 봐주는 상담·기장 서비스.\n'
+      +'회원가입 무료, 홈화면 설치 3초.\n\n'
+      +'세무회계 이윤 · 대구 · 대표세무사 이재윤\n'
+      +url,
+    /* 6. 사장님 공감 */
+    '💼 사장님들 세금 때문에 머리 아프시죠?\n\n'
+      +'✅ AI가 24시간 세무 질문 답변\n'
+      +'✅ 영수증 사진만 찍으면 자동 정리\n'
+      +'✅ 부가세·종소세 기한 자동 알림\n'
+      +'✅ 대구 세무회계 이윤(이재윤 세무사) 직접 운영\n\n'
+      +'혼자 끙끙대지 마시고 한번 써보세요 👇\n'+url
+  ];
+  var msg=templates[Math.floor(Math.random()*templates.length)];
+  /* Web Share API — 모바일 기본 공유시트 */
   if(navigator.share){
     try{
-      await navigator.share({title:'세무회계 이윤 AI 세무상담',text:msg,url:url});
+      await navigator.share({
+        title:'세무회계 이윤 · AI 세무상담',
+        text:msg,
+        url:url
+      });
       return;
     }catch(e){if(e&&e.name==='AbortError')return;}
   }
-  /* 폴백: 클립보드 복사 + 안내 */
+  /* 폴백: 클립보드 복사 */
   try{
     await navigator.clipboard.writeText(msg);
-    alert('🎁 추천 메시지가 클립보드에 복사되었습니다.\n카톡·메시지 앱에 붙여넣어 보내세요.');
+    alert('🎁 추천 메시지를 복사했어요!\n카톡·문자·인스타 DM에 붙여넣기 하세요.\n(누를 때마다 다른 멘트가 나와요)');
   }catch(e){
-    /* 최종 폴백: prompt */
     window.prompt('아래 내용을 복사해서 친구에게 보내주세요.',msg);
   }
 }

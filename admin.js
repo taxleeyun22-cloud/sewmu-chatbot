@@ -427,11 +427,30 @@ async function loadRoomDetail(){
 
     const container=$g('roomMessages');
     const atBottom=container.scrollHeight-container.scrollTop-container.clientHeight<50;
+    /* 날짜 구분선 */
+    let _lastDateLabel=null;
+    function _dateLabel(iso){
+      if(!iso)return '';
+      const d=String(iso).substring(0,10);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return '';
+      const dt=new Date(d+'T00:00:00');
+      const days=['일','월','화','수','목','금','토'];
+      return d.substring(0,4)+'년 '+parseInt(d.substring(5,7),10)+'월 '+parseInt(d.substring(8,10),10)+'일 '+days[dt.getDay()]+'요일';
+    }
+    function _dateSep(m){
+      const lab=_dateLabel(m.created_at);
+      if(!lab||lab===_lastDateLabel)return '';
+      _lastDateLabel=lab;
+      return '<div style="display:flex;align-items:center;gap:10px;margin:14px 0 10px"><div style="flex:1;height:1px;background:#e5e8eb"></div>'
+        +'<div style="font-size:.7em;color:#8b95a1;background:#f2f4f6;padding:4px 12px;border-radius:12px;border:1px solid #e5e8eb">📅 '+lab+'</div>'
+        +'<div style="flex:1;height:1px;background:#e5e8eb"></div></div>';
+    }
     container.innerHTML=(d.messages||[]).map(m=>{
+      const sep=_dateSep(m);
       const nm=m.real_name||m.name||'';
       /* 삭제된 메시지 플레이스홀더 */
       if(m.deleted_at){
-        return '<div style="margin-bottom:10px;text-align:center;opacity:.6"><span style="display:inline-block;background:#f2f4f6;color:#8b95a1;padding:6px 14px;border-radius:10px;font-size:.75em;font-style:italic">삭제된 메시지입니다</span></div>';
+        return sep+'<div style="margin-bottom:10px;text-align:center;opacity:.6"><span style="display:inline-block;background:#f2f4f6;color:#8b95a1;padding:6px 14px;border-radius:10px;font-size:.75em;font-style:italic">삭제된 메시지입니다</span></div>';
       }
       /* 컨텍스트 메뉴용 데이터 (답장·복사·삭제) */
       const parsed=parseMsg(m.content);
@@ -442,11 +461,11 @@ async function loadRoomDetail(){
         return ' class="rc-msg-bubble" data-msg="'+m.id+'" data-sender="'+escAttr(sender)+'" data-text="'+escAttr(preview)+'" data-mine="'+(mine?1:0)+'" data-deletable="'+canDel+'"';
       }
       if(m.role==='user'){
-        return '<div style="margin-bottom:10px"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+'</div><div'+attrs(nm,0)+' style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
+        return sep+'<div style="margin-bottom:10px"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+'</div><div'+attrs(nm,0)+' style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
       } else if(m.role==='assistant'){
-        return '<div style="margin-bottom:10px"><div'+attrs('AI',0)+' style="display:inline-block;background:#f2f4f6;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div></div>';
+        return sep+'<div style="margin-bottom:10px"><div'+attrs('AI',0)+' style="display:inline-block;background:#f2f4f6;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div></div>';
       } else if(m.role==='human_advisor'){
-        return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end"><div'+attrs('세무사',1)+' style="background:#10b981;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;opacity:.9;margin-top:4px">👨‍💼 세무사 · '+e(m.created_at||'')+'</div></div></div>';
+        return sep+'<div style="margin-bottom:10px;display:flex;justify-content:flex-end"><div'+attrs('세무사',1)+' style="background:#10b981;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;opacity:.9;margin-top:4px">👨‍💼 세무사 · '+e(m.created_at||'')+'</div></div></div>';
       }
       return '';
     }).join('');
