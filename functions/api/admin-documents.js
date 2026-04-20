@@ -49,6 +49,123 @@ async function ensureTables(db) {
     status TEXT,
     created_at TEXT
   )`).run();
+  await db.prepare(`CREATE TABLE IF NOT EXISTS document_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_doc_id INTEGER,
+    user_id INTEGER NOT NULL,
+    alert_type TEXT NOT NULL,
+    trigger_date TEXT NOT NULL,
+    lead_days INTEGER DEFAULT 0,
+    title TEXT,
+    message TEXT,
+    status TEXT DEFAULT 'pending',
+    sent_at TEXT,
+    dismissed_at TEXT,
+    created_at TEXT
+  )`).run();
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_alerts_trigger ON document_alerts(status, trigger_date)`).run(); } catch {}
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_alerts_user ON document_alerts(user_id, status, trigger_date)`).run(); } catch {}
+}
+
+// 승인 시 문서 타입별 D-day 알림 자동 생성
+async function createAlertsForDocument(db, doc) {
+  const now = kst();
+  const ex = safeJsonParse(doc.extra) || {};
+  const inserts = [];
+
+  // 공통 헬퍼
+  const push = (alert_type, trigger_date, lead_days, title, message) => {
+    if (!trigger_date || !/^\d{4}-\d{2}-\d{2}$/.test(trigger_date)) return;
+    inserts.push({ alert_type, trigger_date, lead_days, title, message });
+  };
+
+  switch (doc.doc_type) {
+    case 'lease': {
+      if (ex.end_date) {
+        push('contract_expire_30', ex.end_date, 30, '임대차 계약 만료 30일 전',
+             `${ex.property_address || '물건지'} 계약 만료 30일 전. 갱신·해지 검토 필요.`);
+        push('contract_expire', ex.end_date, 0, '임대차 계약 만료일',
+             `${ex.property_address || '물건지'} 계약이 오늘 만료됩니다.`);
+        // 보증금 반환 기한 (계약 만료 후 30일)
+        const dd = new Date(ex.end_date + 'T00:00:00Z'); dd.setUTCDate(dd.getUTCDate() + 30);
+        push('deposit_return', dd.toISOString().substring(0,10), 0, '보증금 반환 기한',
+             `${ex.property_address || ''} 보증금 반환 기한(계약 만료 후 30일).`);
+      }
+      break;
+    }
+    case 'insurance': {
+      if (ex.end_date) {
+        push('insurance_expire_30', ex.end_date, 30, '보험 만기 30일 전',
+             `${ex.insurer || ''} ${ex.insurance_type || ''} 만기 30일 전. 갱신 검토.`);
+        push('insurance_expire', ex.end_date, 0, '보험 만기일',
+             `${ex.insurer || ''} ${ex.insurance_type || ''} 만기일.`);
+      }
+      break;
+    }
+    case 'utility': {
+      if (ex.due_date) {
+        push('payment_due_3', ex.due_date, 3, '공과금 납부 3일 전',
+             `${ex.utility_type || ''} 요금 납부 기한 3일 전. 금액 ${(doc.amount||0).toLocaleString('ko-KR')}원.`);
+        push('payment_due', ex.due_date, 0, '공과금 납부 기한',
+             `${ex.utility_type || ''} 요금 납부일.`);
+      }
+      break;
+    }
+    case 'property_tax': {
+      if (ex.due_date) {
+        push('tax_due_3', ex.due_date, 3, '지방세 납부 3일 전',
+             `${ex.tax_name || '지방세'} 납부 3일 전. 금액 ${(doc.amount||0).toLocaleString('ko-KR')}원.`);
+        push('tax_due', ex.due_date, 0, '지방세 납부 기한',
+             `${ex.tax_name || '지방세'} 납부일.`);
+      }
+      break;
+    }
+    case 'tax_invoice': {
+      // 세금계산서 발행일 속한 분기 부가세 신고 기한 (대략 다음달 25일)
+      if (doc.receipt_date) {
+        const d = new Date(doc.receipt_date + 'T00:00:00Z');
+        const y = d.getUTCFullYear();
+        const m = d.getUTCMonth(); // 0-11
+        let filingDate;
+        // 1기(1-6월) → 7/25, 2기(7-12월) → 1/25
+        if (m <= 5) filingDate = `${y}-07-25`;
+        else filingDate = `${y+1}-01-25`;
+        push('vat_filing_7', filingDate, 7, '부가세 신고 7일 전',
+             `세금계산서 관련 부가세 신고 기한 7일 전 (${filingDate}).`);
+      }
+      break;
+    }
+    case 'payroll': {
+      // 원천세 신고 매월 10일 (다음달)
+      if (ex.start_date) {
+        // 이번 달 원천세는 다음 달 10일
+        const d = new Date();
+        const y = d.getUTCFullYear();
+        const m = d.getUTCMonth();
+        const nextMonth = m === 11 ? 0 : m + 1;
+        const nextY = m === 11 ? y + 1 : y;
+        const filingDate = `${nextY}-${String(nextMonth+1).padStart(2,'0')}-10`;
+        push('withholding_due_3', filingDate, 3, '원천세 신고 3일 전',
+             `근로계약 발생. 다음 달 원천세 신고 기한 3일 전.`);
+      }
+      break;
+    }
+  }
+
+  for (const a of inserts) {
+    try {
+      await db.prepare(
+        `INSERT INTO document_alerts (source_doc_id, user_id, alert_type, trigger_date, lead_days, title, message, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
+      ).bind(doc.id, doc.user_id, a.alert_type, a.trigger_date, a.lead_days, a.title, a.message, now).run();
+    } catch (e) { /* 중복 등 무시 */ }
+  }
+  return inserts.length;
+}
+
+function safeJsonParse(s) {
+  if (!s) return null;
+  try { return JSON.parse(s); } catch { return null; }
 }
 
 // ============ GET ============
@@ -65,6 +182,7 @@ export async function onRequestGet(context) {
 
   if (action === 'stats') return await getStats(db, url);
   if (action === 'export') return await exportDocs(db, url);
+  if (action === 'alerts') return await getAlerts(db, url);
 
   const id = url.searchParams.get('id');
   if (id) {
@@ -220,6 +338,31 @@ function docTypeShort(t) {
   return map[t] || t || '기타';
 }
 
+// ============ Alerts (다가오는 D-day 일정) ============
+async function getAlerts(db, url) {
+  const days = parseInt(url.searchParams.get('days') || '60', 10); // 향후 N일
+  const today = kst().substring(0, 10);
+  const future = new Date(Date.now() + 9*60*60*1000 + days*24*60*60*1000)
+    .toISOString().substring(0, 10);
+
+  const rows = await db.prepare(
+    `SELECT a.id, a.source_doc_id, a.user_id, a.alert_type, a.trigger_date, a.lead_days,
+            a.title, a.message, a.status, a.sent_at, a.created_at,
+            u.real_name, u.name,
+            d.doc_type, d.vendor, d.amount, d.receipt_date
+     FROM document_alerts a
+     LEFT JOIN users u ON a.user_id = u.id
+     LEFT JOIN documents d ON a.source_doc_id = d.id
+     WHERE a.status = 'pending'
+       AND a.trigger_date >= ?
+       AND a.trigger_date <= ?
+     ORDER BY a.trigger_date ASC
+     LIMIT 200`
+  ).bind(today, future).all();
+
+  return Response.json({ today, until: future, alerts: rows.results || [] });
+}
+
 async function getStats(db, url) {
   const month = url.searchParams.get('month') || kst().substring(0, 7);
 
@@ -305,7 +448,13 @@ export async function onRequestPost(context) {
     args.push(id);
 
     await db.prepare(`UPDATE documents SET ${sets.join(', ')} WHERE id = ?`).bind(...args).run();
-    return Response.json({ ok: true });
+    // 승인된 문서의 alerts 자동 생성
+    let alertCount = 0;
+    try {
+      const doc = await db.prepare(`SELECT * FROM documents WHERE id = ?`).bind(id).first();
+      if (doc) alertCount = await createAlertsForDocument(db, doc);
+    } catch {}
+    return Response.json({ ok: true, alerts_created: alertCount });
   }
 
   if (action === 'reject') {
@@ -328,6 +477,15 @@ export async function onRequestPost(context) {
       ).bind(approverId, at, id).run();
     }
     return Response.json({ ok: true, count: ids.length });
+  }
+
+  if (action === 'dismiss_alert') {
+    const { id } = body;
+    if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
+    await db.prepare(
+      `UPDATE document_alerts SET status = 'dismissed', dismissed_at = ? WHERE id = ?`
+    ).bind(kst(), id).run();
+    return Response.json({ ok: true });
   }
 
   if (action === 'update') {

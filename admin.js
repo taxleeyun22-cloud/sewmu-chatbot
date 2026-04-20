@@ -7,21 +7,25 @@ function escAttr(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/"
 
 /* [REPLY]{json}\n, [IMG], [FILE], [DOC:id] 프리픽스 파싱 */
 function parseMsg(content){
-  if(!content)return {reply:null,image:null,file:null,doc_id:null,text:''};
+  if(!content)return {reply:null,image:null,file:null,doc_id:null,alert:null,text:''};
   let reply=null;
   const mr=/^\[REPLY\](\{[^\n]+\})\n([\s\S]*)$/.exec(content);
   if(mr){
     try{reply=JSON.parse(mr[1]);content=mr[2]}catch{}
   }
+  const ma=/^\[ALERT\](\{[\s\S]+\})$/.exec(content);
+  if(ma){
+    try{return {reply:reply,image:null,file:null,doc_id:null,alert:JSON.parse(ma[1]),text:''}}catch{}
+  }
   const md=/^\[DOC:(\d+)\](\n([\s\S]*))?$/.exec(content);
-  if(md)return {reply:reply,image:null,file:null,doc_id:parseInt(md[1],10),text:md[3]||''};
+  if(md)return {reply:reply,image:null,file:null,doc_id:parseInt(md[1],10),alert:null,text:md[3]||''};
   const mf=/^\[FILE\](\{[^\n]+\})(\n([\s\S]*))?$/.exec(content);
   if(mf){
-    try{const obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,doc_id:null,text:mf[3]||''}}catch{}
+    try{const obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,doc_id:null,alert:null,text:mf[3]||''}}catch{}
   }
   const m=/^\[IMG\](\S+)(\n([\s\S]*))?$/.exec(content);
-  if(m)return {reply:reply,image:m[1],file:null,doc_id:null,text:m[3]||''};
-  return {reply:reply,image:null,file:null,doc_id:null,text:content};
+  if(m)return {reply:reply,image:m[1],file:null,doc_id:null,alert:null,text:m[3]||''};
+  return {reply:reply,image:null,file:null,doc_id:null,alert:null,text:content};
 }
 
 /* 영수증 카드 렌더링 — 세무사측 (승인/반려 버튼 포함) */
@@ -85,6 +89,17 @@ function renderMsgBody(content, attachedDoc){
   if(p.reply){
     const s=p.reply.s||'', t=(p.reply.t||'').slice(0,100);
     h+='<div class="rc-quote"><div class="rc-quote-sender">↩︎ '+e(s)+'</div><div class="rc-quote-text">'+e(t)+'</div></div>';
+  }
+  if(p.alert){
+    const a=p.alert;
+    h+='<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:12px;background:linear-gradient(135deg,#fff7ed,#fef3c7);border:1px solid #fcd34d;max-width:420px">'
+      +'<div style="font-size:1.6em;line-height:1">🔔</div>'
+      +'<div style="flex:1;min-width:0">'
+      +  '<div style="font-weight:700;font-size:.92em;color:#92400e;margin-bottom:3px">'+e(a.t||'알림')+'</div>'
+      +  '<div style="font-size:.82em;color:#78350f;line-height:1.4">'+e(a.m||'')+'</div>'
+      +  (a.d?'<div style="font-size:.72em;color:#a16207;margin-top:4px">📅 '+e(a.d)+'</div>':'')
+      +'</div></div>';
+    return h;
   }
   if(p.doc_id){
     h+=renderReceiptCardAdmin(attachedDoc||null);
@@ -2030,6 +2045,63 @@ function docStatusBadge(s){
   return `<span style="display:inline-block;padding:2px 7px;border-radius:6px;background:${x.bg};color:${x.fg};font-size:.78em;font-weight:700;white-space:nowrap">${x.t}</span>`;
 }
 
+/* 다가오는 D-day 알림 */
+async function loadDocsAlerts(){
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=alerts&days=60');
+    const d=await r.json();
+    const alerts=d.alerts||[];
+    const bar=$g('docsAlertsBar');
+    if(!alerts.length){bar.style.display='none';return}
+    bar.style.display='block';
+    $g('docsAlertsCount').textContent=alerts.length;
+    const today=d.today;
+    const fmt=n=>n==null?'-':(Number(n)||0).toLocaleString('ko-KR')+'원';
+    $g('docsAlertsList').innerHTML=alerts.map(a=>{
+      const nm=e(a.real_name||a.name||'#'+a.user_id);
+      const dDiff=Math.round((new Date(a.trigger_date)-new Date(today))/86400000);
+      const dLabel=dDiff<0?`D+${-dDiff}`:(dDiff===0?'D-DAY':`D-${dDiff}`);
+      const dColor=dDiff<0?'#dc2626':(dDiff<=3?'#f59e0b':'#10b981');
+      return `<div style="display:flex;gap:10px;padding:8px 10px;background:rgba(255,255,255,.7);border-radius:8px;margin-bottom:4px;align-items:center;font-size:.82em">`
+        +`<div style="font-weight:800;color:${dColor};min-width:52px;text-align:center">${dLabel}</div>`
+        +`<div style="flex:1;min-width:0">`
+        +  `<div style="font-weight:700;color:#92400e">${e(a.title||'알림')}</div>`
+        +  `<div style="color:#78350f;font-size:.95em;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nm} · ${e(a.trigger_date)}${a.amount?' · '+fmt(a.amount):''}</div>`
+        +`</div>`
+        +`<button onclick="dismissAlert(${a.id})" style="background:none;border:none;color:#92400e;cursor:pointer;font-size:1em;font-family:inherit" title="알림 해제">✕</button>`
+        +`</div>`;
+    }).join('');
+  }catch(e){console.error(e)}
+}
+
+function toggleDocsAlerts(){
+  const list=$g('docsAlertsList');
+  const btn=$g('docsAlertsToggleBtn');
+  if(list.style.display==='none'){list.style.display='block';btn.textContent='접기 ▴'}
+  else{list.style.display='none';btn.textContent='펼치기 ▾'}
+}
+
+async function dismissAlert(id){
+  if(!confirm('이 알림을 해제하시겠어요?\n(발송되지 않고 종료 처리됩니다)'))return;
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=dismiss_alert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+    const d=await r.json();
+    if(d.ok)loadDocsAlerts();
+    else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+
+async function runCronAlerts(){
+  if(!confirm('트리거 시점 도달한 D-day 알림을 지금 즉시 상담방에 발송합니다.\n\n계속할까요?'))return;
+  try{
+    const r=await fetch('/api/cron-alerts?key='+encodeURIComponent(KEY),{method:'POST'});
+    const d=await r.json();
+    if(d.error){alert('실패: '+d.error);return}
+    alert('✅ 알림 발송 완료\n조회: '+d.checked+'건 / 발송: '+d.sent+'건');
+    loadDocsAlerts();
+  }catch(e){alert('오류: '+e.message)}
+}
+
 async function loadDocsTab(){
   const status=$g('docsFilterStatus').value;
   const docType=$g('docsFilterType').value;
@@ -2050,6 +2122,7 @@ async function loadDocsTab(){
     // 별도 월별 통계 (비용 포함)
     const monthParam=month||new Date().toISOString().substring(0,7);
     fetchDocsStats(monthParam);
+    loadDocsAlerts();
   }catch(e){alert('오류: '+e.message)}
 }
 
@@ -2076,39 +2149,149 @@ function updateDocsStats(counts){
   }
 }
 
+/* AG-Grid 엑셀 스타일 그리드 — 문서 목록 */
+let docsGridApi=null;
+
 function renderDocsTable(docs){
-  const body=$g('docsTableBody');
   const empty=$g('docsEmpty');
   if(!docs.length){
-    body.innerHTML='';
     empty.style.display='block';
+    if(docsGridApi)docsGridApi.setGridOption('rowData',[]);
     return;
   }
   empty.style.display='none';
-  const fmt=n=>n==null?'-':(Number(n)||0).toLocaleString('ko-KR')+'원';
-  body.innerHTML=docs.map(d=>{
-    const nm=e(d.real_name||d.name||('#'+d.user_id));
-    const imgUrl='/api/image?k='+encodeURIComponent(d.image_key||'');
-    const conf=d.ocr_confidence!=null?Math.round(d.ocr_confidence*100)+'%':'-';
-    const confColor=(d.ocr_confidence||0)<0.7?'#d97706':'#10b981';
-    const canAct=d.status==='pending';
-    const actions=canAct
-      ? `<button onclick="approveDoc(${d.id}, this)" title="승인" style="background:#10b981;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:4px">✅</button>`
-        +`<button onclick="rejectDocPrompt(${d.id})" title="반려" style="background:#fff;color:#f04452;border:1px solid #f04452;padding:4px 10px;border-radius:6px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit">❌</button>`
-      : `<button onclick="openDocDetailAdmin(${d.id})" style="background:#e5e8eb;border:none;padding:4px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">상세</button>`;
-    return `<tr data-doc-row="${d.id}" style="border-bottom:1px solid #f2f4f6">`
-      +`<td style="padding:8px;white-space:nowrap">${e(d.receipt_date||(d.created_at||'').substring(0,10))}</td>`
-      +`<td style="padding:8px;white-space:nowrap">${docTypeLabelAdmin(d.doc_type)}</td>`
-      +`<td style="padding:8px;white-space:nowrap">${nm}</td>`
-      +`<td style="padding:8px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(d.vendor||'-')}</td>`
-      +`<td style="padding:8px;text-align:right;white-space:nowrap;font-weight:600">${fmt(d.amount)}</td>`
-      +`<td style="padding:8px;white-space:nowrap">${e(d.category||'-')}</td>`
-      +`<td style="padding:8px;text-align:center;white-space:nowrap;color:${confColor};font-weight:700">${conf}</td>`
-      +`<td style="padding:8px;text-align:center">${docStatusBadge(d.status)}</td>`
-      +`<td style="padding:8px;text-align:center"><button onclick="openImgViewer('${imgUrl}',['${imgUrl}'])" style="background:#f2f4f6;border:none;padding:4px 8px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">📷</button></td>`
-      +`<td style="padding:8px;text-align:center;white-space:nowrap">${actions}</td>`
-      +`</tr>`;
-  }).join('');
+
+  const rowData = docs.map(d => ({
+    id: d.id,
+    date: d.receipt_date || (d.created_at||'').substring(0,10),
+    doc_type: d.doc_type,
+    doc_type_label: docTypeLabelAdmin(d.doc_type),
+    user_id: d.user_id,
+    user_name: d.real_name || d.name || ('#'+d.user_id),
+    vendor: d.vendor || '',
+    vendor_biz_no: d.vendor_biz_no || '',
+    amount: d.amount,
+    vat_amount: d.vat_amount,
+    category: d.category || '',
+    confidence: d.ocr_confidence!=null ? Math.round(d.ocr_confidence*100) : null,
+    status: d.status,
+    image_key: d.image_key,
+    created_at: d.created_at,
+  }));
+
+  if(docsGridApi){
+    docsGridApi.setGridOption('rowData', rowData);
+    return;
+  }
+
+  // 첫 생성
+  const gridDiv = $g('docsGrid');
+  if(!gridDiv || typeof agGrid === 'undefined')return;
+
+  const columnDefs = [
+    { headerCheckboxSelection:true, checkboxSelection:true, width:44, pinned:'left', filter:false, sortable:false, resizable:false },
+    { headerName:'일자', field:'date', width:110, pinned:'left', filter:'agDateColumnFilter' },
+    { headerName:'타입', field:'doc_type_label', width:120, filter:true },
+    { headerName:'고객', field:'user_name', width:120, filter:true, pinned:'left' },
+    { headerName:'가맹점/업체', field:'vendor', width:180, filter:true, editable:p=>p.data.status==='pending' },
+    { headerName:'사업자번호', field:'vendor_biz_no', width:130, editable:p=>p.data.status==='pending' },
+    {
+      headerName:'금액', field:'amount', width:120, type:'numericColumn',
+      editable: p=>p.data.status==='pending',
+      valueFormatter: p => p.value!=null ? (Number(p.value)||0).toLocaleString('ko-KR')+'원' : '-',
+      cellStyle: { fontWeight:'600', textAlign:'right' }
+    },
+    { headerName:'부가세', field:'vat_amount', width:100, type:'numericColumn',
+      valueFormatter: p => p.value!=null ? (Number(p.value)||0).toLocaleString('ko-KR') : '-',
+      cellStyle: { textAlign:'right' }
+    },
+    { headerName:'카테고리', field:'category', width:110, editable:p=>p.data.status==='pending',
+      cellEditor:'agSelectCellEditor',
+      cellEditorParams:{ values:['','식비','교통비','숙박비','소모품비','접대비','통신비','공과금','임대료','보험료','기타'] }
+    },
+    {
+      headerName:'신뢰도', field:'confidence', width:90,
+      valueFormatter: p => p.value!=null ? p.value+'%' : '-',
+      cellStyle: p => p.value!=null && p.value<70 ? { color:'#d97706', fontWeight:'700', textAlign:'center' } : { color:'#10b981', fontWeight:'700', textAlign:'center' }
+    },
+    {
+      headerName:'상태', field:'status', width:100, filter:true,
+      cellRenderer: p => {
+        const map={pending:{t:'⏳ 대기',bg:'#fef3c7',fg:'#92400e'},approved:{t:'✅ 승인',bg:'#d1fae5',fg:'#065f46'},rejected:{t:'❌ 반려',bg:'#fee2e2',fg:'#991b1b'}};
+        const x=map[p.value]||map.pending;
+        return `<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:${x.bg};color:${x.fg};font-size:.82em;font-weight:700">${x.t}</span>`;
+      }
+    },
+    {
+      headerName:'원본', field:'image_key', width:70, sortable:false, filter:false,
+      cellRenderer: p => `<button onclick="openImgViewer('/api/image?k=${encodeURIComponent(p.value)}',['/api/image?k=${encodeURIComponent(p.value)}'])" style="background:#f2f4f6;border:none;padding:3px 8px;border-radius:6px;font-size:.85em;cursor:pointer;font-family:inherit">📷</button>`
+    },
+    {
+      headerName:'액션', width:130, sortable:false, filter:false, pinned:'right',
+      cellRenderer: p => {
+        const d=p.data;
+        if(d.status==='pending'){
+          return `<button onclick="approveDocById(${d.id})" title="승인" style="background:#10b981;color:#fff;border:none;padding:3px 9px;border-radius:5px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:3px">✅</button>`
+            +`<button onclick="rejectDocPrompt(${d.id})" title="반려" style="background:#fff;color:#f04452;border:1px solid #f04452;padding:3px 9px;border-radius:5px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit">❌</button>`;
+        }
+        return `<button onclick="openDocDetailAdmin(${d.id})" style="background:#e5e8eb;border:none;padding:3px 9px;border-radius:5px;font-size:.78em;cursor:pointer;font-family:inherit">상세</button>`;
+      }
+    },
+  ];
+
+  const gridOptions = {
+    columnDefs,
+    rowData,
+    defaultColDef: { sortable:true, filter:true, resizable:true },
+    rowSelection: 'multiple',
+    suppressRowClickSelection: true,
+    animateRows: true,
+    pagination: true,
+    paginationPageSize: 50,
+    paginationPageSizeSelector: [25, 50, 100, 200],
+    enableCellTextSelection: true,
+    onCellValueChanged: async (e) => {
+      const d=e.data;
+      const field=e.colDef.field;
+      const newVal=e.newValue;
+      try{
+        await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=update',{
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({ id: d.id, [field]: newVal })
+        });
+      }catch(err){ alert('저장 실패: '+err.message) }
+    },
+  };
+
+  docsGridApi = agGrid.createGrid(gridDiv, gridOptions);
+}
+
+// AG-Grid cellRenderer에서 호출되는 래퍼 (btnEl 없이 id만으로 승인)
+async function approveDocById(docId){
+  if(!docId)return;
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:docId})});
+    const d=await r.json();
+    if(d.ok){
+      let msg='✅ 승인 완료';
+      if(d.alerts_created>0)msg+=` (${d.alerts_created}개 D-day 알림 예약)`;
+      if(typeof showAdminToast==='function')showAdminToast(msg);
+      else console.log(msg);
+      loadDocsTab();
+    }
+    else alert('승인 실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+
+function showAdminToast(msg){
+  let t=document.getElementById('adminToast');
+  if(!t){
+    t=document.createElement('div');t.id='adminToast';
+    t.style.cssText='position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#fff;padding:10px 18px;border-radius:20px;font-size:.85em;z-index:11001;pointer-events:none;opacity:0;transition:opacity .2s';
+    document.body.appendChild(t);
+  }
+  t.textContent=msg;t.style.opacity='1';
+  setTimeout(()=>{t.style.opacity='0'},1800);
 }
 
 async function openDocDetailAdmin(id){

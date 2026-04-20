@@ -532,6 +532,11 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       <button class="docs-filter" data-status="approved" onclick="switchDocsFilter('approved')">승인</button>
       <button class="docs-filter" data-status="rejected" onclick="switchDocsFilter('rejected')">반려</button>
     </div>
+    <!-- 내 다가오는 D-day 일정 -->
+    <div id="myAlertsBox" style="display:none;margin:12px 16px 0;padding:12px 14px;background:linear-gradient(135deg,#fff7ed,#fef3c7);border:1px solid #fcd34d;border-radius:12px">
+      <div style="font-weight:700;font-size:.9em;color:#92400e;margin-bottom:6px">🔔 다가오는 세무 일정</div>
+      <div id="myAlertsList"></div>
+    </div>
     <div id="docsList" style="flex:1;overflow-y:auto;padding:14px 16px"></div>
   </div>
 
@@ -1410,10 +1415,35 @@ async function loadMyDocs(){
   }catch(e){}
 }
 
+async function loadMyAlerts(){
+  try{
+    var r=await fetch('/api/documents?action=alerts&days=60');
+    if(!r.ok)return;
+    var d=await r.json();
+    var alerts=d.alerts||[];
+    var box=document.getElementById('myAlertsBox');
+    if(!alerts.length){box.style.display='none';return}
+    box.style.display='block';
+    var today=d.today;
+    document.getElementById('myAlertsList').innerHTML=alerts.map(function(a){
+      var dDiff=Math.round((new Date(a.trigger_date)-new Date(today))/86400000);
+      var dLabel=dDiff<0?'D+'+(-dDiff):(dDiff===0?'D-DAY':'D-'+dDiff);
+      var dColor=dDiff<0?'#dc2626':(dDiff<=3?'#f59e0b':'#10b981');
+      return '<div style="display:flex;gap:10px;padding:8px 10px;background:rgba(255,255,255,.7);border-radius:8px;margin-bottom:4px;align-items:center;font-size:.85em">'
+        +'<div style="font-weight:800;color:'+dColor+';min-width:52px;text-align:center">'+dLabel+'</div>'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-weight:700;color:#92400e">'+esc(a.title||'알림')+'</div>'
+        +'<div style="color:#78350f;font-size:.9em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(a.trigger_date)+(a.message?' · '+esc(a.message).slice(0,40):'')+'</div>'
+        +'</div></div>';
+    }).join('');
+  }catch(e){}
+}
+
 function openMyDocs(){
   document.getElementById('docsView').style.display='flex';
   document.body.style.overflow='hidden';
   renderDocsList();
+  loadMyAlerts();
   try{history.pushState({docs:1},'',location.href)}catch{}
 }
 function closeMyDocs(){
@@ -1844,22 +1874,26 @@ async function sendRoomImage(fileInput){
 
 /* content가 [IMG]url\n text 형식이면 분리해서 반환 */
 function parseMessageContent(content){
-  if(!content)return {reply:null,image:null,file:null,doc_id:null,text:''};
+  if(!content)return {reply:null,image:null,file:null,doc_id:null,alert:null,text:''};
   /* [REPLY]{json}\n... 접두사 먼저 제거 */
   var reply=null;
   var mr=/^\[REPLY\](\{[^\n]+\})\n([\s\S]*)$/.exec(content);
   if(mr){
     try{reply=JSON.parse(mr[1]);content=mr[2]}catch(e){}
   }
+  var ma=/^\[ALERT\](\{[\s\S]+\})$/.exec(content);
+  if(ma){
+    try{return {reply:reply,image:null,file:null,doc_id:null,alert:JSON.parse(ma[1]),text:''}}catch(e){}
+  }
   var md=/^\[DOC:(\d+)\](\n([\s\S]*))?$/.exec(content);
-  if(md)return {reply:reply,image:null,file:null,doc_id:parseInt(md[1],10),text:md[3]||''};
+  if(md)return {reply:reply,image:null,file:null,doc_id:parseInt(md[1],10),alert:null,text:md[3]||''};
   var mf=/^\[FILE\](\{[^\n]+\})(\n([\s\S]*))?$/.exec(content);
   if(mf){
-    try{var obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,doc_id:null,text:mf[3]||''}}catch(e){}
+    try{var obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,doc_id:null,alert:null,text:mf[3]||''}}catch(e){}
   }
   var m=/^\[IMG\](\S+)(\n([\s\S]*))?$/.exec(content);
-  if(m)return {reply:reply,image:m[1],file:null,doc_id:null,text:m[3]||''};
-  return {reply:reply,image:null,file:null,doc_id:null,text:content};
+  if(m)return {reply:reply,image:m[1],file:null,doc_id:null,alert:null,text:m[3]||''};
+  return {reply:reply,image:null,file:null,doc_id:null,alert:null,text:content};
 }
 
 /* 영수증 카드 렌더링 (msg.document 서버에서 JOIN해서 내려옴) */
@@ -1909,6 +1943,17 @@ function renderMessageBody(content, attachedDoc){
   if(parsed.reply){
     var s=parsed.reply.s||'', t=(parsed.reply.t||'').slice(0,100);
     html+='<div class="rc-quote"><div class="rc-quote-sender">↩︎ '+esc(s)+'</div><div class="rc-quote-text">'+esc(t)+'</div></div>';
+  }
+  if(parsed.alert){
+    var a=parsed.alert;
+    html+='<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:12px;background:linear-gradient(135deg,#fff7ed,#fef3c7);border:1px solid #fcd34d">'
+      +'<div style="font-size:1.6em;line-height:1">🔔</div>'
+      +'<div style="flex:1;min-width:0">'
+      +  '<div style="font-weight:700;font-size:.92em;color:#92400e;margin-bottom:3px">'+esc(a.t||'알림')+'</div>'
+      +  '<div style="font-size:.82em;color:#78350f;line-height:1.4">'+esc(a.m||'')+'</div>'
+      +  (a.d?'<div style="font-size:.72em;color:#a16207;margin-top:4px">📅 '+esc(a.d)+'</div>':'')
+      +'</div></div>';
+    return html;
   }
   if(parsed.doc_id){
     html+=renderReceiptCard(attachedDoc||null,false);

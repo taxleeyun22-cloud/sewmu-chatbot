@@ -235,7 +235,7 @@ export async function onRequestPost(context) {
   }
 }
 
-// ============ GET: 목록 or 단일 ============
+// ============ GET: 목록 or 단일 or alerts ============
 export async function onRequestGet(context) {
   const db = context.env.DB;
   if (!db) return Response.json({ documents: [] });
@@ -244,6 +244,30 @@ export async function onRequestGet(context) {
   await ensureTables(db);
 
   const url = new URL(context.request.url);
+  const action = url.searchParams.get('action');
+  if (action === 'alerts') {
+    // 내 다가오는 D-day 알림
+    const days = parseInt(url.searchParams.get('days') || '60', 10);
+    const today = kst().substring(0, 10);
+    const future = new Date(Date.now() + 9*60*60*1000 + days*24*60*60*1000)
+      .toISOString().substring(0, 10);
+    try { await db.prepare(`CREATE TABLE IF NOT EXISTS document_alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, source_doc_id INTEGER, user_id INTEGER NOT NULL,
+      alert_type TEXT NOT NULL, trigger_date TEXT NOT NULL, lead_days INTEGER DEFAULT 0,
+      title TEXT, message TEXT, status TEXT DEFAULT 'pending',
+      sent_at TEXT, dismissed_at TEXT, created_at TEXT
+    )`).run(); } catch {}
+    const rows = await db.prepare(
+      `SELECT id, source_doc_id, alert_type, trigger_date, lead_days, title, message, status, sent_at
+       FROM document_alerts
+       WHERE user_id = ? AND status IN ('pending','sent')
+         AND trigger_date >= date(?, '-7 days')
+         AND trigger_date <= ?
+       ORDER BY trigger_date ASC LIMIT 50`
+    ).bind(user.user_id, today, future).all();
+    return Response.json({ today, alerts: rows.results || [] });
+  }
+
   const id = url.searchParams.get('id');
   if (id) {
     const doc = await db.prepare(`SELECT * FROM documents WHERE id=? AND user_id=?`).bind(id, user.user_id).first();
