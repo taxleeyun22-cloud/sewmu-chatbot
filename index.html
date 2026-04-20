@@ -1696,8 +1696,10 @@ async function loadRoomChat(){
         var elapsed=Date.now()-new Date(m.created_at).getTime();
         canDel=elapsed<5*60*1000?1:0;
       }
+      /* 메시지 종류 (ctx 메뉴에서 '영수증으로 변환' 같은 항목 분기용) */
+      var kind = parsed.doc_id ? 'doc' : (parsed.image ? 'img' : (parsed.file ? 'file' : 'text'));
       function dataAttrs(sender,mine){
-        return ' class="rc-msg-bubble" data-msg="'+m.id+'" data-sender="'+escAttr(sender)+'" data-text="'+escAttr(preview)+'" data-mine="'+(mine?1:0)+'" data-deletable="'+canDel+'"';
+        return ' class="rc-msg-bubble" data-msg="'+m.id+'" data-sender="'+escAttr(sender)+'" data-text="'+escAttr(preview)+'" data-mine="'+(mine?1:0)+'" data-deletable="'+canDel+'" data-kind="'+kind+'"';
       }
       if(m.role==='user'){
         if(isMe){
@@ -1752,11 +1754,16 @@ function showMsgCtxMenu(bubbleEl, x, y){
   var text=bubbleEl.getAttribute('data-text')||'';
   var mine=bubbleEl.getAttribute('data-mine')==='1';
   var deletable=bubbleEl.getAttribute('data-deletable')==='1';
+  var kind=bubbleEl.getAttribute('data-kind')||'text';
   /* 데이터는 메뉴 dataset에 — 이스케이프 이슈 회피 */
-  m.dataset.msg=mid;m.dataset.sender=sender;m.dataset.text=text;
+  m.dataset.msg=mid;m.dataset.sender=sender;m.dataset.text=text;m.dataset.kind=kind;
   var items='';
   if(text)items+='<button class="msg-ctx-item" onclick="doReplyFromMenu()">↩︎ 답장</button>';
   if(text)items+='<button class="msg-ctx-item" onclick="doCopyFromMenu()">📋 복사</button>';
+  /* 사진·파일 메시지 → 영수증으로 변환 (본인 것만) */
+  if(mine && (kind==='img'||kind==='file')){
+    items+='<button class="msg-ctx-item" onclick="convertMsgToReceipt('+mid+')">🧾 영수증으로 변환</button>';
+  }
   if(mine&&deletable)items+='<button class="msg-ctx-item danger" onclick="hideMsgCtxMenu();deleteMyMessage('+mid+')">🗑️ 삭제</button>';
   if(!items)return;
   m.innerHTML=items;
@@ -2396,9 +2403,12 @@ function renderReceiptCard(doc, mine){
     ? '<button onclick="event.stopPropagation();openDocEditModal('+doc.id+',&quot;'+escAttr(doc.vendor||'')+'&quot;,'+(doc.amount||0)+',&quot;'+escAttr(doc.receipt_date||'')+'&quot;,&quot;'+escAttr(doc.category||'')+'&quot;)" style="background:var(--blue);color:#fff;border:none;padding:3px 10px;border-radius:6px;font-size:.7em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:4px" title="금액·가맹점 등 수정">✏️ 수정</button>'
     : '';
   var revertBtn=(!realApproved)
-    ? '<button onclick="event.stopPropagation();revertDocToPhotoClient('+doc.id+')" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:6px;font-size:.7em;cursor:pointer;font-family:inherit" title="잘못 분류됐으면 일반 사진으로 되돌립니다">📷 사진으로</button>'
+    ? '<button onclick="event.stopPropagation();revertDocToPhotoClient('+doc.id+')" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:6px;font-size:.7em;cursor:pointer;font-family:inherit;margin-right:3px" title="일반 사진으로 되돌립니다">📷 사진</button>'
     : '';
-  var actionRow=(editBtn||revertBtn)?'<div style="margin-top:6px">'+editBtn+revertBtn+'</div>':'';
+  var toFileBtn=(!realApproved)
+    ? '<button onclick="event.stopPropagation();convertDocToFileClient('+doc.id+')" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:6px;font-size:.7em;cursor:pointer;font-family:inherit" title="일반 파일 메시지로 되돌립니다">📁 파일</button>'
+    : '';
+  var actionRow=(editBtn||revertBtn||toFileBtn)?'<div style="margin-top:6px;display:flex;gap:3px;flex-wrap:wrap">'+editBtn+revertBtn+toFileBtn+'</div>':'';
   return ''
     +'<div style="display:flex;align-items:stretch;gap:0;min-width:240px;max-width:300px;border-radius:12px;overflow:hidden;background:var(--card);border:1px solid var(--border)">'
     + '<div style="flex-shrink:0;width:86px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;cursor:zoom-in" onclick="openImgViewer(\''+imgUrl+'\',[\''+imgUrl+'\'])">'
@@ -2487,6 +2497,34 @@ async function revertDocToPhotoClient(docId){
     var d=await r.json();
     if(d.ok){
       if(typeof showInAppToastSilent==='function')showInAppToastSilent('📷 사진으로 되돌렸어요');
+      if(typeof loadRoomChat==='function')loadRoomChat();
+    } else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+/* 영수증 → 파일로 변환 */
+async function convertDocToFileClient(docId){
+  if(!docId)return;
+  if(!confirm('이 영수증을 일반 파일 메시지로 바꿀까요?'))return;
+  try{
+    var r=await fetch('/api/documents?action=convert_to_file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:docId})});
+    var d=await r.json();
+    if(d.ok){
+      if(typeof showInAppToastSilent==='function')showInAppToastSilent('📁 파일로 변환됨');
+      if(typeof loadRoomChat==='function')loadRoomChat();
+    } else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+/* 사진·파일 메시지 → 영수증으로 변환 (OCR) */
+async function convertMsgToReceipt(messageId){
+  hideMsgCtxMenu();
+  if(!messageId||!rcRoomId)return;
+  if(!confirm('이 메시지를 영수증으로 변환할까요?\n(사진은 AI가 자동 인식, 파일은 수동 편집)'))return;
+  if(typeof showInAppToastSilent==='function')showInAppToastSilent('🤖 변환 중...');
+  try{
+    var r=await fetch('/api/documents?action=convert_to_receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message_id:messageId, room_id:rcRoomId})});
+    var d=await r.json();
+    if(d.ok){
+      if(typeof showInAppToastSilent==='function')showInAppToastSilent('🧾 영수증으로 변환됨');
       if(typeof loadRoomChat==='function')loadRoomChat();
     } else alert('실패: '+(d.error||'unknown'));
   }catch(e){alert('오류: '+e.message)}

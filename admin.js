@@ -64,9 +64,10 @@ function renderReceiptCardAdmin(doc){
   } else if(doc.status==='rejected'){
     actionsHTML=`<button onclick="approveDocById(${doc.id})" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">✅ 복원</button>`;
   }
-  /* 사진으로 되돌리기 — 잘못 분류된 경우 (이미지 있는 doc만) */
+  /* 사진·파일로 되돌리기 — 잘못 분류된 경우 */
   if(!isPayroll && doc.status!=='approved'){
-    actionsHTML+=`<button onclick="revertDocToPhotoAdmin(${doc.id})" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:7px 12px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit" title="문서 분류 취소하고 일반 사진으로 표시">📷 사진으로</button>`;
+    actionsHTML+=`<button onclick="revertDocToPhotoAdmin(${doc.id})" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:7px 10px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit" title="일반 사진으로 되돌리기">📷 사진</button>`;
+    actionsHTML+=`<button onclick="convertDocToFileAdmin(${doc.id})" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:7px 10px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit" title="일반 파일로 되돌리기">📁 파일</button>`;
   }
   /* 반응형: 모바일(≤480px)에선 세로 스택, 데스크톱에선 가로. max-width:100% + box-sizing 으로 폭 보장 */
   const thumb=isPayroll
@@ -465,8 +466,9 @@ async function loadRoomDetail(){
       const preview=parsed.text||(parsed.image?'[사진]':(parsed.file?'[파일]':''));
       const isAdvisor=m.role==='human_advisor';
       const canDel=isAdvisor?1:0;
+      const kind = parsed.doc_id ? 'doc' : (parsed.image ? 'img' : (parsed.file ? 'file' : 'text'));
       function attrs(sender,mine){
-        return ' class="rc-msg-bubble" data-msg="'+m.id+'" data-sender="'+escAttr(sender)+'" data-text="'+escAttr(preview)+'" data-mine="'+(mine?1:0)+'" data-deletable="'+canDel+'"';
+        return ' class="rc-msg-bubble" data-msg="'+m.id+'" data-sender="'+escAttr(sender)+'" data-text="'+escAttr(preview)+'" data-mine="'+(mine?1:0)+'" data-deletable="'+canDel+'" data-kind="'+kind+'"';
       }
       if(m.role==='user'){
         return sep+'<div style="margin-bottom:10px"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+'</div><div'+attrs(nm,0)+' style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
@@ -504,10 +506,15 @@ function showMsgCtxMenu(bubbleEl, x, y){
   const text=bubbleEl.getAttribute('data-text')||'';
   const mine=bubbleEl.getAttribute('data-mine')==='1';
   const deletable=bubbleEl.getAttribute('data-deletable')==='1';
+  const kind=bubbleEl.getAttribute('data-kind')||'text';
   m.dataset.msg=mid;m.dataset.sender=sender;m.dataset.text=text;
   let items='';
   if(text)items+='<button class="msg-ctx-item" onclick="doReplyFromMenu()">↩︎ 답장</button>';
   if(text)items+='<button class="msg-ctx-item" onclick="doCopyFromMenu()">📋 복사</button>';
+  /* 관리자는 누구 메시지든 영수증으로 변환 가능 */
+  if(kind==='img'||kind==='file'){
+    items+='<button class="msg-ctx-item" onclick="convertMsgToReceiptAdmin('+mid+')">🧾 영수증으로 변환</button>';
+  }
   if(mine&&deletable)items+='<button class="msg-ctx-item danger" onclick="hideMsgCtxMenu();deleteAdminMessage('+mid+')">🗑️ 삭제</button>';
   if(!items)return;
   m.innerHTML=items;
@@ -3184,6 +3191,33 @@ async function revertDocToPhotoAdmin(docId){
       if(typeof showAdminToast==='function')showAdminToast('📷 사진으로 되돌렸습니다');
       if(typeof loadRoomDetail==='function')loadRoomDetail();
       if(typeof loadDocsTab==='function')loadDocsTab();
+    } else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+async function convertDocToFileAdmin(docId){
+  if(!docId)return;
+  if(!confirm('이 영수증을 일반 파일 메시지로 변환할까요?'))return;
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=convert_to_file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:docId})});
+    const d=await r.json();
+    if(d.ok){
+      if(typeof showAdminToast==='function')showAdminToast('📁 파일로 변환됨');
+      if(typeof loadRoomDetail==='function')loadRoomDetail();
+      if(typeof loadDocsTab==='function')loadDocsTab();
+    } else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+async function convertMsgToReceiptAdmin(messageId){
+  hideMsgCtxMenu();
+  if(!messageId||!currentRoomId)return;
+  if(!confirm('이 메시지를 영수증으로 변환할까요?\n(사진은 AI가 자동 인식, 파일은 수동 편집)'))return;
+  if(typeof showAdminToast==='function')showAdminToast('🤖 변환 중...');
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=convert_to_receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message_id:messageId, room_id:currentRoomId})});
+    const d=await r.json();
+    if(d.ok){
+      if(typeof showAdminToast==='function')showAdminToast('🧾 영수증으로 변환됨');
+      if(typeof loadRoomDetail==='function')loadRoomDetail();
     } else alert('실패: '+(d.error||'unknown'));
   }catch(e){alert('오류: '+e.message)}
 }

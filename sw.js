@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sewmu-v45';
+const CACHE_NAME = 'sewmu-v46';
 const STATIC_ASSETS = ['/logo.png', '/logo-icon.png', '/logo-vertical.png'];
 
 self.addEventListener('install', e => {

@@ -663,9 +663,7 @@ export async function onRequestPost(context) {
   }
 
   if (action === 'revert_to_photo') {
-    /* 문서로 잘못 분류된 것을 일반 사진으로 되돌리기:
-       - 해당 [DOC:id] 메시지를 [IMG]/api/image?k=... 로 변경
-       - documents 행은 status='reverted'로 마킹 (감사 기록 보존, 화면에서 제외) */
+    /* 문서로 잘못 분류된 것을 일반 사진으로 되돌리기 */
     const { id } = body;
     if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
     const doc = await db.prepare(`SELECT id, image_key FROM documents WHERE id = ?`).bind(id).first();
@@ -676,6 +674,101 @@ export async function onRequestPost(context) {
     await db.prepare(`UPDATE documents SET status = 'reverted', approver_id = ?, approved_at = ? WHERE id = ?`)
       .bind(approverId, kst(), id).run();
     return Response.json({ ok: true });
+  }
+
+  if (action === 'convert_to_file') {
+    /* 영수증 → 일반 파일 메시지로 되돌리기 */
+    const { id } = body;
+    if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
+    const doc = await db.prepare(`SELECT id, image_key, vendor FROM documents WHERE id = ?`).bind(id).first();
+    if (!doc) return Response.json({ error: '문서 없음' }, { status: 404 });
+    const name = (doc.vendor || 'file') + '.bin';
+    const fileUrl = '/api/file?k=' + encodeURIComponent(doc.image_key) + '&name=' + encodeURIComponent(name);
+    const meta = JSON.stringify({ url: fileUrl, name, size: 0 });
+    await db.prepare(`UPDATE conversations SET content = ? WHERE content LIKE ?`)
+      .bind(`[FILE]${meta}`, `[DOC:${id}]%`).run();
+    await db.prepare(`UPDATE documents SET status='reverted', approver_id=?, approved_at=? WHERE id=?`)
+      .bind(approverId, kst(), id).run();
+    return Response.json({ ok: true });
+  }
+
+  if (action === 'convert_to_receipt') {
+    /* [IMG] 또는 [FILE] 메시지를 영수증(DOC)으로 변환. 관리자가 임의의 메시지를 변환 가능 */
+    const messageId = Number(body.message_id || 0);
+    const roomId = body.room_id;
+    if (!messageId || !roomId) return Response.json({ error: 'message_id, room_id 필요' }, { status: 400 });
+    const msg = await db.prepare(
+      `SELECT id, content, user_id, room_id FROM conversations WHERE id=? AND room_id=?`
+    ).bind(messageId, roomId).first();
+    if (!msg) return Response.json({ error: 'message not found' }, { status: 404 });
+
+    const imgMatch = /^\[IMG\](\/api\/image\?k=([^\s\n]+))/.exec(msg.content || '');
+    const fileMatch = /^\[FILE\](\{[^\n]+\})/.exec(msg.content || '');
+    let imageKey = null, isFile = false, fileName = null;
+    if (imgMatch) imageKey = decodeURIComponent(imgMatch[2]);
+    else if (fileMatch) {
+      try {
+        const fm = JSON.parse(fileMatch[1]);
+        const m2 = /\/api\/file\?k=([^&\s]+)/.exec(fm.url || '');
+        if (m2) imageKey = decodeURIComponent(m2[1]);
+        fileName = fm.name || null;
+        isFile = true;
+      } catch {}
+    }
+    if (!imageKey) return Response.json({ error: '지원 안 되는 메시지 형식' }, { status: 400 });
+
+    const targetUserId = msg.user_id || null;
+    if (!targetUserId) return Response.json({ error: '원 업로더 사용자 확인 불가' }, { status: 400 });
+
+    const createdAt = kst();
+    const ins = await db.prepare(
+      `INSERT INTO documents (user_id, room_id, doc_type, image_key, ocr_status, status, approver_id, approved_at, created_at)
+       VALUES (?, ?, 'receipt', ?, 'pending', 'approved', ?, ?, ?)`
+    ).bind(targetUserId, roomId, imageKey, approverId, createdAt, createdAt).run();
+    const docId = ins.meta?.last_row_id;
+
+    if (!isFile) {
+      try {
+        const obj = await bucket.get(imageKey);
+        if (obj) {
+          const buf = await obj.arrayBuffer();
+          const mime = obj.httpMetadata?.contentType || 'image/jpeg';
+          const bytes = new Uint8Array(buf);
+          let binary = '';
+          const CHUNK = 0x8000;
+          for (let i=0;i<bytes.length;i+=CHUNK) binary += String.fromCharCode.apply(null, bytes.subarray(i, i+CHUNK));
+          const base64 = btoa(binary);
+          const dataUri = `data:${mime};base64,${base64}`;
+          const { visionExtract } = await import('./_vision.js');
+          const vr = await visionExtract(context.env, dataUri, 'receipt', { model: context.env.OCR_MODEL || 'gpt-4o' });
+          if (vr.ok && vr.parsed) {
+            const p = vr.parsed;
+            const today = kst().substring(0,10);
+            const validDate = /^\d{4}-\d{2}-\d{2}$/.test(p.receipt_date || '');
+            await db.prepare(
+              `UPDATE documents SET doc_type=?, ocr_status='ok', ocr_raw=?, ocr_confidence=?,
+                 vendor=?, vendor_biz_no=?, amount=?, vat_amount=?, receipt_date=?, category=?, category_src='ai',
+                 items=?, extra=? WHERE id=?`
+            ).bind(
+              p.doc_type || 'receipt', vr.raw, p.confidence,
+              p.vendor || null, p.vendor_biz_no || null,
+              p.amount != null ? p.amount : null, p.vat_amount != null ? p.vat_amount : null,
+              validDate ? p.receipt_date : today, p.category_guess || null,
+              Array.isArray(p.items) ? JSON.stringify(p.items) : null,
+              p.extra ? JSON.stringify(p.extra) : null, docId
+            ).run();
+          }
+        }
+      } catch {}
+    } else if (fileName) {
+      await db.prepare(`UPDATE documents SET vendor=?, receipt_date=? WHERE id=?`)
+        .bind(fileName.replace(/\.[^.]+$/,'').slice(0,60), kst().substring(0,10), docId).run();
+    }
+
+    await db.prepare(`UPDATE conversations SET content=? WHERE id=?`)
+      .bind(`[DOC:${docId}]`, messageId).run();
+
+    return Response.json({ ok: true, doc_id: docId });
   }
 
   if (action === 'dismiss_alert') {

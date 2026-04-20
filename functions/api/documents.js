@@ -118,6 +118,138 @@ export async function onRequestPost(context) {
     }
   }
 
+  // 영수증 → 파일로 변환 (잘못 받은 영수증을 일반 파일 메시지로)
+  if (_url.searchParams.get('action') === 'convert_to_file') {
+    try {
+      const b = await context.request.json();
+      const id = Number(b.id || 0);
+      if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
+      const doc = await db.prepare(
+        `SELECT id, image_key, status, vendor FROM documents WHERE id=? AND user_id=?`
+      ).bind(id, user.user_id).first();
+      if (!doc) return Response.json({ error: 'not_found' }, { status: 404 });
+      if (doc.status === 'approved') return Response.json({ error: '이미 승인된 문서는 변환 불가' }, { status: 400 });
+      const name = (doc.vendor || 'file') + '.bin';
+      const fileUrl = '/api/file?k=' + encodeURIComponent(doc.image_key) + '&name=' + encodeURIComponent(name);
+      const meta = JSON.stringify({ url: fileUrl, name, size: 0 });
+      await db.prepare(`UPDATE conversations SET content=? WHERE content LIKE ?`)
+        .bind(`[FILE]${meta}`, `[DOC:${id}]%`).run();
+      await db.prepare(`UPDATE documents SET status='reverted' WHERE id=?`).bind(id).run();
+      return Response.json({ ok: true });
+    } catch (e) {
+      return Response.json({ error: "처리 실패" }, { status: 500 });
+    }
+  }
+
+  // 사진 메시지 → 영수증으로 변환 (OCR 실행)
+  // 파일 메시지 → 영수증으로 변환 (PDF 등. OCR 생략, 수동 편집용 doc 생성)
+  if (_url.searchParams.get('action') === 'convert_to_receipt') {
+    try {
+      const b = await context.request.json();
+      const messageId = Number(b.message_id || 0);
+      const roomId = b.room_id;
+      if (!messageId || !roomId) return Response.json({ error: 'message_id, room_id 필요' }, { status: 400 });
+
+      // 멤버십 확인 (IDOR 방어)
+      const member = await db.prepare(
+        `SELECT 1 FROM room_members WHERE room_id=? AND user_id=? AND left_at IS NULL`
+      ).bind(roomId, user.user_id).first();
+      if (!member) return Response.json({ error: '권한 없음' }, { status: 403 });
+
+      const msg = await db.prepare(
+        `SELECT id, content, user_id FROM conversations WHERE id=? AND room_id=?`
+      ).bind(messageId, roomId).first();
+      if (!msg) return Response.json({ error: 'message not found' }, { status: 404 });
+      if (msg.user_id !== user.user_id) return Response.json({ error: '본인 메시지만 변환 가능' }, { status: 403 });
+
+      // [IMG]/api/image?k=xxx 또는 [FILE]{...} 형태 파싱
+      const imgMatch = /^\[IMG\](\/api\/image\?k=([^\s\n]+))/.exec(msg.content || '');
+      const fileMatch = /^\[FILE\](\{[^\n]+\})/.exec(msg.content || '');
+      let imageKey = null;
+      let isFile = false;
+      let fileName = null;
+      if (imgMatch) {
+        imageKey = decodeURIComponent(imgMatch[2]);
+      } else if (fileMatch) {
+        try {
+          const fm = JSON.parse(fileMatch[1]);
+          const m2 = /\/api\/file\?k=([^&\s]+)/.exec(fm.url || '');
+          if (m2) imageKey = decodeURIComponent(m2[1]);
+          fileName = fm.name || null;
+          isFile = true;
+        } catch {}
+      }
+      if (!imageKey) return Response.json({ error: '지원 안 되는 메시지 형식' }, { status: 400 });
+
+      // 소유권 검증: R2 키의 prefix가 본인 것이어야 함 (u{user_id}/…)
+      if (!imageKey.startsWith(`u${user.user_id}/`) && !imageKey.startsWith('documents/u' + user.user_id + '/')) {
+        return Response.json({ error: '본인 업로드 자료만 변환 가능' }, { status: 403 });
+      }
+
+      const createdAt = kst();
+      const ins = await db.prepare(
+        `INSERT INTO documents (user_id, room_id, doc_type, image_key, ocr_status, status, approver_id, approved_at, created_at)
+         VALUES (?, ?, 'receipt', ?, 'pending', 'approved', 0, ?, ?)`
+      ).bind(user.user_id, roomId, imageKey, createdAt, createdAt).run();
+      const docId = ins.meta?.last_row_id;
+
+      // 이미지면 OCR 시도. 파일(PDF 등)은 수동 입력용으로 두고 바로 [DOC] 로 전환.
+      if (!isFile) {
+        try {
+          const obj = await bucket.get(imageKey);
+          if (obj) {
+            const buf = await obj.arrayBuffer();
+            const mime = obj.httpMetadata?.contentType || 'image/jpeg';
+            const base64 = arrayBufferToBase64(buf);
+            const dataUri = `data:${mime};base64,${base64}`;
+            const { visionExtract } = await import('./_vision.js');
+            const visionResult = await visionExtract(context.env, dataUri, 'receipt', { model: context.env.OCR_MODEL || 'gpt-4o' });
+            if (visionResult.ok && visionResult.parsed) {
+              const p = visionResult.parsed;
+              const today = ymd();
+              let finalDate = p.receipt_date;
+              const validDate = /^\d{4}-\d{2}-\d{2}$/.test(finalDate || '');
+              if (!validDate) finalDate = today;
+              await db.prepare(
+                `UPDATE documents SET doc_type=?, ocr_status='ok', ocr_model=?, ocr_raw=?, ocr_confidence=?,
+                   vendor=?, vendor_biz_no=?, amount=?, vat_amount=?, receipt_date=?, category=?, category_src='ai',
+                   items=?, extra=? WHERE id=?`
+              ).bind(
+                p.doc_type || 'receipt', visionResult.model, visionResult.raw, p.confidence,
+                p.vendor || null, p.vendor_biz_no || null,
+                p.amount != null ? p.amount : null, p.vat_amount != null ? p.vat_amount : null,
+                finalDate, p.category_guess || null,
+                Array.isArray(p.items) ? JSON.stringify(p.items) : null,
+                p.extra ? JSON.stringify(p.extra) : null, docId
+              ).run();
+              try {
+                const usage = visionResult.usage || {};
+                await db.prepare(
+                  `INSERT INTO ocr_usage_log (document_id, user_id, model, prompt_tokens, completion_tokens, cost_cents, status, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, 'ok', ?)`
+                ).bind(docId, user.user_id, visionResult.model || null,
+                  usage.prompt_tokens || 0, usage.completion_tokens || 0,
+                  visionResult.cost_cents || 0, createdAt).run();
+              } catch {}
+            }
+          }
+        } catch { /* OCR 실패해도 문서 자체는 유지 (수동 편집 가능) */ }
+      } else if (fileName) {
+        // PDF/파일: OCR 없이 파일명만 vendor 로 저장 (사용자 수동 편집)
+        await db.prepare(`UPDATE documents SET vendor=?, receipt_date=? WHERE id=?`)
+          .bind(fileName.replace(/\.[^.]+$/,'').slice(0,60), ymd(), docId).run();
+      }
+
+      // 메시지 내용 교체
+      await db.prepare(`UPDATE conversations SET content=? WHERE id=?`)
+        .bind(`[DOC:${docId}]`, messageId).run();
+
+      return Response.json({ ok: true, doc_id: docId });
+    } catch (e) {
+      return Response.json({ error: "처리 실패" }, { status: 500 });
+    }
+  }
+
   // 월 예산 가드 (기본 20만원 = ~$150)
   const monthLimitCents = Number(context.env.OCR_MONTH_LIMIT_CENTS || '15000'); // 150 USD cents 단위
   try {
