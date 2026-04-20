@@ -365,7 +365,11 @@ export async function onRequestPatch(context) {
 
     const doc = await db.prepare(`SELECT * FROM documents WHERE id=? AND user_id=?`).bind(id, user.user_id).first();
     if (!doc) return Response.json({ error: 'not_found' }, { status: 404 });
-    if (doc.status !== 'pending') return Response.json({ error: '승인·반려된 문서는 수정 불가' }, { status: 400 });
+    /* 세무사(approver_id>0)가 실제로 승인한 이후에만 잠금.
+       자동 승인(approver_id=0)은 고객이 금액·가맹점 등 계속 수정 가능 */
+    const realApprovedBy = Number(doc.approver_id || 0);
+    if (doc.status === 'rejected') return Response.json({ error: '반려된 문서는 수정 불가' }, { status: 400 });
+    if (realApprovedBy > 0) return Response.json({ error: '세무사 승인 후에는 수정할 수 없습니다' }, { status: 400 });
 
     const fields = ['vendor','vendor_biz_no','amount','vat_amount','receipt_date','category','note','doc_type'];
     const sets = [];

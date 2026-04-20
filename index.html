@@ -2419,9 +2419,17 @@ function renderReceiptCard(doc, mine){
   var fmt=function(n){return n==null?'-':(Number(n)||0).toLocaleString('ko-KR')+'원'};
   var imgUrl='/api/image?k='+encodeURIComponent(doc.image_key);
   var amb=doc.ocr_confidence!=null&&doc.ocr_confidence<0.7;
-  var revertBtn=(doc.status!=='approved')
-    ? '<button onclick="event.stopPropagation();revertDocToPhotoClient('+doc.id+')" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:6px;font-size:.7em;cursor:pointer;font-family:inherit;margin-top:4px" title="잘못 분류됐으면 일반 사진으로 되돌립니다">📷 사진으로</button>'
+  /* 수정 가능 여부: 세무사(approver_id>0)가 실제로 승인한 뒤엔 잠금. 자동 승인(approver_id=0)은 고객 수정 허용 */
+  var realApproved=Number(doc.approver_id||0)>0;
+  var canEdit=doc.status!=='rejected'&&!realApproved;
+  var docJs=JSON.stringify({id:doc.id,vendor:doc.vendor||'',amount:doc.amount||0,receipt_date:doc.receipt_date||'',category:doc.category||''}).replace(/"/g,'&quot;');
+  var editBtn=canEdit
+    ? '<button onclick="event.stopPropagation();openDocEditModal('+doc.id+',&quot;'+escAttr(doc.vendor||'')+'&quot;,'+(doc.amount||0)+',&quot;'+escAttr(doc.receipt_date||'')+'&quot;,&quot;'+escAttr(doc.category||'')+'&quot;)" style="background:var(--blue);color:#fff;border:none;padding:3px 10px;border-radius:6px;font-size:.7em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:4px" title="금액·가맹점 등 수정">✏️ 수정</button>'
     : '';
+  var revertBtn=(!realApproved)
+    ? '<button onclick="event.stopPropagation();revertDocToPhotoClient('+doc.id+')" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:6px;font-size:.7em;cursor:pointer;font-family:inherit" title="잘못 분류됐으면 일반 사진으로 되돌립니다">📷 사진으로</button>'
+    : '';
+  var actionRow=(editBtn||revertBtn)?'<div style="margin-top:6px">'+editBtn+revertBtn+'</div>':'';
   return ''
     +'<div style="display:flex;align-items:stretch;gap:0;min-width:240px;max-width:300px;border-radius:12px;overflow:hidden;background:var(--card);border:1px solid var(--border)">'
     + '<div style="flex-shrink:0;width:86px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;cursor:zoom-in" onclick="openImgViewer(\''+imgUrl+'\',[\''+imgUrl+'\'])">'
@@ -2434,9 +2442,72 @@ function renderReceiptCard(doc, mine){
     +   '<div style="font-size:.72em;color:var(--text2)">'+esc(doc.receipt_date||'-')+(doc.category?' · '+esc(doc.category):'')+'</div>'
     +   '<div style="margin-top:6px"><span style="display:inline-block;font-size:.68em;padding:2px 8px;border-radius:8px;background:'+st.bg+';color:'+st.fg+';font-weight:700">'+st.tx+'</span></div>'
     +   (doc.reject_reason?'<div style="margin-top:4px;font-size:.72em;color:#991b1b">반려: '+esc(doc.reject_reason)+'</div>':'')
-    +   revertBtn
+    +   actionRow
     + '</div>'
     +'</div>';
+}
+/* 영수증 수정 모달 */
+var _docEditId=null;
+function openDocEditModal(id, vendor, amount, date, category){
+  _docEditId=id;
+  var m=document.getElementById('docEditModal');
+  if(!m){
+    m=document.createElement('div');
+    m.id='docEditModal';
+    m.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10050;align-items:center;justify-content:center;padding:20px';
+    m.innerHTML='<div style="background:var(--bg);color:var(--text);border-radius:14px;padding:20px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.25)">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><h3 style="font-size:1em;margin:0">✏️ 영수증 수정</h3><button onclick="closeDocEditModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--text2);font-family:inherit">✕</button></div>'
+      +'<label style="font-size:.76em;font-weight:600;display:block;margin-bottom:4px">가맹점</label>'
+      +'<input id="deVendor" type="text" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">'
+      +'<label style="font-size:.76em;font-weight:600;display:block;margin-bottom:4px">금액(원)</label>'
+      +'<input id="deAmount" type="text" inputmode="numeric" oninput="onDeAmountInput()" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:1em;font-weight:700;font-family:inherit;margin-bottom:10px;box-sizing:border-box">'
+      +'<label style="font-size:.76em;font-weight:600;display:block;margin-bottom:4px">날짜 (YYYY-MM-DD)</label>'
+      +'<input id="deDate" type="date" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">'
+      +'<label style="font-size:.76em;font-weight:600;display:block;margin-bottom:4px">카테고리</label>'
+      +'<select id="deCategory" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:14px;box-sizing:border-box">'
+      +  '<option value="">(선택 안 함)</option>'
+      +  ['식비','교통비','숙박비','소모품비','접대비','통신비','공과금','임대료','인건비','기타'].map(function(c){return '<option value="'+c+'">'+c+'</option>'}).join('')
+      +'</select>'
+      +'<div style="display:flex;gap:8px"><button onclick="submitDocEdit()" style="flex:1;background:var(--blue);color:#fff;border:none;padding:11px;border-radius:8px;font-size:.9em;font-weight:700;cursor:pointer;font-family:inherit">저장</button>'
+      +'<button onclick="closeDocEditModal()" style="background:var(--border);color:var(--text);border:none;padding:11px 18px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button></div>'
+      +'</div>';
+    document.body.appendChild(m);
+  }
+  document.getElementById('deVendor').value=vendor||'';
+  document.getElementById('deAmount').value=amount?Number(amount).toLocaleString('ko-KR'):'';
+  document.getElementById('deDate').value=date||'';
+  document.getElementById('deCategory').value=category||'';
+  m.style.display='flex';
+}
+function closeDocEditModal(){
+  var m=document.getElementById('docEditModal');if(m)m.style.display='none';
+  _docEditId=null;
+}
+function onDeAmountInput(){
+  var el=document.getElementById('deAmount');
+  var raw=el.value.replace(/[^0-9]/g,'');
+  var n=parseInt(raw,10)||0;
+  el.value=raw?n.toLocaleString('ko-KR'):'';
+}
+async function submitDocEdit(){
+  if(!_docEditId)return;
+  var vendor=document.getElementById('deVendor').value.trim()||null;
+  var amountRaw=document.getElementById('deAmount').value.replace(/[^0-9]/g,'');
+  var amount=amountRaw?parseInt(amountRaw,10):null;
+  var date=document.getElementById('deDate').value||null;
+  var category=document.getElementById('deCategory').value||null;
+  try{
+    var r=await fetch('/api/documents',{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:_docEditId,vendor:vendor,amount:amount,receipt_date:date,category:category})
+    });
+    var d=await r.json();
+    if(!d.ok){alert('수정 실패: '+(d.error||'unknown'));return}
+    closeDocEditModal();
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('✅ 수정 완료');
+    loadRoomChat();
+  }catch(e){alert('오류: '+e.message)}
 }
 /* 문서 분류 취소 → 일반 사진으로 (본인만, pending/rejected에서) */
 async function revertDocToPhotoClient(docId){
