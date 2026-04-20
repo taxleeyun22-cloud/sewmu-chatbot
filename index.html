@@ -623,6 +623,14 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
   <!-- 앱 설정 -->
   <div class="mp-section">
     <div class="mp-section-title">앱 설정</div>
+    <div class="mp-item" onclick="shareToFriend()">
+      <div class="mp-item-icon" style="background:linear-gradient(135deg,#fef08a,#fbbf24);color:#92400e">🎁</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">친구에게 알리기</div>
+        <div class="mp-item-value">대표님 사장님 친구에게 추천 (카톡·메시지)</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </div>
     <div class="mp-item" onclick="showInstallGuide()">
       <div class="mp-item-icon">📱</div>
       <div class="mp-item-main">
@@ -2576,6 +2584,32 @@ function detectPlatform(){
   if(isAndroid)return 'android';
   return 'desktop';
 }
+/* 친구에게 알리기 — 카톡·메시지 등 공유시트 */
+async function shareToFriend(){
+  var url='https://sewmu-chatbot.pages.dev/';
+  var name=(currentUser&&(currentUser.real_name||currentUser.name))||'';
+  var msg='[세무회계 이윤 AI 세무상담]\n\n'
+    +(name?(name+' 대표님이 추천하는 '):'')
+    +'AI가 24시간 세무 질문에 답하고, 영수증 사진 올리면 자동 분류·정리되는 세무 챗봇이에요.\n\n'
+    +'대구 달서구 세무회계 이윤 (대표세무사 이재윤)\n'
+    +url;
+  /* Web Share API (모바일·일부 데스크톱) */
+  if(navigator.share){
+    try{
+      await navigator.share({title:'세무회계 이윤 AI 세무상담',text:msg,url:url});
+      return;
+    }catch(e){if(e&&e.name==='AbortError')return;}
+  }
+  /* 폴백: 클립보드 복사 + 안내 */
+  try{
+    await navigator.clipboard.writeText(msg);
+    alert('🎁 추천 메시지가 클립보드에 복사되었습니다.\n카톡·메시지 앱에 붙여넣어 보내세요.');
+  }catch(e){
+    /* 최종 폴백: prompt */
+    window.prompt('아래 내용을 복사해서 친구에게 보내주세요.',msg);
+  }
+}
+
 function showInstallGuide(){
   var p=detectPlatform();
   if(p==='installed'){alert('이미 앱으로 설치되어 있습니다 ✓');return}

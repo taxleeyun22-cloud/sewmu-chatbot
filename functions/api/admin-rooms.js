@@ -75,7 +75,7 @@ export async function onRequestGet(context) {
   // 대화 AI 요약
   const action = url.searchParams.get("action");
   if (action === "summarize") {
-    return await summarizeRoom(context, db, url.searchParams.get("room_id"));
+    return await summarizeRoom(context, db, url.searchParams.get("room_id"), url.searchParams.get("range") || 'recent');
   }
 
   const roomId = url.searchParams.get("room_id");
@@ -515,18 +515,43 @@ export async function onRequestDelete(context) {
 }
 
 // 상담방 대화 AI 요약
-async function summarizeRoom(context, db, roomId) {
+async function summarizeRoom(context, db, roomId, range) {
   if (!roomId) return Response.json({ error: "room_id required" }, { status: 400 });
   const apiKey = context.env.OPENAI_API_KEY;
   if (!apiKey) return Response.json({ error: "OPENAI_API_KEY 미설정" }, { status: 500 });
 
-  // 메시지 최신 200건 조회
-  const { results: msgs } = await db.prepare(
-    `SELECT c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
-     FROM conversations c LEFT JOIN users u ON c.user_id = u.id
-     WHERE c.room_id = ?
-     ORDER BY c.created_at DESC LIMIT 200`
-  ).bind(roomId).all();
+  range = range || 'recent';
+
+  // 기간별 쿼리 분기
+  let query, binds;
+  if (range === 'recent') {
+    // 최근 50건
+    query = `SELECT c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
+             FROM conversations c LEFT JOIN users u ON c.user_id = u.id
+             WHERE c.room_id = ?
+             ORDER BY c.created_at DESC LIMIT 50`;
+    binds = [roomId];
+  } else if (range === 'week') {
+    query = `SELECT c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
+             FROM conversations c LEFT JOIN users u ON c.user_id = u.id
+             WHERE c.room_id = ? AND datetime(c.created_at) >= datetime('now','-7 days')
+             ORDER BY c.created_at DESC LIMIT 300`;
+    binds = [roomId];
+  } else if (range === 'month') {
+    const ym = new Date(Date.now()+9*60*60*1000).toISOString().substring(0,7);
+    query = `SELECT c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
+             FROM conversations c LEFT JOIN users u ON c.user_id = u.id
+             WHERE c.room_id = ? AND substr(c.created_at,1,7) = ?
+             ORDER BY c.created_at DESC LIMIT 500`;
+    binds = [roomId, ym];
+  } else { // all
+    query = `SELECT c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
+             FROM conversations c LEFT JOIN users u ON c.user_id = u.id
+             WHERE c.room_id = ?
+             ORDER BY c.created_at DESC LIMIT 500`;
+    binds = [roomId];
+  }
+  const { results: msgs } = await db.prepare(query).bind(...binds).all();
 
   if (!msgs || !msgs.length) {
     return Response.json({ ok: true, summary: "(대화 내용이 없습니다)", message_count: 0 });

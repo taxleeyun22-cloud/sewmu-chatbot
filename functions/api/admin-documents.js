@@ -652,6 +652,16 @@ export async function onRequestPost(context) {
     return Response.json({ ok: true, count: ids.length });
   }
 
+  if (action === 'revert') {
+    /* 승인 취소 — pending 으로 되돌리고 편집 가능 상태로 */
+    const { id } = body;
+    if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
+    await db.prepare(
+      `UPDATE documents SET status = 'pending', approver_id = NULL, approved_at = NULL WHERE id = ?`
+    ).bind(id).run();
+    return Response.json({ ok: true });
+  }
+
   if (action === 'dismiss_alert') {
     const { id } = body;
     if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });

@@ -2243,8 +2243,11 @@ async function runCronAlerts(){
 /* 손상 문서(R2 빈 파일) 점검 */
 /* ===== 상담방 AI 대화 요약 ===== */
 let _lastSummaryText='';
-async function openRoomSummary(){
+let _lastSummaryRange='recent';
+async function openRoomSummary(range){
   if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
+  range=range||_lastSummaryRange||'recent';
+  _lastSummaryRange=range;
   const modal=$g('roomSummaryModal');
   const body=$g('rsBody');
   const meta=$g('rsMeta');
@@ -2252,13 +2255,21 @@ async function openRoomSummary(){
   document.body.style.overflow='hidden';
   body.innerHTML='<div style="text-align:center;padding:40px 0;color:#8b95a1">🤖 요약 생성 중... (5~15초)</div>';
   meta.textContent='';
+  /* 기간 버튼 활성화 표시 */
+  document.querySelectorAll('.rs-range').forEach(b=>{
+    const on=b.getAttribute('data-range')===range;
+    b.style.background=on?'#191f28':'#e5e8eb';
+    b.style.color=on?'#fff':'#555';
+    b.style.fontWeight=on?'600':'400';
+  });
   try{
-    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=summarize&room_id='+encodeURIComponent(currentRoomId));
+    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=summarize&room_id='+encodeURIComponent(currentRoomId)+'&range='+encodeURIComponent(range));
     const d=await r.json();
     if(d.error){body.innerHTML='<div style="color:#f04452;padding:20px 0">요약 실패: '+e(d.error)+'</div>';return}
     _lastSummaryText=d.summary||'';
     body.innerHTML=renderMarkdownLite(_lastSummaryText);
-    meta.textContent='메시지 '+(d.message_count||0)+'건 · 비용 ₩'+Math.round((d.cost_cents||0)*14);
+    const rangeLabel={recent:'최근 50건',week:'최근 7일',month:'이번달',all:'전체'}[range]||range;
+    meta.textContent='['+rangeLabel+'] 메시지 '+(d.message_count||0)+'건 · 비용 ₩'+Math.round((d.cost_cents||0)*14);
   }catch(err){
     body.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>';
   }
@@ -2408,16 +2419,27 @@ const DOC_TYPE_TABS = [
 // 공통 컬럼 (모든 타입 앞·뒤 공통)
 const DOC_TYPE_KEYS = ['receipt','tax_invoice','lease','insurance','utility','property_tax','payroll','bank_stmt','business_reg','identity','contract','other'];
 
+/* approved 면 잠금, pending/rejected 면 편집 가능 */
+function _docEditable(p){ return p.data.status !== 'approved'; }
+
 function commonColsLeft(){
   return [
     { headerCheckboxSelection:true, checkboxSelection:true, width:40, pinned:'left', filter:false, sortable:false, resizable:false },
-    { headerName:'일자', field:'date', width:105, pinned:'left', filter:'agDateColumnFilter' },
+    { headerName:'일자', field:'date', width:115, pinned:'left', filter:'agDateColumnFilter',
+      editable: _docEditable,
+      valueSetter: p => {
+        // 일자 편집 시 receipt_date 도 함께 저장되도록 매핑
+        p.data.date = p.newValue;
+        p.data.receipt_date = p.newValue;
+        return true;
+      }
+    },
     { headerName:'타입', field:'doc_type', width:130,
-      editable: p=>p.data.status==='pending',
+      editable: _docEditable,
       cellEditor:'agSelectCellEditor',
       cellEditorParams:{ values: DOC_TYPE_KEYS },
       valueFormatter: p => docTypeLabelAdmin(p.value),
-      cellStyle: p => p.data.status!=='pending' ? { color:'#8b95a1' } : {}
+      cellStyle: p => !_docEditable(p) ? { color:'#8b95a1' } : {}
     },
   ];
 }
@@ -2444,12 +2466,20 @@ function commonColsRight(){
       cellRenderer: p => `<button onclick="openImgViewer('/api/image?k=${encodeURIComponent(p.value)}',['/api/image?k=${encodeURIComponent(p.value)}'])" style="background:#f2f4f6;border:none;padding:3px 8px;border-radius:6px;font-size:.85em;cursor:pointer;font-family:inherit">📷</button>`
     },
     {
-      headerName:'액션', width:110, sortable:false, filter:false, pinned:'right',
+      headerName:'액션', width:170, sortable:false, filter:false, pinned:'right',
       cellRenderer: p => {
         const d=p.data;
         if(d.status==='pending'){
           return `<button onclick="approveDocById(${d.id})" title="승인" style="background:#10b981;color:#fff;border:none;padding:3px 7px;border-radius:5px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:3px">✅</button>`
             +`<button onclick="rejectDocPrompt(${d.id})" title="반려" style="background:#fff;color:#f04452;border:1px solid #f04452;padding:3px 7px;border-radius:5px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">❌</button>`;
+        }
+        if(d.status==='approved'){
+          return `<button onclick="revertDocApproval(${d.id})" title="승인 취소 — 편집 가능 상태로" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;padding:3px 8px;border-radius:5px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:3px">↺ 취소</button>`
+            +`<button onclick="openDocDetailAdmin(${d.id})" style="background:#e5e8eb;border:none;padding:3px 8px;border-radius:5px;font-size:.76em;cursor:pointer;font-family:inherit">상세</button>`;
+        }
+        if(d.status==='rejected'){
+          return `<button onclick="approveDocById(${d.id})" title="다시 승인" style="background:#10b981;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:3px">✅ 복원</button>`
+            +`<button onclick="openDocDetailAdmin(${d.id})" style="background:#e5e8eb;border:none;padding:3px 8px;border-radius:5px;font-size:.76em;cursor:pointer;font-family:inherit">상세</button>`;
         }
         return `<button onclick="openDocDetailAdmin(${d.id})" style="background:#e5e8eb;border:none;padding:3px 8px;border-radius:5px;font-size:.76em;cursor:pointer;font-family:inherit">상세</button>`;
       }
@@ -2461,17 +2491,17 @@ function commonColsRight(){
 function colsForType(type){
   const amtCol = (name, field) => ({
     headerName:name, field, width:115, type:'numericColumn',
-    editable: p=>p.data.status==='pending',
+    editable: _docEditable,
     valueFormatter: p => p.value!=null ? (Number(p.value)||0).toLocaleString('ko-KR') : '-',
     cellStyle: { fontWeight:'600', textAlign:'right' }
   });
   const dateCol = (name, field) => ({
     headerName:name, field, width:115,
-    editable: p=>p.data.status==='pending'
+    editable: _docEditable
   });
   const textCol = (name, field, w=140) => ({
     headerName:name, field, width:w, filter:true,
-    editable: p=>p.data.status==='pending'
+    editable: _docEditable
   });
 
   switch(type){
@@ -2707,6 +2737,20 @@ function renderDocsTable(docs){
   docsRawList = docs || [];
   renderDocsTypeTabs();
   rebuildDocsGrid();
+}
+
+// 승인 취소 — 편집 가능한 pending 상태로 복원
+async function revertDocApproval(docId){
+  if(!docId)return;
+  if(!confirm('이 문서의 승인을 취소하시겠어요?\n(편집 가능한 \'대기\' 상태로 돌아갑니다)'))return;
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=revert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:docId})});
+    const d=await r.json();
+    if(d.ok){
+      if(typeof showAdminToast==='function')showAdminToast('↺ 승인 취소됨 — 편집 가능');
+      loadDocsTab();
+    } else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
 }
 
 // AG-Grid cellRenderer에서 호출되는 래퍼 (btnEl 없이 id만으로 승인)
