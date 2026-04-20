@@ -5,21 +5,62 @@ function $g(id){return document.getElementById(id)||_noop()}
 function e(t){return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function escAttr(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/[\r\n]+/g,' ')}
 
-/* [REPLY]{json}\n, [IMG], [FILE] 프리픽스 파싱 */
+/* [REPLY]{json}\n, [IMG], [FILE], [DOC:id] 프리픽스 파싱 */
 function parseMsg(content){
-  if(!content)return {reply:null,image:null,file:null,text:''};
+  if(!content)return {reply:null,image:null,file:null,doc_id:null,text:''};
   let reply=null;
   const mr=/^\[REPLY\](\{[^\n]+\})\n([\s\S]*)$/.exec(content);
   if(mr){
     try{reply=JSON.parse(mr[1]);content=mr[2]}catch{}
   }
+  const md=/^\[DOC:(\d+)\](\n([\s\S]*))?$/.exec(content);
+  if(md)return {reply:reply,image:null,file:null,doc_id:parseInt(md[1],10),text:md[3]||''};
   const mf=/^\[FILE\](\{[^\n]+\})(\n([\s\S]*))?$/.exec(content);
   if(mf){
-    try{const obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,text:mf[3]||''}}catch{}
+    try{const obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,doc_id:null,text:mf[3]||''}}catch{}
   }
   const m=/^\[IMG\](\S+)(\n([\s\S]*))?$/.exec(content);
-  if(m)return {reply:reply,image:m[1],file:null,text:m[3]||''};
-  return {reply:reply,image:null,file:null,text:content};
+  if(m)return {reply:reply,image:m[1],file:null,doc_id:null,text:m[3]||''};
+  return {reply:reply,image:null,file:null,doc_id:null,text:content};
+}
+
+/* 영수증 카드 렌더링 — 세무사측 (승인/반려 버튼 포함) */
+function renderReceiptCardAdmin(doc){
+  if(!doc) return '<div style="padding:10px 12px;border-radius:10px;background:#f2f4f6;font-size:.82em">🧾 영수증 (조회 불가)</div>';
+  const statusMap={pending:{tx:'⏳ 검토 중',bg:'#fef3c7',fg:'#92400e'},approved:{tx:'✅ 승인',bg:'#d1fae5',fg:'#065f46'},rejected:{tx:'❌ 반려',bg:'#fee2e2',fg:'#991b1b'}};
+  const st=statusMap[doc.status]||statusMap.pending;
+  const fmt=n=>n==null?'-':(Number(n)||0).toLocaleString('ko-KR')+'원';
+  const imgUrl='/api/image?k='+encodeURIComponent(doc.image_key);
+  const amb=doc.ocr_confidence!=null&&doc.ocr_confidence<0.7;
+  const catOptions=['식비','교통비','숙박비','소모품비','접대비','통신비','공과금','임대료','기타'];
+  const catSel=catOptions.map(c=>`<option value="${c}"${doc.category===c?' selected':''}>${c}</option>`).join('');
+  const canAct=doc.status==='pending';
+  const amb2=amb?` <span style="color:#d97706;font-size:.7em">(인식 낮음 ${Math.round(doc.ocr_confidence*100)}%)</span>`:'';
+  return ''
+    +`<div data-doc-id="${doc.id}" style="display:flex;gap:10px;min-width:300px;max-width:420px;border-radius:12px;overflow:hidden;background:#fff;border:1px solid #e5e8eb;padding:10px">`
+    +  `<div style="flex-shrink:0;width:96px;height:128px;background:#f3f4f6;border-radius:8px;overflow:hidden;cursor:zoom-in" onclick="openImgViewer('${imgUrl}',['${imgUrl}'])">`
+    +     `<img src="${imgUrl}" alt="영수증" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">`
+    +  `</div>`
+    +  `<div style="flex:1;min-width:0;font-size:.8em">`
+    +     `<div style="color:#8b95a1;font-size:.85em;margin-bottom:3px">🧾 영수증 · 신뢰도 ${doc.ocr_confidence!=null?Math.round(doc.ocr_confidence*100)+'%':'-'}${amb2}</div>`
+    +     `<div style="display:grid;grid-template-columns:48px 1fr;gap:3px 8px;align-items:center">`
+    +       `<label style="color:#8b95a1;font-size:.9em">가맹점</label>`
+    +       `<input type="text" value="${e(doc.vendor||'')}" data-field="vendor" ${canAct?'':'readonly'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit">`
+    +       `<label style="color:#8b95a1;font-size:.9em">금액</label>`
+    +       `<input type="number" value="${doc.amount||''}" data-field="amount" ${canAct?'':'readonly'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit">`
+    +       `<label style="color:#8b95a1;font-size:.9em">날짜</label>`
+    +       `<input type="text" value="${e(doc.receipt_date||'')}" data-field="receipt_date" placeholder="YYYY-MM-DD" ${canAct?'':'readonly'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit">`
+    +       `<label style="color:#8b95a1;font-size:.9em">카테고리</label>`
+    +       `<select data-field="category" ${canAct?'':'disabled'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit"><option value="">(선택)</option>${catSel}</select>`
+    +     `</div>`
+    +     `<div style="margin-top:6px"><span style="display:inline-block;font-size:.78em;padding:2px 8px;border-radius:8px;background:${st.bg};color:${st.fg};font-weight:700">${st.tx}</span></div>`
+    +     (doc.reject_reason?`<div style="margin-top:4px;font-size:.8em;color:#991b1b">반려: ${e(doc.reject_reason)}</div>`:'')
+    +     (canAct?`<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">`
+    +       `<button onclick="approveDoc(${doc.id},this)" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">✅ 승인</button>`
+    +       `<button onclick="rejectDocPrompt(${doc.id})" style="background:#fff;color:#f04452;border:1px solid #f04452;padding:7px 14px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">❌ 반려</button>`
+    +     `</div>`:'')
+    +  `</div>`
+    +`</div>`;
 }
 function fileIconFor(name){
   const ext=(name||'').split('.').pop().toLowerCase();
@@ -38,12 +79,17 @@ function fmtSize(n){
   if(n<1024*1024)return (n/1024).toFixed(1)+'KB';
   return (n/1024/1024).toFixed(1)+'MB';
 }
-function renderMsgBody(content){
+function renderMsgBody(content, attachedDoc){
   const p=parseMsg(content);
   let h='';
   if(p.reply){
     const s=p.reply.s||'', t=(p.reply.t||'').slice(0,100);
     h+='<div class="rc-quote"><div class="rc-quote-sender">↩︎ '+e(s)+'</div><div class="rc-quote-text">'+e(t)+'</div></div>';
+  }
+  if(p.doc_id){
+    h+=renderReceiptCardAdmin(attachedDoc||null);
+    if(p.text)h+='<div style="margin-top:6px">'+e(p.text)+'</div>';
+    return h;
   }
   if(p.image){
     h+='<img class="rc-img-msg" src="'+e(p.image)+'" alt="이미지" loading="lazy" style="display:inline-block;max-width:220px;max-height:300px;border-radius:10px;background:rgba(0,0,0,.06);object-fit:cover;cursor:zoom-in" onclick="openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">';
@@ -318,11 +364,11 @@ async function loadRoomDetail(){
         return ' class="rc-msg-bubble" data-msg="'+m.id+'" data-sender="'+escAttr(sender)+'" data-text="'+escAttr(preview)+'" data-mine="'+(mine?1:0)+'" data-deletable="'+canDel+'"';
       }
       if(m.role==='user'){
-        return '<div style="margin-bottom:10px"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+'</div><div'+attrs(nm,0)+' style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
+        return '<div style="margin-bottom:10px"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+'</div><div'+attrs(nm,0)+' style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
       } else if(m.role==='assistant'){
-        return '<div style="margin-bottom:10px"><div'+attrs('AI',0)+' style="display:inline-block;background:#f2f4f6;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div></div>';
+        return '<div style="margin-bottom:10px"><div'+attrs('AI',0)+' style="display:inline-block;background:#f2f4f6;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div></div>';
       } else if(m.role==='human_advisor'){
-        return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end"><div'+attrs('세무사',1)+' style="background:#10b981;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;opacity:.9;margin-top:4px">👨‍💼 세무사 · '+e(m.created_at||'')+'</div></div></div>';
+        return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end"><div'+attrs('세무사',1)+' style="background:#10b981;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;opacity:.9;margin-top:4px">👨‍💼 세무사 · '+e(m.created_at||'')+'</div></div></div>';
       }
       return '';
     }).join('');
@@ -436,6 +482,33 @@ async function doCopyMsg(text){
   }
   if(!init())document.addEventListener('DOMContentLoaded',init);
 })();
+
+/* ===== 영수증 승인·반려 ===== */
+async function approveDoc(docId, btnEl){
+  if(!docId)return;
+  const card=btnEl?btnEl.closest('[data-doc-id]'):null;
+  const vendor=card?card.querySelector('[data-field="vendor"]').value.trim():undefined;
+  const amount=card?parseInt(card.querySelector('[data-field="amount"]').value,10)||null:undefined;
+  const receipt_date=card?card.querySelector('[data-field="receipt_date"]').value.trim()||null:undefined;
+  const category=card?card.querySelector('[data-field="category"]').value||null:undefined;
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:docId,vendor,amount,receipt_date,category})});
+    const d=await r.json();
+    if(d.ok){loadRoomDetail()}
+    else alert('승인 실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+async function rejectDocPrompt(docId){
+  if(!docId)return;
+  const reason=prompt('반려 사유 (고객에게 표시됩니다)','');
+  if(!reason||!reason.trim())return;
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=reject',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:docId,reason:reason.trim()})});
+    const d=await r.json();
+    if(d.ok){loadRoomDetail()}
+    else alert('반려 실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
 
 async function sendRoomMessage(){
   if(!currentRoomId)return;

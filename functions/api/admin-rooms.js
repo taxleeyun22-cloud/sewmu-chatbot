@@ -193,6 +193,33 @@ export async function onRequestGet(context) {
         LIMIT 500
       `).bind(roomId).all();
 
+      // [DOC:id] 메시지에 documents 정보 JOIN
+      try {
+        const docIds = [];
+        for (const m of (messages || [])) {
+          const mm = /^\[DOC:(\d+)\]/.exec(m.content || '');
+          if (mm) docIds.push(parseInt(mm[1], 10));
+        }
+        if (docIds.length) {
+          const placeholders = docIds.map(() => '?').join(',');
+          const { results: docs } = await db.prepare(
+            `SELECT id, user_id, doc_type, image_key, ocr_status, ocr_confidence,
+                    vendor, vendor_biz_no, amount, vat_amount, receipt_date,
+                    category, category_src, status, note, approver_id, approved_at, reject_reason, created_at
+             FROM documents WHERE id IN (${placeholders})`
+          ).bind(...docIds).all();
+          const byId = {};
+          (docs || []).forEach(d => byId[d.id] = d);
+          for (const m of messages) {
+            const mm = /^\[DOC:(\d+)\]/.exec(m.content || '');
+            if (mm) {
+              const d = byId[parseInt(mm[1], 10)];
+              if (d) m.document = d;
+            }
+          }
+        }
+      } catch (e) {}
+
       return Response.json({ room, members: members || [], messages: messages || [] });
     }
 

@@ -170,6 +170,33 @@ export async function onRequestGet(context) {
 
       const { results: messages } = await db.prepare(query).bind(...binds).all();
 
+      // [DOC:id] 메시지에 documents 정보 JOIN
+      try {
+        const docIds = [];
+        for (const m of (messages || [])) {
+          const mm = /^\[DOC:(\d+)\]/.exec(m.content || '');
+          if (mm) docIds.push(parseInt(mm[1], 10));
+        }
+        if (docIds.length) {
+          const placeholders = docIds.map(() => '?').join(',');
+          const { results: docs } = await db.prepare(
+            `SELECT id, user_id, doc_type, image_key, ocr_status, ocr_confidence,
+                    vendor, vendor_biz_no, amount, vat_amount, receipt_date,
+                    category, category_src, status, note, created_at
+             FROM documents WHERE id IN (${placeholders})`
+          ).bind(...docIds).all();
+          const byId = {};
+          (docs || []).forEach(d => byId[d.id] = d);
+          for (const m of messages) {
+            const mm = /^\[DOC:(\d+)\]/.exec(m.content || '');
+            if (mm) {
+              const d = byId[parseInt(mm[1], 10)];
+              if (d) m.document = d;
+            }
+          }
+        }
+      } catch (e) { /* 실패해도 기본 메시지는 보여줌 */ }
+
       // 마지막 읽은 시각 갱신
       try {
         await db.prepare(

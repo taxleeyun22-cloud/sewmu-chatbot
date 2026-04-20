@@ -646,6 +646,13 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       <span>파일</span>
     </label>
     <input id="rcDocInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip" onchange="sendRoomDoc(this);closeAttachSheet()" style="display:none">
+    <label for="rcReceiptInput" class="rc-attach-item" id="rcReceiptAttach" style="display:none">
+      <div class="rc-attach-icon" style="background:#fce7f3;color:#be185d">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+      </div>
+      <span>영수증</span>
+    </label>
+    <input id="rcReceiptInput" type="file" accept="image/*" capture="environment" onchange="sendRoomReceipt(this);closeAttachSheet()" style="display:none">
   </div>
   <!-- 답장 프리뷰 바 -->
   <div id="rcReplyBar">
@@ -1396,6 +1403,11 @@ async function openMyRoom(roomId){
   rcRoomId=roomId;
   document.getElementById('roomChatView').classList.add('open');
   document.body.style.overflow='hidden';
+  /* 영수증 업로드 메뉴는 approved_client(기장 거래처)에게만 노출 */
+  var receiptAttach=document.getElementById('rcReceiptAttach');
+  if(receiptAttach){
+    receiptAttach.style.display=(currentUser&&currentUser.approval_status==='approved_client')?'':'none';
+  }
   await loadRoomChat();
   if(rcMsgPollTimer)clearInterval(rcMsgPollTimer);
   rcMsgPollTimer=setInterval(loadRoomChat,5000);
@@ -1453,12 +1465,12 @@ async function loadRoomChat(){
         if(isMe){
           return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end;align-items:flex-end">'
             +ur
-            +'<div'+dataAttrs('나',1)+' style="background:var(--blue);color:#fff;padding:9px 13px;border-radius:14px 4px 14px 14px;max-width:75%;font-size:.88em;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content)
+            +'<div'+dataAttrs('나',1)+' style="background:var(--blue);color:#fff;padding:9px 13px;border-radius:14px 4px 14px 14px;max-width:75%;font-size:.88em;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content, m.document)
             +'<div style="font-size:.62em;opacity:.8;margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>';
         } else {
           return '<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
             +'<div style="max-width:75%"><div style="font-size:.68em;color:var(--text2);margin-bottom:2px;margin-left:4px">'+esc(nm)+'</div>'
-            +'<div'+dataAttrs(nm,0)+' style="background:var(--card);color:var(--text);padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+renderMessageBody(m.content)
+            +'<div'+dataAttrs(nm,0)+' style="background:var(--card);color:var(--text);padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+renderMessageBody(m.content, m.document)
             +'<div style="font-size:.62em;color:var(--text2);margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>'
             +ur+'</div>';
         }
@@ -1471,7 +1483,7 @@ async function loadRoomChat(){
       } else if(m.role==='human_advisor'){
         return '<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
           +'<div style="max-width:75%"><div style="font-size:.68em;color:#10b981;margin-bottom:2px;margin-left:4px;font-weight:600">👨‍💼 이재윤 세무사</div>'
-          +'<div'+dataAttrs('이재윤 세무사',0)+' style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content)
+          +'<div'+dataAttrs('이재윤 세무사',0)+' style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content, m.document)
           +'<div style="font-size:.62em;color:#10b981;margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>'
           +ur+'</div>';
       }
@@ -1658,6 +1670,34 @@ async function sendRoomDoc(fileInput){
   finally{if(btn){btn.textContent=origText;btn.disabled=false}}
 }
 
+/* 영수증 업로드 — AI OCR 자동 분류 */
+async function sendRoomReceipt(fileInput){
+  if(!rcRoomId||!rcIsActive)return;
+  var file=fileInput.files[0];
+  fileInput.value='';
+  if(!file)return;
+  if(file.size>10*1024*1024){alert('10MB 이하만 업로드 가능합니다');return}
+  var btn=document.querySelector('.rc-send-btn');
+  var origText=btn?btn.textContent:'';
+  if(btn){btn.textContent='AI 인식중...';btn.disabled=true}
+  if(typeof showInAppToastSilent==='function')showInAppToastSilent('🧾 영수증 AI 인식 중...');
+  try{
+    var fd=new FormData();
+    fd.append('file',file);
+    fd.append('room_id',rcRoomId);
+    fd.append('doc_type','receipt');
+    var r=await fetch('/api/documents',{method:'POST',body:fd});
+    var d=await r.json();
+    if(d.error){alert('영수증 업로드 실패: '+d.error);return}
+    if(typeof showInAppToastSilent==='function'){
+      var v=(d.document&&d.document.vendor)||'영수증';
+      showInAppToastSilent('✅ '+v+' 등록 · 세무사 확인 대기');
+    }
+    loadRoomChat();
+  }catch(e){alert('오류: '+e.message)}
+  finally{if(btn){btn.textContent=origText;btn.disabled=false}}
+}
+
 async function sendRoomImage(fileInput){
   if(!rcRoomId||!rcIsActive)return;
   var file=fileInput.files[0];
@@ -1682,20 +1722,46 @@ async function sendRoomImage(fileInput){
 
 /* content가 [IMG]url\n text 형식이면 분리해서 반환 */
 function parseMessageContent(content){
-  if(!content)return {reply:null,image:null,file:null,text:''};
+  if(!content)return {reply:null,image:null,file:null,doc_id:null,text:''};
   /* [REPLY]{json}\n... 접두사 먼저 제거 */
   var reply=null;
   var mr=/^\[REPLY\](\{[^\n]+\})\n([\s\S]*)$/.exec(content);
   if(mr){
     try{reply=JSON.parse(mr[1]);content=mr[2]}catch(e){}
   }
+  var md=/^\[DOC:(\d+)\](\n([\s\S]*))?$/.exec(content);
+  if(md)return {reply:reply,image:null,file:null,doc_id:parseInt(md[1],10),text:md[3]||''};
   var mf=/^\[FILE\](\{[^\n]+\})(\n([\s\S]*))?$/.exec(content);
   if(mf){
-    try{var obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,text:mf[3]||''}}catch(e){}
+    try{var obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,doc_id:null,text:mf[3]||''}}catch(e){}
   }
   var m=/^\[IMG\](\S+)(\n([\s\S]*))?$/.exec(content);
-  if(m)return {reply:reply,image:m[1],file:null,text:m[3]||''};
-  return {reply:reply,image:null,file:null,text:content};
+  if(m)return {reply:reply,image:m[1],file:null,doc_id:null,text:m[3]||''};
+  return {reply:reply,image:null,file:null,doc_id:null,text:content};
+}
+
+/* 영수증 카드 렌더링 (msg.document 서버에서 JOIN해서 내려옴) */
+function renderReceiptCard(doc, mine){
+  if(!doc){return '<div style="padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.06);font-size:.82em">🧾 영수증 (삭제되었거나 읽을 수 없음)</div>';}
+  var statusMap={pending:{tx:'⏳ 검토 중',bg:'#fef3c7',fg:'#92400e'},approved:{tx:'✅ 승인',bg:'#d1fae5',fg:'#065f46'},rejected:{tx:'❌ 반려',bg:'#fee2e2',fg:'#991b1b'}};
+  var st=statusMap[doc.status]||statusMap.pending;
+  var fmt=function(n){return n==null?'-':(Number(n)||0).toLocaleString('ko-KR')+'원'};
+  var imgUrl='/api/image?k='+encodeURIComponent(doc.image_key);
+  var amb=doc.ocr_confidence!=null&&doc.ocr_confidence<0.7;
+  return ''
+    +'<div style="display:flex;align-items:stretch;gap:0;min-width:240px;max-width:300px;border-radius:12px;overflow:hidden;background:var(--card);border:1px solid var(--border)">'
+    + '<div style="flex-shrink:0;width:86px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;cursor:zoom-in" onclick="openImgViewer(\''+imgUrl+'\',[\''+imgUrl+'\'])">'
+    +   '<img src="'+imgUrl+'" alt="영수증" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy" onerror="this.style.display=\'none\'">'
+    + '</div>'
+    + '<div style="flex:1;padding:10px 12px;min-width:0">'
+    +   '<div style="font-size:.72em;color:var(--text2);margin-bottom:3px">🧾 영수증'+(amb?' · <span style="color:#d97706">인식 낮음</span>':'')+'</div>'
+    +   '<div style="font-weight:700;font-size:.92em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(doc.vendor||'(가맹점 미확인)')+'</div>'
+    +   '<div style="font-size:1em;font-weight:800;margin:2px 0;color:var(--text)">'+fmt(doc.amount)+'</div>'
+    +   '<div style="font-size:.72em;color:var(--text2)">'+esc(doc.receipt_date||'-')+(doc.category?' · '+esc(doc.category):'')+'</div>'
+    +   '<div style="margin-top:6px"><span style="display:inline-block;font-size:.68em;padding:2px 8px;border-radius:8px;background:'+st.bg+';color:'+st.fg+';font-weight:700">'+st.tx+'</span></div>'
+    +   (doc.reject_reason?'<div style="margin-top:4px;font-size:.72em;color:#991b1b">반려: '+esc(doc.reject_reason)+'</div>':'')
+    + '</div>'
+    +'</div>';
 }
 function fileIconFor(name){
   var ext=(name||'').split('.').pop().toLowerCase();
@@ -1715,12 +1781,17 @@ function fmtFileSize(n){
   return (n/1024/1024).toFixed(1)+'MB';
 }
 
-function renderMessageBody(content){
+function renderMessageBody(content, attachedDoc){
   var parsed=parseMessageContent(content);
   var html='';
   if(parsed.reply){
     var s=parsed.reply.s||'', t=(parsed.reply.t||'').slice(0,100);
     html+='<div class="rc-quote"><div class="rc-quote-sender">↩︎ '+esc(s)+'</div><div class="rc-quote-text">'+esc(t)+'</div></div>';
+  }
+  if(parsed.doc_id){
+    html+=renderReceiptCard(attachedDoc||null,false);
+    if(parsed.text)html+='<div style="margin-top:6px">'+esc(parsed.text)+'</div>';
+    return html;
   }
   if(parsed.image){
     html+='<img class="rc-img-msg" src="'+parsed.image+'" alt="이미지" loading="lazy" onclick="openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">';
