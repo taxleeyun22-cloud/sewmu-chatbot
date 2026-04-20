@@ -2162,7 +2162,12 @@ async function submitBizModal(){
 
 /* ===== 뒤로가기 (Android/브라우저) — 한 단계만 뒤로 ===== */
 window.addEventListener('popstate',function(e){
-  /* 1순위: 이미지 뷰어 열려있으면 닫기 */
+  /* 0순위: JS가 방금 뷰어 닫으며 history.back() 호출한 cascade면 무시 */
+  if(ivState&&ivState.closedByJs){
+    ivState.closedByJs=false;
+    return;
+  }
+  /* 1순위: 이미지 뷰어 열려있으면 닫기 (시스템 뒤로가기) */
   var v=document.getElementById('imgViewer');
   if(v&&v.classList.contains('open')){
     v.classList.remove('open');document.body.style.overflow='';
@@ -2187,7 +2192,7 @@ window.addEventListener('popstate',function(e){
 });
 
 /* ===== 풀스크린 이미지 뷰어 (카톡 스타일) ===== */
-var ivState={srcs:[],idx:0,startX:0,startY:0,dx:0,dy:0,touching:false,swiped:false,axis:null};
+var ivState={srcs:[],idx:0,startX:0,startY:0,dx:0,dy:0,touching:false,swiped:false,axis:null,closedByJs:false};
 function collectImagesNear(el){
   var c=el.closest('#rcMessages')||el.closest('#uriPhotoGrid')||el.closest('#chatArea')||document.body;
   var nodes=c.querySelectorAll('img.rc-img-msg, img.uri-photo');
@@ -2210,7 +2215,12 @@ function closeImgViewer(){
   if(!v||!v.classList.contains('open'))return;
   v.classList.remove('open');
   document.body.style.overflow='';
-  try{if(history.state&&history.state.iv)history.back()}catch{}
+  try{
+    if(history.state&&history.state.iv){
+      ivState.closedByJs=true;
+      history.back();
+    }
+  }catch{}
 }
 function renderIvImg(){
   var img=document.getElementById('ivImg');
