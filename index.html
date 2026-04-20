@@ -1905,11 +1905,12 @@ function closeAttachSheet(){
 }
 function updateSendBtn(){/* 필요 시 input 상태별 버튼 변경 여지 */}
 
-/* 대용량 파일용 청크 업로드 헬퍼 (>= 100MB 초과 시 멀티파트로 자동 전환)
-   크기 제한 300MB (카톡 매칭). 진행률 토스트 표시. */
+/* 대용량 파일 청크 업로드 (>95MB 초과 시 자동). 300MB 상한 (카톡 매칭).
+   병렬 3개씩 업로드해서 체감 속도 2~3배 개선. */
 async function uploadFileChunked(file, onProgress, opts){
   opts=opts||{};
-  var CHUNK=10*1024*1024; /* 10MB per part — Workers 100MB 여유 */
+  var CHUNK=10*1024*1024;
+  var PARALLEL=3; /* 동시 업로드 개수 */
   /* 1. start */
   var s=await fetch('/api/upload-multipart?action=start',{
     method:'POST',
@@ -1920,36 +1921,59 @@ async function uploadFileChunked(file, onProgress, opts){
   if(!sd.ok)throw new Error(sd.error||'업로드 시작 실패');
   var key=sd.key, uploadId=sd.uploadId;
   var totalParts=Math.ceil(file.size/CHUNK);
-  var parts=[];
+  var parts=new Array(totalParts);
+  /* 개별 청크 진행률 추적 (각 청크의 loaded 바이트) */
+  var loadedPerPart=new Array(totalParts).fill(0);
+  function reportProgress(){
+    if(!onProgress)return;
+    var done=0;for(var j=0;j<totalParts;j++)done+=loadedPerPart[j];
+    var pct=Math.min(100,Math.round(done/file.size*100));
+    var finished=parts.filter(Boolean).length;
+    onProgress(pct, finished, totalParts);
+  }
+  function uploadOnePart(i){
+    return new Promise(function(resolve,reject){
+      var start=i*CHUNK, end=Math.min(start+CHUNK,file.size);
+      var chunk=file.slice(start,end), partNumber=i+1;
+      var xhr=new XMLHttpRequest();
+      xhr.open('POST','/api/upload-multipart?action=part&k='+encodeURIComponent(key)+'&uploadId='+encodeURIComponent(uploadId)+'&partNumber='+partNumber);
+      xhr.upload.onprogress=function(ev){
+        if(!ev.lengthComputable)return;
+        loadedPerPart[i]=ev.loaded;
+        reportProgress();
+      };
+      xhr.onload=function(){
+        if(xhr.status>=200&&xhr.status<300){
+          try{
+            var j=JSON.parse(xhr.responseText);
+            if(!j.ok)return reject(new Error(j.error||'part 실패'));
+            parts[i]={partNumber:j.partNumber,etag:j.etag};
+            loadedPerPart[i]=end-start;
+            reportProgress();
+            resolve();
+          }catch(e){reject(new Error('응답 파싱 실패'))}
+        } else {
+          try{var err=JSON.parse(xhr.responseText);reject(new Error(err.error||('HTTP '+xhr.status)))}
+          catch(e){reject(new Error('HTTP '+xhr.status))}
+        }
+      };
+      xhr.onerror=function(){reject(new Error('네트워크 오류 (part '+partNumber+')'))};
+      xhr.send(chunk);
+    });
+  }
   try{
-    for(var i=0;i<totalParts;i++){
-      var start=i*CHUNK;
-      var end=Math.min(start+CHUNK,file.size);
-      var chunk=file.slice(start,end);
-      var partNumber=i+1;
-      /* XHR로 partial progress 추적 */
-      var result=await new Promise(function(resolve,reject){
-        var xhr=new XMLHttpRequest();
-        xhr.open('POST','/api/upload-multipart?action=part&k='+encodeURIComponent(key)+'&uploadId='+encodeURIComponent(uploadId)+'&partNumber='+partNumber);
-        xhr.upload.onprogress=function(ev){
-          if(!ev.lengthComputable||!onProgress)return;
-          var done=(i*CHUNK + ev.loaded);
-          onProgress(Math.min(100, Math.round(done/file.size*100)), i+1, totalParts);
-        };
-        xhr.onload=function(){
-          if(xhr.status>=200&&xhr.status<300){
-            try{resolve(JSON.parse(xhr.responseText))}catch(e){reject(new Error('응답 파싱 실패'))}
-          } else {
-            try{var err=JSON.parse(xhr.responseText);reject(new Error(err.error||('HTTP '+xhr.status)))}
-            catch(e){reject(new Error('HTTP '+xhr.status))}
-          }
-        };
-        xhr.onerror=function(){reject(new Error('네트워크 오류'))};
-        xhr.send(chunk);
-      });
-      if(!result.ok)throw new Error(result.error||'part 업로드 실패');
-      parts.push({partNumber:result.partNumber, etag:result.etag});
+    /* 병렬 제한 워커풀 */
+    var nextIdx=0;
+    async function worker(){
+      while(true){
+        var i=nextIdx++;
+        if(i>=totalParts)break;
+        await uploadOnePart(i);
+      }
     }
+    var workers=[];
+    for(var w=0;w<Math.min(PARALLEL,totalParts);w++)workers.push(worker());
+    await Promise.all(workers);
     /* 3. complete */
     var c=await fetch('/api/upload-multipart?action=complete',{
       method:'POST',
@@ -1958,9 +1982,9 @@ async function uploadFileChunked(file, onProgress, opts){
     });
     var cd=await c.json();
     if(!cd.ok)throw new Error(cd.error||'업로드 완료 실패');
+    if(cd.msgError)console.warn('메시지 생성 실패(업로드는 성공):',cd.msgError);
     return cd;
   }catch(err){
-    /* 실패 시 abort */
     try{
       await fetch('/api/upload-multipart?action=abort',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,uploadId:uploadId})});
     }catch(_){}

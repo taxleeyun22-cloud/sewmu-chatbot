@@ -707,11 +707,10 @@ async function sendRoomImageFile(file){
   if(!init())document.addEventListener('DOMContentLoaded',init);
 })();
 
-/* 대용량 파일 청크 업로드 (300MB까지) — admin 버전 */
+/* 대용량 파일 청크 업로드 (300MB까지, 병렬 3개) — admin 버전 */
 async function uploadFileChunkedAdmin(file, onProgress){
   const CHUNK=10*1024*1024;
-  const authQS='?key='+encodeURIComponent(KEY);
-  /* start */
+  const PARALLEL=3;
   const s=await fetch('/api/upload-multipart?action=start&key='+encodeURIComponent(KEY),{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({name:file.name,size:file.size,type:file.type||'application/octet-stream'})
@@ -720,40 +719,62 @@ async function uploadFileChunkedAdmin(file, onProgress){
   if(!sd.ok)throw new Error(sd.error||'업로드 시작 실패');
   const {key,uploadId}=sd;
   const totalParts=Math.ceil(file.size/CHUNK);
-  const parts=[];
-  try{
-    for(let i=0;i<totalParts;i++){
+  const parts=new Array(totalParts);
+  const loadedPerPart=new Array(totalParts).fill(0);
+  function reportProgress(){
+    if(!onProgress)return;
+    let done=0;for(let j=0;j<totalParts;j++)done+=loadedPerPart[j];
+    const pct=Math.min(100,Math.round(done/file.size*100));
+    const finished=parts.filter(Boolean).length;
+    onProgress(pct,finished,totalParts);
+  }
+  function uploadOnePart(i){
+    return new Promise((resolve,reject)=>{
       const start=i*CHUNK, end=Math.min(start+CHUNK,file.size);
-      const chunk=file.slice(start,end);
-      const partNumber=i+1;
-      const result=await new Promise((resolve,reject)=>{
-        const xhr=new XMLHttpRequest();
-        xhr.open('POST','/api/upload-multipart?action=part&k='+encodeURIComponent(key)+'&uploadId='+encodeURIComponent(uploadId)+'&partNumber='+partNumber+'&key='+encodeURIComponent(KEY));
-        xhr.upload.onprogress=ev=>{
-          if(!ev.lengthComputable||!onProgress)return;
-          const done=i*CHUNK+ev.loaded;
-          onProgress(Math.min(100,Math.round(done/file.size*100)),i+1,totalParts);
-        };
-        xhr.onload=()=>{
-          if(xhr.status>=200&&xhr.status<300){
-            try{resolve(JSON.parse(xhr.responseText))}catch(e){reject(new Error('응답 파싱 실패'))}
-          } else {
-            try{const err=JSON.parse(xhr.responseText);reject(new Error(err.error||('HTTP '+xhr.status)))}
-            catch(e){reject(new Error('HTTP '+xhr.status))}
-          }
-        };
-        xhr.onerror=()=>reject(new Error('네트워크 오류'));
-        xhr.send(chunk);
-      });
-      if(!result.ok)throw new Error(result.error||'part 실패');
-      parts.push({partNumber:result.partNumber,etag:result.etag});
+      const chunk=file.slice(start,end), partNumber=i+1;
+      const xhr=new XMLHttpRequest();
+      xhr.open('POST','/api/upload-multipart?action=part&k='+encodeURIComponent(key)+'&uploadId='+encodeURIComponent(uploadId)+'&partNumber='+partNumber+'&key='+encodeURIComponent(KEY));
+      xhr.upload.onprogress=ev=>{
+        if(!ev.lengthComputable)return;
+        loadedPerPart[i]=ev.loaded;reportProgress();
+      };
+      xhr.onload=()=>{
+        if(xhr.status>=200&&xhr.status<300){
+          try{
+            const j=JSON.parse(xhr.responseText);
+            if(!j.ok)return reject(new Error(j.error||'part 실패'));
+            parts[i]={partNumber:j.partNumber,etag:j.etag};
+            loadedPerPart[i]=end-start;reportProgress();
+            resolve();
+          }catch(e){reject(new Error('응답 파싱 실패'))}
+        } else {
+          try{const err=JSON.parse(xhr.responseText);reject(new Error(err.error||('HTTP '+xhr.status)))}
+          catch(e){reject(new Error('HTTP '+xhr.status))}
+        }
+      };
+      xhr.onerror=()=>reject(new Error('네트워크 오류 (part '+partNumber+')'));
+      xhr.send(chunk);
+    });
+  }
+  try{
+    let nextIdx=0;
+    async function worker(){
+      while(true){
+        const i=nextIdx++;
+        if(i>=totalParts)break;
+        await uploadOnePart(i);
+      }
     }
+    const workers=[];
+    for(let w=0;w<Math.min(PARALLEL,totalParts);w++)workers.push(worker());
+    await Promise.all(workers);
     const c=await fetch('/api/upload-multipart?action=complete&key='+encodeURIComponent(KEY),{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({key,uploadId,parts,name:file.name,size:file.size,type:file.type,room_id:currentRoomId})
     });
     const cd=await c.json();
     if(!cd.ok)throw new Error(cd.error||'완료 실패');
+    if(cd.msgError)console.warn('메시지 생성 실패(업로드는 성공):',cd.msgError);
     return cd;
   }catch(err){
     try{await fetch('/api/upload-multipart?action=abort&key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,uploadId})})}catch{}

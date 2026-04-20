@@ -151,23 +151,26 @@ async function handleComplete(context, bucket, auth) {
   const fileUrl = `/api/file?k=${encodeURIComponent(key)}&name=${encodeURIComponent(name || 'file')}`;
 
   // 채팅방에 [FILE] 메시지로 기록 (room_id 있을 때만)
+  // 기존 스키마 매칭: (session_id, user_id, role, content, room_id, created_at)
+  // session_id NOT NULL 가능성 있어 'room_{id}' 형태로 채움 (documents.js, my-rooms.js 패턴)
   let messageId = null;
+  let msgError = null;
   if (room_id && db) {
     try {
       const payload = JSON.stringify({ url: fileUrl, name: name || 'file', size: size || 0 });
       const content = `[FILE]${payload}`;
       const role = auth.isAdmin ? 'admin' : 'user';
       const r = await db.prepare(
-        `INSERT INTO conversations (room_id, user_id, role, content, created_at)
-         VALUES (?, ?, ?, ?, ?)`
-      ).bind(room_id, auth.isAdmin ? null : auth.userId, role, content, kst()).run();
+        `INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).bind(`room_${room_id}`, auth.isAdmin ? null : auth.userId, role, content, room_id, kst()).run();
       messageId = r.meta?.last_row_id;
     } catch (e) {
-      // DB 실패해도 업로드 자체는 성공으로 처리
+      msgError = e.message || String(e);
     }
   }
 
-  return Response.json({ ok: true, key, url: fileUrl, name, size, type, messageId });
+  return Response.json({ ok: true, key, url: fileUrl, name, size, type, messageId, msgError });
 }
 
 // ── abort: 업로드 중단 ──
