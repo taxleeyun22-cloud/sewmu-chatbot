@@ -2075,10 +2075,10 @@ function renderCustomerList(){
   const el=$g('docsCustItems');
   if(!el||!el.innerHTML===undefined)return;
   let list=docsCustomers.slice();
-  // 검색 필터
+  // 검색 필터 (사업체·대표자·본인명·연락처)
   if(docsCustSearchQ){
     list=list.filter(c=>{
-      const n=((c.real_name||'')+' '+(c.name||'')+' '+(c.phone||'')).toLowerCase();
+      const n=((c.company_name||'')+' '+(c.ceo_name||'')+' '+(c.real_name||'')+' '+(c.name||'')+' '+(c.phone||'')+' '+(c.business_number||'')).toLowerCase();
       return n.includes(docsCustSearchQ);
     });
   }
@@ -2098,8 +2098,18 @@ function renderCustomerList(){
     return;
   }
   el.innerHTML=list.map(c=>{
-    const nm=e(c.real_name||c.name||'#'+c.user_id);
-    const sub=c.phone?e(c.phone):(c.name&&c.real_name?e(c.name):'');
+    /* 표시 이름: 사업체(상호) 우선 → 본인 real_name → name */
+    const primary=c.company_name||c.real_name||c.name||('#'+c.user_id);
+    /* 보조: 대표자 or 본인 이름, 연락처 */
+    const subParts=[];
+    if(c.company_name){
+      if(c.ceo_name)subParts.push('대표 '+c.ceo_name);
+      else if(c.real_name)subParts.push('담당 '+c.real_name);
+    } else if(c.real_name&&c.name&&c.name!==c.real_name){
+      subParts.push(c.name); // 카톡닉네임
+    }
+    if(c.phone)subParts.push(c.phone);
+    const sub=e(subParts.join(' · ')||'');
     const selected=c.user_id===docsSelectedUserId?'background:#e8f3ff;border-left:3px solid #3182f6':'border-left:3px solid transparent';
     const nonClient=c._non_client?' <span style="font-size:.68em;color:#f04452">(비거래처)</span>':'';
     const pendBadge=c.pending>0?`<span style="background:#f04452;color:#fff;padding:1px 7px;border-radius:10px;font-size:.68em;font-weight:700;margin-left:4px">${c.pending}</span>`:'';
@@ -2107,10 +2117,10 @@ function renderCustomerList(){
     const monthAmt=(c.month_approved_amount||0).toLocaleString('ko-KR');
     return `<div onclick="selectCustomer(${c.user_id})" style="${selected};padding:11px 13px;cursor:pointer;border-bottom:1px solid #f2f4f6">`
       +`<div style="display:flex;align-items:center;justify-content:space-between;gap:6px">`
-      +  `<div style="font-weight:700;font-size:.88em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nm}${nonClient}</div>`
+      +  `<div style="font-weight:700;font-size:.88em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e(primary)}${nonClient}</div>`
       +  pendBadge
       +`</div>`
-      +`<div style="font-size:.7em;color:#8b95a1;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>`
+      +(sub?`<div style="font-size:.7em;color:#8b95a1;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>`:'')
       +`<div style="font-size:.72em;color:#555;margin-top:4px">📄 ${c.total}건`
       +  (c.month_count?` · 이번달 ${c.month_count}건`:'')
       +  (c.month_approved_amount?` · 승인 ₩${monthAmt}`:'')
@@ -2139,11 +2149,18 @@ function showCustomerDetail(cust){
   }
   empty.style.display='none';
   panel.style.display='flex';
-  const nm=cust.real_name||cust.name||'#'+cust.user_id;
-  $g('docsDetailName').textContent=nm;
+  /* 상호 우선, 없으면 본인 이름 */
+  const primary=cust.company_name||cust.real_name||cust.name||('#'+cust.user_id);
+  $g('docsDetailName').textContent=primary;
   const parts=[];
+  if(cust.company_name){
+    if(cust.ceo_name)parts.push('대표 '+cust.ceo_name);
+    if(cust.real_name&&cust.real_name!==cust.ceo_name)parts.push('담당 '+cust.real_name);
+    if(cust.business_number)parts.push('사업자 '+cust.business_number);
+  } else if(cust.real_name&&cust.name&&cust.name!==cust.real_name){
+    parts.push('('+cust.name+')');
+  }
   if(cust.phone)parts.push(cust.phone);
-  if(cust.name&&cust.real_name)parts.push('('+cust.name+')');
   parts.push('문서 '+cust.total+'건');
   if(cust.pending>0)parts.push('⏳ 대기 '+cust.pending);
   $g('docsDetailSub').textContent=parts.join(' · ');
@@ -2224,6 +2241,54 @@ async function runCronAlerts(){
 }
 
 /* 손상 문서(R2 빈 파일) 점검 */
+/* ===== 상담방 AI 대화 요약 ===== */
+let _lastSummaryText='';
+async function openRoomSummary(){
+  if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
+  const modal=$g('roomSummaryModal');
+  const body=$g('rsBody');
+  const meta=$g('rsMeta');
+  modal.style.display='flex';
+  document.body.style.overflow='hidden';
+  body.innerHTML='<div style="text-align:center;padding:40px 0;color:#8b95a1">🤖 요약 생성 중... (5~15초)</div>';
+  meta.textContent='';
+  try{
+    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=summarize&room_id='+encodeURIComponent(currentRoomId));
+    const d=await r.json();
+    if(d.error){body.innerHTML='<div style="color:#f04452;padding:20px 0">요약 실패: '+e(d.error)+'</div>';return}
+    _lastSummaryText=d.summary||'';
+    body.innerHTML=renderMarkdownLite(_lastSummaryText);
+    meta.textContent='메시지 '+(d.message_count||0)+'건 · 비용 ₩'+Math.round((d.cost_cents||0)*14);
+  }catch(err){
+    body.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>';
+  }
+}
+function closeRoomSummary(){
+  const modal=$g('roomSummaryModal');
+  if(modal)modal.style.display='none';
+  document.body.style.overflow='';
+}
+function regenerateRoomSummary(){openRoomSummary()}
+async function copyRoomSummary(){
+  try{
+    await navigator.clipboard.writeText(_lastSummaryText||'');
+    const btn=$g('rsCopyBtn');
+    if(btn){const o=btn.textContent;btn.textContent='✅ 복사됨';setTimeout(()=>{btn.textContent=o},1500)}
+  }catch(err){alert('복사 실패: '+err.message)}
+}
+/* 간단 마크다운 렌더 (## 헤더, - 리스트, 볼드) */
+function renderMarkdownLite(md){
+  if(!md)return '';
+  return md
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/^## (.+)$/gm,'<h3 style="font-size:1.05em;font-weight:800;margin:18px 0 6px;color:#191f28">$1</h3>')
+    .replace(/^\s*- (.+)$/gm,'<li style="margin-left:20px">$1</li>')
+    .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+    .replace(/---+/g,'<hr style="border:0;border-top:1px solid #e5e8eb;margin:10px 0">')
+    .replace(/\n\n/g,'<br><br>')
+    .replace(/\n/g,'<br>');
+}
+
 async function runDocsHealthCheck(){
   if(!confirm('초기 버그로 원본이 손상된 영수증을 스캔합니다 (최근 30일).\n\n스캔만 먼저 할까요?'))return;
   try{
@@ -2318,10 +2383,19 @@ const DOC_TYPE_TABS = [
 ];
 
 // 공통 컬럼 (모든 타입 앞·뒤 공통)
+const DOC_TYPE_KEYS = ['receipt','tax_invoice','lease','insurance','utility','property_tax','payroll','bank_stmt','business_reg','identity','contract','other'];
+
 function commonColsLeft(){
   return [
     { headerCheckboxSelection:true, checkboxSelection:true, width:40, pinned:'left', filter:false, sortable:false, resizable:false },
     { headerName:'일자', field:'date', width:105, pinned:'left', filter:'agDateColumnFilter' },
+    { headerName:'타입', field:'doc_type', width:130,
+      editable: p=>p.data.status==='pending',
+      cellEditor:'agSelectCellEditor',
+      cellEditorParams:{ values: DOC_TYPE_KEYS },
+      valueFormatter: p => docTypeLabelAdmin(p.value),
+      cellStyle: p => p.data.status!=='pending' ? { color:'#8b95a1' } : {}
+    },
   ];
 }
 function commonColsRight(){
@@ -2477,7 +2551,6 @@ function colsForType(type){
     case 'all':
     default:
       return [
-        { headerName:'타입', field:'doc_type_label', width:110, filter:true },
         textCol('가맹점/업체','vendor',160),
         amtCol('금액','amount'),
         { headerName:'카테고리', field:'category', width:100 },
@@ -2583,9 +2656,7 @@ function rebuildDocsGrid(){
       let field = e.colDef.field;
       let newVal = e.newValue;
       const body = { id: d.id };
-      // ex_* 필드는 extra JSON patch
       if (field && field.startsWith('ex_')) {
-        // 서버에 extra_patch 형태로 전달
         body.extra_patch = { [field.slice(3)]: newVal };
       } else {
         body[field] = newVal;
@@ -2595,6 +2666,14 @@ function rebuildDocsGrid(){
           method:'POST', headers:{'Content-Type':'application/json'},
           body:JSON.stringify(body)
         });
+        // doc_type 바뀌면 raw 리스트 업데이트 + 탭 재계산
+        if(field==='doc_type'){
+          const idx=docsRawList.findIndex(x=>x.id===d.id);
+          if(idx>=0)docsRawList[idx].doc_type=newVal;
+          renderDocsTypeTabs();
+          // 현재 탭에 해당 타입이 아니면 row 사라져야 하니 재빌드
+          rebuildDocsGrid();
+        }
       }catch(err){ alert('저장 실패: '+err.message) }
     },
   };

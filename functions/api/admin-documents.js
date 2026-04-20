@@ -427,6 +427,19 @@ async function getByUser(db, url) {
   const userMap = {};
   for (const r of (docAgg || [])) userMap[r.user_id] = r;
 
+  // 사업체·대표자: 거래처별 첫 번째(primary 우선) business
+  let bizByUser = {};
+  try {
+    const { results: bizs } = await db.prepare(
+      `SELECT user_id, company_name, ceo_name, business_number, is_primary
+       FROM client_businesses
+       ORDER BY user_id, is_primary DESC, id ASC`
+    ).all();
+    for (const b of (bizs || [])) {
+      if (!bizByUser[b.user_id]) bizByUser[b.user_id] = b; // 첫 번째만 (primary 우선 정렬됨)
+    }
+  } catch {}
+
   const { results: clients } = await db.prepare(
     `SELECT id, real_name, name, phone, approval_status
      FROM users
@@ -437,11 +450,16 @@ async function getByUser(db, url) {
   const list = [];
   for (const u of (clients || [])) {
     const agg = userMap[u.id] || {};
+    const biz = bizByUser[u.id] || null;
     list.push({
       user_id: u.id,
       real_name: u.real_name || null,
       name: u.name || null,
       phone: u.phone || null,
+      /* 사업체 정보 (등록된 것 우선, 없으면 null) */
+      company_name: biz?.company_name || null,
+      ceo_name: biz?.ceo_name || null,
+      business_number: biz?.business_number || null,
       total: agg.total || 0,
       pending: agg.pending || 0,
       approved: agg.approved || 0,
@@ -467,11 +485,15 @@ async function getByUser(db, url) {
     try {
       const u = await db.prepare(`SELECT id, real_name, name, phone, approval_status FROM users WHERE id = ?`).bind(r.user_id).first();
       if (u) {
+        const biz = bizByUser[u.id] || null;
         list.push({
           user_id: u.id,
           real_name: u.real_name || null,
           name: u.name || null,
           phone: u.phone || null,
+          company_name: biz?.company_name || null,
+          ceo_name: biz?.ceo_name || null,
+          business_number: biz?.business_number || null,
           total: r.total || 0,
           pending: r.pending || 0,
           approved: r.approved || 0,

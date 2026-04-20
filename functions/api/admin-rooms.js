@@ -72,6 +72,12 @@ export async function onRequestGet(context) {
 
   await ensureTables(db);
 
+  // 대화 AI 요약
+  const action = url.searchParams.get("action");
+  if (action === "summarize") {
+    return await summarizeRoom(context, db, url.searchParams.get("room_id"));
+  }
+
   const roomId = url.searchParams.get("room_id");
   const view = url.searchParams.get("view") || "";  // "media" | "search"
   const searchQ = (url.searchParams.get("search") || "").trim();
@@ -481,6 +487,110 @@ export async function onRequestDelete(context) {
     try { await db.prepare(`DELETE FROM room_notices WHERE room_id = ?`).bind(roomId).run(); } catch {}
     await db.prepare(`DELETE FROM chat_rooms WHERE id = ?`).bind(roomId).run();
     return Response.json({ ok: true });
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
+}
+
+// 상담방 대화 AI 요약
+async function summarizeRoom(context, db, roomId) {
+  if (!roomId) return Response.json({ error: "room_id required" }, { status: 400 });
+  const apiKey = context.env.OPENAI_API_KEY;
+  if (!apiKey) return Response.json({ error: "OPENAI_API_KEY 미설정" }, { status: 500 });
+
+  // 메시지 최신 200건 조회
+  const { results: msgs } = await db.prepare(
+    `SELECT c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
+     FROM conversations c LEFT JOIN users u ON c.user_id = u.id
+     WHERE c.room_id = ?
+     ORDER BY c.created_at DESC LIMIT 200`
+  ).bind(roomId).all();
+
+  if (!msgs || !msgs.length) {
+    return Response.json({ ok: true, summary: "(대화 내용이 없습니다)", message_count: 0 });
+  }
+
+  // 시간순으로 재정렬
+  const chrono = msgs.slice().reverse();
+
+  // 컨텐츠 축약 (특수 프리픽스 제거·단축)
+  const lines = [];
+  for (const m of chrono) {
+    if (m.deleted_at) continue;
+    let content = (m.content || "").trim();
+    if (!content) continue;
+    // [IMG]/[FILE]/[DOC:id]/[REPLY]/[ALERT] 축약
+    if (/^\[IMG\]/.test(content)) content = "(사진 전송)";
+    else if (/^\[FILE\]/.test(content)) content = "(파일 전송)";
+    else if (/^\[DOC:\d+\]/.test(content)) content = "(영수증/문서 업로드)";
+    else if (/^\[ALERT\]/.test(content)) {
+      try { const a = JSON.parse(content.replace(/^\[ALERT\]/, '')); content = `[시스템 알림] ${a.t || ''}: ${a.m || ''}`; } catch { content = "(알림)"; }
+    }
+    else if (/^\[REPLY\]/.test(content)) {
+      const mm = /^\[REPLY\]\{[^\n]+\}\n([\s\S]*)$/.exec(content);
+      if (mm) content = mm[1];
+    }
+    if (content.length > 500) content = content.substring(0, 500) + "…";
+    const who = m.role === 'assistant' ? '🤖 AI'
+              : m.role === 'human_advisor' ? '👨‍💼 세무사'
+              : '👤 ' + (m.real_name || m.name || '고객');
+    const t = (m.created_at || '').substring(0, 16);
+    lines.push(`[${t}] ${who}: ${content}`);
+  }
+
+  if (!lines.length) return Response.json({ ok: true, summary: "(대화 내용이 없습니다)", message_count: 0 });
+
+  const conversation = lines.join('\n');
+
+  // GPT-4o-mini 로 요약 (저렴)
+  const prompt = `아래는 세무회계 이윤의 상담방 대화 기록이야. 이 대화를 세무사가 빠르게 파악할 수 있게 요약해줘.
+
+포맷:
+## 📌 핵심 요약
+(3-5줄로 무슨 상담인지)
+
+## 💬 주요 논의 사항
+- (항목별 bullet)
+
+## 📄 고객이 올린 자료
+- (영수증·계약서 등 있으면, 없으면 "없음")
+
+## ⏳ 후속 조치 필요
+- (세무사가 해야할 일, 답변 대기 중인 질문, 등. 없으면 "없음")
+
+## 🔑 키워드
+(5-10개 세무 키워드)
+
+---대화 기록---
+${conversation}`;
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        max_tokens: 900,
+        temperature: 0.3,
+        messages: [
+          { role: 'system', content: '당신은 세무 상담 요약 전문가입니다. 마크다운 출력.' },
+          { role: 'user', content: prompt },
+        ],
+      }),
+    });
+    const d = await res.json();
+    if (!res.ok) return Response.json({ error: d?.error?.message || 'OpenAI error' }, { status: 500 });
+    const summary = d.choices?.[0]?.message?.content || '(요약 실패)';
+    const usage = d.usage || {};
+    // 비용: gpt-4o-mini $0.15/1M in + $0.60/1M out → 대략 1회 10원 내외
+    const costCents = (usage.prompt_tokens || 0) * 0.15 / 10000 + (usage.completion_tokens || 0) * 0.60 / 10000;
+    return Response.json({
+      ok: true,
+      summary,
+      message_count: lines.length,
+      usage,
+      cost_cents: costCents,
+    });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
