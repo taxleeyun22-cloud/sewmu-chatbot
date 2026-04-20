@@ -64,6 +64,7 @@ export async function onRequestGet(context) {
   const action = url.searchParams.get('action');
 
   if (action === 'stats') return await getStats(db, url);
+  if (action === 'export') return await exportDocs(db, url);
 
   const id = url.searchParams.get('id');
   if (id) {
@@ -113,6 +114,110 @@ export async function onRequestGet(context) {
   } catch {}
 
   return Response.json({ documents: rows.results || [], counts });
+}
+
+// ============ CSV export ============
+// 위하고(Wehago) 전표 표준 레이아웃 (더존 Smart A 계열 호환)
+// 컬럼: 일자 | 구분(1차변/2대변) | 계정코드 | 계정과목 | 거래처 | 적요 | 차변 | 대변 | 증빙구분
+//
+// 카테고리 → 위하고 계정코드 매핑 (초안 — 세무사 재확인 필요)
+const WEHAGO_ACCOUNT = {
+  '식비':       { code: '811', name: '복리후생비' },
+  '교통비':     { code: '812', name: '여비교통비' },
+  '숙박비':     { code: '812', name: '여비교통비' },
+  '접대비':     { code: '813', name: '기업업무추진비' },
+  '통신비':     { code: '814', name: '통신비' },
+  '공과금':     { code: '815', name: '수도광열비' },
+  '임대료':     { code: '819', name: '임차료' },
+  '소모품비':   { code: '830', name: '소모품비' },
+  '보험료':     { code: '821', name: '보험료' },
+  '기타':       { code: '999', name: '미결산계정' },
+};
+// 증빙 구분: 1=세금계산서, 2=계산서, 3=영수증/카드, 4=현금영수증
+const EVIDENCE_BY_TYPE = {
+  receipt: '3', tax_invoice: '1', lease: '3', insurance: '3',
+  utility: '3', property_tax: '3', payroll: '3', other: '3',
+};
+
+function csvEscape(v) {
+  if (v == null) return '';
+  const s = String(v);
+  if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+async function exportDocs(db, url) {
+  const format = url.searchParams.get('format') || 'wehago';
+  const month = url.searchParams.get('month') || kst().substring(0, 7);
+  const userId = url.searchParams.get('user_id');
+
+  const clauses = [`status = 'approved'`, `substr(created_at,1,7) = ?`];
+  const args = [month];
+  if (userId) { clauses.push('user_id = ?'); args.push(userId); }
+
+  const { results: docs } = await db.prepare(
+    `SELECT d.*, u.real_name, u.name FROM documents d
+     LEFT JOIN users u ON d.user_id = u.id
+     WHERE ${clauses.join(' AND ')}
+     ORDER BY d.receipt_date, d.created_at`
+  ).bind(...args).all();
+
+  if (format === 'wehago') {
+    const header = ['일자','구분','계정코드','계정과목','거래처','적요','차변','대변','증빙구분'];
+    const lines = [header.map(csvEscape).join(',')];
+    let rowNo = 0;
+    for (const d of (docs || [])) {
+      if (d.amount == null || d.amount <= 0) continue;
+      const date = (d.receipt_date || d.created_at || '').replace(/-/g, '').substring(0, 8);
+      const vendor = d.vendor || '';
+      const category = d.category || '기타';
+      const acct = WEHAGO_ACCOUNT[category] || WEHAGO_ACCOUNT['기타'];
+      const evidence = EVIDENCE_BY_TYPE[d.doc_type] || '3';
+      const desc = `${docTypeShort(d.doc_type)}${d.note ? ' - ' + d.note : ''}`;
+      // 차변 (비용 계정)
+      lines.push([date, '1', acct.code, acct.name, vendor, desc, d.amount, 0, evidence].map(csvEscape).join(','));
+      // 대변 (미지급금 기본)
+      lines.push([date, '2', '253', '미지급금', vendor, desc, 0, d.amount, evidence].map(csvEscape).join(','));
+      rowNo += 2;
+    }
+    // Excel이 UTF-8 CSV를 깨는 이슈 대응 → BOM 추가
+    const csv = '\uFEFF' + lines.join('\r\n');
+    return new Response(csv, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="wehago_${month}${userId ? '_u' + userId : ''}.csv"`,
+      },
+    });
+  }
+
+  // format=simple — 단순 목록 CSV
+  const header = ['일자','타입','고객','가맹점','금액','부가세','카테고리','상태','메모'];
+  const lines = [header.map(csvEscape).join(',')];
+  for (const d of (docs || [])) {
+    lines.push([
+      d.receipt_date || (d.created_at || '').substring(0, 10),
+      d.doc_type,
+      d.real_name || d.name || '#' + d.user_id,
+      d.vendor || '',
+      d.amount || 0,
+      d.vat_amount || 0,
+      d.category || '',
+      d.status,
+      d.note || '',
+    ].map(csvEscape).join(','));
+  }
+  const csv = '\uFEFF' + lines.join('\r\n');
+  return new Response(csv, {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="documents_${month}.csv"`,
+    },
+  });
+}
+
+function docTypeShort(t) {
+  const map = { receipt: '영수증', tax_invoice: '세계산서', lease: '임대차', insurance: '보험', utility: '공과금', property_tax: '지방세', payroll: '급여', bank_stmt: '은행내역', business_reg: '사업자등록', identity: '신분증', contract: '계약', other: '기타' };
+  return map[t] || t || '기타';
 }
 
 async function getStats(db, url) {

@@ -31,6 +31,7 @@
 <button class="on" id="tabChat" onclick="tab('chat')">대화</button>
 <button id="tabLive" onclick="tab('live')" style="position:relative">📡 실시간<span id="liveBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
 <button id="tabRooms" onclick="tab('rooms')">💬 상담방</button>
+<button id="tabDocs" onclick="tab('docs')" style="position:relative">📄 문서<span id="docsPendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
 <button id="tabUsers" onclick="tab('users')">사용자<span id="pendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
 <button id="tabAnal" onclick="tab('anal')">분석</button>
 <button id="tabReview" onclick="tab('review')">검증 <span id="reviewBadge" style="display:none;background:#f04452;color:#fff;padding:1px 6px;border-radius:10px;font-size:.9em;margin-left:2px"></span></button>
@@ -144,6 +145,66 @@
 </div>
 <div id="bulkResult" style="margin-top:14px"></div>
 </div>
+</div>
+
+<!-- 세무 문서 관리 (영수증·임대차·세금계산서 등 통합) -->
+<div id="docsView" style="display:none">
+  <div id="docsStatsBar" style="background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.03);display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+    <div><span style="font-size:.72em;color:#8b95a1">이번달 총</span> <b id="docsStatTotal" style="font-size:1.15em;margin-left:4px">-</b></div>
+    <div><span style="font-size:.72em;color:#8b95a1">대기</span> <b id="docsStatPending" style="font-size:1.15em;color:#f59e0b;margin-left:4px">-</b></div>
+    <div><span style="font-size:.72em;color:#8b95a1">승인</span> <b id="docsStatApproved" style="font-size:1.15em;color:#10b981;margin-left:4px">-</b></div>
+    <div><span style="font-size:.72em;color:#8b95a1">반려</span> <b id="docsStatRejected" style="font-size:1.15em;color:#f04452;margin-left:4px">-</b></div>
+    <div><span style="font-size:.72em;color:#8b95a1">OCR 비용</span> <b id="docsStatCost" style="font-size:1.15em;margin-left:4px">-</b></div>
+  </div>
+  <div style="background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.03);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <select id="docsFilterStatus" onchange="loadDocsTab()" style="padding:7px 10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit">
+      <option value="">전체 상태</option>
+      <option value="pending" selected>⏳ 대기</option>
+      <option value="approved">✅ 승인</option>
+      <option value="rejected">❌ 반려</option>
+    </select>
+    <select id="docsFilterType" onchange="loadDocsTab()" style="padding:7px 10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit">
+      <option value="">전체 타입</option>
+      <option value="receipt">🧾 영수증</option>
+      <option value="lease">🏠 임대차</option>
+      <option value="tax_invoice">📑 세금계산서</option>
+      <option value="payroll">👥 근로</option>
+      <option value="insurance">🛡️ 보험</option>
+      <option value="utility">💧 공과금</option>
+      <option value="property_tax">🚗 지방세</option>
+      <option value="bank_stmt">🏦 은행내역</option>
+      <option value="business_reg">📋 사업자등록</option>
+      <option value="identity">🪪 신분증</option>
+      <option value="contract">📝 계약서</option>
+      <option value="other">📄 기타</option>
+    </select>
+    <input id="docsFilterMonth" type="month" onchange="loadDocsTab()" style="padding:7px 10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit">
+    <input id="docsFilterUser" type="text" placeholder="고객 ID" oninput="debouncedDocsLoad()" style="padding:7px 10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit;width:90px">
+    <button onclick="loadDocsTab()" style="background:#e5e8eb;border:none;padding:7px 14px;border-radius:8px;font-size:.82em;cursor:pointer;font-family:inherit">🔄 새로고침</button>
+    <button onclick="exportWehago()" style="margin-left:auto;background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit">📥 위하고 CSV</button>
+  </div>
+  <div style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+    <div style="overflow-x:auto">
+      <table id="docsTable" style="width:100%;border-collapse:collapse;font-size:.82em;font-family:inherit">
+        <thead style="background:#f9fafb;position:sticky;top:0;z-index:1">
+          <tr>
+            <th style="padding:10px 8px;text-align:left;border-bottom:1px solid #e5e8eb;white-space:nowrap">일자</th>
+            <th style="padding:10px 8px;text-align:left;border-bottom:1px solid #e5e8eb;white-space:nowrap">타입</th>
+            <th style="padding:10px 8px;text-align:left;border-bottom:1px solid #e5e8eb;white-space:nowrap">고객</th>
+            <th style="padding:10px 8px;text-align:left;border-bottom:1px solid #e5e8eb;white-space:nowrap">가맹점/업체</th>
+            <th style="padding:10px 8px;text-align:right;border-bottom:1px solid #e5e8eb;white-space:nowrap">금액</th>
+            <th style="padding:10px 8px;text-align:left;border-bottom:1px solid #e5e8eb;white-space:nowrap">카테고리</th>
+            <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #e5e8eb;white-space:nowrap">신뢰도</th>
+            <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #e5e8eb;white-space:nowrap">상태</th>
+            <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #e5e8eb;white-space:nowrap">원본</th>
+            <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #e5e8eb;white-space:nowrap">액션</th>
+          </tr>
+        </thead>
+        <tbody id="docsTableBody"></tbody>
+      </table>
+    </div>
+    <div id="docsEmpty" style="display:none;padding:60px 0;text-align:center;color:#8b95a1;font-size:.88em">문서가 없습니다.</div>
+  </div>
 </div>
 
 <!-- 상담방 (단톡방) -->
@@ -438,7 +499,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=18"></script>
+<script src="/admin.js?v=19"></script>
 <style>
 #imgViewer{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:10000;display:none;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain}
 #imgViewer.open{display:flex}

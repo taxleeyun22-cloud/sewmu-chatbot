@@ -259,6 +259,7 @@ try{localStorage.setItem('admin_last_tab',t)}catch{}
 $g('tabChat').className=t==='chat'?'on':'';
 $g('tabLive').className=t==='live'?'on':'';
 $g('tabRooms').className=t==='rooms'?'on':'';
+if($g('tabDocs').className!==undefined)$g('tabDocs').className=t==='docs'?'on':'';
 $g('tabUsers').className=t==='users'?'on':'';
 $g('tabAnal').className=t==='anal'?'on':'';
 $g('tabReview').className=t==='review'?'on':'';
@@ -267,6 +268,7 @@ $g('chatView').style.display=t==='chat'?'block':'none';
 $g('detailView').style.display='none';
 $g('liveView').style.display=t==='live'?'block':'none';
 $g('roomsView').style.display=t==='rooms'?'block':'none';
+$g('docsView').style.display=t==='docs'?'block':'none';
 $g('usersView').style.display=t==='users'?'block':'none';
 $g('analView').style.display=t==='anal'?'block':'none';
 $g('reviewView').style.display=t==='review'?'block':'none';
@@ -275,6 +277,7 @@ if(t==='anal')loadAnalytics();
 if(t==='users')loadUsers(currentStatus||'pending');
 if(t==='review')loadReview('pending');
 if(t==='faq'){loadFaqStatus();loadFaqs()}
+if(t==='docs')loadDocsTab();
 if(t==='live')startLivePolling();
 else stopLivePolling();
 if(t==='rooms')startRoomsPolling();
@@ -2009,3 +2012,142 @@ async function saveImgViewer(){
   if(!init()){document.addEventListener("DOMContentLoaded",init)}
 })();
 
+
+/* ===== 세무 문서 관리 탭 ===== */
+let docsReloadTimer=null;
+function debouncedDocsLoad(){
+  if(docsReloadTimer)clearTimeout(docsReloadTimer);
+  docsReloadTimer=setTimeout(loadDocsTab,400);
+}
+
+function docTypeLabelAdmin(t){
+  const map={receipt:'🧾 영수증',lease:'🏠 임대차',payroll:'👥 근로',tax_invoice:'📑 세계산서',insurance:'🛡️ 보험',utility:'💧 공과금',property_tax:'🚗 지방세',bank_stmt:'🏦 은행',business_reg:'📋 사업자등록',identity:'🪪 신분증',contract:'📝 계약',other:'📄 기타'};
+  return map[t]||('📄 '+(t||'?'));
+}
+function docStatusBadge(s){
+  const map={pending:{t:'⏳ 대기',bg:'#fef3c7',fg:'#92400e'},approved:{t:'✅ 승인',bg:'#d1fae5',fg:'#065f46'},rejected:{t:'❌ 반려',bg:'#fee2e2',fg:'#991b1b'}};
+  const x=map[s]||map.pending;
+  return `<span style="display:inline-block;padding:2px 7px;border-radius:6px;background:${x.bg};color:${x.fg};font-size:.78em;font-weight:700;white-space:nowrap">${x.t}</span>`;
+}
+
+async function loadDocsTab(){
+  const status=$g('docsFilterStatus').value;
+  const docType=$g('docsFilterType').value;
+  const month=$g('docsFilterMonth').value;
+  const userId=$g('docsFilterUser').value.trim();
+  const params=['key='+encodeURIComponent(KEY)];
+  if(status)params.push('status='+encodeURIComponent(status));
+  if(docType)params.push('doc_type='+encodeURIComponent(docType));
+  if(month)params.push('month='+encodeURIComponent(month));
+  if(userId)params.push('user_id='+encodeURIComponent(userId));
+  params.push('limit=300');
+  try{
+    const r=await fetch('/api/admin-documents?'+params.join('&'));
+    const d=await r.json();
+    if(d.error){alert('조회 실패: '+d.error);return}
+    renderDocsTable(d.documents||[]);
+    updateDocsStats(d.counts||{});
+    // 별도 월별 통계 (비용 포함)
+    const monthParam=month||new Date().toISOString().substring(0,7);
+    fetchDocsStats(monthParam);
+  }catch(e){alert('오류: '+e.message)}
+}
+
+async function fetchDocsStats(month){
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=stats&month='+encodeURIComponent(month));
+    const d=await r.json();
+    if(d.usage){
+      $g('docsStatCost').textContent='₩'+(d.usage.cost_krw||0).toLocaleString('ko-KR')+' ('+(d.usage.calls||0)+'회)';
+    }
+  }catch{}
+}
+
+function updateDocsStats(counts){
+  const p=counts.pending||0, a=counts.approved||0, r=counts.rejected||0;
+  $g('docsStatPending').textContent=p;
+  $g('docsStatApproved').textContent=a;
+  $g('docsStatRejected').textContent=r;
+  $g('docsStatTotal').textContent=(p+a+r);
+  const b=$g('docsPendingBadge');
+  if(b&&b.style){
+    if(p>0){b.style.display='inline-block';b.textContent=p}
+    else b.style.display='none';
+  }
+}
+
+function renderDocsTable(docs){
+  const body=$g('docsTableBody');
+  const empty=$g('docsEmpty');
+  if(!docs.length){
+    body.innerHTML='';
+    empty.style.display='block';
+    return;
+  }
+  empty.style.display='none';
+  const fmt=n=>n==null?'-':(Number(n)||0).toLocaleString('ko-KR')+'원';
+  body.innerHTML=docs.map(d=>{
+    const nm=e(d.real_name||d.name||('#'+d.user_id));
+    const imgUrl='/api/image?k='+encodeURIComponent(d.image_key||'');
+    const conf=d.ocr_confidence!=null?Math.round(d.ocr_confidence*100)+'%':'-';
+    const confColor=(d.ocr_confidence||0)<0.7?'#d97706':'#10b981';
+    const canAct=d.status==='pending';
+    const actions=canAct
+      ? `<button onclick="approveDoc(${d.id}, this)" title="승인" style="background:#10b981;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:4px">✅</button>`
+        +`<button onclick="rejectDocPrompt(${d.id})" title="반려" style="background:#fff;color:#f04452;border:1px solid #f04452;padding:4px 10px;border-radius:6px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit">❌</button>`
+      : `<button onclick="openDocDetailAdmin(${d.id})" style="background:#e5e8eb;border:none;padding:4px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">상세</button>`;
+    return `<tr data-doc-row="${d.id}" style="border-bottom:1px solid #f2f4f6">`
+      +`<td style="padding:8px;white-space:nowrap">${e(d.receipt_date||(d.created_at||'').substring(0,10))}</td>`
+      +`<td style="padding:8px;white-space:nowrap">${docTypeLabelAdmin(d.doc_type)}</td>`
+      +`<td style="padding:8px;white-space:nowrap">${nm}</td>`
+      +`<td style="padding:8px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e(d.vendor||'-')}</td>`
+      +`<td style="padding:8px;text-align:right;white-space:nowrap;font-weight:600">${fmt(d.amount)}</td>`
+      +`<td style="padding:8px;white-space:nowrap">${e(d.category||'-')}</td>`
+      +`<td style="padding:8px;text-align:center;white-space:nowrap;color:${confColor};font-weight:700">${conf}</td>`
+      +`<td style="padding:8px;text-align:center">${docStatusBadge(d.status)}</td>`
+      +`<td style="padding:8px;text-align:center"><button onclick="openImgViewer('${imgUrl}',['${imgUrl}'])" style="background:#f2f4f6;border:none;padding:4px 8px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">📷</button></td>`
+      +`<td style="padding:8px;text-align:center;white-space:nowrap">${actions}</td>`
+      +`</tr>`;
+  }).join('');
+}
+
+async function openDocDetailAdmin(id){
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&id='+id);
+    const d=await r.json();
+    if(d.error){alert(d.error);return}
+    const doc=d.document;
+    const imgUrl='/api/image?k='+encodeURIComponent(doc.image_key||'');
+    const info=[
+      '타입: '+docTypeLabelAdmin(doc.doc_type),
+      '상태: '+(doc.status||''),
+      '가맹점: '+(doc.vendor||'-'),
+      '금액: '+(doc.amount!=null?(doc.amount).toLocaleString('ko-KR')+'원':'-'),
+      '날짜: '+(doc.receipt_date||'-'),
+      '카테고리: '+(doc.category||'-'),
+      '신뢰도: '+(doc.ocr_confidence!=null?Math.round(doc.ocr_confidence*100)+'%':'-'),
+      doc.reject_reason?'반려사유: '+doc.reject_reason:'',
+      doc.note?'메모: '+doc.note:'',
+    ].filter(Boolean).join('\n');
+    if(confirm(info+'\n\n[확인] 원본사진 보기 / [취소] 닫기'))openImgViewer(imgUrl,[imgUrl]);
+  }catch(e){alert('오류: '+e.message)}
+}
+
+/* 위하고 표준 전표 CSV export */
+async function exportWehago(){
+  const month=$g('docsFilterMonth').value||new Date().toISOString().substring(0,7);
+  const userId=$g('docsFilterUser').value.trim();
+  if(!confirm('['+month+'] 월 승인된 문서를 위하고 전표 CSV로 다운로드합니다.\n계속할까요?'))return;
+  try{
+    let url='/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=export&format=wehago&month='+encodeURIComponent(month);
+    if(userId)url+='&user_id='+encodeURIComponent(userId);
+    const r=await fetch(url);
+    if(!r.ok){const t=await r.text();alert('export 실패: '+t);return}
+    const blob=await r.blob();
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='wehago_'+month+(userId?'_u'+userId:'')+'.csv';
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},200);
+  }catch(e){alert('오류: '+e.message)}
+}

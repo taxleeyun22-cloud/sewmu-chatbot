@@ -52,6 +52,8 @@ async function ensureTables(db) {
     note TEXT,
     created_at TEXT
   )`).run();
+  // extra JSON 필드 추가 (doc_type별 확장 필드)
+  try { await db.prepare(`ALTER TABLE documents ADD COLUMN extra TEXT`).run(); } catch {}
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_documents_user_status ON documents(user_id, status, created_at DESC)`).run(); } catch {}
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_documents_pending ON documents(status, created_at DESC)`).run(); } catch {}
 
@@ -166,8 +168,8 @@ export async function onRequestPost(context) {
     // OCR 결과 반영
     if (visionResult.ok && visionResult.parsed) {
       const p = visionResult.parsed;
-      // 저신뢰도 → doc_type 을 'other' 로 강제
-      const finalDocType = (p.confidence < 0.7) ? 'other' : (p.doc_type || docType);
+      // 저신뢰도(0.5 미만) → 'other' 로 강제, 그 외는 AI 판별 존중
+      const finalDocType = (p.confidence < 0.5) ? 'other' : (p.doc_type || docType);
 
       await db.prepare(
         `UPDATE documents SET
@@ -183,7 +185,8 @@ export async function onRequestPost(context) {
            receipt_date = ?,
            category = ?,
            category_src = 'ai',
-           items = ?
+           items = ?,
+           extra = ?
          WHERE id = ?`
       ).bind(
         finalDocType,
@@ -197,6 +200,7 @@ export async function onRequestPost(context) {
         p.receipt_date || null,
         p.category_guess || null,
         Array.isArray(p.items) ? JSON.stringify(p.items) : null,
+        p.extra ? JSON.stringify(p.extra) : null,
         docId
       ).run();
     } else {
