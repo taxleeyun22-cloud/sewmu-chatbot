@@ -488,6 +488,18 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
     <div class="mp-client-notes" id="mpClientNotes" style="display:none"></div>
   </div>
 
+  <!-- 필수 서류 배너 (미제출 시 재촉) -->
+  <div id="onboardBanner" style="display:none;margin:10px 0;background:linear-gradient(135deg,#fff7ed,#fef3c7);border:1px solid #fcd34d;border-radius:12px;padding:14px 16px;cursor:pointer" onclick="openOnboardModal()">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="font-size:1.6em">📋</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;color:#92400e;font-size:.95em">기장 시작에 필요한 서류를 올려주세요</div>
+        <div style="font-size:.78em;color:#78350f;margin-top:2px" id="onboardBannerDetail">신분증 · 사업자등록증 · 홈택스 ID</div>
+      </div>
+      <div style="color:#92400e;font-size:1.3em">›</div>
+    </div>
+  </div>
+
   <!-- 내 사업장 (세무사가 등록, 읽기 전용) -->
   <div class="mp-section" id="mpBusinessesSection" style="display:none">
     <div class="mp-section-title" style="display:flex;align-items:center;justify-content:space-between;padding-right:14px">
@@ -1409,6 +1421,109 @@ async function createMyRoom(){
 /* ===== 내 문서함 ===== */
 var docsFilter='all';
 var docsList=[];
+
+/* ===== 온보딩 서류 (신분증·사업자등록증·홈택스) ===== */
+var _obData=null;
+async function loadOnboardBanner(){
+  try{
+    var r=await fetch('/api/my-biz-docs');
+    if(!r.ok)return;
+    var d=await r.json();
+    _obData=d;
+    var banner=document.getElementById('onboardBanner');
+    if(!banner)return;
+    var businesses=(d.businesses||[]).filter(function(b){return b.required});
+    var missing=businesses.filter(function(b){return !b.complete});
+    if(!missing.length){banner.style.display='none';return}
+    banner.style.display='block';
+    var det='';
+    if(missing.length===1){
+      var b=missing[0];
+      var miss=[];
+      if(!b.docs.id_card.uploaded)miss.push('신분증');
+      if(!b.docs.biz_reg.uploaded)miss.push('사업자등록증');
+      if(!b.docs.hometax.saved)miss.push('홈택스 ID');
+      det=(b.company_name||'사업장')+' · 미등록: '+miss.join('·');
+    } else {
+      det=missing.length+'개 사업장 미등록';
+    }
+    document.getElementById('onboardBannerDetail').textContent=det;
+  }catch(e){/* 조용히 실패 */}
+}
+function openOnboardModal(){
+  if(!_obData){loadOnboardBanner().then(openOnboardModal);return}
+  var sel=document.getElementById('obBizSelect');
+  var bizs=(_obData.businesses||[]).filter(function(b){return b.required});
+  if(!bizs.length){alert('등록할 사업장이 없습니다. 먼저 사업장을 등록해주세요.');return}
+  sel.innerHTML=bizs.map(function(b){
+    var badge=b.complete?' ✅':'';
+    return '<option value="'+b.id+'">'+esc(b.company_name||('사업장 #'+b.id))+badge+'</option>';
+  }).join('');
+  renderOnboardForm();
+  document.getElementById('onboardModal').style.display='flex';
+  document.body.style.overflow='hidden';
+}
+function closeOnboardModal(){
+  document.getElementById('onboardModal').style.display='none';
+  document.body.style.overflow='';
+  loadOnboardBanner();
+}
+function renderOnboardForm(){
+  var bid=Number(document.getElementById('obBizSelect').value||0);
+  var biz=(_obData.businesses||[]).find(function(b){return b.id===bid});
+  var form=document.getElementById('obForm');
+  if(!biz){form.innerHTML='';return}
+  var row=function(label,ok,btn){
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--card)">'
+      +'<div style="width:24px;font-size:1.1em;text-align:center">'+(ok?'✅':'⚠️')+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.88em">'+label+'</div>'
+      +'<div style="font-size:.72em;color:var(--text2)">'+(ok?'등록됨':'미등록')+'</div></div>'
+      +btn
+      +'</div>';
+  };
+  form.innerHTML=''
+    +row('🪪 신분증 (운전면허증·주민증)', biz.docs.id_card.uploaded,
+       '<label class="ip-btn" style="cursor:pointer">📸 올리기<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadOnboardFile('+biz.id+',\'id_card\',this)"></label>')
+    +row('📋 사업자등록증', biz.docs.biz_reg.uploaded,
+       '<label class="ip-btn" style="cursor:pointer">📸 올리기<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadOnboardFile('+biz.id+',\'biz_reg\',this)"></label>')
+    +'<div style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--card)">'
+    +  '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+    +    '<div style="width:24px;font-size:1.1em;text-align:center">'+(biz.docs.hometax.saved?'✅':'⚠️')+'</div>'
+    +    '<div style="flex:1"><div style="font-weight:600;font-size:.88em">🏛️ 홈택스 ID</div>'
+    +    '<div style="font-size:.72em;color:var(--text2)">'+(biz.docs.hometax.saved?esc(biz.docs.hometax.hometax_id||''):'미등록')+'</div></div>'
+    +  '</div>'
+    +  '<input id="obHometaxId" type="text" placeholder="홈택스 ID" value="'+escAttr(biz.docs.hometax.hometax_id||'')+'" style="width:100%;padding:9px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box;margin-bottom:6px">'
+    +  '<button onclick="saveOnboardHometax('+biz.id+')" class="ip-btn" style="width:100%">저장 (ID만)</button>'
+    +'</div>';
+}
+async function uploadOnboardFile(bizId, kind, input){
+  var f=input.files[0];input.value='';
+  if(!f)return;
+  var fd=new FormData();
+  fd.append('file',f);
+  fd.append('business_id',String(bizId));
+  fd.append('kind',kind);
+  try{
+    var r=await fetch('/api/my-biz-docs?action=upload',{method:'POST',body:fd});
+    var d=await r.json();
+    if(!d.ok){alert('업로드 실패: '+(d.error||'unknown'));return}
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('✅ 등록됨');
+    await loadOnboardBanner();
+    renderOnboardForm();
+  }catch(e){alert('오류: '+e.message)}
+}
+async function saveOnboardHometax(bizId){
+  var id=document.getElementById('obHometaxId').value.trim();
+  if(!id){alert('홈택스 ID를 입력해주세요');return}
+  try{
+    var r=await fetch('/api/my-biz-docs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({business_id:bizId,hometax_id:id})});
+    var d=await r.json();
+    if(!d.ok){alert('저장 실패: '+(d.error||'unknown'));return}
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('✅ 홈택스 ID 저장됨');
+    await loadOnboardBanner();
+    renderOnboardForm();
+  }catch(e){alert('오류: '+e.message)}
+}
 
 async function loadMyDocs(){
   if(!currentUser||currentUser.approval_status!=='approved_client'){
@@ -2842,6 +2957,7 @@ async function loadMyPage(){
   loadMyRooms();
   loadMyDocs();
   updatePushUI(null);
+  loadOnboardBanner();
   var nm=currentUser.real_name||currentUser.name||'사용자';
   document.getElementById('mpName').textContent=nm;
   document.getElementById('mpPhone').textContent=currentUser.phone||'연락처 미등록';
@@ -3760,6 +3876,25 @@ function closeIosInstall(){
       <button onclick="submitBizModal()" style="flex:1;background:var(--blue);color:#fff;border:none;padding:12px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">등록</button>
       <button onclick="closeBizModal()" style="background:var(--border);color:var(--text);border:none;padding:12px 20px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
     </div>
+  </div>
+</div>
+
+<!-- 필수 서류 등록 모달 -->
+<div id="onboardModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:11000;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+  <div style="background:var(--bg);color:var(--text);border-radius:16px;width:100%;max-width:480px;margin-top:40px;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.25)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h3 style="font-size:1.05em;margin:0">📋 필수 서류 등록</h3>
+      <button onclick="closeOnboardModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--text2)">✕</button>
+    </div>
+    <p style="font-size:.8em;color:var(--text2);margin:0 0 14px;line-height:1.5">기장 시작에 필요한 서류입니다. 사업장별로 제출해 주세요.</p>
+    <div style="margin-bottom:10px">
+      <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">사업장 선택</label>
+      <select id="obBizSelect" onchange="renderOnboardForm()" style="width:100%;padding:9px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.88em;font-family:inherit;box-sizing:border-box"></select>
+    </div>
+    <div id="obForm"></div>
+    <p style="font-size:.7em;color:var(--text2);margin-top:14px;line-height:1.5;padding:10px 12px;background:var(--card);border-radius:8px;border:1px solid var(--border)">
+      🔒 홈택스 비밀번호는 앱에 저장하지 않습니다. ID만 저장되며, 비밀번호는 담당자에게 안전한 경로(대면·전화·별도 보안 채널)로 전달해 주세요.
+    </p>
   </div>
 </div>
 

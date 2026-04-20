@@ -454,9 +454,43 @@ async function loadRoomDetail(){
         +'<div style="font-size:.7em;color:#8b95a1;background:#f2f4f6;padding:4px 12px;border-radius:12px;border:1px solid #e5e8eb">📅 '+lab+'</div>'
         +'<div style="flex:1;height:1px;background:#e5e8eb"></div></div>';
     }
-    container.innerHTML=(d.messages||[]).map(m=>{
+    /* 사진 모아보기: 연속 [IMG] (같은 사용자·60초 이내·최대 9장) 하나의 그리드로 */
+    const rawMsgs=d.messages||[];
+    const groupedMsgs=[];
+    for(let gi=0;gi<rawMsgs.length;gi++){
+      const gm=rawMsgs[gi];
+      const gp=parseMsg(gm.content);
+      const isPurePhoto=gp.image&&!gp.reply&&!gp.doc_id&&!gp.file&&!gp.alert&&!gp.text&&!gm.deleted_at;
+      if(isPurePhoto&&groupedMsgs.length){
+        const prev=groupedMsgs[groupedMsgs.length-1];
+        if(prev._isPhotoGroup&&prev.user_id===gm.user_id&&prev.role===gm.role&&prev._photos.length<9){
+          const dt=new Date(gm.created_at)-new Date(prev._lastAt);
+          if(dt<=60*1000){
+            prev._photos.push({url:gp.image,msgId:gm.id,createdAt:gm.created_at});
+            prev._lastAt=gm.created_at;
+            continue;
+          }
+        }
+      }
+      if(isPurePhoto){
+        groupedMsgs.push({
+          _isPhotoGroup:true,
+          id:gm.id, user_id:gm.user_id, role:gm.role,
+          real_name:gm.real_name, name:gm.name,
+          created_at:gm.created_at, _lastAt:gm.created_at,
+          _photos:[{url:gp.image,msgId:gm.id,createdAt:gm.created_at}]
+        });
+      } else {
+        groupedMsgs.push(gm);
+      }
+    }
+    container.innerHTML=groupedMsgs.map(m=>{
       const sep=_dateSep(m);
       const nm=m.real_name||m.name||'';
+      /* 사진 그룹 렌더링 */
+      if(m._isPhotoGroup){
+        return sep+renderPhotoGroupAdmin(m);
+      }
       /* 삭제된 메시지 플레이스홀더 */
       if(m.deleted_at){
         return sep+'<div style="margin-bottom:10px;text-align:center;opacity:.6"><span style="display:inline-block;background:#f2f4f6;color:#8b95a1;padding:6px 14px;border-radius:10px;font-size:.75em;font-style:italic">삭제된 메시지입니다</span></div>';
@@ -481,6 +515,40 @@ async function loadRoomDetail(){
     }).join('');
     if(atBottom)container.scrollTop=container.scrollHeight;
   }catch(err){console.error(err)}
+}
+
+/* 사진 모아보기 그리드 (카톡 스타일, 최대 9장) */
+function renderPhotoGroupAdmin(m){
+  const photos=m._photos||[];
+  const n=photos.length;
+  if(!n)return '';
+  const cols=n===1?1:(n<=4?2:3);
+  const showMax=Math.min(n,9);
+  const allUrls=photos.slice(0,9).map(p=>p.url);
+  const allUrlsJs=JSON.stringify(allUrls).replace(/"/g,'&quot;');
+  let tiles='';
+  for(let i=0;i<showMax;i++){
+    const p=photos[i];
+    const overlay=(n>9&&i===8)
+      ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4em;font-weight:800">+'+(n-9)+'</div>'
+      : '';
+    tiles+='<div style="position:relative;aspect-ratio:1/1;overflow:hidden;background:#f3f4f6;cursor:zoom-in" '
+      +'onclick="openImgViewer(\''+p.url+'\','+allUrlsJs+')">'
+      +'<img src="'+p.url+'" alt="사진" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">'
+      +overlay+'</div>';
+  }
+  const grid='<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:2px;width:'+(cols===1?'240px':'260px')+';max-width:75%;border-radius:12px;overflow:hidden;background:#e5e8eb">'+tiles+'</div>';
+  const timeStr=e(m.created_at||'').slice(11,16);
+  const countBadge=n>1?'<div style="font-size:.68em;color:#8b95a1;margin-top:4px">🖼️ '+n+'장</div>':'';
+  const nm=e(m.real_name||m.name||'');
+  if(m.role==='human_advisor'){
+    return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end"><div>'
+      +grid+countBadge
+      +'<div style="font-size:.65em;color:#10b981;margin-top:3px;text-align:right;font-weight:600">👨\u200d💼 세무사 · '+timeStr+'</div></div></div>';
+  }
+  return '<div style="margin-bottom:10px"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+nm+'</div>'
+    +grid+countBadge
+    +'<div style="font-size:.65em;color:#8b95a1;margin-top:3px">'+timeStr+'</div></div>';
 }
 
 /* 답장 인용 클릭 → 원본 메시지 스크롤·하이라이트 */

@@ -462,18 +462,20 @@ async function staffBoot(){
   };
 })();
 
-/* 거래처 목록 (approved_client만) */
+/* 거래처 목록 — 전체 승인 상태 탭 + 승급 버튼 */
 let clientsTimer=null;
+let clientsFilter='approved_client';
 function onClientsSearchInput(){
   if(clientsTimer)clearTimeout(clientsTimer);
   clientsTimer=setTimeout(loadClients,250);
 }
+function setClientsFilter(s){clientsFilter=s;loadClients()}
 async function loadClients(){
   const el=document.getElementById('clientsList');
   el.innerHTML='<div class="empty">불러오는 중...</div>';
   try{
     const q=document.getElementById('clientsSearchInput').value.trim();
-    const r=await fetch('/api/admin-approve?status=approved_client');
+    const r=await fetch('/api/admin-approve?status='+encodeURIComponent(clientsFilter));
     const d=await r.json();
     if(d.error){el.innerHTML='<div class="empty">'+e(d.error)+'</div>';return}
     let users=d.users||[];
@@ -486,19 +488,45 @@ async function loadClients(){
           ||(u.email||'').toLowerCase().includes(qL);
       });
     }
-    if(users.length===0){el.innerHTML='<div class="empty">'+(q?'검색 결과 없음':'등록된 기장거래처 없음')+'</div>';return}
-    el.innerHTML=users.map(u=>{
+    /* 필터 탭 */
+    const counts=d.counts||{};
+    const tabs='<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">'
+      +['pending','approved_client','approved_guest','rejected'].map(s=>{
+        const active=clientsFilter===s;
+        const labels={pending:'⏳ 대기',approved_client:'🏢 기장거래처',approved_guest:'✅ 일반승인',rejected:'❌ 거절'};
+        return '<button onclick="setClientsFilter(\''+s+'\')" style="background:'+(active?'#191f28':'#e5e8eb')+';color:'+(active?'#fff':'#555')+';border:none;padding:5px 11px;border-radius:7px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:'+(active?'700':'500')+'">'+labels[s]+' '+(counts[s]||0)+'</button>';
+      }).join('')+'</div>';
+    if(users.length===0){el.innerHTML=tabs+'<div class="empty">'+(q?'검색 결과 없음':'해당 상태 사용자 없음')+'</div>';return}
+    el.innerHTML=tabs+users.map(u=>{
       const nm=u.real_name||u.name||'이름없음';
       const av=u.profile_image?'<img src="'+e(u.profile_image)+'" alt="">':nm[0];
       const phone=u.phone?' · '+e(u.phone):'';
-      return '<div class="item" onclick="openProfile('+u.id+',\''+e(nm).replace(/\'/g,"")+'\')">'
-        +'<div class="avatar">'+av+'</div>'
-        +'<div class="info"><div class="name">'+e(nm)+'</div>'
-        +'<div class="meta">'+e(u.email||'')+phone+'</div></div>'
-        +'<div class="right"><div class="cnt">📋 거래처정보</div></div>'
+      /* 승급·강등 버튼 (현재 상태 아닌 것만) */
+      const tierBtns='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px" onclick="event.stopPropagation()">'
+        +(u.approval_status!=='approved_client'?'<button onclick="changeTier('+u.id+',\'approve_client\',event)" style="background:#10b981;color:#fff;border:none;padding:4px 9px;border-radius:5px;font-size:.72em;font-weight:600;cursor:pointer;font-family:inherit">🏢 기장</button>':'')
+        +(u.approval_status!=='approved_guest'?'<button onclick="changeTier('+u.id+',\'approve_guest\',event)" style="background:#3182f6;color:#fff;border:none;padding:4px 9px;border-radius:5px;font-size:.72em;font-weight:600;cursor:pointer;font-family:inherit">✅ 일반</button>':'')
+        +(u.approval_status!=='pending'?'<button onclick="changeTier('+u.id+',\'pending\',event)" style="background:#e5e8eb;color:#555;border:none;padding:4px 9px;border-radius:5px;font-size:.72em;cursor:pointer;font-family:inherit">⏳ 대기</button>':'')
+        +'</div>';
+      return '<div class="item">'
+        +'<div class="avatar" onclick="openProfile('+u.id+',\''+e(nm).replace(/\'/g,"")+'\')" style="cursor:pointer">'+av+'</div>'
+        +'<div class="info" onclick="openProfile('+u.id+',\''+e(nm).replace(/\'/g,"")+'\')" style="cursor:pointer"><div class="name">'+e(nm)+'</div>'
+        +'<div class="meta">'+e(u.email||'')+phone+'</div>'
+        +tierBtns
+        +'</div>'
         +'</div>';
     }).join('');
   }catch(err){el.innerHTML='<div class="empty">오류: '+e(err.message)+'</div>'}
+}
+async function changeTier(userId, action, ev){
+  if(ev)ev.stopPropagation();
+  const labels={approve_client:'기장거래처',approve_guest:'일반승인',pending:'대기'};
+  if(!confirm('이 사용자를 "'+labels[action]+'"으로 변경할까요?'))return;
+  try{
+    const r=await fetch('/api/admin-approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId,action:action})});
+    const d=await r.json();
+    if(d.ok){loadClients()}
+    else alert('실패: '+(d.error||'unknown'));
+  }catch(err){alert('오류: '+err.message)}
 }
 
 /* 로그아웃: 카톡/네이버 세션 종료 후 홈으로 */

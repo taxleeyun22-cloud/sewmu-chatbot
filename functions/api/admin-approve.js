@@ -26,7 +26,7 @@ export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
-  if (!auth.owner) return ownerOnly();
+  /* 직원(is_admin=1)도 거래처 조회·승급 가능. 삭제성 액션은 별도 제한 */
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
@@ -69,7 +69,7 @@ export async function onRequestGet(context) {
 
     return Response.json({ users: results, counts });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ error: "처리 실패" }, { status: 500 });
   }
 }
 
@@ -78,7 +78,7 @@ export async function onRequestPost(context) {
   const url = new URL(context.request.url);
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
-  if (!auth.owner) return ownerOnly();
+  /* 직원(is_admin=1)도 거래처 조회·승급 가능. 삭제성 액션은 별도 제한 */
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
@@ -95,17 +95,54 @@ export async function onRequestPost(context) {
     let newStatus;
     if (action === 'approve_client') newStatus = 'approved_client';
     else if (action === 'approve_guest') newStatus = 'approved_guest';
-    else if (action === 'reject') newStatus = 'rejected';
+    else if (action === 'reject') {
+      /* 반려는 owner 전용 (파괴적 액션) */
+      if (!auth.owner) return ownerOnly();
+      newStatus = 'rejected';
+    }
     else if (action === 'pending') newStatus = 'pending';
     else return Response.json({ error: "invalid action" }, { status: 400 });
 
     const kst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+    const actor = auth.owner ? 'owner' : ('staff#' + (auth.userId || '?'));
+    /* 이전 상태 확인 (감사·자동 환영 메시지 판단용) */
+    const prev = await db.prepare(`SELECT approval_status FROM users WHERE id = ?`).bind(userId).first();
     await db.prepare(
-      `UPDATE users SET approval_status = ?, approved_at = ?, approved_by = 'admin', rejection_reason = ? WHERE id = ?`
-    ).bind(newStatus, kst, reason, userId).run();
+      `UPDATE users SET approval_status = ?, approved_at = ?, approved_by = ?, rejection_reason = ? WHERE id = ?`
+    ).bind(newStatus, kst, actor, reason, userId).run();
+
+    /* audit_log 기록 */
+    try {
+      await db.prepare(`CREATE TABLE IF NOT EXISTS audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        actor TEXT, action TEXT, entity_type TEXT, entity_id INTEGER,
+        before TEXT, after TEXT, created_at TEXT DEFAULT (datetime('now', '+9 hours'))
+      )`).run();
+      await db.prepare(
+        `INSERT INTO audit_log (actor, action, entity_type, entity_id, before, after) VALUES (?, ?, 'user', ?, ?, ?)`
+      ).bind(actor, 'approval_change', userId, prev?.approval_status || null, newStatus).run();
+    } catch {}
+
+    /* 신규 approved_client 로 승급 시 자동 환영 메시지 (상담방 멤버인 경우만) */
+    if (newStatus === 'approved_client' && prev?.approval_status !== 'approved_client') {
+      try {
+        const rooms = await db.prepare(
+          `SELECT room_id FROM room_members WHERE user_id = ? AND left_at IS NULL LIMIT 5`
+        ).bind(userId).all();
+        const userInfo = await db.prepare(`SELECT real_name, name FROM users WHERE id = ?`).bind(userId).first();
+        const nm = userInfo?.real_name || userInfo?.name || '대표님';
+        const welcome = `🎉 ${nm} 대표님, 세무회계 이윤 기장거래처로 승급되셨습니다!\n\n이제 다음 기능을 이용하실 수 있습니다:\n• 영수증 사진 자동 분류 (AI)\n• 급여·인건비 등록 (3.3% / 4대보험 자동 계산)\n• 위하고 CSV 내보내기\n• 24시간 세무 질문 무제한\n\n먼저 마이페이지에서 필수 서류(신분증·사업자등록증·홈택스 ID)를 등록해주세요.\n담당자가 곧 연락드리겠습니다.`;
+        for (const rm of (rooms.results || [])) {
+          await db.prepare(
+            `INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at)
+             VALUES (?, NULL, 'human_advisor', ?, ?, ?)`
+          ).bind('room_' + rm.room_id, welcome, rm.room_id, kst).run();
+        }
+      } catch {}
+    }
 
     return Response.json({ ok: true, status: newStatus });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ error: "처리 실패" }, { status: 500 });
   }
 }
