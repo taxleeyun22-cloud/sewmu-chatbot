@@ -1697,7 +1697,9 @@ function renderIvImg(){
 }
 function imgViewerNav(d){
   if(ivState.srcs.length<2)return;
-  ivState.idx=(ivState.idx+d+ivState.srcs.length)%ivState.srcs.length;
+  var next=ivState.idx+d;
+  if(next<0||next>=ivState.srcs.length)return;
+  ivState.idx=next;
   renderIvImg();
 }
 async function saveImgViewer(){
@@ -1705,9 +1707,14 @@ async function saveImgViewer(){
   try{
     var r=await fetch(src);if(!r.ok)throw new Error();
     var b=await r.blob();
-    var mime=b.type||"image/jpeg";
-    var ext=(mime.split("/")[1]||"jpg").replace("jpeg","jpg");
     var nm=(src.split("/").pop()||"image").split("?")[0]||"image";
+    var mime=b.type;
+    if(!mime||mime==="application/octet-stream"){
+      var urlExt=((nm.match(/\.(\w+)$/)||[,""])[1]||"").toLowerCase();
+      mime=urlExt==="png"?"image/png":urlExt==="webp"?"image/webp":urlExt==="gif"?"image/gif":urlExt==="heic"?"image/heic":"image/jpeg";
+      b=b.slice(0,b.size,mime);
+    }
+    var ext=(mime.split("/")[1]||"jpg").replace("jpeg","jpg");
     if(!/\.\w+$/.test(nm))nm+="."+ext;
     /* Web Share API: iOS 사진 / Android 갤러리 */
     try{
@@ -1773,6 +1780,7 @@ async function saveImgViewer(){
       if(axis==="x"&&Math.abs(dx)>50){
         imgViewerNav(dx>0?-1:1);
         ivState.swiped=true;
+        setTimeout(function(){ivState.swiped=false},400);
         resetTransform(false);
       } else if(axis==="y"&&dy>120){
         closeImgViewer();

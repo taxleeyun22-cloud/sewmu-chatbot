@@ -1278,7 +1278,7 @@ async function loadMyRooms(){
     var d=await r.json();
     var sec=document.getElementById('mpRoomsSection');
     var list=document.getElementById('mpRoomsList');
-    if(!d.rooms||d.rooms.length===0){sec.style.display='none';return}
+    if(!d.rooms||d.rooms.length===0){sec.style.display='none';updateAppBadge(0);return}
     sec.style.display='block';
     var totalUnread=0;
     var badgeUnread=0;
@@ -2325,7 +2325,9 @@ function renderIvImg(){
 }
 function imgViewerNav(d){
   if(ivState.srcs.length<2)return;
-  ivState.idx=(ivState.idx+d+ivState.srcs.length)%ivState.srcs.length;
+  var next=ivState.idx+d;
+  if(next<0||next>=ivState.srcs.length)return;
+  ivState.idx=next;
   renderIvImg();
 }
 async function saveImgViewer(){
@@ -2333,9 +2335,15 @@ async function saveImgViewer(){
   try{
     var r=await fetch(src);if(!r.ok)throw new Error('fetch');
     var b=await r.blob();
-    var mime=b.type||'image/jpeg';
-    var ext=(mime.split('/')[1]||'jpg').replace('jpeg','jpg');
     var nm=(src.split('/').pop()||'image').split('?')[0]||'image';
+    var mime=b.type;
+    /* 서버가 octet-stream/빈값으로 줄 때 URL 확장자로 보정 → iOS가 Photos로 인식 */
+    if(!mime||mime==='application/octet-stream'){
+      var urlExt=((nm.match(/\.(\w+)$/)||[,''])[1]||'').toLowerCase();
+      mime=urlExt==='png'?'image/png':urlExt==='webp'?'image/webp':urlExt==='gif'?'image/gif':urlExt==='heic'?'image/heic':'image/jpeg';
+      b=b.slice(0,b.size,mime);
+    }
+    var ext=(mime.split('/')[1]||'jpg').replace('jpeg','jpg');
     if(!/\.\w+$/.test(nm))nm+='.'+ext;
     /* Web Share API: iOS 사진 / Android 갤러리 */
     try{
@@ -2401,6 +2409,7 @@ async function saveImgViewer(){
     if(axis==='x'&&Math.abs(dx)>50){
       imgViewerNav(dx>0?-1:1);
       ivState.swiped=true;
+      setTimeout(function(){ivState.swiped=false},400);
       resetTransform(false);
     } else if(axis==='y'&&dy>120){
       closeImgViewer();
