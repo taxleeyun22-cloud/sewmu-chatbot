@@ -227,6 +227,20 @@ export async function onRequestPost(context) {
       // (AI가 정말 모를 때는 자체적으로 'other'로 분류함. 우리가 또 덮지 않음)
       const finalDocType = p.doc_type || docType;
 
+      /* 날짜 검증·fallback — OCR 날짜가 이상하면 업로드일로 대체 */
+      const today = ymd();
+      let finalDate = p.receipt_date;
+      const validDate = /^\d{4}-\d{2}-\d{2}$/.test(finalDate || '');
+      if (validDate) {
+        /* 미래 2일 이후 또는 3년 전보다 오래된 날짜 → 신뢰 X, 업로드일로 대체 */
+        const dMs = new Date(finalDate + 'T00:00:00Z').getTime();
+        const nowMs = new Date(today + 'T00:00:00Z').getTime();
+        const diffDays = (dMs - nowMs) / (24*60*60*1000);
+        if (diffDays > 2 || diffDays < -365*3) finalDate = today;
+      } else {
+        finalDate = today;
+      }
+
       await db.prepare(
         `UPDATE documents SET
            doc_type = ?,
@@ -253,7 +267,7 @@ export async function onRequestPost(context) {
         p.vendor_biz_no || null,
         p.amount != null ? p.amount : null,
         p.vat_amount != null ? p.vat_amount : null,
-        p.receipt_date || null,
+        finalDate,
         p.category_guess || null,
         Array.isArray(p.items) ? JSON.stringify(p.items) : null,
         p.extra ? JSON.stringify(p.extra) : null,
