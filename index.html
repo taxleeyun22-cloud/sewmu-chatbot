@@ -2664,21 +2664,39 @@ function openBizModal(){
   document.getElementById('bizCeo').value='';
   document.getElementById('bizIndustry').value='';
   document.getElementById('bizType').value='';
+  var iamCb=document.getElementById('bizIamContact');if(iamCb)iamCb.checked=true; // 기본값: 본인
+  var cn=document.getElementById('bizContactName');if(cn)cn.value='';
+  var cp=document.getElementById('bizContactPhone');if(cp)cp.value='';
+  toggleBizContactFields();
   document.getElementById('bizModal').style.display='flex';
   setTimeout(function(){document.getElementById('bizCompany').focus()},100);
 }
 function closeBizModal(){
   document.getElementById('bizModal').style.display='none';
 }
+function toggleBizContactFields(){
+  var cb=document.getElementById('bizIamContact');
+  var box=document.getElementById('bizContactFields');
+  if(!cb||!box)return;
+  /* 본인이 담당자 체크 시 별도 담당자 필드 숨김 (본인 정보가 담당자) */
+  box.style.display=cb.checked?'none':'block';
+}
 async function submitBizModal(){
   var company=document.getElementById('bizCompany').value.trim();
   if(!company){alert('상호명을 입력해주세요');return}
+  var iamContact=document.getElementById('bizIamContact').checked;
+  var contactName=document.getElementById('bizContactName').value.trim();
+  var contactPhone=document.getElementById('bizContactPhone').value.trim();
   var body={
     company_name:company,
     business_number:document.getElementById('bizNo').value.trim(),
     ceo_name:document.getElementById('bizCeo').value.trim(),
     industry:document.getElementById('bizIndustry').value.trim(),
-    business_type:document.getElementById('bizType').value
+    business_type:document.getElementById('bizType').value,
+    /* 담당자 정보: 본인이 담당자면 user.real_name/phone 사용 (서버쪽), 아니면 명시값 */
+    contact_is_self: iamContact?1:0,
+    contact_name: iamContact?'':contactName,
+    contact_phone: iamContact?'':contactPhone
   };
   try{
     var r=await fetch('/api/auth/my-businesses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -2987,7 +3005,17 @@ function closeIosInstall(){
     <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">사업자번호</label>
     <input id="bizNo" type="text" placeholder="000-00-00000 (선택)" maxlength="14" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
     <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">대표자명</label>
-    <input id="bizCeo" type="text" placeholder="(선택)" maxlength="40" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
+    <input id="bizCeo" type="text" placeholder="(선택)" maxlength="40" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:6px;box-sizing:border-box">
+    <label style="display:flex;align-items:center;gap:6px;font-size:.8em;color:var(--text2);margin-bottom:10px;cursor:pointer;user-select:none">
+      <input id="bizIamContact" type="checkbox" onchange="toggleBizContactFields()" style="width:16px;height:16px;cursor:pointer">
+      <span>본인이 세무 담당자입니다 (체크 시 담당자=본인)</span>
+    </label>
+    <div id="bizContactFields" style="display:none">
+      <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">담당자 이름 <span style="color:var(--text2);font-weight:400">(대표자와 다를 때)</span></label>
+      <input id="bizContactName" type="text" placeholder="(선택)" maxlength="40" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
+      <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">담당자 연락처</label>
+      <input id="bizContactPhone" type="tel" placeholder="010-0000-0000 (선택)" maxlength="13" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
+    </div>
     <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">업종</label>
     <input id="bizIndustry" type="text" placeholder="음식점/도소매/서비스 등 (선택)" maxlength="40" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
     <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">사업형태</label>

@@ -119,11 +119,12 @@ export async function onRequestPost(context) {
     const mime = file.type || 'application/octet-stream';
     if (!ALLOWED_TYPES.includes(mime)) return Response.json({ error: '이미지 파일만 업로드 가능 (JPEG/PNG/WEBP/GIF/HEIC)' }, { status: 400 });
 
-    // R2 업로드
+    // 파일 데이터를 한 번만 읽어서 R2·Vision 양쪽에 재사용
+    const buf = await file.arrayBuffer();
     const ext = mime.split('/')[1] || 'bin';
     const rand = Math.random().toString(36).slice(2, 10);
     const key = `documents/u${user.user_id}/${ym()}/${Date.now()}_${rand}.${ext}`;
-    await bucket.put(key, file.stream(), {
+    await bucket.put(key, buf, {
       httpMetadata: { contentType: mime },
       customMetadata: {
         user_id: String(user.user_id),
@@ -141,9 +142,7 @@ export async function onRequestPost(context) {
     ).bind(user.user_id, roomId, docType, key, createdAt).run();
     const docId = ins.meta?.last_row_id;
 
-    // OCR 호출 (동기)
-    // Vision API는 public URL 또는 data URI 필요. 우리 /api/image?k= 는 인증 필요해서 data URI로 보냄
-    const buf = await file.arrayBuffer();
+    // OCR 호출 (동기) — R2 put 때 쓴 buf 재사용
     const base64 = arrayBufferToBase64(buf);
     const dataUri = `data:${mime};base64,${base64}`;
 

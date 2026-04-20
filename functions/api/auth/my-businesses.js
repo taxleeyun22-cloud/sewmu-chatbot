@@ -27,7 +27,7 @@ async function getUserFromCookie(db, request) {
   if (!match) return null;
   try {
     const row = await db.prepare(
-      `SELECT s.user_id, u.approval_status FROM sessions s
+      `SELECT s.user_id, u.approval_status, u.real_name, u.name, u.phone FROM sessions s
        JOIN users u ON s.user_id = u.id
        WHERE s.token = ? AND s.expires_at > datetime('now')`
     ).bind(match[1]).first();
@@ -59,6 +59,9 @@ async function ensureTable(db) {
     user_claimed INTEGER DEFAULT 0
   )`).run();
   try { await db.prepare(`ALTER TABLE client_businesses ADD COLUMN user_claimed INTEGER DEFAULT 0`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE client_businesses ADD COLUMN contact_is_self INTEGER DEFAULT 0`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE client_businesses ADD COLUMN contact_name TEXT`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE client_businesses ADD COLUMN contact_phone TEXT`).run(); } catch {}
 }
 
 function kst() {
@@ -158,13 +161,19 @@ export async function onRequestPost(context) {
     const now = kst();
     const bizNo = (body.business_number || "").replace(/\D/g, "") || null;
 
+    /* 담당자 처리: contact_is_self=1 이면 고객 본인 정보(users.real_name/phone) 사용 */
+    const contactIsSelf = body.contact_is_self ? 1 : 0;
+    const contactName = contactIsSelf ? (user.real_name || user.name || null) : ((body.contact_name || '').trim() || null);
+    const contactPhone = contactIsSelf ? (user.phone || null) : ((body.contact_phone || '').replace(/\s/g, '') || null);
+
     const result = await db.prepare(`
       INSERT INTO client_businesses (
         user_id, company_name, business_number, ceo_name, industry,
         business_type, tax_type, establishment_date, address, phone,
         employee_count, vat_period, notes, is_primary, user_claimed,
+        contact_is_self, contact_name, contact_phone,
         created_at, updated_at, updated_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?, ?, 'user')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?, ?, ?, ?, ?, 'user')
     `).bind(
       user.user_id,
       body.company_name || null,
@@ -179,6 +188,7 @@ export async function onRequestPost(context) {
       body.employee_count != null && body.employee_count !== '' ? Number(body.employee_count) : null,
       body.vat_period || null,
       body.notes || null,
+      contactIsSelf, contactName, contactPhone,
       now, now
     ).run();
 
