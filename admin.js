@@ -1666,7 +1666,7 @@ async function reembedAllFaqs(){
 }
 
 /* ===== 풀스크린 이미지 뷰어 (카톡 스타일) ===== */
-var ivState={srcs:[],idx:0,startX:0,startY:0,touching:false};
+var ivState={srcs:[],idx:0,startX:0,startY:0,dx:0,dy:0,touching:false,swiped:false,axis:null};
 function collectImagesNear(el){
   var c=el.closest(".rmsgs")||el.closest("#msgs")||el.closest("#roomChatMessages")||el.closest("#riPhotoGrid")||document.body;
   var nodes=c.querySelectorAll("img.rc-img-msg, img.ri-photo, .ri-photo img");
@@ -1715,19 +1715,61 @@ async function saveImgViewer(){
 (function(){
   function init(){
     var v=document.getElementById("imgViewer");if(!v)return false;
-    v.addEventListener("click",function(e){if(e.target===v||e.target.id==="ivImg")closeImgViewer()});
+    function img(){return document.getElementById("ivImg")}
+    function resetTransform(animate){
+      var i=img();if(!i)return;
+      i.style.transition=animate?"transform .2s ease-out":"none";
+      i.style.transform="";
+    }
+    v.addEventListener("click",function(e){
+      if(ivState.swiped){ivState.swiped=false;return}
+      if(e.target===v)closeImgViewer();
+    });
     v.addEventListener("touchstart",function(e){
       if(e.touches.length!==1)return;
-      ivState.startX=e.touches[0].clientX;ivState.startY=e.touches[0].clientY;ivState.touching=true;
+      ivState.startX=e.touches[0].clientX;ivState.startY=e.touches[0].clientY;
+      ivState.dx=0;ivState.dy=0;ivState.touching=true;ivState.axis=null;
+      var i=img();if(i)i.style.transition="none";
     },{passive:true});
-    v.addEventListener("touchend",function(e){
+    v.addEventListener("touchmove",function(e){
+      if(!ivState.touching||e.touches.length!==1)return;
+      var dx=e.touches[0].clientX-ivState.startX;
+      var dy=e.touches[0].clientY-ivState.startY;
+      if(!ivState.axis){
+        if(Math.abs(dx)<8&&Math.abs(dy)<8)return;
+        ivState.axis=Math.abs(dx)>=Math.abs(dy)?"x":"y";
+      }
+      ivState.dx=dx;ivState.dy=dy;
+      if(e.cancelable)e.preventDefault();
+      var i=img();if(!i)return;
+      if(ivState.axis==="x"){
+        var edge=(ivState.idx===0&&dx>0)||(ivState.idx===ivState.srcs.length-1&&dx<0);
+        var d=edge?dx*0.35:dx;
+        i.style.transform="translateX("+d+"px)";
+      } else if(dy>0){
+        i.style.transform="translateY("+dy+"px)";
+      }
+    },{passive:false});
+    v.addEventListener("touchend",function(){
       if(!ivState.touching)return;ivState.touching=false;
-      if(!e.changedTouches||!e.changedTouches[0])return;
-      var dx=e.changedTouches[0].clientX-ivState.startX;
-      var dy=e.changedTouches[0].clientY-ivState.startY;
-      if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy))imgViewerNav(dx>0?-1:1);
-      else if(dy>120&&Math.abs(dy)>Math.abs(dx))closeImgViewer();
+      var dx=ivState.dx,dy=ivState.dy,axis=ivState.axis;
+      ivState.dx=0;ivState.dy=0;ivState.axis=null;
+      if(axis==="x"&&Math.abs(dx)>50){
+        imgViewerNav(dx>0?-1:1);
+        ivState.swiped=true;
+        resetTransform(false);
+      } else if(axis==="y"&&dy>120){
+        closeImgViewer();
+        resetTransform(false);
+      } else {
+        resetTransform(true);
+      }
     },{passive:true});
+    v.addEventListener("touchcancel",function(){
+      if(!ivState.touching)return;
+      ivState.touching=false;ivState.dx=0;ivState.dy=0;ivState.axis=null;
+      resetTransform(true);
+    });
     document.addEventListener("keydown",function(e){
       if(!v.classList.contains("open"))return;
       if(e.key==="Escape")closeImgViewer();
