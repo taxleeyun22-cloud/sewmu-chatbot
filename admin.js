@@ -2276,6 +2276,29 @@ async function copyRoomSummary(){
     if(btn){const o=btn.textContent;btn.textContent='✅ 복사됨';setTimeout(()=>{btn.textContent=o},1500)}
   }catch(err){alert('복사 실패: '+err.message)}
 }
+
+/* 요약을 상담방에 세무사 메시지로 게시 (편집 후 게시 가능) */
+async function postSummaryToRoom(){
+  if(!currentRoomId){alert('상담방이 열려있지 않아요');return}
+  if(!_lastSummaryText){alert('먼저 요약을 생성하세요');return}
+  /* 편집 기회 제공: prompt는 짧아서 전체 요약 노출 어렵지만 간단히 사용 */
+  const msg='📝 상담 요약 (세무사 기록)\n\n'+_lastSummaryText+'\n\n(이 메시지는 AI가 지금까지 대화를 정리한 것입니다. 내용 확인 부탁드립니다.)';
+  if(!confirm('이 요약을 상담방에 세무사 메시지로 게시합니다.\n(고객도 볼 수 있습니다)\n\n계속할까요?'))return;
+  try{
+    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=send',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({room_id:currentRoomId, content:msg})
+    });
+    const d=await r.json();
+    if(d.ok){
+      if(typeof showAdminToast==='function')showAdminToast('✅ 상담방에 게시됨');
+      else alert('✅ 게시 완료');
+      closeRoomSummary();
+      if(typeof loadRoomDetail==='function')loadRoomDetail();
+    } else alert('게시 실패: '+(d.error||'unknown'));
+  }catch(err){alert('오류: '+err.message)}
+}
 /* 간단 마크다운 렌더 (## 헤더, - 리스트, 볼드) */
 function renderMarkdownLite(md){
   if(!md)return '';
