@@ -707,21 +707,86 @@ async function sendRoomImageFile(file){
   if(!init())document.addEventListener('DOMContentLoaded',init);
 })();
 
+/* 대용량 파일 청크 업로드 (300MB까지) — admin 버전 */
+async function uploadFileChunkedAdmin(file, onProgress){
+  const CHUNK=10*1024*1024;
+  const authQS='?key='+encodeURIComponent(KEY);
+  /* start */
+  const s=await fetch('/api/upload-multipart?action=start&key='+encodeURIComponent(KEY),{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:file.name,size:file.size,type:file.type||'application/octet-stream'})
+  });
+  const sd=await s.json();
+  if(!sd.ok)throw new Error(sd.error||'업로드 시작 실패');
+  const {key,uploadId}=sd;
+  const totalParts=Math.ceil(file.size/CHUNK);
+  const parts=[];
+  try{
+    for(let i=0;i<totalParts;i++){
+      const start=i*CHUNK, end=Math.min(start+CHUNK,file.size);
+      const chunk=file.slice(start,end);
+      const partNumber=i+1;
+      const result=await new Promise((resolve,reject)=>{
+        const xhr=new XMLHttpRequest();
+        xhr.open('POST','/api/upload-multipart?action=part&k='+encodeURIComponent(key)+'&uploadId='+encodeURIComponent(uploadId)+'&partNumber='+partNumber+'&key='+encodeURIComponent(KEY));
+        xhr.upload.onprogress=ev=>{
+          if(!ev.lengthComputable||!onProgress)return;
+          const done=i*CHUNK+ev.loaded;
+          onProgress(Math.min(100,Math.round(done/file.size*100)),i+1,totalParts);
+        };
+        xhr.onload=()=>{
+          if(xhr.status>=200&&xhr.status<300){
+            try{resolve(JSON.parse(xhr.responseText))}catch(e){reject(new Error('응답 파싱 실패'))}
+          } else {
+            try{const err=JSON.parse(xhr.responseText);reject(new Error(err.error||('HTTP '+xhr.status)))}
+            catch(e){reject(new Error('HTTP '+xhr.status))}
+          }
+        };
+        xhr.onerror=()=>reject(new Error('네트워크 오류'));
+        xhr.send(chunk);
+      });
+      if(!result.ok)throw new Error(result.error||'part 실패');
+      parts.push({partNumber:result.partNumber,etag:result.etag});
+    }
+    const c=await fetch('/api/upload-multipart?action=complete&key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({key,uploadId,parts,name:file.name,size:file.size,type:file.type,room_id:currentRoomId})
+    });
+    const cd=await c.json();
+    if(!cd.ok)throw new Error(cd.error||'완료 실패');
+    return cd;
+  }catch(err){
+    try{await fetch('/api/upload-multipart?action=abort&key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,uploadId})})}catch{}
+    throw err;
+  }
+}
+
 async function sendRoomFile(fileInput){
   if(!currentRoomId)return;
   const file=fileInput.files[0];
   fileInput.value='';
   if(!file)return;
-  if(file.size>20*1024*1024){alert('20MB 이하 파일만 업로드 가능합니다');return}
+  if(file.size>300*1024*1024){alert('300MB 이하만 업로드 가능합니다');return}
   try{
-    const fd=new FormData();fd.append('file',file);
-    const r=await fetch('/api/upload-file?key='+encodeURIComponent(KEY),{method:'POST',body:fd});
-    const d=await r.json();
-    if(!d.ok){alert('업로드 실패: '+(d.error||'unknown'));return}
-    const r2=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId,file_url:d.url,file_name:d.name,file_size:d.size})});
-    const d2=await r2.json();
-    if(d2.ok)loadRoomDetail();
-    else alert('전송 실패: '+(d2.error||'unknown'));
+    if(file.size<=95*1024*1024){
+      /* 기존 단일 업로드 */
+      const fd=new FormData();fd.append('file',file);
+      const r=await fetch('/api/upload-file?key='+encodeURIComponent(KEY),{method:'POST',body:fd});
+      const d=await r.json();
+      if(!d.ok){alert('업로드 실패: '+(d.error||'unknown'));return}
+      const r2=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId,file_url:d.url,file_name:d.name,file_size:d.size})});
+      const d2=await r2.json();
+      if(d2.ok)loadRoomDetail();
+      else alert('전송 실패: '+(d2.error||'unknown'));
+    } else {
+      /* 대용량 청크 업로드 */
+      if(typeof showAdminToast==='function')showAdminToast('📤 업로드 시작...');
+      await uploadFileChunkedAdmin(file,(pct,cur,total)=>{
+        if(typeof showAdminToast==='function')showAdminToast('📤 '+pct+'% ('+cur+'/'+total+')');
+      });
+      if(typeof showAdminToast==='function')showAdminToast('✅ 업로드 완료');
+      loadRoomDetail();
+    }
   }catch(err){alert('오류: '+err.message)}
 }
 

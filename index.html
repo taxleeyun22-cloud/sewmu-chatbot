@@ -715,7 +715,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       </div>
       <span>파일</span>
     </label>
-    <input id="rcDocInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip" onchange="sendRoomDoc(this);closeAttachSheet()" style="display:none">
+    <input id="rcDocInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip,.mp4,.mov,.m4v,.webm,.mp3,.m4a,.wav" onchange="sendRoomDoc(this);closeAttachSheet()" style="display:none">
   </div>
   <!-- 답장 프리뷰 바 -->
   <div id="rcReplyBar">
@@ -1905,24 +1905,103 @@ function closeAttachSheet(){
 }
 function updateSendBtn(){/* 필요 시 input 상태별 버튼 변경 여지 */}
 
+/* 대용량 파일용 청크 업로드 헬퍼 (>= 100MB 초과 시 멀티파트로 자동 전환)
+   크기 제한 300MB (카톡 매칭). 진행률 토스트 표시. */
+async function uploadFileChunked(file, onProgress, opts){
+  opts=opts||{};
+  var CHUNK=10*1024*1024; /* 10MB per part — Workers 100MB 여유 */
+  /* 1. start */
+  var s=await fetch('/api/upload-multipart?action=start',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:file.name,size:file.size,type:file.type||'application/octet-stream'})
+  });
+  var sd=await s.json();
+  if(!sd.ok)throw new Error(sd.error||'업로드 시작 실패');
+  var key=sd.key, uploadId=sd.uploadId;
+  var totalParts=Math.ceil(file.size/CHUNK);
+  var parts=[];
+  try{
+    for(var i=0;i<totalParts;i++){
+      var start=i*CHUNK;
+      var end=Math.min(start+CHUNK,file.size);
+      var chunk=file.slice(start,end);
+      var partNumber=i+1;
+      /* XHR로 partial progress 추적 */
+      var result=await new Promise(function(resolve,reject){
+        var xhr=new XMLHttpRequest();
+        xhr.open('POST','/api/upload-multipart?action=part&k='+encodeURIComponent(key)+'&uploadId='+encodeURIComponent(uploadId)+'&partNumber='+partNumber);
+        xhr.upload.onprogress=function(ev){
+          if(!ev.lengthComputable||!onProgress)return;
+          var done=(i*CHUNK + ev.loaded);
+          onProgress(Math.min(100, Math.round(done/file.size*100)), i+1, totalParts);
+        };
+        xhr.onload=function(){
+          if(xhr.status>=200&&xhr.status<300){
+            try{resolve(JSON.parse(xhr.responseText))}catch(e){reject(new Error('응답 파싱 실패'))}
+          } else {
+            try{var err=JSON.parse(xhr.responseText);reject(new Error(err.error||('HTTP '+xhr.status)))}
+            catch(e){reject(new Error('HTTP '+xhr.status))}
+          }
+        };
+        xhr.onerror=function(){reject(new Error('네트워크 오류'))};
+        xhr.send(chunk);
+      });
+      if(!result.ok)throw new Error(result.error||'part 업로드 실패');
+      parts.push({partNumber:result.partNumber, etag:result.etag});
+    }
+    /* 3. complete */
+    var c=await fetch('/api/upload-multipart?action=complete',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({key:key,uploadId:uploadId,parts:parts,name:file.name,size:file.size,type:file.type,room_id:opts.room_id||null})
+    });
+    var cd=await c.json();
+    if(!cd.ok)throw new Error(cd.error||'업로드 완료 실패');
+    return cd;
+  }catch(err){
+    /* 실패 시 abort */
+    try{
+      await fetch('/api/upload-multipart?action=abort',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,uploadId:uploadId})});
+    }catch(_){}
+    throw err;
+  }
+}
+
 async function sendRoomDoc(fileInput){
   if(!rcRoomId||!rcIsActive)return;
   var file=fileInput.files[0];
   fileInput.value='';
   if(!file)return;
-  if(file.size>20*1024*1024){alert('20MB 이하 파일만 업로드 가능합니다');return}
+  if(file.size>300*1024*1024){alert('300MB 이하만 업로드 가능합니다');return}
   var btn=document.querySelector('.rc-send-btn');
   var origText=btn?btn.textContent:'';
   if(btn){btn.textContent='업로드...';btn.disabled=true}
   try{
-    var fd=new FormData();fd.append('file',file);
-    var r=await fetch('/api/upload-file',{method:'POST',body:fd});
-    var d=await r.json();
-    if(!d.ok){alert('업로드 실패: '+(d.error||'unknown'));return}
-    var r2=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,file_url:d.url,file_name:d.name,file_size:d.size})});
-    var d2=await r2.json();
-    if(d2.ok)loadRoomChat();
-    else alert('전송 실패: '+(d2.error||'unknown'));
+    /* 95MB 이하는 기존 단일 업로드, 초과는 청크 업로드 */
+    if(file.size<=95*1024*1024){
+      var fd=new FormData();fd.append('file',file);
+      var r=await fetch('/api/upload-file',{method:'POST',body:fd});
+      var d=await r.json();
+      if(!d.ok){alert('업로드 실패: '+(d.error||'unknown'));return}
+      var r2=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,file_url:d.url,file_name:d.name,file_size:d.size})});
+      var d2=await r2.json();
+      if(d2.ok)loadRoomChat();
+      else alert('전송 실패: '+(d2.error||'unknown'));
+    } else {
+      /* 대용량 — 청크 업로드 */
+      var toast=null;
+      if(typeof showInAppToastSilent==='function'){
+        showInAppToastSilent('📤 0% (1/?)');
+      }
+      var cd=await uploadFileChunked(file,function(pct,cur,total){
+        if(btn)btn.textContent='업로드 '+pct+'%';
+        if(typeof showInAppToastSilent==='function')showInAppToastSilent('📤 '+pct+'% ('+cur+'/'+total+')');
+      },{room_id:rcRoomId});
+      /* complete가 이미 메시지를 생성했으므로 loadRoomChat만 호출 */
+      loadRoomChat();
+      if(typeof showInAppToastSilent==='function')showInAppToastSilent('✅ 업로드 완료');
+    }
   }catch(e){alert('오류: '+e.message)}
   finally{if(btn){btn.textContent=origText;btn.disabled=false}}
 }
