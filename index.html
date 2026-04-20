@@ -2229,10 +2229,25 @@ async function saveImgViewer(){
   try{
     var r=await fetch(src);if(!r.ok)throw new Error('fetch');
     var b=await r.blob();
+    var mime=b.type||'image/jpeg';
+    var ext=(mime.split('/')[1]||'jpg').replace('jpeg','jpg');
+    var nm=(src.split('/').pop()||'image').split('?')[0]||'image';
+    if(!/\.\w+$/.test(nm))nm+='.'+ext;
+    /* Web Share API: iOS 사진 / Android 갤러리 */
+    try{
+      if(typeof File==='function'&&navigator.canShare){
+        var file=new File([b],nm,{type:mime});
+        if(navigator.canShare({files:[file]})){
+          await navigator.share({files:[file]});
+          return;
+        }
+      }
+    }catch(se){
+      if(se&&se.name==='AbortError')return;
+    }
+    /* 폴백: 다운로드 링크 */
     var url=URL.createObjectURL(b);
     var a=document.createElement('a');
-    var nm=(src.split('/').pop()||'image').split('?')[0]||'image';
-    if(!/\.\w+$/.test(nm))nm+='.jpg';
     a.href=url;a.download=nm;
     document.body.appendChild(a);a.click();
     setTimeout(function(){URL.revokeObjectURL(url);a.remove()},150);
