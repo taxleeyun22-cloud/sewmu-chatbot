@@ -184,6 +184,7 @@ export async function onRequestGet(context) {
   if (action === 'export') return await exportDocs(db, url);
   if (action === 'alerts') return await getAlerts(db, url);
   if (action === 'by_user') return await getByUser(db, url);
+  if (action === 'health_check') return await healthCheck(context);
 
   const id = url.searchParams.get('id');
   if (id) {
@@ -337,6 +338,69 @@ async function exportDocs(db, url) {
 function docTypeShort(t) {
   const map = { receipt: '영수증', tax_invoice: '세계산서', lease: '임대차', insurance: '보험', utility: '공과금', property_tax: '지방세', payroll: '급여', bank_stmt: '은행내역', business_reg: '사업자등록', identity: '신분증', contract: '계약', other: '기타' };
   return map[t] || t || '기타';
+}
+
+// ============ R2 파일 손상 점검 ============
+// 초기 버그(file.stream 중복 소비)로 R2에 빈 파일 저장된 documents 찾기·처리
+async function healthCheck(context) {
+  const db = context.env.DB;
+  const bucket = context.env.MEDIA_BUCKET;
+  if (!db || !bucket) return Response.json({ error: 'no_db_or_bucket' }, { status: 500 });
+  const url = new URL(context.request.url);
+  const doFix = url.searchParams.get('fix') === '1';
+
+  // 최근 30일 pending/approved 문서만 스캔 (이전 건은 성능상 제외)
+  const { results: docs } = await db.prepare(
+    `SELECT id, user_id, image_key, status, created_at FROM documents
+     WHERE status IN ('pending','approved') AND datetime(created_at) > datetime('now','-30 days')
+     ORDER BY created_at DESC LIMIT 500`
+  ).all();
+
+  const broken = [];
+  for (const d of (docs || [])) {
+    try {
+      const head = await bucket.head(d.image_key);
+      if (!head || !head.size) {
+        broken.push({ id: d.id, user_id: d.user_id, image_key: d.image_key, created_at: d.created_at, size: head?.size||0 });
+      }
+    } catch (e) {
+      broken.push({ id: d.id, user_id: d.user_id, image_key: d.image_key, created_at: d.created_at, error: e.message });
+    }
+  }
+
+  let fixed = 0;
+  if (doFix && broken.length) {
+    for (const b of broken) {
+      try {
+        await db.prepare(
+          `UPDATE documents SET status='rejected', reject_reason='원본 파일 손상 — 같은 영수증 다시 업로드해 주세요 (시스템 문제)', approved_at=? WHERE id=?`
+        ).bind(kst(), b.id).run();
+
+        // 상담방에 안내 메시지 (문서가 상담방 연결돼있으면)
+        const doc = await db.prepare(`SELECT room_id FROM documents WHERE id=?`).bind(b.id).first();
+        if (doc?.room_id) {
+          const alertContent = `[ALERT]${JSON.stringify({
+            t: '⚠️ 영수증 재업로드 요청',
+            m: '업로드 과정 문제로 원본 파일이 손상됐어요. 같은 영수증을 다시 올려주시면 처리해 드립니다.',
+            d: kst().substring(0,10),
+            at: 'broken_image'
+          })}`;
+          await db.prepare(
+            `INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at)
+             VALUES (?, NULL, 'assistant', ?, ?, ?)`
+          ).bind('room_'+doc.room_id, alertContent, doc.room_id, kst()).run();
+        }
+        fixed++;
+      } catch (e) { /* continue */ }
+    }
+  }
+
+  return Response.json({
+    scanned: (docs || []).length,
+    broken: broken.length,
+    fixed,
+    broken_list: broken.slice(0, 50),
+  });
 }
 
 // ============ 거래처별 요약 ============

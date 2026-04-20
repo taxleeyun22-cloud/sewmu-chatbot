@@ -2223,6 +2223,22 @@ async function runCronAlerts(){
   }catch(e){alert('오류: '+e.message)}
 }
 
+/* 손상 문서(R2 빈 파일) 점검 */
+async function runDocsHealthCheck(){
+  if(!confirm('초기 버그로 원본이 손상된 영수증을 스캔합니다 (최근 30일).\n\n스캔만 먼저 할까요?'))return;
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=health_check');
+    const d=await r.json();
+    if(d.error){alert('실패: '+d.error);return}
+    if(d.broken===0){alert('✅ 손상된 문서 없습니다.\n\n스캔: '+d.scanned+'건');return}
+    if(!confirm(`⚠️ 손상 문서 ${d.broken}건 발견 (스캔 ${d.scanned}건 중)\n\n자동 처리:\n- 해당 문서를 '반려' 상태로 변경\n- 각 상담방에 "재업로드 요청" 알림 메시지 전송\n\n계속할까요?`))return;
+    const r2=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=health_check&fix=1');
+    const d2=await r2.json();
+    alert('✅ 처리 완료\n\n손상: '+d2.broken+'건 / 반려+알림 전송: '+d2.fixed+'건');
+    loadDocsTab();
+  }catch(e){alert('오류: '+e.message)}
+}
+
 async function loadDocsTab(){
   // 거래처 목록 항상 로드 (좌측 패널)
   loadDocsCustomers();

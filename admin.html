@@ -159,6 +159,7 @@
       <div style="font-weight:700;font-size:.95em;color:#92400e">🔔 다가오는 일정 <span id="docsAlertsCount" style="background:#f04452;color:#fff;padding:1px 7px;border-radius:10px;font-size:.78em;margin-left:4px"></span></div>
       <div>
         <button onclick="runCronAlerts()" style="background:#fff;border:1px solid #fcd34d;color:#92400e;padding:5px 12px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:4px" title="트리거 도달한 알림을 해당 상담방에 즉시 발송">📢 알림 발송</button>
+        <button onclick="runDocsHealthCheck()" style="background:#fff;border:1px solid #fcd34d;color:#92400e;padding:5px 12px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:4px" title="초기 버그로 손상된 R2 원본 자동 감지·반려">🔧 손상 점검</button>
         <button onclick="toggleDocsAlerts()" style="background:none;border:none;color:#92400e;cursor:pointer;font-size:.88em;font-family:inherit" id="docsAlertsToggleBtn">펼치기 ▾</button>
       </div>
     </div>
@@ -539,7 +540,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=23"></script>
+<script src="/admin.js?v=24"></script>
 <style>
 #imgViewer{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:10000;display:none;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain}
 #imgViewer.open{display:flex}
