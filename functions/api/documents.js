@@ -216,15 +216,18 @@ export async function onRequestPost(context) {
         ).bind(roomId, user.user_id).first();
         if (member) {
           // message content = [DOC:id] (렌더 시 documents 테이블 조회)
+          // conversations 스키마 매칭: session_id, user_id, role, content, room_id, created_at
           await db.prepare(
-            `INSERT INTO conversations (session_id, user_id, role, content, name, real_name, room_id, created_at)
-             VALUES (?, ?, 'user', ?, ?, ?, ?, ?)`
+            `INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at)
+             VALUES (?, ?, 'user', ?, ?, ?)`
           ).bind(
-            'room_' + roomId, user.user_id, `[DOC:${docId}]`,
-            user.name || '', user.real_name || '', roomId, createdAt
+            'room_' + roomId, user.user_id, `[DOC:${docId}]`, roomId, createdAt
           ).run();
         }
-      } catch (e) { /* 상담방 메시지 실패해도 문서 등록은 성공으로 간주 */ }
+      } catch (e) {
+        /* 실패 시 console.error는 Cloudflare Logs에 남음. 문서 자체는 저장됨 */
+        console.error('receipt message insert failed:', e.message);
+      }
     }
 
     // 최종 문서 조회 후 반환
