@@ -1,4 +1,6 @@
 // 카카오 OAuth 콜백 핸들러
+import { verifyStateCookie } from "./_oauthState.js";
+
 async function initTables(db) {
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS users (
@@ -45,10 +47,22 @@ async function initTables(db) {
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
   const error = url.searchParams.get("error");
 
   if (error || !code) {
     return Response.redirect(url.origin + "/?login_error=cancelled", 302);
+  }
+
+  /* CSRF 방어: state 쿠키 + 쿼리 + HMAC 3중 검증 */
+  if (!(await verifyStateCookie(context.request, context.env, state))) {
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: url.origin + "/?login_error=invalid_state",
+        "Set-Cookie": `oauth_state=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`,
+      },
+    });
   }
 
   const clientId = context.env.KAKAO_CLIENT_ID;
@@ -122,14 +136,13 @@ export async function onRequestGet(context) {
       `INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)`
     ).bind(sessionToken, user.id, expiresAt).run();
 
-    // 5. 쿠키 설정 후 메인 페이지로 리다이렉트
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: url.origin + "/",
-        "Set-Cookie": `session=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`,
-      },
-    });
+    // 5. 쿠키 설정 후 메인 페이지로 리다이렉트 (+ oauth_state 쿠키 즉시 삭제)
+    const headers = new Headers();
+    headers.append("Location", url.origin + "/");
+    headers.append("Set-Cookie", `session=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`);
+    headers.append("Set-Cookie", `oauth_state=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
+    headers.append("Cache-Control", "no-store");
+    return new Response(null, { status: 302, headers });
   } catch (e) {
     /* 보안: 스택·에러 메시지를 사용자에게 노출하지 않고 중립 리다이렉트 */
     console.error("Kakao auth error:", e);

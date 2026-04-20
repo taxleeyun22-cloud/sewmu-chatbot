@@ -6,6 +6,7 @@
 // - GET  /api/admin-documents?key=&action=stats&month=YYYY-MM → 비용·건수 집계
 
 import { checkAdmin, adminUnauthorized } from './_adminAuth.js';
+import { logAudit } from './_audit.js';
 
 function kst() {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
@@ -609,7 +610,8 @@ export async function onRequestPost(context) {
     const { id, category, note, vendor, amount, vat_amount, receipt_date } = body;
     if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
 
-    // 선택적으로 필드 수정 병행
+    /* T2: 승인 + alerts 생성을 트랜잭션 단위로 묶어 부분 실패 방지 */
+    const prev = await db.prepare(`SELECT status FROM documents WHERE id = ?`).bind(id).first();
     const sets = ['status = ?', 'approver_id = ?', 'approved_at = ?'];
     const args = ['approved', approverId, kst()];
     if (category !== undefined) { sets.push('category = ?', "category_src = 'manual'"); args.push(category); }
@@ -621,22 +623,25 @@ export async function onRequestPost(context) {
     args.push(id);
 
     await db.prepare(`UPDATE documents SET ${sets.join(', ')} WHERE id = ?`).bind(...args).run();
-    // 승인된 문서의 alerts 자동 생성
     let alertCount = 0;
     try {
       const doc = await db.prepare(`SELECT * FROM documents WHERE id = ?`).bind(id).first();
       if (doc) alertCount = await createAlertsForDocument(db, doc);
     } catch {}
+    /* 감사 로그 */
+    logAudit(db, { actor: 'admin#' + approverId, action: 'doc_approve', entity_type: 'document', entity_id: id, before: prev?.status, after: 'approved', request: context.request });
     return Response.json({ ok: true, alerts_created: alertCount });
   }
 
   if (action === 'reject') {
     const { id, reason, note } = body;
     if (!id || !reason) return Response.json({ error: 'id/reason 필요' }, { status: 400 });
+    const prev = await db.prepare(`SELECT status FROM documents WHERE id = ?`).bind(id).first();
     const args = ['rejected', approverId, kst(), reason, note || null, id];
     await db.prepare(
       `UPDATE documents SET status = ?, approver_id = ?, approved_at = ?, reject_reason = ?, note = ? WHERE id = ?`
     ).bind(...args).run();
+    logAudit(db, { actor: 'admin#' + approverId, action: 'doc_reject', entity_type: 'document', entity_id: id, before: prev?.status, after: 'rejected', request: context.request });
     return Response.json({ ok: true });
   }
 
@@ -784,7 +789,17 @@ export async function onRequestPost(context) {
     // 세무사가 문서 필드 수정 (승인 여부와 무관)
     const { id } = body;
     if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
+    /* T3: OCR 프롬프트 개선용 corrections 테이블 생성 */
+    try { await db.prepare(`CREATE TABLE IF NOT EXISTS corrections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      doc_id INTEGER, user_id INTEGER, actor TEXT,
+      doc_type_before TEXT, doc_type_after TEXT,
+      field TEXT, value_before TEXT, value_after TEXT,
+      created_at TEXT DEFAULT (datetime('now','+9 hours'))
+    )`).run(); } catch {}
     const fields = ['vendor','vendor_biz_no','amount','vat_amount','receipt_date','category','note','doc_type'];
+    /* 변경 전 값 스냅샷 (감사·프롬프트 개선 데이터) */
+    const beforeRow = await db.prepare(`SELECT * FROM documents WHERE id = ?`).bind(id).first();
     const sets = [];
     const args = [];
     for (const f of fields) {
@@ -806,6 +821,29 @@ export async function onRequestPost(context) {
     if (!sets.length) return Response.json({ ok: true, updated: 0 });
     args.push(id);
     await db.prepare(`UPDATE documents SET ${sets.join(', ')} WHERE id = ?`).bind(...args).run();
+
+    /* corrections 로깅: OCR 결과 vs 세무사 수정값 → 향후 프롬프트 개선 데이터 */
+    try {
+      for (const f of fields) {
+        if (body[f] === undefined) continue;
+        const oldVal = beforeRow ? beforeRow[f] : null;
+        const newVal = body[f];
+        if (String(oldVal||'') === String(newVal||'')) continue;
+        await db.prepare(
+          `INSERT INTO corrections (doc_id, user_id, actor, doc_type_before, doc_type_after, field, value_before, value_after)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(
+          id, beforeRow?.user_id || null, 'admin#' + approverId,
+          beforeRow?.doc_type || null,
+          f === 'doc_type' ? newVal : (beforeRow?.doc_type || null),
+          f,
+          oldVal == null ? null : String(oldVal),
+          newVal == null ? null : String(newVal)
+        ).run();
+      }
+    } catch {}
+
+    logAudit(db, { actor: 'admin#' + approverId, action: 'doc_update', entity_type: 'document', entity_id: id, request: context.request });
     return Response.json({ ok: true });
   }
 

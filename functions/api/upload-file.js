@@ -2,6 +2,8 @@
 // 바인딩 필요: MEDIA_BUCKET
 // 인증: (1) 세션 쿠키 또는 (2) ?key=ADMIN_KEY
 
+import { rateLimit, getClientIP } from "./_ratelimit.js";
+
 const MAX_SIZE = 20 * 1024 * 1024; // 20MB
 const ALLOWED_TYPES = [
   'application/pdf',
@@ -28,6 +30,11 @@ export async function onRequestPost(context) {
   const db = context.env.DB;
   const bucket = context.env.MEDIA_BUCKET;
   if (!bucket) return Response.json({ error: "R2 저장소 미설정" }, { status: 500 });
+
+  /* Rate limit: IP 1분 20회 */
+  const ip = getClientIP(context.request);
+  const rl = await rateLimit(db, `upload_file:${ip}`, 20, 60);
+  if (!rl.ok) return Response.json({ error: '너무 많은 요청' }, { status: 429, headers: { 'Retry-After': String(rl.retryAfter || 60) } });
 
   const url = new URL(context.request.url);
   const adminKey = context.env.ADMIN_KEY;

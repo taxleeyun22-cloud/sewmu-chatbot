@@ -955,9 +955,9 @@ function showLogin(){
     document.getElementById('inputBar').style.display='none';
     document.getElementById('disclaimer').style.display='none';
     const origin=location.origin;
-    document.getElementById('kakaoLoginBtn').onclick=async function(){
-        const r=await fetch('/api/auth/config');const c=await r.json();
-        location.href='https://kauth.kakao.com/oauth/authorize?client_id='+c.kakao_client_id+'&redirect_uri='+encodeURIComponent(origin+'/api/auth/kakao')+'&response_type=code';
+    document.getElementById('kakaoLoginBtn').onclick=function(){
+        /* 보안: 서버 /api/auth/start 가 state 발급·쿠키 세팅·공급자 리다이렉트 처리 */
+        location.href='/api/auth/start?provider=kakao';
     };
 }
 

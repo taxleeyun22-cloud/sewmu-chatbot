@@ -1,4 +1,6 @@
 // 네이버 OAuth 콜백 핸들러
+import { verifyStateCookie } from "./_oauthState.js";
+
 async function initTables(db) {
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS users (
@@ -30,6 +32,17 @@ export async function onRequestGet(context) {
 
   if (error || !code) {
     return Response.redirect(url.origin + "/?login_error=cancelled", 302);
+  }
+
+  /* CSRF 방어: state 3중 검증 */
+  if (!(await verifyStateCookie(context.request, context.env, state))) {
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: url.origin + "/?login_error=invalid_state",
+        "Set-Cookie": `oauth_state=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`,
+      },
+    });
   }
 
   const clientId = context.env.NAVER_CLIENT_ID;
@@ -91,16 +104,14 @@ export async function onRequestGet(context) {
       `INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)`
     ).bind(sessionToken, user.id, expiresAt).run();
 
-    // 5. 쿠키 설정 후 메인 페이지로 리다이렉트
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: url.origin + "/",
-        "Set-Cookie": `session=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`,
-      },
-    });
+    const headers = new Headers();
+    headers.append("Location", url.origin + "/");
+    headers.append("Set-Cookie", `session=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`);
+    headers.append("Set-Cookie", `oauth_state=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
+    headers.append("Cache-Control", "no-store");
+    return new Response(null, { status: 302, headers });
   } catch (e) {
-    console.error("Naver auth error:", e);
+    /* 보안: 내부 에러 미노출 */
     return Response.redirect(url.origin + "/?login_error=server_error", 302);
   }
 }

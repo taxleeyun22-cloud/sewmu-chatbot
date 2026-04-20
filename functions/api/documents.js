@@ -279,8 +279,35 @@ export async function onRequestPost(context) {
 
     // 파일 데이터를 한 번만 읽어서 R2·Vision 양쪽에 재사용
     const buf = await file.arrayBuffer();
-    const ext = mime.split('/')[1] || 'bin';
-    const rand = Math.random().toString(36).slice(2, 10);
+
+    /* 중복 영수증 감지: SHA-256 해시로 이중 업로드 방지 (본인 범위 내) */
+    let imgHash = null;
+    try {
+      const digest = await crypto.subtle.digest('SHA-256', buf);
+      imgHash = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2,'0')).join('');
+      try { await db.prepare(`ALTER TABLE documents ADD COLUMN img_hash TEXT`).run(); } catch {}
+      try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_documents_hash ON documents(user_id, img_hash)`).run(); } catch {}
+      const dup = await db.prepare(
+        `SELECT id, vendor, amount, receipt_date, created_at FROM documents
+         WHERE user_id = ? AND img_hash = ? AND status != 'reverted'
+         ORDER BY id DESC LIMIT 1`
+      ).bind(user.user_id, imgHash).first();
+      if (dup && body?.force_duplicate !== true && form.get('force_duplicate') !== '1') {
+        return Response.json({
+          error: '이미 등록된 영수증입니다',
+          duplicate: true,
+          existing: {
+            id: dup.id, vendor: dup.vendor, amount: dup.amount,
+            receipt_date: dup.receipt_date, created_at: dup.created_at
+          }
+        }, { status: 409 });
+      }
+    } catch {}
+
+    /* 보안: MIME 화이트리스트로 확장자 파생 (파일명에서 확장자 파싱 금지) */
+    const extMap = { 'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','image/heic':'heic' };
+    const ext = extMap[mime] || 'bin';
+    const rand = crypto.randomUUID().replace(/-/g,'').slice(0,12);
     const key = `documents/u${user.user_id}/${ym()}/${Date.now()}_${rand}.${ext}`;
     await bucket.put(key, buf, {
       httpMetadata: { contentType: mime },
@@ -295,9 +322,9 @@ export async function onRequestPost(context) {
     // documents insert (초기) — 자동 승인 (세무사가 이상한 것만 수정·반려)
     const createdAt = kst();
     const ins = await db.prepare(
-      `INSERT INTO documents (user_id, room_id, doc_type, image_key, ocr_status, status, approver_id, approved_at, created_at)
-       VALUES (?, ?, ?, ?, 'pending', 'approved', 0, ?, ?)`
-    ).bind(user.user_id, roomId, docType, key, createdAt, createdAt).run();
+      `INSERT INTO documents (user_id, room_id, doc_type, image_key, ocr_status, status, approver_id, approved_at, created_at, img_hash)
+       VALUES (?, ?, ?, ?, 'pending', 'approved', 0, ?, ?, ?)`
+    ).bind(user.user_id, roomId, docType, key, createdAt, createdAt, imgHash).run();
     const docId = ins.meta?.last_row_id;
 
     // skip_ocr: 프리랜서 등 수동 입력 — OCR 안 돌리고 preset 값으로 채움

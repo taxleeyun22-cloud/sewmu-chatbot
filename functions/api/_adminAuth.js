@@ -5,12 +5,22 @@
 //
 // 반환: { ok: true, owner: boolean, userId: number|null }  실패 시 null
 
+/* 보안: timing-safe 문자열 비교 (길이 고정 XOR 누적) */
+function timingSafeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 export async function checkAdmin(context) {
   const url = new URL(context.request.url);
   const adminKey = context.env.ADMIN_KEY;
 
-  // (1) ADMIN_KEY
-  if (adminKey && url.searchParams.get("key") === adminKey) {
+  // (1) ADMIN_KEY — timing-safe 비교
+  const providedKey = url.searchParams.get("key");
+  if (adminKey && providedKey && timingSafeEqual(providedKey, adminKey)) {
     return { ok: true, owner: true, userId: null };
   }
 

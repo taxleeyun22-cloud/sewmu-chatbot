@@ -2,6 +2,8 @@
 // 바인딩 필요: MEDIA_BUCKET (Cloudflare Pages > Settings > Functions > R2 bindings)
 // 기본적으로 로그인 사용자만 업로드 가능
 
+import { rateLimit, getClientIP } from "./_ratelimit.js";
+
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic'];
 
@@ -12,6 +14,11 @@ export async function onRequestPost(context) {
   if (!bucket) {
     return Response.json({ error: "R2 저장소가 설정되지 않았습니다. (사장님: Cloudflare Pages 설정에서 MEDIA_BUCKET R2 바인딩 필요)" }, { status: 500 });
   }
+
+  /* Rate limit: IP 1분 40회 (카톡 사진 10장 연속 업로드 여유 고려) */
+  const ip = getClientIP(context.request);
+  const rl = await rateLimit(db, `upload_img:${ip}`, 40, 60);
+  if (!rl.ok) return Response.json({ error: '너무 많은 요청' }, { status: 429, headers: { 'Retry-After': String(rl.retryAfter || 60) } });
 
   // 인증: (1) 사용자 세션 쿠키, 또는 (2) ?key=ADMIN_KEY (관리자)
   const url = new URL(context.request.url);
