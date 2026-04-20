@@ -168,8 +168,9 @@ export async function onRequestPost(context) {
     // OCR 결과 반영
     if (visionResult.ok && visionResult.parsed) {
       const p = visionResult.parsed;
-      // 저신뢰도(0.5 미만) → 'other' 로 강제, 그 외는 AI 판별 존중
-      const finalDocType = (p.confidence < 0.5) ? 'other' : (p.doc_type || docType);
+      // AI 판별 그대로 수용 — confidence 낮아도 AI가 판단한 타입 사용
+      // (AI가 정말 모를 때는 자체적으로 'other'로 분류함. 우리가 또 덮지 않음)
+      const finalDocType = p.doc_type || docType;
 
       await db.prepare(
         `UPDATE documents SET

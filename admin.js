@@ -2641,7 +2641,7 @@ async function openDocDetailAdmin(id){
   }catch(e){alert('오류: '+e.message)}
 }
 
-/* 위하고 표준 전표 CSV export */
+/* 위하고 표준 전표 CSV export — 가능하면 "다른 이름으로 저장" 대화창 */
 async function exportWehago(){
   const month=$g('docsFilterMonth').value||new Date().toISOString().substring(0,7);
   const userId=$g('docsFilterUser').value.trim();
@@ -2652,10 +2652,36 @@ async function exportWehago(){
     const r=await fetch(url);
     if(!r.ok){const t=await r.text();alert('export 실패: '+t);return}
     const blob=await r.blob();
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download='wehago_'+month+(userId?'_u'+userId:'')+'.csv';
-    document.body.appendChild(a);a.click();
-    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},200);
+    const filename='wehago_'+month+(userId?'_u'+userId:'')+'.csv';
+    await saveBlobAs(blob, filename, 'text/csv');
   }catch(e){alert('오류: '+e.message)}
+}
+
+/* 파일 저장 헬퍼 — Chrome/Edge는 Save As 대화창, 그 외는 기본 다운로드 */
+async function saveBlobAs(blob, suggestedName, mimeType){
+  // Chrome/Edge Save As picker
+  if(window.showSaveFilePicker){
+    try{
+      const ext = suggestedName.split('.').pop();
+      const types = [];
+      if(mimeType==='text/csv') types.push({description:'CSV 파일',accept:{'text/csv':['.csv']}});
+      else if(mimeType&&mimeType.indexOf('image')===0) types.push({description:'이미지',accept:{[mimeType]:['.'+ext]}});
+      else types.push({description:'파일',accept:{'application/octet-stream':['.'+ext]}});
+      const handle = await window.showSaveFilePicker({ suggestedName, types });
+      const w = await handle.createWritable();
+      await w.write(blob);
+      await w.close();
+      if(typeof showAdminToast==='function')showAdminToast('💾 저장 완료: '+handle.name);
+      return;
+    }catch(err){
+      if(err && err.name==='AbortError') return; // 사용자 취소
+      // 폴백
+    }
+  }
+  // Fallback: 기본 다운로드
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=suggestedName;
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},200);
 }
