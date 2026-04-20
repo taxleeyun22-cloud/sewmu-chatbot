@@ -185,16 +185,20 @@ body.staff-mode .owner-only{display:none !important}
 /* ===== 거래처별 문서 뷰 (모바일 반응형) ===== */
 @media(max-width:900px){
   #docsLayout{flex-direction:column}
-  #docsCustList{width:100% !important;max-height:50vh}
+  #docsCustList{width:100% !important;max-height:35vh}
   #docsDetail{min-height:400px}
+  /* 모바일에서 거래처 리스트 아이템 압축 */
+  #docsCustItems > div{padding:9px 12px !important}
+  #docsCustItems > div > div:last-child{margin-top:2px !important}
 }
 
 @media(max-width:640px){
   /* 문서 뷰 전반 — 폰트·간격 다이어트 */
   #docsDetailName{font-size:1em !important}
   #docsDetailSub{font-size:.72em !important;line-height:1.45}
-  /* 거래처 헤더 버튼 (상담방 열기 / 위하고 CSV) */
-  #docsDetail button{padding:7px 10px !important;font-size:.78em !important}
+  /* 거래처 헤더 버튼: 한 줄 가로 스크롤 */
+  .docs-detail-actions{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .docs-detail-actions::-webkit-scrollbar{display:none}
   /* 문서 타입 탭: 가로 스크롤 한 줄 */
   #docsTypeTabs{flex-wrap:nowrap !important;overflow-x:auto !important;padding:4px !important;gap:3px !important;-webkit-overflow-scrolling:touch}
   #docsTypeTabs::-webkit-scrollbar{display:none}
@@ -205,13 +209,17 @@ body.staff-mode .owner-only{display:none !important}
   #docsStatsBar b{font-size:1em !important}
   /* OCR 비용은 모바일에서 숨김 (중요도 낮음) */
   .docs-stat-cost{display:none !important}
-  /* 필터 바 */
-  #docsFilterStatus,#docsFilterType,#docsFilterUser{font-size:.78em !important;padding:6px 8px !important}
-  /* AG-Grid 힌트·페이지네이션 모바일 간소화 */
-  .ag-root-wrapper .ag-paging-panel{font-size:.75em;padding:6px !important}
+  /* 필터 바: 날짜(month) 필터는 모바일에서 숨김 (거래처는 좌측에서 이미 선택됐으므로 user 필터도 불필요) */
+  #docsFilterStatus,#docsFilterType{font-size:.8em !important;padding:6px 8px !important;flex:0 1 auto}
+  #docsFilterMonth{display:none !important}
+  /* AG-Grid 모바일 간소화 */
+  .ag-root-wrapper .ag-paging-panel{font-size:.72em;padding:4px 6px !important;flex-wrap:wrap;justify-content:center}
   .ag-paging-page-summary-panel{gap:2px !important}
+  .ag-paging-row-summary-panel{font-size:.7em}
   /* 힌트 라인 숨김 */
   .docs-grid-hint,.ag-grid-hint{display:none !important}
+  /* 그리드 최소 높이 보장 */
+  #docsGrid{min-height:280px !important}
 }
 
 /* ===== 상담방 모바일: 횡스크롤 방지 ===== */
