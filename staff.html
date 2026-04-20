@@ -6,7 +6,7 @@
 <title>직원 관리자 - 세무회계 이윤</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/admin.css?v=16">
+<link rel="stylesheet" href="/admin.css?v=17">
 <!-- AG-Grid Community (엑셀 스타일 그리드) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-quartz.css">
@@ -410,7 +410,7 @@
 </div><!-- /mainView -->
 
 <!-- 미승인 접근 차단 안내 -->
-<div id="notAuthView" style="display:none;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+<div id="notAuthView" style="display:none;min-height:100vh;align-items:center;justify-content:center;padding:20px">
 <div style="background:#fff;border-radius:16px;padding:40px;max-width:360px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.04)">
 <h2 style="font-size:1.1em;margin-bottom:10px">접근 권한이 없습니다</h2>
 <p style="font-size:.85em;color:#8b95a1;margin-bottom:20px">관리자 승인을 받은 계정으로 로그인해 주세요.</p>
@@ -418,7 +418,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=32"></script>
+<script src="/admin.js?v=33"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;

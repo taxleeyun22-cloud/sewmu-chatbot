@@ -68,25 +68,27 @@ function renderReceiptCardAdmin(doc){
   if(!isPayroll && doc.status!=='approved'){
     actionsHTML+=`<button onclick="revertDocToPhotoAdmin(${doc.id})" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:7px 12px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit" title="문서 분류 취소하고 일반 사진으로 표시">📷 사진으로</button>`;
   }
+  /* 반응형: 모바일(≤480px)에선 세로 스택, 데스크톱에선 가로. max-width:100% + box-sizing 으로 폭 보장 */
+  const thumb=isPayroll
+    ? `<div class="rc-doc-thumb" style="flex-shrink:0;width:46px;height:46px;background:#dbeafe;color:#1d4ed8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4em">${doc.doc_type==='payroll'?'👥':'🧑‍💼'}</div>`
+    : `<div class="rc-doc-thumb" style="flex-shrink:0;width:88px;height:88px;background:#f3f4f6;border-radius:8px;overflow:hidden;cursor:zoom-in" onclick="openImgViewer('${imgUrl}',['${imgUrl}'])"><img src="${imgUrl}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy" onerror="this.style.display='none'"></div>`;
   return ''
-    +`<div data-doc-id="${doc.id}" style="display:flex;gap:10px;min-width:280px;max-width:430px;border-radius:12px;overflow:hidden;background:#fff;border:1px solid #e5e8eb;padding:10px">`
-    + (isPayroll
-        ? `<div style="flex-shrink:0;width:46px;height:46px;background:#dbeafe;color:#1d4ed8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4em">${doc.doc_type==='payroll'?'👥':'🧑‍💼'}</div>`
-        : `<div style="flex-shrink:0;width:96px;height:128px;background:#f3f4f6;border-radius:8px;overflow:hidden;cursor:zoom-in" onclick="openImgViewer('${imgUrl}',['${imgUrl}'])"><img src="${imgUrl}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy" onerror="this.style.display='none'"></div>`)
-    +  `<div style="flex:1;min-width:0;font-size:.8em">`
-    +     `<div style="color:#8b95a1;font-size:.85em;margin-bottom:3px">${typeLabel}${isPayroll?'':' · 신뢰도 '+(doc.ocr_confidence!=null?Math.round(doc.ocr_confidence*100)+'%':'-')+amb2}</div>`
-    +     `<div style="display:grid;grid-template-columns:48px 1fr;gap:3px 8px;align-items:center">`
-    +       `<label style="color:#8b95a1;font-size:.9em">${isPayroll?'이름':'가맹점'}</label>`
-    +       `<input type="text" value="${e(doc.vendor||'')}" data-field="vendor" ${canEdit?'':'readonly'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
-    +       `<label style="color:#8b95a1;font-size:.9em">${isPayroll?'세전':'금액'}</label>`
-    +       `<input type="number" value="${doc.amount||''}" data-field="amount" ${canEdit?'':'readonly'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
-    +       `<label style="color:#8b95a1;font-size:.9em">날짜</label>`
-    +       `<input type="text" value="${e(doc.receipt_date||'')}" data-field="receipt_date" placeholder="YYYY-MM-DD" ${canEdit?'':'readonly'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
-    +       (isPayroll?'':`<label style="color:#8b95a1;font-size:.9em">카테고리</label>`
-    +         `<select data-field="category" ${canEdit?'':'disabled'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}"><option value="">(선택)</option>${catSel}</select>`)
+    +`<div data-doc-id="${doc.id}" class="adm-doc-card" style="display:flex;gap:10px;flex-wrap:wrap;width:100%;max-width:380px;box-sizing:border-box;border-radius:12px;background:#fff;border:1px solid #e5e8eb;padding:10px">`
+    + thumb
+    +  `<div style="flex:1 1 180px;min-width:0;font-size:.8em">`
+    +     `<div style="color:#8b95a1;font-size:.82em;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${typeLabel}${isPayroll?'':' · '+(doc.ocr_confidence!=null?Math.round(doc.ocr_confidence*100)+'%':'-')+amb2}</div>`
+    +     `<div style="display:grid;grid-template-columns:52px 1fr;gap:4px 6px;align-items:center">`
+    +       `<label style="color:#8b95a1;font-size:.88em">${isPayroll?'이름':'가맹점'}</label>`
+    +       `<input type="text" value="${e(doc.vendor||'')}" data-field="vendor" ${canEdit?'':'readonly'} style="padding:5px 7px;border:1px solid #e5e8eb;border-radius:5px;font-size:.92em;width:100%;max-width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
+    +       `<label style="color:#8b95a1;font-size:.88em">${isPayroll?'세전':'금액'}</label>`
+    +       `<input type="number" value="${doc.amount||''}" data-field="amount" ${canEdit?'':'readonly'} style="padding:5px 7px;border:1px solid #e5e8eb;border-radius:5px;font-size:.92em;width:100%;max-width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
+    +       `<label style="color:#8b95a1;font-size:.88em">날짜</label>`
+    +       `<input type="text" value="${e(doc.receipt_date||'')}" data-field="receipt_date" placeholder="YYYY-MM-DD" ${canEdit?'':'readonly'} style="padding:5px 7px;border:1px solid #e5e8eb;border-radius:5px;font-size:.92em;width:100%;max-width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
+    +       (isPayroll?'':`<label style="color:#8b95a1;font-size:.88em">계정</label>`
+    +         `<select data-field="category" ${canEdit?'':'disabled'} style="padding:5px 7px;border:1px solid #e5e8eb;border-radius:5px;font-size:.92em;width:100%;max-width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}"><option value="">(선택)</option>${catSel}</select>`)
     +     `</div>`
     +     exHTML
-    +     `<div style="margin-top:6px"><span style="display:inline-block;font-size:.78em;padding:2px 8px;border-radius:8px;background:${st.bg};color:${st.fg};font-weight:700">${st.tx}</span></div>`
+    +     `<div style="margin-top:6px"><span style="display:inline-block;font-size:.76em;padding:2px 8px;border-radius:8px;background:${st.bg};color:${st.fg};font-weight:700">${st.tx}</span></div>`
     +     (doc.reject_reason?`<div style="margin-top:4px;font-size:.8em;color:#991b1b">반려: ${e(doc.reject_reason)}</div>`:'')
     +     `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${actionsHTML}</div>`
     +  `</div>`

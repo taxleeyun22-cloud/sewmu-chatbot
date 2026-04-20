@@ -188,3 +188,25 @@ body.staff-mode .owner-only{display:none !important}
   #docsCustList{width:100% !important;max-height:50vh}
   #docsDetail{min-height:400px}
 }
+
+/* ===== 상담방 모바일: 횡스크롤 방지 ===== */
+#roomMessages{overflow-x:hidden;max-width:100%;width:100%;box-sizing:border-box}
+#roomMessages > div{max-width:100%}
+#roomMessages img{max-width:100%;height:auto}
+.adm-doc-card{max-width:100% !important;width:100%;box-sizing:border-box}
+.adm-doc-card input,.adm-doc-card select{max-width:100%;min-width:0}
+
+@media(max-width:640px){
+  /* 메시지 버블 모바일에서 넓게 (70% → 88%) */
+  #roomMessages > div > div[style*="max-width:70%"]{max-width:88% !important}
+  /* 영수증 카드: 폭 제한 더 여유 있게 */
+  .adm-doc-card{flex-direction:row;max-width:none !important;gap:8px !important;padding:8px !important}
+  .adm-doc-card .rc-doc-thumb{width:70px !important;height:70px !important}
+  /* 카드 본문이 썸네일 옆에 붙어 줄바꿈되지 않게 */
+  .adm-doc-card > div:last-child{flex:1 1 0;min-width:0}
+}
+@media(max-width:380px){
+  /* 아주 좁은 기기: 썸네일/본문 세로 스택 */
+  .adm-doc-card{flex-direction:column !important}
+  .adm-doc-card .rc-doc-thumb{width:100% !important;height:160px !important;max-height:200px}
+}
