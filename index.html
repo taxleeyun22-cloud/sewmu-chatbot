@@ -1472,7 +1472,21 @@ function switchDocsFilter(s){
 }
 
 function docTypeLabel(t){
-  var map={receipt:'🧾 영수증',lease:'🏠 임대차',payroll:'👥 근로',tax_invoice:'📑 세금계산서',insurance:'🛡️ 보험',utility:'💧 공과금',property_tax:'🚗 지방세',bank_stmt:'🏦 은행내역',business_reg:'📋 사업자등록',identity:'🪪 신분증',contract:'📝 계약서',other:'📄 기타'};
+  var map={
+    receipt:'🧾 영수증',
+    lease:'🏠 임대차',
+    payroll:'👥 근로(4대보험)',
+    freelancer_payment:'🧑‍💼 프리랜서(3.3%)',
+    tax_invoice:'📑 세금계산서',
+    insurance:'🛡️ 보험',
+    utility:'💧 공과금',
+    property_tax:'🚗 지방세',
+    bank_stmt:'🏦 은행내역',
+    business_reg:'📋 사업자등록',
+    identity:'🪪 신분증',
+    contract:'📝 계약서',
+    other:'📄 기타'
+  };
   return map[t]||('📄 '+t);
 }
 
@@ -1779,6 +1793,82 @@ async function doCopyMsg(text){
   if(!init())document.addEventListener('DOMContentLoaded',init);
 })();
 
+/* 메시지 입력칸 클립보드(Ctrl+V) + 드래그앤드롭 첨부 */
+(function(){
+  function isImage(f){return f&&f.type&&f.type.indexOf('image/')===0}
+  async function sendFiles(files,mode){
+    var arr=Array.from(files||[]).filter(isImage);
+    if(!arr.length)return false;
+    if(arr.length>10){alert('한 번에 최대 10장까지 업로드 가능합니다');arr=arr.slice(0,10)}
+    /* 모드 선택: 영수증(OCR) vs 사진 */
+    var goReceipt=false;
+    if(!mode){
+      goReceipt=confirm('첨부한 이미지'+(arr.length>1?' '+arr.length+'장':'')+'을 어떻게 처리할까요?\n\n[확인] 🧾 영수증으로 (AI 자동 인식)\n[취소] 📷 일반 사진으로');
+    } else if(mode==='receipt') goReceipt=true;
+    for(var i=0;i<arr.length;i++){
+      var f=arr[i];
+      if(f.size>10*1024*1024){alert('['+(f.name||(i+1)+'번째')+'] 10MB 초과 — 건너뜁니다');continue}
+      if(arr.length>1&&typeof showInAppToastSilent==='function'){
+        showInAppToastSilent((goReceipt?'🤖 ':'📤 ')+(i+1)+'/'+arr.length);
+      }
+      if(goReceipt) await sendRoomReceiptFromFile(f);
+      else await sendOneLegacyImage(f);
+    }
+    return true;
+  }
+  function init(){
+    var input=document.getElementById('rcInput');
+    var area=document.getElementById('rcInputArea');
+    var msgs=document.getElementById('rcMessages');
+    if(!input||!area)return false;
+    /* 클립보드 붙여넣기 (이미지 캡처) */
+    input.addEventListener('paste',function(e){
+      if(!rcRoomId||!rcIsActive)return;
+      var files=(e.clipboardData&&e.clipboardData.files)||[];
+      var imgs=Array.from(files).filter(isImage);
+      if(!imgs.length)return; /* 텍스트 붙여넣기는 그대로 */
+      e.preventDefault();
+      sendFiles(imgs);
+    });
+    /* 드래그앤드롭 */
+    var dropZones=[area, msgs].filter(Boolean);
+    var overlay=null;
+    function showOverlay(){
+      if(overlay)return;
+      overlay=document.createElement('div');
+      overlay.id='rcDropOverlay';
+      overlay.style.cssText='position:fixed;inset:0;background:rgba(49,130,246,.18);border:3px dashed #3182f6;pointer-events:none;z-index:9999;display:flex;align-items:center;justify-content:center;color:#1e3a8a;font-size:1.4em;font-weight:800;text-shadow:0 1px 3px rgba(255,255,255,.6)';
+      overlay.textContent='📎 사진을 놓으면 첨부됩니다';
+      document.body.appendChild(overlay);
+    }
+    function hideOverlay(){if(overlay){overlay.remove();overlay=null}}
+    var dragDepth=0;
+    document.addEventListener('dragenter',function(e){
+      if(!rcRoomId||!rcIsActive)return;
+      if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
+      dragDepth++;
+      showOverlay();
+    });
+    document.addEventListener('dragover',function(e){
+      if(!rcRoomId||!rcIsActive)return;
+      if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
+      e.preventDefault();
+    });
+    document.addEventListener('dragleave',function(){dragDepth--;if(dragDepth<=0){dragDepth=0;hideOverlay()}});
+    document.addEventListener('drop',function(e){
+      if(!rcRoomId||!rcIsActive){dragDepth=0;hideOverlay();return}
+      var files=(e.dataTransfer&&e.dataTransfer.files)||[];
+      var imgs=Array.from(files).filter(isImage);
+      dragDepth=0;hideOverlay();
+      if(!imgs.length)return;
+      e.preventDefault();
+      sendFiles(imgs);
+    });
+    return true;
+  }
+  if(!init())document.addEventListener('DOMContentLoaded',init);
+})();
+
 async function sendRoomMsg(){
   if(!rcRoomId||!rcIsActive)return;
   var input=document.getElementById('rcInput');
@@ -2076,6 +2166,9 @@ function renderReceiptCard(doc, mine){
   var fmt=function(n){return n==null?'-':(Number(n)||0).toLocaleString('ko-KR')+'원'};
   var imgUrl='/api/image?k='+encodeURIComponent(doc.image_key);
   var amb=doc.ocr_confidence!=null&&doc.ocr_confidence<0.7;
+  var revertBtn=(doc.status!=='approved')
+    ? '<button onclick="event.stopPropagation();revertDocToPhotoClient('+doc.id+')" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:6px;font-size:.7em;cursor:pointer;font-family:inherit;margin-top:4px" title="잘못 분류됐으면 일반 사진으로 되돌립니다">📷 사진으로</button>'
+    : '';
   return ''
     +'<div style="display:flex;align-items:stretch;gap:0;min-width:240px;max-width:300px;border-radius:12px;overflow:hidden;background:var(--card);border:1px solid var(--border)">'
     + '<div style="flex-shrink:0;width:86px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;cursor:zoom-in" onclick="openImgViewer(\''+imgUrl+'\',[\''+imgUrl+'\'])">'
@@ -2088,8 +2181,22 @@ function renderReceiptCard(doc, mine){
     +   '<div style="font-size:.72em;color:var(--text2)">'+esc(doc.receipt_date||'-')+(doc.category?' · '+esc(doc.category):'')+'</div>'
     +   '<div style="margin-top:6px"><span style="display:inline-block;font-size:.68em;padding:2px 8px;border-radius:8px;background:'+st.bg+';color:'+st.fg+';font-weight:700">'+st.tx+'</span></div>'
     +   (doc.reject_reason?'<div style="margin-top:4px;font-size:.72em;color:#991b1b">반려: '+esc(doc.reject_reason)+'</div>':'')
+    +   revertBtn
     + '</div>'
     +'</div>';
+}
+/* 문서 분류 취소 → 일반 사진으로 (본인만, pending/rejected에서) */
+async function revertDocToPhotoClient(docId){
+  if(!docId)return;
+  if(!confirm('이 영수증 분류를 취소하고 일반 사진으로 되돌릴까요?'))return;
+  try{
+    var r=await fetch('/api/documents?action=revert_to_photo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:docId})});
+    var d=await r.json();
+    if(d.ok){
+      if(typeof showInAppToastSilent==='function')showInAppToastSilent('📷 사진으로 되돌렸어요');
+      if(typeof loadRoomChat==='function')loadRoomChat();
+    } else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
 }
 function fileIconFor(name){
   var ext=(name||'').split('.').pop().toLowerCase();
@@ -2109,12 +2216,26 @@ function fmtFileSize(n){
   return (n/1024/1024).toFixed(1)+'MB';
 }
 
+/* 답장 인용 클릭 → 원본 메시지로 스크롤 + 잠깐 하이라이트 */
+function jumpToOriginalMsg(mid){
+  if(!mid)return;
+  var bubble=document.querySelector('.rc-msg-bubble[data-msg="'+mid+'"]');
+  if(!bubble){
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('원본 메시지를 찾을 수 없습니다');
+    return;
+  }
+  bubble.scrollIntoView({behavior:'smooth',block:'center'});
+  var orig=bubble.style.boxShadow;
+  bubble.style.transition='box-shadow .35s ease, background .35s ease';
+  bubble.style.boxShadow='0 0 0 3px rgba(244,196,48,.85)';
+  setTimeout(function(){bubble.style.boxShadow=orig||''},1400);
+}
 function renderMessageBody(content, attachedDoc){
   var parsed=parseMessageContent(content);
   var html='';
   if(parsed.reply){
-    var s=parsed.reply.s||'', t=(parsed.reply.t||'').slice(0,100);
-    html+='<div class="rc-quote"><div class="rc-quote-sender">↩︎ '+esc(s)+'</div><div class="rc-quote-text">'+esc(t)+'</div></div>';
+    var s=parsed.reply.s||'', t=(parsed.reply.t||'').slice(0,100), ji=parsed.reply.i||'';
+    html+='<div class="rc-quote" data-jump-mid="'+escAttr(String(ji))+'" onclick="jumpToOriginalMsg(\''+escAttr(String(ji))+'\')" style="cursor:pointer"><div class="rc-quote-sender">↩︎ '+esc(s)+'</div><div class="rc-quote-text">'+esc(t)+'</div></div>';
   }
   if(parsed.alert){
     var a=parsed.alert;

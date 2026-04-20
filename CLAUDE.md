@@ -14,6 +14,26 @@ Cloudflare Pages + D1 DB + OpenAI GPT-4.1-mini + 국가법령정보센터 API.
 2. Claude가 법령·실무 기준으로 **스스로 검증**
 3. 사용자 OK 후 `functions/api/chat.js` 시스템 프롬프트에 하드코딩
 
+### `거래처 PDF 처리해줘 [거래처명/user_id]` 처리 절차 📄
+세무사님이 `finance_pdfs/{user_id}/` 폴더에 세무조정계산서·부가세 신고서 PDF를 push 후 Claude한테 요청 → Claude가 다음 순서로 처리:
+
+1. **거래처명·user_id 매핑**: 거래처명만 받았으면 D1 `users` 테이블에서 조회 (또는 user_id를 같이 알려줌)
+2. **PDF 위치 확인**: 저장소의 `finance_pdfs/{user_id}/` 디렉터리에서 PDF 목록 (`Glob`)
+3. **텍스트 추출**: `pdftotext "<file>" -` 명령으로 본문 텍스트 (Bash)
+4. **재무 항목 파싱**: 매출/매입/부가세/소득세/과세표준/인건비 등 추출
+   - 세무조정계산서 → 매출(영업수익), 매입(매출원가+판관비), 과세표준, 산출세액
+   - 부가세 신고서 → 매출세액, 매입세액, 납부세액, 사업기간(예 2026-1기)
+   - 종소세 신고서 → 종합소득금액, 산출세액, 결정세액
+5. **JSON 행 생성**: `{ user_id, period, period_type, revenue, cost, vat_payable, income_tax, taxable_income, payroll_total, source: 'pdf', source_file: 'xxx.pdf' }`
+6. **DB 적재**: 사용자에게 미리보기 보여주고 승인받은 뒤 SQL migration 작성 → commit
+   - 또는 `/api/admin-finance?action=bulk_import&key=ADMIN_KEY` 형식
+7. **결과 보고**: 추가 N건 / 갱신 M건 / 실패 K건 + 어느 PDF에서 어느 기간이 들어갔는지 표
+
+**원칙**: OpenAI API 비용 0. PDF 분석은 Claude(나)가 직접 텍스트 보고 추출.
+
+**관련 엔드포인트**:
+- `functions/api/admin-finance.js` — `client_finance` 테이블 CRUD (GET, POST upsert/bulk_import/delete, GET ?action=summary)
+
 ### `flagged-items.json` 처리 절차 ⭐
 사용자가 **"flagged-items.json 처리해줘"** 라고 하면 아래를 정확히 실행:
 

@@ -30,39 +30,65 @@ function parseMsg(content){
 
 /* 영수증 카드 렌더링 — 세무사측 (승인/반려 버튼 포함) */
 function renderReceiptCardAdmin(doc){
-  if(!doc) return '<div style="padding:10px 12px;border-radius:10px;background:#f2f4f6;font-size:.82em">🧾 영수증 (조회 불가)</div>';
+  if(!doc) return '<div style="padding:10px 12px;border-radius:10px;background:#f2f4f6;font-size:.82em">🧾 문서 (조회 불가)</div>';
   const statusMap={pending:{tx:'⏳ 검토 중',bg:'#fef3c7',fg:'#92400e'},approved:{tx:'✅ 승인',bg:'#d1fae5',fg:'#065f46'},rejected:{tx:'❌ 반려',bg:'#fee2e2',fg:'#991b1b'}};
   const st=statusMap[doc.status]||statusMap.pending;
   const fmt=n=>n==null?'-':(Number(n)||0).toLocaleString('ko-KR')+'원';
   const imgUrl='/api/image?k='+encodeURIComponent(doc.image_key);
   const amb=doc.ocr_confidence!=null&&doc.ocr_confidence<0.7;
-  const catOptions=['식비','교통비','숙박비','소모품비','접대비','통신비','공과금','임대료','기타'];
+  const catOptions=['식비','교통비','숙박비','소모품비','접대비','통신비','공과금','임대료','인건비','기타'];
   const catSel=catOptions.map(c=>`<option value="${c}"${doc.category===c?' selected':''}>${c}</option>`).join('');
-  const canAct=doc.status==='pending';
+  const canEdit=doc.status!=='approved';
   const amb2=amb?` <span style="color:#d97706;font-size:.7em">(인식 낮음 ${Math.round(doc.ocr_confidence*100)}%)</span>`:'';
+  /* 프리랜서·급여처럼 placeholder 이미지인 경우 썸네일 숨김 */
+  const isPayroll=doc.doc_type==='freelancer_payment'||doc.doc_type==='payroll';
+  const typeLabel=docTypeLabelAdmin(doc.doc_type);
+  /* extra JSON 파싱 (프리랜서·급여 정보 표시용) */
+  let exHTML='';
+  if(isPayroll){
+    let ex={};try{ex=JSON.parse(doc.ocr_raw||'{}')}catch{}
+    /* admin은 documents.extra 컬럼이 들어오면 좋지만 raw에 들어올 수도 */
+    try{if(doc.extra)ex=JSON.parse(doc.extra)||ex}catch{}
+    if(ex.resident_no_masked)exHTML+=`<div style="font-size:.78em;color:#6b7684">주민번호: ${e(ex.resident_no_masked)}</div>`;
+    if(ex.net_amount)exHTML+=`<div style="font-size:.78em;color:#6b7684">실수령: ${fmt(ex.net_amount)}</div>`;
+    if(doc.doc_type==='freelancer_payment'&&ex.withholding_tax)exHTML+=`<div style="font-size:.78em;color:#6b7684">원천세 3.3%: ${fmt(ex.withholding_tax)}</div>`;
+    if(doc.doc_type==='payroll'&&ex.total_4ins)exHTML+=`<div style="font-size:.78em;color:#6b7684">4대보험: ${fmt(ex.total_4ins)}</div>`;
+  }
+  /* 액션 버튼 — 상태별 분기 */
+  let actionsHTML='';
+  if(doc.status==='pending'){
+    actionsHTML=`<button onclick="approveDoc(${doc.id},this)" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">✅ 승인</button>`
+      +`<button onclick="rejectDocPrompt(${doc.id})" style="background:#fff;color:#f04452;border:1px solid #f04452;padding:7px 14px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">❌ 반려</button>`;
+  } else if(doc.status==='approved'){
+    actionsHTML=`<button onclick="revertDocApproval(${doc.id})" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;padding:7px 14px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">↺ 승인 취소</button>`;
+  } else if(doc.status==='rejected'){
+    actionsHTML=`<button onclick="approveDocById(${doc.id})" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">✅ 복원</button>`;
+  }
+  /* 사진으로 되돌리기 — 잘못 분류된 경우 (이미지 있는 doc만) */
+  if(!isPayroll && doc.status!=='approved'){
+    actionsHTML+=`<button onclick="revertDocToPhotoAdmin(${doc.id})" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:7px 12px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit" title="문서 분류 취소하고 일반 사진으로 표시">📷 사진으로</button>`;
+  }
   return ''
-    +`<div data-doc-id="${doc.id}" style="display:flex;gap:10px;min-width:300px;max-width:420px;border-radius:12px;overflow:hidden;background:#fff;border:1px solid #e5e8eb;padding:10px">`
-    +  `<div style="flex-shrink:0;width:96px;height:128px;background:#f3f4f6;border-radius:8px;overflow:hidden;cursor:zoom-in" onclick="openImgViewer('${imgUrl}',['${imgUrl}'])">`
-    +     `<img src="${imgUrl}" alt="영수증" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">`
-    +  `</div>`
+    +`<div data-doc-id="${doc.id}" style="display:flex;gap:10px;min-width:280px;max-width:430px;border-radius:12px;overflow:hidden;background:#fff;border:1px solid #e5e8eb;padding:10px">`
+    + (isPayroll
+        ? `<div style="flex-shrink:0;width:46px;height:46px;background:#dbeafe;color:#1d4ed8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4em">${doc.doc_type==='payroll'?'👥':'🧑‍💼'}</div>`
+        : `<div style="flex-shrink:0;width:96px;height:128px;background:#f3f4f6;border-radius:8px;overflow:hidden;cursor:zoom-in" onclick="openImgViewer('${imgUrl}',['${imgUrl}'])"><img src="${imgUrl}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy" onerror="this.style.display='none'"></div>`)
     +  `<div style="flex:1;min-width:0;font-size:.8em">`
-    +     `<div style="color:#8b95a1;font-size:.85em;margin-bottom:3px">🧾 영수증 · 신뢰도 ${doc.ocr_confidence!=null?Math.round(doc.ocr_confidence*100)+'%':'-'}${amb2}</div>`
+    +     `<div style="color:#8b95a1;font-size:.85em;margin-bottom:3px">${typeLabel}${isPayroll?'':' · 신뢰도 '+(doc.ocr_confidence!=null?Math.round(doc.ocr_confidence*100)+'%':'-')+amb2}</div>`
     +     `<div style="display:grid;grid-template-columns:48px 1fr;gap:3px 8px;align-items:center">`
-    +       `<label style="color:#8b95a1;font-size:.9em">가맹점</label>`
-    +       `<input type="text" value="${e(doc.vendor||'')}" data-field="vendor" ${canAct?'':'readonly'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit">`
-    +       `<label style="color:#8b95a1;font-size:.9em">금액</label>`
-    +       `<input type="number" value="${doc.amount||''}" data-field="amount" ${canAct?'':'readonly'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit">`
+    +       `<label style="color:#8b95a1;font-size:.9em">${isPayroll?'이름':'가맹점'}</label>`
+    +       `<input type="text" value="${e(doc.vendor||'')}" data-field="vendor" ${canEdit?'':'readonly'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
+    +       `<label style="color:#8b95a1;font-size:.9em">${isPayroll?'세전':'금액'}</label>`
+    +       `<input type="number" value="${doc.amount||''}" data-field="amount" ${canEdit?'':'readonly'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
     +       `<label style="color:#8b95a1;font-size:.9em">날짜</label>`
-    +       `<input type="text" value="${e(doc.receipt_date||'')}" data-field="receipt_date" placeholder="YYYY-MM-DD" ${canAct?'':'readonly'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit">`
-    +       `<label style="color:#8b95a1;font-size:.9em">카테고리</label>`
-    +       `<select data-field="category" ${canAct?'':'disabled'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit"><option value="">(선택)</option>${catSel}</select>`
+    +       `<input type="text" value="${e(doc.receipt_date||'')}" data-field="receipt_date" placeholder="YYYY-MM-DD" ${canEdit?'':'readonly'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
+    +       (isPayroll?'':`<label style="color:#8b95a1;font-size:.9em">카테고리</label>`
+    +         `<select data-field="category" ${canEdit?'':'disabled'} style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:4px;font-size:.92em;width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}"><option value="">(선택)</option>${catSel}</select>`)
     +     `</div>`
+    +     exHTML
     +     `<div style="margin-top:6px"><span style="display:inline-block;font-size:.78em;padding:2px 8px;border-radius:8px;background:${st.bg};color:${st.fg};font-weight:700">${st.tx}</span></div>`
     +     (doc.reject_reason?`<div style="margin-top:4px;font-size:.8em;color:#991b1b">반려: ${e(doc.reject_reason)}</div>`:'')
-    +     (canAct?`<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">`
-    +       `<button onclick="approveDoc(${doc.id},this)" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">✅ 승인</button>`
-    +       `<button onclick="rejectDocPrompt(${doc.id})" style="background:#fff;color:#f04452;border:1px solid #f04452;padding:7px 14px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">❌ 반려</button>`
-    +     `</div>`:'')
+    +     `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${actionsHTML}</div>`
     +  `</div>`
     +`</div>`;
 }
@@ -87,8 +113,8 @@ function renderMsgBody(content, attachedDoc){
   const p=parseMsg(content);
   let h='';
   if(p.reply){
-    const s=p.reply.s||'', t=(p.reply.t||'').slice(0,100);
-    h+='<div class="rc-quote"><div class="rc-quote-sender">↩︎ '+e(s)+'</div><div class="rc-quote-text">'+e(t)+'</div></div>';
+    const s=p.reply.s||'', t=(p.reply.t||'').slice(0,100), ji=p.reply.i||'';
+    h+='<div class="rc-quote" data-jump-mid="'+escAttr(String(ji))+'" onclick="jumpToOriginalMsgAdmin(\''+escAttr(String(ji))+'\')" style="cursor:pointer"><div class="rc-quote-sender">↩︎ '+e(s)+'</div><div class="rc-quote-text">'+e(t)+'</div></div>';
   }
   if(p.alert){
     const a=p.alert;
@@ -318,23 +344,56 @@ function stopRoomsPolling(){
   roomsPollTimer=null;roomMsgPollTimer=null;
 }
 
+function _adminRoomReadCount(roomId){
+  try{const v=localStorage.getItem('aread.'+roomId);return v==null?0:Number(v)||0}catch{return 0}
+}
+function _adminRoomMarkRead(roomId,count){
+  try{localStorage.setItem('aread.'+roomId,String(count||0))}catch{}
+}
 async function loadRoomList(){
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY));
     const d=await r.json();
     const el=$g('roomList');
     if(!d.rooms||d.rooms.length===0){el.innerHTML='<div class="empty" style="padding:40px 20px">상담방이 없습니다</div>';return}
+    let totalUnread=0;
     el.innerHTML=d.rooms.map(rm=>{
       const cls=['room-item'];
       if(currentRoomId===rm.id)cls.push('active');
       if(rm.status==='closed')cls.push('closed');
       const aiIcon=rm.ai_mode==='off'?'🙅':'🤖';
+      /* 미읽음 = 전체 사용자 메시지 수 - localStorage에 저장된 마지막 본 시점 카운트 */
+      const userCount=Number(rm.user_msg_count||0);
+      const seen=_adminRoomReadCount(rm.id);
+      let unread=Math.max(0, userCount - seen);
+      if(currentRoomId===rm.id) unread=0; /* 열려 있으면 0 */
+      totalUnread+=unread;
+      const badge=unread>0?'<span class="ri-unread" style="background:#f04452;color:#fff;border-radius:12px;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;padding:0 7px;font-size:.72em;font-weight:800;margin-left:6px">'+(unread>99?'99+':unread)+'</span>':'';
       return '<div class="'+cls.join(' ')+'" onclick="openRoom(\''+rm.id+'\')">'
-        +'<div class="ri-head"><span class="ri-name">'+e(rm.name||'상담방')+'</span><span class="ri-icon">'+aiIcon+'</span>'+(rm.status==='closed'?'<span class="ri-closed">종료</span>':'')+'</div>'
+        +'<div class="ri-head"><span class="ri-name">'+e(rm.name||'상담방')+'</span><span class="ri-icon">'+aiIcon+'</span>'+badge+(rm.status==='closed'?'<span class="ri-closed">종료</span>':'')+'</div>'
         +'<div class="ri-sub">🆔 '+e(rm.id)+' · 👥 '+rm.member_count+' · 💬 '+(rm.msg_count||0)+'</div>'
         +'<div class="ri-time">'+e(rm.last_msg_at||rm.created_at||'')+'</div>'
         +'</div>';
     }).join('');
+    /* 좌측 상담방 탭 배지 갱신 */
+    try{
+      const tabBtn=document.querySelector('button[onclick*="tab(\'rooms\')"]');
+      if(tabBtn){
+        const old=tabBtn.querySelector('.tab-unread');if(old)old.remove();
+        if(totalUnread>0){
+          const sp=document.createElement('span');
+          sp.className='tab-unread';
+          sp.style.cssText='display:inline-block;margin-left:6px;background:#f04452;color:#fff;border-radius:10px;min-width:18px;padding:0 6px;font-size:.7em;font-weight:800;line-height:18px';
+          sp.textContent=totalUnread>99?'99+':totalUnread;
+          tabBtn.appendChild(sp);
+        }
+      }
+    }catch{}
+    /* 현재 열려있는 방의 user_msg_count를 읽음 마킹 */
+    if(currentRoomId){
+      const cur=d.rooms.find(rm=>rm.id===currentRoomId);
+      if(cur)_adminRoomMarkRead(currentRoomId, cur.user_msg_count||0);
+    }
   }catch(err){$g('roomList').innerHTML='<div style="padding:20px;color:#f04452">오류: '+e(err.message)+'</div>'}
 }
 
@@ -393,6 +452,19 @@ async function loadRoomDetail(){
     }).join('');
     if(atBottom)container.scrollTop=container.scrollHeight;
   }catch(err){console.error(err)}
+}
+
+/* 답장 인용 클릭 → 원본 메시지 스크롤·하이라이트 */
+function jumpToOriginalMsgAdmin(mid){
+  if(!mid)return;
+  const bubble=document.querySelector('#roomChatBody .rc-msg-bubble[data-msg="'+mid+'"]')
+            || document.querySelector('.rc-msg-bubble[data-msg="'+mid+'"]');
+  if(!bubble){alert('원본 메시지를 찾을 수 없습니다');return}
+  bubble.scrollIntoView({behavior:'smooth',block:'center'});
+  const orig=bubble.style.boxShadow;
+  bubble.style.transition='box-shadow .35s ease';
+  bubble.style.boxShadow='0 0 0 3px rgba(244,196,48,.85)';
+  setTimeout(()=>{bubble.style.boxShadow=orig||''},1400);
 }
 
 /* ===== 메시지 컨텍스트 메뉴 (long-press/right-click) + 답장·복사 ===== */
@@ -564,6 +636,10 @@ async function sendRoomImage(fileInput){
   const file=fileInput.files[0];
   fileInput.value='';
   if(!file)return;
+  await sendRoomImageFile(file);
+}
+async function sendRoomImageFile(file){
+  if(!currentRoomId||!file)return;
   if(file.size>10*1024*1024){alert('10MB 이하 이미지만 업로드 가능합니다');return}
   try{
     const fd=new FormData();fd.append('file',file);
@@ -576,6 +652,60 @@ async function sendRoomImage(fileInput){
     else alert('전송 실패: '+(d2.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
 }
+/* 메시지 입력칸 클립보드(Ctrl+V) + 드래그앤드롭 첨부 — 관리자 */
+(function(){
+  function isImage(f){return f&&f.type&&f.type.indexOf('image/')===0}
+  async function sendImagesAdmin(files){
+    let arr=Array.from(files||[]).filter(isImage);
+    if(!arr.length)return;
+    if(arr.length>10){alert('한 번에 최대 10장까지');arr=arr.slice(0,10)}
+    for(const f of arr) await sendRoomImageFile(f);
+  }
+  function init(){
+    const input=document.getElementById('roomInput');
+    const area=document.getElementById('roomInputArea');
+    if(!input||!area)return false;
+    input.addEventListener('paste',function(e){
+      if(!currentRoomId)return;
+      const files=(e.clipboardData&&e.clipboardData.files)||[];
+      const imgs=Array.from(files).filter(isImage);
+      if(!imgs.length)return;
+      e.preventDefault();
+      sendImagesAdmin(imgs);
+    });
+    let overlay=null,depth=0;
+    function showOverlay(){
+      if(overlay)return;
+      overlay=document.createElement('div');
+      overlay.style.cssText='position:fixed;inset:0;background:rgba(49,130,246,.18);border:3px dashed #3182f6;pointer-events:none;z-index:99999;display:flex;align-items:center;justify-content:center;color:#1e3a8a;font-size:1.4em;font-weight:800';
+      overlay.textContent='📎 이미지를 놓으면 전송됩니다';
+      document.body.appendChild(overlay);
+    }
+    function hideOverlay(){if(overlay){overlay.remove();overlay=null}}
+    document.addEventListener('dragenter',function(e){
+      if(!currentRoomId)return;
+      if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
+      depth++;showOverlay();
+    });
+    document.addEventListener('dragover',function(e){
+      if(!currentRoomId)return;
+      if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
+      e.preventDefault();
+    });
+    document.addEventListener('dragleave',function(){depth--;if(depth<=0){depth=0;hideOverlay()}});
+    document.addEventListener('drop',function(e){
+      if(!currentRoomId){depth=0;hideOverlay();return}
+      const files=(e.dataTransfer&&e.dataTransfer.files)||[];
+      const imgs=Array.from(files).filter(isImage);
+      depth=0;hideOverlay();
+      if(!imgs.length)return;
+      e.preventDefault();
+      sendImagesAdmin(imgs);
+    });
+    return true;
+  }
+  if(!init())document.addEventListener('DOMContentLoaded',init);
+})();
 
 async function sendRoomFile(fileInput){
   if(!currentRoomId)return;
@@ -2174,7 +2304,21 @@ function openRoomForCurrentCustomer(){
 }
 
 function docTypeLabelAdmin(t){
-  const map={receipt:'🧾 영수증',lease:'🏠 임대차',payroll:'👥 근로',tax_invoice:'📑 세계산서',insurance:'🛡️ 보험',utility:'💧 공과금',property_tax:'🚗 지방세',bank_stmt:'🏦 은행',business_reg:'📋 사업자등록',identity:'🪪 신분증',contract:'📝 계약',other:'📄 기타'};
+  const map={
+    receipt:'🧾 영수증',
+    lease:'🏠 임대차',
+    payroll:'👥 근로(4대보험)',
+    freelancer_payment:'🧑‍💼 프리랜서(3.3%)',
+    tax_invoice:'📑 세계산서',
+    insurance:'🛡️ 보험',
+    utility:'💧 공과금',
+    property_tax:'🚗 지방세',
+    bank_stmt:'🏦 은행',
+    business_reg:'📋 사업자등록',
+    identity:'🪪 신분증',
+    contract:'📝 계약',
+    other:'📄 기타'
+  };
   return map[t]||('📄 '+(t||'?'));
 }
 function docStatusBadge(s){
@@ -2310,6 +2454,139 @@ async function postSummaryToRoom(){
     } else alert('게시 실패: '+(d.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
 }
+/* ===== 거래처 재무 데이터 (매출/매입/세금) ===== */
+let _finCurrentUserId=null;
+let _finRows=[];
+async function openFinancePanel(){
+  if(!docsSelectedUserId){alert('거래처를 먼저 선택하세요');return}
+  _finCurrentUserId=docsSelectedUserId;
+  const cust=docsCustomers.find(c=>c.user_id===_finCurrentUserId);
+  $g('finCustName').textContent=cust?(cust.real_name||cust.name||('#'+_finCurrentUserId)):('#'+_finCurrentUserId);
+  $g('financeModal').style.display='flex';
+  document.body.style.overflow='hidden';
+  await loadFinanceRows();
+}
+function closeFinancePanel(){
+  $g('financeModal').style.display='none';
+  document.body.style.overflow='';
+}
+async function loadFinanceRows(){
+  const body=$g('finBody');
+  body.innerHTML='<div style="text-align:center;color:#8b95a1;padding:30px 0">불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/admin-finance?key='+encodeURIComponent(KEY)+'&user_id='+_finCurrentUserId);
+    const d=await r.json();
+    if(d.error){body.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(d.error)+'</div>';return}
+    _finRows=d.rows||[];
+    if(!_finRows.length){
+      body.innerHTML='<div style="text-align:center;color:#8b95a1;padding:50px 0;font-size:.88em">'
+        +'재무 데이터가 없습니다. <b>+ 항목 추가</b>로 직접 입력하거나,<br>'
+        +'<code style="background:#f9fafb;padding:2px 6px;border-radius:4px">finance_pdfs/'+_finCurrentUserId+'/</code> 폴더에 PDF 푸시 후<br>'
+        +'세무사님이 Claude한테 "거래처 PDF 처리해줘 [거래처명]" 요청하시면 자동 입력됩니다.'
+        +'</div>';
+      return;
+    }
+    const fmt=n=>n==null?'-':(Number(n)||0).toLocaleString('ko-KR');
+    const ptLabel={monthly:'월',quarterly:'분기',yearly:'연',vat_period:'부가세'};
+    body.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:.82em">'
+      +'<thead style="background:#f9fafb;position:sticky;top:0">'
+      +'<tr>'
+      +'<th style="padding:8px;text-align:left;border-bottom:1px solid #e5e8eb">기간</th>'
+      +'<th style="padding:8px;text-align:right;border-bottom:1px solid #e5e8eb">매출</th>'
+      +'<th style="padding:8px;text-align:right;border-bottom:1px solid #e5e8eb">매입</th>'
+      +'<th style="padding:8px;text-align:right;border-bottom:1px solid #e5e8eb">부가세</th>'
+      +'<th style="padding:8px;text-align:right;border-bottom:1px solid #e5e8eb">소득세</th>'
+      +'<th style="padding:8px;text-align:right;border-bottom:1px solid #e5e8eb">인건비</th>'
+      +'<th style="padding:8px;text-align:left;border-bottom:1px solid #e5e8eb">출처</th>'
+      +'<th style="padding:8px;border-bottom:1px solid #e5e8eb"></th>'
+      +'</tr></thead><tbody>'
+      +_finRows.map(r=>{
+        const src=r.source==='pdf'?'📄 PDF':(r.source==='wehago'?'📊 위하고':'✏️ 수동');
+        return '<tr style="border-bottom:1px solid #f2f4f6">'
+          +'<td style="padding:7px 8px;font-weight:600">'+e(r.period)+' <span style="font-size:.85em;color:#8b95a1">('+(ptLabel[r.period_type]||r.period_type||'')+')</span></td>'
+          +'<td style="padding:7px 8px;text-align:right">'+fmt(r.revenue)+'</td>'
+          +'<td style="padding:7px 8px;text-align:right">'+fmt(r.cost)+'</td>'
+          +'<td style="padding:7px 8px;text-align:right;color:#dc2626">'+fmt(r.vat_payable)+'</td>'
+          +'<td style="padding:7px 8px;text-align:right;color:#dc2626">'+fmt(r.income_tax)+'</td>'
+          +'<td style="padding:7px 8px;text-align:right">'+fmt(r.payroll_total)+'</td>'
+          +'<td style="padding:7px 8px;font-size:.85em;color:#8b95a1">'+src+'</td>'
+          +'<td style="padding:7px 8px;text-align:right"><button onclick="openFinanceEditRow('+r.id+')" style="background:#e5e8eb;border:none;padding:3px 9px;border-radius:5px;font-size:.85em;cursor:pointer;font-family:inherit">수정</button></td>'
+          +'</tr>';
+      }).join('')
+      +'</tbody></table>';
+  }catch(err){body.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>'}
+}
+function _finFillForm(row){
+  $g('finRowId').value=row?row.id:'';
+  $g('finPeriod').value=row?row.period||'':'';
+  $g('finPeriodType').value=row?row.period_type||'monthly':'monthly';
+  $g('finRevenue').value=row?(row.revenue==null?'':row.revenue):'';
+  $g('finCost').value=row?(row.cost==null?'':row.cost):'';
+  $g('finVatPayable').value=row?(row.vat_payable==null?'':row.vat_payable):'';
+  $g('finVatInput').value=row?(row.vat_input==null?'':row.vat_input):'';
+  $g('finVatOutput').value=row?(row.vat_output==null?'':row.vat_output):'';
+  $g('finIncomeTax').value=row?(row.income_tax==null?'':row.income_tax):'';
+  $g('finTaxableIncome').value=row?(row.taxable_income==null?'':row.taxable_income):'';
+  $g('finPayrollTotal').value=row?(row.payroll_total==null?'':row.payroll_total):'';
+  $g('finNotes').value=row?row.notes||'':'';
+  $g('finRowTitle').textContent=row?'재무 항목 수정 — '+row.period:'재무 항목 추가';
+  $g('finDelBtn').style.display=row?'inline-block':'none';
+  $g('finRowModal').style.display='flex';
+}
+function openFinanceAddRow(){
+  if(!_finCurrentUserId){alert('거래처가 선택되지 않았습니다');return}
+  const today=new Date(Date.now()+9*60*60*1000);
+  const yyyymm=today.getUTCFullYear()+'-'+String(today.getUTCMonth()+1).padStart(2,'0');
+  _finFillForm(null);
+  $g('finPeriod').value=yyyymm;
+}
+function openFinanceEditRow(id){
+  const row=_finRows.find(x=>x.id===id);
+  if(!row){alert('항목을 찾을 수 없습니다');return}
+  _finFillForm(row);
+}
+function closeFinanceRow(){$g('finRowModal').style.display='none'}
+async function saveFinanceRow(){
+  const period=$g('finPeriod').value.trim();
+  if(!period){alert('기간(예: 2026-04, 2026-Q1, 2026)을 입력해 주세요');return}
+  const id=$g('finRowId').value;
+  const num=v=>{const t=v.trim();if(!t)return null;const n=parseInt(t.replace(/[^\d-]/g,''),10);return isNaN(n)?null:n};
+  const body={
+    user_id:_finCurrentUserId,
+    period:period,
+    period_type:$g('finPeriodType').value||'monthly',
+    revenue:num($g('finRevenue').value),
+    cost:num($g('finCost').value),
+    vat_payable:num($g('finVatPayable').value),
+    vat_input:num($g('finVatInput').value),
+    vat_output:num($g('finVatOutput').value),
+    income_tax:num($g('finIncomeTax').value),
+    taxable_income:num($g('finTaxableIncome').value),
+    payroll_total:num($g('finPayrollTotal').value),
+    notes:$g('finNotes').value.trim()||null,
+    source:'manual',
+  };
+  try{
+    const r=await fetch('/api/admin-finance?key='+encodeURIComponent(KEY)+'&action=upsert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!d.ok){alert('저장 실패: '+(d.error||'unknown'));return}
+    closeFinanceRow();
+    loadFinanceRows();
+  }catch(err){alert('오류: '+err.message)}
+}
+async function deleteFinanceRow(){
+  const id=$g('finRowId').value;
+  if(!id)return;
+  if(!confirm('이 항목을 삭제하시겠어요?'))return;
+  try{
+    const r=await fetch('/api/admin-finance?key='+encodeURIComponent(KEY)+'&action=delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:Number(id)})});
+    const d=await r.json();
+    if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
+    closeFinanceRow();
+    loadFinanceRows();
+  }catch(err){alert('오류: '+err.message)}
+}
+
 /* 간단 마크다운 렌더 (## 헤더, - 리스트, 볼드) */
 function renderMarkdownLite(md){
   if(!md)return '';
@@ -2401,23 +2678,24 @@ let docsRawList=[];        // 전체 원본 (거래처의 모든 문서)
 
 // 타입별 탭 정의 — [key, 라벨, 아이콘]
 const DOC_TYPE_TABS = [
-  ['all',          '전체',     '📋'],
-  ['receipt',      '영수증',    '🧾'],
-  ['tax_invoice',  '세금계산서',  '📑'],
-  ['lease',        '임대차',    '🏠'],
-  ['insurance',    '보험',      '🛡️'],
-  ['utility',      '공과금',    '💧'],
-  ['property_tax', '지방세',    '🚗'],
-  ['payroll',      '근로',      '👥'],
-  ['bank_stmt',    '은행',      '🏦'],
-  ['business_reg', '사업자등록', '📋'],
-  ['identity',     '신분증',    '🪪'],
-  ['contract',     '계약',      '📝'],
-  ['other',        '기타',      '📄'],
+  ['all',                '전체',           '📋'],
+  ['receipt',            '영수증',          '🧾'],
+  ['tax_invoice',        '세금계산서',       '📑'],
+  ['lease',              '임대차',          '🏠'],
+  ['insurance',          '보험',            '🛡️'],
+  ['utility',            '공과금',          '💧'],
+  ['property_tax',       '지방세',          '🚗'],
+  ['payroll',            '근로(4대보험)',    '👥'],
+  ['freelancer_payment', '프리랜서(3.3%)',  '🧑‍💼'],
+  ['bank_stmt',          '은행',            '🏦'],
+  ['business_reg',       '사업자등록',       '📋'],
+  ['identity',           '신분증',          '🪪'],
+  ['contract',           '계약',            '📝'],
+  ['other',              '기타',            '📄'],
 ];
 
 // 공통 컬럼 (모든 타입 앞·뒤 공통)
-const DOC_TYPE_KEYS = ['receipt','tax_invoice','lease','insurance','utility','property_tax','payroll','bank_stmt','business_reg','identity','contract','other'];
+const DOC_TYPE_KEYS = ['receipt','tax_invoice','lease','insurance','utility','property_tax','payroll','freelancer_payment','bank_stmt','business_reg','identity','contract','other'];
 
 /* approved 면 잠금, pending/rejected 면 편집 가능 */
 function _docEditable(p){ return p.data.status !== 'approved'; }
@@ -2749,6 +3027,21 @@ async function revertDocApproval(docId){
     if(d.ok){
       if(typeof showAdminToast==='function')showAdminToast('↺ 승인 취소됨 — 편집 가능');
       loadDocsTab();
+    } else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+
+// 문서로 잘못 분류된 것을 일반 사진으로 되돌리기 (관리자)
+async function revertDocToPhotoAdmin(docId){
+  if(!docId)return;
+  if(!confirm('이 문서 분류를 취소하고 일반 사진으로 되돌리시겠어요?\n(상담방 메시지가 [DOC]에서 [IMG]로 바뀝니다)'))return;
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=revert_to_photo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:docId})});
+    const d=await r.json();
+    if(d.ok){
+      if(typeof showAdminToast==='function')showAdminToast('📷 사진으로 되돌렸습니다');
+      if(typeof loadRoomDetail==='function')loadRoomDetail();
+      if(typeof loadDocsTab==='function')loadDocsTab();
     } else alert('실패: '+(d.error||'unknown'));
   }catch(e){alert('오류: '+e.message)}
 }

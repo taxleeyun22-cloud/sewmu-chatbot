@@ -662,6 +662,22 @@ export async function onRequestPost(context) {
     return Response.json({ ok: true });
   }
 
+  if (action === 'revert_to_photo') {
+    /* 문서로 잘못 분류된 것을 일반 사진으로 되돌리기:
+       - 해당 [DOC:id] 메시지를 [IMG]/api/image?k=... 로 변경
+       - documents 행은 status='reverted'로 마킹 (감사 기록 보존, 화면에서 제외) */
+    const { id } = body;
+    if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
+    const doc = await db.prepare(`SELECT id, image_key FROM documents WHERE id = ?`).bind(id).first();
+    if (!doc) return Response.json({ error: '문서 없음' }, { status: 404 });
+    const newContent = '[IMG]/api/image?k=' + encodeURIComponent(doc.image_key);
+    await db.prepare(`UPDATE conversations SET content = ? WHERE content LIKE ?`)
+      .bind(newContent, `[DOC:${id}]%`).run();
+    await db.prepare(`UPDATE documents SET status = 'reverted', approver_id = ?, approved_at = ? WHERE id = ?`)
+      .bind(approverId, kst(), id).run();
+    return Response.json({ ok: true });
+  }
+
   if (action === 'dismiss_alert') {
     const { id } = body;
     if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });

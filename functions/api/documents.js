@@ -83,7 +83,7 @@ function ym() {
   return kst().substring(0, 7);
 }
 
-// ============ POST: 업로드 + OCR ============
+// ============ POST: 업로드 + OCR (또는 ?action=revert_to_photo) ============
 export async function onRequestPost(context) {
   const db = context.env.DB;
   const bucket = context.env.MEDIA_BUCKET;
@@ -96,6 +96,27 @@ export async function onRequestPost(context) {
   }
 
   await ensureTables(db);
+
+  // 본인 소유 문서를 사진으로 되돌리기 (잘못 분류된 경우)
+  const _url = new URL(context.request.url);
+  if (_url.searchParams.get('action') === 'revert_to_photo') {
+    try {
+      const b = await context.request.json();
+      const id = Number(b.id || 0);
+      if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
+      const doc = await db.prepare(`SELECT id, image_key, status FROM documents WHERE id=? AND user_id=?`)
+        .bind(id, user.user_id).first();
+      if (!doc) return Response.json({ error: 'not_found' }, { status: 404 });
+      if (doc.status === 'approved') return Response.json({ error: '이미 승인된 문서는 사진으로 되돌릴 수 없습니다. 세무사에게 요청해주세요.' }, { status: 400 });
+      const newContent = '[IMG]/api/image?k=' + encodeURIComponent(doc.image_key);
+      await db.prepare(`UPDATE conversations SET content=? WHERE content LIKE ?`)
+        .bind(newContent, `[DOC:${id}]%`).run();
+      await db.prepare(`UPDATE documents SET status='reverted' WHERE id=?`).bind(id).run();
+      return Response.json({ ok: true });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
 
   // 월 예산 가드 (기본 20만원 = ~$150)
   const monthLimitCents = Number(context.env.OCR_MONTH_LIMIT_CENTS || '15000'); // 150 USD cents 단위

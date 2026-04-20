@@ -615,6 +615,7 @@ export async function onRequestPost(context) {
     // 기장거래처면 사업장 목록 조회 + 사용자 실명 조회 (복수 사업장 지원)
     let clientContext = "";
     let userRealName = null;
+    let financeContext = "";
     if (db && approvalStatus === 'approved_client') {
       try {
         const u = await db.prepare(`SELECT real_name FROM users WHERE id = ?`).bind(userId).first();
@@ -622,6 +623,39 @@ export async function onRequestPost(context) {
         const businesses = await getClientBusinesses(db, userId);
         clientContext = buildClientContext(businesses, userRealName);
       } catch {}
+      // 재무 데이터 (매출·매입·세금) — 세무사가 입력해 둔 client_finance 최근 12건
+      try {
+        const { results: finRows } = await db.prepare(
+          `SELECT period, period_type, revenue, cost, vat_payable, income_tax, taxable_income, payroll_total, notes
+           FROM client_finance WHERE user_id = ?
+           ORDER BY period DESC LIMIT 12`
+        ).bind(userId).all();
+        if (finRows && finRows.length) {
+          const fmt = n => n == null ? null : Number(n).toLocaleString('ko-KR');
+          const lines = finRows.map(r => {
+            const parts = [r.period];
+            if (r.revenue != null) parts.push('매출 ' + fmt(r.revenue));
+            if (r.cost != null) parts.push('매입 ' + fmt(r.cost));
+            if (r.vat_payable != null) parts.push('부가세 ' + fmt(r.vat_payable));
+            if (r.income_tax != null) parts.push('소득세 ' + fmt(r.income_tax));
+            if (r.payroll_total != null) parts.push('인건비 ' + fmt(r.payroll_total));
+            if (r.notes) parts.push('(' + r.notes + ')');
+            return '  · ' + parts.join(' / ');
+          });
+          financeContext = `
+
+===== 📊 거래처 재무 데이터 (세무사 입력 — 최근 12건) =====
+이 거래처의 최근 매출·매입·세금 데이터야. "내 매출은?" "이번달 매출 얼마?" "작년 부가세 얼마 냈지?" 같은 질문에 이 데이터로 답해.
+${lines.join('\n')}
+
+[활용 규칙]
+- 위 데이터에 있는 기간만 단정해서 답해. 없는 기간은 "그 기간은 아직 자료가 입력 안 돼서 담당 세무사 확인이 필요합니다" 안내.
+- 추세 비교(전년 동기 대비, 지난달 대비) 가능. 단, 둘 다 데이터가 있을 때만.
+- 추측·반올림 과장 금지. 표시된 숫자 그대로 사용.
+- 신뢰도 항상 [신뢰도: 높음] (세무사 직접 입력 데이터)
+`;
+        }
+      } catch (e) { /* 테이블 없으면 무시 */ }
     }
 
     // 기장거래처 전용 인사·말투 섹션 (수수료 안내 등 영업 멘트 제거)
@@ -659,7 +693,7 @@ export async function onRequestPost(context) {
 
     // buildSystemPrompt 함수 정의 (faqSection: RAG 결과 있으면 그것, 없으면 전체 하드코딩)
     const buildSystemPrompt = (lawContext, faqSection) => `너는 대구 달서구 세무회계 이윤의 AI 세무 상담 어시스턴트야.
-세무회계 이윤은 대표세무사 이재윤이 운영하며, 주요 거래처는 음식점, 휴대폰매장, 배달업, 소매업 등 개인사업자와 중소 법인이야.${clientToneSection}
+세무회계 이윤은 대표세무사 이재윤이 운영하며, 주요 거래처는 음식점, 휴대폰매장, 배달업, 소매업 등 개인사업자와 중소 법인이야.${clientToneSection}${financeContext}
 
 ===== 절대 금지 사항 =====
 - 수수료, 기장료, 조정료 금액을 절대 언급하지 마. "수수료는 사무실로 문의해 주세요"로만 안내.

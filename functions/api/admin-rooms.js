@@ -251,11 +251,13 @@ export async function onRequestGet(context) {
       return Response.json({ room, members: members || [], messages: messages || [] });
     }
 
-    // 목록
+    // 목록 — 사용자 메시지 수(user_msg_count)도 같이 (관리자 미읽음 계산용)
     const { results } = await db.prepare(`
       SELECT r.*,
              (SELECT COUNT(*) FROM room_members WHERE room_id = r.id AND left_at IS NULL) as member_count,
              (SELECT COUNT(*) FROM conversations WHERE room_id = r.id) as msg_count,
+             (SELECT COUNT(*) FROM conversations WHERE room_id = r.id AND role = 'user') as user_msg_count,
+             (SELECT MAX(created_at) FROM conversations WHERE room_id = r.id AND role = 'user') as last_user_msg_at,
              (SELECT MAX(created_at) FROM conversations WHERE room_id = r.id) as last_msg_at
       FROM chat_rooms r
       ORDER BY r.status ASC, last_msg_at DESC NULLS LAST, r.created_at DESC
