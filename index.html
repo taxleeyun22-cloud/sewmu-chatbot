@@ -2169,16 +2169,36 @@ function renderSavedPeople(){
   var arr=plGetPeople();
   if(!arr.length){box.style.display='none';return}
   box.style.display='block';
-  box.innerHTML='<div style="font-size:.72em;color:var(--text2);margin-bottom:4px">💾 자주 쓰는 사람 (눌러서 자동 입력)</div>'
-    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
-    +arr.map(function(p,i){
-      var modeTag=p.mode==='4ins'?'<span style="font-size:.65em;opacity:.7">👥</span>':'<span style="font-size:.65em;opacity:.7">🧑‍💼</span>';
-      return '<div style="display:inline-flex;align-items:center;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:4px 4px 4px 10px;font-size:.78em">'
-        +'<span onclick="plPickPerson('+i+')" style="cursor:pointer">'+modeTag+' '+esc(p.name)+'</span>'
-        +'<button onclick="plRemovePerson('+i+')" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:.9em;padding:0 4px;line-height:1" title="삭제">✕</button>'
-        +'</div>';
-    }).join('')
-    +'</div>';
+  box.innerHTML='<button type="button" onclick="togglePlPeopleList()" id="plPeopleBtn" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:.85em;font-family:inherit;cursor:pointer">'
+    +'<span>💾 저장된 사람 <b>'+arr.length+'명</b> 에서 선택</span>'
+    +'<span id="plPeopleArr" style="font-size:1em">▾</span>'
+    +'</button>'
+    +'<div id="plPeopleList" style="display:none;margin-top:6px;max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)"></div>';
+  renderPlPeopleList();
+}
+function renderPlPeopleList(){
+  var el=document.getElementById('plPeopleList');
+  if(!el)return;
+  var arr=plGetPeople();
+  el.innerHTML=arr.map(function(p,i){
+    var modeTag=p.mode==='4ins'?'👥 4대보험':'🧑‍💼 프리랜서(3.3%)';
+    var residShow=p.resid?p.resid.substring(0,8)+'*****':'';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer" onclick="plPickPerson('+i+')">'
+      +'<div style="flex:1;min-width:0">'
+      +  '<div style="font-weight:600;font-size:.88em">'+esc(p.name)+'</div>'
+      +  '<div style="font-size:.72em;color:var(--text2);margin-top:1px">'+esc(residShow)+' · '+modeTag+'</div>'
+      +'</div>'
+      +'<button onclick="event.stopPropagation();plRemovePerson('+i+')" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:1em;padding:4px 6px;line-height:1" title="삭제">✕</button>'
+      +'</div>';
+  }).join('');
+}
+function togglePlPeopleList(){
+  var list=document.getElementById('plPeopleList');
+  var arr=document.getElementById('plPeopleArr');
+  if(!list)return;
+  var open=list.style.display!=='none';
+  list.style.display=open?'none':'block';
+  if(arr)arr.textContent=open?'▾':'▴';
 }
 function plPickPerson(i){
   var arr=plGetPeople();
@@ -2186,6 +2206,11 @@ function plPickPerson(i){
   document.getElementById('plName').value=p.name;
   document.getElementById('plResid').value=p.resid;
   if(p.mode)setPayrollMode(p.mode);
+  /* 리스트 닫기 */
+  var list=document.getElementById('plPeopleList');
+  if(list)list.style.display='none';
+  var arrEl=document.getElementById('plPeopleArr');
+  if(arrEl)arrEl.textContent='▾';
   document.getElementById('plAmount').focus();
 }
 function openPayrollModal(){
