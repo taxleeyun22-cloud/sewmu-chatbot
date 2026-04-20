@@ -452,6 +452,43 @@
 
 <!-- FAQ 관리 (RAG) -->
 <div id="faqView" style="display:none">
+<!-- 📖 FAQ 관리 사용 설명서 (접었다 폈다 가능) -->
+<details id="faqHelpCard" style="background:#fffbea;border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;margin-bottom:12px">
+  <summary style="cursor:pointer;font-weight:700;color:#92400e;font-size:.92em;list-style:none;display:flex;align-items:center;gap:6px">
+    <span>📖 FAQ 관리 사용 설명서</span>
+    <span style="font-size:.72em;color:#a16207;font-weight:500">(눌러서 펼치기/접기)</span>
+  </summary>
+  <div style="margin-top:10px;font-size:.82em;line-height:1.65;color:#78350f">
+    <p style="margin:0 0 10px"><b>FAQ란?</b> 챗봇이 고객 질문에 답할 때 참고하는 <u>RAG(검색 증강 생성)</u> 데이터베이스. 법령·판례·실무 기준을 미리 저장해두면 AI가 답변할 때 먼저 찾아봄 → 할루시네이션 감소·정확도 상승.</p>
+    <p style="margin:0 0 8px"><b>핵심 버튼 (좌 → 우 사용 순서)</b></p>
+    <ul style="margin:0 0 10px 18px;padding:0">
+      <li><b>＋ 새 FAQ</b> — 질문·답변·근거 법령 직접 입력. 저장 시 자동 벡터 임베딩 → 즉시 검색 반영</li>
+      <li><b>🚀 마이그레이션</b> — chat.js 하드코딩 FAQ(Q1~Q70)를 DB로 한 번에 이관. 처음 한 번만 누름</li>
+      <li><b>📦 배치 1 추가</b> — 미리 작성된 50개 FAQ 시드(간이과세·양도세·연말정산·퇴직금·증여세) 일괄 로딩. 한 번만 실행</li>
+      <li><b>🔍 Claude 검증 적용</b> — Claude가 삼중체크해서 만든 _faq-verify-report.js 결과를 FAQ DB에 일괄 반영 (상태: verified/suspicious/wrong 갱신)</li>
+      <li><b>🚀 Claude 재검토 요청</b> — 🟡의심·❌틀림 FAQ를 flagged-faqs.json으로 GitHub에 업로드 → Claude(나)에게 "flagged-faqs.json 처리해줘" 말씀하시면 법조문 재확인 후 수정</li>
+      <li><b>✨ 재검증 V1 적용</b> — Claude가 재검토해서 수정한 결과를 FAQ DB에 일괄 반영</li>
+      <li><b>♻️ 전체 재임베딩</b> — 임베딩 모델 교체·품질 이슈 시 전체 벡터 다시 생성 (비용·시간 소요)</li>
+      <li><b>📦 백업 다운로드</b> — D1 전체 테이블을 JSON으로 다운로드. 주기적 백업용</li>
+    </ul>
+    <p style="margin:0 0 8px"><b>검증 상태 뱃지</b></p>
+    <ul style="margin:0 0 10px 18px;padding:0">
+      <li>❓ <b>미검증</b> — 새로 추가한 것, Claude 검증 전</li>
+      <li>✅ <b>통과</b> — 법조문·수치 확인됨, 안심하고 사용</li>
+      <li>🟡 <b>의심</b> — 애매한 부분 있음. Claude 재검토 필요</li>
+      <li>❌ <b>틀림</b> — 내용 오류 확정. 수정 대기</li>
+    </ul>
+    <p style="margin:0 0 8px"><b>일반 사용 흐름 (추천)</b></p>
+    <ol style="margin:0 0 10px 18px;padding:0">
+      <li>검색·필터로 기존 FAQ 확인 (중복 방지)</li>
+      <li>＋ 새 FAQ 로 질문+답변+근거 법령 입력 → 저장</li>
+      <li>🚀 Claude 재검토 요청 → 내게 "flagged-faqs.json 처리해줘" → 자동 수정·검증</li>
+      <li>✨ 재검증 V1 적용 → 결과 반영</li>
+      <li>주기적으로 📦 백업 다운로드</li>
+    </ol>
+    <p style="margin:0;font-size:.9em;color:#a16207"><b>💡 팁</b> — 잘 모르겠으면 "새 FAQ" 추가만 해도 됨. Claude 재검토는 내가 알아서 체크.</p>
+  </div>
+</details>
 <div style="background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
   <div style="flex:1;min-width:200px">
     <div style="font-size:.92em;font-weight:700;margin-bottom:4px">📚 FAQ 관리</div>
