@@ -663,12 +663,12 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       <div style="font-size:.9em;font-weight:700;flex:1">상담방 정보</div>
       <button onclick="document.getElementById('roomInfoModal').style.display='none'" style="background:none;border:none;font-size:1.1em;cursor:pointer;color:var(--text2)">✕</button>
     </div>
-    <div style="display:flex;border-bottom:1px solid var(--border);overflow-x:auto">
-      <button class="uri-tab on" data-tab="search" onclick="uriSwitch('search')">🔍 검색</button>
-      <button class="uri-tab" data-tab="photo" onclick="uriSwitch('photo')">📷 사진</button>
-      <button class="uri-tab" data-tab="file" onclick="uriSwitch('file')">📁 파일</button>
-      <button class="uri-tab" data-tab="link" onclick="uriSwitch('link')">🔗 링크</button>
-      <button class="uri-tab" data-tab="notice" onclick="uriSwitch('notice')">📌 공지</button>
+    <div style="display:flex;border-bottom:1px solid var(--border)">
+      <button class="uri-tab on" data-tab="search" onclick="uriSwitch('search')"><span class="uri-tab-ic">🔍</span><span class="uri-tab-lb">검색</span></button>
+      <button class="uri-tab" data-tab="photo" onclick="uriSwitch('photo')"><span class="uri-tab-ic">📷</span><span class="uri-tab-lb">사진</span></button>
+      <button class="uri-tab" data-tab="file" onclick="uriSwitch('file')"><span class="uri-tab-ic">📁</span><span class="uri-tab-lb">파일</span></button>
+      <button class="uri-tab" data-tab="link" onclick="uriSwitch('link')"><span class="uri-tab-ic">🔗</span><span class="uri-tab-lb">링크</span></button>
+      <button class="uri-tab" data-tab="notice" onclick="uriSwitch('notice')"><span class="uri-tab-ic">📌</span><span class="uri-tab-lb">공지</span></button>
     </div>
     <div style="flex:1;overflow-y:auto;background:var(--bg)">
       <div id="uriSearchPanel" class="uri-panel">
@@ -694,8 +694,10 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
 </div>
 
 <style>
-.uri-tab{flex:1;background:var(--card);border:none;padding:10px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2);border-bottom:2px solid transparent}
+.uri-tab{flex:1;min-width:0;background:var(--card);border:none;padding:9px 4px 8px;cursor:pointer;font-family:inherit;color:var(--text2);border-bottom:2px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;-webkit-tap-highlight-color:transparent}
 .uri-tab.on{color:var(--blue);border-bottom-color:var(--blue)}
+.uri-tab-ic{font-size:1.15em;line-height:1}
+.uri-tab-lb{font-size:.72em;font-weight:600;white-space:nowrap;letter-spacing:.2px}
 .uri-panel{min-height:200px}
 .uri-photo{aspect-ratio:1;background:var(--border);border-radius:6px;overflow:hidden;cursor:pointer}
 .uri-photo img{width:100%;height:100%;object-fit:cover;display:block}
