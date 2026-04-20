@@ -183,6 +183,7 @@ export async function onRequestGet(context) {
   if (action === 'stats') return await getStats(db, url);
   if (action === 'export') return await exportDocs(db, url);
   if (action === 'alerts') return await getAlerts(db, url);
+  if (action === 'by_user') return await getByUser(db, url);
 
   const id = url.searchParams.get('id');
   if (id) {
@@ -336,6 +337,92 @@ async function exportDocs(db, url) {
 function docTypeShort(t) {
   const map = { receipt: '영수증', tax_invoice: '세계산서', lease: '임대차', insurance: '보험', utility: '공과금', property_tax: '지방세', payroll: '급여', bank_stmt: '은행내역', business_reg: '사업자등록', identity: '신분증', contract: '계약', other: '기타' };
   return map[t] || t || '기타';
+}
+
+// ============ 거래처별 요약 ============
+// 각 user에 대해: 총 문서수, 대기수, 이번달 문서수·금액합, 마지막 업로드 시각
+// 대상: approved_client + (문서가 1건이라도 있는 사용자)
+async function getByUser(db, url) {
+  const thisMonth = kst().substring(0, 7);
+  // 1) 문서가 있는 사용자 집계
+  const { results: docAgg } = await db.prepare(
+    `SELECT d.user_id,
+            COUNT(*) AS total,
+            SUM(CASE WHEN d.status='pending' THEN 1 ELSE 0 END) AS pending,
+            SUM(CASE WHEN d.status='approved' THEN 1 ELSE 0 END) AS approved,
+            SUM(CASE WHEN d.status='rejected' THEN 1 ELSE 0 END) AS rejected,
+            SUM(CASE WHEN substr(d.created_at,1,7) = ? THEN 1 ELSE 0 END) AS month_count,
+            SUM(CASE WHEN substr(d.created_at,1,7) = ? AND d.status='approved' THEN d.amount ELSE 0 END) AS month_approved_amount,
+            MAX(d.created_at) AS last_upload
+     FROM documents d
+     GROUP BY d.user_id`
+  ).bind(thisMonth, thisMonth).all();
+
+  // 2) users 테이블과 조인하여 이름 붙이기 + approved_client 전체도 포함 (문서 0건이어도 표시)
+  const userIds = (docAgg || []).map(r => r.user_id);
+  const userMap = {};
+  for (const r of (docAgg || [])) userMap[r.user_id] = r;
+
+  const { results: clients } = await db.prepare(
+    `SELECT id, real_name, name, phone, approval_status
+     FROM users
+     WHERE approval_status = 'approved_client'
+     ORDER BY COALESCE(real_name, name)`
+  ).all();
+
+  const list = [];
+  for (const u of (clients || [])) {
+    const agg = userMap[u.id] || {};
+    list.push({
+      user_id: u.id,
+      real_name: u.real_name || null,
+      name: u.name || null,
+      phone: u.phone || null,
+      total: agg.total || 0,
+      pending: agg.pending || 0,
+      approved: agg.approved || 0,
+      rejected: agg.rejected || 0,
+      month_count: agg.month_count || 0,
+      month_approved_amount: agg.month_approved_amount || 0,
+      last_upload: agg.last_upload || null,
+    });
+  }
+
+  // 정렬: 대기건수 내림차순 → 마지막 업로드 최신순
+  list.sort((a, b) => {
+    if (b.pending !== a.pending) return b.pending - a.pending;
+    if ((b.last_upload || '') !== (a.last_upload || '')) return (b.last_upload || '') < (a.last_upload || '') ? -1 : 1;
+    return (a.real_name || a.name || '').localeCompare(b.real_name || b.name || '');
+  });
+
+  // 문서는 있지만 approved_client가 아닌 사용자도 포함 (예: 이전 승인 후 상태 변경)
+  const includedIds = new Set(list.map(x => x.user_id));
+  for (const r of (docAgg || [])) {
+    if (includedIds.has(r.user_id)) continue;
+    // 해당 user 정보 단건 조회
+    try {
+      const u = await db.prepare(`SELECT id, real_name, name, phone, approval_status FROM users WHERE id = ?`).bind(r.user_id).first();
+      if (u) {
+        list.push({
+          user_id: u.id,
+          real_name: u.real_name || null,
+          name: u.name || null,
+          phone: u.phone || null,
+          total: r.total || 0,
+          pending: r.pending || 0,
+          approved: r.approved || 0,
+          rejected: r.rejected || 0,
+          month_count: r.month_count || 0,
+          month_approved_amount: r.month_approved_amount || 0,
+          last_upload: r.last_upload || null,
+          approval_status: u.approval_status,
+          _non_client: u.approval_status !== 'approved_client',
+        });
+      }
+    } catch {}
+  }
+
+  return Response.json({ this_month: thisMonth, users: list });
 }
 
 // ============ Alerts (다가오는 D-day 일정) ============

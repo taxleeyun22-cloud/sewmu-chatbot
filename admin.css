@@ -179,3 +179,10 @@ body.staff-mode .owner-only{display:none !important}
   .avatar{width:38px;height:38px;font-size:.82em}
   .info .name{font-size:.88em}
 }
+
+/* ===== 거래처별 문서 뷰 (모바일 반응형) ===== */
+@media(max-width:900px){
+  #docsLayout{flex-direction:column}
+  #docsCustList{width:100% !important;max-height:50vh}
+  #docsDetail{min-height:400px}
+}

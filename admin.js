@@ -2030,9 +2030,129 @@ async function saveImgViewer(){
 
 /* ===== 세무 문서 관리 탭 ===== */
 let docsReloadTimer=null;
+let docsCustomers=[]; // 거래처 요약 목록
+let docsSelectedUserId=null;
+let docsCustSort='pending'; // pending|recent|name
+let docsCustSearchQ='';
+
 function debouncedDocsLoad(){
   if(docsReloadTimer)clearTimeout(docsReloadTimer);
   docsReloadTimer=setTimeout(loadDocsTab,400);
+}
+
+function setDocsCustSort(s){
+  docsCustSort=s;
+  document.querySelectorAll('.dc-sort').forEach(b=>{
+    const on=b.id==='dcSort'+s.charAt(0).toUpperCase()+s.slice(1);
+    b.style.background=on?'#191f28':'#e5e8eb';
+    b.style.color=on?'#fff':'#555';
+  });
+  renderCustomerList();
+}
+
+function filterDocsCustomers(){
+  docsCustSearchQ=($g('docsCustSearch').value||'').trim().toLowerCase();
+  renderCustomerList();
+}
+
+async function loadDocsCustomers(){
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=by_user');
+    const d=await r.json();
+    if(d.error){console.error(d.error);return}
+    docsCustomers=d.users||[];
+    renderCustomerList();
+    // 선택된 거래처가 목록에 없으면 초기화
+    if(docsSelectedUserId && !docsCustomers.find(c=>c.user_id===docsSelectedUserId)){
+      docsSelectedUserId=null;
+      showCustomerDetail(null);
+    }
+  }catch(e){console.error(e)}
+}
+
+function renderCustomerList(){
+  const el=$g('docsCustItems');
+  if(!el||!el.innerHTML===undefined)return;
+  let list=docsCustomers.slice();
+  // 검색 필터
+  if(docsCustSearchQ){
+    list=list.filter(c=>{
+      const n=((c.real_name||'')+' '+(c.name||'')+' '+(c.phone||'')).toLowerCase();
+      return n.includes(docsCustSearchQ);
+    });
+  }
+  // 정렬
+  if(docsCustSort==='pending'){
+    list.sort((a,b)=>{
+      if(b.pending!==a.pending)return b.pending-a.pending;
+      return (b.last_upload||'')<(a.last_upload||'')?-1:1;
+    });
+  } else if(docsCustSort==='recent'){
+    list.sort((a,b)=>(b.last_upload||'')<(a.last_upload||'')?-1:1);
+  } else {
+    list.sort((a,b)=>(a.real_name||a.name||'').localeCompare(b.real_name||b.name||''));
+  }
+  if(!list.length){
+    el.innerHTML='<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 16px">거래처 없음</div>';
+    return;
+  }
+  el.innerHTML=list.map(c=>{
+    const nm=e(c.real_name||c.name||'#'+c.user_id);
+    const sub=c.phone?e(c.phone):(c.name&&c.real_name?e(c.name):'');
+    const selected=c.user_id===docsSelectedUserId?'background:#e8f3ff;border-left:3px solid #3182f6':'border-left:3px solid transparent';
+    const nonClient=c._non_client?' <span style="font-size:.68em;color:#f04452">(비거래처)</span>':'';
+    const pendBadge=c.pending>0?`<span style="background:#f04452;color:#fff;padding:1px 7px;border-radius:10px;font-size:.68em;font-weight:700;margin-left:4px">${c.pending}</span>`:'';
+    const lastStr=c.last_upload?(c.last_upload.substring(5,10)+' 마지막 업로드'):'업로드 없음';
+    const monthAmt=(c.month_approved_amount||0).toLocaleString('ko-KR');
+    return `<div onclick="selectCustomer(${c.user_id})" style="${selected};padding:11px 13px;cursor:pointer;border-bottom:1px solid #f2f4f6">`
+      +`<div style="display:flex;align-items:center;justify-content:space-between;gap:6px">`
+      +  `<div style="font-weight:700;font-size:.88em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nm}${nonClient}</div>`
+      +  pendBadge
+      +`</div>`
+      +`<div style="font-size:.7em;color:#8b95a1;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>`
+      +`<div style="font-size:.72em;color:#555;margin-top:4px">📄 ${c.total}건`
+      +  (c.month_count?` · 이번달 ${c.month_count}건`:'')
+      +  (c.month_approved_amount?` · 승인 ₩${monthAmt}`:'')
+      +`</div>`
+      +`<div style="font-size:.68em;color:#b0b8c1;margin-top:2px">${lastStr}</div>`
+      +`</div>`;
+  }).join('');
+}
+
+function selectCustomer(userId){
+  docsSelectedUserId=userId;
+  $g('docsFilterUser').value=String(userId);
+  const cust=docsCustomers.find(c=>c.user_id===userId);
+  showCustomerDetail(cust||null);
+  renderCustomerList(); // 선택 표시 갱신
+  loadDocsTab();
+}
+
+function showCustomerDetail(cust){
+  const empty=$g('docsDetailEmpty');
+  const panel=$g('docsDetailPanel');
+  if(!cust){
+    empty.style.display='block';
+    panel.style.display='none';
+    return;
+  }
+  empty.style.display='none';
+  panel.style.display='flex';
+  const nm=cust.real_name||cust.name||'#'+cust.user_id;
+  $g('docsDetailName').textContent=nm;
+  const parts=[];
+  if(cust.phone)parts.push(cust.phone);
+  if(cust.name&&cust.real_name)parts.push('('+cust.name+')');
+  parts.push('문서 '+cust.total+'건');
+  if(cust.pending>0)parts.push('⏳ 대기 '+cust.pending);
+  $g('docsDetailSub').textContent=parts.join(' · ');
+}
+
+function openRoomForCurrentCustomer(){
+  if(!docsSelectedUserId){alert('거래처를 먼저 선택하세요');return}
+  /* 간단 구현: 해당 user가 포함된 상담방 목록에서 첫 번째 열기 */
+  tab('rooms');
+  /* 실제 연결은 복잡 — 일단 탭 전환만 */
 }
 
 function docTypeLabelAdmin(t){
@@ -2103,15 +2223,26 @@ async function runCronAlerts(){
 }
 
 async function loadDocsTab(){
+  // 거래처 목록 항상 로드 (좌측 패널)
+  loadDocsCustomers();
+  loadDocsAlerts();
+
+  const userId=$g('docsFilterUser').value.trim();
+  // 거래처 미선택 시 우측 패널 빈 상태
+  if(!userId){
+    renderDocsTable([]);
+    updateDocsStats({});
+    return;
+  }
+
   const status=$g('docsFilterStatus').value;
   const docType=$g('docsFilterType').value;
   const month=$g('docsFilterMonth').value;
-  const userId=$g('docsFilterUser').value.trim();
   const params=['key='+encodeURIComponent(KEY)];
   if(status)params.push('status='+encodeURIComponent(status));
   if(docType)params.push('doc_type='+encodeURIComponent(docType));
   if(month)params.push('month='+encodeURIComponent(month));
-  if(userId)params.push('user_id='+encodeURIComponent(userId));
+  params.push('user_id='+encodeURIComponent(userId));
   params.push('limit=300');
   try{
     const r=await fetch('/api/admin-documents?'+params.join('&'));
@@ -2119,10 +2250,8 @@ async function loadDocsTab(){
     if(d.error){alert('조회 실패: '+d.error);return}
     renderDocsTable(d.documents||[]);
     updateDocsStats(d.counts||{});
-    // 별도 월별 통계 (비용 포함)
     const monthParam=month||new Date().toISOString().substring(0,7);
     fetchDocsStats(monthParam);
-    loadDocsAlerts();
   }catch(e){alert('오류: '+e.message)}
 }
 
