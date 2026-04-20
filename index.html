@@ -1793,52 +1793,69 @@ async function doCopyMsg(text){
   if(!init())document.addEventListener('DOMContentLoaded',init);
 })();
 
-/* 메시지 입력칸 클립보드(Ctrl+V) + 드래그앤드롭 첨부 */
+/* 메시지 입력칸 클립보드(Ctrl+V) + 드래그앤드롭 첨부
+   - 이미지: 사진/영수증 선택 (기존)
+   - 파일(PDF·엑셀 등): 일반 파일/영수증(OCR) 선택 — 영수증 PDF 케이스 지원 */
 (function(){
   function isImage(f){return f&&f.type&&f.type.indexOf('image/')===0}
-  async function sendFiles(files,mode){
-    var arr=Array.from(files||[]).filter(isImage);
-    if(!arr.length)return false;
+  function isReceiptPdfCandidate(f){
+    if(!f)return false;
+    var t=f.type||'';
+    if(t==='application/pdf')return true;
+    var n=(f.name||'').toLowerCase();
+    return /\.(pdf)$/.test(n);
+  }
+  async function sendImages(arr){
     if(arr.length>10){alert('한 번에 최대 10장까지 업로드 가능합니다');arr=arr.slice(0,10)}
-    /* 모드 선택: 영수증(OCR) vs 사진 */
-    var goReceipt=false;
-    if(!mode){
-      goReceipt=confirm('첨부한 이미지'+(arr.length>1?' '+arr.length+'장':'')+'을 어떻게 처리할까요?\n\n[확인] 🧾 영수증으로 (AI 자동 인식)\n[취소] 📷 일반 사진으로');
-    } else if(mode==='receipt') goReceipt=true;
+    var goReceipt=confirm('첨부한 이미지'+(arr.length>1?' '+arr.length+'장':'')+'을 어떻게 처리할까요?\n\n[확인] 🧾 영수증으로 (AI 자동 인식)\n[취소] 📷 일반 사진으로');
     for(var i=0;i<arr.length;i++){
       var f=arr[i];
       if(f.size>10*1024*1024){alert('['+(f.name||(i+1)+'번째')+'] 10MB 초과 — 건너뜁니다');continue}
-      if(arr.length>1&&typeof showInAppToastSilent==='function'){
-        showInAppToastSilent((goReceipt?'🤖 ':'📤 ')+(i+1)+'/'+arr.length);
-      }
+      if(arr.length>1&&typeof showInAppToastSilent==='function')showInAppToastSilent((goReceipt?'🤖 ':'📤 ')+(i+1)+'/'+arr.length);
       if(goReceipt) await sendRoomReceiptFromFile(f);
       else await sendOneLegacyImage(f);
     }
-    return true;
+  }
+  async function sendOneDocFile(f){
+    /* PDF면 영수증으로 처리할지 물어봄 (업로드 규격은 우리 영수증 OCR에서 이미지만 받으므로
+       PDF 영수증은 "일반 파일"로 업로드하되 태그만 남김 — 추후 PDF OCR 도입 시 확장 예정) */
+    if(isReceiptPdfCandidate(f)){
+      var asReceipt=confirm(f.name+'\n\n이 PDF를 어떻게 처리할까요?\n\n[확인] 🧾 영수증(세무사 검토 요청)\n[취소] 📁 일반 파일로');
+      if(asReceipt){
+        if(typeof showInAppToastSilent==='function')showInAppToastSilent('🧾 영수증 PDF 업로드 중...');
+      }
+    }
+    /* 기존 sendRoomDoc 경로 활용 — 파일 input 흉내 */
+    var fakeInput={files:[f],value:''};
+    await sendRoomDoc(fakeInput);
+  }
+  async function sendFilesMixed(files){
+    if(!rcRoomId||!rcIsActive)return;
+    var imgs=[], docs=[];
+    Array.from(files).forEach(function(f){(isImage(f)?imgs:docs).push(f)});
+    if(imgs.length) await sendImages(imgs);
+    for(var i=0;i<docs.length;i++) await sendOneDocFile(docs[i]);
   }
   function init(){
     var input=document.getElementById('rcInput');
     var area=document.getElementById('rcInputArea');
-    var msgs=document.getElementById('rcMessages');
     if(!input||!area)return false;
-    /* 클립보드 붙여넣기 (이미지 캡처) */
+    /* 클립보드 붙여넣기 */
     input.addEventListener('paste',function(e){
       if(!rcRoomId||!rcIsActive)return;
       var files=(e.clipboardData&&e.clipboardData.files)||[];
-      var imgs=Array.from(files).filter(isImage);
-      if(!imgs.length)return; /* 텍스트 붙여넣기는 그대로 */
+      if(!files.length)return;
       e.preventDefault();
-      sendFiles(imgs);
+      sendFilesMixed(files);
     });
-    /* 드래그앤드롭 */
-    var dropZones=[area, msgs].filter(Boolean);
+    /* 드래그앤드롭 (이미지+파일 모두) */
     var overlay=null;
     function showOverlay(){
       if(overlay)return;
       overlay=document.createElement('div');
       overlay.id='rcDropOverlay';
       overlay.style.cssText='position:fixed;inset:0;background:rgba(49,130,246,.18);border:3px dashed #3182f6;pointer-events:none;z-index:9999;display:flex;align-items:center;justify-content:center;color:#1e3a8a;font-size:1.4em;font-weight:800;text-shadow:0 1px 3px rgba(255,255,255,.6)';
-      overlay.textContent='📎 사진을 놓으면 첨부됩니다';
+      overlay.textContent='📎 놓으면 첨부됩니다 (사진·파일 다 가능)';
       document.body.appendChild(overlay);
     }
     function hideOverlay(){if(overlay){overlay.remove();overlay=null}}
@@ -1846,8 +1863,7 @@ async function doCopyMsg(text){
     document.addEventListener('dragenter',function(e){
       if(!rcRoomId||!rcIsActive)return;
       if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
-      dragDepth++;
-      showOverlay();
+      dragDepth++;showOverlay();
     });
     document.addEventListener('dragover',function(e){
       if(!rcRoomId||!rcIsActive)return;
@@ -1858,11 +1874,10 @@ async function doCopyMsg(text){
     document.addEventListener('drop',function(e){
       if(!rcRoomId||!rcIsActive){dragDepth=0;hideOverlay();return}
       var files=(e.dataTransfer&&e.dataTransfer.files)||[];
-      var imgs=Array.from(files).filter(isImage);
       dragDepth=0;hideOverlay();
-      if(!imgs.length)return;
+      if(!files.length)return;
       e.preventDefault();
-      sendFiles(imgs);
+      sendFilesMixed(files);
     });
     return true;
   }
@@ -1905,12 +1920,14 @@ function closeAttachSheet(){
 }
 function updateSendBtn(){/* 필요 시 input 상태별 버튼 변경 여지 */}
 
-/* 대용량 파일 청크 업로드 (>95MB 초과 시 자동). 300MB 상한 (카톡 매칭).
-   병렬 3개씩 업로드해서 체감 속도 2~3배 개선. */
+/* 대용량 파일 청크 업로드. 300MB 상한.
+   50MB 청크 × 병렬 4개 — 대역폭 최대 활용. */
 async function uploadFileChunked(file, onProgress, opts){
   opts=opts||{};
-  var CHUNK=10*1024*1024;
-  var PARALLEL=3; /* 동시 업로드 개수 */
+  var CHUNK=50*1024*1024;
+  var PARALLEL=4;
+  var _t0=Date.now();
+  var _lastPct=-1;
   /* 1. start */
   var s=await fetch('/api/upload-multipart?action=start',{
     method:'POST',
@@ -1929,7 +1946,10 @@ async function uploadFileChunked(file, onProgress, opts){
     var done=0;for(var j=0;j<totalParts;j++)done+=loadedPerPart[j];
     var pct=Math.min(100,Math.round(done/file.size*100));
     var finished=parts.filter(Boolean).length;
-    onProgress(pct, finished, totalParts);
+    var elapsed=(Date.now()-_t0)/1000;
+    var mbps=elapsed>0.3?(done/1024/1024/elapsed):0;
+    var eta=mbps>0.1?Math.max(0,Math.round((file.size-done)/1024/1024/mbps)):null;
+    onProgress(pct, finished, totalParts, mbps, eta);
   }
   function uploadOnePart(i){
     return new Promise(function(resolve,reject){
@@ -2013,18 +2033,35 @@ async function sendRoomDoc(fileInput){
       if(d2.ok)loadRoomChat();
       else alert('전송 실패: '+(d2.error||'unknown'));
     } else {
-      /* 대용량 — 청크 업로드 */
-      var toast=null;
-      if(typeof showInAppToastSilent==='function'){
-        showInAppToastSilent('📤 0% (1/?)');
+      /* 대용량 — 청크 업로드. 화면 하단에 고정 진행 바 표시 */
+      var bar=document.getElementById('rcUploadBar');
+      if(!bar){
+        bar=document.createElement('div');
+        bar.id='rcUploadBar';
+        bar.style.cssText='position:fixed;left:12px;right:12px;bottom:72px;background:#fff;border:1px solid #e5e8eb;border-radius:12px;padding:10px 14px;z-index:10000;box-shadow:0 4px 14px rgba(0,0,0,.1);font-size:.82em;color:#191f28';
+        document.body.appendChild(bar);
       }
-      var cd=await uploadFileChunked(file,function(pct,cur,total){
-        if(btn)btn.textContent='업로드 '+pct+'%';
-        if(typeof showInAppToastSilent==='function')showInAppToastSilent('📤 '+pct+'% ('+cur+'/'+total+')');
-      },{room_id:rcRoomId});
-      /* complete가 이미 메시지를 생성했으므로 loadRoomChat만 호출 */
-      loadRoomChat();
-      if(typeof showInAppToastSilent==='function')showInAppToastSilent('✅ 업로드 완료');
+      bar.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px"><b>📤 '+esc(file.name)+'</b><span id="_rcuPct">0%</span></div>'
+        +'<div style="height:6px;background:#e5e8eb;border-radius:4px;overflow:hidden"><div id="_rcuBar" style="width:0%;height:100%;background:#3182f6;transition:width .2s"></div></div>'
+        +'<div id="_rcuMeta" style="margin-top:6px;color:#8b95a1;font-size:.9em">준비 중...</div>';
+      try{
+        var cd=await uploadFileChunked(file,function(pct,cur,total,mbps,eta){
+          if(btn)btn.textContent='업로드 '+pct+'%';
+          var pctEl=document.getElementById('_rcuPct');if(pctEl)pctEl.textContent=pct+'%';
+          var barEl=document.getElementById('_rcuBar');if(barEl)barEl.style.width=pct+'%';
+          var meta=document.getElementById('_rcuMeta');
+          if(meta){
+            var parts=[cur+'/'+total+' 청크'];
+            if(mbps>0.1)parts.push(mbps.toFixed(1)+' MB/s');
+            if(eta!=null&&eta>0)parts.push('약 '+(eta>=60?Math.round(eta/60)+'분':eta+'초')+' 남음');
+            meta.textContent=parts.join(' · ');
+          }
+        },{room_id:rcRoomId});
+        loadRoomChat();
+        if(typeof showInAppToastSilent==='function')showInAppToastSilent('✅ 업로드 완료');
+      }finally{
+        var bar2=document.getElementById('rcUploadBar');if(bar2)bar2.remove();
+      }
     }
   }catch(e){alert('오류: '+e.message)}
   finally{if(btn){btn.textContent=origText;btn.disabled=false}}

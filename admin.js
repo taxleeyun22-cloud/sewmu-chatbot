@@ -707,10 +707,11 @@ async function sendRoomImageFile(file){
   if(!init())document.addEventListener('DOMContentLoaded',init);
 })();
 
-/* 대용량 파일 청크 업로드 (300MB까지, 병렬 3개) — admin 버전 */
+/* 대용량 파일 청크 업로드 (300MB까지, 50MB × 병렬 4) — admin 버전 */
 async function uploadFileChunkedAdmin(file, onProgress){
-  const CHUNK=10*1024*1024;
-  const PARALLEL=3;
+  const CHUNK=50*1024*1024;
+  const PARALLEL=4;
+  const _t0=Date.now();
   const s=await fetch('/api/upload-multipart?action=start&key='+encodeURIComponent(KEY),{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({name:file.name,size:file.size,type:file.type||'application/octet-stream'})
@@ -726,7 +727,10 @@ async function uploadFileChunkedAdmin(file, onProgress){
     let done=0;for(let j=0;j<totalParts;j++)done+=loadedPerPart[j];
     const pct=Math.min(100,Math.round(done/file.size*100));
     const finished=parts.filter(Boolean).length;
-    onProgress(pct,finished,totalParts);
+    const elapsed=(Date.now()-_t0)/1000;
+    const mbps=elapsed>0.3?(done/1024/1024/elapsed):0;
+    const eta=mbps>0.1?Math.max(0,Math.round((file.size-done)/1024/1024/mbps)):null;
+    onProgress(pct,finished,totalParts,mbps,eta);
   }
   function uploadOnePart(i){
     return new Promise((resolve,reject)=>{
@@ -800,13 +804,34 @@ async function sendRoomFile(fileInput){
       if(d2.ok)loadRoomDetail();
       else alert('전송 실패: '+(d2.error||'unknown'));
     } else {
-      /* 대용량 청크 업로드 */
-      if(typeof showAdminToast==='function')showAdminToast('📤 업로드 시작...');
-      await uploadFileChunkedAdmin(file,(pct,cur,total)=>{
-        if(typeof showAdminToast==='function')showAdminToast('📤 '+pct+'% ('+cur+'/'+total+')');
-      });
-      if(typeof showAdminToast==='function')showAdminToast('✅ 업로드 완료');
-      loadRoomDetail();
+      /* 대용량 청크 업로드 — 고정 진행 바 */
+      let bar=document.getElementById('admUploadBar');
+      if(!bar){
+        bar=document.createElement('div');
+        bar.id='admUploadBar';
+        bar.style.cssText='position:fixed;left:20px;right:20px;bottom:20px;max-width:520px;margin:0 auto;background:#fff;border:1px solid #e5e8eb;border-radius:12px;padding:12px 16px;z-index:10000;box-shadow:0 6px 20px rgba(0,0,0,.12);font-size:.86em;color:#191f28';
+        document.body.appendChild(bar);
+      }
+      bar.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px"><b>📤 '+e(file.name)+'</b><span id="_auPct">0%</span></div>'
+        +'<div style="height:6px;background:#e5e8eb;border-radius:4px;overflow:hidden"><div id="_auBar" style="width:0%;height:100%;background:#3182f6;transition:width .2s"></div></div>'
+        +'<div id="_auMeta" style="margin-top:6px;color:#8b95a1;font-size:.9em">준비 중...</div>';
+      try{
+        await uploadFileChunkedAdmin(file,(pct,cur,total,mbps,eta)=>{
+          const pctEl=document.getElementById('_auPct');if(pctEl)pctEl.textContent=pct+'%';
+          const barEl=document.getElementById('_auBar');if(barEl)barEl.style.width=pct+'%';
+          const meta=document.getElementById('_auMeta');
+          if(meta){
+            const parts=[cur+'/'+total+' 청크'];
+            if(mbps>0.1)parts.push(mbps.toFixed(1)+' MB/s');
+            if(eta!=null&&eta>0)parts.push('약 '+(eta>=60?Math.round(eta/60)+'분':eta+'초')+' 남음');
+            meta.textContent=parts.join(' · ');
+          }
+        });
+        if(typeof showAdminToast==='function')showAdminToast('✅ 업로드 완료');
+        loadRoomDetail();
+      }finally{
+        const bar2=document.getElementById('admUploadBar');if(bar2)bar2.remove();
+      }
     }
   }catch(err){alert('오류: '+err.message)}
 }
