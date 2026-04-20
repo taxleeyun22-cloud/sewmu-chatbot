@@ -731,6 +731,32 @@ mark{background:#fef3c7;color:inherit;padding:0 2px;border-radius:2px}
 .rc-img-msg{display:inline-block;max-width:220px;max-height:300px;border-radius:10px;overflow:hidden;cursor:zoom-in;background:rgba(0,0,0,.06);object-fit:cover}
 .rc-img-msg img{display:block;width:100%;max-width:220px;max-height:300px;object-fit:cover}
 /* ── 풀스크린 이미지 뷰어 (카톡 스타일) ── */
+/* ===== PWA 홈화면 설치 배너 ===== */
+#installPrompt{position:fixed;left:50%;bottom:max(16px,env(safe-area-inset-bottom));transform:translate(-50%,180%);background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:13px 14px;display:flex;align-items:center;gap:11px;width:min(92vw,400px);z-index:9200;transition:transform .35s cubic-bezier(.2,.9,.3,1.15);opacity:0;pointer-events:none}
+#installPrompt.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+.ip-icon{width:44px;height:44px;border-radius:10px;flex-shrink:0;background:var(--blue-light);display:flex;align-items:center;justify-content:center;font-size:1.5em}
+.ip-body{flex:1;min-width:0}
+.ip-title{font-weight:700;font-size:.92em;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ip-desc{font-size:.74em;color:var(--text2);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ip-btn{background:var(--blue);color:#fff;border:none;padding:9px 14px;border-radius:10px;font-weight:700;font-size:.82em;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.ip-btn:active{opacity:.82}
+.ip-close{background:none;border:none;color:var(--text2);font-size:1.1em;cursor:pointer;padding:6px 4px;flex-shrink:0;font-family:inherit;line-height:1;-webkit-tap-highlight-color:transparent}
+.ip-close:active{color:var(--text)}
+/* iOS 안내 시트 */
+#iosInstallModal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11500;display:none;align-items:flex-end;justify-content:center;padding:0}
+#iosInstallModal.show{display:flex}
+.ios-modal-card{background:var(--card);color:var(--text);width:100%;max-width:480px;border-radius:20px 20px 0 0;padding:22px 20px calc(26px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.25);animation:iosSlideUp .3s ease-out;box-sizing:border-box}
+@keyframes iosSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.ios-modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.ios-modal-title{font-weight:800;font-size:1.02em}
+.ios-step{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.ios-step:last-child{border-bottom:none}
+.ios-step-num{width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.78em;flex-shrink:0;margin-top:1px}
+.ios-step-body{flex:1;min-width:0}
+.ios-step-title{font-weight:700;font-size:.88em}
+.ios-step-desc{font-size:.77em;color:var(--text2);margin-top:3px;line-height:1.4}
+.ios-step-icon{font-size:1.15em}
+
 #inAppToast{position:fixed;top:max(12px,env(safe-area-inset-top));left:50%;transform:translate(-50%,-140%);background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:10px 12px;display:flex;align-items:center;gap:10px;width:min(92vw,380px);z-index:9500;transition:transform .28s cubic-bezier(.2,.9,.3,1.2);cursor:pointer;opacity:0;pointer-events:none}
 #inAppToast.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}
 .in-toast-icon{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1em;font-weight:700}
@@ -2430,6 +2456,70 @@ async function saveImgViewer(){
     else if(e.key==='ArrowRight')imgViewerNav(1);
   });
 })();
+
+/* ===== PWA 홈화면 설치 유도 배너 ===== */
+function closeIosInstall(){
+  var m=document.getElementById('iosInstallModal');
+  if(m)m.classList.remove('show');
+}
+(function(){
+  var DISMISS_KEY='installPromptDismissedUntil';
+  var ua=navigator.userAgent||'';
+  var isIOS=/iPad|iPhone|iPod/.test(ua)&&!window.MSStream;
+  var isSafari=isIOS&&/Safari/.test(ua)&&!/CriOS|FxiOS|OPiOS|mercury|EdgiOS/.test(ua);
+  var isStandalone=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
+  /* 이미 설치돼있으면 노출 금지 */
+  if(isStandalone)return;
+  /* 최근 7일 내에 닫았으면 노출 금지 */
+  try{
+    var until=parseInt(localStorage.getItem(DISMISS_KEY)||'0',10);
+    if(until>Date.now())return;
+  }catch{}
+  var banner=document.getElementById('installPrompt');
+  var btn=document.getElementById('ipBtn');
+  var closeBtn=document.getElementById('ipClose');
+  if(!banner||!btn||!closeBtn)return;
+  var deferredPrompt=null;
+  function show(){banner.classList.add('show')}
+  function hide(){banner.classList.remove('show')}
+  function dismissFor(days){
+    try{localStorage.setItem(DISMISS_KEY,String(Date.now()+days*24*60*60*1000))}catch{}
+    hide();
+  }
+  /* Android Chrome 등: beforeinstallprompt */
+  window.addEventListener('beforeinstallprompt',function(e){
+    e.preventDefault();
+    deferredPrompt=e;
+    setTimeout(show,3000);
+  });
+  /* iOS Safari: 자체 이벤트 없음 → 휴리스틱 */
+  if(isIOS&&isSafari){
+    setTimeout(show,5000);
+  }
+  btn.onclick=async function(){
+    if(deferredPrompt){
+      try{
+        deferredPrompt.prompt();
+        var res=await deferredPrompt.userChoice;
+        if(res&&res.outcome==='accepted')hide();
+        else dismissFor(7);
+      }catch{dismissFor(3)}
+      deferredPrompt=null;
+    } else if(isIOS){
+      var m=document.getElementById('iosInstallModal');
+      if(m)m.classList.add('show');
+      hide();
+    } else {
+      dismissFor(7);
+    }
+  };
+  closeBtn.onclick=function(){dismissFor(7)};
+  /* 설치 완료 이벤트 — 즉시 숨김 */
+  window.addEventListener('appinstalled',function(){
+    hide();
+    try{localStorage.setItem(DISMISS_KEY,String(Date.now()+365*24*60*60*1000))}catch{}
+  });
+})();
 </script>
 
 <!-- 사업장 등록 모달 -->
@@ -2457,6 +2547,51 @@ async function saveImgViewer(){
     <div style="display:flex;gap:8px">
       <button onclick="submitBizModal()" style="flex:1;background:var(--blue);color:#fff;border:none;padding:12px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">등록</button>
       <button onclick="closeBizModal()" style="background:var(--border);color:var(--text);border:none;padding:12px 20px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- PWA 홈화면 설치 배너 -->
+<div id="installPrompt" role="dialog" aria-live="polite">
+  <div class="ip-icon">📲</div>
+  <div class="ip-body">
+    <div class="ip-title">홈 화면에 추가</div>
+    <div class="ip-desc">세무회계 이윤을 앱처럼 바로 실행</div>
+  </div>
+  <button id="ipBtn" class="ip-btn">설치</button>
+  <button id="ipClose" class="ip-close" aria-label="닫기">✕</button>
+</div>
+
+<!-- iOS Safari 설치 안내 시트 -->
+<div id="iosInstallModal" onclick="if(event.target===this)closeIosInstall()">
+  <div class="ios-modal-card">
+    <div class="ios-modal-header">
+      <div class="ios-modal-title">📲 홈 화면에 추가</div>
+      <button onclick="closeIosInstall()" style="background:none;border:none;font-size:1.2em;color:var(--text2);cursor:pointer;font-family:inherit;padding:4px 8px">✕</button>
+    </div>
+    <div class="ios-step">
+      <div class="ios-step-num">1</div>
+      <div class="ios-step-body">
+        <div class="ios-step-title">하단 <span class="ios-step-icon">⬆️</span> 공유 버튼 탭</div>
+        <div class="ios-step-desc">Safari 주소창 아래쪽 중앙 공유 아이콘</div>
+      </div>
+    </div>
+    <div class="ios-step">
+      <div class="ios-step-num">2</div>
+      <div class="ios-step-body">
+        <div class="ios-step-title">"홈 화면에 추가" 선택</div>
+        <div class="ios-step-desc">메뉴를 조금 내리면 ➕ 아이콘과 함께 나옴</div>
+      </div>
+    </div>
+    <div class="ios-step">
+      <div class="ios-step-num">3</div>
+      <div class="ios-step-body">
+        <div class="ios-step-title">우측 상단 "추가" 탭</div>
+        <div class="ios-step-desc">홈 화면에 아이콘이 만들어집니다</div>
+      </div>
+    </div>
+    <div style="margin-top:14px;font-size:.77em;color:var(--text2);line-height:1.5;background:var(--blue-light);padding:10px 12px;border-radius:10px">
+      💡 홈 화면에서 실행하면 새 메시지 알림(OS 푸시 + 아이콘 뱃지)까지 받으실 수 있어요.
     </div>
   </div>
 </div>
