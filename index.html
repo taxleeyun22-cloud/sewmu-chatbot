@@ -2389,27 +2389,16 @@ function _ivDownload(blob,name){
   document.body.appendChild(a);a.click();
   setTimeout(function(){URL.revokeObjectURL(url);a.remove()},150);
 }
-/* 저장 — 사진첩/갤러리로 */
+/* 저장 — 한 방에 다운로드 + 즉시 토스트 피드백
+   Android: 다운로드 폴더 → 갤러리 앱 자동 인덱싱
+   iOS: 파일 앱(Downloads)으로 저장 (Photos 직접저장은 웹 보안 한계로 불가 — 공유 버튼 사용) */
 async function saveImgViewer(){
   try{
     var f=await _ivFetchFile();
-    var ua=navigator.userAgent||'';
-    var isIOS=/iPad|iPhone|iPod/.test(ua)&&!window.MSStream;
-    /* iOS Safari는 Photos 접근 경로가 공유시트밖에 없어서 canShare 라우팅
-       Android/Desktop은 다운로드가 바로 갤러리/다운로드 폴더로 들어감 */
-    if(isIOS&&typeof File==='function'&&navigator.canShare){
-      try{
-        var file=new File([f.blob],f.name,{type:f.mime});
-        if(navigator.canShare({files:[file]})){
-          await navigator.share({files:[file]});
-          return;
-        }
-      }catch(se){
-        if(se&&se.name==='AbortError')return;
-      }
-    }
     _ivDownload(f.blob,f.name);
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('💾 저장 완료');
   }catch{
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('저장 실패');
     var s=ivState.srcs[ivState.idx];if(s)window.open(s,'_blank');
   }
 }
