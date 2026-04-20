@@ -680,14 +680,27 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       </div>
       <span>사진첩</span>
     </label>
-    <input id="rcFileInput" type="file" accept="image/*" multiple onchange="sendRoomImage(this);closeAttachSheet()" style="display:none">
+    <input id="rcFileInput" type="file" accept="image/*" multiple onchange="sendRoomPhoto(this);closeAttachSheet()" style="display:none">
     <label for="rcCamInput" class="rc-attach-item">
       <div class="rc-attach-icon" style="background:#e0f5ec;color:#10b981">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
       </div>
       <span>카메라</span>
     </label>
-    <input id="rcCamInput" type="file" accept="image/*" capture="environment" onchange="sendRoomImage(this);closeAttachSheet()" style="display:none">
+    <input id="rcCamInput" type="file" accept="image/*" capture="environment" onchange="sendRoomPhoto(this);closeAttachSheet()" style="display:none">
+    <label for="rcReceiptInput" class="rc-attach-item" id="rcReceiptAttach" style="display:none">
+      <div class="rc-attach-icon" style="background:#fce7f3;color:#be185d">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+      </div>
+      <span>영수증</span>
+    </label>
+    <input id="rcReceiptInput" type="file" accept="image/*" multiple capture="environment" onchange="sendRoomReceiptMulti(this);closeAttachSheet()" style="display:none">
+    <div class="rc-attach-item" id="rcFreelancerAttach" style="display:none;cursor:pointer" onclick="openPayrollModal();closeAttachSheet()">
+      <div class="rc-attach-icon" style="background:#dbeafe;color:#1d4ed8">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <span>급여</span>
+    </div>
     <label for="rcDocInput" class="rc-attach-item">
       <div class="rc-attach-icon" style="background:#e8f3ff;color:#3182f6">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
@@ -1548,11 +1561,12 @@ async function openMyRoom(roomId){
   rcRoomId=roomId;
   document.getElementById('roomChatView').classList.add('open');
   document.body.style.overflow='hidden';
-  /* 영수증 업로드 메뉴는 approved_client(기장 거래처)에게만 노출 */
+  /* 영수증·프리랜서 업로드 메뉴는 approved_client(기장 거래처)에게만 노출 */
+  var isClient=currentUser&&currentUser.approval_status==='approved_client';
   var receiptAttach=document.getElementById('rcReceiptAttach');
-  if(receiptAttach){
-    receiptAttach.style.display=(currentUser&&currentUser.approval_status==='approved_client')?'':'none';
-  }
+  if(receiptAttach)receiptAttach.style.display=isClient?'':'none';
+  var freelancerAttach=document.getElementById('rcFreelancerAttach');
+  if(freelancerAttach)freelancerAttach.style.display=isClient?'':'none';
   await loadRoomChat();
   if(rcMsgPollTimer)clearInterval(rcMsgPollTimer);
   rcMsgPollTimer=setInterval(loadRoomChat,5000);
@@ -1849,26 +1863,154 @@ async function sendRoomReceipt(fileInput){
   if(f)return sendRoomReceiptFromFile(f);
 }
 
+/* ===== 급여·인건비 등록 모달 (프리랜서 3.3% / 정규직 4대보험) ===== */
+var plMode='3.3'; /* '3.3' | '4ins' */
+function openPayrollModal(){
+  if(!rcRoomId||!rcIsActive){alert('상담방을 먼저 여세요');return}
+  document.getElementById('plName').value='';
+  document.getElementById('plResid').value='';
+  document.getElementById('plAmount').value='';
+  document.getElementById('plPayDate').value=new Date().toISOString().substring(0,10);
+  document.getElementById('plNote').value='';
+  document.getElementById('plCalc').style.display='none';
+  setPayrollMode('3.3');
+  document.getElementById('payrollModal').style.display='flex';
+  setTimeout(function(){document.getElementById('plName').focus()},100);
+}
+function closePayrollModal(){
+  document.getElementById('payrollModal').style.display='none';
+}
+function setPayrollMode(m){
+  plMode=m;
+  var b3=document.getElementById('plMode3');
+  var b4=document.getElementById('plMode4');
+  var on='background:var(--blue);color:#fff';
+  var off='background:transparent;color:var(--text2)';
+  b3.setAttribute('style','flex:1;padding:9px;border:none;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit;'+(m==='3.3'?on:off));
+  b4.setAttribute('style','flex:1;padding:9px;border:none;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit;'+(m==='4ins'?on:off));
+  document.getElementById('plDesc').textContent=
+    m==='3.3'
+      ? '원천세 3.3% (소득세 3% + 지방세 0.3%) 자동 계산'
+      : '4대보험 (국민연금·건강보험·고용보험·산재) 근로자 부담 자동 계산';
+  onPayrollAmountInput();
+}
+function onPayrollAmountInput(){
+  var raw=document.getElementById('plAmount').value.replace(/[^0-9]/g,'');
+  var n=parseInt(raw,10)||0;
+  if(raw)document.getElementById('plAmount').value=n.toLocaleString('ko-KR');
+  if(n<=0){document.getElementById('plCalc').style.display='none';return}
+  var html='';
+  if(plMode==='3.3'){
+    var w=Math.floor(n*0.033);
+    var net=n-w;
+    html='<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>원천세 (3.3%)</span><b>'+w.toLocaleString('ko-KR')+'원</b></div>'
+        +'<div style="display:flex;justify-content:space-between;font-weight:700"><span>실수령액</span><b>'+net.toLocaleString('ko-KR')+'원</b></div>';
+  } else {
+    /* 4대보험 — 근로자 부담 (2025-2026 기준 추정) */
+    var pension=Math.floor(n*0.045);          /* 국민연금 4.5% */
+    var health=Math.floor(n*0.03545);          /* 건강보험 3.545% */
+    var ltc=Math.floor(health*0.1295);         /* 장기요양 (건보의 12.95%) */
+    var emp=Math.floor(n*0.009);               /* 고용보험 0.9% */
+    var totalIns=pension+health+ltc+emp;
+    var net=n-totalIns;
+    html='<div style="display:flex;justify-content:space-between;margin-bottom:2px"><span>국민연금 (4.5%)</span><b>'+pension.toLocaleString('ko-KR')+'</b></div>'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:2px"><span>건강보험 (3.545%)</span><b>'+health.toLocaleString('ko-KR')+'</b></div>'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:2px"><span>장기요양 (건보×12.95%)</span><b>'+ltc.toLocaleString('ko-KR')+'</b></div>'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:2px"><span>고용보험 (0.9%)</span><b>'+emp.toLocaleString('ko-KR')+'</b></div>'
+        +'<div style="display:flex;justify-content:space-between;border-top:1px solid currentColor;padding-top:4px;margin-top:4px"><span>4대보험 합계</span><b>'+totalIns.toLocaleString('ko-KR')+'원</b></div>'
+        +'<div style="display:flex;justify-content:space-between;font-weight:700;margin-top:3px"><span>실수령(소득세 별도)</span><b>'+net.toLocaleString('ko-KR')+'원</b></div>'
+        +'<div style="font-size:.78em;opacity:.8;margin-top:5px">※ 소득세는 간이세액표(가족 수·월급 따라) — 세무사가 별도 계산</div>';
+  }
+  document.getElementById('plCalcRows').innerHTML=html;
+  document.getElementById('plCalc').style.display='block';
+}
+async function submitPayroll(){
+  var name=document.getElementById('plName').value.trim();
+  var residRaw=document.getElementById('plResid').value.replace(/[^0-9]/g,'');
+  var amountRaw=document.getElementById('plAmount').value.replace(/[^0-9]/g,'');
+  var amount=parseInt(amountRaw,10)||0;
+  var payDate=document.getElementById('plPayDate').value;
+  var note=document.getElementById('plNote').value.trim();
+  if(!name){alert('이름을 입력하세요');return}
+  if(residRaw.length!==13){alert('주민등록번호 13자리를 입력하세요');return}
+  if(amount<=0){alert('지급액을 입력하세요');return}
+  var residMasked=residRaw.substring(0,6)+'-*******';
+  var extra={employee_name:name,resident_no_masked:residMasked,gross_amount:amount,pay_date:payDate||null,note:note||null,mode:plMode};
+  var docTypeKey='freelancer_payment';
+  if(plMode==='3.3'){
+    extra.withholding_tax=Math.floor(amount*0.033);
+    extra.net_amount=amount-extra.withholding_tax;
+  } else {
+    docTypeKey='payroll';
+    extra.pension=Math.floor(amount*0.045);
+    extra.health=Math.floor(amount*0.03545);
+    extra.ltc=Math.floor(extra.health*0.1295);
+    extra.emp_ins=Math.floor(amount*0.009);
+    extra.total_4ins=extra.pension+extra.health+extra.ltc+extra.emp_ins;
+    extra.net_amount=amount-extra.total_4ins;
+  }
+  try{
+    var fd=new FormData();
+    /* 1x1 png placeholder */
+    var blob=new Blob([Uint8Array.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,0,0,0,13,0x49,0x48,0x44,0x52,0,0,0,1,0,0,0,1,8,6,0,0,0,0x1F,0x15,0xC4,0x89,0,0,0,13,0x49,0x44,0x41,0x54,0x78,0xDA,0x63,0xF8,0xCF,0xC0,0,0,0,5,0,1,0xE2,0x26,0x05,0x5C,0,0,0,0,0x49,0x45,0x4E,0x44,0xAE,0x42,0x60,0x82])],{type:'image/png'});
+    fd.append('file',new File([blob],'payroll.png',{type:'image/png'}));
+    fd.append('room_id',rcRoomId);
+    fd.append('doc_type',docTypeKey);
+    fd.append('skip_ocr','1');
+    fd.append('extra_json',JSON.stringify(extra));
+    fd.append('vendor',name);
+    fd.append('amount',String(amount));
+    fd.append('receipt_date',payDate||'');
+    var r=await fetch('/api/documents',{method:'POST',body:fd});
+    var d=await r.json();
+    if(d.error){alert('등록 실패: '+d.error);return}
+    closePayrollModal();
+    if(typeof showInAppToastSilent==='function'){
+      var label=plMode==='3.3'?'프리랜서 3.3%':'정규직 4대보험';
+      showInAppToastSilent('🧑‍💼 '+name+' '+label+' 등록 (실수령 '+extra.net_amount.toLocaleString('ko-KR')+'원)');
+    }
+    loadRoomChat();
+  }catch(e){alert('오류: '+e.message)}
+}
+
 async function sendRoomImage(fileInput){
+  /* legacy shim — 외부에서 sendRoomImage 호출하면 일반 사진으로 처리 */
+  return sendRoomPhoto(fileInput);
+}
+
+/* 사진(일반) 업로드 — OCR 안 함, 그냥 [IMG] 메시지 */
+async function sendRoomPhoto(fileInput){
   if(!rcRoomId||!rcIsActive)return;
   var all=Array.from(fileInput.files||[]);
   fileInput.value='';
   if(!all.length)return;
   if(all.length>10){alert('한 번에 최대 10장까지 업로드 가능합니다');all=all.slice(0,10)}
-  /* 여러 장 지원: 순차 처리 + 진행률 토스트 */
-  var isClient=currentUser&&currentUser.approval_status==='approved_client';
   for(var i=0;i<all.length;i++){
     var f=all[i];
     if(!f)continue;
     if(f.size>10*1024*1024){alert('['+(f.name||(i+1)+'번째')+'] 10MB 초과 — 건너뜁니다');continue}
     if(all.length>1&&typeof showInAppToastSilent==='function'){
-      showInAppToastSilent('📤 '+(i+1)+'/'+all.length+' 처리 중...');
+      showInAppToastSilent('📤 '+(i+1)+'/'+all.length+' 사진 업로드 중');
     }
-    if(isClient){
-      await sendRoomReceiptFromFile(f);
-    } else {
-      await sendOneLegacyImage(f);
+    await sendOneLegacyImage(f);
+  }
+}
+
+/* 영수증(OCR) 업로드 — 여러 장 */
+async function sendRoomReceiptMulti(fileInput){
+  if(!rcRoomId||!rcIsActive)return;
+  var all=Array.from(fileInput.files||[]);
+  fileInput.value='';
+  if(!all.length)return;
+  if(all.length>10){alert('한 번에 최대 10장까지 업로드 가능합니다');all=all.slice(0,10)}
+  for(var i=0;i<all.length;i++){
+    var f=all[i];
+    if(!f)continue;
+    if(f.size>10*1024*1024){alert('['+(f.name||(i+1)+'번째')+'] 10MB 초과 — 건너뜁니다');continue}
+    if(all.length>1&&typeof showInAppToastSilent==='function'){
+      showInAppToastSilent('🤖 '+(i+1)+'/'+all.length+' AI 인식 중');
     }
+    await sendRoomReceiptFromFile(f);
   }
 }
 
@@ -3013,6 +3155,47 @@ function closeIosInstall(){
   if(!init())document.addEventListener('DOMContentLoaded',init);
 })();
 </script>
+
+<!-- 급여(인건비) 등록 모달 — 프리랜서 / 4대보험 -->
+<div id="payrollModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg);color:var(--text);border-radius:16px;padding:22px;width:100%;max-width:440px;max-height:92vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h3 style="font-size:1.1em;margin:0">🧑‍💼 급여·인건비 등록</h3>
+      <button onclick="closePayrollModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--text2);font-family:inherit">✕</button>
+    </div>
+    <!-- 모드 토글 -->
+    <div style="display:flex;gap:6px;margin-bottom:14px;background:var(--card);padding:4px;border-radius:10px">
+      <button id="plMode3" onclick="setPayrollMode('3.3')" class="pl-mode-btn on" style="flex:1;padding:9px;border:none;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit;background:var(--blue);color:#fff">프리랜서 3.3%</button>
+      <button id="plMode4" onclick="setPayrollMode('4ins')" class="pl-mode-btn" style="flex:1;padding:9px;border:none;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit;background:transparent;color:var(--text2)">정규직 4대보험</button>
+    </div>
+    <p id="plDesc" style="font-size:.76em;color:var(--text2);margin:0 0 12px;line-height:1.5">원천세 3.3% 자동 계산. 세무사가 원천세 신고에 반영합니다.</p>
+
+    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">받는 사람 이름 <span style="color:#f04452">*</span></label>
+    <input id="plName" type="text" placeholder="홍길동" maxlength="30" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
+
+    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">주민등록번호 <span style="color:#f04452">*</span></label>
+    <input id="plResid" type="text" placeholder="000000-0000000" maxlength="14" inputmode="numeric" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
+
+    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">세전 금액 <span style="color:#f04452">*</span></label>
+    <input id="plAmount" type="text" placeholder="1,000,000" inputmode="numeric" oninput="onPayrollAmountInput()" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:1em;font-family:inherit;margin-bottom:6px;box-sizing:border-box;font-weight:700">
+
+    <!-- 계산 결과 (모드별) -->
+    <div id="plCalc" style="background:var(--blue-light);color:var(--blue);padding:10px 12px;border-radius:8px;font-size:.85em;margin-bottom:10px;display:none">
+      <div id="plCalcRows"></div>
+    </div>
+
+    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">지급일</label>
+    <input id="plPayDate" type="date" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
+
+    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">메모 (선택)</label>
+    <input id="plNote" type="text" placeholder="용역명·직책 등" maxlength="100" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:14px;box-sizing:border-box">
+
+    <div style="display:flex;gap:8px">
+      <button onclick="submitPayroll()" style="flex:1;background:var(--blue);color:#fff;border:none;padding:12px;border-radius:8px;font-size:.9em;font-weight:700;cursor:pointer;font-family:inherit">등록</button>
+      <button onclick="closePayrollModal()" style="background:var(--border);color:var(--text);border:none;padding:12px 20px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
+    </div>
+  </div>
+</div>
 
 <!-- 사업장 등록 모달 -->
 <div id="bizModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">

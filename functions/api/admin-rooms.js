@@ -85,15 +85,37 @@ export async function onRequestGet(context) {
   try {
     if (roomId && view === "media") {
       // 방 미디어·링크 갤러리
-      const { results: photos } = await db.prepare(`
+      // 일반 [IMG] 사진 + [DOC:id] 문서(영수증 등)에 첨부된 이미지 모두 포함
+      const { results: imgRows } = await db.prepare(`
         SELECT c.id, c.content, c.created_at, c.user_id, c.role,
                u.real_name, u.name
         FROM conversations c
         LEFT JOIN users u ON c.user_id = u.id
-        WHERE c.room_id = ? AND c.content LIKE '[IMG]%'
+        WHERE c.room_id = ? AND (c.content LIKE '[IMG]%' OR c.content LIKE '[DOC:%')
         ORDER BY c.created_at DESC
-        LIMIT 200
+        LIMIT 300
       `).bind(roomId).all();
+      // [DOC:id] 메시지의 image_key를 [IMG] 형태로 정규화
+      const photos = [];
+      for (const r of (imgRows || [])) {
+        if ((r.content || '').startsWith('[DOC:')) {
+          const m = /^\[DOC:(\d+)\]/.exec(r.content);
+          if (m) {
+            try {
+              const d = await db.prepare(`SELECT image_key, doc_type, vendor FROM documents WHERE id=?`).bind(parseInt(m[1],10)).first();
+              if (d?.image_key) {
+                photos.push({
+                  ...r,
+                  content: `[IMG]/api/image?k=${encodeURIComponent(d.image_key)}`,
+                  doc_type: d.doc_type, vendor: d.vendor
+                });
+              }
+            } catch {}
+          }
+        } else {
+          photos.push(r);
+        }
+      }
 
       const { results: linkCandidates } = await db.prepare(`
         SELECT c.id, c.content, c.created_at, c.user_id, c.role,

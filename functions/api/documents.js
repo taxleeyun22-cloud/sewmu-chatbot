@@ -113,6 +113,11 @@ export async function onRequestPost(context) {
     const file = form.get('file');
     const roomId = form.get('room_id') || null;
     const docType = (form.get('doc_type') || 'receipt').toString();
+    const skipOcr = form.get('skip_ocr') === '1';
+    const extraJson = form.get('extra_json');
+    const presetVendor = form.get('vendor');
+    const presetAmount = form.get('amount');
+    const presetReceiptDate = form.get('receipt_date');
 
     if (!file || typeof file === 'string') return Response.json({ error: '파일이 없습니다' }, { status: 400 });
     if (file.size > MAX_SIZE) return Response.json({ error: '10MB 이하만 업로드 가능합니다' }, { status: 400 });
@@ -141,6 +146,36 @@ export async function onRequestPost(context) {
        VALUES (?, ?, ?, ?, 'pending', 'approved', 0, ?, ?)`
     ).bind(user.user_id, roomId, docType, key, createdAt, createdAt).run();
     const docId = ins.meta?.last_row_id;
+
+    // skip_ocr: 프리랜서 등 수동 입력 — OCR 안 돌리고 preset 값으로 채움
+    if (skipOcr) {
+      await db.prepare(
+        `UPDATE documents SET
+           ocr_status = 'ok', ocr_confidence = 1, vendor = ?, amount = ?,
+           receipt_date = ?, extra = ?, category = ?, category_src = 'manual'
+         WHERE id = ?`
+      ).bind(
+        presetVendor || null,
+        presetAmount ? parseInt(presetAmount, 10) : null,
+        presetReceiptDate || null,
+        extraJson || null,
+        docType === 'freelancer_payment' ? '인건비' : null,
+        docId
+      ).run();
+      const doc = await db.prepare(`SELECT * FROM documents WHERE id=?`).bind(docId).first();
+      // 상담방 메시지 삽입
+      if (roomId) {
+        try {
+          const member = await db.prepare(`SELECT 1 FROM room_members WHERE room_id=? AND user_id=? AND left_at IS NULL`).bind(roomId, user.user_id).first();
+          if (member) {
+            await db.prepare(
+              `INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at) VALUES (?, ?, 'user', ?, ?, ?)`
+            ).bind('room_' + roomId, user.user_id, `[DOC:${docId}]`, roomId, createdAt).run();
+          }
+        } catch (e) { console.error('msg insert failed:', e.message); }
+      }
+      return Response.json({ ok: true, document: doc });
+    }
 
     // OCR 호출 (동기) — R2 put 때 쓴 buf 재사용
     const base64 = arrayBufferToBase64(buf);
