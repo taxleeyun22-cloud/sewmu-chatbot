@@ -1,6 +1,8 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Noto Sans KR',sans-serif;background:#f7f8fa;color:#191f28;min-height:100vh;-webkit-font-smoothing:antialiased}
-.wrap{max-width:820px;margin:0 auto;padding:18px 16px 40px}
+.wrap{max-width:1400px;margin:0 auto;padding:18px 20px 40px}
+/* 문서 탭은 더 넓게 — 엑셀 그리드 공간 확보 */
+body.docs-wide .wrap{max-width:none;padding-left:16px;padding-right:16px}
 
 /* 로그인 */
 .login{display:flex;align-items:center;justify-content:center;min-height:100vh}

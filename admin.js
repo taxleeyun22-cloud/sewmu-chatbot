@@ -284,6 +284,7 @@ $g('detailView').style.display='none';
 $g('liveView').style.display=t==='live'?'block':'none';
 $g('roomsView').style.display=t==='rooms'?'block':'none';
 $g('docsView').style.display=t==='docs'?'block':'none';
+document.body.classList.toggle('docs-wide', t==='docs');
 $g('usersView').style.display=t==='users'?'block':'none';
 $g('analView').style.display=t==='anal'?'block':'none';
 $g('reviewView').style.display=t==='review'?'block':'none';
@@ -2278,95 +2279,277 @@ function updateDocsStats(counts){
   }
 }
 
-/* AG-Grid 엑셀 스타일 그리드 — 문서 목록 */
+/* AG-Grid 엑셀 스타일 그리드 — 문서 목록 (문서 타입별 탭) */
 let docsGridApi=null;
+let docsCurrentType='all'; // 선택된 문서 타입 탭
+let docsRawList=[];        // 전체 원본 (거래처의 모든 문서)
 
-function renderDocsTable(docs){
-  const empty=$g('docsEmpty');
-  if(!docs.length){
-    empty.style.display='block';
-    if(docsGridApi)docsGridApi.setGridOption('rowData',[]);
-    return;
-  }
-  empty.style.display='none';
+// 타입별 탭 정의 — [key, 라벨, 아이콘]
+const DOC_TYPE_TABS = [
+  ['all',          '전체',     '📋'],
+  ['receipt',      '영수증',    '🧾'],
+  ['tax_invoice',  '세금계산서',  '📑'],
+  ['lease',        '임대차',    '🏠'],
+  ['insurance',    '보험',      '🛡️'],
+  ['utility',      '공과금',    '💧'],
+  ['property_tax', '지방세',    '🚗'],
+  ['payroll',      '근로',      '👥'],
+  ['bank_stmt',    '은행',      '🏦'],
+  ['business_reg', '사업자등록', '📋'],
+  ['identity',     '신분증',    '🪪'],
+  ['contract',     '계약',      '📝'],
+  ['other',        '기타',      '📄'],
+];
 
-  const rowData = docs.map(d => ({
-    id: d.id,
-    date: d.receipt_date || (d.created_at||'').substring(0,10),
-    doc_type: d.doc_type,
-    doc_type_label: docTypeLabelAdmin(d.doc_type),
-    user_id: d.user_id,
-    user_name: d.real_name || d.name || ('#'+d.user_id),
-    vendor: d.vendor || '',
-    vendor_biz_no: d.vendor_biz_no || '',
-    amount: d.amount,
-    vat_amount: d.vat_amount,
-    category: d.category || '',
-    confidence: d.ocr_confidence!=null ? Math.round(d.ocr_confidence*100) : null,
-    status: d.status,
-    image_key: d.image_key,
-    created_at: d.created_at,
-  }));
-
-  if(docsGridApi){
-    docsGridApi.setGridOption('rowData', rowData);
-    return;
-  }
-
-  // 첫 생성
-  const gridDiv = $g('docsGrid');
-  if(!gridDiv || typeof agGrid === 'undefined')return;
-
-  const columnDefs = [
-    { headerCheckboxSelection:true, checkboxSelection:true, width:44, pinned:'left', filter:false, sortable:false, resizable:false },
-    { headerName:'일자', field:'date', width:110, pinned:'left', filter:'agDateColumnFilter' },
-    { headerName:'타입', field:'doc_type_label', width:120, filter:true },
-    { headerName:'고객', field:'user_name', width:120, filter:true, pinned:'left' },
-    { headerName:'가맹점/업체', field:'vendor', width:180, filter:true, editable:p=>p.data.status==='pending' },
-    { headerName:'사업자번호', field:'vendor_biz_no', width:130, editable:p=>p.data.status==='pending' },
+// 공통 컬럼 (모든 타입 앞·뒤 공통)
+function commonColsLeft(){
+  return [
+    { headerCheckboxSelection:true, checkboxSelection:true, width:40, pinned:'left', filter:false, sortable:false, resizable:false },
+    { headerName:'일자', field:'date', width:105, pinned:'left', filter:'agDateColumnFilter' },
+  ];
+}
+function commonColsRight(){
+  return [
     {
-      headerName:'금액', field:'amount', width:120, type:'numericColumn',
-      editable: p=>p.data.status==='pending',
-      valueFormatter: p => p.value!=null ? (Number(p.value)||0).toLocaleString('ko-KR')+'원' : '-',
-      cellStyle: { fontWeight:'600', textAlign:'right' }
-    },
-    { headerName:'부가세', field:'vat_amount', width:100, type:'numericColumn',
-      valueFormatter: p => p.value!=null ? (Number(p.value)||0).toLocaleString('ko-KR') : '-',
-      cellStyle: { textAlign:'right' }
-    },
-    { headerName:'카테고리', field:'category', width:110, editable:p=>p.data.status==='pending',
-      cellEditor:'agSelectCellEditor',
-      cellEditorParams:{ values:['','식비','교통비','숙박비','소모품비','접대비','통신비','공과금','임대료','보험료','기타'] }
-    },
-    {
-      headerName:'신뢰도', field:'confidence', width:90,
+      headerName:'신뢰도', field:'confidence', width:80,
       valueFormatter: p => p.value!=null ? p.value+'%' : '-',
       cellStyle: p => p.value!=null && p.value<70 ? { color:'#d97706', fontWeight:'700', textAlign:'center' } : { color:'#10b981', fontWeight:'700', textAlign:'center' }
     },
     {
-      headerName:'상태', field:'status', width:100, filter:true,
+      headerName:'상태', field:'status', width:90, filter:true,
       cellRenderer: p => {
         const map={pending:{t:'⏳ 대기',bg:'#fef3c7',fg:'#92400e'},approved:{t:'✅ 승인',bg:'#d1fae5',fg:'#065f46'},rejected:{t:'❌ 반려',bg:'#fee2e2',fg:'#991b1b'}};
         const x=map[p.value]||map.pending;
-        return `<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:${x.bg};color:${x.fg};font-size:.82em;font-weight:700">${x.t}</span>`;
+        return `<span style="display:inline-block;padding:2px 7px;border-radius:6px;background:${x.bg};color:${x.fg};font-size:.8em;font-weight:700">${x.t}</span>`;
       }
     },
+    { headerName:'메모', field:'note', flex:1, minWidth:150,
+      editable:true, cellEditor:'agLargeTextCellEditor',
+      cellStyle: p => p.value ? { background:'#fffbeb' } : {} },
     {
-      headerName:'원본', field:'image_key', width:70, sortable:false, filter:false,
+      headerName:'원본', field:'image_key', width:60, sortable:false, filter:false,
       cellRenderer: p => `<button onclick="openImgViewer('/api/image?k=${encodeURIComponent(p.value)}',['/api/image?k=${encodeURIComponent(p.value)}'])" style="background:#f2f4f6;border:none;padding:3px 8px;border-radius:6px;font-size:.85em;cursor:pointer;font-family:inherit">📷</button>`
     },
     {
-      headerName:'액션', width:130, sortable:false, filter:false, pinned:'right',
+      headerName:'액션', width:110, sortable:false, filter:false, pinned:'right',
       cellRenderer: p => {
         const d=p.data;
         if(d.status==='pending'){
-          return `<button onclick="approveDocById(${d.id})" title="승인" style="background:#10b981;color:#fff;border:none;padding:3px 9px;border-radius:5px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:3px">✅</button>`
-            +`<button onclick="rejectDocPrompt(${d.id})" title="반려" style="background:#fff;color:#f04452;border:1px solid #f04452;padding:3px 9px;border-radius:5px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit">❌</button>`;
+          return `<button onclick="approveDocById(${d.id})" title="승인" style="background:#10b981;color:#fff;border:none;padding:3px 7px;border-radius:5px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:3px">✅</button>`
+            +`<button onclick="rejectDocPrompt(${d.id})" title="반려" style="background:#fff;color:#f04452;border:1px solid #f04452;padding:3px 7px;border-radius:5px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">❌</button>`;
         }
-        return `<button onclick="openDocDetailAdmin(${d.id})" style="background:#e5e8eb;border:none;padding:3px 9px;border-radius:5px;font-size:.78em;cursor:pointer;font-family:inherit">상세</button>`;
+        return `<button onclick="openDocDetailAdmin(${d.id})" style="background:#e5e8eb;border:none;padding:3px 8px;border-radius:5px;font-size:.76em;cursor:pointer;font-family:inherit">상세</button>`;
       }
     },
   ];
+}
+
+// 타입별 중간 컬럼
+function colsForType(type){
+  const amtCol = (name, field) => ({
+    headerName:name, field, width:115, type:'numericColumn',
+    editable: p=>p.data.status==='pending',
+    valueFormatter: p => p.value!=null ? (Number(p.value)||0).toLocaleString('ko-KR') : '-',
+    cellStyle: { fontWeight:'600', textAlign:'right' }
+  });
+  const dateCol = (name, field) => ({
+    headerName:name, field, width:115,
+    editable: p=>p.data.status==='pending'
+  });
+  const textCol = (name, field, w=140) => ({
+    headerName:name, field, width:w, filter:true,
+    editable: p=>p.data.status==='pending'
+  });
+
+  switch(type){
+    case 'receipt':
+      return [
+        textCol('가맹점','vendor',160),
+        textCol('사업자번호','vendor_biz_no',120),
+        amtCol('금액','amount'),
+        amtCol('부가세','vat_amount'),
+        { headerName:'카테고리', field:'category', width:105, editable:p=>p.data.status==='pending',
+          cellEditor:'agSelectCellEditor',
+          cellEditorParams:{ values:['','식비','교통비','숙박비','소모품비','접대비','통신비','공과금','임대료','보험료','기타'] } },
+      ];
+    case 'tax_invoice':
+      return [
+        textCol('공급자','ex_supplier',140),
+        textCol('공급받는자','ex_buyer',130),
+        amtCol('공급가액','ex_supply_amount'),
+        amtCol('세액','ex_tax_amount'),
+        textCol('품목','ex_items_preview',150),
+      ];
+    case 'lease':
+      return [
+        textCol('임대인','ex_lessor',110),
+        textCol('임차인','ex_lessee',110),
+        textCol('물건지','ex_property_address',200),
+        amtCol('보증금','ex_deposit'),
+        amtCol('월세','ex_monthly_rent'),
+        amtCol('관리비','ex_maintenance_fee'),
+        dateCol('시작일','ex_start_date'),
+        dateCol('만료일','ex_end_date'),
+      ];
+    case 'insurance':
+      return [
+        textCol('보험사','ex_insurer',120),
+        textCol('보험종류','ex_insurance_type',130),
+        textCol('증권번호','ex_policy_no',130),
+        amtCol('보험료','ex_premium'),
+        { headerName:'납부주기', field:'ex_payment_cycle', width:100, editable:p=>p.data.status==='pending',
+          cellEditor:'agSelectCellEditor', cellEditorParams:{ values:['','lump','monthly','annual'] } },
+        dateCol('만기일','ex_end_date'),
+      ];
+    case 'utility':
+      return [
+        { headerName:'공과금', field:'ex_utility_type', width:100, editable:p=>p.data.status==='pending',
+          cellEditor:'agSelectCellEditor', cellEditorParams:{ values:['','electric','water','gas','internet','phone','other'] } },
+        textCol('고객번호','ex_customer_no',120),
+        textCol('사용량','ex_usage',100),
+        textCol('사용기간','ex_billing_period',140),
+        amtCol('청구금액','amount'),
+        dateCol('납부기한','ex_due_date'),
+      ];
+    case 'property_tax':
+      return [
+        textCol('세목','ex_tax_name',130),
+        textCol('귀속연도','ex_tax_year',100),
+        amtCol('세액','amount'),
+        dateCol('납부기한','ex_due_date'),
+        textCol('고지번호','ex_notice_no',130),
+      ];
+    case 'payroll':
+      return [
+        textCol('근로자','ex_employee_name',110),
+        textCol('사업주','ex_employer',130),
+        dateCol('입사일','ex_start_date'),
+        amtCol('월급','ex_monthly_salary'),
+        textCol('근무시간','ex_work_hours',130),
+      ];
+    case 'bank_stmt':
+      return [
+        textCol('계좌(뒷4)','ex_account_no',110),
+        textCol('조회기간','ex_period',150),
+        { headerName:'건수', field:'ex_transaction_count', width:80, type:'numericColumn' },
+      ];
+    case 'business_reg':
+      return [
+        textCol('상호','ex_business_name',150),
+        textCol('사업자번호','ex_registration_no',130),
+        textCol('대표자','ex_representative',100),
+        textCol('업태','ex_business_type',120),
+        textCol('종목','ex_business_category',120),
+        dateCol('개업일','ex_open_date'),
+      ];
+    case 'identity':
+      return [
+        textCol('구분','ex_id_type',120),
+        textCol('성명','ex_full_name',100),
+        textCol('은행','ex_bank_name',100),
+        textCol('계좌(마스킹)','ex_account_no_masked',150),
+      ];
+    case 'contract':
+      return [
+        textCol('갑','ex_party_a',130),
+        textCol('을','ex_party_b',130),
+        textCol('계약내용','ex_contract_subject',200),
+        amtCol('계약금액','ex_contract_amount'),
+        dateCol('시작일','ex_start_date'),
+        dateCol('종료일','ex_end_date'),
+      ];
+    case 'all':
+    default:
+      return [
+        { headerName:'타입', field:'doc_type_label', width:110, filter:true },
+        textCol('가맹점/업체','vendor',160),
+        amtCol('금액','amount'),
+        { headerName:'카테고리', field:'category', width:100 },
+      ];
+  }
+}
+
+// rowData 변환 — extra JSON 펼치기
+function buildRowData(docs){
+  return docs.map(d => {
+    let ex = {};
+    try { ex = d.extra ? JSON.parse(d.extra) : {}; } catch {}
+    const row = {
+      id: d.id,
+      date: d.receipt_date || (d.created_at||'').substring(0,10),
+      doc_type: d.doc_type,
+      doc_type_label: docTypeLabelAdmin(d.doc_type),
+      user_id: d.user_id,
+      user_name: d.real_name || d.name || ('#'+d.user_id),
+      vendor: d.vendor || '',
+      vendor_biz_no: d.vendor_biz_no || '',
+      amount: d.amount,
+      vat_amount: d.vat_amount,
+      category: d.category || '',
+      confidence: d.ocr_confidence!=null ? Math.round(d.ocr_confidence*100) : null,
+      status: d.status,
+      image_key: d.image_key,
+      note: d.note || '',
+      created_at: d.created_at,
+    };
+    // ex.* 를 ex_* 로 펼침
+    for (const k in ex) {
+      const v = ex[k];
+      if (Array.isArray(v)) row['ex_'+k+'_preview'] = v.slice(0,3).join(', ');
+      else row['ex_'+k] = v;
+    }
+    return row;
+  });
+}
+
+function renderDocsTypeTabs(){
+  const el = $g('docsTypeTabs');
+  if(!el || !el.innerHTML === undefined)return;
+  const counts = {};
+  for(const d of docsRawList){ counts[d.doc_type] = (counts[d.doc_type]||0)+1; }
+  const visibleTabs = DOC_TYPE_TABS.filter(([k])=>k==='all'||counts[k]>0);
+  el.innerHTML = visibleTabs.map(([k,label,icon])=>{
+    const c = k==='all' ? docsRawList.length : (counts[k]||0);
+    const on = k===docsCurrentType;
+    const bg = on ? '#3182f6' : 'transparent';
+    const fg = on ? '#fff' : '#6b7684';
+    const fw = on ? '700' : '500';
+    return `<button onclick="setDocsTypeTab('${k}')" style="background:${bg};color:${fg};border:none;padding:7px 13px;border-radius:8px;font-size:.85em;font-weight:${fw};cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0">${icon} ${label} <span style="opacity:.75;font-size:.85em;margin-left:2px">${c}</span></button>`;
+  }).join('');
+}
+
+function setDocsTypeTab(type){
+  docsCurrentType = type;
+  renderDocsTypeTabs();
+  rebuildDocsGrid();
+}
+
+function rebuildDocsGrid(){
+  const filtered = docsCurrentType==='all'
+    ? docsRawList
+    : docsRawList.filter(d => d.doc_type === docsCurrentType);
+  const empty = $g('docsEmpty');
+  if(!filtered.length){
+    empty.style.display='block';
+    if(docsGridApi){
+      docsGridApi.setGridOption('columnDefs', [...commonColsLeft(), ...colsForType(docsCurrentType), ...commonColsRight()]);
+      docsGridApi.setGridOption('rowData', []);
+    }
+    return;
+  }
+  empty.style.display='none';
+
+  const rowData = buildRowData(filtered);
+  const columnDefs = [...commonColsLeft(), ...colsForType(docsCurrentType), ...commonColsRight()];
+
+  if(docsGridApi){
+    docsGridApi.setGridOption('columnDefs', columnDefs);
+    docsGridApi.setGridOption('rowData', rowData);
+    return;
+  }
+
+  const gridDiv = $g('docsGrid');
+  if(!gridDiv || typeof agGrid === 'undefined')return;
 
   const gridOptions = {
     columnDefs,
@@ -2380,19 +2563,32 @@ function renderDocsTable(docs){
     paginationPageSizeSelector: [25, 50, 100, 200],
     enableCellTextSelection: true,
     onCellValueChanged: async (e) => {
-      const d=e.data;
-      const field=e.colDef.field;
-      const newVal=e.newValue;
+      const d = e.data;
+      let field = e.colDef.field;
+      let newVal = e.newValue;
+      const body = { id: d.id };
+      // ex_* 필드는 extra JSON patch
+      if (field && field.startsWith('ex_')) {
+        // 서버에 extra_patch 형태로 전달
+        body.extra_patch = { [field.slice(3)]: newVal };
+      } else {
+        body[field] = newVal;
+      }
       try{
         await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=update',{
           method:'POST', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({ id: d.id, [field]: newVal })
+          body:JSON.stringify(body)
         });
       }catch(err){ alert('저장 실패: '+err.message) }
     },
   };
-
   docsGridApi = agGrid.createGrid(gridDiv, gridOptions);
+}
+
+function renderDocsTable(docs){
+  docsRawList = docs || [];
+  renderDocsTypeTabs();
+  rebuildDocsGrid();
 }
 
 // AG-Grid cellRenderer에서 호출되는 래퍼 (btnEl 없이 id만으로 승인)

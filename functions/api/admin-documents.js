@@ -589,6 +589,15 @@ export async function onRequestPost(context) {
       }
     }
     if (body.category !== undefined) sets.push(`category_src = 'manual'`);
+    // extra JSON 패치 (lease.deposit, insurance.premium 등)
+    if (body.extra_patch && typeof body.extra_patch === 'object') {
+      const cur = await db.prepare(`SELECT extra FROM documents WHERE id = ?`).bind(id).first();
+      let ex = {};
+      try { ex = cur?.extra ? JSON.parse(cur.extra) : {}; } catch {}
+      Object.assign(ex, body.extra_patch);
+      sets.push('extra = ?');
+      args.push(JSON.stringify(ex));
+    }
     if (!sets.length) return Response.json({ ok: true, updated: 0 });
     args.push(id);
     await db.prepare(`UPDATE documents SET ${sets.join(', ')} WHERE id = ?`).bind(...args).run();
