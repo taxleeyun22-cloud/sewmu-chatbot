@@ -4,7 +4,8 @@
       "Bash(gh auth:*)",
       "Bash(wc -l functions/api/*.js functions/api/auth/*.js)",
       "Bash(grep -l \"admin\" C:/Users/user/Desktop/sewmu-chatbot/functions/api/*.js)",
-      "Bash(ls C:/Users/user/Desktop/sewmu-chatbot/*.json C:/Users/user/Desktop/sewmu-chatbot/**/*.json)"
+      "Bash(ls C:/Users/user/Desktop/sewmu-chatbot/*.json C:/Users/user/Desktop/sewmu-chatbot/**/*.json)",
+      "mcp__chrome-devtools__*"
     ]
   }
 }
