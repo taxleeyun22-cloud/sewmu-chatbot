@@ -114,7 +114,7 @@ export async function onRequestPost(context) {
       await db.prepare(`UPDATE documents SET status='reverted' WHERE id=?`).bind(id).run();
       return Response.json({ ok: true });
     } catch (e) {
-      return Response.json({ error: e.message }, { status: 500 });
+      return Response.json({ error: "처리 실패" }, { status: 500 });
     }
   }
 
@@ -304,7 +304,7 @@ export async function onRequestPost(context) {
     const doc = await db.prepare(`SELECT * FROM documents WHERE id=?`).bind(docId).first();
     return Response.json({ ok: true, document: doc });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ error: "처리 실패" }, { status: 500 });
   }
 }
 
@@ -403,7 +403,7 @@ export async function onRequestPatch(context) {
     await db.prepare(`UPDATE documents SET ${sets.join(', ')} WHERE id = ?`).bind(...args).run();
     return Response.json({ ok: true });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ error: "처리 실패" }, { status: 500 });
   }
 }
 

@@ -2160,80 +2160,28 @@ async function sendRoomReceipt(fileInput){
 
 /* ===== 급여·인건비 등록 모달 (프리랜서 3.3% / 정규직 4대보험) ===== */
 var plMode='3.3'; /* '3.3' | '4ins' */
-/* 저장된 사람 목록 (이름+주민번호) — localStorage, 방별 구분 */
-function _plPeopleKey(){return 'plPeople:'+(rcRoomId||'default')}
-function plGetPeople(){
-  try{return JSON.parse(localStorage.getItem(_plPeopleKey())||'[]')}catch{return []}
-}
-function plSavePerson(name,resid,mode){
-  if(!name||!resid)return;
-  var arr=plGetPeople();
-  /* 같은 이름+뒷자리 이미 있으면 갱신, 없으면 추가. 최근 순으로 정렬 */
-  var residKey=resid.replace(/-/g,'').slice(0,6); /* 앞자리만 비교 (뒷자리는 보안상 노출 X) */
-  var idx=arr.findIndex(function(p){return p.name===name&&p.residPrefix===residKey});
-  var item={name:name,resid:resid,residPrefix:residKey,mode:mode||plMode,last:Date.now()};
-  if(idx>=0)arr.splice(idx,1);
-  arr.unshift(item);
-  if(arr.length>50)arr=arr.slice(0,50);
-  try{localStorage.setItem(_plPeopleKey(),JSON.stringify(arr))}catch{}
-}
-function plRemovePerson(idx){
-  var arr=plGetPeople();
-  if(idx<0||idx>=arr.length)return;
-  arr.splice(idx,1);
-  try{localStorage.setItem(_plPeopleKey(),JSON.stringify(arr))}catch{}
-  renderSavedPeople();
-}
+/* 보안: 주민등록번호·이름을 브라우저에 저장하지 않음.
+   기존 `plPeople:*` 키로 저장된 민감정보가 있으면 자동 삭제. */
+(function purgeLegacyPlPeople(){
+  try{
+    for(var i=localStorage.length-1;i>=0;i--){
+      var k=localStorage.key(i);
+      if(k&&k.indexOf('plPeople')===0)localStorage.removeItem(k);
+    }
+  }catch{}
+})();
+function plGetPeople(){ return []; }           /* no-op: 저장 금지 */
+function plSavePerson(){}                       /* no-op: 저장 금지 */
+function plRemovePerson(){renderSavedPeople();} /* no-op */
 function renderSavedPeople(){
   var box=document.getElementById('plSavedPeople');
   if(!box)return;
-  var arr=plGetPeople();
-  if(!arr.length){box.style.display='none';return}
-  box.style.display='block';
-  box.innerHTML='<button type="button" onclick="togglePlPeopleList()" id="plPeopleBtn" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:.85em;font-family:inherit;cursor:pointer">'
-    +'<span>💾 저장된 사람 <b>'+arr.length+'명</b> 에서 선택</span>'
-    +'<span id="plPeopleArr" style="font-size:1em">▾</span>'
-    +'</button>'
-    +'<div id="plPeopleList" style="display:none;margin-top:6px;max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)"></div>';
-  renderPlPeopleList();
+  box.style.display='none';
+  box.innerHTML='';
 }
-function renderPlPeopleList(){
-  var el=document.getElementById('plPeopleList');
-  if(!el)return;
-  var arr=plGetPeople();
-  el.innerHTML=arr.map(function(p,i){
-    var modeTag=p.mode==='4ins'?'👥 4대보험':'🧑‍💼 프리랜서(3.3%)';
-    var residShow=p.resid?p.resid.substring(0,8)+'*****':'';
-    return '<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer" onclick="plPickPerson('+i+')">'
-      +'<div style="flex:1;min-width:0">'
-      +  '<div style="font-weight:600;font-size:.88em">'+esc(p.name)+'</div>'
-      +  '<div style="font-size:.72em;color:var(--text2);margin-top:1px">'+esc(residShow)+' · '+modeTag+'</div>'
-      +'</div>'
-      +'<button onclick="event.stopPropagation();plRemovePerson('+i+')" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:1em;padding:4px 6px;line-height:1" title="삭제">✕</button>'
-      +'</div>';
-  }).join('');
-}
-function togglePlPeopleList(){
-  var list=document.getElementById('plPeopleList');
-  var arr=document.getElementById('plPeopleArr');
-  if(!list)return;
-  var open=list.style.display!=='none';
-  list.style.display=open?'none':'block';
-  if(arr)arr.textContent=open?'▾':'▴';
-}
-function plPickPerson(i){
-  var arr=plGetPeople();
-  var p=arr[i];if(!p)return;
-  document.getElementById('plName').value=p.name;
-  document.getElementById('plResid').value=p.resid;
-  if(p.mode)setPayrollMode(p.mode);
-  /* 리스트 닫기 */
-  var list=document.getElementById('plPeopleList');
-  if(list)list.style.display='none';
-  var arrEl=document.getElementById('plPeopleArr');
-  if(arrEl)arrEl.textContent='▾';
-  document.getElementById('plAmount').focus();
-}
+function renderPlPeopleList(){/* no-op */}
+function togglePlPeopleList(){/* no-op */}
+function plPickPerson(){/* no-op */}
 function openPayrollModal(){
   if(!rcRoomId||!rcIsActive){alert('상담방을 먼저 여세요');return}
   document.getElementById('plName').value='';

@@ -64,32 +64,33 @@ export async function onRequestPost(context) {
     if (action === 'abort') return await handleAbort(context, bucket, auth);
     return Response.json({ error: 'invalid action' }, { status: 400 });
   } catch (e) {
-    return Response.json({ error: e.message || String(e) }, { status: 500 });
+    /* 보안: 내부 에러 메시지 미노출 */
+    return Response.json({ error: '요청 처리 실패' }, { status: 500 });
   }
 }
 
 // ── start: 멀티파트 업로드 시작 ──
 async function handleStart(context, bucket, auth) {
   const body = await context.request.json();
-  const name = String(body.name || 'file').slice(0, 255);
+  const rawName = String(body.name || 'file').slice(0, 255);
   const size = Number(body.size || 0);
   const type = String(body.type || 'application/octet-stream');
 
-  if (!size) return Response.json({ error: '파일 크기 필요' }, { status: 400 });
+  if (!size || size <= 0) return Response.json({ error: '파일 크기 필요' }, { status: 400 });
   if (size > MAX_FILE_SIZE) {
     return Response.json({ error: `${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB 이하만 업로드 가능합니다` }, { status: 400 });
   }
 
+  /* 보안: 파일명 sanitize + 확장자 화이트리스트 강제 */
+  const name = rawName.replace(/[\x00-\x1f\\\/]/g, '_').slice(0, 200) || 'file';
   const dotIdx = name.lastIndexOf('.');
-  const ext = dotIdx >= 0 ? name.slice(dotIdx + 1).toLowerCase() : '';
-  if (ext && !EXT_WHITELIST.includes(ext)) {
-    return Response.json({ error: `허용되지 않은 확장자 (${ext})` }, { status: 400 });
+  const rawExt = dotIdx >= 0 ? name.slice(dotIdx + 1).toLowerCase() : '';
+  if (!rawExt || !EXT_WHITELIST.includes(rawExt)) {
+    return Response.json({ error: '허용되지 않은 확장자' }, { status: 400 });
   }
 
-  const random = Math.random().toString(36).slice(2, 10);
   const prefix = auth.isAdmin ? 'admin/files' : `u${auth.userId}/files`;
-  const safeExt = ext || 'bin';
-  const key = `${prefix}/${Date.now()}_${random}.${safeExt}`;
+  const key = `${prefix}/${Date.now()}_${crypto.randomUUID().replace(/-/g,'').slice(0,12)}.${rawExt}`;
 
   const mpu = await bucket.createMultipartUpload(key, {
     httpMetadata: { contentType: type },

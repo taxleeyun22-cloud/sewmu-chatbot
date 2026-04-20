@@ -231,7 +231,8 @@ export async function onRequestGet(context) {
 
     return Response.json({ rooms: results || [] });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    /* 보안: 내부 에러 미노출 */
+    return Response.json({ error: "요청 처리 실패" }, { status: 500 });
   }
 }
 
@@ -353,6 +354,27 @@ export async function onRequestPost(context) {
       if (!content && !imageUrl && !fileUrl) return Response.json({ error: "content or image_url or file_url required" }, { status: 400 });
       if (content.length > 3000) return Response.json({ error: "메시지가 너무 깁니다" }, { status: 400 });
 
+      /* 보안: image_url / file_url은 우리 R2 프록시 경로만 허용.
+         javascript:, data:, 외부 도메인 주입 차단. */
+      const isSafeImageUrl = (u) => /^\/api\/image\?k=[A-Za-z0-9%._\-\/]+$/.test(u);
+      const isSafeFileUrl  = (u) => /^\/api\/file\?k=[A-Za-z0-9%._\-\/]+(&name=[A-Za-z0-9%._\-]*)?$/.test(u);
+      if (imageUrl && !isSafeImageUrl(imageUrl)) {
+        return Response.json({ error: '허용되지 않은 image_url' }, { status: 400 });
+      }
+      if (fileUrl && !isSafeFileUrl(fileUrl)) {
+        return Response.json({ error: '허용되지 않은 file_url' }, { status: 400 });
+      }
+      /* 파일명: 경로 구분자·제어문자 금지 (렌더링 시 XSS는 esc로 처리됨) */
+      if (fileName && /[\r\n\t\\\/\x00-\x1f]/.test(fileName)) {
+        return Response.json({ error: '파일명에 금지된 문자가 있습니다' }, { status: 400 });
+      }
+      if (fileName.length > 200) {
+        return Response.json({ error: '파일명이 너무 깁니다' }, { status: 400 });
+      }
+      if (fileSize < 0 || fileSize > 500 * 1024 * 1024) {
+        return Response.json({ error: 'file_size 범위 초과' }, { status: 400 });
+      }
+
       let finalContent;
       if (fileUrl) {
         const meta = JSON.stringify({ url: fileUrl, name: fileName, size: fileSize });
@@ -406,6 +428,7 @@ export async function onRequestPost(context) {
 
     return Response.json({ error: "unknown action" }, { status: 400 });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    /* 보안: 내부 에러 미노출 */
+    return Response.json({ error: "요청 처리 실패" }, { status: 500 });
   }
 }

@@ -29,6 +29,26 @@ export async function onRequestPost(context) {
     const p256dh = body.keys?.p256dh;
     const auth = body.keys?.auth;
     if (!endpoint || !p256dh || !auth) return Response.json({ error: "invalid" }, { status: 400 });
+    /* 보안: endpoint는 실제 push 서비스만 허용 (임의 SSRF 대상 URL 저장 방지) */
+    if (typeof endpoint !== 'string' || endpoint.length > 1024) {
+      return Response.json({ error: "invalid endpoint" }, { status: 400 });
+    }
+    try {
+      const epHost = new URL(endpoint).hostname;
+      const allowed = [
+        'fcm.googleapis.com',
+        'updates.push.services.mozilla.com',
+        'web.push.apple.com',
+        'wns2-db3p.notify.windows.com',
+      ];
+      if (!allowed.some(h => epHost === h || epHost.endsWith('.' + h.split('.').slice(-2).join('.')))) {
+        return Response.json({ error: "허용되지 않은 push endpoint" }, { status: 400 });
+      }
+    } catch {
+      return Response.json({ error: "invalid endpoint url" }, { status: 400 });
+    }
+    if (typeof p256dh !== 'string' || p256dh.length > 200) return Response.json({ error: "invalid key" }, { status: 400 });
+    if (typeof auth !== 'string' || auth.length > 100) return Response.json({ error: "invalid key" }, { status: 400 });
 
     const kst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
     const ua = context.request.headers.get("User-Agent") || "";
@@ -41,7 +61,8 @@ export async function onRequestPost(context) {
 
     return Response.json({ ok: true });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    /* 보안: 내부 에러 미노출 */
+    return Response.json({ error: "처리 실패" }, { status: 500 });
   }
 }
 
@@ -86,6 +107,7 @@ export async function onRequestDelete(context) {
     }
     return Response.json({ ok: true });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    /* 보안: 내부 에러 미노출 */
+    return Response.json({ error: "처리 실패" }, { status: 500 });
   }
 }

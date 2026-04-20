@@ -55,24 +55,24 @@ export async function onRequestPost(context) {
     if (!file || typeof file === 'string') return Response.json({ error: "파일이 없습니다" }, { status: 400 });
 
     const size = file.size;
+    if (size <= 0) return Response.json({ error: "빈 파일" }, { status: 400 });
     if (size > MAX_SIZE) return Response.json({ error: "20MB 이하만 업로드 가능합니다" }, { status: 400 });
 
-    const origName = file.name || 'file';
+    const rawName = file.name || 'file';
+    /* 보안: 원본 파일명 sanitize (제어문자·경로 구분자 제거, 길이 제한) */
+    const origName = rawName.replace(/[\x00-\x1f\\\/]/g, '_').slice(0, 200) || 'file';
     const dotIdx = origName.lastIndexOf('.');
-    const ext = dotIdx >= 0 ? origName.slice(dotIdx + 1).toLowerCase() : '';
+    const rawExt = dotIdx >= 0 ? origName.slice(dotIdx + 1).toLowerCase() : '';
+    /* 확장자 화이트리스트 엄격 적용 (MIME과 확장자 둘 다 허용 목록 매칭 필수) */
+    const ext = EXT_WHITELIST.includes(rawExt) ? rawExt : '';
     const type = file.type || 'application/octet-stream';
-
-    // 확장자 or MIME 둘 중 하나라도 허용 목록이면 통과
-    const extOk = ext && EXT_WHITELIST.includes(ext);
     const mimeOk = ALLOWED_TYPES.includes(type);
-    if (!extOk && !mimeOk) {
+    if (!ext || (!mimeOk && type !== 'application/octet-stream')) {
       return Response.json({ error: "허용되지 않은 파일 형식입니다 (PDF/엑셀/워드/한글/PPT/TXT/CSV/ZIP)" }, { status: 400 });
     }
 
-    const random = Math.random().toString(36).slice(2, 10);
     const prefix = isAdmin ? 'admin/files' : `u${userId}/files`;
-    const safeExt = ext || 'bin';
-    const key = `${prefix}/${Date.now()}_${random}.${safeExt}`;
+    const key = `${prefix}/${Date.now()}_${crypto.randomUUID().replace(/-/g,'').slice(0,12)}.${ext}`;
 
     await bucket.put(key, file.stream(), {
       httpMetadata: { contentType: type },
@@ -93,6 +93,7 @@ export async function onRequestPost(context) {
       ext,
     });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    /* 보안: 내부 에러 메시지 미노출 */
+    return Response.json({ error: "업로드 실패" }, { status: 500 });
   }
 }

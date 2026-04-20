@@ -58,6 +58,7 @@ export async function onRequestGet(context) {
       ai_mode: aiMode,
     });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    /* 보안: 내부 에러 미노출 */
+    return Response.json({ error: "처리 실패" }, { status: 500 });
   }
 }

@@ -79,11 +79,11 @@ function renderReceiptCardAdmin(doc){
     +     `<div style="color:#8b95a1;font-size:.82em;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${typeLabel}${isPayroll?'':' · '+(doc.ocr_confidence!=null?Math.round(doc.ocr_confidence*100)+'%':'-')+amb2}</div>`
     +     `<div style="display:grid;grid-template-columns:52px 1fr;gap:4px 6px;align-items:center">`
     +       `<label style="color:#8b95a1;font-size:.88em">${isPayroll?'이름':'가맹점'}</label>`
-    +       `<input type="text" value="${e(doc.vendor||'')}" data-field="vendor" ${canEdit?'':'readonly'} style="padding:5px 7px;border:1px solid #e5e8eb;border-radius:5px;font-size:.92em;width:100%;max-width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
+    +       `<input type="text" value="${escAttr(doc.vendor||'')}" data-field="vendor" ${canEdit?'':'readonly'} style="padding:5px 7px;border:1px solid #e5e8eb;border-radius:5px;font-size:.92em;width:100%;max-width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
     +       `<label style="color:#8b95a1;font-size:.88em">${isPayroll?'세전':'금액'}</label>`
     +       `<input type="number" value="${doc.amount||''}" data-field="amount" ${canEdit?'':'readonly'} style="padding:5px 7px;border:1px solid #e5e8eb;border-radius:5px;font-size:.92em;width:100%;max-width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
     +       `<label style="color:#8b95a1;font-size:.88em">날짜</label>`
-    +       `<input type="text" value="${e(doc.receipt_date||'')}" data-field="receipt_date" placeholder="YYYY-MM-DD" ${canEdit?'':'readonly'} style="padding:5px 7px;border:1px solid #e5e8eb;border-radius:5px;font-size:.92em;width:100%;max-width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
+    +       `<input type="text" value="${escAttr(doc.receipt_date||'')}" data-field="receipt_date" placeholder="YYYY-MM-DD" ${canEdit?'':'readonly'} style="padding:5px 7px;border:1px solid #e5e8eb;border-radius:5px;font-size:.92em;width:100%;max-width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}">`
     +       (isPayroll?'':`<label style="color:#8b95a1;font-size:.88em">계정</label>`
     +         `<select data-field="category" ${canEdit?'':'disabled'} style="padding:5px 7px;border:1px solid #e5e8eb;border-radius:5px;font-size:.92em;width:100%;max-width:100%;box-sizing:border-box;font-family:inherit;background:${canEdit?'#fff':'#f9fafb'}"><option value="">(선택)</option>${catSel}</select>`)
     +     `</div>`
@@ -159,7 +159,9 @@ try{
 const r=await fetch('/api/conversations?key='+encodeURIComponent(k)+'&page=1');
 if(!r.ok)throw 0;
 KEY=k;
-try{localStorage.setItem('admin_key',k)}catch{}
+/* 보안: ADMIN_KEY는 세션 단위(탭 닫히면 삭제)로만 보관. localStorage 영구 저장 금지 */
+try{sessionStorage.setItem('admin_key',k)}catch{}
+try{localStorage.removeItem('admin_key')}catch{}
 $g('loginView').style.display='none';
 $g('mainView').style.display='block';
 loadList();
@@ -174,6 +176,7 @@ try{
 }catch{}
 return true;
 }catch{
+try{sessionStorage.removeItem('admin_key')}catch{}
 try{localStorage.removeItem('admin_key')}catch{}
 if(showErr)$g('err').style.display='block';
 return false;
@@ -265,6 +268,7 @@ function jumpToConversation(sessionId){
 
 function logout(){
 KEY='';
+try{sessionStorage.removeItem('admin_key')}catch{}
 try{localStorage.removeItem('admin_key')}catch{}
 $g('loginView').style.display='flex';
 $g('mainView').style.display='none';
@@ -291,8 +295,10 @@ async function tryAdminBySession(){
 let IS_OWNER=true;
 (async function(){
   if(location.pathname.endsWith('/staff.html'))return;
+  /* 보안: 세션 스토리지(탭 수명)만 조회. 과거 localStorage 잔존 키는 정리 */
+  try{localStorage.removeItem('admin_key')}catch{}
   try{
-    var saved=localStorage.getItem('admin_key');
+    var saved=sessionStorage.getItem('admin_key');
     if(saved){IS_OWNER=true;await doLogin(saved,false)}
   }catch{}
 })();

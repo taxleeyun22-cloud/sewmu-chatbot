@@ -41,6 +41,7 @@ export async function onRequestPost(context) {
     if (!file || typeof file === 'string') return Response.json({ error: "파일이 없습니다" }, { status: 400 });
 
     const size = file.size;
+    if (size <= 0) return Response.json({ error: "빈 파일" }, { status: 400 });
     if (size > MAX_SIZE) return Response.json({ error: "10MB 이하만 업로드 가능합니다" }, { status: 400 });
 
     const type = file.type || 'application/octet-stream';
@@ -48,19 +49,22 @@ export async function onRequestPost(context) {
       return Response.json({ error: "이미지 파일만 업로드 가능합니다 (JPEG/PNG/WEBP/GIF/HEIC)" }, { status: 400 });
     }
 
-    // 키 생성: user_id/timestamp_random.ext (관리자는 admin/ 프리픽스)
-    const ext = type.split('/')[1] || 'bin';
-    const random = Math.random().toString(36).slice(2, 10);
+    /* 보안:
+       - 키는 CSPRNG 기반 UUID 사용 (Math.random 금지)
+       - 확장자는 MIME에서 파생, 화이트리스트만 허용 (파일명 경로 주입 방지)
+       - original_name은 제어문자 제거하고 길이 제한 */
+    const extMap = { 'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','image/heic':'heic' };
+    const ext = extMap[type] || 'bin';
     const prefix = isAdmin ? 'admin' : `u${userId}`;
-    const key = `${prefix}/${Date.now()}_${random}.${ext}`;
+    const key = `${prefix}/${Date.now()}_${crypto.randomUUID().replace(/-/g,'').slice(0,12)}.${ext}`;
+
+    const safeName = (file.name || '').replace(/[\x00-\x1f\\\/]/g,'_').slice(0, 200);
 
     await bucket.put(key, file.stream(), {
-      httpMetadata: {
-        contentType: type,
-      },
+      httpMetadata: { contentType: type },
       customMetadata: {
         user_id: isAdmin ? 'admin' : String(userId),
-        original_name: file.name || '',
+        original_name: safeName,
         uploaded_at: new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString(),
       }
     });
@@ -73,6 +77,7 @@ export async function onRequestPost(context) {
       type,
     });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    /* 보안: 내부 에러 메시지 미노출 */
+    return Response.json({ error: "업로드 실패" }, { status: 500 });
   }
 }

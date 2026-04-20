@@ -47,6 +47,9 @@ async function ensureTable(db) {
     UNIQUE(user_id, business_id)
   )`).run();
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_biz_docs_user ON biz_docs(user_id)`).run(); } catch {}
+  /* 보안: 과거에 base64로 저장된 비밀번호 잔여분 일괄 삭제.
+     운영 KMS/AEAD 체계 도입 전까지 비번 저장 기능은 항구적으로 중단. */
+  try { await db.prepare(`UPDATE biz_docs SET hometax_password_enc = NULL WHERE hometax_password_enc IS NOT NULL`).run(); } catch {}
 }
 
 function kst() {
@@ -60,10 +63,6 @@ function isOwner(user, biz) {
   const u = (user.real_name || user.name || '').trim();
   const c = (biz.ceo_name || '').trim();
   return u === c;
-}
-
-function toBase64(s) {
-  try { return btoa(unescape(encodeURIComponent(s))); } catch { return ''; }
 }
 
 // ============ GET: 내 사업장별 서류 현황 ============
@@ -140,46 +139,54 @@ export async function onRequestPost(context) {
     if (action === 'upload') return await handleUpload(context, db, bucket, user);
     return await handleSaveHometax(context, db, user);
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ error: "처리 실패" }, { status: 500 });
   }
 }
 
 // 홈택스 계정 저장 (JSON)
+// 보안: 비밀번호는 서버에 저장하지 않는다.
+//   base64 인코딩은 "암호화"가 아니므로 저장 중단. 적절한 KMS/AEAD 도입 전까지 저장 거부.
+//   ID만 저장 가능. 비번 입력이 오면 명시 거부.
 async function handleSaveHometax(context, db, user) {
   const body = await context.request.json();
   const businessId = Number(body.business_id || 0);
   if (!businessId) return Response.json({ error: 'business_id 필요' }, { status: 400 });
 
-  // 소유권 체크
+  // 소유권 체크 (IDOR 방지)
   const biz = await db.prepare(`SELECT id, ceo_name FROM client_businesses WHERE id = ? AND user_id = ?`)
     .bind(businessId, user.user_id).first();
   if (!biz) return Response.json({ error: 'not_found' }, { status: 404 });
 
   const hometaxId = (body.hometax_id || '').trim().slice(0, 100) || null;
-  const hometaxPw = (body.hometax_password || '').trim().slice(0, 200) || null;
+  const hometaxPwInput = (body.hometax_password || '').trim();
 
-  if (!hometaxId && !hometaxPw) {
-    return Response.json({ error: '홈택스 ID 또는 비번 중 하나는 필수' }, { status: 400 });
+  // 비밀번호 수용 금지 — 평문 저장·약한 인코딩 모두 차단
+  if (hometaxPwInput) {
+    return Response.json({
+      error: '홈택스 비밀번호는 앱에 저장하지 않습니다. 담당자에게 안전한 경로로 직접 전달해주세요.'
+    }, { status: 400 });
+  }
+
+  if (!hometaxId) {
+    return Response.json({ error: '홈택스 ID를 입력해주세요' }, { status: 400 });
   }
 
   const now = kst();
   const existing = await db.prepare(`SELECT id FROM biz_docs WHERE user_id = ? AND business_id = ?`)
     .bind(user.user_id, businessId).first();
 
-  const pwEnc = hometaxPw ? toBase64(hometaxPw) : null;
-
   if (existing) {
     await db.prepare(
-      `UPDATE biz_docs SET hometax_id = COALESCE(?, hometax_id),
-                            hometax_password_enc = COALESCE(?, hometax_password_enc),
+      `UPDATE biz_docs SET hometax_id = ?,
+                            hometax_password_enc = NULL,
                             hometax_updated_at = ?, updated_at = ?
        WHERE id = ?`
-    ).bind(hometaxId, pwEnc, now, now, existing.id).run();
+    ).bind(hometaxId, now, now, existing.id).run();
   } else {
     await db.prepare(
       `INSERT INTO biz_docs (user_id, business_id, hometax_id, hometax_password_enc, hometax_updated_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).bind(user.user_id, businessId, hometaxId, pwEnc, now, now, now).run();
+       VALUES (?, ?, NULL, ?, ?, ?, ?)`
+    ).bind(user.user_id, businessId, hometaxId, now, now, now).run();
   }
 
   return Response.json({ ok: true });

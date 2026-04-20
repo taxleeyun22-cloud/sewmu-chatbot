@@ -73,7 +73,8 @@ export async function onRequestGet(context) {
     });
     const tokenData = await tokenRes.json();
     if (!tokenData.access_token) {
-      return new Response("토큰 발급 실패: " + JSON.stringify(tokenData) + " | client_id: " + clientId + " | redirect_uri: " + redirectUri, { status: 400 });
+      /* 보안: client_id·redirect_uri·공급자 응답 원문을 사용자에게 노출하지 않음 */
+      return Response.redirect(url.origin + "/?login_error=token_failed", 302);
     }
 
     // 2. 사용자 정보 조회
@@ -130,7 +131,8 @@ export async function onRequestGet(context) {
       },
     });
   } catch (e) {
+    /* 보안: 스택·에러 메시지를 사용자에게 노출하지 않고 중립 리다이렉트 */
     console.error("Kakao auth error:", e);
-    return new Response("카카오 로그인 오류: " + e.message, { status: 500 });
+    return Response.redirect(url.origin + "/?login_error=server_error", 302);
   }
 }
