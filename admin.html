@@ -8,7 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/admin.css?v=17">
+<link rel="stylesheet" href="/admin.css?v=18">
 <!-- AG-Grid Community (엑셀 스타일 그리드) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-quartz.css">
@@ -211,7 +211,7 @@
     <div><span style="font-size:.72em;color:#8b95a1">대기</span> <b id="docsStatPending" style="font-size:1.15em;color:#f59e0b;margin-left:4px">-</b></div>
     <div><span style="font-size:.72em;color:#8b95a1">승인</span> <b id="docsStatApproved" style="font-size:1.15em;color:#10b981;margin-left:4px">-</b></div>
     <div><span style="font-size:.72em;color:#8b95a1">반려</span> <b id="docsStatRejected" style="font-size:1.15em;color:#f04452;margin-left:4px">-</b></div>
-    <div><span style="font-size:.72em;color:#8b95a1">OCR 비용</span> <b id="docsStatCost" style="font-size:1.15em;margin-left:4px">-</b></div>
+    <div class="docs-stat-cost"><span style="font-size:.72em;color:#8b95a1">OCR 비용</span> <b id="docsStatCost" style="font-size:1.15em;margin-left:4px">-</b></div>
   </div>
   <div style="background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.03);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <select id="docsFilterStatus" onchange="loadDocsTab()" style="padding:7px 10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit">
@@ -240,7 +240,7 @@
     <button onclick="loadDocsTab()" style="background:#e5e8eb;border:none;padding:7px 14px;border-radius:8px;font-size:.82em;cursor:pointer;font-family:inherit">🔄</button>
   </div>
   <div style="background:#fff;border-radius:12px;padding:10px;box-shadow:0 1px 4px rgba(0,0,0,.03);flex:1;display:flex;flex-direction:column;min-height:0">
-    <div style="font-size:.72em;color:#8b95a1;margin-bottom:6px;padding:0 4px">💡 셀 더블클릭 편집 · 헤더 드래그 정렬 · Ctrl+C 복사</div>
+    <div class="docs-grid-hint" style="font-size:.72em;color:#8b95a1;margin-bottom:6px;padding:0 4px">💡 셀 더블클릭 편집 · 헤더 드래그 정렬 · Ctrl+C 복사</div>
     <div id="docsGrid" class="ag-theme-quartz" style="flex:1;min-height:350px;width:100%"></div>
     <div id="docsEmpty" style="display:none;padding:60px 0;text-align:center;color:#8b95a1;font-size:.88em">이 거래처는 문서가 없습니다.</div>
   </div>
@@ -579,7 +579,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=33"></script>
+<script src="/admin.js?v=34"></script>
 <style>
 #imgViewer{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:10000;display:none;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain}
 #imgViewer.open{display:flex}

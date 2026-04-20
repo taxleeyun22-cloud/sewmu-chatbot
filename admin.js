@@ -2418,7 +2418,11 @@ function showCustomerDetail(cust){
   if(cust.company_name){
     if(cust.ceo_name)parts.push('대표 '+cust.ceo_name);
     if(cust.real_name&&cust.real_name!==cust.ceo_name)parts.push('담당 '+cust.real_name);
-    if(cust.business_number)parts.push('사업자 '+cust.business_number);
+    if(cust.business_number){
+      const bn=String(cust.business_number).replace(/\D/g,'');
+      const bnFmt=bn.length===10?(bn.slice(0,3)+'-'+bn.slice(3,5)+'-'+bn.slice(5)):cust.business_number;
+      parts.push('사업자 '+bnFmt);
+    }
   } else if(cust.real_name&&cust.name&&cust.name!==cust.real_name){
     parts.push('('+cust.name+')');
   }
