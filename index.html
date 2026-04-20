@@ -2392,69 +2392,73 @@ async function saveImgViewer(){
   }catch{window.open(src,'_blank')}
 }
 (function(){
-  var v=document.getElementById('imgViewer');if(!v)return;
-  function img(){return document.getElementById('ivImg')}
-  function resetTransform(animate){
-    var i=img();if(!i)return;
-    i.style.transition=animate?'transform .2s ease-out':'none';
-    i.style.transform='';
-  }
-  v.addEventListener('click',function(e){
-    if(ivState.swiped){ivState.swiped=false;return}
-    if(e.target===v)closeImgViewer();
-  });
-  v.addEventListener('touchstart',function(e){
-    if(e.touches.length!==1)return;
-    ivState.startX=e.touches[0].clientX;ivState.startY=e.touches[0].clientY;
-    ivState.dx=0;ivState.dy=0;ivState.touching=true;ivState.axis=null;
-    var i=img();if(i)i.style.transition='none';
-  },{passive:true});
-  v.addEventListener('touchmove',function(e){
-    if(!ivState.touching||e.touches.length!==1)return;
-    var dx=e.touches[0].clientX-ivState.startX;
-    var dy=e.touches[0].clientY-ivState.startY;
-    if(!ivState.axis){
-      if(Math.abs(dx)<8&&Math.abs(dy)<8)return;
-      ivState.axis=Math.abs(dx)>=Math.abs(dy)?'x':'y';
+  function init(){
+    var v=document.getElementById('imgViewer');if(!v)return false;
+    function img(){return document.getElementById('ivImg')}
+    function resetTransform(animate){
+      var i=img();if(!i)return;
+      i.style.transition=animate?'transform .2s ease-out':'none';
+      i.style.transform='';
     }
-    ivState.dx=dx;ivState.dy=dy;
-    if(e.cancelable)e.preventDefault();
-    var i=img();if(!i)return;
-    if(ivState.axis==='x'){
-      var edge=(ivState.idx===0&&dx>0)||(ivState.idx===ivState.srcs.length-1&&dx<0);
-      var d=edge?dx*0.35:dx;
-      i.style.transform='translateX('+d+'px)';
-    } else if(dy>0){
-      i.style.transform='translateY('+dy+'px)';
-    }
-  },{passive:false});
-  v.addEventListener('touchend',function(e){
-    if(!ivState.touching)return;ivState.touching=false;
-    var dx=ivState.dx,dy=ivState.dy,axis=ivState.axis;
-    ivState.dx=0;ivState.dy=0;ivState.axis=null;
-    if(axis==='x'&&Math.abs(dx)>50){
-      imgViewerNav(dx>0?-1:1);
-      ivState.swiped=true;
-      setTimeout(function(){ivState.swiped=false},400);
-      resetTransform(false);
-    } else if(axis==='y'&&dy>120){
-      closeImgViewer();
-      resetTransform(false);
-    } else {
+    v.addEventListener('click',function(e){
+      if(ivState.swiped){ivState.swiped=false;return}
+      if(e.target===v)closeImgViewer();
+    });
+    v.addEventListener('touchstart',function(e){
+      if(e.touches.length!==1)return;
+      ivState.startX=e.touches[0].clientX;ivState.startY=e.touches[0].clientY;
+      ivState.dx=0;ivState.dy=0;ivState.touching=true;ivState.axis=null;
+      var i=img();if(i)i.style.transition='none';
+    },{passive:true});
+    v.addEventListener('touchmove',function(e){
+      if(!ivState.touching||e.touches.length!==1)return;
+      var dx=e.touches[0].clientX-ivState.startX;
+      var dy=e.touches[0].clientY-ivState.startY;
+      if(!ivState.axis){
+        if(Math.abs(dx)<8&&Math.abs(dy)<8)return;
+        ivState.axis=Math.abs(dx)>=Math.abs(dy)?'x':'y';
+      }
+      ivState.dx=dx;ivState.dy=dy;
+      if(e.cancelable)e.preventDefault();
+      var i=img();if(!i)return;
+      if(ivState.axis==='x'){
+        var edge=(ivState.idx===0&&dx>0)||(ivState.idx===ivState.srcs.length-1&&dx<0);
+        var d=edge?dx*0.35:dx;
+        i.style.transform='translateX('+d+'px)';
+      } else if(dy>0){
+        i.style.transform='translateY('+dy+'px)';
+      }
+    },{passive:false});
+    v.addEventListener('touchend',function(e){
+      if(!ivState.touching)return;ivState.touching=false;
+      var dx=ivState.dx,dy=ivState.dy,axis=ivState.axis;
+      ivState.dx=0;ivState.dy=0;ivState.axis=null;
+      if(axis==='x'&&Math.abs(dx)>50){
+        imgViewerNav(dx>0?-1:1);
+        ivState.swiped=true;
+        setTimeout(function(){ivState.swiped=false},400);
+        resetTransform(false);
+      } else if(axis==='y'&&dy>120){
+        closeImgViewer();
+        resetTransform(false);
+      } else {
+        resetTransform(true);
+      }
+    },{passive:true});
+    v.addEventListener('touchcancel',function(){
+      if(!ivState.touching)return;
+      ivState.touching=false;ivState.dx=0;ivState.dy=0;ivState.axis=null;
       resetTransform(true);
-    }
-  },{passive:true});
-  v.addEventListener('touchcancel',function(){
-    if(!ivState.touching)return;
-    ivState.touching=false;ivState.dx=0;ivState.dy=0;ivState.axis=null;
-    resetTransform(true);
-  });
-  document.addEventListener('keydown',function(e){
-    if(!v.classList.contains('open'))return;
-    if(e.key==='Escape')closeImgViewer();
-    else if(e.key==='ArrowLeft')imgViewerNav(-1);
-    else if(e.key==='ArrowRight')imgViewerNav(1);
-  });
+    });
+    document.addEventListener('keydown',function(e){
+      if(!v.classList.contains('open'))return;
+      if(e.key==='Escape')closeImgViewer();
+      else if(e.key==='ArrowLeft')imgViewerNav(-1);
+      else if(e.key==='ArrowRight')imgViewerNav(1);
+    });
+    return true;
+  }
+  if(!init())document.addEventListener('DOMContentLoaded',init);
 })();
 
 /* ===== PWA 홈화면 설치 유도 배너 ===== */
@@ -2475,50 +2479,54 @@ function closeIosInstall(){
     var until=parseInt(localStorage.getItem(DISMISS_KEY)||'0',10);
     if(until>Date.now())return;
   }catch{}
-  var banner=document.getElementById('installPrompt');
-  var btn=document.getElementById('ipBtn');
-  var closeBtn=document.getElementById('ipClose');
-  if(!banner||!btn||!closeBtn)return;
-  var deferredPrompt=null;
-  function show(){banner.classList.add('show')}
-  function hide(){banner.classList.remove('show')}
-  function dismissFor(days){
-    try{localStorage.setItem(DISMISS_KEY,String(Date.now()+days*24*60*60*1000))}catch{}
-    hide();
-  }
-  /* Android Chrome 등: beforeinstallprompt */
-  window.addEventListener('beforeinstallprompt',function(e){
-    e.preventDefault();
-    deferredPrompt=e;
-    setTimeout(show,3000);
-  });
-  /* iOS Safari: 자체 이벤트 없음 → 휴리스틱 */
-  if(isIOS&&isSafari){
-    setTimeout(show,5000);
-  }
-  btn.onclick=async function(){
-    if(deferredPrompt){
-      try{
-        deferredPrompt.prompt();
-        var res=await deferredPrompt.userChoice;
-        if(res&&res.outcome==='accepted')hide();
-        else dismissFor(7);
-      }catch{dismissFor(3)}
-      deferredPrompt=null;
-    } else if(isIOS){
-      var m=document.getElementById('iosInstallModal');
-      if(m)m.classList.add('show');
+  function init(){
+    var banner=document.getElementById('installPrompt');
+    var btn=document.getElementById('ipBtn');
+    var closeBtn=document.getElementById('ipClose');
+    if(!banner||!btn||!closeBtn)return false;
+    var deferredPrompt=null;
+    function show(){banner.classList.add('show')}
+    function hide(){banner.classList.remove('show')}
+    function dismissFor(days){
+      try{localStorage.setItem(DISMISS_KEY,String(Date.now()+days*24*60*60*1000))}catch{}
       hide();
-    } else {
-      dismissFor(7);
     }
-  };
-  closeBtn.onclick=function(){dismissFor(7)};
-  /* 설치 완료 이벤트 — 즉시 숨김 */
-  window.addEventListener('appinstalled',function(){
-    hide();
-    try{localStorage.setItem(DISMISS_KEY,String(Date.now()+365*24*60*60*1000))}catch{}
-  });
+    /* Android Chrome 등: beforeinstallprompt */
+    window.addEventListener('beforeinstallprompt',function(e){
+      e.preventDefault();
+      deferredPrompt=e;
+      setTimeout(show,3000);
+    });
+    /* iOS Safari: 자체 이벤트 없음 → 휴리스틱 */
+    if(isIOS&&isSafari){
+      setTimeout(show,5000);
+    }
+    btn.onclick=async function(){
+      if(deferredPrompt){
+        try{
+          deferredPrompt.prompt();
+          var res=await deferredPrompt.userChoice;
+          if(res&&res.outcome==='accepted')hide();
+          else dismissFor(7);
+        }catch{dismissFor(3)}
+        deferredPrompt=null;
+      } else if(isIOS){
+        var m=document.getElementById('iosInstallModal');
+        if(m)m.classList.add('show');
+        hide();
+      } else {
+        dismissFor(7);
+      }
+    };
+    closeBtn.onclick=function(){dismissFor(7)};
+    /* 설치 완료 이벤트 — 즉시 숨김 */
+    window.addEventListener('appinstalled',function(){
+      hide();
+      try{localStorage.setItem(DISMISS_KEY,String(Date.now()+365*24*60*60*1000))}catch{}
+    });
+    return true;
+  }
+  if(!init())document.addEventListener('DOMContentLoaded',init);
 })();
 </script>
 
