@@ -647,6 +647,14 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
     </label>
     <input id="rcDocInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip" onchange="sendRoomDoc(this);closeAttachSheet()" style="display:none">
   </div>
+  <!-- 답장 프리뷰 바 -->
+  <div id="rcReplyBar">
+    <div class="rc-reply-body">
+      <div class="rc-reply-to">↩︎ <span id="rcReplyToName"></span>에게 답장</div>
+      <div class="rc-reply-txt" id="rcReplyPreview"></div>
+    </div>
+    <button class="rc-reply-close" onclick="cancelReply()" aria-label="답장 취소">✕</button>
+  </div>
   <div id="rcInputArea" class="rc-input-area">
     <button onclick="toggleAttachSheet()" id="rcAttachBtn" class="rc-attach-btn" title="첨부">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -716,6 +724,24 @@ mark{background:#fef3c7;color:inherit;padding:0 2px;border-radius:2px}
 .rc-messages{flex:1;overflow-y:auto;padding:14px;background:var(--bg);-webkit-overflow-scrolling:touch}
 .rc-messages::-webkit-scrollbar{display:none}
 .rc-input-area{padding:10px 12px max(10px, env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;align-items:center}
+/* 답장 프리뷰 바 (입력창 위) */
+#rcReplyBar{display:none;padding:8px 12px;background:var(--blue-light);border-top:1px solid var(--border);border-left:3px solid var(--blue);align-items:center;gap:8px;flex-shrink:0}
+#rcReplyBar.show{display:flex}
+.rc-reply-body{flex:1;min-width:0;overflow:hidden}
+.rc-reply-to{font-size:.72em;color:var(--blue);font-weight:700;margin-bottom:2px}
+.rc-reply-txt{font-size:.78em;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-reply-close{background:none;border:none;color:var(--text2);font-size:1.05em;cursor:pointer;padding:6px 4px;flex-shrink:0;font-family:inherit;line-height:1;-webkit-tap-highlight-color:transparent}
+/* 메시지 안 인용 박스 (답장 원본 표시) */
+.rc-quote{border-left:3px solid currentColor;padding:3px 0 3px 8px;margin-bottom:6px;opacity:.7;font-size:.85em;max-width:100%;overflow:hidden}
+.rc-quote-sender{font-weight:700;font-size:.88em;margin-bottom:1px}
+.rc-quote-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.92em}
+/* 컨텍스트 메뉴 (long-press/right-click) */
+.msg-ctx-menu{position:fixed;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.22);padding:4px 0;z-index:11000;display:none;min-width:140px;overflow:hidden;font-family:inherit}
+.msg-ctx-menu.show{display:block}
+.msg-ctx-item{padding:11px 16px;font-size:.88em;cursor:pointer;display:flex;align-items:center;gap:10px;color:var(--text);background:none;border:none;width:100%;text-align:left;font-family:inherit;-webkit-tap-highlight-color:transparent}
+.msg-ctx-item:active{background:var(--blue-light)}
+.msg-ctx-item.danger{color:#f04452}
+.rc-msg-bubble{-webkit-user-select:none;user-select:none}
 .rc-input-area input{flex:1;min-width:0;padding:11px 14px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:20px;font-size:16px;outline:none;font-family:inherit}
 .rc-send-btn{background:var(--blue);color:#fff;border:none;padding:10px 16px;border-radius:20px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap}
 .rc-attach-btn{display:inline-flex;align-items:center;justify-content:center;background:var(--bg);border:1px solid var(--border);color:var(--text2);width:40px;height:40px;border-radius:50%;cursor:pointer;flex-shrink:0;line-height:0;padding:0}
@@ -976,6 +1002,7 @@ function showDots(){
 }
 function hideDots(){const d=document.getElementById("dots");if(d)d.remove()}
 function esc(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")}
+function escAttr(t){return String(t==null?'':t).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/'/g,"&#39;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/[\r\n]+/g," ")}
 
 async function sendMessage(){
     if(loading)return;const i=document.getElementById("userInput");const t=i.value.trim();if(!t)return;
@@ -1411,31 +1438,40 @@ async function loadRoomChat(){
       if(m.deleted_at){
         return '<div style="margin-bottom:10px;text-align:center;opacity:.55"><span style="display:inline-block;background:var(--card);color:var(--text2);padding:6px 14px;border-radius:10px;font-size:.72em;font-style:italic;border:1px solid var(--border)">삭제된 메시지입니다</span></div>';
       }
+      /* 컨텍스트 메뉴용 데이터 */
+      var parsed=parseMessageContent(m.content);
+      var preview=parsed.text||(parsed.image?'[사진]':(parsed.file?'[파일]':''));
+      var canDel=0;
+      if(m.role==='user'&&isMe){
+        var elapsed=Date.now()-new Date(m.created_at).getTime();
+        canDel=elapsed<5*60*1000?1:0;
+      }
+      function dataAttrs(sender,mine){
+        return ' class="rc-msg-bubble" data-msg="'+m.id+'" data-sender="'+escAttr(sender)+'" data-text="'+escAttr(preview)+'" data-mine="'+(mine?1:0)+'" data-deletable="'+canDel+'"';
+      }
       if(m.role==='user'){
         if(isMe){
-          var delBtn=' <button onclick="deleteMyMessage('+m.id+')" style="background:none;border:none;cursor:pointer;font-size:.78em;color:#f04452;padding:0 4px;margin-left:4px;align-self:flex-end;margin-bottom:3px" title="삭제 (5분 이내)">🗑️</button>';
           return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end;align-items:flex-end">'
-            +delBtn
             +ur
-            +'<div style="background:var(--blue);color:#fff;padding:9px 13px;border-radius:14px 4px 14px 14px;max-width:75%;font-size:.88em;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content)
+            +'<div'+dataAttrs('나',1)+' style="background:var(--blue);color:#fff;padding:9px 13px;border-radius:14px 4px 14px 14px;max-width:75%;font-size:.88em;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content)
             +'<div style="font-size:.62em;opacity:.8;margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>';
         } else {
           return '<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
             +'<div style="max-width:75%"><div style="font-size:.68em;color:var(--text2);margin-bottom:2px;margin-left:4px">'+esc(nm)+'</div>'
-            +'<div style="background:var(--card);color:var(--text);padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+esc(m.content)
+            +'<div'+dataAttrs(nm,0)+' style="background:var(--card);color:var(--text);padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+renderMessageBody(m.content)
             +'<div style="font-size:.62em;color:var(--text2);margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>'
             +ur+'</div>';
         }
       } else if(m.role==='assistant'){
         return '<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
           +'<div style="max-width:75%"><div style="font-size:.68em;color:var(--text2);margin-bottom:2px;margin-left:4px">🤖 세무회계 이윤 AI</div>'
-          +'<div style="background:var(--card);color:var(--text);padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+esc(m.content)
+          +'<div'+dataAttrs('세무회계 이윤 AI',0)+' style="background:var(--card);color:var(--text);padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+esc(m.content)
           +'<div style="font-size:.62em;color:var(--text2);margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>'
           +ur+'</div>';
       } else if(m.role==='human_advisor'){
         return '<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
           +'<div style="max-width:75%"><div style="font-size:.68em;color:#10b981;margin-bottom:2px;margin-left:4px;font-weight:600">👨‍💼 이재윤 세무사</div>'
-          +'<div style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content)
+          +'<div'+dataAttrs('이재윤 세무사',0)+' style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;padding:9px 13px;border-radius:4px 14px 14px 14px;font-size:.88em;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content)
           +'<div style="font-size:.62em;color:#10b981;margin-top:3px">'+esc(m.created_at||'').slice(11,16)+'</div></div></div>'
           +ur+'</div>';
       }
@@ -1456,12 +1492,126 @@ async function deleteMyMessage(messageId){
   }catch(e){alert('오류: '+e.message)}
 }
 
+/* ===== 메시지 컨텍스트 메뉴 (long-press/right-click) + 답장·복사 ===== */
+var rcReplyingTo=null; /* {mid, sender, text} */
+
+function showMsgCtxMenu(bubbleEl, x, y){
+  var m=document.getElementById('msgCtxMenu');if(!m)return;
+  var mid=bubbleEl.getAttribute('data-msg')||'';
+  var sender=bubbleEl.getAttribute('data-sender')||'';
+  var text=bubbleEl.getAttribute('data-text')||'';
+  var mine=bubbleEl.getAttribute('data-mine')==='1';
+  var deletable=bubbleEl.getAttribute('data-deletable')==='1';
+  /* 데이터는 메뉴 dataset에 — 이스케이프 이슈 회피 */
+  m.dataset.msg=mid;m.dataset.sender=sender;m.dataset.text=text;
+  var items='';
+  if(text)items+='<button class="msg-ctx-item" onclick="doReplyFromMenu()">↩︎ 답장</button>';
+  if(text)items+='<button class="msg-ctx-item" onclick="doCopyFromMenu()">📋 복사</button>';
+  if(mine&&deletable)items+='<button class="msg-ctx-item danger" onclick="hideMsgCtxMenu();deleteMyMessage('+mid+')">🗑️ 삭제</button>';
+  if(!items)return;
+  m.innerHTML=items;
+  m.classList.add('show');
+  /* 뷰포트 클리핑 */
+  var rect=m.getBoundingClientRect();
+  var vw=window.innerWidth, vh=window.innerHeight;
+  var left=Math.max(8, Math.min(x-rect.width/2, vw-rect.width-8));
+  var top=Math.max(8, Math.min(y-rect.height-8, vh-rect.height-8));
+  if(y-rect.height-8<8)top=Math.min(y+8, vh-rect.height-8); /* 위쪽 공간 없으면 아래로 */
+  m.style.left=left+'px';
+  m.style.top=top+'px';
+  if(navigator.vibrate)try{navigator.vibrate(15)}catch(e){}
+}
+function hideMsgCtxMenu(){
+  var m=document.getElementById('msgCtxMenu');
+  if(m)m.classList.remove('show');
+}
+function doReplyFromMenu(){
+  var m=document.getElementById('msgCtxMenu');if(!m)return;
+  doReplyTo(parseInt(m.dataset.msg||'0',10), m.dataset.sender||'', m.dataset.text||'');
+}
+function doCopyFromMenu(){
+  var m=document.getElementById('msgCtxMenu');if(!m)return;
+  doCopyMsg(m.dataset.text||'');
+}
+function doReplyTo(mid,sender,text){
+  rcReplyingTo={mid:mid, sender:sender, text:String(text).slice(0,100)};
+  var bar=document.getElementById('rcReplyBar');
+  document.getElementById('rcReplyToName').textContent=sender;
+  document.getElementById('rcReplyPreview').textContent=rcReplyingTo.text;
+  bar.classList.add('show');
+  hideMsgCtxMenu();
+  var inp=document.getElementById('rcInput');if(inp)inp.focus();
+}
+function cancelReply(){
+  rcReplyingTo=null;
+  var bar=document.getElementById('rcReplyBar');
+  if(bar)bar.classList.remove('show');
+}
+async function doCopyMsg(text){
+  try{
+    await navigator.clipboard.writeText(text);
+  }catch(e){
+    /* iOS Safari 등 폴백 */
+    var ta=document.createElement('textarea');
+    ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy')}catch(_){}
+    ta.remove();
+  }
+  hideMsgCtxMenu();
+  if(typeof showInAppToastSilent==='function')showInAppToastSilent('📋 복사되었습니다');
+}
+/* 이벤트 위임: long-press(모바일) + contextmenu(데스크톱) + 바깥 클릭 닫기 */
+(function(){
+  function init(){
+    var root=document.getElementById('rcMessages');
+    if(!root)return false;
+    var lpTimer=null, lpX=0, lpY=0;
+    root.addEventListener('touchstart',function(e){
+      var b=e.target.closest('.rc-msg-bubble');if(!b)return;
+      var t=e.touches[0];lpX=t.clientX;lpY=t.clientY;
+      lpTimer=setTimeout(function(){
+        lpTimer=null;
+        showMsgCtxMenu(b, lpX, lpY);
+      }, 450);
+    },{passive:true});
+    root.addEventListener('touchmove',function(e){
+      if(lpTimer){
+        var t=e.touches[0];
+        if(Math.abs(t.clientX-lpX)>8||Math.abs(t.clientY-lpY)>8){
+          clearTimeout(lpTimer);lpTimer=null;
+        }
+      }
+    },{passive:true});
+    root.addEventListener('touchend',function(){if(lpTimer){clearTimeout(lpTimer);lpTimer=null}});
+    root.addEventListener('touchcancel',function(){if(lpTimer){clearTimeout(lpTimer);lpTimer=null}});
+    root.addEventListener('contextmenu',function(e){
+      var b=e.target.closest('.rc-msg-bubble');if(!b)return;
+      e.preventDefault();
+      showMsgCtxMenu(b, e.clientX, e.clientY);
+    });
+    document.addEventListener('click',function(e){
+      if(e.target.closest('.msg-ctx-menu'))return;
+      hideMsgCtxMenu();
+    });
+    document.addEventListener('scroll',hideMsgCtxMenu,true);
+    return true;
+  }
+  if(!init())document.addEventListener('DOMContentLoaded',init);
+})();
+
 async function sendRoomMsg(){
   if(!rcRoomId||!rcIsActive)return;
   var input=document.getElementById('rcInput');
   var content=input.value.trim();
   if(!content)return;
+  /* 답장 중이면 [REPLY]{json}\n 접두사 */
+  if(rcReplyingTo){
+    var meta={t:rcReplyingTo.text, s:rcReplyingTo.sender, i:rcReplyingTo.mid};
+    content='[REPLY]'+JSON.stringify(meta)+'\n'+content;
+  }
   input.value='';
+  cancelReply();
   try{
     var r=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,content:content})});
     var d=await r.json();
@@ -1532,14 +1682,20 @@ async function sendRoomImage(fileInput){
 
 /* content가 [IMG]url\n text 형식이면 분리해서 반환 */
 function parseMessageContent(content){
-  if(!content)return {image:null,file:null,text:''};
+  if(!content)return {reply:null,image:null,file:null,text:''};
+  /* [REPLY]{json}\n... 접두사 먼저 제거 */
+  var reply=null;
+  var mr=/^\[REPLY\](\{[^\n]+\})\n([\s\S]*)$/.exec(content);
+  if(mr){
+    try{reply=JSON.parse(mr[1]);content=mr[2]}catch(e){}
+  }
   var mf=/^\[FILE\](\{[^\n]+\})(\n([\s\S]*))?$/.exec(content);
   if(mf){
-    try{var obj=JSON.parse(mf[1]);return {image:null,file:obj,text:mf[3]||''}}catch(e){}
+    try{var obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,text:mf[3]||''}}catch(e){}
   }
   var m=/^\[IMG\](\S+)(\n([\s\S]*))?$/.exec(content);
-  if(m)return {image:m[1],file:null,text:m[3]||''};
-  return {image:null,file:null,text:content};
+  if(m)return {reply:reply,image:m[1],file:null,text:m[3]||''};
+  return {reply:reply,image:null,file:null,text:content};
 }
 function fileIconFor(name){
   var ext=(name||'').split('.').pop().toLowerCase();
@@ -1562,6 +1718,10 @@ function fmtFileSize(n){
 function renderMessageBody(content){
   var parsed=parseMessageContent(content);
   var html='';
+  if(parsed.reply){
+    var s=parsed.reply.s||'', t=(parsed.reply.t||'').slice(0,100);
+    html+='<div class="rc-quote"><div class="rc-quote-sender">↩︎ '+esc(s)+'</div><div class="rc-quote-text">'+esc(t)+'</div></div>';
+  }
   if(parsed.image){
     html+='<img class="rc-img-msg" src="'+parsed.image+'" alt="이미지" loading="lazy" onclick="openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">';
   }
@@ -2642,6 +2802,9 @@ function closeIosInstall(){
     </div>
   </div>
 </div>
+
+<!-- 메시지 컨텍스트 메뉴 (long-press/right-click) -->
+<div id="msgCtxMenu" class="msg-ctx-menu" role="menu"></div>
 
 <!-- 인앱 토스트 (포그라운드 알림) -->
 <div id="inAppToast" role="alert" aria-live="polite">
