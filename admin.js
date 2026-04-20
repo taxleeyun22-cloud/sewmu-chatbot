@@ -3,17 +3,23 @@ let KEY='';
 function _noop(){return {style:{},classList:{add:function(){},remove:function(){},toggle:function(){},contains:function(){return false}},dataset:{},children:[],value:'',innerHTML:'',textContent:'',checked:false,disabled:false,className:'',addEventListener:function(){},removeEventListener:function(){},focus:function(){},click:function(){},blur:function(){},scrollIntoView:function(){},closest:function(){return null},querySelector:function(){return null},querySelectorAll:function(){return []},appendChild:function(a){return a},removeChild:function(a){return a},setAttribute:function(){},getAttribute:function(){return null},removeAttribute:function(){},insertAdjacentHTML:function(){}}}
 function $g(id){return document.getElementById(id)||_noop()}
 function e(t){return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function escAttr(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/[\r\n]+/g,' ')}
 
-/* [IMG]url 프리픽스가 있으면 이미지 + 텍스트 렌더링 */
+/* [REPLY]{json}\n, [IMG], [FILE] 프리픽스 파싱 */
 function parseMsg(content){
-  if(!content)return {image:null,file:null,text:''};
+  if(!content)return {reply:null,image:null,file:null,text:''};
+  let reply=null;
+  const mr=/^\[REPLY\](\{[^\n]+\})\n([\s\S]*)$/.exec(content);
+  if(mr){
+    try{reply=JSON.parse(mr[1]);content=mr[2]}catch{}
+  }
   const mf=/^\[FILE\](\{[^\n]+\})(\n([\s\S]*))?$/.exec(content);
   if(mf){
-    try{const obj=JSON.parse(mf[1]);return {image:null,file:obj,text:mf[3]||''}}catch{}
+    try{const obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,text:mf[3]||''}}catch{}
   }
   const m=/^\[IMG\](\S+)(\n([\s\S]*))?$/.exec(content);
-  if(m)return {image:m[1],file:null,text:m[3]||''};
-  return {image:null,file:null,text:content};
+  if(m)return {reply:reply,image:m[1],file:null,text:m[3]||''};
+  return {reply:reply,image:null,file:null,text:content};
 }
 function fileIconFor(name){
   const ext=(name||'').split('.').pop().toLowerCase();
@@ -35,6 +41,10 @@ function fmtSize(n){
 function renderMsgBody(content){
   const p=parseMsg(content);
   let h='';
+  if(p.reply){
+    const s=p.reply.s||'', t=(p.reply.t||'').slice(0,100);
+    h+='<div class="rc-quote"><div class="rc-quote-sender">↩︎ '+e(s)+'</div><div class="rc-quote-text">'+e(t)+'</div></div>';
+  }
   if(p.image){
     h+='<img class="rc-img-msg" src="'+e(p.image)+'" alt="이미지" loading="lazy" style="display:inline-block;max-width:220px;max-height:300px;border-radius:10px;background:rgba(0,0,0,.06);object-fit:cover;cursor:zoom-in" onclick="openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">';
   }
@@ -299,14 +309,20 @@ async function loadRoomDetail(){
       if(m.deleted_at){
         return '<div style="margin-bottom:10px;text-align:center;opacity:.6"><span style="display:inline-block;background:#f2f4f6;color:#8b95a1;padding:6px 14px;border-radius:10px;font-size:.75em;font-style:italic">삭제된 메시지입니다</span></div>';
       }
-      /* 상담자(세무사)는 본인이 보낸 메시지만 삭제 가능 */
-      const delBtn=(m.role==='human_advisor')?' <button onclick="event.stopPropagation();deleteAdminMessage('+m.id+')" style="background:none;border:none;cursor:pointer;font-size:.85em;color:#f04452;padding:0 4px" title="삭제">🗑️</button>':'';
+      /* 컨텍스트 메뉴용 데이터 (답장·복사·삭제) */
+      const parsed=parseMsg(m.content);
+      const preview=parsed.text||(parsed.image?'[사진]':(parsed.file?'[파일]':''));
+      const isAdvisor=m.role==='human_advisor';
+      const canDel=isAdvisor?1:0;
+      function attrs(sender,mine){
+        return ' class="rc-msg-bubble" data-msg="'+m.id+'" data-sender="'+escAttr(sender)+'" data-text="'+escAttr(preview)+'" data-mine="'+(mine?1:0)+'" data-deletable="'+canDel+'"';
+      }
       if(m.role==='user'){
-        return '<div style="margin-bottom:10px"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+'</div><div style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
+        return '<div style="margin-bottom:10px"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+'</div><div'+attrs(nm,0)+' style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
       } else if(m.role==='assistant'){
-        return '<div style="margin-bottom:10px"><div style="display:inline-block;background:#f2f4f6;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div></div>';
+        return '<div style="margin-bottom:10px"><div'+attrs('AI',0)+' style="display:inline-block;background:#f2f4f6;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div></div>';
       } else if(m.role==='human_advisor'){
-        return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end;align-items:center;gap:4px"><div style="background:#10b981;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;opacity:.9;margin-top:4px">👨‍💼 세무사 · '+e(m.created_at||'')+'</div></div>'+delBtn+'</div>';
+        return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end"><div'+attrs('세무사',1)+' style="background:#10b981;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;opacity:.9;margin-top:4px">👨‍💼 세무사 · '+e(m.created_at||'')+'</div></div></div>';
       }
       return '';
     }).join('');
@@ -314,12 +330,124 @@ async function loadRoomDetail(){
   }catch(err){console.error(err)}
 }
 
+/* ===== 메시지 컨텍스트 메뉴 (long-press/right-click) + 답장·복사 ===== */
+var roomReplyingTo=null; /* {mid, sender, text} */
+
+function showMsgCtxMenu(bubbleEl, x, y){
+  const m=$g('msgCtxMenu');if(!m||!m.style)return;
+  const mid=bubbleEl.getAttribute('data-msg')||'';
+  const sender=bubbleEl.getAttribute('data-sender')||'';
+  const text=bubbleEl.getAttribute('data-text')||'';
+  const mine=bubbleEl.getAttribute('data-mine')==='1';
+  const deletable=bubbleEl.getAttribute('data-deletable')==='1';
+  m.dataset.msg=mid;m.dataset.sender=sender;m.dataset.text=text;
+  let items='';
+  if(text)items+='<button class="msg-ctx-item" onclick="doReplyFromMenu()">↩︎ 답장</button>';
+  if(text)items+='<button class="msg-ctx-item" onclick="doCopyFromMenu()">📋 복사</button>';
+  if(mine&&deletable)items+='<button class="msg-ctx-item danger" onclick="hideMsgCtxMenu();deleteAdminMessage('+mid+')">🗑️ 삭제</button>';
+  if(!items)return;
+  m.innerHTML=items;
+  m.classList.add('show');
+  const rect=m.getBoundingClientRect();
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const left=Math.max(8, Math.min(x-rect.width/2, vw-rect.width-8));
+  let top=Math.max(8, Math.min(y-rect.height-8, vh-rect.height-8));
+  if(y-rect.height-8<8)top=Math.min(y+8, vh-rect.height-8);
+  m.style.left=left+'px';m.style.top=top+'px';
+  if(navigator.vibrate)try{navigator.vibrate(15)}catch(e){}
+}
+function hideMsgCtxMenu(){const m=$g('msgCtxMenu');if(m&&m.classList)m.classList.remove('show')}
+function doReplyFromMenu(){
+  const m=$g('msgCtxMenu');if(!m||!m.dataset)return;
+  doReplyTo(parseInt(m.dataset.msg||'0',10), m.dataset.sender||'', m.dataset.text||'');
+}
+function doCopyFromMenu(){
+  const m=$g('msgCtxMenu');if(!m||!m.dataset)return;
+  doCopyMsg(m.dataset.text||'');
+}
+function doReplyTo(mid,sender,text){
+  roomReplyingTo={mid:mid, sender:sender, text:String(text).slice(0,100)};
+  const bar=$g('roomReplyBar');
+  $g('roomReplyToName').textContent=sender;
+  $g('roomReplyPreview').textContent=roomReplyingTo.text;
+  if(bar&&bar.classList)bar.classList.add('show');
+  hideMsgCtxMenu();
+  const inp=$g('roomInput');if(inp&&inp.focus)inp.focus();
+}
+function cancelRoomReply(){
+  roomReplyingTo=null;
+  const bar=$g('roomReplyBar');if(bar&&bar.classList)bar.classList.remove('show');
+}
+async function doCopyMsg(text){
+  try{
+    await navigator.clipboard.writeText(text);
+  }catch(e){
+    const ta=document.createElement('textarea');
+    ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy')}catch(_){}
+    ta.remove();
+  }
+  hideMsgCtxMenu();
+  try{
+    /* 간단한 플로팅 토스트 */
+    let t=document.getElementById('adminToast');
+    if(!t){
+      t=document.createElement('div');t.id='adminToast';
+      t.style.cssText='position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#fff;padding:10px 18px;border-radius:20px;font-size:.85em;z-index:11001;pointer-events:none;opacity:0;transition:opacity .2s';
+      document.body.appendChild(t);
+    }
+    t.textContent='📋 복사되었습니다';t.style.opacity='1';
+    setTimeout(()=>{t.style.opacity='0'},1500);
+  }catch(_){}
+}
+/* 이벤트 위임: long-press(모바일) + contextmenu(데스크톱) */
+(function(){
+  function init(){
+    const root=document.getElementById('roomMessages');
+    if(!root)return false;
+    if(root.dataset.ctxInit)return true;
+    root.dataset.ctxInit='1';
+    let lpTimer=null, lpX=0, lpY=0;
+    root.addEventListener('touchstart',function(e){
+      const b=e.target.closest('.rc-msg-bubble');if(!b)return;
+      const t=e.touches[0];lpX=t.clientX;lpY=t.clientY;
+      lpTimer=setTimeout(()=>{lpTimer=null;showMsgCtxMenu(b, lpX, lpY)}, 450);
+    },{passive:true});
+    root.addEventListener('touchmove',function(e){
+      if(lpTimer){
+        const t=e.touches[0];
+        if(Math.abs(t.clientX-lpX)>8||Math.abs(t.clientY-lpY)>8){clearTimeout(lpTimer);lpTimer=null}
+      }
+    },{passive:true});
+    root.addEventListener('touchend',()=>{if(lpTimer){clearTimeout(lpTimer);lpTimer=null}});
+    root.addEventListener('touchcancel',()=>{if(lpTimer){clearTimeout(lpTimer);lpTimer=null}});
+    root.addEventListener('contextmenu',function(e){
+      const b=e.target.closest('.rc-msg-bubble');if(!b)return;
+      e.preventDefault();
+      showMsgCtxMenu(b, e.clientX, e.clientY);
+    });
+    document.addEventListener('click',function(e){
+      if(e.target.closest('.msg-ctx-menu'))return;
+      hideMsgCtxMenu();
+    });
+    document.addEventListener('scroll',hideMsgCtxMenu,true);
+    return true;
+  }
+  if(!init())document.addEventListener('DOMContentLoaded',init);
+})();
+
 async function sendRoomMessage(){
   if(!currentRoomId)return;
   const input=$g('roomInput');
-  const content=input.value.trim();
+  let content=input.value.trim();
   if(!content)return;
+  if(roomReplyingTo){
+    const meta={t:roomReplyingTo.text, s:roomReplyingTo.sender, i:roomReplyingTo.mid};
+    content='[REPLY]'+JSON.stringify(meta)+'\n'+content;
+  }
   input.value='';
+  cancelRoomReply();
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId,content:content})});
     const d=await r.json();

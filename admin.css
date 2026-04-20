@@ -106,6 +106,23 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f7f8fa;color:#191f28;min-
 .ri-link-item{background:#fff;border:1px solid #e5e8eb;border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:.8em}
 .ri-link-item a{color:#3182f6;word-break:break-all;text-decoration:none}
 .ri-link-item a:hover{text-decoration:underline}
+
+/* ===== 메시지 답장·복사 (카톡 스타일) ===== */
+.rc-msg-bubble{-webkit-user-select:none;user-select:none}
+.rc-quote{border-left:3px solid currentColor;padding:3px 0 3px 8px;margin-bottom:6px;opacity:.7;font-size:.85em;max-width:100%;overflow:hidden}
+.rc-quote-sender{font-weight:700;font-size:.88em;margin-bottom:1px}
+.rc-quote-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.92em}
+#roomReplyBar{display:none;padding:8px 12px;background:#e8f3ff;border-top:1px solid #e5e8eb;border-left:3px solid #3182f6;align-items:center;gap:8px;flex-shrink:0}
+#roomReplyBar.show{display:flex}
+.rc-reply-body{flex:1;min-width:0;overflow:hidden}
+.rc-reply-to{font-size:.72em;color:#3182f6;font-weight:700;margin-bottom:2px}
+.rc-reply-txt{font-size:.78em;color:#8b95a1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-reply-close{background:none;border:none;color:#8b95a1;font-size:1.05em;cursor:pointer;padding:6px 4px;flex-shrink:0;font-family:inherit;line-height:1;-webkit-tap-highlight-color:transparent}
+.msg-ctx-menu{position:fixed;background:#fff;border:1px solid #e5e8eb;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:4px 0;z-index:11000;display:none;min-width:140px;overflow:hidden;font-family:inherit}
+.msg-ctx-menu.show{display:block}
+.msg-ctx-item{padding:11px 16px;font-size:.88em;cursor:pointer;display:flex;align-items:center;gap:10px;color:#191f28;background:none;border:none;width:100%;text-align:left;font-family:inherit;-webkit-tap-highlight-color:transparent}
+.msg-ctx-item:active,.msg-ctx-item:hover{background:#e8f3ff}
+.msg-ctx-item.danger{color:#f04452}
 .ri-link-item .ri-meta{font-size:.72em;color:#8b95a1;margin-top:4px}
 .ri-match{background:#fff;border:1px solid #e5e8eb;border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:.8em}
 .ri-match .ri-who{font-size:.72em;color:#8b95a1;margin-bottom:3px}
