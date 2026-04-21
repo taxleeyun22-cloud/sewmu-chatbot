@@ -361,6 +361,29 @@ function _adminRoomReadCount(roomId){
 function _adminRoomMarkRead(roomId,count){
   try{localStorage.setItem('aread.'+roomId,String(count||0))}catch{}
 }
+/* 상담방 우선순위 필터 (로컬스토리지로 유지) — Set 이지만 localStorage는 배열로 */
+function _roomFilterGet(){
+  try{
+    var raw=localStorage.getItem('roomPriFilter');
+    if(raw){var arr=JSON.parse(raw); if(Array.isArray(arr))return new Set(arr)}
+  }catch{}
+  return new Set([1,2,3,'none']); /* 기본: 종료 제외 전부 */
+}
+function _roomFilterSet(setObj){
+  try{localStorage.setItem('roomPriFilter', JSON.stringify([...setObj]))}catch{}
+}
+function toggleRoomFilter(key){
+  /* "all" 또는 "none_only" 같은 프리셋 */
+  if(key==='all'){_roomFilterSet(new Set([1,2,3,'none','closed']));loadRoomList();return}
+  if(key==='active'){_roomFilterSet(new Set([1,2,3,'none']));loadRoomList();return}
+  const cur=_roomFilterGet();
+  if(cur.has(key))cur.delete(key); else cur.add(key);
+  /* 하나도 없으면 전체로 복원 (완전 숨김 방지) */
+  if(cur.size===0)cur.add(1).add(2).add(3).add('none');
+  _roomFilterSet(cur);
+  loadRoomList();
+}
+
 async function loadRoomList(){
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY));
@@ -368,7 +391,7 @@ async function loadRoomList(){
     const el=$g('roomList');
     if(!d.rooms||d.rooms.length===0){el.innerHTML='<div class="empty" style="padding:40px 20px">상담방이 없습니다</div>';return}
     let totalUnread=0;
-    /* 우선순위 그룹화 — 1/2/3 + 없음 */
+    /* 우선순위 그룹화 — 1/2/3 + 없음 + 종료 */
     const groups={1:[],2:[],3:[],none:[],closed:[]};
     for(const rm of d.rooms){
       if(rm.status==='closed'){groups.closed.push(rm);continue}
@@ -378,6 +401,22 @@ async function loadRoomList(){
       else if(p===3)groups[3].push(rm);
       else groups.none.push(rm);
     }
+    /* 필터 상태 */
+    const flt=_roomFilterGet();
+    const filterBtn=(key,label,color,count)=>{
+      const on=flt.has(key);
+      const bg=on?color:'#e5e8eb';
+      const fg=on?'#fff':'#6b7280';
+      return '<button onclick="toggleRoomFilter('+(typeof key==='number'?key:"'"+key+"'")+')" style="background:'+bg+';color:'+fg+';border:none;padding:5px 11px;border-radius:6px;font-size:.76em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit">'+label+' <span style="opacity:.7">'+count+'</span></button>';
+    };
+    const filterBar='<div style="padding:8px 10px;border-bottom:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:4px;flex-wrap:wrap;position:sticky;top:0;z-index:2">'
+      +filterBtn(1, '🔴 1', '#dc2626', groups[1].length)
+      +filterBtn(2, '🟡 2', '#f59e0b', groups[2].length)
+      +filterBtn(3, '🟢 3', '#10b981', groups[3].length)
+      +filterBtn('none', '⚪ 미분류', '#6b7280', groups.none.length)
+      +filterBtn('closed', '📦 종료', '#9ca3af', groups.closed.length)
+      +'</div>';
+
     const renderCard=(rm)=>{
       const cls=['room-item'];
       if(currentRoomId===rm.id)cls.push('active');
@@ -408,13 +447,18 @@ async function loadRoomList(){
         +'<div class="ri-time">'+e(rm.last_msg_at||rm.created_at||'')+'</div>'
         +'</div>';
     };
-    const sep=(title,color,count)=>count?'<div style="padding:8px 12px 4px;font-size:.72em;font-weight:800;color:'+color+';background:'+color+'11;border-bottom:1px solid '+color+'33;position:sticky;top:0;z-index:1">'+title+' <span style="opacity:.7">('+count+')</span></div>':'';
-    el.innerHTML=
-       sep('🔴 1순위',  '#dc2626', groups[1].length)+ groups[1].map(renderCard).join('')
-      +sep('🟡 2순위',  '#f59e0b', groups[2].length)+ groups[2].map(renderCard).join('')
-      +sep('🟢 3순위',  '#10b981', groups[3].length)+ groups[3].map(renderCard).join('')
-      +sep('⚪ 미분류', '#6b7280', groups.none.length)+ groups.none.map(renderCard).join('')
-      +sep('📦 종료',   '#9ca3af', groups.closed.length)+ groups.closed.map(renderCard).join('');
+    const sep=(title,color,count)=>count?'<div style="padding:8px 12px 4px;font-size:.72em;font-weight:800;color:'+color+';background:'+color+'11;border-bottom:1px solid '+color+'33">'+title+' <span style="opacity:.7">('+count+')</span></div>':'';
+
+    /* 필터에 포함된 그룹만 렌더 */
+    let body='';
+    if(flt.has(1))body+=sep('🔴 1순위','#dc2626',groups[1].length)+groups[1].map(renderCard).join('');
+    if(flt.has(2))body+=sep('🟡 2순위','#f59e0b',groups[2].length)+groups[2].map(renderCard).join('');
+    if(flt.has(3))body+=sep('🟢 3순위','#10b981',groups[3].length)+groups[3].map(renderCard).join('');
+    if(flt.has('none'))body+=sep('⚪ 미분류','#6b7280',groups.none.length)+groups.none.map(renderCard).join('');
+    if(flt.has('closed'))body+=sep('📦 종료','#9ca3af',groups.closed.length)+groups.closed.map(renderCard).join('');
+    if(!body)body='<div class="empty" style="padding:40px 20px;text-align:center;color:#8b95a1">필터에 해당하는 상담방이 없습니다</div>';
+
+    el.innerHTML=filterBar+body;
     /* 좌측 상담방 탭 배지 갱신 */
     try{
       const tabBtn=document.querySelector('button[onclick*="tab(\'rooms\')"]');
