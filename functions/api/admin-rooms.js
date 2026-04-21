@@ -77,7 +77,13 @@ export async function onRequestGet(context) {
   // 대화 AI 요약
   const action = url.searchParams.get("action");
   if (action === "summarize") {
-    return await summarizeRoom(context, db, url.searchParams.get("room_id"), url.searchParams.get("range") || 'recent');
+    return await summarizeRoom(
+      context, db,
+      url.searchParams.get("room_id"),
+      url.searchParams.get("range") || 'recent',
+      url.searchParams.get("from") || '',
+      url.searchParams.get("to") || ''
+    );
   }
 
   const roomId = url.searchParams.get("room_id");
@@ -594,7 +600,7 @@ export async function onRequestDelete(context) {
 }
 
 // 상담방 대화 AI 요약
-async function summarizeRoom(context, db, roomId, range) {
+async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
   if (!roomId) return Response.json({ error: "room_id required" }, { status: 400 });
   const apiKey = context.env.OPENAI_API_KEY;
   if (!apiKey) return Response.json({ error: "OPENAI_API_KEY 미설정" }, { status: 500 });
@@ -623,6 +629,17 @@ async function summarizeRoom(context, db, roomId, range) {
              WHERE c.room_id = ? AND substr(c.created_at,1,7) = ?
              ORDER BY c.created_at DESC LIMIT 500`;
     binds = [roomId, ym];
+  } else if (range === 'custom') {
+    // 사용자 지정 기간 (from ~ to, 포함 YYYY-MM-DD)
+    const fromOK = /^\d{4}-\d{2}-\d{2}$/.test(fromDate || '');
+    const toOK = /^\d{4}-\d{2}-\d{2}$/.test(toDate || '');
+    if (!fromOK || !toOK) return Response.json({ error: "기간을 YYYY-MM-DD 형식으로 지정해주세요" }, { status: 400 });
+    if (fromDate > toDate) return Response.json({ error: "시작일이 종료일보다 늦습니다" }, { status: 400 });
+    query = `SELECT c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
+             FROM conversations c LEFT JOIN users u ON c.user_id = u.id
+             WHERE c.room_id = ? AND substr(c.created_at,1,10) >= ? AND substr(c.created_at,1,10) <= ?
+             ORDER BY c.created_at DESC LIMIT 1000`;
+    binds = [roomId, fromDate, toDate];
   } else { // all
     query = `SELECT c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
              FROM conversations c LEFT JOIN users u ON c.user_id = u.id

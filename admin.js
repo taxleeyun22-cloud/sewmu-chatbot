@@ -2871,6 +2871,8 @@ async function runCronAlerts(){
    기간 선택(selectSummaryRange) → '✨ 요약 생성' 버튼(runRoomSummary) 눌러야 fetch 실행. */
 let _lastSummaryText='';
 let _lastSummaryRange='recent';
+let _lastSummaryFrom='';
+let _lastSummaryTo='';
 function _setSummaryRangeUI(range){
   document.querySelectorAll('.rs-range').forEach(b=>{
     const on=b.getAttribute('data-range')===range;
@@ -2878,6 +2880,9 @@ function _setSummaryRangeUI(range){
     b.style.color=on?'#fff':'#555';
     b.style.fontWeight=on?'600':'400';
   });
+  /* custom 기간 입력 영역 표시/숨김 */
+  const box=$g('rsCustomBox');
+  if(box)box.style.display=range==='custom'?'flex':'none';
 }
 function openRoomSummary(){
   if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
@@ -2889,6 +2894,11 @@ function openRoomSummary(){
   _lastSummaryText='';
   body.innerHTML='<div style="text-align:center;padding:40px 20px;color:#8b95a1;font-size:.9em;line-height:1.7">기간을 선택한 뒤<br><b style="color:#10b981">✨ 요약 생성</b> 버튼을 눌러주세요.</div>';
   meta.textContent='';
+  /* custom 기간 기본값: 오늘·오늘 */
+  const today=new Date(Date.now()+9*60*60*1000).toISOString().substring(0,10);
+  const fromEl=$g('rsFrom'),toEl=$g('rsTo');
+  if(fromEl&&!fromEl.value)fromEl.value=_lastSummaryFrom||today;
+  if(toEl&&!toEl.value)toEl.value=_lastSummaryTo||today;
   _setSummaryRangeUI(_lastSummaryRange||'recent');
 }
 function selectSummaryRange(range){
@@ -2900,15 +2910,25 @@ async function runRoomSummary(){
   const range=_lastSummaryRange||'recent';
   const body=$g('rsBody');
   const meta=$g('rsMeta');
+  let extraQS='';
+  let rangeLabel={recent:'최근 50건',week:'최근 7일',month:'이번달',all:'전체'}[range]||range;
+  if(range==='custom'){
+    const fromEl=$g('rsFrom'),toEl=$g('rsTo');
+    const f=fromEl?fromEl.value:'',t=toEl?toEl.value:'';
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(f)||!/^\d{4}-\d{2}-\d{2}$/.test(t)){alert('시작일·종료일을 모두 선택하세요');return}
+    if(f>t){alert('시작일이 종료일보다 늦습니다');return}
+    _lastSummaryFrom=f;_lastSummaryTo=t;
+    extraQS='&from='+encodeURIComponent(f)+'&to='+encodeURIComponent(t);
+    rangeLabel=f+' ~ '+t;
+  }
   body.innerHTML='<div style="text-align:center;padding:40px 0;color:#8b95a1">🤖 요약 생성 중... (5~15초)</div>';
   meta.textContent='';
   try{
-    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=summarize&room_id='+encodeURIComponent(currentRoomId)+'&range='+encodeURIComponent(range));
+    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=summarize&room_id='+encodeURIComponent(currentRoomId)+'&range='+encodeURIComponent(range)+extraQS);
     const d=await r.json();
     if(d.error){body.innerHTML='<div style="color:#f04452;padding:20px 0">요약 실패: '+e(d.error)+'</div>';return}
     _lastSummaryText=d.summary||'';
     body.innerHTML=renderMarkdownLite(_lastSummaryText);
-    const rangeLabel={recent:'최근 50건',week:'최근 7일',month:'이번달',all:'전체'}[range]||range;
     meta.textContent='['+rangeLabel+'] 메시지 '+(d.message_count||0)+'건 · 비용 ₩'+Math.round((d.cost_cents||0)*14);
   }catch(err){
     body.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>';
