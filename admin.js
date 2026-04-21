@@ -2929,7 +2929,8 @@ async function runRoomSummary(){
     if(d.error){body.innerHTML='<div style="color:#f04452;padding:20px 0">요약 실패: '+e(d.error)+'</div>';return}
     _lastSummaryText=d.summary||'';
     body.innerHTML=renderMarkdownLite(_lastSummaryText);
-    meta.textContent='['+rangeLabel+'] 메시지 '+(d.message_count||0)+'건 · 비용 ₩'+Math.round((d.cost_cents||0)*14);
+    const actualRange=(d.first_at&&d.last_at)?(' · 🗓️ '+d.first_at+' ~ '+d.last_at):'';
+    meta.textContent='['+rangeLabel+'] 메시지 '+(d.message_count||0)+'건'+actualRange+' · 비용 ₩'+Math.round((d.cost_cents||0)*14);
   }catch(err){
     body.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>';
   }

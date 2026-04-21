@@ -684,19 +684,28 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
   if (!lines.length) return Response.json({ ok: true, summary: "(대화 내용이 없습니다)", message_count: 0 });
 
   const conversation = lines.join('\n');
+  /* 실제 대화의 첫·마지막 시점 (non-deleted 기준) */
+  const firstAt = (chrono.find(m => !m.deleted_at)?.created_at || '').substring(0,16);
+  const lastAt = ([...chrono].reverse().find(m => !m.deleted_at)?.created_at || '').substring(0,16);
 
   // GPT-4o-mini 로 요약 (저렴)
   const prompt = `아래는 세무회계 이윤의 상담방 대화 기록이야. 이 대화를 세무사가 빠르게 파악할 수 있게 요약해줘.
 
+대화 시점: ${firstAt} ~ ${lastAt} (총 ${lines.length}건)
+
 포맷:
+## ⏱ 상담 시점
+${firstAt} ~ ${lastAt} (총 ${lines.length}건)
+(위 시점 그대로 한 줄 넣어줘. 본문 논의 사항에도 "4월 15일에 부가세 질문" 같이 날짜를 녹여줘)
+
 ## 📌 핵심 요약
 (3-5줄로 무슨 상담인지)
 
 ## 💬 주요 논의 사항
-- (항목별 bullet)
+- (항목별 bullet, 가능하면 날짜 포함)
 
 ## 📄 고객이 올린 자료
-- (영수증·계약서 등 있으면, 없으면 "없음")
+- (영수증·계약서 등 있으면 언제 올렸는지 포함, 없으면 "없음")
 
 ## ⏳ 후속 조치 필요
 - (세무사가 해야할 일, 답변 대기 중인 질문, 등. 없으면 "없음")
@@ -731,6 +740,8 @@ ${conversation}`;
       ok: true,
       summary,
       message_count: lines.length,
+      first_at: firstAt,
+      last_at: lastAt,
       usage,
       cost_cents: costCents,
     });
