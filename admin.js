@@ -898,8 +898,13 @@ async function sendRoomMessage(){
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId,content:content})});
     const d=await r.json();
-    if(d.ok)loadRoomDetail();
-    else alert('실패: '+(d.error||'unknown'));
+    if(d.ok){
+      await loadRoomDetail();
+      /* poll 경합 대비 명시적 강제 스크롤 */
+      const _c=$g('roomMessages');
+      if(_c)_c.scrollTop=_c.scrollHeight;
+      setTimeout(function(){const c2=$g('roomMessages');if(c2)c2.scrollTop=c2.scrollHeight;},80);
+    } else alert('실패: '+(d.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
 }
 
@@ -1548,8 +1553,12 @@ async function sendLiveMessage(){
   try{
     const r=await fetch('/api/admin-live?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:liveCurrentSession,user_id:liveCurrentUserId,content:content})});
     const d=await r.json();
-    if(d.ok){loadLiveMessages()}
-    else alert('실패: '+(d.error||'unknown'));
+    if(d.ok){
+      await loadLiveMessages();
+      const _c=$g('liveMessages');
+      if(_c)_c.scrollTop=_c.scrollHeight;
+      setTimeout(function(){const c2=$g('liveMessages');if(c2)c2.scrollTop=c2.scrollHeight;},80);
+    } else alert('실패: '+(d.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
 }
 

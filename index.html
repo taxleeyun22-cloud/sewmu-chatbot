@@ -2108,8 +2108,13 @@ async function sendRoomMsg(){
   try{
     var r=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,content:content})});
     var d=await r.json();
-    if(d.ok)loadRoomChat();
-    else alert('실패: '+(d.error||'unknown'));
+    if(d.ok){
+      await loadRoomChat();
+      /* poll 경합으로 플래그가 미리 소모되는 경우 대비 — 명시적 강제 스크롤 */
+      var _c=document.getElementById('rcMessages');
+      if(_c)_c.scrollTop=_c.scrollHeight;
+      setTimeout(function(){var c2=document.getElementById('rcMessages');if(c2)c2.scrollTop=c2.scrollHeight;},80);
+    } else alert('실패: '+(d.error||'unknown'));
   }catch(e){alert('오류: '+e.message)}
 }
 
