@@ -70,7 +70,8 @@ function genRoomId() {
 // GET 목록 or 상세
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
-  if (!(await checkAdmin(context))) return adminUnauthorized();
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
@@ -205,6 +206,15 @@ export async function onRequestGet(context) {
         `SELECT * FROM chat_rooms WHERE id = ?`
       ).bind(roomId).first();
       if (!room) return Response.json({ error: "방을 찾을 수 없습니다" }, { status: 404 });
+      /* 관리자(직원 세션) 본인이 열었으니 last_read_at 갱신 → 카톡 "1" 시스템 동기화 */
+      if (auth && auth.userId) {
+        try {
+          const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+          await db.prepare(
+            `UPDATE room_members SET last_read_at = ? WHERE room_id = ? AND user_id = ?`
+          ).bind(now, roomId, auth.userId).run();
+        } catch {}
+      }
 
       const { results: members } = await db.prepare(`
         SELECT rm.user_id, rm.role, rm.joined_at, rm.left_at,
@@ -365,7 +375,7 @@ export async function onRequestPost(context) {
         VALUES (?, ?, 1, ?, 'on', 'active', ?)
       `).bind(roomId, name, maxMembers, now).run();
 
-      // 멤버 추가
+      // 멤버 추가 (거래처 사장 등)
       for (const uid of memberIds) {
         try {
           await db.prepare(`
@@ -374,6 +384,21 @@ export async function onRequestPost(context) {
           `).bind(roomId, Number(uid), now).run();
         } catch {}
       }
+
+      // 관리자(is_admin=1) 전원 자동 참여 — 누가 생성하든 공동 관리
+      try {
+        const { results: adminRows } = await db.prepare(
+          `SELECT id FROM users WHERE is_admin = 1`
+        ).all();
+        for (const a of (adminRows || [])) {
+          try {
+            await db.prepare(`
+              INSERT INTO room_members (room_id, user_id, role, joined_at)
+              VALUES (?, ?, 'admin', ?)
+            `).bind(roomId, Number(a.id), now).run();
+          } catch {}
+        }
+      } catch {}
 
       return Response.json({ ok: true, room_id: roomId });
     }
@@ -505,10 +530,19 @@ export async function onRequestPost(context) {
       } else {
         finalContent = content;
       }
+      /* 관리자 본인 식별: auth.userId 있으면(직원 로그인) 저장, owner(ADMIN_KEY)면 NULL
+         → unread_count 계산 시 본인 제외 가능 + last_read_at 갱신 가능 */
+      const actorUid = auth.userId || null;
       await db.prepare(`
         INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at)
-        VALUES (?, NULL, 'human_advisor', ?, ?, ?)
-      `).bind('room_' + roomId, finalContent, roomId, now).run();
+        VALUES (?, ?, 'human_advisor', ?, ?, ?)
+      `).bind('room_' + roomId, actorUid, finalContent, roomId, now).run();
+      /* 본인 메시지니 본인 last_read_at 갱신 */
+      if (actorUid) {
+        try { await db.prepare(
+          `UPDATE room_members SET last_read_at = ? WHERE room_id = ? AND user_id = ?`
+        ).bind(now, roomId, actorUid).run(); } catch {}
+      }
 
       // 푸시 알림 발송 (방의 모든 멤버에게)
       try {
