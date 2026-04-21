@@ -2673,6 +2673,70 @@ async function postSummaryToRoom(){
     } else alert('게시 실패: '+(d.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
 }
+/* ===== 거래처 서류 확인 (신분증·사업자등록증·홈택스 ID) ===== */
+async function openBizDocsPanel(){
+  if(!docsSelectedUserId){alert('거래처를 먼저 선택하세요');return}
+  const cust=docsCustomers.find(c=>c.user_id===docsSelectedUserId);
+  $g('bdTitle').textContent=cust?(cust.real_name||cust.name||('#'+docsSelectedUserId)):('#'+docsSelectedUserId);
+  $g('bizDocsModal').style.display='flex';
+  document.body.style.overflow='hidden';
+  const body=$g('bdBody');
+  body.innerHTML='<div style="text-align:center;color:#8b95a1;padding:30px 0">불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/admin-biz-docs?key='+encodeURIComponent(KEY)+'&user_id='+docsSelectedUserId);
+    const d=await r.json();
+    if(d.error){body.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(d.error)+'</div>';return}
+    if(!(d.businesses||[]).length){
+      body.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0">등록된 사업장이 없습니다. 먼저 거래처 사업장을 등록해주세요.</div>';
+      return;
+    }
+    body.innerHTML=d.businesses.map(b=>renderBizDocCard(b)).join('');
+  }catch(err){body.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>'}
+}
+function closeBizDocsPanel(){
+  $g('bizDocsModal').style.display='none';
+  document.body.style.overflow='';
+}
+function renderBizDocCard(b){
+  const keyq='&key='+encodeURIComponent(KEY);
+  const primaryBadge=b.is_primary?' <span style="background:#fef3c7;color:#92400e;font-size:.7em;padding:2px 6px;border-radius:6px;font-weight:700">⭐ 주사업장</span>':'';
+  const bn=b.business_number?b.business_number:'';
+  const bnFmt=bn&&bn.length===10?bn.slice(0,3)+'-'+bn.slice(3,5)+'-'+bn.slice(5):bn;
+  const idCard=b.docs.id_card;
+  const bizReg=b.docs.biz_reg;
+  const hometax=b.docs.hometax;
+  function imgCell(label, info, url){
+    if(info.uploaded){
+      const fullUrl=url+keyq;
+      return `<div style="flex:1;min-width:150px">
+        <div style="font-size:.78em;font-weight:700;color:#065f46;margin-bottom:4px">✅ ${label}</div>
+        <div style="position:relative;aspect-ratio:1/1;max-width:160px;background:#f3f4f6;border-radius:8px;overflow:hidden;cursor:zoom-in" onclick="openImgViewer('${fullUrl}',['${fullUrl}'])">
+          <img src="${fullUrl}" alt="${label}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.display='none';this.parentNode.innerHTML+='<div style=&quot;padding:20px;text-align:center;color:#8b95a1;font-size:.8em&quot;>PDF 또는 미리보기 불가<br><a href=&quot;${fullUrl}&quot; target=_blank style=&quot;color:#3182f6&quot;>열기</a></div>'">
+        </div>
+        <div style="font-size:.7em;color:#8b95a1;margin-top:3px">업로드: ${e(info.at||'-')}</div>
+      </div>`;
+    }
+    return `<div style="flex:1;min-width:150px">
+      <div style="font-size:.78em;font-weight:700;color:#991b1b;margin-bottom:4px">⚠️ ${label}</div>
+      <div style="aspect-ratio:1/1;max-width:160px;background:#fef2f2;border:1px dashed #fca5a5;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#991b1b;font-size:.8em">미등록</div>
+    </div>`;
+  }
+  return `<div style="border:1px solid #e5e8eb;border-radius:12px;padding:14px;margin-bottom:14px;background:#fafafa">
+    <div style="font-weight:700;font-size:1em;margin-bottom:4px">${e(b.company_name||'사업장 #'+b.id)}${primaryBadge}</div>
+    <div style="font-size:.78em;color:#8b95a1;margin-bottom:12px">${e(b.ceo_name||'')} ${bnFmt?'· 사업자 '+e(bnFmt):''}</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+      ${imgCell('🪪 신분증', idCard, idCard.image_url||'')}
+      ${imgCell('📋 사업자등록증', bizReg, bizReg.image_url||'')}
+    </div>
+    <div style="padding:10px 12px;background:#fff;border:1px solid #e5e8eb;border-radius:8px">
+      <div style="font-size:.78em;color:#8b95a1;margin-bottom:3px">🏛️ 홈택스 ID</div>
+      <div style="font-weight:600;font-size:.92em">${hometax.saved?e(hometax.hometax_id):'<span style="color:#991b1b">미등록</span>'}</div>
+      ${hometax.saved&&hometax.at?'<div style="font-size:.7em;color:#8b95a1;margin-top:2px">업데이트: '+e(hometax.at)+'</div>':''}
+      <div style="font-size:.7em;color:#8b95a1;margin-top:6px">※ 비밀번호는 앱에 저장되지 않습니다. 거래처에게 별도 전달 요청.</div>
+    </div>
+  </div>`;
+}
+
 /* ===== 거래처 재무 데이터 (매출/매입/세금) ===== */
 let _finCurrentUserId=null;
 let _finRows=[];
@@ -2963,22 +3027,27 @@ function commonColsRight(){
       cellRenderer: p => `<button onclick="openImgViewer('/api/image?k=${encodeURIComponent(p.value)}',['/api/image?k=${encodeURIComponent(p.value)}'])" style="background:#f2f4f6;border:none;padding:3px 8px;border-radius:6px;font-size:.85em;cursor:pointer;font-family:inherit">📷</button>`
     },
     {
-      headerName:'액션', width:170, sortable:false, filter:false, pinned:'right',
+      headerName:'액션', width:260, sortable:false, filter:false, pinned:'right',
       cellRenderer: p => {
         const d=p.data;
+        const base='padding:3px 6px;border-radius:5px;font-size:.74em;cursor:pointer;font-family:inherit;margin-right:2px;white-space:nowrap';
+        let h='';
         if(d.status==='pending'){
-          return `<button onclick="approveDocById(${d.id})" title="승인" style="background:#10b981;color:#fff;border:none;padding:3px 7px;border-radius:5px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:3px">✅</button>`
-            +`<button onclick="rejectDocPrompt(${d.id})" title="반려" style="background:#fff;color:#f04452;border:1px solid #f04452;padding:3px 7px;border-radius:5px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">❌</button>`;
+          h+=`<button onclick="approveDocById(${d.id})" title="승인" style="background:#10b981;color:#fff;border:none;${base};font-weight:700">✅</button>`;
+          h+=`<button onclick="rejectDocPrompt(${d.id})" title="반려" style="background:#fff;color:#f04452;border:1px solid #f04452;${base};font-weight:700">❌</button>`;
+        } else if(d.status==='approved'){
+          h+=`<button onclick="revertDocApproval(${d.id})" title="승인 취소" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;${base};font-weight:700">↺</button>`;
+        } else if(d.status==='rejected'){
+          h+=`<button onclick="approveDocById(${d.id})" title="복원" style="background:#10b981;color:#fff;border:none;${base};font-weight:700">✅</button>`;
         }
-        if(d.status==='approved'){
-          return `<button onclick="revertDocApproval(${d.id})" title="승인 취소 — 편집 가능 상태로" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;padding:3px 8px;border-radius:5px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:3px">↺ 취소</button>`
-            +`<button onclick="openDocDetailAdmin(${d.id})" style="background:#e5e8eb;border:none;padding:3px 8px;border-radius:5px;font-size:.76em;cursor:pointer;font-family:inherit">상세</button>`;
+        /* 변환 버튼 (승인된 것 제외) */
+        if(d.status!=='approved'){
+          h+=`<button onclick="revertDocToPhotoAdmin(${d.id})" title="일반 사진으로 변환" style="background:#fff;color:#3182f6;border:1px solid #3182f6;${base}">📷</button>`;
+          h+=`<button onclick="convertDocToFileAdmin(${d.id})" title="일반 파일로 변환" style="background:#fff;color:#3182f6;border:1px solid #3182f6;${base}">📁</button>`;
         }
-        if(d.status==='rejected'){
-          return `<button onclick="approveDocById(${d.id})" title="다시 승인" style="background:#10b981;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:3px">✅ 복원</button>`
-            +`<button onclick="openDocDetailAdmin(${d.id})" style="background:#e5e8eb;border:none;padding:3px 8px;border-radius:5px;font-size:.76em;cursor:pointer;font-family:inherit">상세</button>`;
-        }
-        return `<button onclick="openDocDetailAdmin(${d.id})" style="background:#e5e8eb;border:none;padding:3px 8px;border-radius:5px;font-size:.76em;cursor:pointer;font-family:inherit">상세</button>`;
+        /* 완전 삭제 */
+        h+=`<button onclick="deleteDocAdmin(${d.id})" title="완전 삭제 (R2 포함)" style="background:#fff;color:#dc2626;border:1px solid #dc2626;${base}">🗑️</button>`;
+        return h;
       }
     },
   ];
