@@ -253,14 +253,16 @@ export async function onRequestGet(context) {
       return Response.json({ room, members: members || [], messages: messages || [] });
     }
 
-    // 목록 — priority(1/2/3) 기준 먼저 정렬, 그 다음 최근순
+    // 목록 — priority 먼저, 최근순. 카톡 스타일 미리보기·아바타 포함
     const { results } = await db.prepare(`
       SELECT r.*,
              (SELECT COUNT(*) FROM room_members WHERE room_id = r.id AND left_at IS NULL) as member_count,
              (SELECT COUNT(*) FROM conversations WHERE room_id = r.id) as msg_count,
              (SELECT COUNT(*) FROM conversations WHERE room_id = r.id AND role = 'user') as user_msg_count,
              (SELECT MAX(created_at) FROM conversations WHERE room_id = r.id AND role = 'user') as last_user_msg_at,
-             (SELECT MAX(created_at) FROM conversations WHERE room_id = r.id) as last_msg_at
+             (SELECT MAX(created_at) FROM conversations WHERE room_id = r.id) as last_msg_at,
+             (SELECT content FROM conversations WHERE room_id = r.id AND (deleted_at IS NULL) ORDER BY created_at DESC LIMIT 1) as last_msg_content,
+             (SELECT role    FROM conversations WHERE room_id = r.id AND (deleted_at IS NULL) ORDER BY created_at DESC LIMIT 1) as last_msg_role
       FROM chat_rooms r
       ORDER BY r.status ASC,
                COALESCE(r.priority, 99) ASC,
@@ -268,6 +270,51 @@ export async function onRequestGet(context) {
                r.created_at DESC
       LIMIT 200
     `).all();
+
+    /* 각 방의 첫 멤버 정보 (아바타용) 일괄 조회 */
+    const roomIds = (results || []).map(r => r.id);
+    const avatarByRoom = {};
+    if (roomIds.length) {
+      const placeholders = roomIds.map(() => '?').join(',');
+      try {
+        const { results: mems } = await db.prepare(
+          `SELECT rm.room_id, u.real_name, u.name, u.profile_image
+           FROM room_members rm LEFT JOIN users u ON rm.user_id = u.id
+           WHERE rm.room_id IN (${placeholders}) AND rm.left_at IS NULL AND rm.user_id IS NOT NULL
+           ORDER BY rm.joined_at ASC`
+        ).bind(...roomIds).all();
+        for (const m of (mems || [])) {
+          if (!avatarByRoom[m.room_id]) {
+            avatarByRoom[m.room_id] = {
+              name: m.real_name || m.name || '',
+              profile_image: m.profile_image || null,
+            };
+          }
+        }
+      } catch {}
+    }
+    for (const r of (results || [])) {
+      const a = avatarByRoom[r.id];
+      r.first_member_name = a?.name || '';
+      r.first_member_profile = a?.profile_image || null;
+      /* 미리보기: 80자 제한, [IMG]·[FILE]·[DOC] 프리픽스 치환 */
+      if (r.last_msg_content) {
+        const c = r.last_msg_content;
+        if (c.startsWith('[IMG]')) r.last_msg_preview = '📷 사진';
+        else if (c.startsWith('[FILE]')) r.last_msg_preview = '📁 파일';
+        else if (c.startsWith('[DOC:')) r.last_msg_preview = '🧾 영수증/문서';
+        else if (c.startsWith('[ALERT]')) r.last_msg_preview = '🔔 알림';
+        else if (c.startsWith('[REPLY]')) {
+          /* 답장 프리픽스 제거 후 본문 표시 */
+          const m2 = /^\[REPLY\]\{[^\n]+\}\n([\s\S]*)$/.exec(c);
+          r.last_msg_preview = (m2?.[1] || c).replace(/\s+/g, ' ').slice(0, 60);
+        }
+        else r.last_msg_preview = c.replace(/\s+/g, ' ').slice(0, 60);
+      } else {
+        r.last_msg_preview = null;
+      }
+      delete r.last_msg_content; // 전체 원문은 목록에 보낼 필요 없음
+    }
 
     return Response.json({ rooms: results || [] });
   } catch (e) {

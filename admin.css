@@ -134,7 +134,7 @@ body.docs-wide .wrap{max-width:none;padding-left:16px;padding-right:16px}
 body.staff-mode .owner-only{display:none !important}
 
 /* 상담방 리스트 카드 */
-.room-item{padding:12px;cursor:pointer;border-radius:10px;margin-bottom:4px;transition:background .12s}
+.room-item{cursor:pointer;transition:background .12s}
 .room-item:hover{background:#f2f4f6}
 .room-item.active{background:#e8f3ff}
 .room-item.closed{opacity:.55}
@@ -183,6 +183,11 @@ body.staff-mode .owner-only{display:none !important}
 }
 
 /* ===== 거래처별 문서 뷰 (모바일 반응형) ===== */
+/* room-item hover·active 상태 (v55+) — 새 카톡 스타일 레이아웃 */
+.room-item:hover{background:#f9fafb}
+.room-item.active{background:#eef5ff}
+.room-item.closed{opacity:.55}
+
 @media(max-width:900px){
   #docsLayout{flex-direction:column}
   #docsCustList{width:100% !important;max-height:35vh}

@@ -427,24 +427,46 @@ async function loadRoomList(){
       let unread=Math.max(0, userCount - seen);
       if(currentRoomId===rm.id) unread=0;
       totalUnread+=unread;
-      const badge=unread>0?'<span class="ri-unread" style="background:#f04452;color:#fff;border-radius:12px;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;padding:0 7px;font-size:.72em;font-weight:800;margin-left:6px">'+(unread>99?'99+':unread)+'</span>':'';
-      /* 우선순위 탭 버튼 (— / 1 / 2 / 3) — 카드 우측 */
+      const badge=unread>0?'<span class="ri-unread" style="background:#f04452;color:#fff;border-radius:11px;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;font-size:.7em;font-weight:800;flex-shrink:0">'+(unread>99?'99+':unread)+'</span>':'';
+      /* 우선순위 탭 버튼 (— / 1 / 2 / 3) */
       const p=Number(rm.priority||0);
       const priColors={0:'#9ca3af',1:'#dc2626',2:'#f59e0b',3:'#10b981'};
-      const priTabs='<div class="ri-pri-tabs" onclick="event.stopPropagation()" style="display:inline-flex;gap:1px;background:#f2f4f6;padding:2px;border-radius:6px;margin-left:auto;flex-shrink:0">'
+      const priTabs='<div class="ri-pri-tabs" onclick="event.stopPropagation()" style="display:inline-flex;gap:1px;background:#f2f4f6;padding:2px;border-radius:6px;flex-shrink:0">'
         +[0,1,2,3].map(v=>{
           const on=p===v;
           const col=priColors[v];
           const bg=on?col:'transparent';
           const fg=on?'#fff':'#6b7280';
           const lbl=v===0?'—':v;
-          return '<button onclick="setRoomPriority(\''+rm.id+'\','+v+')" style="background:'+bg+';color:'+fg+';border:none;padding:3px 7px;border-radius:4px;font-size:.7em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit;min-width:18px">'+lbl+'</button>';
+          return '<button onclick="setRoomPriority(\''+rm.id+'\','+v+')" style="background:'+bg+';color:'+fg+';border:none;padding:2px 6px;border-radius:4px;font-size:.68em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit;min-width:16px">'+lbl+'</button>';
         }).join('')
         +'</div>';
-      return '<div class="'+cls.join(' ')+'" onclick="openRoom(\''+rm.id+'\')">'
-        +'<div class="ri-head" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="ri-name" style="font-weight:700">'+e(rm.name||'상담방')+'</span><span class="ri-icon">'+aiIcon+'</span>'+badge+(rm.status==='closed'?'<span class="ri-closed">종료</span>':'')+priTabs+'</div>'
-        +'<div class="ri-sub">🆔 '+e(rm.id)+' · 👥 '+rm.member_count+' · 💬 '+(rm.msg_count||0)+'</div>'
-        +'<div class="ri-time">'+e(rm.last_msg_at||rm.created_at||'')+'</div>'
+      /* 프로필 아바타 (카톡 스타일) */
+      const memberName=rm.first_member_name||rm.name||'?';
+      const avatarInitial=(memberName[0]||'?').toUpperCase();
+      const avatar=rm.first_member_profile
+        ? '<div style="flex-shrink:0;width:44px;height:44px;border-radius:50%;overflow:hidden;background:#f2f4f6"><img src="'+escAttr(rm.first_member_profile)+'" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\''+escAttr(avatarInitial)+'\';this.parentNode.style.display=\'flex\';this.parentNode.style.alignItems=\'center\';this.parentNode.style.justifyContent=\'center\';this.parentNode.style.color=\'#3182f6\';this.parentNode.style.fontWeight=\'700\';this.parentNode.style.fontSize=\'1.1em\'"></div>'
+        : '<div style="flex-shrink:0;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#3182f6,#5da3ff);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1em">'+escAttr(avatarInitial)+'</div>';
+      /* 마지막 메시지 미리보기 + 시간 */
+      const preview=rm.last_msg_preview?escAttr(rm.last_msg_preview):'새 상담방';
+      const lastTime=rm.last_msg_at ? (rm.last_msg_at.substring(5,10).replace('-','.')+' '+rm.last_msg_at.substring(11,16)) : '';
+      const closedTag=rm.status==='closed'?'<span class="ri-closed" style="font-size:.65em;color:#9ca3af;margin-left:4px">종료</span>':'';
+      return '<div class="'+cls.join(' ')+'" onclick="openRoom(\''+rm.id+'\')" ondblclick="event.stopPropagation();currentRoomId=\''+rm.id+'\';popoutCurrentRoom()" title="더블클릭하면 새 창으로 열립니다" style="display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid #f2f4f6;cursor:pointer">'
+        +avatar
+        +'<div style="flex:1;min-width:0">'
+        +  '<div style="display:flex;align-items:center;gap:4px">'
+        +    '<span style="font-weight:700;font-size:.92em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(rm.name||'상담방')+'</span>'
+        +    '<span style="font-size:.66em;color:#9ca3af;flex-shrink:0">'+aiIcon+' '+lastTime+'</span>'
+        +  '</div>'
+        +  '<div style="display:flex;align-items:center;gap:6px;margin-top:3px">'
+        +    '<span style="flex:1;min-width:0;font-size:.78em;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+preview+closedTag+'</span>'
+        +    badge
+        +  '</div>'
+        +  '<div style="display:flex;align-items:center;gap:6px;margin-top:4px">'
+        +    '<span style="font-size:.65em;color:#b0b8c1">👥 '+rm.member_count+'</span>'
+        +    priTabs
+        +  '</div>'
+        +'</div>'
         +'</div>';
     };
     const sep=(title,color,count)=>count?'<div style="padding:8px 12px 4px;font-size:.72em;font-weight:800;color:'+color+';background:'+color+'11;border-bottom:1px solid '+color+'33">'+title+' <span style="opacity:.7">('+count+')</span></div>':'';
@@ -2534,10 +2556,44 @@ function filterDocsCustomers(){
 
 async function loadDocsCustomers(){
   try{
-    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=by_user');
-    const d=await r.json();
-    if(d.error){console.error(d.error);return}
-    docsCustomers=d.users||[];
+    /* 거래처 목록 + 상담방 목록 병렬 → user priority 계산 */
+    const [custR, roomsR] = await Promise.all([
+      fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=by_user').then(r=>r.json()).catch(()=>({users:[]})),
+      fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)).then(r=>r.json()).catch(()=>({rooms:[]})),
+    ]);
+    if(custR.error){console.error(custR.error);return}
+    /* 각 user_id 의 priority = 해당 user가 속한 방 중 가장 낮은(우선) priority */
+    const userPri={};
+    const userRoomId={}; /* 거래처 → 대표 상담방 id (나중에 열 때 사용) */
+    try{
+      const rooms=roomsR.rooms||[];
+      /* 방별 멤버를 구분하기 위해 별도 API 호출은 비용 큼 → 방 이름에 거래처명 포함됐다는 가정은 약함.
+         대신 admin-rooms 목록의 first_member 정보를 활용. 사실 이건 멤버 1명만 대표. 그래서 fallback: 방 이름이 거래처명 일부면 매칭. */
+      docsCustomers=(custR.users||[]);
+      /* 각 방을 멤버별로 스캔 — 멤버 API는 방별 상세에서만 제공됨. 간소화: 방의 first_member_name 으로 매칭 */
+      const custByName={};
+      (custR.users||[]).forEach(c=>{
+        const nm1=(c.real_name||'').toLowerCase();
+        const nm2=(c.name||'').toLowerCase();
+        if(nm1)custByName[nm1]=c.user_id;
+        if(nm2)custByName[nm2]=c.user_id;
+      });
+      for(const rm of rooms){
+        const fn=(rm.first_member_name||'').toLowerCase();
+        const uid=custByName[fn];
+        if(uid){
+          const p=Number(rm.priority||99);
+          if(!userPri[uid]||p<userPri[uid])userPri[uid]=p;
+          if(!userRoomId[uid])userRoomId[uid]=rm.id;
+        }
+      }
+    }catch(e){console.warn(e)}
+    /* priority 병합 */
+    for(const c of docsCustomers){
+      const p=userPri[c.user_id];
+      c.priority = (p && p<99) ? p : null;
+      c.room_id = userRoomId[c.user_id] || null;
+    }
     renderCustomerList();
     // 선택된 거래처가 목록에 없으면 초기화
     if(docsSelectedUserId && !docsCustomers.find(c=>c.user_id===docsSelectedUserId)){
@@ -2547,10 +2603,32 @@ async function loadDocsCustomers(){
   }catch(e){console.error(e)}
 }
 
+/* 문서 탭 — 거래처 리스트 priority 필터 (상담방 필터와 독립) */
+function _docsCustFilterGet(){
+  try{var raw=localStorage.getItem('docsCustPriFilter');if(raw){var arr=JSON.parse(raw);if(Array.isArray(arr))return new Set(arr)}}catch{}
+  return new Set([1,2,3,'none']);
+}
+function _docsCustFilterSet(s){try{localStorage.setItem('docsCustPriFilter',JSON.stringify([...s]))}catch{}}
+function toggleDocsCustFilter(key){
+  const s=_docsCustFilterGet();
+  if(s.has(key))s.delete(key); else s.add(key);
+  if(s.size===0){s.add(1).add(2).add(3).add('none')}
+  _docsCustFilterSet(s);
+  renderCustomerList();
+}
+
 function renderCustomerList(){
   const el=$g('docsCustItems');
   if(!el||!el.innerHTML===undefined)return;
   let list=docsCustomers.slice();
+  /* 우선순위 필터 */
+  const priFlt=_docsCustFilterGet();
+  const byPri={1:0,2:0,3:0,'none':0};
+  docsCustomers.forEach(c=>{const k=c.priority?c.priority:'none';if(byPri[k]!=null)byPri[k]++});
+  list=list.filter(c=>{
+    const k=c.priority?c.priority:'none';
+    return priFlt.has(k);
+  });
   // 검색 필터 (사업체·대표자·본인명·연락처)
   if(docsCustSearchQ){
     list=list.filter(c=>{
@@ -2558,6 +2636,19 @@ function renderCustomerList(){
       return n.includes(docsCustSearchQ);
     });
   }
+  /* 필터 바 HTML */
+  const fbtn=(key,label,color,cnt)=>{
+    const on=priFlt.has(key);
+    const bg=on?color:'#e5e8eb';
+    const fg=on?'#fff':'#6b7280';
+    return '<button onclick="toggleDocsCustFilter('+(typeof key==='number'?key:"'"+key+"'")+')" style="background:'+bg+';color:'+fg+';border:none;padding:4px 9px;border-radius:5px;font-size:.72em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit">'+label+' '+cnt+'</button>';
+  };
+  const filterBar='<div style="padding:6px 10px;border-bottom:1px solid #f2f4f6;display:flex;gap:3px;flex-wrap:wrap;background:#fff;position:sticky;top:0;z-index:2">'
+    +fbtn(1,'🔴1','#dc2626',byPri[1])
+    +fbtn(2,'🟡2','#f59e0b',byPri[2])
+    +fbtn(3,'🟢3','#10b981',byPri[3])
+    +fbtn('none','⚪미분류','#6b7280',byPri['none'])
+    +'</div>';
   // 정렬
   if(docsCustSort==='pending'){
     list.sort((a,b)=>{
@@ -2570,10 +2661,10 @@ function renderCustomerList(){
     list.sort((a,b)=>(a.real_name||a.name||'').localeCompare(b.real_name||b.name||''));
   }
   if(!list.length){
-    el.innerHTML='<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 16px">거래처 없음</div>';
+    el.innerHTML=filterBar+'<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 16px">해당 조건에 맞는 거래처 없음</div>';
     return;
   }
-  el.innerHTML=list.map(c=>{
+  el.innerHTML=filterBar+list.map(c=>{
     /* 표시 이름: 사업체(상호) 우선 → 본인 real_name → name */
     const primary=c.company_name||c.real_name||c.name||('#'+c.user_id);
     /* 보조: 대표자 or 본인 이름, 연락처 */
@@ -2589,11 +2680,14 @@ function renderCustomerList(){
     const selected=c.user_id===docsSelectedUserId?'background:#e8f3ff;border-left:3px solid #3182f6':'border-left:3px solid transparent';
     const nonClient=c._non_client?' <span style="font-size:.68em;color:#f04452">(비거래처)</span>':'';
     const pendBadge=c.pending>0?`<span style="background:#f04452;color:#fff;padding:1px 7px;border-radius:10px;font-size:.68em;font-weight:700;margin-left:4px">${c.pending}</span>`:'';
+    /* 우선순위 배지 (상담방에서 지정한 값 유래) */
+    const priColors={1:'#dc2626',2:'#f59e0b',3:'#10b981'};
+    const priBadge=c.priority?`<span style="background:${priColors[c.priority]};color:#fff;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font-size:.66em;font-weight:800;margin-right:4px;flex-shrink:0">${c.priority}</span>`:'';
     const lastStr=c.last_upload?(c.last_upload.substring(5,10)+' 마지막 업로드'):'업로드 없음';
     const monthAmt=(c.month_approved_amount||0).toLocaleString('ko-KR');
     return `<div onclick="selectCustomer(${c.user_id})" style="${selected};padding:11px 13px;cursor:pointer;border-bottom:1px solid #f2f4f6">`
       +`<div style="display:flex;align-items:center;justify-content:space-between;gap:6px">`
-      +  `<div style="font-weight:700;font-size:.88em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e(primary)}${nonClient}</div>`
+      +  `<div style="font-weight:700;font-size:.88em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center">${priBadge}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${e(primary)}${nonClient}</span></div>`
       +  pendBadge
       +`</div>`
       +(sub?`<div style="font-size:.7em;color:#8b95a1;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>`:'')
