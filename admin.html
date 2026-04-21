@@ -196,6 +196,7 @@
               <div id="docsDetailSub" style="font-size:.76em;color:#8b95a1;margin-top:2px">-</div>
             </div>
             <div class="docs-detail-actions" style="display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto">
+              <button onclick="openCustomerDashboard(docsSelectedUserId)" style="background:#dbeafe;color:#1e40af;border:none;padding:7px 12px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">🏢 대시보드</button>
               <button onclick="openBizDocsPanel()" style="background:#ecfdf5;color:#065f46;border:none;padding:7px 12px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">📋 서류</button>
               <button onclick="openFinancePanel()" style="background:#fef3c7;color:#92400e;border:none;padding:7px 12px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">📊 재무</button>
               <button onclick="openRoomForCurrentCustomer()" style="background:#e5e8eb;border:none;padding:7px 12px;border-radius:8px;font-size:.82em;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">💬 상담방</button>
@@ -264,6 +265,7 @@
       <button id="roomsBackBtn" onclick="closeRoomOnMobile()">← 목록</button>
       <div id="roomChatTitle" style="font-size:.9em;color:#8b95a1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">좌측 상담방을 선택하세요</div>
       <div id="roomActions" style="display:none;gap:6px">
+        <button onclick="openCustomerDashboardFromRoom()" style="background:#dbeafe;color:#1e40af;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:700" title="이 상담방 거래처의 종합 대시보드">🏢 거래처</button>
         <button onclick="openRoomSummary()" style="background:#e0f5ec;color:#065f46;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:700" title="AI가 지금까지 대화 내용 요약">📝 요약</button>
         <button onclick="openRoomInfo()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" title="미디어·링크·검색">📂 정보</button>
         <button onclick="renameRoom()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" title="이름 변경">✏️ 이름</button>
@@ -580,7 +582,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=40"></script>
+<script src="/admin.js?v=41"></script>
 <style>
 #imgViewer{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:10000;display:none;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain}
 #imgViewer.open{display:flex}
@@ -605,6 +607,67 @@
 <!-- 메시지 컨텍스트 메뉴 -->
 <div id="msgCtxMenu" class="msg-ctx-menu" role="menu"></div>
 <!-- 거래처 재무 데이터 모달 -->
+<!-- 거래처 종합 대시보드 모달 (C안 — 한 화면에 모든 정보) -->
+<div id="custDashModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11300;padding:0;overflow-y:auto">
+  <div style="background:#f2f4f6;min-height:100vh">
+    <!-- 헤더 -->
+    <div style="background:#fff;padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10">
+      <button onclick="closeCustomerDashboard()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#191f28">←</button>
+      <div style="flex:1;min-width:0">
+        <div id="cdName" style="font-weight:800;font-size:1.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">-</div>
+        <div id="cdSub" style="font-size:.75em;color:#8b95a1;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">-</div>
+      </div>
+      <div id="cdPriority" style="flex-shrink:0"></div>
+    </div>
+    <!-- 본문 그리드 -->
+    <div style="padding:14px;max-width:1200px;margin:0 auto">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+        <!-- 기본 정보 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+          <div style="font-weight:700;font-size:.92em;margin-bottom:10px">🏢 기본 정보</div>
+          <div id="cdBasic" style="font-size:.85em;color:#555"></div>
+          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+            <button onclick="cdGotoDocs()" style="background:#e5e8eb;border:none;padding:6px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">📄 문서 탭</button>
+            <button onclick="cdGotoRoom()" style="background:#dbeafe;color:#1e40af;border:none;padding:6px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">💬 상담방</button>
+            <button onclick="cdExportCsv()" style="background:#d1fae5;color:#065f46;border:none;padding:6px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">📥 CSV</button>
+          </div>
+        </div>
+        <!-- 문서 요약 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-weight:700;font-size:.92em">📄 문서 현황</div>
+            <button onclick="cdGotoDocs()" style="background:none;border:none;color:#3182f6;font-size:.75em;cursor:pointer;font-family:inherit">전체 보기 →</button>
+          </div>
+          <div id="cdDocs" style="font-size:.85em"></div>
+        </div>
+        <!-- 재무 요약 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-weight:700;font-size:.92em">📊 재무 데이터</div>
+            <button onclick="openFinancePanel()" style="background:none;border:none;color:#3182f6;font-size:.75em;cursor:pointer;font-family:inherit">편집 →</button>
+          </div>
+          <div id="cdFinance" style="font-size:.85em"></div>
+        </div>
+        <!-- 서류 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-weight:700;font-size:.92em">📋 필수 서류 (신분증·사업자등록증·홈택스)</div>
+          </div>
+          <div id="cdBizDocs" style="font-size:.85em"></div>
+        </div>
+        <!-- 최근 대화 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-weight:700;font-size:.92em">💬 최근 상담</div>
+            <button onclick="cdGotoRoom()" style="background:none;border:none;color:#3182f6;font-size:.75em;cursor:pointer;font-family:inherit">상담방 열기 →</button>
+          </div>
+          <div id="cdRecentChat" style="font-size:.85em;max-height:240px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 거래처 서류 확인 모달 (신분증·사업자등록증·홈택스 ID) -->
 <div id="bizDocsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:11200;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:720px;margin-top:40px;box-shadow:0 10px 40px rgba(0,0,0,.25);overflow:hidden">

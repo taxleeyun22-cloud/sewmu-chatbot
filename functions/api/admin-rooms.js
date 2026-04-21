@@ -49,6 +49,8 @@ async function ensureTables(db) {
   try { await db.prepare(`ALTER TABLE conversations ADD COLUMN deleted_at TEXT`).run(); } catch {}
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_conv_room ON conversations(room_id)`).run(); } catch {}
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_room_members_user ON room_members(user_id)`).run(); } catch {}
+  /* 세무사가 담당 거래처를 1/2/3 우선순위로 분류 */
+  try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN priority INTEGER`).run(); } catch {}
 }
 
 function kst() {
@@ -251,7 +253,7 @@ export async function onRequestGet(context) {
       return Response.json({ room, members: members || [], messages: messages || [] });
     }
 
-    // 목록 — 사용자 메시지 수(user_msg_count)도 같이 (관리자 미읽음 계산용)
+    // 목록 — priority(1/2/3) 기준 먼저 정렬, 그 다음 최근순
     const { results } = await db.prepare(`
       SELECT r.*,
              (SELECT COUNT(*) FROM room_members WHERE room_id = r.id AND left_at IS NULL) as member_count,
@@ -260,8 +262,11 @@ export async function onRequestGet(context) {
              (SELECT MAX(created_at) FROM conversations WHERE room_id = r.id AND role = 'user') as last_user_msg_at,
              (SELECT MAX(created_at) FROM conversations WHERE room_id = r.id) as last_msg_at
       FROM chat_rooms r
-      ORDER BY r.status ASC, last_msg_at DESC NULLS LAST, r.created_at DESC
-      LIMIT 100
+      ORDER BY r.status ASC,
+               COALESCE(r.priority, 99) ASC,
+               last_msg_at DESC NULLS LAST,
+               r.created_at DESC
+      LIMIT 200
     `).all();
 
     return Response.json({ rooms: results || [] });
@@ -385,6 +390,19 @@ export async function onRequestPost(context) {
         `UPDATE chat_rooms SET ai_mode = ? WHERE id = ?`
       ).bind(mode, roomId).run();
       return Response.json({ ok: true, ai_mode: mode });
+    }
+
+    /* 우선순위 지정 (1/2/3 또는 NULL) */
+    if (action === "set_priority") {
+      const raw = body.priority;
+      let p = null;
+      if (raw !== null && raw !== undefined && raw !== '') {
+        const n = Number(raw);
+        if (n === 1 || n === 2 || n === 3) p = n;
+        else return Response.json({ error: '1/2/3 또는 null 만 허용' }, { status: 400 });
+      }
+      await db.prepare(`UPDATE chat_rooms SET priority = ? WHERE id = ?`).bind(p, roomId).run();
+      return Response.json({ ok: true, priority: p });
     }
 
     // ── 세무사 메시지 전송 ──

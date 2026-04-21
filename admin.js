@@ -368,24 +368,47 @@ async function loadRoomList(){
     const el=$g('roomList');
     if(!d.rooms||d.rooms.length===0){el.innerHTML='<div class="empty" style="padding:40px 20px">상담방이 없습니다</div>';return}
     let totalUnread=0;
-    el.innerHTML=d.rooms.map(rm=>{
+    /* 우선순위 그룹화 — 1/2/3 + 없음 */
+    const groups={1:[],2:[],3:[],none:[],closed:[]};
+    for(const rm of d.rooms){
+      if(rm.status==='closed'){groups.closed.push(rm);continue}
+      const p=Number(rm.priority||0);
+      if(p===1)groups[1].push(rm);
+      else if(p===2)groups[2].push(rm);
+      else if(p===3)groups[3].push(rm);
+      else groups.none.push(rm);
+    }
+    const renderCard=(rm)=>{
       const cls=['room-item'];
       if(currentRoomId===rm.id)cls.push('active');
       if(rm.status==='closed')cls.push('closed');
       const aiIcon=rm.ai_mode==='off'?'🙅':'🤖';
-      /* 미읽음 = 전체 사용자 메시지 수 - localStorage에 저장된 마지막 본 시점 카운트 */
       const userCount=Number(rm.user_msg_count||0);
       const seen=_adminRoomReadCount(rm.id);
       let unread=Math.max(0, userCount - seen);
-      if(currentRoomId===rm.id) unread=0; /* 열려 있으면 0 */
+      if(currentRoomId===rm.id) unread=0;
       totalUnread+=unread;
       const badge=unread>0?'<span class="ri-unread" style="background:#f04452;color:#fff;border-radius:12px;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;padding:0 7px;font-size:.72em;font-weight:800;margin-left:6px">'+(unread>99?'99+':unread)+'</span>':'';
+      /* 우선순위 배지 */
+      const p=Number(rm.priority||0);
+      const priBadge=p>0?'<span class="ri-pri" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-size:.68em;font-weight:800;color:#fff;background:'+({1:'#dc2626',2:'#f59e0b',3:'#10b981'}[p])+';margin-right:6px">'+p+'</span>':'';
+      /* 우선순위 선택 드롭다운 (카드 우측) */
+      const priSel='<select onclick="event.stopPropagation()" onchange="setRoomPriority(\''+rm.id+'\',this.value)" style="font-size:.65em;padding:1px 3px;border:1px solid #e5e8eb;border-radius:4px;margin-left:auto;background:#fff;color:#555">'
+        +['0','1','2','3'].map(v=>{var sel=String(rm.priority||0)===v?' selected':'';var lbl={0:'—',1:'1',2:'2',3:'3'}[v];return '<option value="'+v+'"'+sel+'>'+lbl+'</option>'}).join('')
+        +'</select>';
       return '<div class="'+cls.join(' ')+'" onclick="openRoom(\''+rm.id+'\')">'
-        +'<div class="ri-head"><span class="ri-name">'+e(rm.name||'상담방')+'</span><span class="ri-icon">'+aiIcon+'</span>'+badge+(rm.status==='closed'?'<span class="ri-closed">종료</span>':'')+'</div>'
+        +'<div class="ri-head">'+priBadge+'<span class="ri-name">'+e(rm.name||'상담방')+'</span><span class="ri-icon">'+aiIcon+'</span>'+badge+(rm.status==='closed'?'<span class="ri-closed">종료</span>':'')+priSel+'</div>'
         +'<div class="ri-sub">🆔 '+e(rm.id)+' · 👥 '+rm.member_count+' · 💬 '+(rm.msg_count||0)+'</div>'
         +'<div class="ri-time">'+e(rm.last_msg_at||rm.created_at||'')+'</div>'
         +'</div>';
-    }).join('');
+    };
+    const sep=(title,color,count)=>count?'<div style="padding:8px 12px 4px;font-size:.72em;font-weight:800;color:'+color+';background:'+color+'11;border-bottom:1px solid '+color+'33;position:sticky;top:0;z-index:1">'+title+' <span style="opacity:.7">('+count+')</span></div>':'';
+    el.innerHTML=
+       sep('🔴 1순위',  '#dc2626', groups[1].length)+ groups[1].map(renderCard).join('')
+      +sep('🟡 2순위',  '#f59e0b', groups[2].length)+ groups[2].map(renderCard).join('')
+      +sep('🟢 3순위',  '#10b981', groups[3].length)+ groups[3].map(renderCard).join('')
+      +sep('⚪ 미분류', '#6b7280', groups.none.length)+ groups.none.map(renderCard).join('')
+      +sep('📦 종료',   '#9ca3af', groups.closed.length)+ groups.closed.map(renderCard).join('');
     /* 좌측 상담방 탭 배지 갱신 */
     try{
       const tabBtn=document.querySelector('button[onclick*="tab(\'rooms\')"]');
@@ -406,6 +429,16 @@ async function loadRoomList(){
       if(cur)_adminRoomMarkRead(currentRoomId, cur.user_msg_count||0);
     }
   }catch(err){$g('roomList').innerHTML='<div style="padding:20px;color:#f04452">오류: '+e(err.message)+'</div>'}
+}
+
+async function setRoomPriority(roomId, value){
+  const p = value==='0' || value==='' ? null : Number(value);
+  try{
+    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=set_priority',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:roomId, priority:p})});
+    const d=await r.json();
+    if(d.ok){loadRoomList()}
+    else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
 }
 
 async function openRoom(roomId){
@@ -2673,6 +2706,128 @@ async function postSummaryToRoom(){
     } else alert('게시 실패: '+(d.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
 }
+/* ===== 거래처 종합 대시보드 (C안) ===== */
+let _cdCurrentUserId = null;
+async function openCustomerDashboard(userId){
+  if(!userId)return;
+  _cdCurrentUserId=userId;
+  docsSelectedUserId=userId; /* 다른 모달과 컨텍스트 공유 */
+  const m=$g('custDashModal');
+  if(!m)return;
+  m.style.display='block';
+  document.body.style.overflow='hidden';
+  $g('cdName').textContent='불러오는 중...';
+  $g('cdSub').textContent='';
+  $g('cdBasic').innerHTML='…';
+  $g('cdDocs').innerHTML='…';
+  $g('cdFinance').innerHTML='…';
+  $g('cdBizDocs').innerHTML='…';
+  $g('cdRecentChat').innerHTML='…';
+  /* 병렬 조회: 거래처 기본·재무·서류·상담방·문서 */
+  const q=(p)=>'/api/'+p+(p.includes('?')?'&':'?')+'key='+encodeURIComponent(KEY);
+  try{
+    const [custRes, finRes, bizDocsRes, docsRes, roomsRes] = await Promise.all([
+      fetch(q('admin-approve?status=all')).then(r=>r.json()).catch(()=>({users:[]})),
+      fetch(q('admin-finance?user_id='+userId+'&action=summary')).then(r=>r.json()).catch(()=>({})),
+      fetch(q('admin-biz-docs?user_id='+userId)).then(r=>r.json()).catch(()=>({businesses:[]})),
+      fetch(q('admin-documents?user_id='+userId+'&limit=5')).then(r=>r.json()).catch(()=>({documents:[],counts:{}})),
+      fetch(q('admin-rooms')).then(r=>r.json()).catch(()=>({rooms:[]})),
+    ]);
+    const u=(custRes.users||[]).find(x=>x.id===userId);
+    const nm=u?(u.real_name||u.name||'#'+userId):'#'+userId;
+    $g('cdName').textContent=nm;
+    /* 우선순위 배지 + 연락처 */
+    const userRoom=(roomsRes.rooms||[]).find(r=>{
+      /* 멤버에 이 userId 포함한 방을 우선 — 근데 여기선 간단히 첫 active 방 */
+      return r.status==='active';
+    });
+    const pri=userRoom?Number(userRoom.priority||0):0;
+    const priColor={1:'#dc2626',2:'#f59e0b',3:'#10b981'}[pri]||'#9ca3af';
+    const priLabel=pri>0?pri+'순위':'미분류';
+    $g('cdPriority').innerHTML='<span style="background:'+priColor+';color:#fff;padding:4px 10px;border-radius:14px;font-size:.74em;font-weight:700">'+priLabel+'</span>';
+    $g('cdSub').textContent=(u?((u.phone||'연락처 미등록')+' · '+(u.provider||'')+' 로그인'):'')+' · '+(u?(u.approval_status==='approved_client'?'🏢 기장거래처':u.approval_status==='approved_guest'?'✅ 일반':'⏳ '+(u.approval_status||'pending')):'');
+    /* 기본 정보 */
+    $g('cdBasic').innerHTML=''
+      +'<div>이름: <b>'+e(nm)+'</b></div>'
+      +(u&&u.email?'<div>이메일: '+e(u.email)+'</div>':'')
+      +(u&&u.phone?'<div>연락처: '+e(u.phone)+'</div>':'')
+      +'<div>가입: '+e((u&&u.created_at||'').slice(0,10))+'</div>';
+    /* 문서 현황 */
+    const counts=docsRes.counts||{};
+    const fmt=v=>(Number(v)||0).toLocaleString('ko-KR');
+    $g('cdDocs').innerHTML=''
+      +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">'
+      +'<div style="padding:8px 10px;background:#fef3c7;border-radius:6px"><div style="font-size:.72em;color:#92400e">⏳ 대기</div><div style="font-weight:800;font-size:1.1em">'+(counts.pending||0)+'</div></div>'
+      +'<div style="padding:8px 10px;background:#d1fae5;border-radius:6px"><div style="font-size:.72em;color:#065f46">✅ 승인</div><div style="font-weight:800;font-size:1.1em">'+(counts.approved||0)+'</div></div>'
+      +'<div style="padding:8px 10px;background:#fee2e2;border-radius:6px"><div style="font-size:.72em;color:#991b1b">❌ 반려</div><div style="font-weight:800;font-size:1.1em">'+(counts.rejected||0)+'</div></div>'
+      +'<div style="padding:8px 10px;background:#e0f2fe;border-radius:6px"><div style="font-size:.72em;color:#075985">📊 총</div><div style="font-weight:800;font-size:1.1em">'+((counts.pending||0)+(counts.approved||0)+(counts.rejected||0))+'</div></div>'
+      +'</div>';
+    /* 재무 요약 */
+    if(finRes.has_data && finRes.rows){
+      const rows=finRes.rows.slice(0,3);
+      $g('cdFinance').innerHTML=rows.map(r=>{
+        const parts=[];
+        if(r.revenue!=null)parts.push('매출 '+fmt(r.revenue));
+        if(r.vat_payable!=null)parts.push('부가세 '+fmt(r.vat_payable));
+        return '<div style="padding:6px 0;border-bottom:1px dashed #e5e8eb"><b>'+e(r.period)+'</b> '+parts.join(' · ')+'</div>';
+      }).join('')+'<div style="font-size:.72em;color:#8b95a1;margin-top:6px">최근 3건 (편집 → 버튼)</div>';
+    } else {
+      $g('cdFinance').innerHTML='<div style="color:#8b95a1">재무 데이터 없음. 편집 → 버튼으로 추가하거나 PDF 업로드 후 Claude에게 처리 요청.</div>';
+    }
+    /* 서류 — mini */
+    const bizs=bizDocsRes.businesses||[];
+    if(!bizs.length){
+      $g('cdBizDocs').innerHTML='<div style="color:#8b95a1">등록된 사업장이 없습니다.</div>';
+    } else {
+      $g('cdBizDocs').innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">'
+        +bizs.map(b=>{
+          const idC=b.docs.id_card.uploaded?'✅':'⚠️';
+          const bz=b.docs.biz_reg.uploaded?'✅':'⚠️';
+          const ht=b.docs.hometax.saved?'✅':'⚠️';
+          return '<div style="padding:10px 12px;border:1px solid #e5e8eb;border-radius:8px;background:#fafafa">'
+            +'<div style="font-weight:700;font-size:.88em;margin-bottom:4px">'+e(b.company_name||'사업장 #'+b.id)+'</div>'
+            +'<div style="font-size:.76em;color:#555">신분증 '+idC+' · 사업자등록증 '+bz+' · 홈택스 '+ht+'</div>'
+            +'</div>';
+        }).join('')
+        +'</div><button onclick="openBizDocsPanel()" style="margin-top:8px;background:#ecfdf5;color:#065f46;border:none;padding:7px 12px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">📋 서류 자세히 보기</button>';
+    }
+    /* 최근 대화 — 간단 */
+    $g('cdRecentChat').innerHTML='<div style="color:#8b95a1">우측 "상담방 열기" 버튼으로 전체 대화 확인.</div>';
+  }catch(err){
+    $g('cdName').textContent='오류';
+    $g('cdBasic').innerHTML='<div style="color:#f04452">로드 실패: '+e(err.message)+'</div>';
+  }
+}
+function closeCustomerDashboard(){
+  $g('custDashModal').style.display='none';
+  document.body.style.overflow='';
+  _cdCurrentUserId=null;
+}
+function cdGotoDocs(){
+  closeCustomerDashboard();
+  tab('docs');
+  setTimeout(()=>{if(_cdCurrentUserId||docsSelectedUserId)selectCustomer(docsSelectedUserId||_cdCurrentUserId)},100);
+}
+function cdGotoRoom(){
+  /* 이 거래처가 멤버인 상담방으로 이동 */
+  openRoomForCurrentCustomer();
+  closeCustomerDashboard();
+}
+function cdExportCsv(){
+  exportWehago();
+}
+/* 상담방 헤더 "🏢 거래처" 버튼 → 상담방 멤버의 첫 사용자 대시보드 열기 */
+async function openCustomerDashboardFromRoom(){
+  if(!currentRoomId){alert('상담방을 먼저 열어주세요');return}
+  try{
+    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
+    const d=await r.json();
+    const mem=(d.members||[]).find(m=>!m.left_at && m.user_id);
+    if(!mem){alert('상담방에 고객이 없습니다');return}
+    openCustomerDashboard(mem.user_id);
+  }catch(e){alert('오류: '+e.message)}
+}
+
 /* ===== 거래처 서류 확인 (신분증·사업자등록증·홈택스 ID) ===== */
 async function openBizDocsPanel(){
   if(!docsSelectedUserId){alert('거래처를 먼저 선택하세요');return}
