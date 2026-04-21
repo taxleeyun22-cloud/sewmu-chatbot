@@ -348,7 +348,8 @@ else stopRoomsPolling();
 /* ===== 상담방 (단톡방) ===== */
 let currentRoomId=null;
 let currentRoomStatus='active';
-let currentRoomPhone=null; /* 방별 전화번호 (null이면 기본 053-269-1213) */
+let currentRoomPhone=null;   /* chat_rooms.phone — 거래처 사장용 "전담 세무사 직통번호" */
+let currentRoomMembers=[];   /* 최신 members (관리자→사장 전화 시 사용) */
 const DEFAULT_COMPANY_PHONE='053-269-1213';
 let roomsPollTimer=null;
 let roomMsgPollTimer=null;
@@ -608,6 +609,7 @@ async function loadRoomDetail(){
     if(!d.room)return;
     currentRoomStatus=d.room.status;
     currentRoomPhone=d.room.phone||null;
+    currentRoomMembers=d.members||[];
     $g('roomChatTitle').innerHTML='<b>'+e(d.room.name||'상담방')+'</b> <span style="font-size:.75em;color:#8b95a1">('+currentRoomId+')</span>';
     $g('roomStatusBtn').textContent=currentRoomStatus==='active'?'종료':'재개';
     const mm=(d.members||[]).filter(m=>!m.left_at);
@@ -894,28 +896,42 @@ function openRoomSearch(){
   },80);
 }
 
-/* 방 전화걸기 (tel:) — 방별 번호 있으면 그걸, 없으면 기본 회사번호 */
+/* 관리자/스태프 → 거래처 사장에게 전화: 방 멤버 중 사장(left_at 없음)의 users.phone 사용 */
 function callRoom(){
   if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
-  const phone=(currentRoomPhone||'').trim();
-  const target=phone||DEFAULT_COMPANY_PHONE;
-  const isFallback=!phone;
-  if(isFallback){
-    if(!confirm('이 방에 등록된 전화번호가 없어 기본번호('+DEFAULT_COMPANY_PHONE+')로 연결합니다.\n(거래처 번호 설정은 "☎ 번호" 버튼)\n계속할까요?'))return;
+  /* 사장 후보: 나간 상태 아닌 멤버 중 phone 있는 사람. 여러 명이면 첫 번째 */
+  const candidates=(currentRoomMembers||[]).filter(m=>!m.left_at&&m.phone);
+  if(!candidates.length){
+    alert('이 방 멤버에 등록된 전화번호가 없습니다.\n회원가입 시 입력한 번호가 없거나 멤버가 나간 상태입니다.');
+    return;
   }
-  /* tel: 링크 생성 후 클릭 */
+  let picked=candidates[0];
+  if(candidates.length>1){
+    const list=candidates.map((m,i)=>(i+1)+') '+(m.real_name||m.name||'이름없음')+' — '+m.phone).join('\n');
+    const choice=prompt('전화 걸 멤버 번호를 선택하세요:\n\n'+list+'\n\n번호 입력 (1~'+candidates.length+')','1');
+    if(choice===null)return;
+    const idx=parseInt(choice,10)-1;
+    if(idx<0||idx>=candidates.length){alert('잘못된 선택');return}
+    picked=candidates[idx];
+  }
   const a=document.createElement('a');
-  a.href='tel:'+target.replace(/[^\d+]/g,'');
+  a.href='tel:'+String(picked.phone).replace(/[^\d+]/g,'');
   a.style.display='none';
   document.body.appendChild(a);
   a.click();
   setTimeout(function(){a.remove()},100);
 }
+/* 방별 "전담 세무사 직통번호" 설정 — 거래처 사장 화면의 📞 버튼이 이 번호로 연결됨 */
 async function setRoomPhone(){
   if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
   const cur=currentRoomPhone||'';
-  const input=prompt('이 방(거래처)의 전화번호를 입력하세요.\n비우고 확인하면 기본번호('+DEFAULT_COMPANY_PHONE+') 사용.',cur);
-  if(input===null)return; /* 취소 */
+  const input=prompt(
+    '이 방 전담 세무사 직통번호를 입력하세요.\n'+
+    '거래처 사장이 📞 버튼 누르면 이 번호로 연결됩니다.\n'+
+    '비우고 확인 → 기본 대표번호('+DEFAULT_COMPANY_PHONE+') 사용',
+    cur
+  );
+  if(input===null)return;
   const phone=input.trim();
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=set_phone',{
@@ -925,7 +941,7 @@ async function setRoomPhone(){
     const d=await r.json();
     if(d.ok){
       currentRoomPhone=d.phone||null;
-      if(typeof showAdminToast==='function')showAdminToast(phone?'✅ 전화번호 저장됨':'✅ 전화번호 삭제됨 (기본번호 사용)');
+      if(typeof showAdminToast==='function')showAdminToast(phone?'✅ 전담 직통번호 저장':'✅ 삭제 (대표번호로 연결)');
       else alert(phone?'저장됨':'삭제됨');
     } else alert('실패: '+(d.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}

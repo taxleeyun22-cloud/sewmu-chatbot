@@ -686,7 +686,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       <div id="rcTitle">-</div>
       <div id="rcMembers"></div>
     </div>
-    <a href="tel:053-269-1213" class="rc-leave-btn" style="text-decoration:none" title="세무회계 이윤 (053-269-1213)">📞</a>
+    <a id="rcCallLink" href="tel:053-269-1213" class="rc-leave-btn" style="text-decoration:none" title="세무회계 이윤">📞</a>
     <button onclick="toggleCurrentRoomMute()" id="rcMuteBtn" class="rc-leave-btn" title="알림">🔔</button>
     <button onclick="openRoomSearch()" class="rc-leave-btn" title="대화 검색">🔍</button>
     <button onclick="openRoomInfo()" class="rc-leave-btn" title="사진·파일·공지">📂</button>
@@ -1742,6 +1742,16 @@ async function loadRoomChat(){
     if(!d.room){closeRoomChat();return}
     rcIsActive=d.room.status==='active';
     document.getElementById('rcTitle').textContent=d.room.name||'상담방';
+    /* 전화걸기: 방별 설정번호(= 관리자가 지정한 전담 세무사 직통) / 없으면 대표번호 */
+    (function(){
+      var link=document.getElementById('rcCallLink');
+      if(!link)return;
+      var raw=(d.room.phone||'').replace(/[^\d+]/g,'');
+      var fallback='053-269-1213';
+      var target=raw||fallback.replace(/[^\d+]/g,'');
+      link.href='tel:'+target;
+      link.title=d.room.phone?('담당 세무사 '+d.room.phone):('세무회계 이윤 '+fallback);
+    })();
     var mm=(d.members||[]).map(function(m){return m.real_name||m.name||'이름없음'});
     document.getElementById('rcMembers').textContent='👥 '+mm.join(', ')+' + 🏢 세무회계 이윤';
     updateMuteBtn();
