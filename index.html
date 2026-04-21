@@ -1208,7 +1208,7 @@ function addAdvisorMessage(content,ts){
   d.className="msg msg-ai";
   d.innerHTML='<div class="msg-avatar" style="background:#10b981;color:#fff;font-size:.85em;font-weight:700;padding:0">👨‍💼</div>'
     +'<div class="msg-wrap">'
-    +'<div class="msg-name" style="color:#10b981;font-weight:600">이재윤 세무사 · 직접 답변</div>'
+    +'<div class="msg-name" style="color:#10b981;font-weight:600">세무회계 이윤 · 직접 답변</div>'
     +'<div class="msg-bubble" style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;border-radius:4px 16px 16px 16px">'+esc(content)+'</div>'
     +'</div>';
   c.appendChild(d);
@@ -1854,8 +1854,8 @@ async function loadRoomChat(){
           +'</div>';
       } else if(m.role==='human_advisor'){
         return sepHtml+'<div style="margin-bottom:10px;display:flex;align-items:flex-end;gap:4px">'
-          +'<div style="max-width:75%"><div style="font-size:.78em;color:#10b981;font-weight:700;margin-bottom:3px;margin-left:4px">👨‍💼 이재윤 세무사</div>'
-          +'<div'+dataAttrs('이재윤 세무사',0)+' style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;padding:10px 13px;border-radius:4px 16px 16px 16px;font-size:.9em;line-height:1.5;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content, m.document)
+          +'<div style="max-width:75%"><div style="font-size:.78em;color:#10b981;font-weight:700;margin-bottom:3px;margin-left:4px">👨‍💼 세무회계 이윤</div>'
+          +'<div'+dataAttrs('세무회계 이윤',0)+' style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;padding:10px 13px;border-radius:4px 16px 16px 16px;font-size:.9em;line-height:1.5;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content, m.document)
           +'</div></div>'
           +'<div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-size:.6em;color:#10b981">'+ur+'<span>'+time+'</span></div>'
           +'</div>';
@@ -2720,7 +2720,7 @@ function renderPhotoGroup(m, isMe, nm){
   var grid='<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:2px;width:'+(cols===1?'60vw':'240px')+';max-width:75vw;border-radius:12px;overflow:hidden;background:var(--border)">'+tiles+'</div>';
   var timeStr=esc(m.created_at||'').slice(11,16);
   var senderLabel=m.role==='user'&&!isMe?'<div style="font-size:.68em;color:var(--text2);margin-bottom:2px;margin-left:4px">'+esc(nm)+'</div>':'';
-  var senderLabelAdv=m.role==='human_advisor'?'<div style="font-size:.68em;color:#10b981;margin-bottom:2px;margin-left:4px;font-weight:600">👨‍💼 이재윤 세무사</div>':'';
+  var senderLabelAdv=m.role==='human_advisor'?'<div style="font-size:.68em;color:#10b981;margin-bottom:2px;margin-left:4px;font-weight:600">👨‍💼 세무회계 이윤</div>':'';
   var countBadge=n>1?'<div style="font-size:.68em;color:var(--text2);margin-top:4px;text-align:'+(isMe?'right':'left')+'">🖼️ '+n+'장</div>':'';
   if(isMe){
     return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end">'

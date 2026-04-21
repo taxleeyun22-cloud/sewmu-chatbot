@@ -492,6 +492,53 @@ async function setRoomPriority(roomId, value){
   }catch(e){alert('오류: '+e.message)}
 }
 
+/* 상담방 팝업 (새 창) — PC 멀티태스킹용. 모바일에선 그냥 기존 방식 */
+function popoutCurrentRoom(){
+  if(!currentRoomId){alert('상담방이 선택돼 있지 않습니다');return}
+  /* 세션 기반(직원) 이거나 sessionStorage ADMIN_KEY 있으면 새 창도 자동 로그인 */
+  var url=location.pathname+'?popup=1&room='+encodeURIComponent(currentRoomId);
+  try{
+    window.open(url,'room_'+currentRoomId,'width=520,height=840,resizable=yes,scrollbars=yes');
+  }catch(e){
+    /* 팝업 차단 대비 */
+    window.open(url,'_blank');
+  }
+}
+
+/* 팝업 모드 초기 진입: ?popup=1 이면 좌측·상단 숨기고 채팅만 풀스크린 */
+(function popupBoot(){
+  try{
+    var p=new URLSearchParams(location.search);
+    if(p.get('popup')!=='1')return;
+    var roomId=p.get('room');
+    if(!roomId)return;
+    document.addEventListener('DOMContentLoaded',function(){applyPopupLayout(roomId)});
+    if(document.readyState!=='loading')applyPopupLayout(roomId);
+  }catch{}
+})();
+function applyPopupLayout(roomId){
+  try{
+    /* 상단 헤더 숨김, 다른 탭 숨김 */
+    var hdr=document.querySelector('.hdr');if(hdr)hdr.style.display='none';
+    var sm=document.getElementById('searchModal');if(sm)sm.style.display='none';
+    /* 상담방 탭 자동 전환 + 방 자동 오픈 */
+    if(typeof tab==='function')tab('rooms');
+    setTimeout(function(){if(typeof openRoom==='function')openRoom(roomId)},200);
+    /* 팝업 안에선 목록 숨김 */
+    setTimeout(function(){
+      var list=document.querySelector('.room-list-panel');if(list)list.style.display='none';
+      var chat=document.querySelector('.room-chat-panel');
+      if(chat){chat.style.width='100%';chat.style.flex='1'}
+      var wrap=document.querySelector('.wrap');
+      if(wrap){wrap.style.maxWidth='none';wrap.style.padding='0';wrap.style.margin='0'}
+      /* 팝업 창에선 '🔗 새 창' 버튼 감추기 (이미 팝업인데) */
+      var btn=document.getElementById('roomPopoutBtn');if(btn)btn.style.display='none';
+      /* 팝업 탭 이름 */
+      document.title='상담방 · '+roomId+' — 세무회계 이윤';
+    },400);
+  }catch(err){console.error('popup layout',err)}
+}
+
 async function openRoom(roomId){
   currentRoomId=roomId;
   $g('roomActions').style.display='flex';
