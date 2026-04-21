@@ -688,6 +688,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
     </div>
     <a href="tel:053-269-1213" class="rc-leave-btn" style="text-decoration:none" title="세무회계 이윤 (053-269-1213)">📞</a>
     <button onclick="toggleCurrentRoomMute()" id="rcMuteBtn" class="rc-leave-btn" title="알림">🔔</button>
+    <button onclick="openRoomSearch()" class="rc-leave-btn" title="대화 검색">🔍</button>
     <button onclick="openRoomInfo()" class="rc-leave-btn" title="사진·파일·공지">📂</button>
     <button onclick="leaveRoom()" class="rc-leave-btn">나가기</button>
   </div>
@@ -2948,6 +2949,16 @@ function renderMessageBody(content, attachedDoc){
 
 /* ===== 사용자 상담방 정보 모달 ===== */
 var uriSearchTimer=null;
+function openRoomSearch(){
+  if(!rcRoomId){return}
+  openRoomInfo();
+  /* 정보 모달은 이미 검색 탭이 기본. focus만 이어붙임 */
+  setTimeout(function(){
+    if(typeof uriSwitch==='function')uriSwitch('search');
+    var i=document.getElementById('uriSearchInput');
+    if(i){i.value='';i.focus()}
+  },80);
+}
 function openRoomInfo(){
   if(!rcRoomId){return}
   document.getElementById('uriSearchInput').value='';

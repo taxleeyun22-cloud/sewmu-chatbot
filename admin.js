@@ -883,6 +883,17 @@ async function rejectDocPrompt(docId){
   }catch(e){alert('오류: '+e.message)}
 }
 
+/* 이 방에서 대화 검색 — 정보 모달의 검색 탭으로 바로 진입 */
+function openRoomSearch(){
+  if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
+  if(typeof openRoomInfo==='function')openRoomInfo();
+  setTimeout(function(){
+    if(typeof switchRiTab==='function')switchRiTab('search');
+    var i=$g('riSearchInput');
+    if(i&&i.focus){i.value='';i.focus()}
+  },80);
+}
+
 /* 방 전화걸기 (tel:) — 방별 번호 있으면 그걸, 없으면 기본 회사번호 */
 function callRoom(){
   if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
