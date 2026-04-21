@@ -389,15 +389,21 @@ async function loadRoomList(){
       if(currentRoomId===rm.id) unread=0;
       totalUnread+=unread;
       const badge=unread>0?'<span class="ri-unread" style="background:#f04452;color:#fff;border-radius:12px;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;padding:0 7px;font-size:.72em;font-weight:800;margin-left:6px">'+(unread>99?'99+':unread)+'</span>':'';
-      /* 우선순위 배지 */
+      /* 우선순위 탭 버튼 (— / 1 / 2 / 3) — 카드 우측 */
       const p=Number(rm.priority||0);
-      const priBadge=p>0?'<span class="ri-pri" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-size:.68em;font-weight:800;color:#fff;background:'+({1:'#dc2626',2:'#f59e0b',3:'#10b981'}[p])+';margin-right:6px">'+p+'</span>':'';
-      /* 우선순위 선택 드롭다운 (카드 우측) */
-      const priSel='<select onclick="event.stopPropagation()" onchange="setRoomPriority(\''+rm.id+'\',this.value)" style="font-size:.65em;padding:1px 3px;border:1px solid #e5e8eb;border-radius:4px;margin-left:auto;background:#fff;color:#555">'
-        +['0','1','2','3'].map(v=>{var sel=String(rm.priority||0)===v?' selected':'';var lbl={0:'—',1:'1',2:'2',3:'3'}[v];return '<option value="'+v+'"'+sel+'>'+lbl+'</option>'}).join('')
-        +'</select>';
+      const priColors={0:'#9ca3af',1:'#dc2626',2:'#f59e0b',3:'#10b981'};
+      const priTabs='<div class="ri-pri-tabs" onclick="event.stopPropagation()" style="display:inline-flex;gap:1px;background:#f2f4f6;padding:2px;border-radius:6px;margin-left:auto;flex-shrink:0">'
+        +[0,1,2,3].map(v=>{
+          const on=p===v;
+          const col=priColors[v];
+          const bg=on?col:'transparent';
+          const fg=on?'#fff':'#6b7280';
+          const lbl=v===0?'—':v;
+          return '<button onclick="setRoomPriority(\''+rm.id+'\','+v+')" style="background:'+bg+';color:'+fg+';border:none;padding:3px 7px;border-radius:4px;font-size:.7em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit;min-width:18px">'+lbl+'</button>';
+        }).join('')
+        +'</div>';
       return '<div class="'+cls.join(' ')+'" onclick="openRoom(\''+rm.id+'\')">'
-        +'<div class="ri-head">'+priBadge+'<span class="ri-name">'+e(rm.name||'상담방')+'</span><span class="ri-icon">'+aiIcon+'</span>'+badge+(rm.status==='closed'?'<span class="ri-closed">종료</span>':'')+priSel+'</div>'
+        +'<div class="ri-head" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="ri-name" style="font-weight:700">'+e(rm.name||'상담방')+'</span><span class="ri-icon">'+aiIcon+'</span>'+badge+(rm.status==='closed'?'<span class="ri-closed">종료</span>':'')+priTabs+'</div>'
         +'<div class="ri-sub">🆔 '+e(rm.id)+' · 👥 '+rm.member_count+' · 💬 '+(rm.msg_count||0)+'</div>'
         +'<div class="ri-time">'+e(rm.last_msg_at||rm.created_at||'')+'</div>'
         +'</div>';
@@ -432,7 +438,8 @@ async function loadRoomList(){
 }
 
 async function setRoomPriority(roomId, value){
-  const p = value==='0' || value==='' ? null : Number(value);
+  const n = Number(value);
+  const p = (n===1 || n===2 || n===3) ? n : null;
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=set_priority',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:roomId, priority:p})});
     const d=await r.json();
