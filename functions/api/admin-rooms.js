@@ -51,6 +51,8 @@ async function ensureTables(db) {
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_room_members_user ON room_members(user_id)`).run(); } catch {}
   /* 세무사가 담당 거래처를 1/2/3 우선순위로 분류 */
   try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN priority INTEGER`).run(); } catch {}
+  /* 방별 전화번호(거래처 사장 번호) */
+  try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN phone TEXT`).run(); } catch {}
 }
 
 function kst() {
@@ -456,6 +458,18 @@ export async function onRequestPost(context) {
       }
       await db.prepare(`UPDATE chat_rooms SET priority = ? WHERE id = ?`).bind(p, roomId).run();
       return Response.json({ ok: true, priority: p });
+    }
+
+    /* 방별 전화번호 (거래처 사장 번호) 설정 */
+    if (action === "set_phone") {
+      let phone = (body.phone || '').toString().trim();
+      /* 간단 정규화: 숫자·+·- 만 남김. 빈 문자열이면 null로 저장(기본번호 폴백) */
+      if (phone) {
+        phone = phone.replace(/[^\d+\-]/g, '');
+        if (phone.length < 4) return Response.json({ error: '전화번호 형식이 올바르지 않습니다' }, { status: 400 });
+      }
+      await db.prepare(`UPDATE chat_rooms SET phone = ? WHERE id = ?`).bind(phone || null, roomId).run();
+      return Response.json({ ok: true, phone: phone || null });
     }
 
     // ── 세무사 메시지 전송 ──

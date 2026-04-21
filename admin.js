@@ -348,6 +348,8 @@ else stopRoomsPolling();
 /* ===== 상담방 (단톡방) ===== */
 let currentRoomId=null;
 let currentRoomStatus='active';
+let currentRoomPhone=null; /* 방별 전화번호 (null이면 기본 053-269-1213) */
+const DEFAULT_COMPANY_PHONE='053-269-1213';
 let roomsPollTimer=null;
 let roomMsgPollTimer=null;
 let crSelectedUsers={};
@@ -605,6 +607,7 @@ async function loadRoomDetail(){
     const d=await r.json();
     if(!d.room)return;
     currentRoomStatus=d.room.status;
+    currentRoomPhone=d.room.phone||null;
     $g('roomChatTitle').innerHTML='<b>'+e(d.room.name||'상담방')+'</b> <span style="font-size:.75em;color:#8b95a1">('+currentRoomId+')</span>';
     $g('roomStatusBtn').textContent=currentRoomStatus==='active'?'종료':'재개';
     const mm=(d.members||[]).filter(m=>!m.left_at);
@@ -878,6 +881,43 @@ async function rejectDocPrompt(docId){
     if(d.ok){loadRoomDetail()}
     else alert('반려 실패: '+(d.error||'unknown'));
   }catch(e){alert('오류: '+e.message)}
+}
+
+/* 방 전화걸기 (tel:) — 방별 번호 있으면 그걸, 없으면 기본 회사번호 */
+function callRoom(){
+  if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
+  const phone=(currentRoomPhone||'').trim();
+  const target=phone||DEFAULT_COMPANY_PHONE;
+  const isFallback=!phone;
+  if(isFallback){
+    if(!confirm('이 방에 등록된 전화번호가 없어 기본번호('+DEFAULT_COMPANY_PHONE+')로 연결합니다.\n(거래처 번호 설정은 "☎ 번호" 버튼)\n계속할까요?'))return;
+  }
+  /* tel: 링크 생성 후 클릭 */
+  const a=document.createElement('a');
+  a.href='tel:'+target.replace(/[^\d+]/g,'');
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){a.remove()},100);
+}
+async function setRoomPhone(){
+  if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
+  const cur=currentRoomPhone||'';
+  const input=prompt('이 방(거래처)의 전화번호를 입력하세요.\n비우고 확인하면 기본번호('+DEFAULT_COMPANY_PHONE+') 사용.',cur);
+  if(input===null)return; /* 취소 */
+  const phone=input.trim();
+  try{
+    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=set_phone',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({room_id:currentRoomId,phone:phone})
+    });
+    const d=await r.json();
+    if(d.ok){
+      currentRoomPhone=d.phone||null;
+      if(typeof showAdminToast==='function')showAdminToast(phone?'✅ 전화번호 저장됨':'✅ 전화번호 삭제됨 (기본번호 사용)');
+      else alert(phone?'저장됨':'삭제됨');
+    } else alert('실패: '+(d.error||'unknown'));
+  }catch(err){alert('오류: '+err.message)}
 }
 
 /* 내가 방금 보낸 메시지는 상단 보고 있어도 강제 스크롤 플래그 */

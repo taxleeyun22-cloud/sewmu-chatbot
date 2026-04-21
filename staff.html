@@ -154,6 +154,8 @@
       <div id="roomChatTitle" style="font-size:.9em;color:#8b95a1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">좌측 상담방을 선택하세요</div>
       <div id="roomActions" style="display:none;gap:6px">
         <button onclick="openRoomSummary()" style="background:#e0f5ec;color:#065f46;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:700" title="AI가 지금까지 대화 내용 요약">📝 요약</button>
+        <button onclick="callRoom()" style="background:#fef3c7;color:#92400e;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:700" title="거래처에 전화 (없으면 기본번호)">📞 전화</button>
+        <button onclick="setRoomPhone()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" title="이 방 전화번호 설정">☎ 번호</button>
         <button onclick="openRoomInfo()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" title="미디어·링크·검색">📂 정보</button>
         <button onclick="renameRoom()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" title="이름 변경">✏️ 이름</button>
         <button onclick="addMemberPrompt()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit">＋ 멤버</button>
@@ -418,7 +420,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=50"></script>
+<script src="/admin.js?v=51"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;
