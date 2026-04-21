@@ -1214,7 +1214,7 @@ function addAdvisorMessage(content,ts){
   var c=document.getElementById("chatArea");
   var d=document.createElement("div");
   d.className="msg msg-ai";
-  d.innerHTML='<div class="msg-avatar" style="background:#10b981;color:#fff;font-size:.85em;font-weight:700;padding:0">👨‍💼</div>'
+  d.innerHTML='<div class="msg-avatar" style="background:transparent;padding:0"><img src="logo-icon.png" alt="세무회계 이윤" style="width:100%;height:100%;object-fit:contain"></div>'
     +'<div class="msg-wrap">'
     +'<div class="msg-name" style="color:#10b981;font-weight:600">세무회계 이윤 · 직접 답변</div>'
     +'<div class="msg-bubble" style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;border-radius:4px 16px 16px 16px">'+esc(content)+'</div>'
@@ -1862,7 +1862,7 @@ async function loadRoomChat(){
           +'</div>';
       } else if(m.role==='human_advisor'){
         return sepHtml+'<div style="margin-bottom:10px;display:flex;align-items:flex-end;gap:4px">'
-          +'<div style="max-width:75%"><div style="font-size:.78em;color:#10b981;font-weight:700;margin-bottom:3px;margin-left:4px">👨‍💼 세무회계 이윤</div>'
+          +'<div style="max-width:75%"><div style="font-size:.78em;color:#10b981;font-weight:700;margin-bottom:3px;margin-left:4px"><img src="logo-icon.png" alt="" style="width:14px;height:14px;vertical-align:middle;object-fit:contain;margin-right:3px"> 세무회계 이윤</div>'
           +'<div'+dataAttrs('세무회계 이윤',0)+' style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;padding:10px 13px;border-radius:4px 16px 16px 16px;font-size:.9em;line-height:1.5;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content, m.document)
           +'</div></div>'
           +'<div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-size:.6em;color:#10b981">'+ur+'<span>'+time+'</span></div>'
@@ -2358,24 +2358,45 @@ async function plRemovePerson(id){
     renderSavedPeople();
   }catch(e){alert('삭제 실패: '+e.message)}
 }
+/* 직원 리스트: 세로 스크롤 + 검색 input (10명↑ 대응) */
+var plPeopleFilter='';
 function renderSavedPeople(){
   var box=document.getElementById('plSavedPeople');
   if(!box)return;
   if(!plPeopleCache||!plPeopleCache.length){
     box.style.display='none';box.innerHTML='';return;
   }
-  var html='<div style="font-size:.72em;color:var(--text2);margin-bottom:6px">💾 저장된 직원 (클릭해서 자동 입력)</div>';
-  html+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
-  plPeopleCache.forEach(function(p){
-    var label=esc(p.name||'')+' <span style="opacity:.7;font-size:.88em">'+esc(p.resident_first6||'')+'</span>';
-    var modeBadge=p.mode==='4ins'?'<span style="font-size:.68em;background:#e0f5ec;color:#065f46;padding:1px 5px;border-radius:4px;margin-left:4px">4대</span>':'<span style="font-size:.68em;background:#eff6ff;color:#1e40af;padding:1px 5px;border-radius:4px;margin-left:4px">3.3%</span>';
-    html+='<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:4px 4px 4px 10px;font-size:.78em">'
-      +  '<span style="cursor:pointer" onclick="plPickPerson('+p.id+')">'+label+modeBadge+'</span>'
-      +  '<button type="button" onclick="plRemovePerson('+p.id+')" title="삭제" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:1em;padding:0 4px;line-height:1">✕</button>'
-      +'</span>';
-  });
-  html+='</div>';
-  box.innerHTML=html;
+  var q=(plPeopleFilter||'').trim().toLowerCase();
+  var filtered=q
+    ?plPeopleCache.filter(function(p){
+       return (p.name||'').toLowerCase().indexOf(q)>=0
+           ||(p.resident_first6||'').indexOf(q)>=0;
+     })
+    :plPeopleCache;
+  var head='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
+    +  '<span style="font-size:.72em;color:var(--text2)">💾 저장된 직원 '+plPeopleCache.length+'명 (행 클릭 → 자동 입력)</span>'
+    +'</div>'
+    +'<input type="text" placeholder="이름·생년월일 검색" value="'+escAttr(plPeopleFilter||'')+'" oninput="plPeopleFilter=this.value;renderSavedPeople();setTimeout(function(){var x=document.getElementById(\'plSavedSearch\');if(x){x.focus();x.setSelectionRange(x.value.length,x.value.length)}},0)" id="plSavedSearch" style="width:100%;padding:6px 10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:6px;font-size:.82em;margin-bottom:6px;box-sizing:border-box;font-family:inherit">';
+  var rows='';
+  if(!filtered.length){
+    rows='<div style="padding:10px;font-size:.78em;color:var(--text2);text-align:center">검색 결과 없음</div>';
+  } else {
+    filtered.forEach(function(p){
+      var modeBadge=p.mode==='4ins'
+        ?'<span style="font-size:.68em;background:#e0f5ec;color:#065f46;padding:1px 6px;border-radius:4px">4대</span>'
+        :'<span style="font-size:.68em;background:#eff6ff;color:#1e40af;padding:1px 6px;border-radius:4px">3.3%</span>';
+      rows+='<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);cursor:pointer" onclick="plPickPerson('+p.id+')">'
+        +  '<div style="flex:1;min-width:0;overflow:hidden">'
+        +    '<div style="font-size:.86em;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(p.name||'')+'</div>'
+        +    '<div style="font-size:.7em;color:var(--text2)">'+esc(p.resident_first6||'')+'</div>'
+        +  '</div>'
+        +  modeBadge
+        +  '<button type="button" onclick="event.stopPropagation();plRemovePerson('+p.id+')" title="삭제" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:1em;padding:2px 6px;line-height:1">✕</button>'
+        +'</div>';
+    });
+  }
+  box.innerHTML=head
+    +'<div style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg)">'+rows+'</div>';
   box.style.display='block';
 }
 function plPickPerson(id){
@@ -2797,7 +2818,7 @@ function renderPhotoGroup(m, isMe, nm){
   var grid='<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:2px;width:'+(cols===1?'60vw':'240px')+';max-width:75vw;border-radius:12px;overflow:hidden;background:var(--border)">'+tiles+'</div>';
   var timeStr=esc(m.created_at||'').slice(11,16);
   var senderLabel=m.role==='user'&&!isMe?'<div style="font-size:.68em;color:var(--text2);margin-bottom:2px;margin-left:4px">'+esc(nm)+'</div>':'';
-  var senderLabelAdv=m.role==='human_advisor'?'<div style="font-size:.68em;color:#10b981;margin-bottom:2px;margin-left:4px;font-weight:600">👨‍💼 세무회계 이윤</div>':'';
+  var senderLabelAdv=m.role==='human_advisor'?'<div style="font-size:.68em;color:#10b981;margin-bottom:2px;margin-left:4px;font-weight:600"><img src="logo-icon.png" alt="" style="width:12px;height:12px;vertical-align:middle;object-fit:contain;margin-right:3px"> 세무회계 이윤</div>':'';
   var countBadge=n>1?'<div style="font-size:.68em;color:var(--text2);margin-top:4px;text-align:'+(isMe?'right':'left')+'">🖼️ '+n+'장</div>':'';
   if(isMe){
     return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end">'

@@ -685,7 +685,7 @@ async function loadRoomDetail(){
       } else if(m.role==='assistant'){
         return sep+'<div style="margin-bottom:10px"><div'+attrs('AI',0)+' style="display:inline-block;background:#f2f4f6;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div></div>';
       } else if(m.role==='human_advisor'){
-        return sep+'<div style="margin-bottom:10px;display:flex;justify-content:flex-end"><div'+attrs('세무사',1)+' style="background:#10b981;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;opacity:.9;margin-top:4px">👨‍💼 세무사 · '+e(m.created_at||'')+'</div></div></div>';
+        return sep+'<div style="margin-bottom:10px;display:flex;justify-content:flex-end"><div'+attrs('세무사',1)+' style="background:#10b981;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;opacity:.9;margin-top:4px"><img src="logo-icon.png" alt="" style="width:12px;height:12px;vertical-align:middle;object-fit:contain;margin-right:3px;filter:brightness(0) invert(1)"> 세무사 · '+e(m.created_at||'')+'</div></div></div>';
       }
       return '';
     }).join('');
@@ -1532,7 +1532,7 @@ async function loadLiveMessages(){
       } else if(role==='assistant'){
         return '<div style="margin-bottom:10px"><div style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div></div>';
       } else if(role==='human_advisor'){
-        return '<div style="margin-bottom:10px"><div style="display:inline-block;background:#e0f5ec;border:1px solid #86efac;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#10b981;margin-top:4px;font-weight:600">👨‍💼 세무사 · '+e(m.created_at||'')+'</div></div></div>';
+        return '<div style="margin-bottom:10px"><div style="display:inline-block;background:#e0f5ec;border:1px solid #86efac;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content)+'<div style="font-size:.65em;color:#10b981;margin-top:4px;font-weight:600"><img src="logo-icon.png" alt="" style="width:12px;height:12px;vertical-align:middle;object-fit:contain;margin-right:3px"> 세무사 · '+e(m.created_at||'')+'</div></div></div>';
       }
       return '';
     }).join('');
