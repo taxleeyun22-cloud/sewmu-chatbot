@@ -3186,7 +3186,34 @@ function rebuildDocsGrid(){
   }
 
   const gridDiv = $g('docsGrid');
-  if(!gridDiv || typeof agGrid === 'undefined')return;
+  if(!gridDiv)return;
+  /* AG-Grid 라이브러리 로드 실패 시 fallback — 단순 HTML 테이블로라도 데이터 표시 */
+  if(typeof agGrid === 'undefined'){
+    const cols=[
+      {f:'_typeLabel',l:'타입'},
+      {f:'vendor',l:'가맹점'},
+      {f:'amount',l:'금액',fmt:v=>v==null?'':Number(v).toLocaleString('ko-KR')+'원'},
+      {f:'receipt_date',l:'날짜'},
+      {f:'category',l:'계정'},
+      {f:'_statusLabel',l:'상태'},
+    ];
+    const typeLabelMap=(t)=>docTypeLabelAdmin(t);
+    const stLabel=(s)=>({pending:'⏳ 대기',approved:'✅ 승인',rejected:'❌ 반려',reverted:'↩︎ 취소'})[s]||s;
+    const rows=rowData.map(r=>{
+      r._typeLabel=typeLabelMap(r.doc_type);
+      r._statusLabel=stLabel(r.status);
+      return r;
+    });
+    let html='<div style="background:#fff7ed;border:1px solid #fcd34d;color:#92400e;padding:10px 14px;border-radius:8px;margin-bottom:10px;font-size:.82em">⚠️ 스프레드시트 라이브러리 로드 실패. 기본 테이블로 표시합니다. 네트워크 확인 후 새로고침.</div>';
+    html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85em;background:#fff">'
+      +'<thead style="background:#f9fafb"><tr>'+cols.map(c=>'<th style="padding:8px 10px;text-align:left;border-bottom:1px solid #e5e8eb;font-weight:700">'+c.l+'</th>').join('')+'</tr></thead>'
+      +'<tbody>'+rows.map(r=>'<tr style="border-bottom:1px solid #f2f4f6">'
+        +cols.map(c=>{const v=c.fmt?c.fmt(r[c.f]):(r[c.f]==null?'':r[c.f]);return '<td style="padding:8px 10px">'+e(String(v))+'</td>'}).join('')
+        +'</tr>').join('')
+      +'</tbody></table></div>';
+    gridDiv.innerHTML=html;
+    return;
+  }
 
   const gridOptions = {
     columnDefs,
