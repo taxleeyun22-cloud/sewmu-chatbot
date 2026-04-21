@@ -586,8 +586,8 @@ async function openRoom(roomId){
   /* 햄버거·팝아웃 버튼 노출 */
   const mb=$g('roomMenuBtn');if(mb)mb.style.display='inline-block';
   const pb=$g('roomPopoutBtn');if(pb)pb.style.display='inline-block';
-  /* roomActions은 기본 접힘. 사용자가 ☰ 눌러야 열림 */
-  $g('roomActions').style.display='none';
+  /* roomActions: 기본 펼침 (모바일·PC 통일). ☰ 버튼으로 접기/펼치기 토글 가능 */
+  $g('roomActions').style.display='flex';
   $g('roomInputArea').style.display='flex';
   $g('roomMembers').style.display='block';
   $g('roomsLayout').classList.add('show-chat');
