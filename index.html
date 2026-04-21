@@ -752,7 +752,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
   <div style="background:var(--card);color:var(--text);border-radius:14px;width:100%;max-width:520px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden">
     <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
       <div style="font-size:.9em;font-weight:700;flex:1">상담방 정보</div>
-      <button onclick="document.getElementById('roomInfoModal').style.display='none'" style="background:none;border:none;font-size:1.1em;cursor:pointer;color:var(--text2)">✕</button>
+      <button onclick="closeRoomInfo()" style="background:none;border:none;font-size:1.1em;cursor:pointer;color:var(--text2)">✕</button>
     </div>
     <div style="display:flex;border-bottom:1px solid var(--border)">
       <button class="uri-tab on" data-tab="search" onclick="uriSwitch('search')"><span class="uri-tab-ic">🔍</span><span class="uri-tab-lb">검색</span></button>
@@ -2125,15 +2125,21 @@ function toggleAttachSheet(){
   var sheet=document.getElementById('rcAttachSheet');
   var btn=document.getElementById('rcAttachBtn');
   if(sheet.classList.contains('open')){
-    sheet.classList.remove('open');btn.classList.remove('on');
+    closeAttachSheet();
   } else {
     sheet.classList.add('open');btn.classList.add('on');
+    try{history.pushState({ov:'sheet'},'')}catch{}
   }
 }
 function closeAttachSheet(){
   var sheet=document.getElementById('rcAttachSheet');
   var btn=document.getElementById('rcAttachBtn');
+  var wasOpen=sheet.classList.contains('open');
   sheet.classList.remove('open');btn.classList.remove('on');
+  /* pushState 했던 상태면 정리 (popstate 재발 시 cascade 스킵) */
+  if(wasOpen&&history.state&&history.state.ov==='sheet'){
+    _popCascade=true;try{history.back()}catch{}
+  }
 }
 function updateSendBtn(){/* 필요 시 input 상태별 버튼 변경 여지 */}
 
@@ -2471,12 +2477,18 @@ async function openPayrollModal(){
   plPeopleFilter='';
   renderSavedPeople();
   document.getElementById('payrollModal').style.display='flex';
+  try{history.pushState({ov:'pay'},'')}catch{}
   setTimeout(function(){document.getElementById('plName').focus()},100);
   /* 서버에서 저장된 직원 목록 로드 후 다시 렌더 */
   try{await plGetPeople();renderSavedPeople()}catch{}
 }
 function closePayrollModal(){
-  document.getElementById('payrollModal').style.display='none';
+  var m=document.getElementById('payrollModal');
+  var wasOpen=m.style.display==='flex';
+  m.style.display='none';
+  if(wasOpen&&history.state&&history.state.ov==='pay'){
+    _popCascade=true;try{history.back()}catch{}
+  }
 }
 function setPayrollMode(m){
   plMode=m;
@@ -2946,7 +2958,16 @@ function openRoomInfo(){
   document.getElementById('uriNoticeList').innerHTML='';
   uriSwitch('search');
   document.getElementById('roomInfoModal').style.display='flex';
+  try{history.pushState({ov:'info'},'')}catch{}
   loadUriMedia();
+}
+function closeRoomInfo(){
+  var m=document.getElementById('roomInfoModal');
+  var wasOpen=m.style.display==='flex';
+  m.style.display='none';
+  if(wasOpen&&history.state&&history.state.ov==='info'){
+    _popCascade=true;try{history.back()}catch{}
+  }
 }
 function uriSwitch(t){
   document.querySelectorAll('#roomInfoModal .uri-tab').forEach(function(b){b.classList.toggle('on',b.dataset.tab===t)});
@@ -3697,10 +3718,35 @@ async function submitBizModal(){
 }
 
 /* ===== 뒤로가기 (Android/브라우저) — 한 단계만 뒤로 ===== */
+/* 오버레이(모달·시트) close가 history.back()을 호출하면 popstate cascade 방지용 플래그 */
+var _popCascade=false;
 window.addEventListener('popstate',function(e){
   /* 0순위: JS가 방금 뷰어 닫으며 history.back() 호출한 cascade면 무시 */
+  if(_popCascade){_popCascade=false;return}
   if(ivState&&ivState.closedByJs){
     ivState.closedByJs=false;
+    return;
+  }
+  /* 최상위 오버레이부터 닫기 — 모달 > 시트 > 뷰어 > 상담방 */
+  var payModal=document.getElementById('payrollModal');
+  if(payModal&&payModal.style.display==='flex'){
+    payModal.style.display='none';document.body.style.overflow='';
+    return;
+  }
+  var sumModal=document.getElementById('roomSummaryModal');
+  if(sumModal&&sumModal.style.display==='flex'){
+    sumModal.style.display='none';document.body.style.overflow='';
+    return;
+  }
+  var infoModal=document.getElementById('roomInfoModal');
+  if(infoModal&&infoModal.style.display==='flex'){
+    infoModal.style.display='none';
+    return;
+  }
+  var attachSheet=document.getElementById('rcAttachSheet');
+  if(attachSheet&&attachSheet.classList.contains('open')){
+    attachSheet.classList.remove('open');
+    var ab=document.getElementById('rcAttachBtn');if(ab)ab.classList.remove('on');
     return;
   }
   /* 1순위: 이미지 뷰어 열려있으면 닫기 (시스템 뒤로가기) */
