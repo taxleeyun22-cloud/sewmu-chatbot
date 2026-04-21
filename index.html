@@ -1916,10 +1916,7 @@ function showMsgCtxMenu(bubbleEl, x, y){
   var items='';
   if(text)items+='<button class="msg-ctx-item" onclick="doReplyFromMenu()">↩︎ 답장</button>';
   if(text)items+='<button class="msg-ctx-item" onclick="doCopyFromMenu()">📋 복사</button>';
-  /* 사진·파일 메시지 → 영수증으로 변환 (본인 것만) */
-  if(mine && (kind==='img'||kind==='file')){
-    items+='<button class="msg-ctx-item" onclick="convertMsgToReceipt('+mid+')">🧾 영수증으로 변환</button>';
-  }
+  /* 사진↔영수증 분류 전환은 관리자 채널(admin/staff)에서만. 거래처 사장 화면에서는 메뉴 숨김 */
   if(mine&&deletable)items+='<button class="msg-ctx-item danger" onclick="hideMsgCtxMenu();deleteMyMessage('+mid+')">🗑️ 삭제</button>';
   if(!items)return;
   m.innerHTML=items;
@@ -2027,25 +2024,17 @@ async function doCopyMsg(text){
   }
   async function sendImages(arr){
     if(arr.length>10){alert('한 번에 최대 10장까지 업로드 가능합니다');arr=arr.slice(0,10)}
-    var goReceipt=confirm('첨부한 이미지'+(arr.length>1?' '+arr.length+'장':'')+'을 어떻게 처리할까요?\n\n[확인] 🧾 영수증으로 (AI 자동 인식)\n[취소] 📷 일반 사진으로');
+    /* 거래처 사장은 항상 일반 사진으로만 업로드.
+       영수증 분류는 관리자 채널에서만 (사장·관리자 권한 분리) */
     for(var i=0;i<arr.length;i++){
       var f=arr[i];
       if(f.size>10*1024*1024){alert('['+(f.name||(i+1)+'번째')+'] 10MB 초과 — 건너뜁니다');continue}
-      if(arr.length>1&&typeof showInAppToastSilent==='function')showInAppToastSilent((goReceipt?'🤖 ':'📤 ')+(i+1)+'/'+arr.length);
-      if(goReceipt) await sendRoomReceiptFromFile(f);
-      else await sendOneLegacyImage(f);
+      if(arr.length>1&&typeof showInAppToastSilent==='function')showInAppToastSilent('📤 '+(i+1)+'/'+arr.length);
+      await sendOneLegacyImage(f);
     }
   }
   async function sendOneDocFile(f){
-    /* PDF면 영수증으로 처리할지 물어봄 (업로드 규격은 우리 영수증 OCR에서 이미지만 받으므로
-       PDF 영수증은 "일반 파일"로 업로드하되 태그만 남김 — 추후 PDF OCR 도입 시 확장 예정) */
-    if(isReceiptPdfCandidate(f)){
-      var asReceipt=confirm(f.name+'\n\n이 PDF를 어떻게 처리할까요?\n\n[확인] 🧾 영수증(세무사 검토 요청)\n[취소] 📁 일반 파일로');
-      if(asReceipt){
-        if(typeof showInAppToastSilent==='function')showInAppToastSilent('🧾 영수증 PDF 업로드 중...');
-      }
-    }
-    /* 기존 sendRoomDoc 경로 활용 — 파일 input 흉내 */
+    /* 거래처 사장은 항상 일반 파일로만 업로드. PDF 영수증 분류도 관리자 채널에서 처리 */
     var fakeInput={files:[f],value:''};
     await sendRoomDoc(fakeInput);
   }

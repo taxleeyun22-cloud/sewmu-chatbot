@@ -10,7 +10,7 @@
 // - POST /api/admin-rooms?action=toggle_ai : { room_id, ai_mode }
 // - DELETE /api/admin-rooms?room_id=XX : 방 + 메시지 전체 삭제 (신중)
 
-import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
 import { notifyUser } from "./_webpush.js";
 
 async function ensureTables(db) {
@@ -333,7 +333,8 @@ export async function onRequestGet(context) {
 // POST: 생성/멤버관리/종료/메시지/AI토글
 export async function onRequestPost(context) {
   const url = new URL(context.request.url);
-  if (!(await checkAdmin(context))) return adminUnauthorized();
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
@@ -411,8 +412,9 @@ export async function onRequestPost(context) {
       return Response.json({ ok: true });
     }
 
-    // ── 방 종료 ──
+    // ── 방 종료 (owner 전용) ──
     if (action === "close") {
+      if (!auth.owner) return ownerOnly();
       await db.prepare(
         `UPDATE chat_rooms SET status = 'closed', closed_at = ? WHERE id = ?`
       ).bind(now, roomId).run();
@@ -430,8 +432,9 @@ export async function onRequestPost(context) {
       return Response.json({ ok: true });
     }
 
-    // ── 방 재개 ──
+    // ── 방 재개 (owner 전용) ──
     if (action === "reopen") {
+      if (!auth.owner) return ownerOnly();
       await db.prepare(
         `UPDATE chat_rooms SET status = 'active', closed_at = NULL WHERE id = ?`
       ).bind(roomId).run();
@@ -590,10 +593,12 @@ export async function onRequestPost(context) {
   }
 }
 
-// DELETE: 방 + 모든 메시지 삭제 (영구)
+// DELETE: 방 + 모든 메시지 삭제 (영구) — owner 전용
 export async function onRequestDelete(context) {
   const url = new URL(context.request.url);
-  if (!(await checkAdmin(context))) return adminUnauthorized();
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
+  if (!auth.owner) return ownerOnly();
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 
