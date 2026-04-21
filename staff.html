@@ -423,7 +423,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=58"></script>
+<script src="/admin.js?v=59"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;
@@ -730,7 +730,7 @@ async function saveImgViewer(){
     <div style="padding:10px 18px;border-top:1px solid #e5e8eb;display:flex;gap:8px;justify-content:flex-end;background:#f9fafb;flex-wrap:wrap">
       <button onclick="copyRoomSummary()" style="background:#e5e8eb;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit" id="rsCopyBtn">📋 복사</button>
       <button onclick="runRoomSummary()" style="background:#10b981;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">✨ 요약 생성</button>
-      <button onclick="postSummaryToRoom()" style="background:#3182f6;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">📤 상담방에 게시</button>
+      <button onclick="postSummaryToRoom()" style="background:#fbbf24;color:#78350f;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit" title="⚠️ 내부용 요약을 고객이 보이는 상담방에 게시합니다">⚠️ 상담방 게시 (고객 노출)</button>
       <button onclick="closeRoomSummary()" style="background:#191f28;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;font-weight:600;cursor:pointer;font-family:inherit">닫기</button>
     </div>
   </div>

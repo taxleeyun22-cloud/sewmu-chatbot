@@ -744,30 +744,77 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
   const firstAt = (chrono.find(m => !m.deleted_at)?.created_at || '').substring(0,16);
   const lastAt = ([...chrono].reverse().find(m => !m.deleted_at)?.created_at || '').substring(0,16);
 
-  // GPT-4o-mini 로 요약 (저렴)
-  const prompt = `아래는 세무회계 이윤의 상담방 대화 기록이야. 이 대화를 세무사가 빠르게 파악할 수 있게 요약해줘.
+  /* 대표 고객명 힌트 (첫 번째 user role 이름) */
+  const customerName = (chrono.find(m => m.role === 'user' && (m.real_name || m.name))?.real_name
+                     || chrono.find(m => m.role === 'user' && (m.real_name || m.name))?.name
+                     || '고객');
 
-대화 시점: ${firstAt} ~ ${lastAt} (총 ${lines.length}건)
+  /* 내부 실무 정리형 프롬프트 — 담당자가 바로 체크리스트로 쓸 수 있게.
+     JSON + MARKDOWN 이중 출력: JSON 은 섹션 카드 렌더/저장용, MD 는 하위 호환용. */
+  const prompt = `당신은 세무회계 사무실의 내부 업무 보조자이다.
+아래 상담방 대화를 읽고, 담당자가 바로 실무 처리할 수 있도록 내부용 정리표를 작성한다.
 
-포맷:
+원칙:
+- 고객 응대 문체 금지. 서술형 문단 금지. 짧은 명사형·항목형으로.
+- 감성적 수식어·인사말 금지.
+- 확정된 사실과 추정·확인 필요 항목을 분리.
+- 자료 업로드는 날짜·유형별로 구체적으로 ("다수 업로드" 같은 뭉뚱그림 금지). 세부 유형 불명이면 "세부 분류 필요" 표기.
+- 대화에 근거 없는 내용은 만들지 말 것 (할루시네이션 금지).
+- 날짜가 있으면 YYYY-MM-DD 로 포함.
+
+출력은 **정확히 아래 두 블록만** 순서대로:
+
+=== JSON ===
+{
+  "overview": {
+    "period": "YYYY-MM-DD HH:MM ~ YYYY-MM-DD HH:MM",
+    "messageCount": 정수,
+    "customerName": "고객명",
+    "purpose": "이번 상담의 주된 목적 한 줄"
+  },
+  "confirmedFacts": ["짧은 항목"],
+  "customerRequests": ["짧은 항목"],
+  "uploadedMaterials": ["YYYY-MM-DD: 영수증 N건 형식 권장"],
+  "needCheck": ["짧은 항목"],
+  "nextActions": ["짧은 항목"],
+  "risks": ["짧은 항목"]
+}
+=== MARKDOWN ===
 ## ⏱ 상담 시점
 ${firstAt} ~ ${lastAt} (총 ${lines.length}건)
-(위 시점 그대로 한 줄 넣어줘. 본문 논의 사항에도 "4월 15일에 부가세 질문" 같이 날짜를 녹여줘)
 
-## 📌 핵심 요약
-(3-5줄로 무슨 상담인지)
+## 상담 개요
+- 기간: ...
+- 메시지 수: ${lines.length}건
+- 고객: ...
+- 상담 목적: ...
 
-## 💬 주요 논의 사항
-- (항목별 bullet, 가능하면 날짜 포함)
+## 확정된 핵심 사실
+- ...
 
-## 📄 고객이 올린 자료
-- (영수증·계약서 등 있으면 언제 올렸는지 포함, 없으면 "없음")
+## 고객 요청 / 질문
+- ...
 
-## ⏳ 후속 조치 필요
-- (세무사가 해야할 일, 답변 대기 중인 질문, 등. 없으면 "없음")
+## 자료 업로드 / 제출 흐름
+- ...
 
-## 🔑 키워드
-(5-10개 세무 키워드)
+## 확인 필요 사항
+- ...
+
+## 다음 액션
+- ...
+
+## 특이사항 / 주의사항
+- ...
+
+내용이 없는 섹션은 "- 없음"으로 표시.
+
+---컨텍스트---
+- 대화 첫 메시지: ${firstAt}
+- 대화 마지막 메시지: ${lastAt}
+- 메시지 수: ${lines.length}
+- 추정 고객: ${customerName}
+- 담당자 메모: (없음)
 
 ---대화 기록---
 ${conversation}`;
@@ -778,23 +825,34 @@ ${conversation}`;
       headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        max_tokens: 900,
-        temperature: 0.3,
+        max_tokens: 1400,
+        temperature: 0.2,
         messages: [
-          { role: 'system', content: '당신은 세무 상담 요약 전문가입니다. 마크다운 출력.' },
+          { role: 'system', content: '세무사무실 내부 업무 보조. 내부용 실무 정리표 작성. 고객 공개용 아님. 대화 근거 없이 추측 금지.' },
           { role: 'user', content: prompt },
         ],
       }),
     });
     const d = await res.json();
     if (!res.ok) return Response.json({ error: d?.error?.message || 'OpenAI error' }, { status: 500 });
-    const summary = d.choices?.[0]?.message?.content || '(요약 실패)';
+    const raw = d.choices?.[0]?.message?.content || '';
+
+    /* JSON + MARKDOWN 분리. 실패해도 마크다운 폴백으로 동작. */
+    let summaryJson = null;
+    let summaryMd = raw;
+    const jsonMatch = raw.match(/===\s*JSON\s*===\s*([\s\S]*?)\s*===\s*MARKDOWN\s*===/i);
+    const mdMatch = raw.match(/===\s*MARKDOWN\s*===\s*([\s\S]*)$/i);
+    if (jsonMatch) {
+      try { summaryJson = JSON.parse(jsonMatch[1].trim()); } catch { summaryJson = null; }
+    }
+    if (mdMatch) summaryMd = mdMatch[1].trim();
+
     const usage = d.usage || {};
-    // 비용: gpt-4o-mini $0.15/1M in + $0.60/1M out → 대략 1회 10원 내외
     const costCents = (usage.prompt_tokens || 0) * 0.15 / 10000 + (usage.completion_tokens || 0) * 0.60 / 10000;
     return Response.json({
       ok: true,
-      summary,
+      summary: summaryMd || raw,        // 기존 호환: 마크다운 텍스트 (runRoomSummary 에서 렌더)
+      summary_json: summaryJson,        // 신규: 섹션 카드 렌더용 (없을 수 있음)
       message_count: lines.length,
       first_at: firstAt,
       last_at: lastAt,

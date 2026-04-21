@@ -2989,8 +2989,10 @@ async function runCronAlerts(){
 /* 손상 문서(R2 빈 파일) 점검 */
 /* ===== 상담방 AI 대화 요약 =====
    자동 요약 제거 — 모달 open 시 fetch 안 함.
-   기간 선택(selectSummaryRange) → '✨ 요약 생성' 버튼(runRoomSummary) 눌러야 fetch 실행. */
+   기간 선택(selectSummaryRange) → '✨ 요약 생성' 버튼(runRoomSummary) 눌러야 fetch 실행.
+   2026-04-21: summary_json (섹션 구조화) 우선 렌더, 없으면 마크다운 폴백. */
 let _lastSummaryText='';
+let _lastSummaryJson=null;
 let _lastSummaryRange='recent';
 let _lastSummaryFrom='';
 let _lastSummaryTo='';
@@ -3013,7 +3015,8 @@ function openRoomSummary(){
   modal.style.display='flex';
   document.body.style.overflow='hidden';
   _lastSummaryText='';
-  body.innerHTML='<div style="text-align:center;padding:40px 20px;color:#8b95a1;font-size:.9em;line-height:1.7">기간을 선택한 뒤<br><b style="color:#10b981">✨ 요약 생성</b> 버튼을 눌러주세요.</div>';
+  _lastSummaryJson=null;
+  body.innerHTML='<div style="text-align:center;padding:40px 20px;color:#8b95a1;font-size:.9em;line-height:1.7">기간을 선택한 뒤<br><b style="color:#10b981">✨ 요약 생성</b> 버튼을 눌러주세요.<br><span style="font-size:.85em;color:#adb5bd">※ 내부 담당자용 실무 정리표가 생성됩니다 (고객에게 자동 공개 X)</span></div>';
   meta.textContent='';
   /* custom 기간 기본값: 오늘·오늘 */
   const today=new Date(Date.now()+9*60*60*1000).toISOString().substring(0,10);
@@ -3049,7 +3052,15 @@ async function runRoomSummary(){
     const d=await r.json();
     if(d.error){body.innerHTML='<div style="color:#f04452;padding:20px 0">요약 실패: '+e(d.error)+'</div>';return}
     _lastSummaryText=d.summary||'';
-    body.innerHTML=renderMarkdownLite(_lastSummaryText);
+    _lastSummaryJson=d.summary_json||null;
+    /* summary_json 있으면 섹션 카드, 없으면 기존 마크다운 폴백 */
+    if(_lastSummaryJson){
+      body.innerHTML=_renderSummaryJson(_lastSummaryJson);
+    } else if(_lastSummaryText){
+      body.innerHTML=renderMarkdownLite(_lastSummaryText);
+    } else {
+      body.innerHTML='<div style="color:#8b95a1;padding:20px 0">요약 결과가 비어있습니다.</div>';
+    }
     const actualRange=(d.first_at&&d.last_at)?(' · 🗓️ '+d.first_at+' ~ '+d.last_at):'';
     meta.textContent='['+rangeLabel+'] 메시지 '+(d.message_count||0)+'건'+actualRange+' · 비용 ₩'+Math.round((d.cost_cents||0)*14);
   }catch(err){
@@ -3064,20 +3075,63 @@ function closeRoomSummary(){
 /* 하위 호환: 외부에서 regenerateRoomSummary를 부르던 곳 유지 */
 function regenerateRoomSummary(){runRoomSummary()}
 async function copyRoomSummary(){
+  /* 마크다운 우선, 없으면 JSON 직렬화 */
+  let text=_lastSummaryText||'';
+  if(!text && _lastSummaryJson){
+    try{text=JSON.stringify(_lastSummaryJson,null,2)}catch{}
+  }
   try{
-    await navigator.clipboard.writeText(_lastSummaryText||'');
+    await navigator.clipboard.writeText(text);
     const btn=$g('rsCopyBtn');
     if(btn){const o=btn.textContent;btn.textContent='✅ 복사됨';setTimeout(()=>{btn.textContent=o},1500)}
   }catch(err){alert('복사 실패: '+err.message)}
 }
 
-/* 요약을 상담방에 세무사 메시지로 게시 (편집 후 게시 가능) */
+/* 섹션 카드형 렌더 — summary_json 기반 내부 실무 정리표 */
+function _renderSummaryJson(j){
+  if(!j)return '';
+  function _esc(x){return e(String(x==null?'':x))}
+  function _sec(title, icon, color, items){
+    const arr=Array.isArray(items)?items.filter(x=>x&&String(x).trim()):[];
+    const bodyHtml=arr.length
+      ? '<ul style="margin:0;padding-left:18px;line-height:1.7;color:#191f28">'+arr.map(x=>'<li style="margin-bottom:2px">'+_esc(x)+'</li>').join('')+'</ul>'
+      : '<div style="color:#adb5bd;font-size:.88em">- 없음</div>';
+    return '<section style="margin-bottom:14px">'
+      +'<div style="font-weight:700;font-size:.92em;color:'+color+';margin-bottom:6px;display:flex;align-items:center;gap:6px">'
+      +'<span>'+icon+'</span><span>'+_esc(title)+'</span>'
+      +'<span style="margin-left:auto;font-size:.75em;color:#adb5bd;font-weight:500">'+arr.length+'건</span>'
+      +'</div>'
+      +'<div style="background:#f9fafb;border:1px solid #e5e8eb;border-radius:8px;padding:10px 12px">'+bodyHtml+'</div>'
+      +'</section>';
+  }
+  const o=j.overview||{};
+  const overviewHtml='<section style="margin-bottom:14px">'
+    +'<div style="font-weight:700;font-size:.92em;color:#191f28;margin-bottom:6px">📋 상담 개요</div>'
+    +'<div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:.88em;line-height:1.6;color:#0f172a">'
+    +(o.period?'<div style="color:#64748b">기간</div><div>'+_esc(o.period)+'</div>':'')
+    +(o.messageCount!=null?'<div style="color:#64748b">메시지 수</div><div>'+_esc(String(o.messageCount))+'건</div>':'')
+    +(o.customerName?'<div style="color:#64748b">고객</div><div>'+_esc(o.customerName)+'</div>':'')
+    +(o.purpose?'<div style="color:#64748b">상담 목적</div><div>'+_esc(o.purpose)+'</div>':'')
+    +'</div></section>';
+  return '<div style="font-size:.9em">'
+    +overviewHtml
+    +_sec('확정된 핵심 사실','✅','#065f46',j.confirmedFacts)
+    +_sec('고객 요청 / 질문','💬','#1e40af',j.customerRequests)
+    +_sec('자료 업로드 / 제출 흐름','📎','#6b21a8',j.uploadedMaterials)
+    +_sec('확인 필요 사항','❓','#b45309',j.needCheck)
+    +_sec('다음 액션','➡️','#be123c',j.nextActions)
+    +_sec('특이사항 / 주의사항','⚠️','#334155',j.risks)
+    +'</div>';
+}
+
+/* 요약을 상담방에 세무사 메시지로 게시 — 내부용 요약이므로 2단계 경고 */
 async function postSummaryToRoom(){
   if(!currentRoomId){alert('상담방이 열려있지 않아요');return}
-  if(!_lastSummaryText){alert('먼저 요약을 생성하세요');return}
-  /* 편집 기회 제공: prompt는 짧아서 전체 요약 노출 어렵지만 간단히 사용 */
-  const msg='📝 상담 요약 (세무사 기록)\n\n'+_lastSummaryText+'\n\n(이 메시지는 AI가 지금까지 대화를 정리한 것입니다. 내용 확인 부탁드립니다.)';
-  if(!confirm('이 요약을 상담방에 세무사 메시지로 게시합니다.\n(고객도 볼 수 있습니다)\n\n계속할까요?'))return;
+  if(!_lastSummaryText && !_lastSummaryJson){alert('먼저 "✨ 요약 생성" 버튼을 눌러 요약을 생성하세요');return}
+  const warn='⚠️ 이 요약은 내부 담당자용 실무 정리입니다.\n상담방에 올리면 고객도 볼 수 있습니다.\n\n정말 고객에게도 그대로 보여도 괜찮나요?';
+  if(!confirm(warn))return;
+  if(!confirm('한 번 더 확인합니다.\n내부용 표현이 그대로 고객에게 노출됩니다.\n계속 게시하시겠습니까?'))return;
+  const msg='📝 상담 요약 (세무사 기록)\n\n'+(_lastSummaryText||'(구조화 데이터만 있음)')+'\n\n(이 메시지는 AI가 지금까지 대화를 정리한 것입니다.)';
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=send',{
       method:'POST',
