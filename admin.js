@@ -4,6 +4,14 @@ function _noop(){return {style:{},classList:{add:function(){},remove:function(){
 function $g(id){return document.getElementById(id)||_noop()}
 function e(t){return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function escAttr(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/[\r\n]+/g,' ')}
+/* URL 자동링크: escape 된 문자열에만 적용(XSS 안전). http(s)://, www. 만 대상 */
+function linkify(s){
+  if(!s)return s;
+  return String(s).replace(/\b((?:https?:\/\/|www\.)[^\s<>"']+)/gi,function(u){
+    var href=/^www\./i.test(u)?'http://'+u:u;
+    return '<a href="'+href.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener noreferrer" style="color:#3182f6;text-decoration:underline;word-break:break-all">'+u+'</a>';
+  });
+}
 
 /* [REPLY]{json}\n, [IMG], [FILE], [DOC:id] 프리픽스 파싱 */
 function parseMsg(content){
@@ -134,7 +142,7 @@ function renderMsgBody(content, attachedDoc){
   }
   if(p.doc_id){
     h+=renderReceiptCardAdmin(attachedDoc||null);
-    if(p.text)h+='<div style="margin-top:6px">'+e(p.text)+'</div>';
+    if(p.text)h+='<div style="margin-top:6px">'+linkify(e(p.text))+'</div>';
     return h;
   }
   if(p.image){
@@ -147,7 +155,7 @@ function renderMsgBody(content, attachedDoc){
       +'<div style="flex:1;min-width:0;overflow:hidden"><div style="font-weight:600;font-size:.88em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(nm)+'</div>'
       +'<div style="font-size:.72em;color:#8b95a1;margin-top:2px">'+fmtSize(p.file.size)+' · 다운로드</div></div></a>';
   }
-  if(p.text)h+=((p.image||p.file)?'<div style="margin-top:6px">':'')+e(p.text)+((p.image||p.file)?'</div>':'');
+  if(p.text)h+=((p.image||p.file)?'<div style="margin-top:6px">':'')+linkify(e(p.text))+((p.image||p.file)?'</div>':'');
   return h;
 }
 
@@ -681,7 +689,8 @@ async function loadRoomDetail(){
       }
       return '';
     }).join('');
-    if(atBottom)container.scrollTop=container.scrollHeight;
+    if(atBottom||adminForceScrollOnNext)container.scrollTop=container.scrollHeight;
+    adminForceScrollOnNext=false;
   }catch(err){console.error(err)}
 }
 
@@ -871,6 +880,9 @@ async function rejectDocPrompt(docId){
   }catch(e){alert('오류: '+e.message)}
 }
 
+/* 내가 방금 보낸 메시지는 상단 보고 있어도 강제 스크롤 플래그 */
+var adminForceScrollOnNext=false;
+var adminForceLiveScrollOnNext=false;
 async function sendRoomMessage(){
   if(!currentRoomId)return;
   const input=$g('roomInput');
@@ -882,6 +894,7 @@ async function sendRoomMessage(){
   }
   input.value='';
   cancelRoomReply();
+  adminForceScrollOnNext=true;
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId,content:content})});
     const d=await r.json();
@@ -1518,7 +1531,8 @@ async function loadLiveMessages(){
       }
       return '';
     }).join('');
-    if(atBottom)container.scrollTop=container.scrollHeight;
+    if(atBottom||adminForceLiveScrollOnNext)container.scrollTop=container.scrollHeight;
+    adminForceLiveScrollOnNext=false;
     // 세션 목록도 unread 초기화 반영
     refreshLiveBadge();
   }catch(err){console.error(err)}
@@ -1530,6 +1544,7 @@ async function sendLiveMessage(){
   const content=input.value.trim();
   if(!content)return;
   input.value='';
+  adminForceLiveScrollOnNext=true;
   try{
     const r=await fetch('/api/admin-live?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:liveCurrentSession,user_id:liveCurrentUserId,content:content})});
     const d=await r.json();
@@ -2842,27 +2857,42 @@ async function runCronAlerts(){
 }
 
 /* 손상 문서(R2 빈 파일) 점검 */
-/* ===== 상담방 AI 대화 요약 ===== */
+/* ===== 상담방 AI 대화 요약 =====
+   자동 요약 제거 — 모달 open 시 fetch 안 함.
+   기간 선택(selectSummaryRange) → '✨ 요약 생성' 버튼(runRoomSummary) 눌러야 fetch 실행. */
 let _lastSummaryText='';
 let _lastSummaryRange='recent';
-async function openRoomSummary(range){
-  if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
-  range=range||_lastSummaryRange||'recent';
-  _lastSummaryRange=range;
-  const modal=$g('roomSummaryModal');
-  const body=$g('rsBody');
-  const meta=$g('rsMeta');
-  modal.style.display='flex';
-  document.body.style.overflow='hidden';
-  body.innerHTML='<div style="text-align:center;padding:40px 0;color:#8b95a1">🤖 요약 생성 중... (5~15초)</div>';
-  meta.textContent='';
-  /* 기간 버튼 활성화 표시 */
+function _setSummaryRangeUI(range){
   document.querySelectorAll('.rs-range').forEach(b=>{
     const on=b.getAttribute('data-range')===range;
     b.style.background=on?'#191f28':'#e5e8eb';
     b.style.color=on?'#fff':'#555';
     b.style.fontWeight=on?'600':'400';
   });
+}
+function openRoomSummary(){
+  if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
+  const modal=$g('roomSummaryModal');
+  const body=$g('rsBody');
+  const meta=$g('rsMeta');
+  modal.style.display='flex';
+  document.body.style.overflow='hidden';
+  _lastSummaryText='';
+  body.innerHTML='<div style="text-align:center;padding:40px 20px;color:#8b95a1;font-size:.9em;line-height:1.7">기간을 선택한 뒤<br><b style="color:#10b981">✨ 요약 생성</b> 버튼을 눌러주세요.</div>';
+  meta.textContent='';
+  _setSummaryRangeUI(_lastSummaryRange||'recent');
+}
+function selectSummaryRange(range){
+  _lastSummaryRange=range||'recent';
+  _setSummaryRangeUI(_lastSummaryRange);
+}
+async function runRoomSummary(){
+  if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
+  const range=_lastSummaryRange||'recent';
+  const body=$g('rsBody');
+  const meta=$g('rsMeta');
+  body.innerHTML='<div style="text-align:center;padding:40px 0;color:#8b95a1">🤖 요약 생성 중... (5~15초)</div>';
+  meta.textContent='';
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=summarize&room_id='+encodeURIComponent(currentRoomId)+'&range='+encodeURIComponent(range));
     const d=await r.json();
@@ -2880,7 +2910,8 @@ function closeRoomSummary(){
   if(modal)modal.style.display='none';
   document.body.style.overflow='';
 }
-function regenerateRoomSummary(){openRoomSummary()}
+/* 하위 호환: 외부에서 regenerateRoomSummary를 부르던 곳 유지 */
+function regenerateRoomSummary(){runRoomSummary()}
 async function copyRoomSummary(){
   try{
     await navigator.clipboard.writeText(_lastSummaryText||'');

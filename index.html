@@ -460,7 +460,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
 </div>
 
 <div class="input-bar" id="inputBar" style="display:none">
-    <input type="text" id="userInput" placeholder="메시지 보내기" onkeydown="if(event.key==='Enter')sendMessage()">
+    <textarea id="userInput" rows="1" placeholder="메시지 보내기 (Shift+Enter: 줄바꿈)" style="resize:none;max-height:120px;font-family:inherit;overflow-y:auto" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
     <button class="send" id="sendBtn" onclick="sendMessage()">
         <svg viewBox="0 0 24 24"><path d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a.993.993 0 00-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z"/></svg>
     </button>
@@ -741,7 +741,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
     <button onclick="toggleAttachSheet()" id="rcAttachBtn" class="rc-attach-btn" title="첨부">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
-    <input id="rcInput" type="text" placeholder="메시지 입력..." autocomplete="off" oninput="updateSendBtn()" onkeydown="if(event.key==='Enter')sendRoomMsg()">
+    <textarea id="rcInput" rows="1" placeholder="메시지 입력... (Shift+Enter: 줄바꿈)" autocomplete="off" style="resize:none;max-height:120px;font-family:inherit;overflow-y:auto" oninput="updateSendBtn();this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendRoomMsg()}"></textarea>
     <button onclick="sendRoomMsg()" class="rc-send-btn" id="rcSendBtn">전송</button>
   </div>
 </div>
@@ -1071,8 +1071,8 @@ function add(role,text){
     const d=document.createElement("div");
     d.className=`msg msg-${role==="user"?"user":"ai"}`;
     d.innerHTML=role==="user"
-        ?`<div class="msg-wrap"><div class="msg-bubble">${esc(text)}</div></div>`
-        :`<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble">${esc(text)}</div></div>`;
+        ?`<div class="msg-wrap"><div class="msg-bubble">${linkify(esc(text))}</div></div>`
+        :`<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble">${linkify(esc(text))}</div></div>`;
     c.appendChild(d);c.scrollTop=c.scrollHeight;
 }
 
@@ -1085,6 +1085,14 @@ function showDots(){
 function hideDots(){const d=document.getElementById("dots");if(d)d.remove()}
 function esc(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")}
 function escAttr(t){return String(t==null?'':t).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/'/g,"&#39;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/[\r\n]+/g," ")}
+/* URL 자동링크: esc()된 문자열에만 적용(XSS 안전). <br>은 공백 문자 취급 안 되므로 URL 구분자로 사용됨 */
+function linkify(s){
+  if(!s)return s;
+  return String(s).replace(/\b((?:https?:\/\/|www\.)[^\s<>"'`]+)/gi,function(u){
+    var href=/^www\./i.test(u)?'http://'+u:u;
+    return '<a href="'+href.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener noreferrer" style="color:#3182f6;text-decoration:underline;word-break:break-all">'+u+'</a>';
+  });
+}
 
 async function sendMessage(){
     if(loading)return;const i=document.getElementById("userInput");const t=i.value.trim();if(!t)return;
@@ -1140,7 +1148,7 @@ async function sendMessage(){
                                 bubble=document.getElementById("streamBubble");
                             }
                             fullText+=j.content;
-                            bubble.innerHTML=esc(fullText);
+                            bubble.innerHTML=linkify(esc(fullText));
                             c.scrollTop=c.scrollHeight;
                         }
                     }catch{}
@@ -1848,7 +1856,7 @@ async function loadRoomChat(){
       } else if(m.role==='assistant'){
         return sepHtml+'<div style="margin-bottom:10px;display:flex;align-items:flex-end;gap:4px">'
           +'<div style="max-width:75%"><div style="font-size:.78em;color:#6b7280;font-weight:700;margin-bottom:3px;margin-left:4px">🤖 세무회계 이윤 AI</div>'
-          +'<div'+dataAttrs('세무회계 이윤 AI',0)+' style="background:var(--card);color:var(--text);padding:10px 13px;border-radius:4px 16px 16px 16px;font-size:.9em;line-height:1.5;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+esc(m.content)
+          +'<div'+dataAttrs('세무회계 이윤 AI',0)+' style="background:var(--card);color:var(--text);padding:10px 13px;border-radius:4px 16px 16px 16px;font-size:.9em;line-height:1.5;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+linkify(esc(m.content))
           +'</div></div>'
           +'<div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-size:.6em;color:var(--text2)">'+ur+'<span>'+time+'</span></div>'
           +'</div>';
@@ -1862,7 +1870,8 @@ async function loadRoomChat(){
       }
       return '';
     }).join('');
-    if(atBottom)container.scrollTop=container.scrollHeight;
+    if(atBottom||rcForceScrollOnNext)container.scrollTop=container.scrollHeight;
+    rcForceScrollOnNext=false;
   }catch(e){console.error(e)}
 }
 
@@ -2081,6 +2090,8 @@ async function doCopyMsg(text){
   if(!init())document.addEventListener('DOMContentLoaded',init);
 })();
 
+/* 내가 방금 보낸 메시지는 상단 보고 있어도 강제 스크롤 플래그 */
+var rcForceScrollOnNext=false;
 async function sendRoomMsg(){
   if(!rcRoomId||!rcIsActive)return;
   var input=document.getElementById('rcInput');
@@ -2093,6 +2104,7 @@ async function sendRoomMsg(){
   }
   input.value='';
   cancelReply();
+  rcForceScrollOnNext=true;
   try{
     var r=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,content:content})});
     var d=await r.json();
@@ -2768,7 +2780,7 @@ function renderMessageBody(content, attachedDoc){
   }
   if(parsed.doc_id){
     html+=renderReceiptCard(attachedDoc||null,false);
-    if(parsed.text)html+='<div style="margin-top:6px">'+esc(parsed.text)+'</div>';
+    if(parsed.text)html+='<div style="margin-top:6px">'+linkify(esc(parsed.text))+'</div>';
     return html;
   }
   if(parsed.image){
@@ -2788,7 +2800,7 @@ function renderMessageBody(content, attachedDoc){
       +'</div>'
       +'</a>';
   }
-  if(parsed.text)html+=((parsed.image||parsed.file)?'<div style="margin-top:6px">':'')+esc(parsed.text)+((parsed.image||parsed.file)?'</div>':'');
+  if(parsed.text)html+=((parsed.image||parsed.file)?'<div style="margin-top:6px">':'')+linkify(esc(parsed.text))+((parsed.image||parsed.file)?'</div>':'');
   return html;
 }
 
@@ -3486,7 +3498,7 @@ function rejectConsent(){
                   msgDiv.innerHTML='<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble" id="streamBubble"></div></div>';
                   c.appendChild(msgDiv);bubble=document.getElementById("streamBubble");
                 }
-                fullText+=j.content;bubble.innerHTML=esc(fullText);c.scrollTop=c.scrollHeight;
+                fullText+=j.content;bubble.innerHTML=linkify(esc(fullText));c.scrollTop=c.scrollHeight;
               }
             }catch{}
           }

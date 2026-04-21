@@ -131,7 +131,7 @@ export async function onRequestPost(context) {
         ).bind(userId).all();
         const userInfo = await db.prepare(`SELECT real_name, name FROM users WHERE id = ?`).bind(userId).first();
         const nm = userInfo?.real_name || userInfo?.name || '대표님';
-        const welcome = `🎉 ${nm} 대표님, 세무회계 이윤 기장거래처로 승급되셨습니다!\n\n이제 다음 기능을 이용하실 수 있습니다:\n• 영수증 사진 자동 분류 (AI)\n• 급여·인건비 등록 (3.3% / 4대보험 자동 계산)\n• 위하고 CSV 내보내기\n• 24시간 세무 질문 무제한\n\n먼저 마이페이지에서 필수 서류(신분증·사업자등록증·홈택스 ID)를 등록해주세요.\n담당자가 곧 연락드리겠습니다.`;
+        const welcome = `🎉 ${nm} 대표님, 세무회계 이윤 기장거래처로 승급되셨습니다!\n\n이제 다음 기능을 이용하실 수 있습니다:\n• 영수증 사진 자동 분류 (AI)\n• 24시간 세무 질문 무제한\n\n먼저 마이페이지에서 필수 서류(신분증·사업자등록증·홈택스 ID)를 등록해주세요.\n담당자가 곧 연락드리겠습니다.`;
         for (const rm of (rooms.results || [])) {
           await db.prepare(
             `INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at)

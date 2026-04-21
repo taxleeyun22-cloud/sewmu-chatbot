@@ -199,7 +199,7 @@
       <button onclick="toggleRoomAttachSheet()" id="roomAttachBtn" title="첨부" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;width:38px;height:38px;border-radius:50%;cursor:pointer;flex-shrink:0;line-height:0;padding:0;transition:transform .15s;font-family:inherit">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
-      <input id="roomInput" type="text" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter')sendRoomMessage()" onfocus="closeRoomAttachSheet()" style="flex:1;min-width:0;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit">
+      <textarea id="roomInput" rows="1" placeholder="메시지 입력... (Shift+Enter: 줄바꿈)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendRoomMessage()}" onfocus="closeRoomAttachSheet()" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'" style="flex:1;min-width:0;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit;resize:none;max-height:120px;overflow-y:auto"></textarea>
       <button onclick="sendRoomMessage()" style="background:#3182f6;color:#fff;border:none;padding:10px 16px;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">전송</button>
     </div>
     <script>
@@ -245,7 +245,7 @@
     </div>
     <div id="liveMessages" style="flex:1;overflow-y:auto;padding:14px 16px;background:#f9fafb"></div>
     <div id="liveInputArea" style="display:none;padding:10px 12px;border-top:1px solid #e5e8eb;display:flex;gap:8px">
-      <input id="liveInput" type="text" placeholder="거래처에게 직접 답변..." onkeydown="if(event.key==='Enter')sendLiveMessage()" style="flex:1;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit">
+      <textarea id="liveInput" rows="1" placeholder="거래처에게 직접 답변... (Shift+Enter: 줄바꿈)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendLiveMessage()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'" style="flex:1;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit;resize:none;max-height:120px;overflow-y:auto"></textarea>
       <button onclick="sendLiveMessage()" style="background:#3182f6;color:#fff;border:none;padding:10px 18px;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit">전송</button>
     </div>
   </div>
