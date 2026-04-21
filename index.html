@@ -2317,8 +2317,7 @@ async function sendRoomReceipt(fileInput){
 
 /* ===== 급여·인건비 등록 모달 (프리랜서 3.3% / 정규직 4대보험) ===== */
 var plMode='3.3'; /* '3.3' | '4ins' */
-/* 보안: 주민등록번호·이름을 브라우저에 저장하지 않음.
-   기존 `plPeople:*` 키로 저장된 민감정보가 있으면 자동 삭제. */
+/* 기존 localStorage plPeople:* 키는 폐기(서버 저장으로 이전). 잔존 키 제거. */
 (function purgeLegacyPlPeople(){
   try{
     for(var i=localStorage.length-1;i>=0;i--){
@@ -2327,19 +2326,78 @@ var plMode='3.3'; /* '3.3' | '4ins' */
     }
   }catch{}
 })();
-function plGetPeople(){ return []; }           /* no-op: 저장 금지 */
-function plSavePerson(){}                       /* no-op: 저장 금지 */
-function plRemovePerson(){renderSavedPeople();} /* no-op */
+/* 방(사업장)별 저장된 직원 — 서버(/api/payroll-people) 기반 */
+var plPeopleCache=[]; /* 현재 방의 직원 목록 캐시 */
+async function plGetPeople(){
+  if(!rcRoomId){plPeopleCache=[];return [];}
+  try{
+    var r=await fetch('/api/payroll-people?room_id='+encodeURIComponent(rcRoomId));
+    if(!r.ok){plPeopleCache=[];return [];}
+    var d=await r.json();
+    plPeopleCache=d.people||[];
+    return plPeopleCache;
+  }catch{plPeopleCache=[];return [];}
+}
+async function plSavePerson(name, residFull, mode, amount){
+  if(!rcRoomId||!name)return;
+  var raw=String(residFull||'').replace(/[^0-9]/g,'');
+  var first6=raw.substring(0,6),last7=raw.substring(6,13);
+  try{
+    await fetch('/api/payroll-people',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({room_id:rcRoomId,name:name,resident_first6:first6,resident_last7:last7,mode:mode,amount:amount||0})
+    });
+  }catch{}
+}
+async function plRemovePerson(id){
+  if(!rcRoomId||!id)return;
+  if(!confirm('이 직원 저장 내역을 삭제할까요?'))return;
+  try{
+    await fetch('/api/payroll-people?id='+id+'&room_id='+encodeURIComponent(rcRoomId),{method:'DELETE'});
+    plPeopleCache=plPeopleCache.filter(function(p){return p.id!==id});
+    renderSavedPeople();
+  }catch(e){alert('삭제 실패: '+e.message)}
+}
 function renderSavedPeople(){
   var box=document.getElementById('plSavedPeople');
   if(!box)return;
-  box.style.display='none';
-  box.innerHTML='';
+  if(!plPeopleCache||!plPeopleCache.length){
+    box.style.display='none';box.innerHTML='';return;
+  }
+  var html='<div style="font-size:.72em;color:var(--text2);margin-bottom:6px">💾 저장된 직원 (클릭해서 자동 입력)</div>';
+  html+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+  plPeopleCache.forEach(function(p){
+    var label=esc(p.name||'')+' <span style="opacity:.7;font-size:.88em">'+esc(p.resident_first6||'')+'</span>';
+    var modeBadge=p.mode==='4ins'?'<span style="font-size:.68em;background:#e0f5ec;color:#065f46;padding:1px 5px;border-radius:4px;margin-left:4px">4대</span>':'<span style="font-size:.68em;background:#eff6ff;color:#1e40af;padding:1px 5px;border-radius:4px;margin-left:4px">3.3%</span>';
+    html+='<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:4px 4px 4px 10px;font-size:.78em">'
+      +  '<span style="cursor:pointer" onclick="plPickPerson('+p.id+')">'+label+modeBadge+'</span>'
+      +  '<button type="button" onclick="plRemovePerson('+p.id+')" title="삭제" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:1em;padding:0 4px;line-height:1">✕</button>'
+      +'</span>';
+  });
+  html+='</div>';
+  box.innerHTML=html;
+  box.style.display='block';
 }
-function renderPlPeopleList(){/* no-op */}
-function togglePlPeopleList(){/* no-op */}
-function plPickPerson(){/* no-op */}
-function openPayrollModal(){
+function plPickPerson(id){
+  var p=(plPeopleCache||[]).find(function(x){return x.id===id});
+  if(!p)return;
+  var nameEl=document.getElementById('plName');
+  var residEl=document.getElementById('plResid');
+  if(nameEl)nameEl.value=p.name||'';
+  if(residEl){
+    var full=(p.resident_first6||'')+(p.resident_last7||'');
+    if(full.length===13){
+      residEl.value=full.substring(0,6)+'-'+full.substring(6);
+    } else if(p.resident_first6){
+      residEl.value=p.resident_first6+'-';
+      residEl.focus();
+    }
+  }
+  if(p.mode&&typeof setPayrollMode==='function')setPayrollMode(p.mode);
+}
+function renderPlPeopleList(){renderSavedPeople()}
+function togglePlPeopleList(){/* 호환용 */}
+async function openPayrollModal(){
   if(!rcRoomId||!rcIsActive){alert('상담방을 먼저 여세요');return}
   document.getElementById('plName').value='';
   document.getElementById('plResid').value='';
@@ -2348,9 +2406,11 @@ function openPayrollModal(){
   document.getElementById('plNote').value='';
   document.getElementById('plCalc').style.display='none';
   setPayrollMode('3.3');
-  renderSavedPeople();
+  renderSavedPeople(); /* 즉시 (캐시 있으면) */
   document.getElementById('payrollModal').style.display='flex';
   setTimeout(function(){document.getElementById('plName').focus()},100);
+  /* 서버에서 저장된 직원 목록 로드 후 다시 렌더 */
+  try{await plGetPeople();renderSavedPeople()}catch{}
 }
 function closePayrollModal(){
   document.getElementById('payrollModal').style.display='none';
@@ -2439,8 +2499,8 @@ async function submitPayroll(){
     var r=await fetch('/api/documents',{method:'POST',body:fd});
     var d=await r.json();
     if(d.error){alert('등록 실패: '+d.error);return}
-    /* 성공 시 이름+주민번호 저장 (다음 등록 시 자동 입력용) */
-    plSavePerson(name, residRaw.length===13?(residRaw.substring(0,6)+'-'+residRaw.substring(6)):residRaw.substring(0,6), plMode);
+    /* 성공 시 이름+주민번호+금액 서버 저장 (다음 등록 시 자동 입력용) */
+    plSavePerson(name, residRaw, plMode, amount);
     closePayrollModal();
     if(typeof showInAppToastSilent==='function'){
       var label=plMode==='3.3'?'프리랜서 3.3%':'정규직 4대보험';
