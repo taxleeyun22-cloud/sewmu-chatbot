@@ -514,6 +514,13 @@ async function setRoomPriority(roomId, value){
   }catch(e){alert('오류: '+e.message)}
 }
 
+/* 상담방 햄버거 메뉴 토글 */
+function toggleRoomMenu(){
+  var el=document.getElementById('roomActions');
+  if(!el)return;
+  el.style.display = (el.style.display==='none'||!el.style.display) ? 'flex' : 'none';
+}
+
 /* 상담방 팝업 (새 창) — PC 멀티태스킹용. 모바일에선 그냥 기존 방식 */
 function popoutCurrentRoom(){
   if(!currentRoomId){alert('상담방이 선택돼 있지 않습니다');return}
@@ -555,6 +562,8 @@ function applyPopupLayout(roomId){
       if(wrap){wrap.style.maxWidth='none';wrap.style.padding='0';wrap.style.margin='0'}
       /* 팝업 창에선 '🔗 새 창' 버튼 감추기 (이미 팝업인데) */
       var btn=document.getElementById('roomPopoutBtn');if(btn)btn.style.display='none';
+      /* 팝업에선 햄버거 메뉴 자동으로 펼침 (이미 별도 창이라 화면 여유 있음) */
+      var act=document.getElementById('roomActions');if(act)act.style.display='flex';
       /* 팝업 탭 이름 */
       document.title='상담방 · '+roomId+' — 세무회계 이윤';
     },400);
@@ -563,7 +572,11 @@ function applyPopupLayout(roomId){
 
 async function openRoom(roomId){
   currentRoomId=roomId;
-  $g('roomActions').style.display='flex';
+  /* 햄버거·팝아웃 버튼 노출 */
+  const mb=$g('roomMenuBtn');if(mb)mb.style.display='inline-block';
+  const pb=$g('roomPopoutBtn');if(pb)pb.style.display='inline-block';
+  /* roomActions은 기본 접힘. 사용자가 ☰ 눌러야 열림 */
+  $g('roomActions').style.display='none';
   $g('roomInputArea').style.display='flex';
   $g('roomMembers').style.display='block';
   $g('roomsLayout').classList.add('show-chat');

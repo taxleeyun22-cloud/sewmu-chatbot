@@ -261,21 +261,25 @@
   </div>
   <!-- 우: 방 대화창 -->
   <div class="room-chat-panel" style="flex:1;background:#fff;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.03);min-width:0">
-    <div id="roomChatHeader" style="padding:12px 16px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;gap:6px">
+    <div id="roomChatHeader" style="padding:10px 14px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;gap:8px">
       <button id="roomsBackBtn" onclick="closeRoomOnMobile()">← 목록</button>
-      <div id="roomChatTitle" style="font-size:.9em;color:#8b95a1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">좌측 상담방을 선택하세요</div>
-      <div id="roomActions" style="display:none;gap:6px">
-        <button onclick="popoutCurrentRoom()" style="background:#fef3c7;color:#92400e;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:700" title="새 창으로 상담방 열기 (PC 멀티태스킹)" id="roomPopoutBtn">🔗 새 창</button>
-        <button onclick="openCustomerDashboardFromRoom()" style="background:#dbeafe;color:#1e40af;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:700" title="이 상담방 거래처의 종합 대시보드">🏢 거래처</button>
-        <button onclick="openRoomSummary()" style="background:#e0f5ec;color:#065f46;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:700" title="AI가 지금까지 대화 내용 요약">📝 요약</button>
-        <button onclick="openRoomInfo()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" title="미디어·링크·검색">📂 정보</button>
-        <button onclick="renameRoom()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" title="이름 변경">✏️ 이름</button>
-        <button onclick="addMemberPrompt()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit">＋ 멤버</button>
-        <button onclick="toggleRoomStatus()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit" id="roomStatusBtn">종료</button>
-        <button onclick="deleteCurrentRoom()" style="background:#fee2e2;color:#f04452;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit">🗑️ 삭제</button>
-      </div>
+      <div id="roomChatTitle" style="font-size:.95em;color:#191f28;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">좌측 상담방을 선택하세요</div>
+      <!-- 자주 쓰는 2개만 외부 노출 + 나머지는 햄버거 메뉴로 -->
+      <button id="roomPopoutBtn" onclick="popoutCurrentRoom()" style="display:none;background:none;border:none;font-size:1.1em;cursor:pointer;padding:6px 8px;border-radius:6px" title="새 창으로 열기">🔗</button>
+      <button id="roomMenuBtn" onclick="toggleRoomMenu()" style="display:none;background:none;border:none;font-size:1.3em;cursor:pointer;padding:2px 8px;border-radius:6px" title="메뉴">☰</button>
     </div>
-    <div id="roomMembers" style="display:none;padding:8px 16px;border-bottom:1px solid #e5e8eb;background:#f9fafb;font-size:.75em;color:#555"></div>
+    <!-- 접히는 메뉴 (☰ 눌러야 열림) -->
+    <div id="roomActions" style="display:none;padding:10px 14px;border-bottom:1px solid #e5e8eb;background:#f9fafb;gap:6px;flex-wrap:wrap">
+      <button onclick="openCustomerDashboardFromRoom()" style="background:#dbeafe;color:#1e40af;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:700" title="거래처 대시보드">🏢 거래처</button>
+      <button onclick="openRoomSummary()" style="background:#e0f5ec;color:#065f46;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:700" title="AI 대화 요약">📝 요약</button>
+      <button onclick="openRoomInfo()" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit" title="사진·파일·링크">📂 정보</button>
+      <button onclick="renameRoom()" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">✏️ 이름</button>
+      <button onclick="addMemberPrompt()" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">＋ 멤버</button>
+      <button onclick="toggleRoomStatus()" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit" id="roomStatusBtn">종료</button>
+      <button onclick="deleteCurrentRoom()" style="background:#fee2e2;color:#f04452;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">🗑️ 삭제</button>
+    </div>
+    <!-- 멤버 라인: 기본 1줄로 축약, 클릭 시 전체 펼침 -->
+    <div id="roomMembers" style="display:none;padding:6px 14px;border-bottom:1px solid #e5e8eb;background:#fafbfc;font-size:.73em;color:#6b7280;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" onclick="this.style.whiteSpace=(this.style.whiteSpace==='normal'?'nowrap':'normal')" title="클릭하면 전체 보임"></div>
     <div id="roomMessages" style="flex:1;overflow-y:auto;padding:14px 16px;background:#f9fafb"></div>
     <!-- 답장 프리뷰 바 -->
     <div id="roomReplyBar">
@@ -583,7 +587,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=45"></script>
+<script src="/admin.js?v=46"></script>
 <style>
 #imgViewer{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:10000;display:none;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain}
 #imgViewer.open{display:flex}
