@@ -24,7 +24,7 @@ async function ensureTables(db) {
     name TEXT,
     created_by_admin INTEGER DEFAULT 1,
     created_by_user_id INTEGER,
-    max_members INTEGER DEFAULT 5,
+    max_members INTEGER DEFAULT 10,
     ai_mode TEXT DEFAULT 'on',
     status TEXT DEFAULT 'active',
     created_at TEXT,

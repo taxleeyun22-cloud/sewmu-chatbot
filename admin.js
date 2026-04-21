@@ -1454,12 +1454,12 @@ async function deleteCurrentRoom(){
 async function openCreateRoom(){
   $g('crName').value='';
   $g('crSearch').value='';
-  $g('crMaxMembers').value='5';
-  $g('crMax').textContent='5';
+  $g('crMaxMembers').value='10';
+  $g('crMax').textContent='10';
   crSelectedUsers={};
   $g('crSelectedCount').textContent='0';
   $g('createRoomModal').style.display='flex';
-  // 승인된 사용자 로딩
+  /* 거래처(기장·일반) 사용자 로딩. 관리자는 방 생성 시 서버에서 자동 참여되므로 선택 리스트에 포함 X */
   try{
     const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=approved_client');
     const d1=await r.json();

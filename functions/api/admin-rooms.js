@@ -19,7 +19,7 @@ async function ensureTables(db) {
     name TEXT,
     created_by_admin INTEGER DEFAULT 1,
     created_by_user_id INTEGER,
-    max_members INTEGER DEFAULT 5,
+    max_members INTEGER DEFAULT 10,
     ai_mode TEXT DEFAULT 'on',
     status TEXT DEFAULT 'active',
     created_at TEXT,
@@ -53,6 +53,8 @@ async function ensureTables(db) {
   try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN priority INTEGER`).run(); } catch {}
   /* 방별 전화번호(거래처 사장 번호) */
   try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN phone TEXT`).run(); } catch {}
+  /* 기존 방 max_members 최소 10 으로 상향 — 관리자 자동 참여 후 공간 부족 방지 */
+  try { await db.prepare(`UPDATE chat_rooms SET max_members = 10 WHERE max_members < 10`).run(); } catch {}
 }
 
 function kst() {
@@ -359,7 +361,7 @@ export async function onRequestPost(context) {
     // ── 방 생성 ──
     if (action === "create") {
       const name = (body.name || "").trim() || "상담방";
-      const maxMembers = Math.min(Math.max(Number(body.max_members) || 5, 2), 10);
+      const maxMembers = Math.min(Math.max(Number(body.max_members) || 10, 2), 10);
       const memberIds = Array.isArray(body.member_user_ids) ? body.member_user_ids : [];
 
       // 6자리 ID 생성 (중복 회피)
@@ -375,7 +377,7 @@ export async function onRequestPost(context) {
         VALUES (?, ?, 1, ?, 'on', 'active', ?)
       `).bind(roomId, name, maxMembers, now).run();
 
-      // 멤버 추가 (거래처 사장 등)
+      // 거래처 멤버 추가 (방 생성 UI에서 선택한 거래처 사장들)
       for (const uid of memberIds) {
         try {
           await db.prepare(`
@@ -385,7 +387,8 @@ export async function onRequestPost(context) {
         } catch {}
       }
 
-      // 관리자(is_admin=1) 전원 자동 참여 — 누가 생성하든 공동 관리
+      // 관리자(is_admin=1) 전원 자동 참여 — 카톡 그룹방 스타일.
+      // 관리자 N명이 방에 들어와 있으면 unread 카운트도 안 읽은 관리자 수만큼 커짐.
       try {
         const { results: adminRows } = await db.prepare(
           `SELECT id FROM users WHERE is_admin = 1`
