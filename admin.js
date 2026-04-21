@@ -69,6 +69,8 @@ function renderReceiptCardAdmin(doc){
     actionsHTML+=`<button onclick="revertDocToPhotoAdmin(${doc.id})" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:7px 10px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit" title="일반 사진으로 되돌리기">📷 사진</button>`;
     actionsHTML+=`<button onclick="convertDocToFileAdmin(${doc.id})" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:7px 10px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit" title="일반 파일로 되돌리기">📁 파일</button>`;
   }
+  /* 완전 삭제 */
+  actionsHTML+=`<button onclick="deleteDocAdmin(${doc.id})" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:7px 10px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit" title="R2 원본·DB·상담방 메시지 완전 삭제">🗑️ 삭제</button>`;
   /* 반응형: 모바일(≤480px)에선 세로 스택, 데스크톱에선 가로. max-width:100% + box-sizing 으로 폭 보장 */
   const thumb=isPayroll
     ? `<div class="rc-doc-thumb" style="flex-shrink:0;width:46px;height:46px;background:#dbeafe;color:#1d4ed8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4em">${doc.doc_type==='payroll'?'👥':'🧑‍💼'}</div>`
@@ -3297,6 +3299,19 @@ async function convertDocToFileAdmin(docId){
     const d=await r.json();
     if(d.ok){
       if(typeof showAdminToast==='function')showAdminToast('📁 파일로 변환됨');
+      if(typeof loadRoomDetail==='function')loadRoomDetail();
+      if(typeof loadDocsTab==='function')loadDocsTab();
+    } else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+async function deleteDocAdmin(docId){
+  if(!docId)return;
+  if(!confirm('이 문서를 완전 삭제할까요?\n\nR2 원본 파일 + DB 기록 + 상담방 메시지 모두 제거됩니다.\n(되돌릴 수 없음)'))return;
+  try{
+    const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:docId})});
+    const d=await r.json();
+    if(d.ok){
+      if(typeof showAdminToast==='function')showAdminToast('🗑️ 삭제 완료');
       if(typeof loadRoomDetail==='function')loadRoomDetail();
       if(typeof loadDocsTab==='function')loadDocsTab();
     } else alert('실패: '+(d.error||'unknown'));

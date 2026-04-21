@@ -681,6 +681,35 @@ export async function onRequestPost(context) {
     return Response.json({ ok: true });
   }
 
+  if (action === 'delete') {
+    /* 완전 삭제 — R2 객체 + documents 행 + conversations 메시지 숨김.
+       법적 5년 보관 의무 검토 후 사용자 요청으로 도입. 감사 로그는 남김. */
+    const { id } = body;
+    if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
+    const doc = await db.prepare(`SELECT id, image_key, user_id, vendor, amount FROM documents WHERE id = ?`).bind(id).first();
+    if (!doc) return Response.json({ error: '문서 없음' }, { status: 404 });
+    /* R2 객체 삭제 */
+    try { if (doc.image_key) await bucket.delete(doc.image_key); } catch {}
+    /* 관련 conversations 메시지 soft-delete (삭제됨 표시) */
+    try {
+      await db.prepare(`UPDATE conversations SET deleted_at = ? WHERE content LIKE ?`)
+        .bind(kst(), `[DOC:${id}]%`).run();
+    } catch {}
+    /* document_alerts 및 usage log 도 정리 */
+    try { await db.prepare(`DELETE FROM document_alerts WHERE source_doc_id = ?`).bind(id).run(); } catch {}
+    try { await db.prepare(`DELETE FROM documents WHERE id = ?`).bind(id).run(); } catch {}
+    /* 감사 로그 */
+    logAudit(db, {
+      actor: 'admin#' + approverId,
+      action: 'doc_delete',
+      entity_type: 'document',
+      entity_id: id,
+      before: { user_id: doc.user_id, vendor: doc.vendor, amount: doc.amount, image_key: doc.image_key },
+      request: context.request
+    });
+    return Response.json({ ok: true });
+  }
+
   if (action === 'convert_to_file') {
     /* 영수증 → 일반 파일 메시지로 되돌리기 */
     const { id } = body;

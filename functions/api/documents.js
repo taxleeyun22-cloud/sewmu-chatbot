@@ -580,10 +580,19 @@ export async function onRequestDelete(context) {
 
   const doc = await db.prepare(`SELECT * FROM documents WHERE id=? AND user_id=?`).bind(id, user.user_id).first();
   if (!doc) return Response.json({ error: 'not_found' }, { status: 404 });
-  if (doc.status !== 'pending') return Response.json({ error: 'pending만 삭제 가능' }, { status: 400 });
+  /* 세무사가 실제로 승인(approver_id>0)한 문서는 고객이 삭제 불가 */
+  if (Number(doc.approver_id || 0) > 0) {
+    return Response.json({ error: '세무사 승인된 문서는 삭제할 수 없습니다' }, { status: 400 });
+  }
 
+  /* 완전 삭제: R2 객체 + conversations 메시지 숨김 + documents 행 */
+  try { if (doc.image_key && bucket) await bucket.delete(doc.image_key); } catch {}
+  try {
+    await db.prepare(`UPDATE conversations SET deleted_at = ? WHERE content LIKE ?`)
+      .bind(kst(), `[DOC:${id}]%`).run();
+  } catch {}
+  try { await db.prepare(`DELETE FROM document_alerts WHERE source_doc_id = ?`).bind(id).run(); } catch {}
   await db.prepare(`DELETE FROM documents WHERE id=?`).bind(id).run();
-  // R2 원본은 감사용으로 유지 (30일 후 배치에서 파기 예정)
   return Response.json({ ok: true });
 }
 

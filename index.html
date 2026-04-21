@@ -2523,7 +2523,10 @@ function renderReceiptCard(doc, mine){
   var toFileBtn=(!realApproved)
     ? '<button onclick="event.stopPropagation();convertDocToFileClient('+doc.id+')" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:6px;font-size:.7em;cursor:pointer;font-family:inherit" title="일반 파일 메시지로 되돌립니다">📁 파일</button>'
     : '';
-  var actionRow=(editBtn||revertBtn||toFileBtn)?'<div style="margin-top:6px;display:flex;gap:3px;flex-wrap:wrap">'+editBtn+revertBtn+toFileBtn+'</div>':'';
+  var delBtn=(!realApproved)
+    ? '<button onclick="event.stopPropagation();deleteDocClient('+doc.id+')" style="background:none;border:1px solid #f04452;color:#f04452;padding:3px 8px;border-radius:6px;font-size:.7em;cursor:pointer;font-family:inherit" title="영수증과 원본 사진을 완전 삭제">🗑️ 삭제</button>'
+    : '';
+  var actionRow=(editBtn||revertBtn||toFileBtn||delBtn)?'<div style="margin-top:6px;display:flex;gap:3px;flex-wrap:wrap">'+editBtn+revertBtn+toFileBtn+delBtn+'</div>':'';
   return ''
     +'<div style="display:flex;align-items:stretch;gap:0;min-width:240px;max-width:300px;border-radius:12px;overflow:hidden;background:var(--card);border:1px solid var(--border)">'
     + '<div style="flex-shrink:0;width:86px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;cursor:zoom-in" onclick="openImgViewer(\''+imgUrl+'\',[\''+imgUrl+'\'])">'
@@ -2614,6 +2617,19 @@ async function revertDocToPhotoClient(docId){
       if(typeof showInAppToastSilent==='function')showInAppToastSilent('📷 사진으로 되돌렸어요');
       if(typeof loadRoomChat==='function')loadRoomChat();
     } else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+/* 영수증 완전 삭제 (본인·미승인만) */
+async function deleteDocClient(docId){
+  if(!docId)return;
+  if(!confirm('이 영수증을 완전히 삭제할까요?\n\n원본 사진 + 기록 모두 사라집니다. 되돌릴 수 없어요.'))return;
+  try{
+    var r=await fetch('/api/documents?id='+docId,{method:'DELETE'});
+    var d=await r.json();
+    if(d.ok){
+      if(typeof showInAppToastSilent==='function')showInAppToastSilent('🗑️ 삭제되었습니다');
+      if(typeof loadRoomChat==='function')loadRoomChat();
+    } else alert('삭제 실패: '+(d.error||'unknown'));
   }catch(e){alert('오류: '+e.message)}
 }
 /* 영수증 → 파일로 변환 */
