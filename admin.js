@@ -146,7 +146,11 @@ function renderMsgBody(content, attachedDoc){
     return h;
   }
   if(p.image){
-    h+='<img class="rc-img-msg" src="'+e(p.image)+'" alt="이미지" loading="lazy" style="display:inline-block;max-width:220px;max-height:300px;border-radius:10px;background:rgba(0,0,0,.06);object-fit:cover;cursor:zoom-in" onclick="openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">';
+    /* 관리자 채널: 이미지 wrapper + 의심 배지 overlay (onload 휴리스틱) */
+    h+='<span class="rc-img-wrap" style="position:relative;display:inline-block;line-height:0">'
+      +  '<img class="rc-img-msg" src="'+e(p.image)+'" alt="이미지" loading="lazy" style="display:inline-block;max-width:220px;max-height:300px;border-radius:10px;background:rgba(0,0,0,.06);object-fit:cover;cursor:zoom-in" onload="rcCheckDocSuspect(this)" onclick="openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">'
+      +  '<span class="rc-doc-badge" style="display:none;position:absolute;top:6px;right:6px;background:rgba(255,255,255,.92);border:1px solid #fcd34d;color:#92400e;font-size:.68em;font-weight:700;padding:2px 7px;border-radius:10px;line-height:1.4;box-shadow:0 1px 3px rgba(0,0,0,.15);pointer-events:none"></span>'
+      +'</span>';
   }
   if(p.file){
     const nm=p.file.name||'파일';
@@ -682,8 +686,9 @@ async function loadRoomDetail(){
       const isAdvisor=m.role==='human_advisor';
       const canDel=isAdvisor?1:0;
       const kind = parsed.doc_id ? 'doc' : (parsed.image ? 'img' : (parsed.file ? 'file' : 'text'));
+      const imgSrcAttr = parsed.image ? ' data-img-src="'+escAttr(parsed.image)+'"' : '';
       function attrs(sender,mine){
-        return ' class="rc-msg-bubble" data-msg="'+m.id+'" data-sender="'+escAttr(sender)+'" data-text="'+escAttr(preview)+'" data-mine="'+(mine?1:0)+'" data-deletable="'+canDel+'" data-kind="'+kind+'"';
+        return ' class="rc-msg-bubble" data-msg="'+m.id+'" data-sender="'+escAttr(sender)+'" data-text="'+escAttr(preview)+'" data-mine="'+(mine?1:0)+'" data-deletable="'+canDel+'" data-kind="'+kind+'"'+imgSrcAttr;
       }
       if(m.role==='user'){
         return sep+'<div style="margin-bottom:10px"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+'</div><div'+attrs(nm,0)+' style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>';
@@ -746,6 +751,49 @@ function jumpToOriginalMsgAdmin(mid){
   setTimeout(()=>{bubble.style.boxShadow=orig||''},1400);
 }
 
+/* ===== 문서 의심 휴리스틱 (무료) =====
+   이미지 비율만으로 "영수증" 또는 "문서 스캔" 의심 배지 달기.
+   AI API 호출 없음 → 비용 0 */
+function rcCheckDocSuspect(img){
+  try{
+    if(!img||!img.naturalWidth||!img.naturalHeight)return;
+    const w=img.naturalWidth, h=img.naturalHeight;
+    const ratio=h/w; /* 세로/가로 */
+    const badge=img.parentElement&&img.parentElement.querySelector('.rc-doc-badge');
+    if(!badge)return;
+    let label='';
+    if(ratio>=2.0){label='🧾 영수증 의심'}
+    else if(w/h>=1.4||ratio>=1.35){label='📄 문서 의심'}
+    if(label){
+      badge.textContent=label;
+      badge.style.display='inline-block';
+    }
+  }catch{}
+}
+/* 🔍 AI 확인 — Vision API 유료 호출 (세무사가 메뉴에서 클릭 시만) */
+async function aiConfirmImage(messageId){
+  hideMsgCtxMenu();
+  const bubble=document.querySelector('.rc-msg-bubble[data-msg="'+messageId+'"]');
+  const src=bubble&&bubble.getAttribute('data-img-src');
+  if(!src){alert('이미지 URL 없음');return}
+  if(typeof showAdminToast==='function')showAdminToast('🔍 AI 분석 중...');
+  try{
+    const r=await fetch('/api/admin-vision-classify?key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({image_url:src})
+    });
+    const d=await r.json();
+    if(d.error){alert('실패: '+d.error);return}
+    const labelMap={receipt:'🧾 영수증',lease:'🏠 임대차계약서',insurance:'🛡 보험증권',contract:'📝 계약서',identity:'🪪 신분증',business_reg:'📋 사업자등록증',bank_stmt:'🏦 은행거래내역',tax_invoice:'📑 세금계산서',other_doc:'📄 기타 문서',photo:'📷 일반 사진'};
+    const niceKind=labelMap[d.kind]||d.kind;
+    const conf=d.confidence!=null?' ('+Math.round(d.confidence*100)+'%)':'';
+    const cost=d.cost_cents!=null?('\n비용: 약 ₩'+Math.round(d.cost_cents*14*10)/10):'';
+    const msg='🔍 AI 판정\n\n유형: '+niceKind+conf+'\n요약: '+(d.summary||'—')+cost+
+      '\n\n확인되면 "🧾 영수증으로 변환" 메뉴로 저장하세요.';
+    alert(msg);
+  }catch(e){alert('오류: '+e.message)}
+}
+
 /* ===== 메시지 컨텍스트 메뉴 (long-press/right-click) + 답장·복사 ===== */
 var roomReplyingTo=null; /* {mid, sender, text} */
 
@@ -764,6 +812,10 @@ function showMsgCtxMenu(bubbleEl, x, y){
   /* 관리자는 누구 메시지든 영수증으로 변환 가능 */
   if(kind==='img'||kind==='file'){
     items+='<button class="msg-ctx-item" onclick="convertMsgToReceiptAdmin('+mid+')">🧾 영수증으로 변환</button>';
+  }
+  /* 🔍 AI 확인 — 이미지만 (유료 · 세무사 클릭 시만 호출) */
+  if(kind==='img'){
+    items+='<button class="msg-ctx-item" onclick="aiConfirmImage('+mid+')">🔍 AI 확인</button>';
   }
   if(mine&&deletable)items+='<button class="msg-ctx-item danger" onclick="hideMsgCtxMenu();deleteAdminMessage('+mid+')">🗑️ 삭제</button>';
   if(!items)return;
