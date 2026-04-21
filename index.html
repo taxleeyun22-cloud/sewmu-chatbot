@@ -686,9 +686,9 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       <div id="rcTitle">-</div>
       <div id="rcMembers"></div>
     </div>
-    <a href="tel:053-269-1213" class="rc-leave-btn" style="margin-right:6px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center" title="세무회계 이윤 (053-269-1213)">📞</a>
-    <button onclick="toggleCurrentRoomMute()" id="rcMuteBtn" class="rc-leave-btn" style="margin-right:6px" title="알림">🔔</button>
-    <button onclick="openRoomInfo()" class="rc-leave-btn" style="margin-right:6px" title="사진·파일·공지">📂</button>
+    <a href="tel:053-269-1213" class="rc-leave-btn" style="text-decoration:none" title="세무회계 이윤 (053-269-1213)">📞</a>
+    <button onclick="toggleCurrentRoomMute()" id="rcMuteBtn" class="rc-leave-btn" title="알림">🔔</button>
+    <button onclick="openRoomInfo()" class="rc-leave-btn" title="사진·파일·공지">📂</button>
     <button onclick="leaveRoom()" class="rc-leave-btn">나가기</button>
   </div>
   <div id="rcMessages" class="rc-messages"></div>
@@ -798,12 +798,14 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
 mark{background:#fef3c7;color:inherit;padding:0 2px;border-radius:2px}
 .room-chat-view{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:50;flex-direction:column;height:100vh;height:100dvh}
 .room-chat-view.open{display:flex}
-.rc-header{background:var(--card);padding:12px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0;padding-top:max(12px, env(safe-area-inset-top))}
-.rc-back-btn{background:none;border:none;font-size:1.5em;cursor:pointer;color:var(--text);padding:4px 8px;line-height:1}
-.rc-title-wrap{flex:1;min-width:0}
-#rcTitle{font-size:.95em;font-weight:700;color:var(--text)}
+.rc-header{background:var(--card);padding:10px 10px;display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--border);flex-shrink:0;padding-top:max(10px, env(safe-area-inset-top))}
+.rc-back-btn{background:none;border:none;font-size:1.4em;cursor:pointer;color:var(--text);padding:4px 6px;line-height:1;flex-shrink:0}
+.rc-title-wrap{flex:1;min-width:0;overflow:hidden}
+#rcTitle{font-size:.95em;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #rcMembers{font-size:.7em;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
-.rc-leave-btn{background:none;border:1px solid var(--border);color:var(--text2);padding:6px 10px;border-radius:7px;font-size:.72em;cursor:pointer;font-family:inherit}
+/* 헤더 버튼: 모바일 공간 절약 — 아이콘만 있는 버튼은 정사각형, "나가기"만 텍스트 */
+.rc-leave-btn{background:none;border:1px solid var(--border);color:var(--text2);padding:5px 8px;border-radius:7px;font-size:.72em;cursor:pointer;font-family:inherit;flex-shrink:0;line-height:1}
+.rc-header a.rc-leave-btn,.rc-header button.rc-leave-btn{min-width:34px;min-height:30px;display:inline-flex;align-items:center;justify-content:center}
 .rc-messages{flex:1;overflow-y:auto;padding:14px;background:var(--bg);-webkit-overflow-scrolling:touch}
 .rc-messages::-webkit-scrollbar{display:none}
 .rc-input-area{padding:10px 12px max(10px, env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;align-items:center}
