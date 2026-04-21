@@ -460,7 +460,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
 </div>
 
 <div class="input-bar" id="inputBar" style="display:none">
-    <textarea id="userInput" rows="1" placeholder="메시지 보내기 (Shift+Enter: 줄바꿈)" style="resize:none;max-height:120px;font-family:inherit;overflow-y:auto" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+    <textarea id="userInput" rows="1" placeholder="메시지 보내기" style="resize:none;max-height:120px;font-family:inherit;overflow-y:auto" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
     <button class="send" id="sendBtn" onclick="sendMessage()">
         <svg viewBox="0 0 24 24"><path d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a.993.993 0 00-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z"/></svg>
     </button>
@@ -742,7 +742,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
     <button onclick="toggleAttachSheet()" id="rcAttachBtn" class="rc-attach-btn" title="첨부">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
-    <textarea id="rcInput" rows="1" placeholder="메시지 입력... (Shift+Enter: 줄바꿈)" autocomplete="off" style="resize:none;max-height:120px;font-family:inherit;overflow-y:auto" oninput="updateSendBtn();this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendRoomMsg()}"></textarea>
+    <textarea id="rcInput" rows="1" placeholder="메시지 입력..." autocomplete="off" style="resize:none;max-height:120px;font-family:inherit;overflow-y:auto" oninput="updateSendBtn();this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendRoomMsg()}"></textarea>
     <button onclick="sendRoomMsg()" class="rc-send-btn" id="rcSendBtn">전송</button>
   </div>
 </div>
@@ -2920,7 +2920,7 @@ function renderMessageBody(content, attachedDoc){
     var nm=parsed.file.name||'파일';
     var sz=fmtFileSize(parsed.file.size);
     /* 카톡 스타일: 파일명 2줄 + 용량 + 다운로드 아이콘 */
-    html+='<a href="'+esc(parsed.file.url||'#')+'" download="'+esc(nm)+'" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border:1px solid #e5e8eb;border-radius:12px;text-decoration:none;color:inherit;min-width:220px;max-width:280px">'
+    html+='<a href="'+esc(parsed.file.url||'#')+'" download="'+esc(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border:1px solid #e5e8eb;border-radius:12px;text-decoration:none;color:inherit;min-width:220px;max-width:280px">'
       +'<div style="flex:1;min-width:0">'
       +  '<div style="font-weight:600;font-size:.95em;color:#191f28;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all">'+esc(nm)+'</div>'
       +  '<div style="font-size:.72em;color:#8b95a1;margin-top:6px">용량 '+sz+'</div>'
@@ -3017,7 +3017,7 @@ async function loadUriFiles(){
       if(!obj)return '';
       var who=m.role==='human_advisor'?'세무사':m.role==='assistant'?'AI':(m.real_name||m.name||'사용자');
       var nm=obj.name||'파일';
-      return '<a href="'+esc(obj.url||'#')+'" download="'+esc(nm)+'" class="uri-item" style="display:flex;gap:10px;text-decoration:none;color:inherit;align-items:center">'
+      return '<a href="'+esc(obj.url||'#')+'" download="'+esc(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" class="uri-item" style="display:flex;gap:10px;text-decoration:none;color:inherit;align-items:center">'
         +'<div style="font-size:1.7em;line-height:1">'+fileIconFor(nm)+'</div>'
         +'<div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(nm)+'</div>'
         +'<div class="uri-meta">'+fmtFileSize(obj.size)+' · '+who+' · '+esc(m.created_at||'')+'</div></div></a>';
@@ -3805,6 +3805,7 @@ function _ivDownload(blob,name){
    Android: 다운로드 폴더 → 갤러리 앱 자동 인덱싱
    iOS: 파일 앱(Downloads)으로 저장 (Photos 직접저장은 웹 보안 한계로 불가 — 공유 버튼 사용) */
 async function saveImgViewer(){
+  if(!confirm('사진을 저장하시겠습니까?'))return;
   try{
     var f=await _ivFetchFile();
     _ivDownload(f.blob,f.name);

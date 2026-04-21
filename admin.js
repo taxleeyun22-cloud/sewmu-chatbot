@@ -150,7 +150,7 @@ function renderMsgBody(content, attachedDoc){
   }
   if(p.file){
     const nm=p.file.name||'파일';
-    h+='<a href="'+e(p.file.url||'#')+'" download="'+e(nm)+'" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,0,0,.05);border-radius:10px;text-decoration:none;color:inherit;max-width:260px">'
+    h+='<a href="'+e(p.file.url||'#')+'" download="'+e(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,0,0,.05);border-radius:10px;text-decoration:none;color:inherit;max-width:260px">'
       +'<div style="font-size:1.8em;line-height:1">'+fileIconFor(nm)+'</div>'
       +'<div style="flex:1;min-width:0;overflow:hidden"><div style="font-weight:600;font-size:.88em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(nm)+'</div>'
       +'<div style="font-size:.72em;color:#8b95a1;margin-top:2px">'+fmtSize(p.file.size)+' · 다운로드</div></div></a>';
@@ -1253,7 +1253,7 @@ async function loadRoomFiles(){
       if(!obj)return '';
       const who=m.role==='human_advisor'?'세무사':m.role==='assistant'?'AI':(m.real_name||m.name||'사용자');
       const nm=obj.name||'파일';
-      return '<a href="'+e(obj.url||'#')+'" download="'+e(nm)+'" class="ri-link-item" style="display:flex;gap:10px;text-decoration:none;color:inherit;align-items:center">'
+      return '<a href="'+e(obj.url||'#')+'" download="'+e(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" class="ri-link-item" style="display:flex;gap:10px;text-decoration:none;color:inherit;align-items:center">'
         +'<div style="font-size:1.7em;line-height:1">'+fileIconFor(nm)+'</div>'
         +'<div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(nm)+'</div>'
         +'<div class="ri-meta">'+fmtSize(obj.size)+' · '+who+' · '+e(m.created_at||'')+'</div></div></a>';
@@ -2499,6 +2499,7 @@ function imgViewerNav(d){
 }
 async function saveImgViewer(){
   var src=ivState.srcs[ivState.idx];if(!src)return;
+  if(!confirm('사진을 저장하시겠습니까?'))return;
   try{
     var r=await fetch(src);if(!r.ok)throw new Error();
     var b=await r.blob();
