@@ -428,7 +428,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=70"></script>
+<script src="/admin.js?v=71"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;
@@ -775,14 +775,14 @@ async function saveImgViewer(){
 #memoModal{transition:all .18s ease-out}
 #memoModal .memo-panel{transition:transform .18s ease-out}
 @media(min-width:1024px){
-  #memoModal.side-dock{background:transparent;pointer-events:none;align-items:stretch;justify-content:flex-end;padding:0}
-  #memoModal.side-dock .memo-panel{pointer-events:auto;width:420px;max-width:420px;height:100vh;max-height:100vh;border-radius:0;border-left:2px solid #e5e8eb;box-shadow:-6px 0 18px rgba(0,0,0,.08);margin:0}
+  #memoModal.side-dock{background:transparent !important;pointer-events:none;align-items:stretch !important;justify-content:flex-end !important;padding:0 !important}
+  #memoModal.side-dock .memo-panel{pointer-events:auto;width:420px !important;max-width:420px !important;height:100vh !important;max-height:100vh !important;border-radius:0 !important;border-left:2px solid #e5e8eb;box-shadow:-6px 0 18px rgba(0,0,0,.08);margin:0 !important}
   body.memo-side-open .wrap{padding-right:420px !important;transition:padding-right .18s}
   body.memo-side-open .room-chat-panel{min-width:0}
 }
 @media(max-width:1023px){
-  #memoModal.side-dock{background:rgba(0,0,0,.3);pointer-events:auto;align-items:flex-end;justify-content:center;padding:0}
-  #memoModal.side-dock .memo-panel{pointer-events:auto;width:100%;max-width:100%;height:78vh;max-height:78vh;border-radius:16px 16px 0 0;box-shadow:0 -8px 22px rgba(0,0,0,.18);margin:0}
+  #memoModal.side-dock{background:rgba(0,0,0,.3) !important;pointer-events:auto;align-items:flex-end !important;justify-content:center !important;padding:0 !important}
+  #memoModal.side-dock .memo-panel{pointer-events:auto;width:100% !important;max-width:100% !important;height:78vh !important;max-height:78vh !important;border-radius:16px 16px 0 0 !important;box-shadow:0 -8px 22px rgba(0,0,0,.18);margin:0 !important}
 }
 </style>
 <!-- 📢 단체발송 모달 -->
