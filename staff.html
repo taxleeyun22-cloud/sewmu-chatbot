@@ -147,7 +147,10 @@
 <div id="roomsLayout" style="display:flex;gap:14px;height:calc(100vh - 180px);min-height:500px">
   <!-- 좌: 방 목록 + 생성 버튼 -->
   <div class="room-list-panel" style="width:300px;background:#fff;border-radius:12px;padding:10px;overflow-y:auto;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.03);display:flex;flex-direction:column">
-    <button onclick="openCreateRoom()" class="room-create-btn">＋ 상담방 개설</button>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <button onclick="openCreateRoom()" class="room-create-btn" style="flex:1">＋ 상담방 개설</button>
+      <button onclick="openLabelManageModal()" title="담당자 라벨 관리" style="background:#f2f4f6;border:1px solid #e5e8eb;color:#4b5563;padding:8px 10px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit">⚙️</button>
+    </div>
     <div id="roomList" style="flex:1;overflow-y:auto"></div>
   </div>
   <!-- 우: 방 대화창 -->
@@ -428,7 +431,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=76"></script>
+<script src="/admin.js?v=78"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;
@@ -848,6 +851,21 @@ async function saveImgViewer(){
       <button onclick="addPersonalTask()" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:7px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit">추가</button>
     </div>
     <div id="myTodosList" style="flex:1;overflow-y:auto;padding:10px 16px 18px;background:#fff"></div>
+  </div>
+</div>
+<!-- ⚙️ 담당자 라벨 관리 모달 -->
+<div id="labelManageModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11300;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1em">⚙️ 담당자 라벨 관리 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">우선순위·담당자 이름·색 편집</span></div>
+      <button onclick="closeLabelManageModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+    </div>
+    <div id="labelList" style="flex:1;overflow-y:auto;padding:10px 16px"></div>
+    <div style="padding:10px 16px;border-top:1px solid #f2f4f6;background:#fffbeb;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input id="newLabelName" type="text" placeholder="+ 새 라벨 (예: 이재윤 대표, 박직원)" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;outline:none" onkeydown="if(event.key==='Enter'){event.preventDefault();addLabel()}">
+      <input id="newLabelColor" type="color" value="#3182f6" style="width:40px;height:34px;border:1px solid #e5e8eb;border-radius:6px;cursor:pointer;padding:2px">
+      <button onclick="addLabel()" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:7px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit">추가</button>
+    </div>
   </div>
 </div>
 <div id="memoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11100;align-items:center;justify-content:center;padding:20px">

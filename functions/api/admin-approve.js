@@ -35,6 +35,29 @@ export async function onRequestGet(context) {
 
   const status = url.searchParams.get("status");
   try {
+    /* 신규: status=admin 은 is_admin=1 전용 필터 */
+    if (status === 'admin') {
+      const { results } = await db.prepare(
+        `SELECT id, provider, name, real_name, email, phone, profile_image,
+                approval_status, approved_at, created_at, last_login_at, name_confirmed, is_admin
+         FROM users WHERE is_admin = 1 ORDER BY created_at DESC LIMIT 200`
+      ).all();
+      const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      for (const u of results) {
+        try {
+          const usage = await db.prepare(`SELECT count FROM daily_usage WHERE user_id = ? AND date = ?`).bind(u.id, today).first();
+          u.today_count = usage ? usage.count : 0;
+        } catch { u.today_count = 0; }
+      }
+      const counts = {};
+      for (const s of APPROVAL_STATUSES) {
+        const r = await db.prepare(`SELECT COUNT(*) as c FROM users WHERE COALESCE(approval_status, 'pending') = ?`).bind(s).first();
+        counts[s] = r?.c || 0;
+      }
+      const a = await db.prepare(`SELECT COUNT(*) as c FROM users WHERE is_admin = 1`).first();
+      counts.admin = a?.c || 0;
+      return Response.json({ users: results, counts });
+    }
     let query = `
       SELECT id, provider, name, real_name, email, phone, profile_image,
              approval_status, approved_at, created_at, last_login_at, name_confirmed, is_admin
@@ -66,6 +89,10 @@ export async function onRequestGet(context) {
       ).bind(s).first();
       counts[s] = r?.c || 0;
     }
+    try {
+      const a = await db.prepare(`SELECT COUNT(*) as c FROM users WHERE is_admin = 1`).first();
+      counts.admin = a?.c || 0;
+    } catch { counts.admin = 0; }
 
     return Response.json({ users: results, counts });
   } catch (e) {

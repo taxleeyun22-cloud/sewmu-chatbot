@@ -518,8 +518,19 @@ export async function onRequestPost(context) {
       let p = null;
       if (raw !== null && raw !== undefined && raw !== '') {
         const n = Number(raw);
-        if (n === 1 || n === 2 || n === 3) p = n;
-        else return Response.json({ error: '1/2/3 또는 null 만 허용' }, { status: 400 });
+        /* room_labels.id 로 유효성 체크 (1~N 까지 관리자 임의 생성 가능) */
+        if (!Number.isInteger(n) || n <= 0) {
+          return Response.json({ error: 'priority 는 label id (양수) 또는 null' }, { status: 400 });
+        }
+        try {
+          const chk = await db.prepare(`SELECT id FROM room_labels WHERE id = ?`).bind(n).first();
+          if (!chk) return Response.json({ error: '존재하지 않는 담당자 라벨 id: ' + n }, { status: 400 });
+          p = n;
+        } catch {
+          /* room_labels 테이블 없으면 1/2/3 만 허용 (마이그레이션 전) */
+          if (n === 1 || n === 2 || n === 3) p = n;
+          else return Response.json({ error: '라벨 테이블이 아직 없음' }, { status: 400 });
+        }
       }
       await db.prepare(`UPDATE chat_rooms SET priority = ? WHERE id = ?`).bind(p, roomId).run();
       return Response.json({ ok: true, priority: p });

@@ -539,14 +539,16 @@ async function loadRoomList(){
     const el=$g('roomList');
     if(!d.rooms||d.rooms.length===0){el.innerHTML='<div class="empty" style="padding:40px 20px">상담방이 없습니다</div>';return}
     let totalUnread=0;
-    /* 우선순위 그룹화 — 1/2/3 + 없음 + 종료 */
-    const groups={1:[],2:[],3:[],none:[],closed:[]};
+    /* 담당자 라벨 동적 로드 (캐시) */
+    const labels=await _ensureRoomLabels();
+    const labelMap={};for(const lb of labels)labelMap[lb.id]=lb;
+    /* 우선순위 그룹화 — 라벨 id 별 + 미분류 + 종료 */
+    const groups={};for(const lb of labels)groups[lb.id]=[];
+    groups.none=[];groups.closed=[];
     for(const rm of d.rooms){
       if(rm.status==='closed'){groups.closed.push(rm);continue}
       const p=Number(rm.priority||0);
-      if(p===1)groups[1].push(rm);
-      else if(p===2)groups[2].push(rm);
-      else if(p===3)groups[3].push(rm);
+      if(p&&labelMap[p])(groups[p]=groups[p]||[]).push(rm);
       else groups.none.push(rm);
     }
     /* 필터 상태 */
@@ -555,13 +557,13 @@ async function loadRoomList(){
       const on=flt.has(key);
       const bg=on?color:'#e5e8eb';
       const fg=on?'#fff':'#6b7280';
-      return '<button onclick="toggleRoomFilter('+(typeof key==='number'?key:"'"+key+"'")+')" style="background:'+bg+';color:'+fg+';border:none;padding:5px 11px;border-radius:6px;font-size:.76em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit">'+label+' <span style="opacity:.7">'+count+'</span></button>';
+      return '<button onclick="toggleRoomFilter('+(typeof key==='number'?key:"'"+key+"'")+')" style="background:'+bg+';color:'+fg+';border:none;padding:5px 11px;border-radius:6px;font-size:.76em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit">'+e(label)+' <span style="opacity:.7">'+count+'</span></button>';
     };
-    const filterBar='<div style="padding:8px 10px;border-bottom:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:4px;flex-wrap:wrap;position:sticky;top:0;z-index:2">'
-      +filterBtn(1, '🔴 1', '#dc2626', groups[1].length)
-      +filterBtn(2, '🟡 2', '#f59e0b', groups[2].length)
-      +filterBtn(3, '🟢 3', '#10b981', groups[3].length)
-      +filterBtn('none', '⚪ 미분류', '#6b7280', groups.none.length)
+    let filterBar='<div style="padding:8px 10px;border-bottom:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:4px;flex-wrap:wrap;position:sticky;top:0;z-index:2">';
+    for(const lb of labels){
+      filterBar+=filterBtn(lb.id, lb.name, lb.color||'#6b7280', (groups[lb.id]||[]).length);
+    }
+    filterBar+=filterBtn('none', '⚪ 미분류', '#6b7280', groups.none.length)
       +filterBtn('closed', '📦 종료', '#9ca3af', groups.closed.length)
       +'</div>';
 
@@ -576,19 +578,27 @@ async function loadRoomList(){
       if(currentRoomId===rm.id) unread=0;
       totalUnread+=unread;
       const badge=unread>0?'<span class="ri-unread" style="background:#f04452;color:#fff;border-radius:11px;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;font-size:.7em;font-weight:800;flex-shrink:0">'+(unread>99?'99+':unread)+'</span>':'';
-      /* 우선순위 탭 버튼 (— / 1 / 2 / 3) */
+      /* 우선순위/담당자 탭 버튼 — 라벨 DB 기반 동적 렌더. 너무 많으면 드롭다운으로 */
       const p=Number(rm.priority||0);
-      const priColors={0:'#9ca3af',1:'#dc2626',2:'#f59e0b',3:'#10b981'};
-      const priTabs='<div class="ri-pri-tabs" onclick="event.stopPropagation()" style="display:inline-flex;gap:1px;background:#f2f4f6;padding:2px;border-radius:6px;flex-shrink:0">'
-        +[0,1,2,3].map(v=>{
-          const on=p===v;
-          const col=priColors[v];
-          const bg=on?col:'transparent';
-          const fg=on?'#fff':'#6b7280';
-          const lbl=v===0?'—':v;
-          return '<button onclick="setRoomPriority(\''+rm.id+'\','+v+')" style="background:'+bg+';color:'+fg+';border:none;padding:2px 6px;border-radius:4px;font-size:.68em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit;min-width:16px">'+lbl+'</button>';
-        }).join('')
-        +'</div>';
+      let priTabs;
+      if(labels.length<=4){
+        /* 4개 이하는 탭 버튼 */
+        priTabs='<div class="ri-pri-tabs" onclick="event.stopPropagation()" style="display:inline-flex;gap:1px;background:#f2f4f6;padding:2px;border-radius:6px;flex-shrink:0">'
+          +'<button onclick="setRoomPriority(\''+rm.id+'\',0)" style="background:'+(p===0?'#9ca3af':'transparent')+';color:'+(p===0?'#fff':'#6b7280')+';border:none;padding:2px 6px;border-radius:4px;font-size:.68em;font-weight:'+(p===0?'700':'500')+';cursor:pointer;font-family:inherit;min-width:16px">—</button>'
+          +labels.map(lb=>{
+            const on=p===lb.id;
+            const bg=on?(lb.color||'#6b7280'):'transparent';
+            const fg=on?'#fff':'#6b7280';
+            const lbl=lb.name.length>6?lb.name.substring(0,5)+'…':lb.name;
+            return '<button onclick="setRoomPriority(\''+rm.id+'\','+lb.id+')" title="'+escAttr(lb.name)+'" style="background:'+bg+';color:'+fg+';border:none;padding:2px 6px;border-radius:4px;font-size:.68em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit">'+e(lbl)+'</button>';
+          }).join('')
+          +'</div>';
+      } else {
+        /* 5개 이상은 드롭다운 (select) */
+        const opts=['<option value="0">— 미분류</option>']
+          .concat(labels.map(lb=>'<option value="'+lb.id+'"'+(p===lb.id?' selected':'')+' style="background:'+lb.color+'">'+e(lb.name)+'</option>'));
+        priTabs='<select onclick="event.stopPropagation()" onchange="setRoomPriority(\''+rm.id+'\',this.value)" style="background:'+(p&&labelMap[p]?labelMap[p].color:'#f2f4f6')+';color:'+(p?'#fff':'#6b7280')+';border:none;padding:2px 4px;border-radius:4px;font-size:.68em;font-family:inherit;cursor:pointer;min-width:70px;max-width:110px">'+opts.join('')+'</select>';
+      }
       /* 프로필 아바타 (카톡 스타일) */
       const memberName=rm.first_member_name||rm.name||'?';
       const avatarInitial=(memberName[0]||'?').toUpperCase();
@@ -619,11 +629,14 @@ async function loadRoomList(){
     };
     const sep=(title,color,count)=>count?'<div style="padding:8px 12px 4px;font-size:.72em;font-weight:800;color:'+color+';background:'+color+'11;border-bottom:1px solid '+color+'33">'+title+' <span style="opacity:.7">('+count+')</span></div>':'';
 
-    /* 필터에 포함된 그룹만 렌더 */
+    /* 필터에 포함된 그룹만 렌더 — 라벨 순서대로 */
     let body='';
-    if(flt.has(1))body+=sep('🔴 1순위','#dc2626',groups[1].length)+groups[1].map(renderCard).join('');
-    if(flt.has(2))body+=sep('🟡 2순위','#f59e0b',groups[2].length)+groups[2].map(renderCard).join('');
-    if(flt.has(3))body+=sep('🟢 3순위','#10b981',groups[3].length)+groups[3].map(renderCard).join('');
+    for(const lb of labels){
+      if(flt.has(lb.id)){
+        const arr=groups[lb.id]||[];
+        body+=sep(lb.name, lb.color||'#6b7280', arr.length)+arr.map(renderCard).join('');
+      }
+    }
     if(flt.has('none'))body+=sep('⚪ 미분류','#6b7280',groups.none.length)+groups.none.map(renderCard).join('');
     if(flt.has('closed'))body+=sep('📦 종료','#9ca3af',groups.closed.length)+groups.closed.map(renderCard).join('');
     if(!body)body='<div class="empty" style="padding:40px 20px;text-align:center;color:#8b95a1">필터에 해당하는 상담방이 없습니다</div>';
@@ -1977,10 +1990,10 @@ if(n>0){b.textContent=n;b.style.display='inline-block'}else{b.style.display='non
 
 function userStatus(s){
 currentStatus=s;
-['Pending','Client','Guest','Rejected'].forEach(k=>{
-const el=$g('uSt'+k);
+['Pending','Client','Guest','Rejected','Admin'].forEach(k=>{
+const el=$g('uSt'+k);if(!el)return;
 const active=('uSt'+k).toLowerCase().indexOf(s.replace('approved_','').toLowerCase())>=0;
-el.style.background=active?(s==='rejected'?'#8b95a1':s==='pending'?'#f04452':'#3182f6'):'#e5e8eb';
+el.style.background=active?(s==='rejected'?'#8b95a1':s==='pending'?'#f04452':s==='admin'?'#b45309':'#3182f6'):'#e5e8eb';
 el.style.color=active?'#fff':'#8b95a1';
 });
 loadUsers(s);
@@ -1997,6 +2010,7 @@ $g('cPending').textContent=d.counts.pending||0;
 $g('cClient').textContent=d.counts.approved_client||0;
 $g('cGuest').textContent=d.counts.approved_guest||0;
 $g('cRejected').textContent=d.counts.rejected||0;
+if($g('cAdmin'))$g('cAdmin').textContent=d.counts.admin||0;
 }
 if(!d.users||d.users.length===0){el.innerHTML='<div class="empty">해당 상태의 사용자가 없습니다</div>';return}
 el.innerHTML=d.users.map(u=>{
@@ -4597,6 +4611,116 @@ async function openCustomerDashboardFromRoom(){
        풀 대시보드는 패널 우측 "자세히 →" 링크로 접근 */
     openCustSidePanel(customers[0].user_id);
   }catch(e){alert('오류: '+e.message)}
+}
+
+/* ===== ⚙️ 담당자 라벨 관리 (room_labels CRUD) ===== */
+let _roomLabelsCache=null;
+let _roomLabelsCacheAt=0;
+async function _ensureRoomLabels(force){
+  const now=Date.now();
+  if(!force && _roomLabelsCache && now-_roomLabelsCacheAt<60000) return _roomLabelsCache;
+  try{
+    const r=await fetch('/api/admin-room-labels?key='+encodeURIComponent(KEY));
+    const d=await r.json();
+    _roomLabelsCache=(d.labels||[]).filter(l=>l.active).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+    _roomLabelsCacheAt=now;
+  }catch(_){_roomLabelsCache=[]}
+  return _roomLabelsCache;
+}
+async function openLabelManageModal(){
+  const m=$g('labelManageModal');if(!m)return;
+  m.style.display='flex';
+  document.body.style.overflow='hidden';
+  $g('newLabelName').value='';
+  $g('newLabelColor').value='#3182f6';
+  await _renderLabelList();
+}
+function closeLabelManageModal(){
+  const m=$g('labelManageModal');if(m)m.style.display='none';
+  document.body.style.overflow='';
+  /* 라벨 변경됐으면 방 목록 리로드 */
+  _ensureRoomLabels(true).then(()=>{if(typeof loadRoomList==='function')loadRoomList()});
+}
+async function _renderLabelList(){
+  const box=$g('labelList');if(!box)return;
+  box.innerHTML='<div style="color:#8b95a1;padding:20px 0;text-align:center">불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/admin-room-labels?key='+encodeURIComponent(KEY));
+    const d=await r.json();
+    const labels=d.labels||[];
+    if(!labels.length){
+      box.innerHTML='<div style="color:#adb5bd;padding:20px 0;text-align:center;font-size:.88em">라벨이 없습니다. 아래에서 첫 라벨을 추가하세요.</div>';
+      return;
+    }
+    box.innerHTML=labels.map(lb=>{
+      return '<div data-lid="'+lb.id+'" style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:6px;background:#fafbfc">'
+        +'<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:'+(lb.color||'#6b7280')+';flex-shrink:0"></span>'
+        +'<input type="text" value="'+escAttr(lb.name)+'" onblur="updateLabelName('+lb.id+',this.value)" style="flex:1;padding:5px 8px;border:1px solid #e5e8eb;border-radius:5px;font-size:.85em;font-family:inherit">'
+        +'<input type="color" value="'+(lb.color||'#6b7280')+'" onchange="updateLabelColor('+lb.id+',this.value)" style="width:36px;height:30px;border:1px solid #e5e8eb;border-radius:5px;cursor:pointer;padding:1px" title="색 변경">'
+        +'<input type="number" value="'+(lb.sort_order||0)+'" onblur="updateLabelSort('+lb.id+',this.value)" title="정렬 순서" style="width:50px;padding:5px;border:1px solid #e5e8eb;border-radius:5px;font-size:.82em;font-family:inherit;text-align:center">'
+        +'<button onclick="deleteLabel('+lb.id+')" style="background:none;border:1px solid #f04452;color:#f04452;padding:5px 9px;border-radius:5px;font-size:.78em;cursor:pointer;font-family:inherit">삭제</button>'
+        +'</div>';
+    }).join('');
+  }catch(err){box.innerHTML='<div style="color:#f04452">오류: '+e(err.message)+'</div>'}
+}
+async function addLabel(){
+  const name=($g('newLabelName')?.value||'').trim();
+  const color=($g('newLabelColor')?.value||'#3182f6');
+  if(!name){alert('라벨 이름을 입력하세요');return}
+  try{
+    const r=await fetch('/api/admin-room-labels?key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,color})
+    });
+    const d=await r.json();
+    if(!d.ok){alert('추가 실패: '+(d.error||'unknown'));return}
+    $g('newLabelName').value='';
+    _roomLabelsCache=null;
+    await _renderLabelList();
+  }catch(err){alert('오류: '+err.message)}
+}
+async function updateLabelName(id, name){
+  name=String(name||'').trim();if(!name)return;
+  try{
+    await fetch('/api/admin-room-labels?key='+encodeURIComponent(KEY)+'&id='+id,{
+      method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})
+    });
+    _roomLabelsCache=null;
+  }catch(_){}
+}
+async function updateLabelColor(id, color){
+  try{
+    await fetch('/api/admin-room-labels?key='+encodeURIComponent(KEY)+'&id='+id,{
+      method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({color})
+    });
+    _roomLabelsCache=null;
+    await _renderLabelList();
+  }catch(_){}
+}
+async function updateLabelSort(id, sort_order){
+  const n=Number(sort_order);if(!Number.isFinite(n))return;
+  try{
+    await fetch('/api/admin-room-labels?key='+encodeURIComponent(KEY)+'&id='+id,{
+      method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({sort_order:n})
+    });
+    _roomLabelsCache=null;
+    await _renderLabelList();
+  }catch(_){}
+}
+async function deleteLabel(id){
+  if(!confirm('이 라벨을 삭제할까요?\n(사용중이면 해당 방은 미분류로 전환됩니다)'))return;
+  try{
+    let r=await fetch('/api/admin-room-labels?key='+encodeURIComponent(KEY)+'&id='+id,{method:'DELETE'});
+    let d=await r.json();
+    if(!d.ok && d.in_use){
+      if(!confirm(d.in_use+'개 방에서 사용중입니다. 강제 삭제하시겠습니까?'))return;
+      r=await fetch('/api/admin-room-labels?key='+encodeURIComponent(KEY)+'&id='+id+'&force=1',{method:'DELETE'});
+      d=await r.json();
+    }
+    if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
+    _roomLabelsCache=null;
+    await _renderLabelList();
+  }catch(err){alert('오류: '+err.message)}
 }
 
 /* ===== 🏢 거래처 간략 사이드 패널 =====
