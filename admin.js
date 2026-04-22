@@ -3278,6 +3278,13 @@ async function openRoomMemos(){
   if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
   const modal=$g('memoModal');
   if(!modal)return;
+  /* 팝업 창이면 사이드 도킹용 공간 확보 — 자동 폭 확장 */
+  try{
+    const isPopup=new URLSearchParams(location.search).get('popup')==='1';
+    if(isPopup && window.innerWidth<1100){
+      window.resizeTo(1100, Math.max(window.innerHeight, 780));
+    }
+  }catch(_){}
   /* 사이드 도킹 모드: 대화창과 나란히 볼 수 있게. PC(≥1024px)에선 우측 패널, 모바일은 바텀 시트.
      body 스크롤은 유지 (채팅 스크롤 되도록) — PC 사이드 모드에선 배경 투명이라 밖 클릭도 채팅에 전달됨. */
   modal.classList.add('side-dock');
@@ -3312,6 +3319,18 @@ window.addEventListener('resize',function(){
   if(!m||m.style.display!=='flex')return;
   document.body.style.overflow=window.matchMedia('(max-width:1023px)').matches?'hidden':'';
 });
+/* ESC 로 메모 패널 닫기 (한 번만 등록) */
+(function(){
+  if(window._memoEscBound)return;
+  window._memoEscBound=true;
+  document.addEventListener('keydown',function(ev){
+    if(ev.key!=='Escape')return;
+    const m=document.getElementById('memoModal');
+    if(!m||m.style.display!=='flex')return;
+    /* 입력 중이면 기본 동작(포커스 해제) 보존하되 모달 닫기도 */
+    closeMemoModal();
+  });
+})();
 function _renderMemoTypeTabs(){
   const box=$g('memoTypeTabs');if(!box)return;
   box.innerHTML='<span style="font-size:.72em;color:#6b7280;margin-right:4px">종류:</span>'
