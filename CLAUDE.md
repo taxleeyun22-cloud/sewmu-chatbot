@@ -181,6 +181,27 @@ Cloudflare Pages + D1 DB + OpenAI GPT-4.1-mini + 국가법령정보센터 API.
 - 헤더 타이틀 말줄임 정상 동작인지 (좁은 폭에서 "세무회계 이윤 이재윤대표" 같은 긴 이름)
 - 기존 기능 회귀 없는지 (보낸 메시지 렌더·스크롤·탭 전환)
 
+### 🎨 디자인 토큰 (A안 적용됨 · 2026-04-22)
+`admin.html` / `staff.html` 최상단 `<style>` 블록에 `:root` CSS 변수로 토큰 정의됨. **신규 코드 작성 시 이 변수를 우선 사용**할 것. 기존 inline style 은 그대로 둠 (UI 박살 방지).
+
+**사용 가능한 토큰:**
+- 모달 overlay: `var(--overlay-bg)` = `rgba(0,0,0,.5)`
+- Radius 4단계: `--radius-sm` 6px / `--radius-md` 8px / `--radius-lg` 12px / `--radius-xl` 16px
+- 브랜드 색 (의미 부여):
+  - `--brand-primary` #3182f6 — **확인·저장·일반 액션**
+  - `--brand-danger` #dc2626 — **삭제·취소·위험**
+  - `--brand-warn` #fbbf24 — **경고·고객 공개 게시**
+  - `--brand-success` #10b981 — **완료·성공**
+  - `--brand-kakao` #FEE500 — **카톡 내 말풍선 (고정)**
+- 중성: `--neutral-bg / --neutral-border / --neutral-card`
+- 텍스트: `--text-main / --text-sub / --text-mute`
+- D-day 상태: `--status-overdue / today / tomorrow / week / later / none`
+
+**원칙:**
+- 새 버튼·카드·모달은 토큰을 쓴다 (`background: var(--brand-primary)` 등)
+- 기존 inline style 은 눈에 띄는 불일치만 골라 교체 (B/C안에서 점진적으로)
+- 토큰 값 바꿀 일 생기면 `:root` 한 곳만 수정
+
 ### ⚠️ 검증 정확성 최우선 원칙 (절대 규칙)
 **속도보다 정확성이 항상 우선.** 사용자(세무사)가 "천천히 해도 되니 정확히 하라"고 명시함.
 - FAQ 작성 전 반드시 **법조문 원문 확인** (법률 + 시행령 + 시행규칙)
