@@ -174,6 +174,18 @@
       <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">거래처 노트 (초기 기본 정보)</label>
       <textarea id="mcNotes" placeholder="예) 음식점 / 현금 매출 많음 / 배당 연 2회 / 대표 성격 급함" rows="3" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:6px;box-sizing:border-box;outline:none;resize:vertical"></textarea>
       <div style="font-size:.72em;color:#8b95a1;margin-bottom:14px">↑ 작성하면 🏢 거래처 노트로 자동 저장 · AI 요약에 자동 반영</div>
+
+      <div style="border-top:1px dashed #e5e8eb;padding-top:12px;margin-top:6px">
+        <label style="font-size:.8em;font-weight:600;color:#374151;display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px">
+          <input type="checkbox" id="mcAutoRoom" checked style="width:16px;height:16px;cursor:pointer;accent-color:#10b981">
+          이 거래처용 상담방 같이 만들기
+        </label>
+        <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">담당자 라벨 (선택)</label>
+        <select id="mcPriority" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:4px;box-sizing:border-box">
+          <option value="">— 미지정</option>
+        </select>
+        <div style="font-size:.72em;color:#8b95a1">담당자 지정하면 상담방 카드 색상으로 표시됨 · ⚙️ 라벨 관리에서 추가</div>
+      </div>
     </div>
     <div style="padding:12px 18px;border-top:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:8px;justify-content:flex-end">
       <button onclick="closeManualClientModal()" style="background:#e5e8eb;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
@@ -697,7 +709,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=79"></script>
+<script src="/admin.js?v=80"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면

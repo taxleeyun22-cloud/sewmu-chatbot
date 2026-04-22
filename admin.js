@@ -4238,11 +4238,22 @@ async function openCustomerDashboard(userId){
   }
 }
 /* ===== ➕ 수동 거래처 등록 (OAuth 없는 관리용) ===== */
-function openManualClientModal(){
+async function openManualClientModal(){
   const m=$g('manualClientModal');if(!m)return;
   m.style.display='flex';
   document.body.style.overflow='hidden';
   ['mcRealName','mcPhone','mcCompany','mcBizNo','mcNotes'].forEach(id=>{const el=$g(id);if(el)el.value=''});
+  if($g('mcAutoRoom'))$g('mcAutoRoom').checked=true;
+  /* 담당자 라벨 select 채우기 */
+  const sel=$g('mcPriority');
+  if(sel){
+    sel.innerHTML='<option value="">— 미지정</option><option value="" disabled>불러오는 중...</option>';
+    try{
+      const labels=await _ensureRoomLabels(true);
+      sel.innerHTML='<option value="">— 미지정</option>'
+        +labels.map(lb=>'<option value="'+lb.id+'" style="background:'+escAttr(lb.color||'#fff')+'">'+e(lb.name)+'</option>').join('');
+    }catch(_){}
+  }
   setTimeout(()=>$g('mcRealName')?.focus(),50);
 }
 function closeManualClientModal(){
@@ -4256,6 +4267,9 @@ async function submitManualClient(){
   const company=($g('mcCompany')?.value||'').trim();
   const bizNo=($g('mcBizNo')?.value||'').trim();
   const notes=($g('mcNotes')?.value||'').trim();
+  const autoRoom=$g('mcAutoRoom')?.checked?true:false;
+  const priorityRaw=$g('mcPriority')?.value||'';
+  const priority=priorityRaw?Number(priorityRaw):null;
   const btn=$g('mcSubmitBtn');
   if(btn){btn.disabled=true;btn.style.opacity='.55';btn.textContent='등록 중...'}
   try{
@@ -4264,12 +4278,16 @@ async function submitManualClient(){
       body:JSON.stringify({
         name:realName, real_name:realName, phone, company_name:company,
         ceo_name:realName, business_number:bizNo, notes,
+        auto_create_room: autoRoom,
+        priority: priority,
       })
     });
     const d=await r.json();
     if(!d.ok){alert('등록 실패: '+(d.error||'unknown'));return}
-    if(typeof showAdminToast==='function')showAdminToast('✅ 거래처 등록됨 (ID #'+d.user_id+')');
-    else alert('✅ 등록 완료');
+    let msg='✅ 거래처 등록됨 (ID #'+d.user_id+')';
+    if(d.room_id) msg+=' · 상담방 '+d.room_id+' 생성';
+    if(typeof showAdminToast==='function')showAdminToast(msg);
+    else alert(msg);
     closeManualClientModal();
     /* 목록 리로드 */
     if(typeof userStatus==='function')userStatus('approved_client');

@@ -94,6 +94,52 @@ export async function onRequestPost(context) {
       } catch {}
     }
 
+    /* 옵션: 담당자 라벨 + 자동 상담방 생성 */
+    const autoCreateRoom = !!body.auto_create_room;
+    const priorityRaw = body.priority;
+    let priority = null;
+    if (priorityRaw !== null && priorityRaw !== undefined && priorityRaw !== '') {
+      const n = Number(priorityRaw);
+      if (Number.isInteger(n) && n > 0) {
+        try {
+          const chk = await db.prepare(`SELECT id FROM room_labels WHERE id = ?`).bind(n).first();
+          if (chk) priority = n;
+        } catch {}
+      }
+    }
+    let createdRoomId = null;
+    if (autoCreateRoom) {
+      try {
+        /* 방 id: 6자리 영숫자 */
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let rid = '';
+        for (let i = 0; i < 6; i++) rid += chars[Math.floor(Math.random() * chars.length)];
+        const roomName = (companyName || realName) + ' 상담방';
+        await db.prepare(
+          `INSERT INTO chat_rooms (id, name, created_by_admin, max_members, ai_mode, status, priority, created_at)
+           VALUES (?, ?, 1, 10, 'on', 'active', ?, ?)`
+        ).bind(rid, roomName, priority, now).run();
+        /* 멤버: 거래처 (member) + 관리자 (admin) — 관리자는 admin-rooms.js 로직과 일치 */
+        await db.prepare(
+          `INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'member', ?)`
+        ).bind(rid, userId, now).run();
+        /* 관리자(is_admin=1) 자동 참여 */
+        try {
+          const { results: admins } = await db.prepare(`SELECT id FROM users WHERE is_admin = 1`).all();
+          for (const ad of (admins || [])) {
+            try {
+              await db.prepare(
+                `INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'admin', ?)`
+              ).bind(rid, ad.id, now).run();
+            } catch {}
+          }
+        } catch {}
+        createdRoomId = rid;
+      } catch (err) {
+        /* 방 생성 실패해도 user 자체는 만들어짐 */
+      }
+    }
+
     /* 등록 노트가 있으면 '거래처 정보' 메모로 자동 저장 */
     if (notes) {
       try {
@@ -118,7 +164,7 @@ export async function onRequestPost(context) {
       } catch {}
     }
 
-    return Response.json({ ok: true, user_id: userId });
+    return Response.json({ ok: true, user_id: userId, room_id: createdRoomId, priority });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
