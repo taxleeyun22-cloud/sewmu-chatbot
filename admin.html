@@ -85,6 +85,35 @@
 </div>
 <div id="userList"></div>
 
+<!-- 📅 새 신고 Case 모달 -->
+<div id="newFilingModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1em">📅 새 신고 Case</div>
+      <button onclick="closeNewFilingModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+    </div>
+    <div style="padding:16px 18px">
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">신고 종류 <span style="color:#f04452">*</span></label>
+      <select id="nfType" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
+        <option value="부가세">부가세</option>
+        <option value="종소세">종소세</option>
+        <option value="법인세">법인세</option>
+        <option value="원천세">원천세</option>
+        <option value="양도세">양도세</option>
+        <option value="기타">기타</option>
+      </select>
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">기간 <span style="color:#f04452">*</span></label>
+      <input id="nfPeriod" type="text" placeholder="예) 2026-1기, 2025, 2026-04" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">신고 기한 (D-day 관리용)</label>
+      <input id="nfDue" type="date" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+      <div style="font-size:.72em;color:#8b95a1;margin-bottom:10px">기본 체크리스트가 신고 종류에 맞게 자동 생성됩니다</div>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeNewFilingModal()" style="background:#e5e8eb;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
+      <button onclick="submitNewFiling()" id="nfSubmitBtn" style="background:#10b981;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">Case 생성</button>
+    </div>
+  </div>
+</div>
 <!-- 수동 거래처 등록 모달 -->
 <div id="manualClientModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11200;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:500px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
@@ -632,7 +661,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=73"></script>
+<script src="/admin.js?v=74"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면
@@ -752,6 +781,14 @@
             <div style="font-weight:700;font-size:.92em">📋 필수 서류 (신분증·사업자등록증·홈택스)</div>
           </div>
           <div id="cdBizDocs" style="font-size:.85em"></div>
+        </div>
+        <!-- 📅 신고 Case (세무 업무 단위) -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+            <div style="font-weight:700;font-size:.92em">📅 신고 Case <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:4px">거래처 × 신고종류 × 기간 단위 업무 묶음</span></div>
+            <button onclick="openNewFilingModal()" style="background:#10b981;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">+ 새 Case</button>
+          </div>
+          <div id="cdFilings" style="font-size:.85em"></div>
         </div>
         <!-- 🏢 거래처 노트 (영구·인수인계용) — AI 요약 때마다 자동 반영됨 -->
         <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">

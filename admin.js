@@ -4212,6 +4212,8 @@ async function openCustomerDashboard(userId){
     _loadCdTodosAndSummaries(userId, roomsRes.rooms||[]);
     /* 거래처 노트 — user_id 기반 영구 메모 */
     _loadCustomerInfo(userId);
+    /* 신고 Case 리스트 */
+    _loadCdFilings(userId);
   }catch(err){
     $g('cdName').textContent='오류';
     $g('cdBasic').innerHTML='<div style="color:#f04452">로드 실패: '+e(err.message)+'</div>';
@@ -4256,6 +4258,156 @@ async function submitManualClient(){
     if(typeof loadRoomList==='function')loadRoomList();
   }catch(err){alert('오류: '+err.message)}
   finally{if(btn){btn.disabled=false;btn.style.opacity='';btn.textContent='➕ 등록'}}
+}
+
+/* ===== 📅 신고 Case — 거래처 × 신고종류 × 기간 단위 업무 묶음 ===== */
+async function _loadCdFilings(userId){
+  const box=$g('cdFilings');if(!box||!userId)return;
+  box.innerHTML='<div style="color:#8b95a1;padding:10px 0;font-size:.85em">불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/tax-filings?key='+encodeURIComponent(KEY)+'&user_id='+userId+'&status=all');
+    const d=await r.json();
+    const arr=d.filings||[];
+    if(!arr.length){
+      box.innerHTML='<div style="color:#adb5bd;padding:10px 0;font-size:.85em;line-height:1.6">아직 생성된 신고 Case 가 없습니다.<br>우측 "+ 새 Case" 로 부가세/종소세/법인세 등 신고 건을 시작하세요.</div>';
+      return;
+    }
+    box.innerHTML=arr.map(f=>_renderFilingCard(f, userId)).join('');
+  }catch(err){box.innerHTML='<div style="color:#f04452">오류: '+e(err.message)+'</div>'}
+}
+function _renderFilingCard(f, userId){
+  const items=f.items||[];
+  const done=items.filter(i=>i.is_checked).length;
+  const total=items.length;
+  const pct=total>0?Math.round(done/total*100):0;
+  /* D-day 뱃지 */
+  let dueBadge='';
+  if(f.due_date){
+    const today=new Date(Date.now()+9*60*60*1000).toISOString().substring(0,10);
+    const diff=Math.round((new Date(f.due_date+'T00:00:00')-new Date(today+'T00:00:00'))/86400000);
+    let bgColor='#64748b';let label='';
+    if(diff<0){bgColor='#991b1b';label='D+'+(-diff)+' 지남'}
+    else if(diff===0){bgColor='#dc2626';label='D-DAY'}
+    else if(diff<=3){bgColor='#ea580c';label='D-'+diff}
+    else if(diff<=7){bgColor='#b45309';label='D-'+diff}
+    else if(diff<=30){bgColor='#059669';label='D-'+diff}
+    else {bgColor='#2563eb';label='D-'+diff}
+    dueBadge='<span style="background:'+bgColor+';color:#fff;padding:1px 7px;border-radius:10px;font-size:.7em;font-weight:700;margin-left:6px">📅 '+f.due_date+' · '+label+'</span>';
+  }
+  const statusBadge=f.status==='completed'?'<span style="background:#d1fae5;color:#065f46;padding:1px 7px;border-radius:10px;font-size:.7em;font-weight:700;margin-left:6px">✅ 완료</span>':(f.status==='cancelled'?'<span style="background:#fee2e2;color:#991b1b;padding:1px 7px;border-radius:10px;font-size:.7em;font-weight:700;margin-left:6px">취소</span>':'');
+  const opacity=f.status==='cancelled'?0.55:1;
+  const progressBar=total>0?'<div style="height:6px;background:#e5e8eb;border-radius:3px;overflow:hidden;margin:4px 0 8px"><div style="height:100%;background:'+(pct===100?'#10b981':'#3182f6')+';width:'+pct+'%"></div></div>':'';
+  /* 체크리스트 (접힘 가능) */
+  const itemsHtml=items.map(it=>{
+    const checked=it.is_checked?'checked':'';
+    const textStyle=it.is_checked?'color:#9ca3af;text-decoration:line-through':'color:#191f28';
+    return '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:.85em">'
+      +'<input type="checkbox" '+checked+' onchange="toggleFilingItem('+it.id+','+f.user_id+')" style="width:14px;height:14px;cursor:pointer;accent-color:#10b981;flex-shrink:0">'
+      +'<span style="flex:1;'+textStyle+'">'+e(it.item_text||'')+'</span>'
+      +(it.is_checked&&it.checked_by?'<span style="font-size:.7em;color:#8b95a1;flex-shrink:0">'+e(it.checked_by)+'</span>':'')
+      +'<button onclick="deleteFilingItem('+it.id+','+f.user_id+')" style="background:none;border:none;color:#f04452;font-size:.76em;cursor:pointer;font-family:inherit;padding:0 2px;flex-shrink:0" title="삭제">✕</button>'
+      +'</div>';
+  }).join('');
+  const headerId='fhdr-'+f.id;
+  return '<div style="border:1px solid #e5e8eb;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fafbfc;opacity:'+opacity+'">'
+    +'<div style="display:flex;align-items:center;gap:6px;cursor:pointer;flex-wrap:wrap" onclick="_toggleFilingBody('+f.id+')">'
+    +  '<span style="font-size:1.05em">'+(f.filing_type==='부가세'?'💰':f.filing_type==='종소세'?'📊':f.filing_type==='법인세'?'🏢':f.filing_type==='원천세'?'💼':f.filing_type==='양도세'?'🏠':'📄')+'</span>'
+    +  '<span style="font-weight:700;font-size:.92em">'+e(f.filing_type)+' · '+e(f.period)+'</span>'
+    +  dueBadge+statusBadge
+    +  '<span style="margin-left:auto;font-size:.78em;color:#4b5563;font-weight:600">'+done+'/'+total+' ('+pct+'%)</span>'
+    +'</div>'
+    +progressBar
+    +'<div id="'+headerId+'" style="display:none;margin-top:6px">'
+    +  (f.title&&f.title!==f.filing_type+' · '+f.period?'<div style="font-size:.8em;color:#4b5563;margin-bottom:4px">'+e(f.title)+'</div>':'')
+    +  itemsHtml
+    +  '<div style="display:flex;gap:4px;margin-top:8px;padding-top:6px;border-top:1px dashed #e5e8eb">'
+    +    '<input id="nfAddItem-'+f.id+'" type="text" placeholder="+ 항목 추가" style="flex:1;padding:4px 8px;border:1px solid #e5e8eb;border-radius:5px;font-size:.82em;font-family:inherit;outline:none" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();addFilingItem('+f.id+','+f.user_id+')}">'
+    +    (f.status==='active'?'<button onclick="toggleFilingStatus('+f.id+',\'completed\','+f.user_id+')" style="background:#10b981;color:#fff;border:none;padding:4px 10px;border-radius:5px;font-size:.76em;cursor:pointer;font-family:inherit">✅ 완료</button>':'<button onclick="toggleFilingStatus('+f.id+',\'active\','+f.user_id+')" style="background:#e5e8eb;border:none;padding:4px 10px;border-radius:5px;font-size:.76em;cursor:pointer;font-family:inherit">재개</button>')
+    +    '<button onclick="deleteFiling('+f.id+','+f.user_id+')" style="background:none;border:1px solid #f04452;color:#f04452;padding:4px 8px;border-radius:5px;font-size:.76em;cursor:pointer;font-family:inherit" title="Case 삭제">🗑️</button>'
+    +  '</div>'
+    +'</div>'
+    +'</div>';
+}
+function _toggleFilingBody(fid){
+  const el=document.getElementById('fhdr-'+fid);
+  if(!el)return;
+  el.style.display=(el.style.display==='none'||!el.style.display)?'block':'none';
+}
+function openNewFilingModal(){
+  if(!_cdCurrentUserId){alert('거래처를 먼저 선택하세요');return}
+  const m=$g('newFilingModal');if(!m)return;
+  m.style.display='flex';
+  $g('nfType').value='부가세';
+  $g('nfPeriod').value='';
+  $g('nfDue').value='';
+  setTimeout(()=>$g('nfPeriod')?.focus(),50);
+}
+function closeNewFilingModal(){
+  const m=$g('newFilingModal');if(m)m.style.display='none';
+}
+async function submitNewFiling(){
+  const userId=_cdCurrentUserId;
+  if(!userId){alert('거래처가 선택되지 않았습니다');return}
+  const filing_type=$g('nfType').value;
+  const period=($g('nfPeriod').value||'').trim();
+  const due=($g('nfDue').value||'').trim();
+  if(!period){alert('기간을 입력하세요 (예: 2026-1기)');return}
+  const btn=$g('nfSubmitBtn');if(btn){btn.disabled=true;btn.style.opacity='.55'}
+  try{
+    const r=await fetch('/api/tax-filings?key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:userId, filing_type, period, due_date:due||null})
+    });
+    const d=await r.json();
+    if(!d.ok){alert('생성 실패: '+(d.error||'unknown'));return}
+    closeNewFilingModal();
+    await _loadCdFilings(userId);
+  }catch(err){alert('오류: '+err.message)}
+  finally{if(btn){btn.disabled=false;btn.style.opacity=''}}
+}
+async function toggleFilingItem(itemId, userId){
+  try{
+    await fetch('/api/tax-filings?key='+encodeURIComponent(KEY)+'&action=toggle_item&item_id='+itemId,{method:'POST'});
+    await _loadCdFilings(userId);
+  }catch(err){alert('오류: '+err.message)}
+}
+async function deleteFilingItem(itemId, userId){
+  if(!confirm('이 체크리스트 항목을 삭제할까요?'))return;
+  try{
+    await fetch('/api/tax-filings?key='+encodeURIComponent(KEY)+'&action=del_item&item_id='+itemId,{method:'DELETE'});
+    await _loadCdFilings(userId);
+  }catch(err){alert('오류: '+err.message)}
+}
+async function addFilingItem(filingId, userId){
+  const input=$g('nfAddItem-'+filingId);if(!input)return;
+  const text=(input.value||'').trim();
+  if(!text)return;
+  try{
+    const r=await fetch('/api/tax-filings?key='+encodeURIComponent(KEY)+'&action=add_item&filing_id='+filingId,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({item_text:text})
+    });
+    const d=await r.json();
+    if(!d.ok){alert('추가 실패: '+(d.error||'unknown'));return}
+    input.value='';
+    await _loadCdFilings(userId);
+  }catch(err){alert('오류: '+err.message)}
+}
+async function toggleFilingStatus(filingId, newStatus, userId){
+  try{
+    await fetch('/api/tax-filings?key='+encodeURIComponent(KEY)+'&id='+filingId,{
+      method:'PATCH',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({status:newStatus})
+    });
+    await _loadCdFilings(userId);
+  }catch(err){alert('오류: '+err.message)}
+}
+async function deleteFiling(filingId, userId){
+  if(!confirm('이 신고 Case 를 삭제할까요? (모든 체크리스트 항목 포함)'))return;
+  try{
+    await fetch('/api/tax-filings?key='+encodeURIComponent(KEY)+'&id='+filingId,{method:'DELETE'});
+    await _loadCdFilings(userId);
+  }catch(err){alert('오류: '+err.message)}
 }
 
 /* 거래처 노트 (영구·user_id 기반) — AI 요약 때마다 자동 상단 주입 */
