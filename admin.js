@@ -3029,8 +3029,10 @@ function selectSummaryRange(range){
   _lastSummaryRange=range||'recent';
   _setSummaryRangeUI(_lastSummaryRange);
 }
+let _rsGenerating=false;
 async function runRoomSummary(){
   if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
+  if(_rsGenerating)return; /* 중복 호출 방지 */
   const range=_lastSummaryRange||'recent';
   const body=$g('rsBody');
   const meta=$g('rsMeta');
@@ -3045,27 +3047,60 @@ async function runRoomSummary(){
     extraQS='&from='+encodeURIComponent(f)+'&to='+encodeURIComponent(t);
     rangeLabel=f+' ~ '+t;
   }
-  body.innerHTML='<div style="text-align:center;padding:40px 0;color:#8b95a1">🤖 요약 생성 중... (5~15초)</div>';
+  /* 버튼 잠금 — 중복 호출·사용자 혼동 방지 */
+  _rsGenerating=true;
+  _rsToggleButtons(true);
+  body.innerHTML='<div style="text-align:center;padding:40px 0;color:#8b95a1"><div style="display:inline-block;width:22px;height:22px;border:3px solid #e5e8eb;border-top-color:#10b981;border-radius:50%;animation:rsSpin .7s linear infinite;vertical-align:middle;margin-right:8px"></div>🤖 내부 실무 요약 생성 중... (5~20초)</div><style>@keyframes rsSpin{to{transform:rotate(360deg)}}</style>';
   meta.textContent='';
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=summarize&room_id='+encodeURIComponent(currentRoomId)+'&range='+encodeURIComponent(range)+extraQS);
     const d=await r.json();
-    if(d.error){body.innerHTML='<div style="color:#f04452;padding:20px 0">요약 실패: '+e(d.error)+'</div>';return}
+    if(d.error){
+      body.innerHTML='<div style="padding:30px 20px;text-align:center;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b"><div style="font-size:1.1em;margin-bottom:8px">⚠️ 요약 생성 실패</div><div style="font-size:.85em;color:#7f1d1d;margin-bottom:12px">'+e(d.error)+'</div><button onclick="runRoomSummary()" style="background:#fff;color:#991b1b;border:1px solid #fecaca;padding:7px 16px;border-radius:6px;font-size:.85em;cursor:pointer;font-family:inherit">🔄 다시 시도</button></div>';
+      return;
+    }
     _lastSummaryText=d.summary||'';
     _lastSummaryJson=d.summary_json||null;
+    /* 빈 데이터 상태 (메시지 0건) 별도 안내 */
+    if((d.message_count||0)===0){
+      body.innerHTML='<div style="padding:40px 20px;text-align:center;color:#8b95a1"><div style="font-size:1.1em;margin-bottom:6px">📭 해당 기간에 대화가 없습니다</div><div style="font-size:.85em;color:#adb5bd">다른 기간을 선택하고 다시 시도해주세요.</div></div>';
+      meta.textContent='['+rangeLabel+'] 메시지 0건';
+      return;
+    }
     /* summary_json 있으면 섹션 카드, 없으면 기존 마크다운 폴백 */
     if(_lastSummaryJson){
       body.innerHTML=_renderSummaryJson(_lastSummaryJson);
     } else if(_lastSummaryText){
       body.innerHTML=renderMarkdownLite(_lastSummaryText);
     } else {
-      body.innerHTML='<div style="color:#8b95a1;padding:20px 0">요약 결과가 비어있습니다.</div>';
+      body.innerHTML='<div style="padding:30px 20px;text-align:center;color:#8b95a1">요약 결과가 비어있습니다.</div>';
     }
     const actualRange=(d.first_at&&d.last_at)?(' · 🗓️ '+d.first_at+' ~ '+d.last_at):'';
     meta.textContent='['+rangeLabel+'] 메시지 '+(d.message_count||0)+'건'+actualRange+' · 비용 ₩'+Math.round((d.cost_cents||0)*14);
   }catch(err){
-    body.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>';
+    body.innerHTML='<div style="padding:30px 20px;text-align:center;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b"><div style="font-size:1.1em;margin-bottom:8px">⚠️ 오류</div><div style="font-size:.85em;color:#7f1d1d;margin-bottom:12px">'+e(err.message)+'</div><button onclick="runRoomSummary()" style="background:#fff;color:#991b1b;border:1px solid #fecaca;padding:7px 16px;border-radius:6px;font-size:.85em;cursor:pointer;font-family:inherit">🔄 다시 시도</button></div>';
+  }finally{
+    _rsGenerating=false;
+    _rsToggleButtons(false);
   }
+}
+/* 요약 관련 버튼 잠금/해제 (생성/복사/게시/다시) */
+function _rsToggleButtons(busy){
+  const sel=['#roomSummaryModal button[onclick*="runRoomSummary"]',
+             '#roomSummaryModal button[onclick*="copyRoomSummary"]',
+             '#roomSummaryModal button[onclick*="postSummaryToRoom"]',
+             '#roomSummaryModal button[onclick*="regenerateRoomSummary"]'].join(',');
+  document.querySelectorAll(sel).forEach(b=>{
+    b.disabled=!!busy;
+    b.style.opacity=busy?'.55':'';
+    b.style.cursor=busy?'wait':'';
+  });
+  /* 기간 탭도 잠그기 — 생성 중 기간 바꿔 다시 누르는 실수 방지 */
+  document.querySelectorAll('.rs-range').forEach(b=>{
+    b.disabled=!!busy;
+    b.style.opacity=busy?'.55':'';
+    b.style.cursor=busy?'wait':'';
+  });
 }
 function closeRoomSummary(){
   const modal=$g('roomSummaryModal');
