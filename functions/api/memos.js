@@ -1,7 +1,7 @@
 // 상담방 담당자 메모 (내부 전용)
 // - GET    /api/memos?room_id=X                → 방 메모 목록 (최신순)
-// - POST   /api/memos                           → 생성 { room_id, memo_type, content }
-// - PATCH  /api/memos?id=N                      → 수정 { memo_type?, content? }
+// - POST   /api/memos                           → 생성 { room_id, memo_type, content, due_date?, linked_message_id? }
+// - PATCH  /api/memos?id=N                      → 수정 { memo_type?, content?, due_date?, linked_message_id? }
 // - DELETE /api/memos?id=N                      → soft delete
 //
 // 인증: checkAdmin (ADMIN_KEY 또는 스태프 세션)
@@ -9,7 +9,15 @@
 
 import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
 
-const ALLOWED_TYPES = ['사실메모', '확인필요', '고객요청', '담당자판단', '주의사항', '완료처리'];
+/* 현재 공식 3종 + 구 6종 하위호환 모두 허용 */
+const NEW_TYPES = ['할 일', '완료', '참고'];
+const LEGACY_TYPES = ['사실메모', '확인필요', '고객요청', '담당자판단', '주의사항', '완료처리'];
+const ALLOWED_TYPES = NEW_TYPES.concat(LEGACY_TYPES);
+/* 구 타입 → 신 타입 매핑 (프론트 렌더·요약 프롬프트에서 사용) */
+const LEGACY_MAP = {
+  '사실메모': '참고', '확인필요': '할 일', '고객요청': '할 일',
+  '담당자판단': '참고', '주의사항': '참고', '완료처리': '완료',
+};
 
 function kst() {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
@@ -21,16 +29,23 @@ async function ensureTable(db) {
     room_id TEXT NOT NULL,
     author_user_id INTEGER,
     author_name TEXT,
-    memo_type TEXT DEFAULT '사실메모',
+    memo_type TEXT DEFAULT '할 일',
     content TEXT NOT NULL,
     visibility TEXT DEFAULT 'internal',
     is_edited INTEGER DEFAULT 0,
+    due_date TEXT,
+    linked_message_id INTEGER,
     created_at TEXT,
     updated_at TEXT,
     deleted_at TEXT
   )`).run();
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_memos_room ON memos(room_id, created_at DESC)`).run(); } catch {}
+  /* 구버전에서 생성된 테이블 — 컬럼 추가 시도 (없으면 skip) */
+  try { await db.prepare(`ALTER TABLE memos ADD COLUMN due_date TEXT`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE memos ADD COLUMN linked_message_id INTEGER`).run(); } catch {}
 }
+
+function validDate(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')); }
 
 export async function onRequestGet(context) {
   const auth = await checkAdmin(context);
@@ -45,12 +60,24 @@ export async function onRequestGet(context) {
 
   try {
     const { results } = await db.prepare(
-      `SELECT id, room_id, author_user_id, author_name, memo_type, content, is_edited, created_at, updated_at
+      `SELECT id, room_id, author_user_id, author_name, memo_type, content, is_edited,
+              due_date, linked_message_id, created_at, updated_at
          FROM memos
         WHERE room_id = ? AND deleted_at IS NULL
-        ORDER BY created_at DESC LIMIT 100`
+        ORDER BY
+          CASE memo_type WHEN '할 일' THEN 0 WHEN '확인필요' THEN 0 WHEN '고객요청' THEN 0
+                         WHEN '참고' THEN 1 WHEN '사실메모' THEN 1 WHEN '담당자판단' THEN 1 WHEN '주의사항' THEN 1
+                         ELSE 2 END,
+          COALESCE(due_date, '9999-99-99') ASC,
+          created_at DESC
+        LIMIT 200`
     ).bind(roomId).all();
-    return Response.json({ ok: true, memos: results || [], types: ALLOWED_TYPES });
+    /* 구 타입은 신 타입으로 normalize 해서 내려보냄 (프론트 단순화) */
+    const normalized = (results || []).map(r => ({
+      ...r,
+      memo_type_display: LEGACY_MAP[r.memo_type] || r.memo_type,
+    }));
+    return Response.json({ ok: true, memos: normalized, types: NEW_TYPES });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
@@ -67,22 +94,24 @@ export async function onRequestPost(context) {
   try { body = await context.request.json(); } catch { return Response.json({ error: "invalid json" }, { status: 400 }); }
 
   const roomId = String(body.room_id || '').trim();
-  const memoType = ALLOWED_TYPES.includes(body.memo_type) ? body.memo_type : '사실메모';
+  const memoType = ALLOWED_TYPES.includes(body.memo_type) ? body.memo_type : '할 일';
   const content = String(body.content || '').trim();
   if (!roomId) return Response.json({ error: "room_id required" }, { status: 400 });
   if (!content) return Response.json({ error: "content required" }, { status: 400 });
   if (content.length > 2000) return Response.json({ error: "content too long (max 2000)" }, { status: 400 });
 
-  /* 작성자 정보 — 스태프 세션이면 이름, ADMIN_KEY면 '대표' */
+  const dueDate = body.due_date && validDate(body.due_date) ? body.due_date : null;
+  const linkedMsgId = body.linked_message_id ? Number(body.linked_message_id) : null;
+
   const authorUserId = auth.userId || null;
   const authorName = auth.name || auth.realName || (auth.owner ? '대표' : '담당자');
 
   const now = kst();
   try {
     const r = await db.prepare(
-      `INSERT INTO memos (room_id, author_user_id, author_name, memo_type, content, visibility, is_edited, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'internal', 0, ?, ?)`
-    ).bind(roomId, authorUserId, authorName, memoType, content, now, now).run();
+      `INSERT INTO memos (room_id, author_user_id, author_name, memo_type, content, visibility, is_edited, due_date, linked_message_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'internal', 0, ?, ?, ?, ?)`
+    ).bind(roomId, authorUserId, authorName, memoType, content, dueDate, linkedMsgId, now, now).run();
     return Response.json({ ok: true, id: r.meta?.last_row_id || null });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
@@ -114,8 +143,26 @@ export async function onRequestPatch(context) {
     if (c.length > 2000) return Response.json({ error: "content too long" }, { status: 400 });
     fields.push('content = ?'); binds.push(c);
   }
+  if (body.due_date !== undefined) {
+    if (body.due_date === null || body.due_date === '') {
+      fields.push('due_date = NULL');
+    } else if (validDate(body.due_date)) {
+      fields.push('due_date = ?'); binds.push(body.due_date);
+    } else return Response.json({ error: "invalid due_date (YYYY-MM-DD)" }, { status: 400 });
+  }
+  if (body.linked_message_id !== undefined) {
+    if (body.linked_message_id === null || body.linked_message_id === '') {
+      fields.push('linked_message_id = NULL');
+    } else {
+      const n = Number(body.linked_message_id);
+      if (!Number.isInteger(n) || n <= 0) return Response.json({ error: "invalid linked_message_id" }, { status: 400 });
+      fields.push('linked_message_id = ?'); binds.push(n);
+    }
+  }
   if (!fields.length) return Response.json({ error: "nothing to update" }, { status: 400 });
-  fields.push("is_edited = 1", "updated_at = ?"); binds.push(kst());
+  /* content 수정 시에만 is_edited=1. memo_type·due_date 단독 변경은 상태 전환이지 수정 아님 */
+  if (body.content !== undefined) fields.push("is_edited = 1");
+  fields.push("updated_at = ?"); binds.push(kst());
 
   try {
     binds.push(id);

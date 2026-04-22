@@ -205,8 +205,9 @@
       <button onclick="toggleRoomAttachSheet()" id="roomAttachBtn" title="첨부" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;width:38px;height:38px;border-radius:50%;cursor:pointer;flex-shrink:0;line-height:0;padding:0;transition:transform .15s;font-family:inherit">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
-      <textarea id="roomInput" rows="1" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendRoomMessage()}" onfocus="closeRoomAttachSheet()" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'" style="flex:1;min-width:0;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit;resize:none;max-height:120px;overflow-y:auto"></textarea>
-      <button onclick="sendRoomMessage()" style="background:#3182f6;color:#fff;border:none;padding:10px 16px;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">전송</button>
+      <button id="roomQuickMemoBtn" onclick="toggleQuickMemoMode()" title="빠른 메모 (내부 전용)" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;width:38px;height:38px;border-radius:50%;cursor:pointer;flex-shrink:0;line-height:1;padding:0;font-family:inherit;font-size:1em">📒</button>
+      <textarea id="roomInput" rows="1" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();if(_quickMemoMode)submitQuickMemo();else sendRoomMessage()}" onfocus="closeRoomAttachSheet()" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'" style="flex:1;min-width:0;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit;resize:none;max-height:120px;overflow-y:auto"></textarea>
+      <button id="roomSendBtn" onclick="if(_quickMemoMode)submitQuickMemo();else sendRoomMessage()" style="background:#3182f6;color:#fff;border:none;padding:10px 16px;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">전송</button>
     </div>
     <script>
       function toggleRoomAttachSheet(){
@@ -424,7 +425,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=61"></script>
+<script src="/admin.js?v=62"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;
@@ -737,22 +738,31 @@ async function saveImgViewer(){
     </div>
   </div>
 </div>
-<!-- 📒 담당자 메모 모달 (내부 전용) -->
+<!-- 📒 담당자 메모 모달 (내부 전용 · 할 일 체크리스트) -->
 <div id="memoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11100;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:620px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">📒 담당자 메모 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">내부 전용 · AI 요약에 반영</span></div>
       <button onclick="closeMemoModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
     </div>
     <div style="padding:12px 16px;border-bottom:1px solid #f2f4f6;background:#fffbeb">
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="memoTypeTabs"></div>
-      <textarea id="memoInput" placeholder="예) 배당금 지급 시점 고객 재확인 필요" style="width:100%;min-height:62px;padding:8px 10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;resize:vertical;box-sizing:border-box;outline:none"></textarea>
-      <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
-        <span id="memoEditBanner" style="display:none;font-size:.75em;color:#92400e;flex:1">✏️ 수정 중 — 저장 시 덮어쓰기</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center" id="memoTypeTabs"></div>
+      <textarea id="memoInput" placeholder="예) 배당금 지급 시점 고객 재확인 / D-3 부가세 신고 준비" style="width:100%;min-height:56px;padding:8px 10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;resize:vertical;box-sizing:border-box;outline:none"></textarea>
+      <div style="display:flex;gap:8px;margin-top:6px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:.72em;color:#6b7280;display:flex;align-items:center;gap:4px">📅 기한<input type="date" id="memoDueDate" style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:5px;font-size:.78em;font-family:inherit;margin-left:2px"></label>
+        <label style="font-size:.72em;color:#6b7280;display:flex;align-items:center;gap:4px">🔗 메시지<input type="number" id="memoLinkMsg" min="1" placeholder="#ID" style="width:70px;padding:4px 6px;border:1px solid #e5e8eb;border-radius:5px;font-size:.78em;font-family:inherit;margin-left:2px"></label>
+        <span id="memoEditBanner" style="display:none;font-size:.72em;color:#92400e">✏️ 수정 중</span>
         <div style="flex:1"></div>
-        <button onclick="cancelMemoEdit()" id="memoCancelBtn" style="display:none;background:#e5e8eb;border:none;padding:7px 14px;border-radius:7px;font-size:.82em;cursor:pointer;font-family:inherit">취소</button>
-        <button onclick="submitMemo()" id="memoSubmitBtn" style="background:#10b981;color:#fff;border:none;padding:7px 16px;border-radius:7px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit">저장</button>
+        <button onclick="cancelMemoEdit()" id="memoCancelBtn" style="display:none;background:#e5e8eb;border:none;padding:6px 12px;border-radius:6px;font-size:.8em;cursor:pointer;font-family:inherit">취소</button>
+        <button onclick="submitMemo()" id="memoSubmitBtn" style="background:#10b981;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit">저장</button>
       </div>
+    </div>
+    <div style="padding:8px 16px;border-bottom:1px solid #f2f4f6;background:#fafbfc;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:.72em;color:#8b95a1">보기:</span>
+      <button class="memo-filter" data-filter="todo" onclick="setMemoFilter('todo')" style="background:#191f28;color:#fff;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit;font-weight:700">📌 할 일 <span id="memoCountTodo" style="font-weight:500"></span></button>
+      <button class="memo-filter" data-filter="ref" onclick="setMemoFilter('ref')" style="background:#e5e8eb;color:#555;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">📝 참고 <span id="memoCountRef" style="font-weight:500"></span></button>
+      <button class="memo-filter" data-filter="done" onclick="setMemoFilter('done')" style="background:#e5e8eb;color:#555;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">✅ 완료 <span id="memoCountDone" style="font-weight:500"></span></button>
+      <button class="memo-filter" data-filter="all" onclick="setMemoFilter('all')" style="background:#e5e8eb;color:#555;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">전체 <span id="memoCountAll" style="font-weight:500"></span></button>
     </div>
     <div id="memoList" style="flex:1;overflow-y:auto;padding:10px 16px 16px;background:#fff"></div>
   </div>

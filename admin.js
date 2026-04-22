@@ -3256,11 +3256,24 @@ async function postSummaryToRoom(){
   }catch(err){alert('오류: '+err.message)}
 }
 
-/* ===== 📒 담당자 메모 (내부 전용 — AI 요약 재료) ===== */
-const _MEMO_TYPES=['사실메모','확인필요','고객요청','담당자판단','주의사항','완료처리'];
-const _MEMO_COLORS={'사실메모':'#065f46','확인필요':'#b45309','고객요청':'#1e40af','담당자판단':'#4c1d95','주의사항':'#991b1b','완료처리':'#64748b'};
-let _memoSelectedType='사실메모';
+/* ===== 📒 담당자 메모 (내부 전용 · 할 일 체크리스트 방식) =====
+   타입 3종: '할 일' / '완료' / '참고'
+   체크박스: 할 일 ↔ 완료 토글 (PATCH memo_type)
+   기한(due_date) + 연결 메시지(#ID) + D-day 하이라이트 */
+const _MEMO_TYPES=['할 일','완료','참고'];
+const _MEMO_COLORS={'할 일':'#b45309','완료':'#64748b','참고':'#1e40af'};
+const _MEMO_ICONS={'할 일':'📌','완료':'✅','참고':'📝'};
+/* 구 타입 → 신 타입 매핑 (서버에서도 내려오지만 방어적) */
+const _MEMO_LEGACY={
+  '사실메모':'참고','확인필요':'할 일','고객요청':'할 일',
+  '담당자판단':'참고','주의사항':'참고','완료처리':'완료',
+};
+function _normType(t){return _MEMO_LEGACY[t]||t||'할 일'}
+let _memoSelectedType='할 일';
 let _memoEditingId=null;
+let _memoFilter='todo'; /* todo | ref | done | all */
+let _memoCache=[];
+
 async function openRoomMemos(){
   if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
   const modal=$g('memoModal');
@@ -3268,10 +3281,14 @@ async function openRoomMemos(){
   modal.style.display='flex';
   document.body.style.overflow='hidden';
   _memoEditingId=null;
-  _memoSelectedType='사실메모';
-  $g('memoInput').value='';
+  _memoSelectedType='할 일';
+  _memoFilter='todo';
+  if($g('memoInput'))$g('memoInput').value='';
+  if($g('memoDueDate'))$g('memoDueDate').value='';
+  if($g('memoLinkMsg'))$g('memoLinkMsg').value='';
   _renderMemoTypeTabs();
   _updateMemoEditBanner();
+  _renderMemoFilterTabs();
   await loadRoomMemos();
 }
 function closeMemoModal(){
@@ -3280,16 +3297,30 @@ function closeMemoModal(){
 }
 function _renderMemoTypeTabs(){
   const box=$g('memoTypeTabs');if(!box)return;
-  box.innerHTML=_MEMO_TYPES.map(t=>{
-    const on=t===_memoSelectedType;
-    const c=_MEMO_COLORS[t]||'#334155';
-    return '<button onclick="selectMemoType(\''+t+'\')" style="background:'+(on?c:'#f1f5f9')+';color:'+(on?'#fff':'#334155')+';border:1px solid '+(on?c:'#e5e8eb')+';padding:4px 10px;border-radius:14px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:'+(on?'700':'500')+'">'+e(t)+'</button>';
-  }).join('');
+  box.innerHTML='<span style="font-size:.72em;color:#6b7280;margin-right:4px">종류:</span>'
+    +_MEMO_TYPES.map(t=>{
+      const on=t===_memoSelectedType;
+      const c=_MEMO_COLORS[t]||'#334155';
+      return '<button onclick="selectMemoType(\''+t+'\')" style="background:'+(on?c:'#fff')+';color:'+(on?'#fff':'#334155')+';border:1px solid '+(on?c:'#e5e8eb')+';padding:4px 10px;border-radius:14px;font-size:.74em;cursor:pointer;font-family:inherit;font-weight:'+(on?'700':'500')+'">'+_MEMO_ICONS[t]+' '+e(t)+'</button>';
+    }).join('');
 }
 function selectMemoType(t){
   if(_MEMO_TYPES.indexOf(t)<0)return;
   _memoSelectedType=t;
   _renderMemoTypeTabs();
+}
+function setMemoFilter(f){
+  _memoFilter=f;
+  _renderMemoFilterTabs();
+  _renderMemoList();
+}
+function _renderMemoFilterTabs(){
+  document.querySelectorAll('.memo-filter').forEach(b=>{
+    const on=b.getAttribute('data-filter')===_memoFilter;
+    b.style.background=on?'#191f28':'#e5e8eb';
+    b.style.color=on?'#fff':'#555';
+    b.style.fontWeight=on?'700':'500';
+  });
 }
 async function loadRoomMemos(){
   const list=$g('memoList');
@@ -3299,35 +3330,93 @@ async function loadRoomMemos(){
     const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
     const d=await r.json();
     if(d.error){list.innerHTML='<div style="color:#f04452;padding:20px 0">불러오기 실패: '+e(d.error)+'</div>';return}
-    const memos=d.memos||[];
-    if(!memos.length){
-      list.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 16px;font-size:.88em"><div style="margin-bottom:4px">📭 메모가 아직 없습니다</div><div style="font-size:.85em;color:#adb5bd">위 입력창에서 첫 메모를 작성하세요.<br>다음 AI 요약 시 메모가 함께 반영됩니다.</div></div>';
-      return;
-    }
-    list.innerHTML=memos.map(m=>{
-      const typ=m.memo_type||'사실메모';
-      const c=_MEMO_COLORS[typ]||'#334155';
-      const edited=m.is_edited?'<span style="font-size:.7em;color:#8b95a1;margin-left:4px">✏️ 수정됨</span>':'';
-      return '<div style="padding:10px 12px;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:8px;background:#fff">'
-        +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:.72em;color:#6b7280">'
-        +  '<span style="background:'+c+';color:#fff;padding:1px 8px;border-radius:10px;font-weight:700">'+e(typ)+'</span>'
-        +  '<span>'+e(m.author_name||'담당자')+'</span>'
-        +  '<span>·</span>'
-        +  '<span>'+e((m.created_at||'').substring(0,16))+'</span>'
-        +  edited
-        +  '<div style="flex:1"></div>'
-        +  '<button onclick="startEditMemo('+m.id+',\''+escAttr(typ)+'\','+JSON.stringify(m.content||'').replace(/"/g,'&quot;')+')" style="background:none;border:none;color:#3182f6;font-size:.78em;cursor:pointer;font-family:inherit">✏️</button>'
-        +  '<button onclick="deleteMemo('+m.id+')" style="background:none;border:none;color:#f04452;font-size:.78em;cursor:pointer;font-family:inherit">🗑️</button>'
-        +'</div>'
-        +'<div style="font-size:.88em;color:#191f28;white-space:pre-wrap;word-break:break-word;line-height:1.55">'+e(m.content||'')+'</div>'
-      +'</div>';
-    }).join('');
+    _memoCache=(d.memos||[]).map(m=>({...m, _t:_normType(m.memo_type_display||m.memo_type)}));
+    _updateMemoCounts();
+    _renderMemoList();
+    /* 📒 메뉴 버튼에 할 일 건수 뱃지 (존재하면) */
+    _updateRoomMemoBadge();
   }catch(err){list.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>'}
+}
+function _updateMemoCounts(){
+  const counts={'할 일':0,'참고':0,'완료':0,total:_memoCache.length};
+  _memoCache.forEach(m=>{counts[m._t]=(counts[m._t]||0)+1});
+  if($g('memoCountTodo'))$g('memoCountTodo').textContent=counts['할 일']?'('+counts['할 일']+')':'';
+  if($g('memoCountRef'))$g('memoCountRef').textContent=counts['참고']?'('+counts['참고']+')':'';
+  if($g('memoCountDone'))$g('memoCountDone').textContent=counts['완료']?'('+counts['완료']+')':'';
+  if($g('memoCountAll'))$g('memoCountAll').textContent=counts.total?'('+counts.total+')':'';
+}
+function _filterMemos(){
+  if(_memoFilter==='todo')return _memoCache.filter(m=>m._t==='할 일');
+  if(_memoFilter==='ref') return _memoCache.filter(m=>m._t==='참고');
+  if(_memoFilter==='done')return _memoCache.filter(m=>m._t==='완료');
+  return _memoCache;
+}
+function _dDayLabel(due){
+  if(!due)return null;
+  const today=new Date(Date.now()+9*60*60*1000).toISOString().substring(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(due))return null;
+  const diff=Math.round((new Date(due+'T00:00:00')-new Date(today+'T00:00:00'))/86400000);
+  let color='#64748b', label='';
+  if(diff<0){color='#991b1b';label='지남 '+(-diff)+'일'}
+  else if(diff===0){color='#dc2626';label='D-DAY'}
+  else if(diff<=3){color='#ea580c';label='D-'+diff}
+  else if(diff<=7){color='#b45309';label='D-'+diff}
+  else {color='#64748b';label='D-'+diff}
+  return '<span style="background:'+color+';color:#fff;padding:1px 7px;border-radius:10px;font-size:.7em;font-weight:700;margin-left:4px">📅 '+due+' · '+label+'</span>';
+}
+function _renderMemoList(){
+  const list=$g('memoList');if(!list)return;
+  const memos=_filterMemos();
+  if(!memos.length){
+    const hint=_memoFilter==='todo'?'지금 할 일이 없습니다. 입력창에서 새 메모를 추가하세요.'
+              :_memoFilter==='done'?'완료된 메모가 없습니다.'
+              :_memoFilter==='ref' ?'참고 메모가 없습니다.'
+              :'메모가 없습니다.';
+    list.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 16px;font-size:.88em">📭 '+e(hint)+'</div>';
+    return;
+  }
+  list.innerHTML=memos.map(m=>{
+    const typ=m._t;
+    const c=_MEMO_COLORS[typ]||'#334155';
+    const icon=_MEMO_ICONS[typ]||'📌';
+    const isDone=typ==='완료';
+    const edited=m.is_edited?'<span style="font-size:.68em;color:#8b95a1;margin-left:3px">·수정</span>':'';
+    const dueBadge=_dDayLabel(m.due_date)||'';
+    const linkBadge=m.linked_message_id
+      ? '<a href="javascript:void(0)" onclick="event.stopPropagation();jumpToRoomMessage('+m.linked_message_id+')" style="color:#3182f6;text-decoration:none;background:#eff6ff;border:1px solid #bfdbfe;padding:0 5px;border-radius:4px;font-size:.7em;margin-left:4px">🔗 #'+m.linked_message_id+'</a>'
+      : '';
+    const contentStyle=isDone
+      ? 'font-size:.88em;color:#9ca3af;text-decoration:line-through;white-space:pre-wrap;word-break:break-word;line-height:1.55'
+      : 'font-size:.88em;color:#191f28;white-space:pre-wrap;word-break:break-word;line-height:1.55';
+    /* 체크박스: 할 일 ↔ 완료 토글. 참고는 체크박스 대신 인디케이터만 */
+    const checkbox = (typ==='할 일' || typ==='완료')
+      ? '<label style="display:flex;align-items:center;cursor:pointer;flex-shrink:0"><input type="checkbox" '+(isDone?'checked':'')+' onchange="toggleMemoDone('+m.id+','+(!isDone)+')" style="width:18px;height:18px;cursor:pointer;accent-color:#10b981"></label>'
+      : '<span style="width:18px;display:inline-block;flex-shrink:0;text-align:center;color:'+c+'">'+icon+'</span>';
+    const bg=isDone?'#fafbfc':(typ==='할 일'?'#fffef5':'#fff');
+    const borderColor=isDone?'#e5e8eb':(typ==='할 일'?'#fde68a':'#e5e8eb');
+    return '<div style="display:flex;gap:10px;padding:9px 11px;border:1px solid '+borderColor+';border-radius:8px;margin-bottom:6px;background:'+bg+';align-items:flex-start">'
+      +checkbox
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;font-size:.7em;color:#6b7280;flex-wrap:wrap">'
+      +  (typ!=='할 일' && typ!=='완료' ? '<span style="background:'+c+';color:#fff;padding:1px 7px;border-radius:10px;font-weight:700">'+icon+' '+e(typ)+'</span>' : '')
+      +  '<span>'+e(m.author_name||'담당자')+'</span>'
+      +  '<span>·</span>'
+      +  '<span>'+e((m.created_at||'').substring(5,16).replace('T',' '))+'</span>'
+      +  edited
+      +  dueBadge
+      +  linkBadge
+      +  '<div style="flex:1"></div>'
+      +  '<button onclick="startEditMemo('+m.id+')" style="background:none;border:none;color:#3182f6;font-size:.76em;cursor:pointer;font-family:inherit;padding:1px 4px" title="수정">✏️</button>'
+      +  '<button onclick="deleteMemo('+m.id+')" style="background:none;border:none;color:#f04452;font-size:.76em;cursor:pointer;font-family:inherit;padding:1px 4px" title="삭제">🗑️</button>'
+      +'</div>'
+      +'<div style="'+contentStyle+'">'+e(m.content||'')+'</div>'
+      +'</div></div>';
+  }).join('');
 }
 function _updateMemoEditBanner(){
   const b=$g('memoEditBanner'), c=$g('memoCancelBtn'), s=$g('memoSubmitBtn');
   if(_memoEditingId){
-    if(b)b.style.display='block';
+    if(b)b.style.display='inline';
     if(c)c.style.display='inline-block';
     if(s)s.textContent='수정 저장';
   } else {
@@ -3336,18 +3425,39 @@ function _updateMemoEditBanner(){
     if(s)s.textContent='저장';
   }
 }
-function startEditMemo(id, typ, content){
+/* 체크박스 클릭 — 할 일 ↔ 완료 PATCH */
+async function toggleMemoDone(id, done){
+  const newType=done?'완료':'할 일';
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&id='+id,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({memo_type:newType})
+    });
+    const d=await r.json();
+    if(!d.ok){alert('상태 변경 실패: '+(d.error||'unknown'));return}
+    await loadRoomMemos();
+  }catch(err){alert('오류: '+err.message)}
+}
+/* id 만 받아서 캐시에서 본문·타입·기한·연결 추출 */
+function startEditMemo(id){
+  const m=_memoCache.find(x=>x.id===id);
+  if(!m)return;
   _memoEditingId=id;
-  _memoSelectedType=_MEMO_TYPES.indexOf(typ)>=0?typ:'사실메모';
-  $g('memoInput').value=String(content||'');
+  _memoSelectedType=m._t;
+  if($g('memoInput'))$g('memoInput').value=String(m.content||'');
+  if($g('memoDueDate'))$g('memoDueDate').value=m.due_date||'';
+  if($g('memoLinkMsg'))$g('memoLinkMsg').value=m.linked_message_id||'';
   _renderMemoTypeTabs();
   _updateMemoEditBanner();
-  $g('memoInput').focus();
+  if($g('memoInput'))$g('memoInput').focus();
 }
 function cancelMemoEdit(){
   _memoEditingId=null;
-  $g('memoInput').value='';
-  _memoSelectedType='사실메모';
+  if($g('memoInput'))$g('memoInput').value='';
+  if($g('memoDueDate'))$g('memoDueDate').value='';
+  if($g('memoLinkMsg'))$g('memoLinkMsg').value='';
+  _memoSelectedType='할 일';
   _renderMemoTypeTabs();
   _updateMemoEditBanner();
 }
@@ -3355,30 +3465,27 @@ async function submitMemo(){
   if(!currentRoomId){alert('상담방이 선택되지 않았습니다');return}
   const input=$g('memoInput'), content=input.value.trim();
   if(!content){alert('메모 내용을 입력하세요');return}
+  const due=($g('memoDueDate')?.value||'').trim();
+  const linkIdRaw=($g('memoLinkMsg')?.value||'').trim();
+  const linkId=linkIdRaw?parseInt(linkIdRaw,10):null;
   const btn=$g('memoSubmitBtn');
   if(btn){btn.disabled=true;btn.style.opacity='.55';}
   try{
+    const payload={memo_type:_memoSelectedType, content, due_date: due||null, linked_message_id: linkId||null};
     let r;
     if(_memoEditingId){
       r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&id='+_memoEditingId,{
-        method:'PATCH',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({memo_type:_memoSelectedType, content})
+        method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
       });
     } else {
       r=await fetch('/api/memos?key='+encodeURIComponent(KEY),{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({room_id:currentRoomId, memo_type:_memoSelectedType, content})
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({...payload, room_id:currentRoomId})
       });
     }
     const d=await r.json();
     if(!d.ok){alert('저장 실패: '+(d.error||'unknown'));return}
-    _memoEditingId=null;
-    input.value='';
-    _memoSelectedType='사실메모';
-    _renderMemoTypeTabs();
-    _updateMemoEditBanner();
+    cancelMemoEdit();
     await loadRoomMemos();
   }catch(err){alert('오류: '+err.message)}
   finally{if(btn){btn.disabled=false;btn.style.opacity='';}}
@@ -3391,6 +3498,70 @@ async function deleteMemo(id){
     if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
     await loadRoomMemos();
   }catch(err){alert('오류: '+err.message)}
+}
+/* 📒 버튼에 미완료(할 일) 건수 뱃지 표시 — 찾을 수 있으면만 */
+function _updateRoomMemoBadge(){
+  try{
+    const todo=_memoCache.filter(m=>m._t==='할 일').length;
+    const btns=document.querySelectorAll('button[onclick="openRoomMemos()"]');
+    btns.forEach(b=>{
+      b.innerHTML='📒 메모'+(todo?' <span style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:.7em;font-weight:700">'+todo+'</span>':'');
+    });
+  }catch(_){}
+}
+
+/* ===== D안: 입력창 옆 빠른 메모 토글 ===== */
+let _quickMemoMode=false;
+function toggleQuickMemoMode(){
+  _quickMemoMode=!_quickMemoMode;
+  const input=$g('roomInput'), btn=$g('roomQuickMemoBtn'), sendBtn=$g('roomSendBtn');
+  if(!input)return;
+  if(_quickMemoMode){
+    input.dataset._origPlaceholder=input.placeholder||'';
+    input.placeholder='📒 내부 메모 (고객에게 안 보임) — Enter로 저장';
+    input.style.background='#fffbeb';
+    input.style.border='2px solid #f59e0b';
+    if(btn){btn.style.background='#f59e0b';btn.style.color='#fff';btn.title='메모 모드 해제'}
+    if(sendBtn){sendBtn.textContent='저장';sendBtn.style.background='#f59e0b'}
+    input.focus();
+  } else {
+    input.placeholder=input.dataset._origPlaceholder||'메시지 입력...';
+    input.style.background='';
+    input.style.border='1px solid #e5e8eb';
+    if(btn){btn.style.background='';btn.style.color='';btn.title='빠른 메모 (내부 전용)'}
+    if(sendBtn){sendBtn.textContent='전송';sendBtn.style.background='#3182f6'}
+  }
+}
+async function submitQuickMemo(){
+  if(!currentRoomId){alert('상담방이 선택되지 않았습니다');return}
+  const input=$g('roomInput');
+  const content=(input?.value||'').trim();
+  if(!content){toggleQuickMemoMode();return}
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({room_id:currentRoomId, memo_type:'할 일', content})
+    });
+    const d=await r.json();
+    if(!d.ok){alert('메모 저장 실패: '+(d.error||'unknown'));return}
+    input.value='';
+    input.style.height='auto';
+    if(typeof showAdminToast==='function')showAdminToast('📒 메모 저장됨');
+    /* 메모 모드 그대로 유지 — 여러 건 연속 입력 편의. 해제는 버튼으로 */
+    /* 열린 메모 모달이 있으면 리로드 */
+    if($g('memoModal')?.style.display==='flex') await loadRoomMemos();
+    /* 버튼 뱃지 갱신을 위해 조용히 호출 */
+    else _refreshMemoBadgeSilent();
+  }catch(err){alert('오류: '+err.message)}
+}
+async function _refreshMemoBadgeSilent(){
+  if(!currentRoomId)return;
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
+    const d=await r.json();
+    _memoCache=(d.memos||[]).map(m=>({...m, _t:_normType(m.memo_type_display||m.memo_type)}));
+    _updateRoomMemoBadge();
+  }catch(_){}
 }
 
 /* ===== 거래처 종합 대시보드 (C안) ===== */

@@ -823,22 +823,31 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
                      || chrono.find(m => m.role === 'user' && (m.real_name || m.name))?.name
                      || '고객');
 
-  /* 담당자 메모 블록 (memos 테이블 기반, 있으면 주입) */
+  /* 담당자 메모 블록 (memos 테이블 기반).
+     신 타입: 할 일/완료/참고. 구 타입은 매핑 테이블로 정규화.
+     요약 프롬프트에는 할 일·완료·참고를 구분해서 주입 (완료는 이미 처리됨으로 표시). */
   let memoBlock = '(없음)';
   try {
     const { results: memoRows } = await db.prepare(
-      `SELECT id, memo_type, content, author_name, created_at, is_edited
+      `SELECT id, memo_type, content, author_name, created_at, is_edited, due_date, linked_message_id
          FROM memos
         WHERE room_id = ? AND deleted_at IS NULL
-        ORDER BY created_at ASC LIMIT 50`
+        ORDER BY created_at ASC LIMIT 80`
     ).bind(roomId).all();
     if (memoRows && memoRows.length) {
+      const LEGACY_MAP = {
+        '사실메모': '참고', '확인필요': '할 일', '고객요청': '할 일',
+        '담당자판단': '참고', '주의사항': '참고', '완료처리': '완료',
+      };
+      const normType = (t) => LEGACY_MAP[t] || t || '할 일';
       memoBlock = memoRows.map(m => {
-        const t = (m.created_at || '').substring(0, 16);
-        const typ = m.memo_type ? `[${m.memo_type}]` : '';
+        const t = (m.created_at || '').substring(5, 16);
+        const typ = normType(m.memo_type);
         const by = m.author_name ? `(${m.author_name})` : '';
+        const due = m.due_date ? ` 📅${m.due_date}` : '';
+        const link = m.linked_message_id ? ` 🔗#${m.linked_message_id}` : '';
         const edited = m.is_edited ? ' *수정됨' : '';
-        return `- ${t}${edited} ${typ}${by}: ${String(m.content || '').slice(0, 400)}`;
+        return `- [${typ}]${due}${link} ${by} ${t}${edited}: ${String(m.content || '').slice(0, 400)}`;
       }).join('\n');
     }
   } catch { /* memos 테이블 아직 없으면 조용히 무시 */ }
@@ -853,7 +862,7 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
 - 감성적 수식어·인사말 금지.
 - 확정된 사실과 추정·확인 필요 항목을 분리.
 - 자료 업로드는 날짜·유형별로 구체적으로 ("다수 업로드" 같은 뭉뚱그림 금지). 가능하면 가맹점·금액·날짜를 그대로 옮긴다.
-- 담당자 메모가 있으면 "사실메모"는 확정사실에, "확인필요"는 확인필요에, "주의사항"은 특이사항에 반영.
+- 담당자 메모 반영: [할 일] → "다음 액션" 에 반드시 포함 (기한 있으면 그대로 표기). [참고] → 확정사실 또는 특이사항에 반영. [완료] → "이미 처리됨" 으로 확정사실에 반영 (다음 액션에는 넣지 말 것).
 - 대화에 근거 없는 내용은 만들지 말 것 (할루시네이션 금지).
 - 날짜가 있으면 YYYY-MM-DD 로 포함.
 - 각 항목 끝에 근거 메시지 ID 를 "(#123)" 또는 "(#123, #124)" 형태로 붙인다. 메모 근거면 "(memo)" 로 표시.
@@ -912,7 +921,7 @@ ${firstAt} ~ ${lastAt} (총 ${lines.length}건)
 - 메시지 수: ${lines.length}
 - 추정 고객: ${customerName}
 
----담당자 메모---
+---담당자 메모 (내부 전용, 고객 공개 X) — 각 줄 형식: [타입] 📅기한 🔗#연결메시지 (작성자) 시각: 내용---
 ${memoBlock}
 
 ---대화 기록 (각 줄 형식: [HH:MM]#msgId 역할: 내용)---
