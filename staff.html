@@ -431,7 +431,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=78"></script>
+<script src="/admin.js?v=79"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;
@@ -987,6 +987,7 @@ async function saveImgViewer(){
         <div id="cdName" style="font-weight:800;font-size:1.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">-</div>
         <div id="cdSub" style="font-size:.75em;color:#8b95a1;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">-</div>
       </div>
+      <button onclick="openCustomerSummary()" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0" title="이 거래처 단위 AI 요약">📝 요약</button>
       <div id="cdPriority" style="flex-shrink:0"></div>
     </div>
     <!-- 본문 그리드 -->

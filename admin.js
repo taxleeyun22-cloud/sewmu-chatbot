@@ -4613,6 +4613,86 @@ async function openCustomerDashboardFromRoom(){
   }catch(e){alert('오류: '+e.message)}
 }
 
+/* ===== 📝 거래처 단위 AI 요약 — user_id 기반 통합 (모든 방 대화 + 메모) =====
+   현재 거래처 대시보드(_cdCurrentUserId) 기준. 기존 roomSummaryModal 재사용.
+   _summaryMode='customer' 일 때 runRoomSummary 가 customer-summary API 호출. */
+let _summaryMode='room'; /* 'room' (기존 방단위) | 'customer' (거래처단위) */
+let _customerSummaryUserId=null;
+function openCustomerSummary(){
+  const uid=_cdCurrentUserId;
+  if(!uid){alert('거래처가 선택되지 않았습니다');return}
+  _summaryMode='customer';
+  _customerSummaryUserId=uid;
+  /* 기존 요약 모달 재사용 */
+  const modal=$g('roomSummaryModal');
+  const body=$g('rsBody');
+  const meta=$g('rsMeta');
+  if(!modal)return;
+  modal.style.display='flex';
+  document.body.style.overflow='hidden';
+  _lastSummaryText='';
+  _lastSummaryJson=null;
+  if(body)body.innerHTML='<div style="text-align:center;padding:40px 20px;color:#8b95a1;font-size:.9em;line-height:1.7">📝 거래처 단위 요약 모드<br>기간 선택 후 <b style="color:#10b981">✨ 요약 생성</b> 버튼.<br><span style="font-size:.85em;color:#adb5bd">※ 이 거래처 모든 방 대화 + 메모 통합 요약</span></div>';
+  if(meta)meta.textContent='[거래처 단위] '+_cdCurrentCustomerName();
+  if(typeof _setSummaryRangeUI==='function')_setSummaryRangeUI(_lastSummaryRange||'recent');
+}
+function _cdCurrentCustomerName(){
+  try{return ($g('cdName')?.textContent||'').trim()||('user #'+_cdCurrentUserId)}catch{return ''}
+}
+/* runRoomSummary 가 _summaryMode 분기해서 fetch 대상 바꾸도록 — 기존 함수 wrap */
+const _origRunRoomSummary = (typeof runRoomSummary==='function') ? runRoomSummary : null;
+async function runRoomSummary(){
+  if(_summaryMode!=='customer'){return _origRunRoomSummary&&_origRunRoomSummary()}
+  /* 거래처 단위 모드 */
+  if(!_customerSummaryUserId){alert('거래처 미선택');return}
+  if(_rsGenerating)return;
+  _rsGenerating=true;
+  const range=_lastSummaryRange||'recent';
+  const body=$g('rsBody'), meta=$g('rsMeta');
+  let extraQS='', rangeLabel={recent:'최근',week:'최근 7일',month:'이번달',all:'전체'}[range]||range;
+  if(range==='custom'){
+    const f=$g('rsFrom')?.value||'',t=$g('rsTo')?.value||'';
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(f)||!/^\d{4}-\d{2}-\d{2}$/.test(t)){alert('시작·종료일 선택');_rsGenerating=false;return}
+    extraQS='&from='+encodeURIComponent(f)+'&to='+encodeURIComponent(t);
+    rangeLabel=f+' ~ '+t;
+  }
+  if(typeof _rsToggleButtons==='function')_rsToggleButtons(true);
+  if(body)body.innerHTML='<div style="text-align:center;padding:40px 0;color:#8b95a1"><div style="display:inline-block;width:22px;height:22px;border:3px solid #e5e8eb;border-top-color:#10b981;border-radius:50%;animation:rsSpin .7s linear infinite;vertical-align:middle;margin-right:8px"></div>🤖 거래처 요약 생성 중... (5~20초)</div>';
+  if(meta)meta.textContent='';
+  try{
+    const r=await fetch('/api/admin-customer-summary?key='+encodeURIComponent(KEY)+'&user_id='+_customerSummaryUserId+'&range='+encodeURIComponent(range)+extraQS);
+    const d=await r.json();
+    if(d.error){
+      if(body)body.innerHTML='<div style="padding:30px 20px;text-align:center;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b"><div style="font-size:1.1em;margin-bottom:8px">⚠️ 요약 실패</div><div style="font-size:.85em">'+e(d.error)+'</div></div>';
+      return;
+    }
+    _lastSummaryText=d.summary||'';
+    _lastSummaryJson=d.summary_json||null;
+    if(_lastSummaryJson){
+      body.innerHTML=_renderSummaryJson(_lastSummaryJson);
+    } else if(_lastSummaryText){
+      body.innerHTML=renderMarkdownLite(_lastSummaryText);
+    } else {
+      body.innerHTML='<div style="padding:30px 20px;text-align:center;color:#8b95a1">결과가 비어있습니다</div>';
+    }
+    const actualRange=(d.first_at&&d.last_at)?(' · 🗓️ '+d.first_at+' ~ '+d.last_at):'';
+    if(meta)meta.textContent='[거래처 단위 · '+rangeLabel+'] '+e(d.customer_name||'')+' · 방 '+(d.room_count||0)+'개 · 메시지 '+(d.message_count||0)+'건'+actualRange+' · 비용 ₩'+Math.round((d.cost_cents||0)*14);
+  }catch(err){
+    if(body)body.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>';
+  }finally{
+    _rsGenerating=false;
+    if(typeof _rsToggleButtons==='function')_rsToggleButtons(false);
+  }
+}
+/* closeRoomSummary 가 호출되면 모드 리셋 */
+const _origCloseRoomSummary=(typeof closeRoomSummary==='function')?closeRoomSummary:null;
+function closeRoomSummary(){
+  _summaryMode='room';
+  _customerSummaryUserId=null;
+  if(_origCloseRoomSummary)_origCloseRoomSummary();
+  else{const m=$g('roomSummaryModal');if(m)m.style.display='none';document.body.style.overflow=''}
+}
+
 /* ===== ⚙️ 담당자 라벨 관리 (room_labels CRUD) ===== */
 let _roomLabelsCache=null;
 let _roomLabelsCacheAt=0;

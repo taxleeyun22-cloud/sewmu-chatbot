@@ -697,7 +697,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=78"></script>
+<script src="/admin.js?v=79"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면
@@ -809,6 +809,7 @@
         <div id="cdName" style="font-weight:800;font-size:1.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">-</div>
         <div id="cdSub" style="font-size:.75em;color:#8b95a1;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">-</div>
       </div>
+      <button onclick="openCustomerSummary()" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0" title="이 거래처 단위 AI 요약 (모든 방 대화 + 메모 통합)">📝 요약</button>
       <div id="cdPriority" style="flex-shrink:0"></div>
     </div>
     <!-- 본문 그리드 -->
