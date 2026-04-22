@@ -4589,9 +4589,115 @@ async function openCustomerDashboardFromRoom(){
        고객만 골라야 함 — role !== 'admin' 필터 필수. 없으면 관리자 본인 user_id 로 dashboard 열려 빈 데이터. */
     const customers=(d.members||[]).filter(m=>!m.left_at && m.user_id && m.role!=='admin');
     if(!customers.length){alert('상담방에 고객이 없습니다\n(관리자만 참여 중)');return}
-    /* 여러 고객이면 첫 번째 (joined_at 순). 필요하면 여기서 선택 UI 띄울 수 있음 */
-    openCustomerDashboard(customers[0].user_id);
+    /* 🏢 거래처 버튼 — 가벼운 사이드 패널로 열기 (메모와 동일 도킹 방식).
+       풀 대시보드는 패널 우측 "자세히 →" 링크로 접근 */
+    openCustSidePanel(customers[0].user_id);
   }catch(e){alert('오류: '+e.message)}
+}
+
+/* ===== 🏢 거래처 간략 사이드 패널 =====
+   거래처 버튼 클릭 시 메모 패널처럼 우측에 도킹 (PC) / 바텀시트 (모바일).
+   내용: 이름·전화·업종·최근 노트 3건·진행중 Case·할 일 N건 / [자세히 →] 풀 대시보드 */
+let _csCurrentUserId=null;
+async function openCustSidePanel(userId){
+  if(!userId)return;
+  _csCurrentUserId=userId;
+  const modal=$g('custSidePanel');if(!modal)return;
+  modal.classList.add('side-dock');
+  modal.style.display='flex';
+  document.body.classList.add('cust-side-open');
+  if(window.matchMedia('(max-width:1023px)').matches)document.body.style.overflow='hidden';
+  else document.body.style.overflow='';
+  $g('csName').textContent='불러오는 중...';
+  $g('csSub').textContent='';
+  $g('csBody').innerHTML='<div style="text-align:center;color:#8b95a1;padding:30px 0">불러오는 중...</div>';
+  try{
+    const q=(p)=>'/api/'+p+(p.includes('?')?'&':'?')+'key='+encodeURIComponent(KEY);
+    const [custRes, infoRes, filingsRes, memosRes] = await Promise.all([
+      fetch(q('admin-approve?status=all')).then(r=>r.json()).catch(()=>({users:[]})),
+      fetch(q('memos?scope=customer_info&user_id='+userId)).then(r=>r.json()).catch(()=>({memos:[]})),
+      fetch(q('tax-filings?user_id='+userId+'&status=active')).then(r=>r.json()).catch(()=>({filings:[]})),
+      fetch(q('memos?scope=my&only_mine=0')).then(r=>r.json()).catch(()=>({memos:[]})),
+    ]);
+    const u=(custRes.users||[]).find(x=>x.id===userId);
+    const nm=u?(u.real_name||u.name||'#'+userId):'#'+userId;
+    $g('csName').textContent=nm;
+    $g('csSub').textContent=(u?((u.phone||'연락처 미등록')):'ID #'+userId);
+    /* 이 거래처 관련 미완료 할 일 (본인 방 필터는 간략화 — 전체 에서 user 매칭 어려우니 생략) */
+    const activeFilings=filingsRes.filings||[];
+    const infoMemos=(infoRes.memos||[]).slice(0,4);
+    const _filingIcon=(t)=>({'부가세':'💰','종소세':'📊','법인세':'🏢','원천세':'💼','양도세':'🏠'})[t]||'📄';
+    function _dday(due){
+      if(!due)return '';
+      const today=new Date(Date.now()+9*60*60*1000).toISOString().substring(0,10);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(due))return '';
+      const diff=Math.round((new Date(due+'T00:00:00')-new Date(today+'T00:00:00'))/86400000);
+      let c='#64748b',lab='';
+      if(diff<0){c='#991b1b';lab='D+'+(-diff)}
+      else if(diff===0){c='#dc2626';lab='D-DAY'}
+      else if(diff<=3){c='#ea580c';lab='D-'+diff}
+      else if(diff<=7){c='#b45309';lab='D-'+diff}
+      else {c='#059669';lab='D-'+diff}
+      return '<span style="background:'+c+';color:#fff;padding:1px 6px;border-radius:8px;font-size:.68em;font-weight:700;margin-left:4px">'+lab+'</span>';
+    }
+    let html='';
+    /* 기본 정보 */
+    html+='<section style="margin-bottom:14px">'
+      +'<div style="font-weight:700;font-size:.9em;margin-bottom:5px;color:#191f28">👤 기본</div>'
+      +'<div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:9px 11px;font-size:.85em;line-height:1.6;color:#0f172a">'
+      +'<div><b>'+e(nm)+'</b></div>'
+      +(u&&u.phone?'<div>📞 '+e(u.phone)+'</div>':'<div style="color:#8b95a1">📞 연락처 미등록</div>')
+      +(u&&u.email?'<div>✉️ '+e(u.email)+'</div>':'')
+      +(u?('<div style="font-size:.85em;color:#4b5563;margin-top:3px">'+(u.approval_status==='approved_client'?'🏢 기장거래처':u.approval_status==='approved_guest'?'✅ 일반':'⏳ '+(u.approval_status||'pending'))+'</div>'):'')
+      +'</div></section>';
+    /* 거래처 노트 */
+    html+='<section style="margin-bottom:14px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">'
+      +'<div style="font-weight:700;font-size:.9em;color:#1e40af">🏢 거래처 노트 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:3px">('+infoMemos.length+')</span></div>'
+      +'</div>';
+    if(!infoMemos.length){
+      html+='<div style="background:#f9fafb;border:1px dashed #e5e8eb;border-radius:8px;padding:8px 10px;color:#adb5bd;font-size:.82em">기본 정보 없음 — 자세히 화면에서 추가</div>';
+    } else {
+      html+='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 10px">'
+        +infoMemos.map(m=>'<div style="padding:3px 0;font-size:.85em;color:#1e3a8a;white-space:pre-wrap;word-break:break-word;line-height:1.5">• '+e(m.content||'')+'</div>').join('')
+        +'</div>';
+    }
+    html+='</section>';
+    /* 진행중 신고 Case */
+    html+='<section style="margin-bottom:14px">'
+      +'<div style="font-weight:700;font-size:.9em;margin-bottom:5px;color:#065f46">📅 진행중 신고 <span style="font-size:.72em;color:#8b95a1;font-weight:500">('+activeFilings.length+')</span></div>';
+    if(!activeFilings.length){
+      html+='<div style="background:#f9fafb;border:1px dashed #e5e8eb;border-radius:8px;padding:8px 10px;color:#adb5bd;font-size:.82em">진행중인 신고 Case 없음</div>';
+    } else {
+      html+=activeFilings.slice(0,5).map(f=>{
+        const items=f.items||[];const done=items.filter(i=>i.is_checked).length;const total=items.length;
+        const pct=total>0?Math.round(done/total*100):0;
+        return '<div style="background:#ecfdf5;border:1px solid #86efac;border-radius:8px;padding:7px 10px;margin-bottom:5px;display:flex;align-items:center;gap:6px;font-size:.85em">'
+          +'<span>'+_filingIcon(f.filing_type)+'</span>'
+          +'<span style="font-weight:600">'+e(f.filing_type)+' · '+e(f.period)+'</span>'
+          +_dday(f.due_date)
+          +'<span style="margin-left:auto;color:#4b5563;font-size:.88em">'+done+'/'+total+' ('+pct+'%)</span>'
+          +'</div>';
+      }).join('');
+    }
+    html+='</section>';
+    /* 안내 */
+    html+='<div style="font-size:.75em;color:#8b95a1;margin-top:6px;line-height:1.5">전체 할 일·요약 이력·문서·재무 등은 상단 <b>자세히 →</b> 버튼으로 풀 대시보드에서 확인하세요.</div>';
+    $g('csBody').innerHTML=html;
+  }catch(err){
+    $g('csBody').innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>';
+  }
+}
+function closeCustSidePanel(){
+  const m=$g('custSidePanel');if(m){m.style.display='none';m.classList.remove('side-dock')}
+  document.body.classList.remove('cust-side-open');
+  document.body.style.overflow='';
+}
+function _csOpenFull(){
+  const uid=_csCurrentUserId;
+  if(!uid)return;
+  closeCustSidePanel();
+  setTimeout(()=>{if(typeof openCustomerDashboard==='function')openCustomerDashboard(uid)},120);
 }
 
 /* ===== 거래처 서류 확인 (신분증·사업자등록증·홈택스 ID) ===== */

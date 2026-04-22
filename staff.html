@@ -428,7 +428,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=74"></script>
+<script src="/admin.js?v=75"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;
@@ -728,6 +728,10 @@ async function saveImgViewer(){
 .btn-ghost:hover{background:var(--neutral-border)}
 .btn-primary:disabled, .btn-danger:disabled, .btn-warn:disabled, .btn-success:disabled{opacity:.55; cursor:not-allowed}
 .btn-sm{padding:5px 11px; font-size:.76em; border-radius:var(--radius-sm)}
+
+/* 상담방 메시지 바닥 앵커 */
+#roomMessages{display:flex;flex-direction:column}
+#roomMessages > *:first-child{margin-top:auto}
 </style>
 <style>
 #imgViewer{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:10000;display:none;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain}
