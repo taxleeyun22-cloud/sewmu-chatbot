@@ -80,9 +80,45 @@
 <button id="uStClient" onclick="userStatus('approved_client')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">기장거래처 <span id="cClient">0</span></button>
 <button id="uStGuest" onclick="userStatus('approved_guest')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">일반승인 <span id="cGuest">0</span></button>
 <button id="uStRejected" onclick="userStatus('rejected')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">거절 <span id="cRejected">0</span></button>
-<button onclick="showBulkUpload()" style="margin-left:auto;background:#191f28;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📤 CSV 일괄 업로드</button>
+<button onclick="openManualClientModal()" style="margin-left:auto;background:#10b981;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="OAuth 없이 관리자가 직접 거래처 생성 — 오프라인 고객·기존 거래처 마이그레이션용">➕ 수동 거래처</button>
+<button onclick="showBulkUpload()" style="background:#191f28;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📤 CSV 일괄 업로드</button>
 </div>
 <div id="userList"></div>
+
+<!-- 수동 거래처 등록 모달 -->
+<div id="manualClientModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11200;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:500px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1em">➕ 수동 거래처 등록 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">로그인 없는 관리용 거래처</span></div>
+      <button onclick="closeManualClientModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+    </div>
+    <div style="padding:16px 18px">
+      <div style="font-size:.78em;color:#6b7280;margin-bottom:12px;line-height:1.55">
+        ⚠️ 이 거래처는 <b>로그인 불가</b>합니다. 관리자 화면에서 관리·문서·메모·요약만 사용 가능.<br>
+        OAuth 가입 고객과 합치려면 나중에 승인 탭에서 대체 가능.
+      </div>
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">이름 (실명) <span style="color:#f04452">*</span></label>
+      <input id="mcRealName" type="text" placeholder="예) 김철수" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">전화번호</label>
+      <input id="mcPhone" type="tel" placeholder="010-1234-5678" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">상호명</label>
+      <input id="mcCompany" type="text" placeholder="예) 철수상회" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">사업자등록번호</label>
+      <input id="mcBizNo" type="text" placeholder="123-45-67890" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">거래처 노트 (초기 기본 정보)</label>
+      <textarea id="mcNotes" placeholder="예) 음식점 / 현금 매출 많음 / 배당 연 2회 / 대표 성격 급함" rows="3" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:6px;box-sizing:border-box;outline:none;resize:vertical"></textarea>
+      <div style="font-size:.72em;color:#8b95a1;margin-bottom:14px">↑ 작성하면 🏢 거래처 노트로 자동 저장 · AI 요약에 자동 반영</div>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeManualClientModal()" style="background:#e5e8eb;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
+      <button onclick="submitManualClient()" id="mcSubmitBtn" style="background:#10b981;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">➕ 등록</button>
+    </div>
+  </div>
+</div>
 </div>
 
 <!-- 거래처 사업장 관리 모달 (복수 지원) -->
@@ -596,7 +632,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=72"></script>
+<script src="/admin.js?v=73"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면
