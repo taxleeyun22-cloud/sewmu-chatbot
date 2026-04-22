@@ -42,6 +42,7 @@
 <button id="tabFaq" onclick="tab('faq')">📚 FAQ</button>
 </div>
 <button class="logout" onclick="openSearch()" style="margin-left:auto" title="전역 검색">🔍 검색</button>
+<button id="pcNotifyBtn" class="logout" onclick="togglePcNotify()" title="PC 알림 (새 고객 메시지 알림)">🔕 알림</button>
 <a href="/" class="logout" style="text-decoration:none" title="일반 챗봇 페이지로">🏠 챗봇</a>
 <button class="logout" onclick="logout()">로그아웃</button>
 </div>
@@ -593,7 +594,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=64"></script>
+<script src="/admin.js?v=65"></script>
 <style>
 #imgViewer{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:10000;display:none;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain}
 #imgViewer.open{display:flex}

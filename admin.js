@@ -515,7 +515,124 @@ async function loadRoomList(){
       const cur=d.rooms.find(rm=>rm.id===currentRoomId);
       if(cur)_adminRoomMarkRead(currentRoomId, cur.user_msg_count||0);
     }
+    /* PC 알림 — 새 고객 메시지 감지 */
+    _detectNewMessagesForNotify(d.rooms);
   }catch(err){$g('roomList').innerHTML='<div style="padding:20px;color:#f04452">오류: '+e(err.message)+'</div>'}
+}
+
+/* ===== 🔔 PC 브라우저 알림 (OS 네이티브) =====
+   - 설정: localStorage 'pcNotifyOn' (0/1)
+   - 권한: Notification.requestPermission()
+   - 감지: loadRoomList 주기 polling 결과에서 user_msg_count 증가분
+   - 클릭: 해당 방 openRoom + 창 focus
+   - 현재 열린 방은 알림 X (이미 보고 있음)
+   - 첫 로드(캐시 비어있음) 시엔 알림 X */
+const _notifyPrevCounts = {};
+let _notifyFirstLoad = true;
+function _pcNotifyEnabled(){
+  try{return localStorage.getItem('pcNotifyOn')==='1'}catch(_){return false}
+}
+function _pcNotifySet(on){
+  try{localStorage.setItem('pcNotifyOn', on?'1':'0')}catch(_){}
+}
+function _updatePcNotifyBtn(){
+  const b=document.getElementById('pcNotifyBtn');if(!b)return;
+  const on=_pcNotifyEnabled();
+  const perm=(typeof Notification!=='undefined')?Notification.permission:'denied';
+  if(on && perm==='granted'){
+    b.innerHTML='🔔 알림';
+    b.style.background='#10b981';b.style.color='#fff';
+    b.title='PC 알림 켜짐 — 클릭해서 끄기';
+  } else if(on && perm!=='granted'){
+    b.innerHTML='🔕 알림 (차단)';
+    b.style.background='#fef3c7';b.style.color='#92400e';
+    b.title='브라우저 알림 권한 거부됨 — 주소창 왼쪽 자물쇠 아이콘에서 허용 필요';
+  } else {
+    b.innerHTML='🔕 알림';
+    b.style.background='';b.style.color='';
+    b.title='PC 알림 꺼짐 — 클릭해서 켜기';
+  }
+}
+async function togglePcNotify(){
+  if(typeof Notification==='undefined'){alert('이 브라우저는 알림을 지원하지 않습니다');return}
+  const nowOn=_pcNotifyEnabled();
+  if(nowOn){
+    _pcNotifySet(false);
+    _updatePcNotifyBtn();
+    if(typeof showAdminToast==='function')showAdminToast('🔕 PC 알림 꺼짐');
+    return;
+  }
+  /* 켜기 — 권한 요청 */
+  let perm=Notification.permission;
+  if(perm==='default'){
+    try{perm=await Notification.requestPermission()}catch(_){perm='denied'}
+  }
+  if(perm!=='granted'){
+    alert('브라우저 알림 권한이 필요합니다.\n주소창 왼쪽 자물쇠(🔒) 아이콘 → 알림 → 허용으로 바꿔주세요.');
+    _pcNotifySet(false);
+    _updatePcNotifyBtn();
+    return;
+  }
+  _pcNotifySet(true);
+  _updatePcNotifyBtn();
+  /* 시범 알림 — 켜졌다는 피드백 */
+  try{
+    const n=new Notification('🔔 PC 알림 켜짐', {
+      body: '고객에게 새 메시지가 오면 여기 표시됩니다',
+      icon: '/logo-icon.png',
+      tag: 'pcNotifyTest',
+    });
+    setTimeout(()=>{try{n.close()}catch(_){}},3000);
+  }catch(_){}
+  if(typeof showAdminToast==='function')showAdminToast('🔔 PC 알림 켜짐');
+}
+function _detectNewMessagesForNotify(rooms){
+  try{
+    if(!Array.isArray(rooms))return;
+    const first=_notifyFirstLoad;
+    /* 첫 로드는 baseline 만 설정하고 알림 X */
+    if(first){
+      for(const rm of rooms)_notifyPrevCounts[rm.id]=Number(rm.user_msg_count||0);
+      _notifyFirstLoad=false;
+      _updatePcNotifyBtn();
+      return;
+    }
+    if(!_pcNotifyEnabled())return;
+    if(typeof Notification==='undefined'||Notification.permission!=='granted')return;
+    /* 탭이 보이고 해당 방이 열려있으면 알림 X (이미 보고 있음) */
+    const visible=(typeof document.visibilityState==='string')?(document.visibilityState==='visible'):true;
+    for(const rm of rooms){
+      const prev=_notifyPrevCounts[rm.id];
+      const now=Number(rm.user_msg_count||0);
+      _notifyPrevCounts[rm.id]=now;
+      if(prev==null)continue;
+      if(now<=prev)continue;
+      /* 현재 열린 방 + 탭 보임 상태면 스킵 */
+      if(visible && currentRoomId===rm.id)continue;
+      /* 알림 생성 */
+      const diff=now-prev;
+      const who=rm.first_member_name||rm.name||'거래처';
+      const preview=String(rm.last_msg_preview||'새 메시지가 있습니다').slice(0,80);
+      try{
+        const n=new Notification('💬 '+who+(diff>1?' ('+diff+')':''), {
+          body: preview,
+          icon: '/logo-icon.png',
+          tag: 'room-'+rm.id,
+          renotify: true,
+          requireInteraction: false,
+        });
+        n.onclick=function(){
+          try{window.focus();if(typeof openRoom==='function')openRoom(rm.id);n.close()}catch(_){}
+        };
+      }catch(_){}
+    }
+  }catch(_){}
+}
+/* 초기 버튼 상태 반영 (DOM 준비 후) */
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',_updatePcNotifyBtn);
+} else {
+  setTimeout(_updatePcNotifyBtn,0);
 }
 
 async function setRoomPriority(roomId, value){
