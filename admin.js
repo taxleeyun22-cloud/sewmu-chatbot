@@ -3278,8 +3278,17 @@ async function openRoomMemos(){
   if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
   const modal=$g('memoModal');
   if(!modal)return;
+  /* 사이드 도킹 모드: 대화창과 나란히 볼 수 있게. PC(≥1024px)에선 우측 패널, 모바일은 바텀 시트.
+     body 스크롤은 유지 (채팅 스크롤 되도록) — PC 사이드 모드에선 배경 투명이라 밖 클릭도 채팅에 전달됨. */
+  modal.classList.add('side-dock');
   modal.style.display='flex';
-  document.body.style.overflow='hidden';
+  document.body.classList.add('memo-side-open');
+  /* 모바일에선 화면 가리므로 body overflow 잠금 유지 */
+  if(window.matchMedia('(max-width:1023px)').matches){
+    document.body.style.overflow='hidden';
+  } else {
+    document.body.style.overflow='';
+  }
   _memoEditingId=null;
   _memoSelectedType='할 일';
   _memoFilter='todo';
@@ -3293,8 +3302,16 @@ async function openRoomMemos(){
 }
 function closeMemoModal(){
   const m=$g('memoModal');if(m)m.style.display='none';
+  if(m)m.classList.remove('side-dock');
+  document.body.classList.remove('memo-side-open');
   document.body.style.overflow='';
 }
+/* 창 크기 변화 시 body overflow 조정 (PC ↔ 모바일 전환) */
+window.addEventListener('resize',function(){
+  const m=document.getElementById('memoModal');
+  if(!m||m.style.display!=='flex')return;
+  document.body.style.overflow=window.matchMedia('(max-width:1023px)').matches?'hidden':'';
+});
 function _renderMemoTypeTabs(){
   const box=$g('memoTypeTabs');if(!box)return;
   box.innerHTML='<span style="font-size:.72em;color:#6b7280;margin-right:4px">종류:</span>'
