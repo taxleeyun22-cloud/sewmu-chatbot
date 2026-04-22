@@ -3506,6 +3506,109 @@ async function postSummaryToRoom(){
   }catch(err){alert('오류: '+err.message)}
 }
 
+/* ===== 📢 단체발송 — 여러 상담방에 한 번에 메시지 발송 =====
+   안전장치: 2단계 confirm, closed 방 자동 제외, 최대 200개 제한, 기본 선택 없음 */
+let _bulkRooms=[];
+let _bulkSelected=new Set();
+async function openBulkSend(){
+  const m=$g('bulkSendModal');if(!m)return;
+  m.style.display='flex';
+  document.body.style.overflow='hidden';
+  _bulkSelected=new Set();
+  if($g('bulkContent'))$g('bulkContent').value='';
+  if($g('bulkCount'))$g('bulkCount').textContent='0';
+  await _bulkLoadRooms();
+}
+function closeBulkSend(){
+  const m=$g('bulkSendModal');if(m)m.style.display='none';
+  document.body.style.overflow='';
+}
+async function _bulkLoadRooms(){
+  const list=$g('bulkRoomList');if(!list)return;
+  list.innerHTML='<div style="text-align:center;color:#8b95a1;padding:30px 0;font-size:.88em">불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY));
+    const d=await r.json();
+    _bulkRooms=(d.rooms||[]).filter(rm=>rm.status==='active');
+    _bulkRender();
+  }catch(err){list.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>'}
+}
+function _bulkRender(){
+  const list=$g('bulkRoomList');if(!list)return;
+  if(!_bulkRooms.length){
+    list.innerHTML='<div style="text-align:center;color:#8b95a1;padding:30px 0;font-size:.88em">active 상담방이 없습니다</div>';
+    return;
+  }
+  /* 우선순위 그룹핑 */
+  const priOrder=[1,2,3,0];
+  const priLabels={1:'🔴 1순위',2:'🟡 2순위',3:'🟢 3순위',0:'⚪ 미분류'};
+  const priColors={1:'#dc2626',2:'#b45309',3:'#059669',0:'#6b7280'};
+  const groups={1:[],2:[],3:[],0:[]};
+  for(const rm of _bulkRooms){
+    const p=Number(rm.priority||0);
+    groups[p===1||p===2||p===3?p:0].push(rm);
+  }
+  let html='';
+  for(const p of priOrder){
+    const arr=groups[p];if(!arr.length)continue;
+    const c=priColors[p];
+    html+='<div style="margin:8px 0 4px;font-size:.76em;font-weight:700;color:'+c+';border-bottom:1px solid '+c+';padding-bottom:3px">'+priLabels[p]+' <span style="font-weight:500;color:#6b7280">('+arr.length+')</span></div>';
+    html+=arr.map(rm=>{
+      const checked=_bulkSelected.has(rm.id)?'checked':'';
+      const customer=rm.first_member_name||rm.name||rm.id;
+      return '<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #f2f4f6;cursor:pointer;font-size:.88em">'
+        +'<input type="checkbox" data-room-id="'+escAttr(rm.id)+'" '+checked+' onchange="_bulkToggle(\''+escAttr(rm.id)+'\',this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:#10b981">'
+        +'<span style="flex:1">'+e(customer)+(rm.name&&rm.name!==customer?' <span style="color:#8b95a1;font-size:.82em">'+e(rm.name)+'</span>':'')+'</span>'
+        +'</label>';
+    }).join('');
+  }
+  list.innerHTML=html;
+  _bulkUpdateCount();
+}
+function _bulkToggle(roomId, on){
+  if(on)_bulkSelected.add(roomId); else _bulkSelected.delete(roomId);
+  _bulkUpdateCount();
+}
+function _bulkUpdateCount(){
+  const el=$g('bulkCount');if(el)el.textContent=String(_bulkSelected.size);
+}
+function _bulkSelect(filter){
+  /* filter: 'all' | 1 | 2 | 3 | 'none' — 해당 그룹 전부 선택 (추가) */
+  for(const rm of _bulkRooms){
+    const p=Number(rm.priority||0);
+    if(filter==='all')_bulkSelected.add(rm.id);
+    else if(filter==='none' && p===0)_bulkSelected.add(rm.id);
+    else if(typeof filter==='number' && p===filter)_bulkSelected.add(rm.id);
+  }
+  _bulkRender();
+}
+function _bulkSelectNone(){
+  _bulkSelected.clear();
+  _bulkRender();
+}
+async function submitBulkSend(){
+  const content=($g('bulkContent')?.value||'').trim();
+  if(!content){alert('메시지 내용을 입력하세요');return}
+  if(!_bulkSelected.size){alert('최소 1개 이상의 상담방을 선택하세요');return}
+  const n=_bulkSelected.size;
+  if(!confirm('⚠️ '+n+'개 상담방에 메시지를 발송합니다.\n고객들이 바로 볼 수 있습니다.\n\n정말 발송할까요?'))return;
+  if(!confirm('한 번 더 확인: '+n+'개 상담방 · 메시지 '+content.length+'자\n\n발송을 시작합니다.'))return;
+  const btn=$g('bulkSubmitBtn');
+  if(btn){btn.disabled=true;btn.style.opacity='.55';btn.textContent='📢 발송 중...'}
+  try{
+    const r=await fetch('/api/admin-bulk-send?key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({room_ids:Array.from(_bulkSelected), content})
+    });
+    const d=await r.json();
+    if(!d.ok){alert('발송 실패: '+(d.error||'unknown'));return}
+    const msg='✅ '+d.sent+'건 발송 성공'+(d.failed&&d.failed.length?' / ⚠️ '+d.failed.length+'건 실패':'');
+    alert(msg);
+    closeBulkSend();
+  }catch(err){alert('오류: '+err.message)}
+  finally{if(btn){btn.disabled=false;btn.style.opacity='';btn.textContent='⚠️ 발송'}}
+}
+
 /* ===== 📋 내 할 일 대시보드 — 전체 방 + 개인 일정 통합 뷰 =====
    Purpose: 방 150개 일일이 클릭 안 해도 오늘·내일·이번주 할 일 한 번에 파악
    Data source: /api/memos?scope=my (미완료 할 일만, 방 정보 JOIN) */
