@@ -896,5 +896,236 @@ async function saveImgViewer(){
     <div id="memoList" style="flex:1;overflow-y:auto;padding:10px 16px 16px;background:#fff"></div>
   </div>
 </div>
+<!-- ===== 관리자·직원 UI 통일: admin.html 에서 복사한 공용 모달 ===== -->
+
+<!-- custSidePanel -->
+<div id="custSidePanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11150;align-items:center;justify-content:center;padding:20px">
+  <div class="memo-panel" style="background:#fff;border-radius:16px;width:100%;max-width:560px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1em">🏢 <span id="csName">거래처</span> <span id="csSub" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
+      <div style="display:flex;gap:6px">
+        <button onclick="_csOpenFull()" style="background:#eff6ff;color:#1e40af;border:none;padding:5px 10px;border-radius:6px;font-size:.76em;font-weight:700;cursor:pointer;font-family:inherit">자세히 →</button>
+        <button onclick="closeCustSidePanel()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+      </div>
+    </div>
+    <div id="csBody" style="flex:1;overflow-y:auto;padding:14px 18px 18px;background:#fff"></div>
+  </div>
+</div>
+
+<!-- newFilingModal -->
+<div id="newFilingModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1em">📅 새 신고 Case</div>
+      <button onclick="closeNewFilingModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+    </div>
+    <div style="padding:16px 18px">
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">신고 종류 <span style="color:#f04452">*</span></label>
+      <select id="nfType" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
+        <option value="부가세">부가세</option>
+        <option value="종소세">종소세</option>
+        <option value="법인세">법인세</option>
+        <option value="원천세">원천세</option>
+        <option value="양도세">양도세</option>
+        <option value="기타">기타</option>
+      </select>
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">기간 <span style="color:#f04452">*</span></label>
+      <input id="nfPeriod" type="text" placeholder="예) 2026-1기, 2025, 2026-04" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">신고 기한 (D-day 관리용)</label>
+      <input id="nfDue" type="date" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+      <div style="font-size:.72em;color:#8b95a1;margin-bottom:10px">기본 체크리스트가 신고 종류에 맞게 자동 생성됩니다</div>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeNewFilingModal()" style="background:#e5e8eb;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
+      <button onclick="submitNewFiling()" id="nfSubmitBtn" style="background:#10b981;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">Case 생성</button>
+    </div>
+  </div>
+</div>
+
+<!-- manualClientModal -->
+<div id="manualClientModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11200;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:500px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1em">➕ 수동 거래처 등록 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">로그인 없는 관리용 거래처</span></div>
+      <button onclick="closeManualClientModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+    </div>
+    <div style="padding:16px 18px">
+      <div style="font-size:.78em;color:#6b7280;margin-bottom:12px;line-height:1.55">
+        ⚠️ 이 거래처는 <b>로그인 불가</b>합니다. 관리자 화면에서 관리·문서·메모·요약만 사용 가능.<br>
+        OAuth 가입 고객과 합치려면 나중에 승인 탭에서 대체 가능.
+      </div>
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">이름 (실명) <span style="color:#f04452">*</span></label>
+      <input id="mcRealName" type="text" placeholder="예) 김철수" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">전화번호</label>
+      <input id="mcPhone" type="tel" placeholder="010-1234-5678" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">상호명</label>
+      <input id="mcCompany" type="text" placeholder="예) 철수상회" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">사업자등록번호</label>
+      <input id="mcBizNo" type="text" placeholder="123-45-67890" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+
+      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">거래처 노트 (초기 기본 정보)</label>
+      <textarea id="mcNotes" placeholder="예) 음식점 / 현금 매출 많음 / 배당 연 2회 / 대표 성격 급함" rows="3" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:6px;box-sizing:border-box;outline:none;resize:vertical"></textarea>
+      <div style="font-size:.72em;color:#8b95a1;margin-bottom:14px">↑ 작성하면 🏢 거래처 노트로 자동 저장 · AI 요약에 자동 반영</div>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeManualClientModal()" style="background:#e5e8eb;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
+      <button onclick="submitManualClient()" id="mcSubmitBtn" style="background:#10b981;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">➕ 등록</button>
+    </div>
+  </div>
+</div>
+
+<!-- custDashModal -->
+<div id="custDashModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11300;padding:0;overflow-y:auto">
+  <div style="background:#f2f4f6;min-height:100vh">
+    <!-- 헤더 -->
+    <div style="background:#fff;padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10">
+      <button onclick="closeCustomerDashboard()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#191f28">←</button>
+      <div style="flex:1;min-width:0">
+        <div id="cdName" style="font-weight:800;font-size:1.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">-</div>
+        <div id="cdSub" style="font-size:.75em;color:#8b95a1;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">-</div>
+      </div>
+      <div id="cdPriority" style="flex-shrink:0"></div>
+    </div>
+    <!-- 본문 그리드 -->
+    <div style="padding:14px;max-width:1200px;margin:0 auto">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+        <!-- 기본 정보 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+          <div style="font-weight:700;font-size:.92em;margin-bottom:10px">🏢 기본 정보</div>
+          <div id="cdBasic" style="font-size:.85em;color:#555"></div>
+          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+            <button onclick="cdGotoDocs()" style="background:#e5e8eb;border:none;padding:6px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">📄 문서 탭</button>
+            <button onclick="cdGotoRoom()" style="background:#dbeafe;color:#1e40af;border:none;padding:6px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">💬 상담방</button>
+            <button onclick="cdExportCsv()" style="background:#d1fae5;color:#065f46;border:none;padding:6px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">📥 CSV</button>
+          </div>
+        </div>
+        <!-- 문서 요약 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-weight:700;font-size:.92em">📄 문서 현황</div>
+            <button onclick="cdGotoDocs()" style="background:none;border:none;color:#3182f6;font-size:.75em;cursor:pointer;font-family:inherit">전체 보기 →</button>
+          </div>
+          <div id="cdDocs" style="font-size:.85em"></div>
+        </div>
+        <!-- 재무 요약 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-weight:700;font-size:.92em">📊 재무 데이터</div>
+            <button onclick="openFinancePanel()" style="background:none;border:none;color:#3182f6;font-size:.75em;cursor:pointer;font-family:inherit">편집 →</button>
+          </div>
+          <div id="cdFinance" style="font-size:.85em"></div>
+        </div>
+        <!-- 서류 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-weight:700;font-size:.92em">📋 필수 서류 (신분증·사업자등록증·홈택스)</div>
+          </div>
+          <div id="cdBizDocs" style="font-size:.85em"></div>
+        </div>
+        <!-- 📅 신고 Case (세무 업무 단위) -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+            <div style="font-weight:700;font-size:.92em">📅 신고 Case <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:4px">거래처 × 신고종류 × 기간 단위 업무 묶음</span></div>
+            <button onclick="openNewFilingModal()" style="background:#10b981;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">+ 새 Case</button>
+          </div>
+          <div id="cdFilings" style="font-size:.85em"></div>
+        </div>
+        <!-- 🏢 거래처 노트 (영구·인수인계용) — AI 요약 때마다 자동 반영됨 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-weight:700;font-size:.92em">🏢 거래처 노트 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:4px">기본사항·특이사항 영구 기록 — AI 요약 자동 반영</span></div>
+          </div>
+          <div id="cdCustomerInfo" style="font-size:.85em;max-height:180px;overflow-y:auto;margin-bottom:8px"></div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input id="cdInfoNew" type="text" placeholder="예) 음식점 / 현금 매출 많음 / 배당 연 2회 지급" style="flex:1;min-width:0;padding:7px 10px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;outline:none" onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomerInfo()}">
+            <button onclick="addCustomerInfo()" style="background:#3182f6;color:#fff;border:none;padding:7px 14px;border-radius:7px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit">추가</button>
+          </div>
+        </div>
+        <!-- 📋 이 거래처 관련 할 일 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-weight:700;font-size:.92em">📋 할 일 <span id="cdTodoCount" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:4px"></span></div>
+            <button onclick="openMyTodos()" style="background:none;border:none;color:#3182f6;font-size:.72em;cursor:pointer;font-family:inherit">전체 대시보드 →</button>
+          </div>
+          <div id="cdTodos" style="font-size:.85em;max-height:180px;overflow-y:auto"></div>
+        </div>
+        <!-- 📝 최근 AI 요약 이력 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-weight:700;font-size:.92em">📝 최근 AI 요약 <span id="cdSummaryCount" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:4px"></span></div>
+          </div>
+          <div id="cdSummaries" style="font-size:.85em;max-height:180px;overflow-y:auto"></div>
+        </div>
+        <!-- 최근 대화 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-weight:700;font-size:.92em">💬 최근 상담</div>
+            <button onclick="cdGotoRoom()" style="background:none;border:none;color:#3182f6;font-size:.75em;cursor:pointer;font-family:inherit">상담방 열기 →</button>
+          </div>
+          <div id="cdRecentChat" style="font-size:.85em;max-height:240px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- bizDocsModal -->
+<div id="bizDocsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:720px;margin-top:40px;box-shadow:0 10px 40px rgba(0,0,0,.25);overflow:hidden">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1em">📋 거래처 서류 — <span id="bdTitle">-</span></div>
+      <button onclick="closeBizDocsPanel()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#8b95a1">✕</button>
+    </div>
+    <div id="bdBody" style="padding:16px 18px;max-height:75vh;overflow-y:auto"></div>
+  </div>
+</div>
+
+<!-- financeModal -->
+<div id="financeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:1100px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="font-weight:700;font-size:1em">📊 재무 데이터 — <span id="finCustName">-</span></div>
+      <div style="display:flex;gap:6px">
+        <button onclick="openFinanceAddRow()" style="background:#10b981;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit">+ 항목 추가</button>
+        <button onclick="closeFinancePanel()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+      </div>
+    </div>
+    <div style="padding:6px 18px;background:#f9fafb;font-size:.74em;color:#8b95a1;border-bottom:1px solid #f2f4f6">💡 PDF 일괄 처리: 세무사님이 <code>finance_pdfs/{user_id}/</code>에 PDF 푸시 후 Claude한테 "거래처 PDF 처리해줘 [거래처명]"</div>
+    <div id="finBody" style="flex:1;overflow:auto;padding:14px 18px;background:#fff"></div>
+  </div>
+</div>
+
+<!-- finRowModal -->
+<div id="finRowModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11500;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.25)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-weight:700;font-size:.98em" id="finRowTitle">재무 항목</div>
+      <button onclick="closeFinanceRow()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit">✕</button>
+    </div>
+    <input id="finRowId" type="hidden">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label style="font-size:.75em;font-weight:600;color:#555">기간 *</label><input id="finPeriod" type="text" placeholder="2026-04 또는 2026-Q1 또는 2026" style="width:100%;padding:8px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+      <div><label style="font-size:.75em;font-weight:600;color:#555">기간 단위</label><select id="finPeriodType" style="width:100%;padding:8px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;box-sizing:border-box"><option value="monthly">월별</option><option value="quarterly">분기별</option><option value="yearly">연간</option><option value="vat_period">부가세 1기/2기</option></select></div>
+      <div><label style="font-size:.75em;font-weight:600;color:#555">매출(원)</label><input id="finRevenue" type="number" style="width:100%;padding:8px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+      <div><label style="font-size:.75em;font-weight:600;color:#555">매입(원)</label><input id="finCost" type="number" style="width:100%;padding:8px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+      <div><label style="font-size:.75em;font-weight:600;color:#555">납부 부가세</label><input id="finVatPayable" type="number" style="width:100%;padding:8px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+      <div><label style="font-size:.75em;font-weight:600;color:#555">매입세액</label><input id="finVatInput" type="number" style="width:100%;padding:8px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+      <div><label style="font-size:.75em;font-weight:600;color:#555">매출세액</label><input id="finVatOutput" type="number" style="width:100%;padding:8px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+      <div><label style="font-size:.75em;font-weight:600;color:#555">소득세/법인세</label><input id="finIncomeTax" type="number" style="width:100%;padding:8px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+      <div><label style="font-size:.75em;font-weight:600;color:#555">과세표준</label><input id="finTaxableIncome" type="number" style="width:100%;padding:8px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+      <div><label style="font-size:.75em;font-weight:600;color:#555">인건비 합계</label><input id="finPayrollTotal" type="number" style="width:100%;padding:8px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+      <div style="grid-column:1/3"><label style="font-size:.75em;font-weight:600;color:#555">메모</label><input id="finNotes" type="text" placeholder="비고" style="width:100%;padding:8px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+      <button onclick="deleteFinanceRow()" id="finDelBtn" style="background:#fee2e2;color:#dc2626;border:none;padding:9px 14px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit;display:none">삭제</button>
+      <button onclick="closeFinanceRow()" style="background:#e5e8eb;border:none;padding:9px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
+      <button onclick="saveFinanceRow()" style="background:#3182f6;color:#fff;border:none;padding:9px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">저장</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
