@@ -4102,9 +4102,12 @@ async function openCustomerDashboardFromRoom(){
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
     const d=await r.json();
-    const mem=(d.members||[]).find(m=>!m.left_at && m.user_id);
-    if(!mem){alert('상담방에 고객이 없습니다');return}
-    openCustomerDashboard(mem.user_id);
+    /* 관리자 자동 참여 기능 이후 members 에 관리자(role='admin')가 포함됨.
+       고객만 골라야 함 — role !== 'admin' 필터 필수. 없으면 관리자 본인 user_id 로 dashboard 열려 빈 데이터. */
+    const customers=(d.members||[]).filter(m=>!m.left_at && m.user_id && m.role!=='admin');
+    if(!customers.length){alert('상담방에 고객이 없습니다\n(관리자만 참여 중)');return}
+    /* 여러 고객이면 첫 번째 (joined_at 순). 필요하면 여기서 선택 UI 띄울 수 있음 */
+    openCustomerDashboard(customers[0].user_id);
   }catch(e){alert('오류: '+e.message)}
 }
 
