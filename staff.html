@@ -714,6 +714,20 @@ async function saveImgViewer(){
   --status-later:   #2563eb;
   --status-none:    #6b7280;
 }
+.btn-primary, .btn-danger, .btn-warn, .btn-success, .btn-ghost{
+  border:none; padding:8px 16px; border-radius:var(--radius-md);
+  font-size:.85em; font-weight:600; cursor:pointer; font-family:inherit;
+  transition:opacity .15s; display:inline-flex; align-items:center; gap:6px; line-height:1.2;
+}
+.btn-primary{background:var(--brand-primary); color:var(--brand-primary-fg)}
+.btn-danger{background:var(--brand-danger); color:var(--brand-danger-fg)}
+.btn-warn{background:var(--brand-warn); color:var(--brand-warn-fg)}
+.btn-success{background:var(--brand-success); color:var(--brand-success-fg)}
+.btn-ghost{background:var(--neutral-bg); color:var(--text-sub); border:1px solid var(--neutral-border)}
+.btn-primary:hover, .btn-danger:hover, .btn-warn:hover, .btn-success:hover{opacity:.9}
+.btn-ghost:hover{background:var(--neutral-border)}
+.btn-primary:disabled, .btn-danger:disabled, .btn-warn:disabled, .btn-success:disabled{opacity:.55; cursor:not-allowed}
+.btn-sm{padding:5px 11px; font-size:.76em; border-radius:var(--radius-sm)}
 </style>
 <style>
 #imgViewer{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:10000;display:none;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain}

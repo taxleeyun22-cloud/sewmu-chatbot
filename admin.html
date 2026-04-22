@@ -710,6 +710,29 @@
   --status-later:   #2563eb;
   --status-none:    #6b7280;
 }
+
+/* === 버튼 유틸리티 (B+C안, 신규 코드가 점진 적용) ===
+   버튼 의미 규칙:
+   .btn-primary = 저장·확인·일반 액션 (파랑)
+   .btn-danger  = 삭제·위험·로그아웃 (빨강)
+   .btn-warn    = 경고·고객 공개 게시 (노랑)
+   .btn-success = 완료·성공 (초록)
+   .btn-ghost   = 취소·보조 (회색 외곽선)
+   기존 inline style 은 유지. 새 버튼 작성 시 class 를 쓴다. */
+.btn-primary, .btn-danger, .btn-warn, .btn-success, .btn-ghost{
+  border:none; padding:8px 16px; border-radius:var(--radius-md);
+  font-size:.85em; font-weight:600; cursor:pointer; font-family:inherit;
+  transition:opacity .15s; display:inline-flex; align-items:center; gap:6px; line-height:1.2;
+}
+.btn-primary{background:var(--brand-primary); color:var(--brand-primary-fg)}
+.btn-danger{background:var(--brand-danger); color:var(--brand-danger-fg)}
+.btn-warn{background:var(--brand-warn); color:var(--brand-warn-fg)}
+.btn-success{background:var(--brand-success); color:var(--brand-success-fg)}
+.btn-ghost{background:var(--neutral-bg); color:var(--text-sub); border:1px solid var(--neutral-border)}
+.btn-primary:hover, .btn-danger:hover, .btn-warn:hover, .btn-success:hover{opacity:.9}
+.btn-ghost:hover{background:var(--neutral-border)}
+.btn-primary:disabled, .btn-danger:disabled, .btn-warn:disabled, .btn-success:disabled{opacity:.55; cursor:not-allowed}
+.btn-sm{padding:5px 11px; font-size:.76em; border-radius:var(--radius-sm)}
 </style>
 <style>
 #imgViewer.open{display:flex}
@@ -830,7 +853,7 @@
 </div>
 
 <!-- 거래처 서류 확인 모달 (신분증·사업자등록증·홈택스 ID) -->
-<div id="bizDocsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:11200;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+<div id="bizDocsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:720px;margin-top:40px;box-shadow:0 10px 40px rgba(0,0,0,.25);overflow:hidden">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">📋 거래처 서류 — <span id="bdTitle">-</span></div>
@@ -854,7 +877,7 @@
   </div>
 </div>
 <!-- 재무 항목 입력/수정 모달 -->
-<div id="finRowModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:11500;align-items:center;justify-content:center;padding:20px">
+<div id="finRowModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11500;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.25)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div style="font-weight:700;font-size:.98em" id="finRowTitle">재무 항목</div>
