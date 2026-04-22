@@ -3122,14 +3122,30 @@ async function copyRoomSummary(){
   }catch(err){alert('복사 실패: '+err.message)}
 }
 
-/* 섹션 카드형 렌더 — summary_json 기반 내부 실무 정리표 */
+/* 섹션 카드형 렌더 — summary_json 기반 내부 실무 정리표.
+   항목은 {text, msgIds} 객체 또는 구형 string 둘 다 허용 (역호환). */
 function _renderSummaryJson(j){
   if(!j)return '';
   function _esc(x){return e(String(x==null?'':x))}
+  function _normItem(it){
+    if(it==null)return null;
+    if(typeof it==='string')return {text:it.trim(), msgIds:[]};
+    if(typeof it==='object'){
+      const t=String(it.text||'').trim();
+      if(!t)return null;
+      const ids=Array.isArray(it.msgIds)?it.msgIds.filter(x=>Number.isInteger(x)||/^\d+$/.test(String(x))).map(Number):[];
+      return {text:t, msgIds:ids};
+    }
+    return null;
+  }
+  function _anchors(ids){
+    if(!ids||!ids.length)return '';
+    return ' '+ids.map(id=>'<a href="javascript:void(0)" onclick="jumpToRoomMessage('+id+')" style="color:#3182f6;text-decoration:none;font-size:.85em;background:#eff6ff;border:1px solid #bfdbfe;padding:0 5px;border-radius:4px;margin-left:3px" title="원본 메시지로 이동">#'+id+'</a>').join('');
+  }
   function _sec(title, icon, color, items){
-    const arr=Array.isArray(items)?items.filter(x=>x&&String(x).trim()):[];
+    const arr=(Array.isArray(items)?items:[]).map(_normItem).filter(Boolean);
     const bodyHtml=arr.length
-      ? '<ul style="margin:0;padding-left:18px;line-height:1.7;color:#191f28">'+arr.map(x=>'<li style="margin-bottom:2px">'+_esc(x)+'</li>').join('')+'</ul>'
+      ? '<ul style="margin:0;padding-left:18px;line-height:1.8;color:#191f28">'+arr.map(it=>'<li style="margin-bottom:3px">'+_esc(it.text)+_anchors(it.msgIds)+'</li>').join('')+'</ul>'
       : '<div style="color:#adb5bd;font-size:.88em">- 없음</div>';
     return '<section style="margin-bottom:14px">'
       +'<div style="font-weight:700;font-size:.92em;color:'+color+';margin-bottom:6px;display:flex;align-items:center;gap:6px">'
@@ -3158,6 +3174,63 @@ function _renderSummaryJson(j){
     +_sec('특이사항 / 주의사항','⚠️','#334155',j.risks)
     +'</div>';
 }
+/* 섹션 항목 → 원본 메시지 스크롤·하이라이트 (요약 모달 닫고 방 열기) */
+function jumpToRoomMessage(mid){
+  if(!mid)return;
+  const modal=document.getElementById('roomSummaryModal');
+  if(modal)modal.style.display='none';
+  document.body.style.overflow='';
+  if(typeof jumpToOriginalMsgAdmin==='function'){
+    setTimeout(()=>jumpToOriginalMsgAdmin(mid), 120);
+  }
+}
+/* 요약 이력 — 과거 생성된 요약 리스트 중 하나 불러와서 다시 렌더 */
+async function openSummaryHistory(){
+  if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
+  const body=$g('rsBody');if(!body)return;
+  body.innerHTML='<div style="text-align:center;padding:30px 0;color:#8b95a1">🕘 이력 불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=summary_history&room_id='+encodeURIComponent(currentRoomId));
+    const d=await r.json();
+    const arr=d.summaries||[];
+    if(!arr.length){
+      body.innerHTML='<div style="text-align:center;padding:40px 16px;color:#8b95a1;font-size:.9em">🕘 저장된 요약 이력이 없습니다.<br><span style="font-size:.85em;color:#adb5bd">기간 선택 후 ✨ 요약 생성 하면 자동 저장됩니다.</span></div>';
+      return;
+    }
+    const rangeLabel={recent:'최근 50건',week:'최근 7일',month:'이번달',all:'전체',custom:'지정기간'};
+    body.innerHTML='<div style="padding:4px 0 8px;font-size:.82em;color:#6b7280">이전 요약 ('+arr.length+'건) — 클릭해서 불러오기</div>'
+      +arr.map(s=>{
+        const lab=rangeLabel[s.range_type]||s.range_type;
+        return '<div onclick="loadSummaryFromHistory('+s.id+')" style="padding:10px 12px;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:6px;cursor:pointer;background:#fff" onmouseover="this.style.background=\'#f9fafb\'" onmouseout="this.style.background=\'#fff\'">'
+          +'<div style="display:flex;align-items:center;gap:6px;font-size:.78em;color:#4b5563;margin-bottom:3px">'
+          +'<span style="background:#eff6ff;color:#1e40af;padding:1px 8px;border-radius:10px;font-weight:700">'+e(lab)+'</span>'
+          +'<span>'+e((s.generated_at||'').substring(0,16))+'</span>'
+          +'<span>·</span><span>메시지 '+(s.source_message_count||0)+'건</span>'
+          +(s.source_memo_count?'<span>·</span><span>메모 '+s.source_memo_count+'건</span>':'')
+          +'</div>'
+          +'<div style="font-size:.82em;color:#191f28;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e((s.summary_text||'').substring(0,120))+'</div>'
+          +'</div>';
+      }).join('');
+    _historyCache={};
+    arr.forEach(s=>_historyCache[s.id]=s);
+  }catch(err){body.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>'}
+}
+let _historyCache={};
+function loadSummaryFromHistory(id){
+  const s=_historyCache[id];if(!s)return;
+  _lastSummaryText=s.summary_text||'';
+  _lastSummaryJson=s.summary_json||null;
+  const body=$g('rsBody'), meta=$g('rsMeta');
+  if(_lastSummaryJson){
+    body.innerHTML=_renderSummaryJson(_lastSummaryJson);
+  } else if(_lastSummaryText){
+    body.innerHTML=renderMarkdownLite(_lastSummaryText);
+  }
+  const rangeLabel={recent:'최근 50건',week:'최근 7일',month:'이번달',all:'전체',custom:'지정기간'};
+  const lab=rangeLabel[s.range_type]||s.range_type;
+  const rangePart=(s.range_start&&s.range_end)?(' · 🗓️ '+s.range_start+' ~ '+s.range_end):'';
+  if(meta)meta.textContent='🕘 ['+lab+'] '+e((s.generated_at||'').substring(0,16))+' · 메시지 '+(s.source_message_count||0)+'건'+rangePart;
+}
 
 /* 요약을 상담방에 세무사 메시지로 게시 — 내부용 요약이므로 2단계 경고 */
 async function postSummaryToRoom(){
@@ -3182,6 +3255,144 @@ async function postSummaryToRoom(){
     } else alert('게시 실패: '+(d.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
 }
+
+/* ===== 📒 담당자 메모 (내부 전용 — AI 요약 재료) ===== */
+const _MEMO_TYPES=['사실메모','확인필요','고객요청','담당자판단','주의사항','완료처리'];
+const _MEMO_COLORS={'사실메모':'#065f46','확인필요':'#b45309','고객요청':'#1e40af','담당자판단':'#4c1d95','주의사항':'#991b1b','완료처리':'#64748b'};
+let _memoSelectedType='사실메모';
+let _memoEditingId=null;
+async function openRoomMemos(){
+  if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
+  const modal=$g('memoModal');
+  if(!modal)return;
+  modal.style.display='flex';
+  document.body.style.overflow='hidden';
+  _memoEditingId=null;
+  _memoSelectedType='사실메모';
+  $g('memoInput').value='';
+  _renderMemoTypeTabs();
+  _updateMemoEditBanner();
+  await loadRoomMemos();
+}
+function closeMemoModal(){
+  const m=$g('memoModal');if(m)m.style.display='none';
+  document.body.style.overflow='';
+}
+function _renderMemoTypeTabs(){
+  const box=$g('memoTypeTabs');if(!box)return;
+  box.innerHTML=_MEMO_TYPES.map(t=>{
+    const on=t===_memoSelectedType;
+    const c=_MEMO_COLORS[t]||'#334155';
+    return '<button onclick="selectMemoType(\''+t+'\')" style="background:'+(on?c:'#f1f5f9')+';color:'+(on?'#fff':'#334155')+';border:1px solid '+(on?c:'#e5e8eb')+';padding:4px 10px;border-radius:14px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:'+(on?'700':'500')+'">'+e(t)+'</button>';
+  }).join('');
+}
+function selectMemoType(t){
+  if(_MEMO_TYPES.indexOf(t)<0)return;
+  _memoSelectedType=t;
+  _renderMemoTypeTabs();
+}
+async function loadRoomMemos(){
+  const list=$g('memoList');
+  if(!list||!currentRoomId)return;
+  list.innerHTML='<div style="text-align:center;color:#8b95a1;padding:30px 0;font-size:.85em">불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
+    const d=await r.json();
+    if(d.error){list.innerHTML='<div style="color:#f04452;padding:20px 0">불러오기 실패: '+e(d.error)+'</div>';return}
+    const memos=d.memos||[];
+    if(!memos.length){
+      list.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 16px;font-size:.88em"><div style="margin-bottom:4px">📭 메모가 아직 없습니다</div><div style="font-size:.85em;color:#adb5bd">위 입력창에서 첫 메모를 작성하세요.<br>다음 AI 요약 시 메모가 함께 반영됩니다.</div></div>';
+      return;
+    }
+    list.innerHTML=memos.map(m=>{
+      const typ=m.memo_type||'사실메모';
+      const c=_MEMO_COLORS[typ]||'#334155';
+      const edited=m.is_edited?'<span style="font-size:.7em;color:#8b95a1;margin-left:4px">✏️ 수정됨</span>':'';
+      return '<div style="padding:10px 12px;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:8px;background:#fff">'
+        +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:.72em;color:#6b7280">'
+        +  '<span style="background:'+c+';color:#fff;padding:1px 8px;border-radius:10px;font-weight:700">'+e(typ)+'</span>'
+        +  '<span>'+e(m.author_name||'담당자')+'</span>'
+        +  '<span>·</span>'
+        +  '<span>'+e((m.created_at||'').substring(0,16))+'</span>'
+        +  edited
+        +  '<div style="flex:1"></div>'
+        +  '<button onclick="startEditMemo('+m.id+',\''+escAttr(typ)+'\','+JSON.stringify(m.content||'').replace(/"/g,'&quot;')+')" style="background:none;border:none;color:#3182f6;font-size:.78em;cursor:pointer;font-family:inherit">✏️</button>'
+        +  '<button onclick="deleteMemo('+m.id+')" style="background:none;border:none;color:#f04452;font-size:.78em;cursor:pointer;font-family:inherit">🗑️</button>'
+        +'</div>'
+        +'<div style="font-size:.88em;color:#191f28;white-space:pre-wrap;word-break:break-word;line-height:1.55">'+e(m.content||'')+'</div>'
+      +'</div>';
+    }).join('');
+  }catch(err){list.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>'}
+}
+function _updateMemoEditBanner(){
+  const b=$g('memoEditBanner'), c=$g('memoCancelBtn'), s=$g('memoSubmitBtn');
+  if(_memoEditingId){
+    if(b)b.style.display='block';
+    if(c)c.style.display='inline-block';
+    if(s)s.textContent='수정 저장';
+  } else {
+    if(b)b.style.display='none';
+    if(c)c.style.display='none';
+    if(s)s.textContent='저장';
+  }
+}
+function startEditMemo(id, typ, content){
+  _memoEditingId=id;
+  _memoSelectedType=_MEMO_TYPES.indexOf(typ)>=0?typ:'사실메모';
+  $g('memoInput').value=String(content||'');
+  _renderMemoTypeTabs();
+  _updateMemoEditBanner();
+  $g('memoInput').focus();
+}
+function cancelMemoEdit(){
+  _memoEditingId=null;
+  $g('memoInput').value='';
+  _memoSelectedType='사실메모';
+  _renderMemoTypeTabs();
+  _updateMemoEditBanner();
+}
+async function submitMemo(){
+  if(!currentRoomId){alert('상담방이 선택되지 않았습니다');return}
+  const input=$g('memoInput'), content=input.value.trim();
+  if(!content){alert('메모 내용을 입력하세요');return}
+  const btn=$g('memoSubmitBtn');
+  if(btn){btn.disabled=true;btn.style.opacity='.55';}
+  try{
+    let r;
+    if(_memoEditingId){
+      r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&id='+_memoEditingId,{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({memo_type:_memoSelectedType, content})
+      });
+    } else {
+      r=await fetch('/api/memos?key='+encodeURIComponent(KEY),{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({room_id:currentRoomId, memo_type:_memoSelectedType, content})
+      });
+    }
+    const d=await r.json();
+    if(!d.ok){alert('저장 실패: '+(d.error||'unknown'));return}
+    _memoEditingId=null;
+    input.value='';
+    _memoSelectedType='사실메모';
+    _renderMemoTypeTabs();
+    _updateMemoEditBanner();
+    await loadRoomMemos();
+  }catch(err){alert('오류: '+err.message)}
+  finally{if(btn){btn.disabled=false;btn.style.opacity='';}}
+}
+async function deleteMemo(id){
+  if(!confirm('이 메모를 삭제할까요?'))return;
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&id='+id,{method:'DELETE'});
+    const d=await r.json();
+    if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
+    await loadRoomMemos();
+  }catch(err){alert('오류: '+err.message)}
+}
+
 /* ===== 거래처 종합 대시보드 (C안) ===== */
 let _cdCurrentUserId = null;
 async function openCustomerDashboard(userId){

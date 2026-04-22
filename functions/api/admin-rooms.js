@@ -25,6 +25,37 @@ async function ensureTables(db) {
     created_at TEXT,
     closed_at TEXT
   )`).run();
+  /* 내부 실무 요약 저장 (재조회·이력·비용 절감) */
+  await db.prepare(`CREATE TABLE IF NOT EXISTS room_summaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id TEXT NOT NULL,
+    range_type TEXT NOT NULL,
+    range_start TEXT,
+    range_end TEXT,
+    source_message_count INTEGER DEFAULT 0,
+    source_memo_count INTEGER DEFAULT 0,
+    generated_at TEXT NOT NULL,
+    generated_by TEXT,
+    summary_text TEXT,
+    summary_json TEXT,
+    cost_cents REAL DEFAULT 0
+  )`).run();
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_room_summaries_room ON room_summaries(room_id, generated_at DESC)`).run(); } catch {}
+  /* 담당자 내부 메모 (요약 재료) */
+  await db.prepare(`CREATE TABLE IF NOT EXISTS memos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id TEXT NOT NULL,
+    author_user_id INTEGER,
+    author_name TEXT,
+    memo_type TEXT DEFAULT '사실메모',
+    content TEXT NOT NULL,
+    visibility TEXT DEFAULT 'internal',
+    is_edited INTEGER DEFAULT 0,
+    created_at TEXT,
+    updated_at TEXT,
+    deleted_at TEXT
+  )`).run();
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_memos_room ON memos(room_id, created_at DESC)`).run(); } catch {}
   await db.prepare(`CREATE TABLE IF NOT EXISTS room_notices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     room_id TEXT NOT NULL,
@@ -89,6 +120,9 @@ export async function onRequestGet(context) {
       url.searchParams.get("from") || '',
       url.searchParams.get("to") || ''
     );
+  }
+  if (action === "summary_history") {
+    return await loadSummaryHistory(context, db, url.searchParams.get("room_id"));
   }
 
   const roomId = url.searchParams.get("room_id");
@@ -667,20 +701,20 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
   let query, binds;
   if (range === 'recent') {
     // 최근 50건
-    query = `SELECT c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
+    query = `SELECT c.id, c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
              FROM conversations c LEFT JOIN users u ON c.user_id = u.id
              WHERE c.room_id = ?
              ORDER BY c.created_at DESC LIMIT 50`;
     binds = [roomId];
   } else if (range === 'week') {
-    query = `SELECT c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
+    query = `SELECT c.id, c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
              FROM conversations c LEFT JOIN users u ON c.user_id = u.id
              WHERE c.room_id = ? AND datetime(c.created_at) >= datetime('now','-7 days')
              ORDER BY c.created_at DESC LIMIT 300`;
     binds = [roomId];
   } else if (range === 'month') {
     const ym = new Date(Date.now()+9*60*60*1000).toISOString().substring(0,7);
-    query = `SELECT c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
+    query = `SELECT c.id, c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
              FROM conversations c LEFT JOIN users u ON c.user_id = u.id
              WHERE c.room_id = ? AND substr(c.created_at,1,7) = ?
              ORDER BY c.created_at DESC LIMIT 500`;
@@ -691,13 +725,13 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
     const toOK = /^\d{4}-\d{2}-\d{2}$/.test(toDate || '');
     if (!fromOK || !toOK) return Response.json({ error: "기간을 YYYY-MM-DD 형식으로 지정해주세요" }, { status: 400 });
     if (fromDate > toDate) return Response.json({ error: "시작일이 종료일보다 늦습니다" }, { status: 400 });
-    query = `SELECT c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
+    query = `SELECT c.id, c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
              FROM conversations c LEFT JOIN users u ON c.user_id = u.id
              WHERE c.room_id = ? AND substr(c.created_at,1,10) >= ? AND substr(c.created_at,1,10) <= ?
              ORDER BY c.created_at DESC LIMIT 1000`;
     binds = [roomId, fromDate, toDate];
   } else { // all
-    query = `SELECT c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
+    query = `SELECT c.id, c.role, c.content, c.created_at, u.real_name, u.name, c.deleted_at
              FROM conversations c LEFT JOIN users u ON c.user_id = u.id
              WHERE c.room_id = ?
              ORDER BY c.created_at DESC LIMIT 500`;
@@ -712,8 +746,41 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
   // 시간순으로 재정렬
   const chrono = msgs.slice().reverse();
 
+  // [DOC:id] 상세 한 번에 조회 — "다수 업로드" 뭉개기 방지, 실무 구체화
+  const docIds = [];
+  for (const m of chrono) {
+    const mm = /^\[DOC:(\d+)\]/.exec(String(m.content || ''));
+    if (mm) docIds.push(parseInt(mm[1], 10));
+  }
+  const docMap = {};
+  if (docIds.length) {
+    try {
+      const placeholders = docIds.map(() => '?').join(',');
+      const { results: docRows } = await db.prepare(
+        `SELECT id, doc_type, vendor, amount, receipt_date FROM documents WHERE id IN (${placeholders})`
+      ).bind(...docIds).all();
+      const typeLabel = {
+        receipt: '영수증', lease: '임대차', payroll: '근로(4대보험)', freelancer_payment: '프리랜서(3.3%)',
+        tax_invoice: '세금계산서', insurance: '보험', utility: '공과금', property_tax: '지방세',
+        bank_stmt: '은행내역', business_reg: '사업자등록증', identity: '신분증', contract: '계약서',
+        other: '기타문서',
+      };
+      for (const d of (docRows || [])) {
+        const typ = typeLabel[d.doc_type] || d.doc_type || '문서';
+        const amt = d.amount ? Number(d.amount).toLocaleString('ko-KR') + '원' : '';
+        const dt = (d.receipt_date || '').substring(0, 10);
+        const parts = [typ];
+        if (d.vendor) parts.push(d.vendor);
+        if (amt) parts.push(amt);
+        if (dt) parts.push(dt);
+        docMap[d.id] = parts.join(' · ');
+      }
+    } catch {/* 문서 조회 실패해도 요약은 계속 — 빈 docMap 으로 기존 동작 */}
+  }
+
   // 컨텐츠 축약 (특수 프리픽스 제거·단축)
   const lines = [];
+  const msgIdMap = []; // 요약 프롬프트 라인 → 원본 메시지 id 매핑 (Phase 4용)
   for (const m of chrono) {
     if (m.deleted_at) continue;
     let content = (m.content || "").trim();
@@ -721,20 +788,27 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
     // [IMG]/[FILE]/[DOC:id]/[REPLY]/[ALERT] 축약
     if (/^\[IMG\]/.test(content)) content = "(사진 전송)";
     else if (/^\[FILE\]/.test(content)) content = "(파일 전송)";
-    else if (/^\[DOC:\d+\]/.test(content)) content = "(영수증/문서 업로드)";
-    else if (/^\[ALERT\]/.test(content)) {
-      try { const a = JSON.parse(content.replace(/^\[ALERT\]/, '')); content = `[시스템 알림] ${a.t || ''}: ${a.m || ''}`; } catch { content = "(알림)"; }
-    }
-    else if (/^\[REPLY\]/.test(content)) {
-      const mm = /^\[REPLY\]\{[^\n]+\}\n([\s\S]*)$/.exec(content);
-      if (mm) content = mm[1];
+    else {
+      const dm = /^\[DOC:(\d+)\]/.exec(content);
+      if (dm) {
+        const docInfo = docMap[parseInt(dm[1], 10)];
+        content = docInfo ? `(문서 업로드: ${docInfo})` : "(영수증/문서 업로드)";
+      } else if (/^\[ALERT\]/.test(content)) {
+        try { const a = JSON.parse(content.replace(/^\[ALERT\]/, '')); content = `[시스템 알림] ${a.t || ''}: ${a.m || ''}`; } catch { content = "(알림)"; }
+      }
+      else if (/^\[REPLY\]/.test(content)) {
+        const mm2 = /^\[REPLY\]\{[^\n]+\}\n([\s\S]*)$/.exec(content);
+        if (mm2) content = mm2[1];
+      }
     }
     if (content.length > 500) content = content.substring(0, 500) + "…";
     const who = m.role === 'assistant' ? '🤖 AI'
               : m.role === 'human_advisor' ? '👨‍💼 세무사'
               : '👤 ' + (m.real_name || m.name || '고객');
     const t = (m.created_at || '').substring(0, 16);
-    lines.push(`[${t}] ${who}: ${content}`);
+    const msgIdTag = m.id ? `#${m.id}` : '';
+    lines.push(`[${t}]${msgIdTag} ${who}: ${content}`);
+    if (m.id) msgIdMap.push(m.id);
   }
 
   if (!lines.length) return Response.json({ ok: true, summary: "(대화 내용이 없습니다)", message_count: 0 });
@@ -749,18 +823,40 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
                      || chrono.find(m => m.role === 'user' && (m.real_name || m.name))?.name
                      || '고객');
 
+  /* 담당자 메모 블록 (memos 테이블 기반, 있으면 주입) */
+  let memoBlock = '(없음)';
+  try {
+    const { results: memoRows } = await db.prepare(
+      `SELECT id, memo_type, content, author_name, created_at, is_edited
+         FROM memos
+        WHERE room_id = ? AND deleted_at IS NULL
+        ORDER BY created_at ASC LIMIT 50`
+    ).bind(roomId).all();
+    if (memoRows && memoRows.length) {
+      memoBlock = memoRows.map(m => {
+        const t = (m.created_at || '').substring(0, 16);
+        const typ = m.memo_type ? `[${m.memo_type}]` : '';
+        const by = m.author_name ? `(${m.author_name})` : '';
+        const edited = m.is_edited ? ' *수정됨' : '';
+        return `- ${t}${edited} ${typ}${by}: ${String(m.content || '').slice(0, 400)}`;
+      }).join('\n');
+    }
+  } catch { /* memos 테이블 아직 없으면 조용히 무시 */ }
+
   /* 내부 실무 정리형 프롬프트 — 담당자가 바로 체크리스트로 쓸 수 있게.
      JSON + MARKDOWN 이중 출력: JSON 은 섹션 카드 렌더/저장용, MD 는 하위 호환용. */
   const prompt = `당신은 세무회계 사무실의 내부 업무 보조자이다.
-아래 상담방 대화를 읽고, 담당자가 바로 실무 처리할 수 있도록 내부용 정리표를 작성한다.
+아래 상담방 대화와 담당자 메모를 읽고, 담당자가 바로 실무 처리할 수 있도록 내부용 정리표를 작성한다.
 
 원칙:
 - 고객 응대 문체 금지. 서술형 문단 금지. 짧은 명사형·항목형으로.
 - 감성적 수식어·인사말 금지.
 - 확정된 사실과 추정·확인 필요 항목을 분리.
-- 자료 업로드는 날짜·유형별로 구체적으로 ("다수 업로드" 같은 뭉뚱그림 금지). 세부 유형 불명이면 "세부 분류 필요" 표기.
+- 자료 업로드는 날짜·유형별로 구체적으로 ("다수 업로드" 같은 뭉뚱그림 금지). 가능하면 가맹점·금액·날짜를 그대로 옮긴다.
+- 담당자 메모가 있으면 "사실메모"는 확정사실에, "확인필요"는 확인필요에, "주의사항"은 특이사항에 반영.
 - 대화에 근거 없는 내용은 만들지 말 것 (할루시네이션 금지).
 - 날짜가 있으면 YYYY-MM-DD 로 포함.
+- 각 항목 끝에 근거 메시지 ID 를 "(#123)" 또는 "(#123, #124)" 형태로 붙인다. 메모 근거면 "(memo)" 로 표시.
 
 출력은 **정확히 아래 두 블록만** 순서대로:
 
@@ -772,13 +868,14 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
     "customerName": "고객명",
     "purpose": "이번 상담의 주된 목적 한 줄"
   },
-  "confirmedFacts": ["짧은 항목"],
-  "customerRequests": ["짧은 항목"],
-  "uploadedMaterials": ["YYYY-MM-DD: 영수증 N건 형식 권장"],
-  "needCheck": ["짧은 항목"],
-  "nextActions": ["짧은 항목"],
-  "risks": ["짧은 항목"]
+  "confirmedFacts": [{"text": "짧은 항목", "msgIds": [123, 124]}],
+  "customerRequests": [{"text": "짧은 항목", "msgIds": [123]}],
+  "uploadedMaterials": [{"text": "YYYY-MM-DD: 영수증 N건", "msgIds": [125]}],
+  "needCheck": [{"text": "짧은 항목", "msgIds": [126]}],
+  "nextActions": [{"text": "짧은 항목", "msgIds": []}],
+  "risks": [{"text": "짧은 항목", "msgIds": []}]
 }
+각 배열은 객체 {text, msgIds} 형태. msgIds 는 근거 메시지 번호(#숫자)만 (메모는 제외). 근거 없으면 [].
 === MARKDOWN ===
 ## ⏱ 상담 시점
 ${firstAt} ~ ${lastAt} (총 ${lines.length}건)
@@ -814,9 +911,11 @@ ${firstAt} ~ ${lastAt} (총 ${lines.length}건)
 - 대화 마지막 메시지: ${lastAt}
 - 메시지 수: ${lines.length}
 - 추정 고객: ${customerName}
-- 담당자 메모: (없음)
 
----대화 기록---
+---담당자 메모---
+${memoBlock}
+
+---대화 기록 (각 줄 형식: [HH:MM]#msgId 역할: 내용)---
 ${conversation}`;
 
   try {
@@ -849,10 +948,27 @@ ${conversation}`;
 
     const usage = d.usage || {};
     const costCents = (usage.prompt_tokens || 0) * 0.15 / 10000 + (usage.completion_tokens || 0) * 0.60 / 10000;
+    /* D1 에 저장 (이력·재조회·비용 집계용). 실패해도 응답은 진행. */
+    let savedId = null;
+    try {
+      const memoCount = (memoBlock && memoBlock !== '(없음)') ? memoBlock.split('\n').length : 0;
+      const r = await db.prepare(
+        `INSERT INTO room_summaries
+         (room_id, range_type, range_start, range_end, source_message_count, source_memo_count, generated_at, generated_by, summary_text, summary_json, cost_cents)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        roomId, range, firstAt, lastAt,
+        lines.length, memoCount, kst(), 'ai',
+        summaryMd || raw, summaryJson ? JSON.stringify(summaryJson) : null,
+        costCents
+      ).run();
+      savedId = r.meta?.last_row_id || null;
+    } catch {/* 저장 실패 무시 — 화면엔 표시됨 */}
     return Response.json({
       ok: true,
       summary: summaryMd || raw,        // 기존 호환: 마크다운 텍스트 (runRoomSummary 에서 렌더)
       summary_json: summaryJson,        // 신규: 섹션 카드 렌더용 (없을 수 있음)
+      summary_id: savedId,              // 신규: 저장된 행 id
       message_count: lines.length,
       first_at: firstAt,
       last_at: lastAt,
@@ -861,5 +977,23 @@ ${conversation}`;
     });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
+  }
+}
+
+/* 상담방 요약 이력 조회 */
+async function loadSummaryHistory(context, db, roomId) {
+  if (!roomId) return Response.json({ error: "room_id required" }, { status: 400 });
+  try {
+    const { results } = await db.prepare(
+      `SELECT id, range_type, range_start, range_end, source_message_count, source_memo_count,
+              generated_at, generated_by, summary_text, summary_json, cost_cents
+       FROM room_summaries WHERE room_id = ? ORDER BY generated_at DESC LIMIT 50`
+    ).bind(roomId).all();
+    return Response.json({ ok: true, summaries: (results || []).map(r => ({
+      ...r,
+      summary_json: (function(){ try { return r.summary_json ? JSON.parse(r.summary_json) : null; } catch { return null; } })(),
+    })) });
+  } catch (e) {
+    return Response.json({ ok: true, summaries: [] }); /* 테이블 없으면 빈 배열 */
   }
 }
