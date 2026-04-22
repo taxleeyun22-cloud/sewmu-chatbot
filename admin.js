@@ -2842,19 +2842,23 @@ async function saveImgViewer(){
     }
     var ext=(mime.split("/")[1]||"jpg").replace("jpeg","jpg");
     if(!/\.\w+$/.test(nm))nm+="."+ext;
-    /* Web Share API: iOS 사진 / Android 갤러리 */
-    try{
-      if(typeof File==="function"&&navigator.canShare){
-        var file=new File([b],nm,{type:mime});
-        if(navigator.canShare({files:[file]})){
-          await navigator.share({files:[file]});
-          return;
+    /* 모바일(iOS 사진앱·Android 갤러리)만 Web Share API 경유.
+       PC 는 무조건 파일 다운로드 — 공유 시트로 빠지면 "저장" 의도와 다름 */
+    var isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'');
+    if(isMobile){
+      try{
+        if(typeof File==="function"&&navigator.canShare){
+          var file=new File([b],nm,{type:mime});
+          if(navigator.canShare({files:[file]})){
+            await navigator.share({files:[file]});
+            return;
+          }
         }
+      }catch(se){
+        if(se&&se.name==="AbortError")return;
       }
-    }catch(se){
-      if(se&&se.name==="AbortError")return;
     }
-    /* 폴백: 다운로드 링크 */
+    /* PC · 공유 실패 폴백: 다운로드 링크 */
     var url=URL.createObjectURL(b);
     var a=document.createElement("a");
     a.href=url;a.download=nm;document.body.appendChild(a);a.click();
