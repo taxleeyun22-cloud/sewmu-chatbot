@@ -12,6 +12,139 @@ function linkify(s){
     return '<a href="'+href.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener noreferrer" style="color:#3182f6;text-decoration:underline;word-break:break-all">'+u+'</a>';
   });
 }
+/* @멘션 하이라이트 — 이미 escaped 된 텍스트에 적용.
+   @한글/영문/숫자/_  최대 20자 → 파란색 강조. 본인 언급이면 노란 배경. */
+function mentionify(s){
+  if(!s)return s;
+  return String(s).replace(/(^|[\s(\[])@([가-힣A-Za-z0-9_\.]{1,20})/g, function(_, pre, name){
+    const selfName=(typeof ADMIN_SELF_NAME!=='undefined'&&ADMIN_SELF_NAME)?ADMIN_SELF_NAME:null;
+    const isMe = selfName && (name===selfName||name===(selfName+'대표'));
+    const bg = isMe ? 'background:#fef08a;color:#854d0e;border-radius:4px;padding:0 3px' : 'color:#3182f6';
+    return pre+'<span style="'+bg+';font-weight:700" data-mention="'+name.replace(/"/g,'&quot;')+'">@'+name+'</span>';
+  });
+}
+/* 스태프 리스트 캐시 — @ 입력 시 자동완성·본인 감지에 사용 */
+let _mentionStaffCache=null;
+let ADMIN_SELF_NAME=null;
+async function _ensureMentionStaff(){
+  if(_mentionStaffCache)return _mentionStaffCache;
+  try{
+    const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=staff_list');
+    const d=await r.json();
+    _mentionStaffCache=(d.staff||[]).map(u=>({id:u.id,name:u.display_name||('ID#'+u.id),is_admin:u.is_admin}));
+    /* 본인 식별 — ADMIN_KEY 로그인은 대표 / 스태프 세션은 쿠키 기반 별도 식별 필요. 일단 localStorage 저장 값 활용 */
+    try{
+      const saved=localStorage.getItem('adminSelfName');
+      if(saved)ADMIN_SELF_NAME=saved;
+    }catch(_){}
+  }catch(_){_mentionStaffCache=[]}
+  return _mentionStaffCache;
+}
+
+/* ===== @ 자동완성 드롭다운 =====
+   roomInput(textarea) 에서 @ 입력 감지 → 스태프 목록 띄움.
+   방향키 탐색 / Enter·Tab·클릭 선택 / Esc 닫기.
+   본인이 @언급된 메시지는 렌더에서 노란색으로 강조. */
+let _mentionBox=null;
+let _mentionActive=false;
+let _mentionMatches=[];
+let _mentionSelIdx=0;
+let _mentionStart=-1; /* @ 시작 위치 (textarea value 기준) */
+function _mentionEnsureBox(){
+  if(_mentionBox)return _mentionBox;
+  const b=document.createElement('div');
+  b.id='mentionBox';
+  b.style.cssText='position:fixed;background:#fff;border:1px solid #e5e8eb;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);padding:4px 0;min-width:160px;max-width:260px;max-height:200px;overflow-y:auto;z-index:12000;display:none;font-family:inherit;font-size:.88em';
+  document.body.appendChild(b);
+  _mentionBox=b;
+  return b;
+}
+function _mentionClose(){
+  _mentionActive=false;
+  _mentionMatches=[];
+  _mentionSelIdx=0;
+  _mentionStart=-1;
+  if(_mentionBox)_mentionBox.style.display='none';
+}
+function _mentionRender(){
+  const b=_mentionEnsureBox();
+  if(!_mentionMatches.length){_mentionClose();return}
+  b.innerHTML=_mentionMatches.map((u,i)=>{
+    const sel=i===_mentionSelIdx;
+    return '<div data-idx="'+i+'" onclick="_mentionPick('+i+')" style="padding:7px 12px;cursor:pointer;'+(sel?'background:#eff6ff;color:#1e40af':'color:#191f28')+'"><b>@'+e(u.name)+'</b> <span style="font-size:.72em;color:#8b95a1">'+(u.is_admin?'직원':'')+'</span></div>';
+  }).join('');
+}
+function _mentionPosition(input){
+  const r=input.getBoundingClientRect();
+  const b=_mentionEnsureBox();
+  /* 입력창 위에 띄움 (바닥 고정 입력창 위로) */
+  b.style.left=Math.max(8, r.left)+'px';
+  b.style.bottom=(window.innerHeight - r.top + 4)+'px';
+  b.style.top='auto';
+}
+async function _mentionOnInput(input){
+  const v=input.value||'';
+  const pos=input.selectionStart||0;
+  /* 커서 앞 토큰 찾기 — 공백까지 역방향 */
+  let i=pos-1;
+  while(i>=0 && !/[\s\n]/.test(v[i]))i--;
+  const token=v.slice(i+1, pos); /* 공백 다음 ~ 커서 */
+  if(!token.startsWith('@')){_mentionClose();return}
+  const q=token.slice(1);
+  /* 20자 초과는 보통 오작동 */
+  if(q.length>20){_mentionClose();return}
+  const staff=await _ensureMentionStaff();
+  const qLow=q.toLowerCase();
+  _mentionMatches=staff.filter(s=>{
+    const n=(s.name||'').toLowerCase();
+    return !q || n.startsWith(qLow) || n.includes(qLow);
+  }).slice(0,8);
+  if(!_mentionMatches.length){_mentionClose();return}
+  _mentionActive=true;
+  _mentionStart=i+1; /* @ 위치 */
+  _mentionSelIdx=0;
+  _mentionPosition(input);
+  _mentionRender();
+  _mentionBox.style.display='block';
+}
+function _mentionPick(idx){
+  const input=document.getElementById('roomInput');
+  if(!input)return;
+  const u=_mentionMatches[idx];if(!u)return;
+  const before=input.value.slice(0,_mentionStart);
+  const after=input.value.slice(input.selectionStart||0);
+  const insert='@'+u.name+' ';
+  input.value=before+insert+after;
+  const caret=(before+insert).length;
+  input.selectionStart=input.selectionEnd=caret;
+  input.focus();
+  _mentionClose();
+}
+function _mentionOnKeydown(input, ev){
+  if(!_mentionActive)return false;
+  const k=ev.key;
+  if(k==='ArrowDown'){_mentionSelIdx=Math.min(_mentionMatches.length-1,_mentionSelIdx+1);_mentionRender();ev.preventDefault();return true}
+  if(k==='ArrowUp'){_mentionSelIdx=Math.max(0,_mentionSelIdx-1);_mentionRender();ev.preventDefault();return true}
+  if(k==='Enter'||k==='Tab'){_mentionPick(_mentionSelIdx);ev.preventDefault();return true}
+  if(k==='Escape'){_mentionClose();ev.preventDefault();return true}
+  return false;
+}
+/* roomInput 리스너 한 번만 등록 */
+(function _bindMentionInput(){
+  function bind(){
+    const input=document.getElementById('roomInput');
+    if(!input||input.dataset.mentionBound)return;
+    input.dataset.mentionBound='1';
+    input.addEventListener('input',function(){_mentionOnInput(input)});
+    /* keydown: 드롭다운 활성 시 화살표·Enter·Esc 가로채기. 인라인 onkeydown(sendRoomMessage) 전에 실행됨 */
+    input.addEventListener('keydown',function(ev){_mentionOnKeydown(input, ev)}, true);
+    input.addEventListener('blur',function(){setTimeout(_mentionClose,180)});
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);
+  else setTimeout(bind,0);
+  /* openRoom 호출마다 input 이 새로 붙을 수 있으므로 지연 재바인딩 */
+  setInterval(bind, 2000);
+})();
 
 /* [REPLY]{json}\n, [IMG], [FILE], [DOC:id] 프리픽스 파싱 */
 function parseMsg(content){
@@ -159,7 +292,7 @@ function renderMsgBody(content, attachedDoc){
       +'<div style="flex:1;min-width:0;overflow:hidden"><div style="font-weight:600;font-size:.88em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(nm)+'</div>'
       +'<div style="font-size:.72em;color:#8b95a1;margin-top:2px">'+fmtSize(p.file.size)+' · 다운로드</div></div></a>';
   }
-  if(p.text)h+=((p.image||p.file)?'<div style="margin-top:6px">':'')+linkify(e(p.text))+((p.image||p.file)?'</div>':'');
+  if(p.text)h+=((p.image||p.file)?'<div style="margin-top:6px">':'')+mentionify(linkify(e(p.text)))+((p.image||p.file)?'</div>':'');
   return h;
 }
 

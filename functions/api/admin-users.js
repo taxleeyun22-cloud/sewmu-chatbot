@@ -12,6 +12,20 @@ export async function onRequestGet(context) {
   // is_admin 컬럼 보장
   try { await db.prepare(`ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0`).run(); } catch {}
 
+  /* @멘션용 간이 스태프 리스트 — is_admin=1 만 반환 (id, name) */
+  const action = url.searchParams.get("action");
+  if (action === "staff_list") {
+    try {
+      const { results } = await db.prepare(
+        `SELECT id, COALESCE(real_name, name, 'ID#'||id) AS display_name, is_admin
+         FROM users WHERE is_admin = 1 ORDER BY id ASC LIMIT 50`
+      ).all();
+      return Response.json({ ok: true, staff: results || [] });
+    } catch (e) {
+      return Response.json({ ok: true, staff: [] });
+    }
+  }
+
   const search = (url.searchParams.get("search") || "").trim();
   const sort = url.searchParams.get("sort") || "recent"; // recent/joined/messages
   const page = parseInt(url.searchParams.get("page") || "1", 10);
