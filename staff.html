@@ -428,7 +428,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=71"></script>
+<script src="/admin.js?v=72"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;
@@ -853,7 +853,7 @@ async function saveImgViewer(){
     <div style="padding:8px 16px;border-bottom:1px solid #f2f4f6;background:#fafbfc;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       <span style="font-size:.72em;color:#8b95a1">보기:</span>
       <button class="memo-filter" data-filter="todo" onclick="setMemoFilter('todo')" style="background:#191f28;color:#fff;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit;font-weight:700">📌 할 일 <span id="memoCountTodo" style="font-weight:500"></span></button>
-      <button class="memo-filter" data-filter="ref" onclick="setMemoFilter('ref')" style="background:#e5e8eb;color:#555;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">📝 참고 <span id="memoCountRef" style="font-weight:500"></span></button>
+      <button class="memo-filter" data-filter="ref" onclick="setMemoFilter('ref')" style="background:#e5e8eb;color:#555;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">🏢 거래처 정보 <span id="memoCountRef" style="font-weight:500"></span></button>
       <button class="memo-filter" data-filter="done" onclick="setMemoFilter('done')" style="background:#e5e8eb;color:#555;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">✅ 완료 <span id="memoCountDone" style="font-weight:500"></span></button>
       <button class="memo-filter" data-filter="all" onclick="setMemoFilter('all')" style="background:#e5e8eb;color:#555;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">전체 <span id="memoCountAll" style="font-weight:500"></span></button>
     </div>

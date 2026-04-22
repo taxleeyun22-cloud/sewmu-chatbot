@@ -3773,17 +3773,19 @@ async function _silentLoadMyTodos(){
 setTimeout(_silentLoadMyTodos, 2000);
 setInterval(_silentLoadMyTodos, 60000);
 
-/* ===== 📒 담당자 메모 (내부 전용 · 할 일 체크리스트 방식) =====
-   타입 3종: '할 일' / '완료' / '참고'
+/* ===== 📒 담당자 메모 (내부 전용 · 재설계 2026-04-22) =====
+   타입 3종: '할 일' (방 or 개인) / '완료' (체크상태) / '거래처 정보' (영구, user_id 기반)
    체크박스: 할 일 ↔ 완료 토글 (PATCH memo_type)
+   거래처 정보: AI 요약 시 항상 상단 주입 → 인수인계·기본사항 자동 반영
    기한(due_date) + 연결 메시지(#ID) + D-day 하이라이트 */
-const _MEMO_TYPES=['할 일','완료','참고'];
-const _MEMO_COLORS={'할 일':'#b45309','완료':'#64748b','참고':'#1e40af'};
-const _MEMO_ICONS={'할 일':'📌','완료':'✅','참고':'📝'};
-/* 구 타입 → 신 타입 매핑 (서버에서도 내려오지만 방어적) */
+const _MEMO_TYPES=['할 일','거래처 정보','완료'];
+const _MEMO_COLORS={'할 일':'#b45309','완료':'#64748b','거래처 정보':'#1e40af','참고':'#1e40af'};
+const _MEMO_ICONS={'할 일':'📌','완료':'✅','거래처 정보':'🏢','참고':'📝'};
+/* 구 타입 → 신 타입 매핑 */
 const _MEMO_LEGACY={
-  '사실메모':'참고','확인필요':'할 일','고객요청':'할 일',
-  '담당자판단':'참고','주의사항':'참고','완료처리':'완료',
+  '사실메모':'거래처 정보','확인필요':'할 일','고객요청':'할 일',
+  '담당자판단':'거래처 정보','주의사항':'거래처 정보','완료처리':'완료',
+  '참고':'거래처 정보',
 };
 function _normType(t){return _MEMO_LEGACY[t]||t||'할 일'}
 let _memoSelectedType='할 일';
@@ -3891,16 +3893,16 @@ async function loadRoomMemos(){
   }catch(err){list.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>'}
 }
 function _updateMemoCounts(){
-  const counts={'할 일':0,'참고':0,'완료':0,total:_memoCache.length};
+  const counts={'할 일':0,'거래처 정보':0,'완료':0,total:_memoCache.length};
   _memoCache.forEach(m=>{counts[m._t]=(counts[m._t]||0)+1});
   if($g('memoCountTodo'))$g('memoCountTodo').textContent=counts['할 일']?'('+counts['할 일']+')':'';
-  if($g('memoCountRef'))$g('memoCountRef').textContent=counts['참고']?'('+counts['참고']+')':'';
+  if($g('memoCountRef'))$g('memoCountRef').textContent=counts['거래처 정보']?'('+counts['거래처 정보']+')':'';
   if($g('memoCountDone'))$g('memoCountDone').textContent=counts['완료']?'('+counts['완료']+')':'';
   if($g('memoCountAll'))$g('memoCountAll').textContent=counts.total?'('+counts.total+')':'';
 }
 function _filterMemos(){
   if(_memoFilter==='todo')return _memoCache.filter(m=>m._t==='할 일');
-  if(_memoFilter==='ref') return _memoCache.filter(m=>m._t==='참고');
+  if(_memoFilter==='ref') return _memoCache.filter(m=>m._t==='거래처 정보');
   if(_memoFilter==='done')return _memoCache.filter(m=>m._t==='완료');
   return _memoCache;
 }
@@ -4208,11 +4210,63 @@ async function openCustomerDashboard(userId){
     $g('cdRecentChat').innerHTML='<div style="color:#8b95a1">우측 "상담방 열기" 버튼으로 전체 대화 확인.</div>';
     /* 이 거래처 관련 할 일 + AI 요약 이력 — 이 user 가 속한 방 기준 */
     _loadCdTodosAndSummaries(userId, roomsRes.rooms||[]);
+    /* 거래처 노트 — user_id 기반 영구 메모 */
+    _loadCustomerInfo(userId);
   }catch(err){
     $g('cdName').textContent='오류';
     $g('cdBasic').innerHTML='<div style="color:#f04452">로드 실패: '+e(err.message)+'</div>';
   }
 }
+/* 거래처 노트 (영구·user_id 기반) — AI 요약 때마다 자동 상단 주입 */
+async function _loadCustomerInfo(userId){
+  const box=$g('cdCustomerInfo');if(!box||!userId)return;
+  box.innerHTML='<div style="color:#8b95a1;padding:10px 0;font-size:.85em">불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=customer_info&user_id='+userId);
+    const d=await r.json();
+    const arr=(d.memos||[]).filter(m=>!m.deleted_at);
+    if(!arr.length){
+      box.innerHTML='<div style="color:#adb5bd;padding:10px 0;font-size:.85em;line-height:1.6">아직 등록된 거래처 정보가 없습니다.<br>업종·특이사항·정기 일정 등 기본사항을 써두면 AI 요약에 자동 반영됩니다.</div>';
+      return;
+    }
+    box.innerHTML=arr.map(m=>{
+      const t=(m.created_at||'').substring(0,10);
+      const by=m.author_name||'';
+      return '<div style="padding:7px 0;border-bottom:1px dashed #e5e8eb;display:flex;align-items:flex-start;gap:6px">'
+        +'<span style="color:#1e40af;flex-shrink:0">🏢</span>'
+        +'<div style="flex:1;white-space:pre-wrap;word-break:break-word;color:#191f28">'+e(m.content||'')+'</div>'
+        +'<button onclick="deleteCustomerInfo('+m.id+','+userId+')" style="background:none;border:none;color:#f04452;font-size:.76em;cursor:pointer;font-family:inherit;padding:0 2px;flex-shrink:0" title="삭제">🗑️</button>'
+        +'<span style="font-size:.7em;color:#8b95a1;flex-shrink:0">'+e(by)+' '+e(t)+'</span>'
+        +'</div>';
+    }).join('');
+  }catch(err){box.innerHTML='<div style="color:#f04452">오류: '+e(err.message)+'</div>'}
+}
+async function addCustomerInfo(){
+  const userId=_cdCurrentUserId;
+  if(!userId){alert('거래처가 선택되지 않았습니다');return}
+  const content=($g('cdInfoNew')?.value||'').trim();
+  if(!content){alert('내용을 입력하세요');return}
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({memo_type:'거래처 정보', content, target_user_id:userId})
+    });
+    const d=await r.json();
+    if(!d.ok){alert('저장 실패: '+(d.error||'unknown'));return}
+    $g('cdInfoNew').value='';
+    await _loadCustomerInfo(userId);
+  }catch(err){alert('오류: '+err.message)}
+}
+async function deleteCustomerInfo(id, userId){
+  if(!confirm('이 거래처 정보를 삭제할까요?'))return;
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&id='+id,{method:'DELETE'});
+    const d=await r.json();
+    if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
+    await _loadCustomerInfo(userId);
+  }catch(err){alert('오류: '+err.message)}
+}
+
 /* 거래처 대시보드 — 이 user 에 연결된 방들의 할 일·요약 집계 */
 async function _loadCdTodosAndSummaries(userId, allRooms){
   const todoBox=$g('cdTodos'), sumBox=$g('cdSummaries');

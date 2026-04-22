@@ -10,13 +10,14 @@
 import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
 
 /* 현재 공식 3종 + 구 6종 하위호환 모두 허용 */
-const NEW_TYPES = ['할 일', '완료', '참고'];
-const LEGACY_TYPES = ['사실메모', '확인필요', '고객요청', '담당자판단', '주의사항', '완료처리'];
+const NEW_TYPES = ['할 일', '완료', '거래처 정보'];
+const LEGACY_TYPES = ['사실메모', '확인필요', '고객요청', '담당자판단', '주의사항', '완료처리', '참고'];
 const ALLOWED_TYPES = NEW_TYPES.concat(LEGACY_TYPES);
-/* 구 타입 → 신 타입 매핑 (프론트 렌더·요약 프롬프트에서 사용) */
+/* 구 타입 → 신 타입 매핑 */
 const LEGACY_MAP = {
-  '사실메모': '참고', '확인필요': '할 일', '고객요청': '할 일',
-  '담당자판단': '참고', '주의사항': '참고', '완료처리': '완료',
+  '사실메모': '거래처 정보', '확인필요': '할 일', '고객요청': '할 일',
+  '담당자판단': '거래처 정보', '주의사항': '거래처 정보', '완료처리': '완료',
+  '참고': '거래처 정보',
 };
 
 function kst() {
@@ -24,10 +25,16 @@ function kst() {
 }
 
 async function ensureTable(db) {
-  /* 스키마: room_id 는 개인 일정 허용 위해 NULL 가능. assigned_to_user_id 는 담당자 (미지정=대표 본인) */
+  /* 스키마:
+     - room_id: 방별 메모 (NULL 가능 — 개인 일정·거래처 정보 메모)
+     - target_user_id: 거래처 단위 영구 메모 (거래처 정보 타입 또는 특정 거래처 공통 할 일)
+     - assigned_to_user_id: 담당자 (스태프, 할 일 분배)
+     - filing_type/filing_period: 신고 건 태그 (B안에서 확장)
+  */
   await db.prepare(`CREATE TABLE IF NOT EXISTS memos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     room_id TEXT,
+    target_user_id INTEGER,
     author_user_id INTEGER,
     author_name TEXT,
     assigned_to_user_id INTEGER,
@@ -37,16 +44,22 @@ async function ensureTable(db) {
     is_edited INTEGER DEFAULT 0,
     due_date TEXT,
     linked_message_id INTEGER,
+    filing_type TEXT,
+    filing_period TEXT,
     created_at TEXT,
     updated_at TEXT,
     deleted_at TEXT
   )`).run();
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_memos_room ON memos(room_id, created_at DESC)`).run(); } catch {}
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_memos_assignee ON memos(assigned_to_user_id, due_date)`).run(); } catch {}
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_memos_target ON memos(target_user_id, memo_type)`).run(); } catch {}
   /* 구버전 테이블 — 컬럼 추가 시도 (없으면 skip) */
   try { await db.prepare(`ALTER TABLE memos ADD COLUMN due_date TEXT`).run(); } catch {}
   try { await db.prepare(`ALTER TABLE memos ADD COLUMN linked_message_id INTEGER`).run(); } catch {}
   try { await db.prepare(`ALTER TABLE memos ADD COLUMN assigned_to_user_id INTEGER`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE memos ADD COLUMN target_user_id INTEGER`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE memos ADD COLUMN filing_type TEXT`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE memos ADD COLUMN filing_period TEXT`).run(); } catch {}
 }
 
 function validDate(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')); }
@@ -59,8 +72,26 @@ export async function onRequestGet(context) {
   await ensureTable(db);
 
   const url = new URL(context.request.url);
-  const scope = url.searchParams.get("scope");  // 'my' = 내 담당 + 방 전체 (대시보드용)
+  const scope = url.searchParams.get("scope");  // 'my' 전체 할일 | 'customer_info' 거래처 영구메모
   const roomId = url.searchParams.get("room_id");
+  const userIdParam = Number(url.searchParams.get("user_id") || 0);
+
+  /* === 거래처 정보 메모 (영구·user_id 기반) === */
+  if (scope === 'customer_info') {
+    if (!userIdParam) return Response.json({ error: "user_id required" }, { status: 400 });
+    try {
+      const { results } = await db.prepare(
+        `SELECT id, target_user_id, author_user_id, author_name, memo_type, content, is_edited,
+                due_date, linked_message_id, filing_type, filing_period, created_at, updated_at
+           FROM memos
+          WHERE target_user_id = ? AND memo_type = '거래처 정보' AND deleted_at IS NULL
+          ORDER BY created_at DESC LIMIT 100`
+      ).bind(userIdParam).all();
+      return Response.json({ ok: true, memos: results || [], types: NEW_TYPES });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
 
   /* === 대시보드 모드: 전체 방 + 개인 일정에서 미완료 할 일 한꺼번에 === */
   if (scope === 'my') {
@@ -146,10 +177,27 @@ export async function onRequestPost(context) {
 
   const dueDate = body.due_date && validDate(body.due_date) ? body.due_date : null;
   const linkedMsgId = body.linked_message_id ? Number(body.linked_message_id) : null;
+  const filingType = body.filing_type ? String(body.filing_type).slice(0, 30) : null;
+  const filingPeriod = body.filing_period ? String(body.filing_period).slice(0, 30) : null;
   /* 담당자 — 명시 없으면 작성자 본인 */
   const assignedToUserId = body.assigned_to_user_id
     ? Number(body.assigned_to_user_id)
     : (auth.userId || null);
+
+  /* target_user_id: 거래처 영구 메모 저장 대상.
+     - body 에 명시하면 그대로
+     - 아니면 거래처 정보 타입일 때 방에서 자동 추론 (첫 non-admin 멤버) */
+  let targetUserId = body.target_user_id ? Number(body.target_user_id) : null;
+  if (memoType === '거래처 정보' && !targetUserId && roomId) {
+    try {
+      const mem = await db.prepare(
+        `SELECT user_id FROM room_members
+         WHERE room_id = ? AND left_at IS NULL AND user_id IS NOT NULL AND role != 'admin'
+         ORDER BY joined_at ASC LIMIT 1`
+      ).bind(roomId).first();
+      if (mem?.user_id) targetUserId = mem.user_id;
+    } catch {}
+  }
 
   const authorUserId = auth.userId || null;
   const authorName = auth.name || auth.realName || (auth.owner ? '대표' : '담당자');
@@ -157,9 +205,9 @@ export async function onRequestPost(context) {
   const now = kst();
   try {
     const r = await db.prepare(
-      `INSERT INTO memos (room_id, author_user_id, author_name, assigned_to_user_id, memo_type, content, visibility, is_edited, due_date, linked_message_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'internal', 0, ?, ?, ?, ?)`
-    ).bind(roomId, authorUserId, authorName, assignedToUserId, memoType, content, dueDate, linkedMsgId, now, now).run();
+      `INSERT INTO memos (room_id, target_user_id, author_user_id, author_name, assigned_to_user_id, memo_type, content, visibility, is_edited, due_date, linked_message_id, filing_type, filing_period, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'internal', 0, ?, ?, ?, ?, ?, ?)`
+    ).bind(roomId, targetUserId, authorUserId, authorName, assignedToUserId, memoType, content, dueDate, linkedMsgId, filingType, filingPeriod, now, now).run();
     return Response.json({ ok: true, id: r.meta?.last_row_id || null });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
@@ -215,6 +263,21 @@ export async function onRequestPatch(context) {
       if (!Number.isInteger(n) || n <= 0) return Response.json({ error: "invalid assigned_to_user_id" }, { status: 400 });
       fields.push('assigned_to_user_id = ?'); binds.push(n);
     }
+  }
+  if (body.target_user_id !== undefined) {
+    if (body.target_user_id === null || body.target_user_id === '') {
+      fields.push('target_user_id = NULL');
+    } else {
+      const n = Number(body.target_user_id);
+      if (!Number.isInteger(n) || n <= 0) return Response.json({ error: "invalid target_user_id" }, { status: 400 });
+      fields.push('target_user_id = ?'); binds.push(n);
+    }
+  }
+  if (body.filing_type !== undefined) {
+    fields.push('filing_type = ?'); binds.push(body.filing_type ? String(body.filing_type).slice(0,30) : null);
+  }
+  if (body.filing_period !== undefined) {
+    fields.push('filing_period = ?'); binds.push(body.filing_period ? String(body.filing_period).slice(0,30) : null);
   }
   if (!fields.length) return Response.json({ error: "nothing to update" }, { status: 400 });
   /* content 수정 시에만 is_edited=1. memo_type·due_date 단독 변경은 상태 전환이지 수정 아님 */

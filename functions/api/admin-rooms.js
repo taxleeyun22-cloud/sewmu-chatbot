@@ -746,13 +746,19 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
   // 시간순으로 재정렬
   const chrono = msgs.slice().reverse();
 
-  // [DOC:id] 상세 한 번에 조회 — "다수 업로드" 뭉개기 방지, 실무 구체화
+  // [DOC:id] 상세 한 번에 조회 — 자료 업로드 "숫자 요약" + 주요 건 Top 5 만
   const docIds = [];
+  let imgCount = 0, fileCount = 0;
   for (const m of chrono) {
-    const mm = /^\[DOC:(\d+)\]/.exec(String(m.content || ''));
+    const s = String(m.content || '');
+    const mm = /^\[DOC:(\d+)\]/.exec(s);
     if (mm) docIds.push(parseInt(mm[1], 10));
+    else if (/^\[IMG\]/.test(s)) imgCount++;
+    else if (/^\[FILE\]/.test(s)) fileCount++;
   }
   const docMap = {};
+  const docTypeCounts = {};
+  const topDocs = [];
   if (docIds.length) {
     try {
       const placeholders = docIds.map(() => '?').join(',');
@@ -767,6 +773,7 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
       };
       for (const d of (docRows || [])) {
         const typ = typeLabel[d.doc_type] || d.doc_type || '문서';
+        docTypeCounts[typ] = (docTypeCounts[typ] || 0) + 1;
         const amt = d.amount ? Number(d.amount).toLocaleString('ko-KR') + '원' : '';
         const dt = (d.receipt_date || '').substring(0, 10);
         const parts = [typ];
@@ -774,9 +781,25 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
         if (amt) parts.push(amt);
         if (dt) parts.push(dt);
         docMap[d.id] = parts.join(' · ');
+        /* 금액 큰 순 Top 5 선별용 */
+        topDocs.push({ id: d.id, type: typ, vendor: d.vendor || '', amount: Number(d.amount || 0), date: dt });
       }
-    } catch {/* 문서 조회 실패해도 요약은 계속 — 빈 docMap 으로 기존 동작 */}
+      topDocs.sort((a, b) => b.amount - a.amount);
+    } catch {/* 문서 조회 실패해도 요약은 계속 */}
   }
+  /* 자료 업로드 숫자 요약 문자열 (프롬프트 주입용) */
+  const docSummaryParts = [];
+  for (const k of Object.keys(docTypeCounts)) docSummaryParts.push(`${k} ${docTypeCounts[k]}건`);
+  if (imgCount > 0) docSummaryParts.push(`사진 ${imgCount}건`);
+  if (fileCount > 0) docSummaryParts.push(`파일 ${fileCount}건`);
+  const docUploadSummary = docSummaryParts.length ? docSummaryParts.join(' · ') : '(업로드 없음)';
+  const top5Str = topDocs.slice(0, 5).filter(t => t.amount > 0).map(t => {
+    const bits = [t.type];
+    if (t.vendor) bits.push(t.vendor);
+    bits.push(t.amount.toLocaleString('ko-KR') + '원');
+    if (t.date) bits.push(t.date);
+    return '  · ' + bits.join(' · ');
+  }).join('\n');
 
   // 컨텐츠 축약 (특수 프리픽스 제거·단축)
   const lines = [];
@@ -791,8 +814,11 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
     else {
       const dm = /^\[DOC:(\d+)\]/.exec(content);
       if (dm) {
+        /* 대화 라인에서는 타입만 노출 — 개별 나열로 요약이 너저분해지는 문제 방지.
+           상세 요약은 별도 "자료 업로드 요약" 블록에서 숫자로 집계됨 */
         const docInfo = docMap[parseInt(dm[1], 10)];
-        content = docInfo ? `(문서 업로드: ${docInfo})` : "(영수증/문서 업로드)";
+        const typeOnly = docInfo ? docInfo.split(' · ')[0] : '문서';
+        content = `(${typeOnly} 업로드)`;
       } else if (/^\[ALERT\]/.test(content)) {
         try { const a = JSON.parse(content.replace(/^\[ALERT\]/, '')); content = `[시스템 알림] ${a.t || ''}: ${a.m || ''}`; } catch { content = "(알림)"; }
       }
@@ -823,21 +849,54 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
                      || chrono.find(m => m.role === 'user' && (m.real_name || m.name))?.name
                      || '고객');
 
-  /* 담당자 메모 블록 (memos 테이블 기반).
-     신 타입: 할 일/완료/참고. 구 타입은 매핑 테이블로 정규화.
-     요약 프롬프트에는 할 일·완료·참고를 구분해서 주입 (완료는 이미 처리됨으로 표시). */
+  /* 방의 고객 user_id 찾기 — 거래처 정보 영구 메모 조회용 */
+  let customerUserId = null;
+  try {
+    const r = await db.prepare(
+      `SELECT user_id FROM room_members
+       WHERE room_id = ? AND left_at IS NULL AND user_id IS NOT NULL AND role != 'admin'
+       ORDER BY joined_at ASC LIMIT 1`
+    ).bind(roomId).first();
+    customerUserId = r?.user_id || null;
+  } catch {}
+
+  /* 거래처 정보 메모 (영구, user_id 기반) — 인수인계·기본사항.
+     AI 요약 상단 "거래처 기본 정보" 블록으로 주입 */
+  let customerInfoBlock = '(등록된 기본 정보 없음)';
+  if (customerUserId) {
+    try {
+      const { results: cinfoRows } = await db.prepare(
+        `SELECT content, author_name, created_at FROM memos
+         WHERE target_user_id = ? AND memo_type = '거래처 정보' AND deleted_at IS NULL
+         ORDER BY created_at ASC LIMIT 20`
+      ).bind(customerUserId).all();
+      if (cinfoRows && cinfoRows.length) {
+        customerInfoBlock = cinfoRows.map(m => {
+          const t = (m.created_at || '').substring(0, 10);
+          const by = m.author_name ? `(${m.author_name})` : '';
+          return `- ${by} ${t}: ${String(m.content || '').slice(0, 400)}`;
+        }).join('\n');
+      }
+    } catch {}
+  }
+
+  /* 담당자 메모 블록 (memos 테이블 기반, 방 단위).
+     신 타입: 할 일/완료/거래처 정보. 구 타입은 매핑 테이블로 정규화.
+     거래처 정보는 위에서 별도 블록으로 주입하므로 여기선 방 단위 메모만 */
   let memoBlock = '(없음)';
   try {
     const { results: memoRows } = await db.prepare(
       `SELECT id, memo_type, content, author_name, created_at, is_edited, due_date, linked_message_id
          FROM memos
         WHERE room_id = ? AND deleted_at IS NULL
+          AND memo_type != '거래처 정보'
         ORDER BY created_at ASC LIMIT 80`
     ).bind(roomId).all();
     if (memoRows && memoRows.length) {
       const LEGACY_MAP = {
-        '사실메모': '참고', '확인필요': '할 일', '고객요청': '할 일',
-        '담당자판단': '참고', '주의사항': '참고', '완료처리': '완료',
+        '사실메모': '거래처 정보', '확인필요': '할 일', '고객요청': '할 일',
+        '담당자판단': '거래처 정보', '주의사항': '거래처 정보', '완료처리': '완료',
+        '참고': '거래처 정보',
       };
       const normType = (t) => LEGACY_MAP[t] || t || '할 일';
       memoBlock = memoRows.map(m => {
@@ -861,8 +920,9 @@ async function summarizeRoom(context, db, roomId, range, fromDate, toDate) {
 - 고객 응대 문체 금지. 서술형 문단 금지. 짧은 명사형·항목형으로.
 - 감성적 수식어·인사말 금지.
 - 확정된 사실과 추정·확인 필요 항목을 분리.
-- 자료 업로드는 날짜·유형별로 구체적으로 ("다수 업로드" 같은 뭉뚱그림 금지). 가능하면 가맹점·금액·날짜를 그대로 옮긴다.
-- 담당자 메모 반영: [할 일] → "다음 액션" 에 반드시 포함 (기한 있으면 그대로 표기). [참고] → 확정사실 또는 특이사항에 반영. [완료] → "이미 처리됨" 으로 확정사실에 반영 (다음 액션에는 넣지 말 것).
+- 자료 업로드 섹션은 **개별 나열 금지**. 제공된 "자료 업로드 요약" 블록의 숫자를 그대로 옮기고, 금액 큰 Top 항목만 1~3개 언급. 대화 라인의 "(영수증 업로드)" 개별 카운트 X.
+- "거래처 기본 정보" 블록이 제공되면 **상담 개요·확정 사실 섹션 상단**에 반드시 한두 줄로 녹인다 (업종·특이사항·고정 패턴 등).
+- 담당자 메모 반영: [할 일] → "다음 액션" 에 포함 (기한 표기). [거래처 정보] → 위 블록으로 대체됨. [완료] → "이미 처리됨" 으로 확정사실에.
 - 대화에 근거 없는 내용은 만들지 말 것 (할루시네이션 금지).
 - 날짜가 있으면 YYYY-MM-DD 로 포함.
 - 각 항목 끝에 근거 메시지 ID 를 "(#123)" 또는 "(#123, #124)" 형태로 붙인다. 메모 근거면 "(memo)" 로 표시.
@@ -921,7 +981,13 @@ ${firstAt} ~ ${lastAt} (총 ${lines.length}건)
 - 메시지 수: ${lines.length}
 - 추정 고객: ${customerName}
 
----담당자 메모 (내부 전용, 고객 공개 X) — 각 줄 형식: [타입] 📅기한 🔗#연결메시지 (작성자) 시각: 내용---
+---거래처 기본 정보 (영구·인수인계용) — 이 거래처의 업종·특이사항·고정 패턴 등---
+${customerInfoBlock}
+
+---자료 업로드 요약 (이 기간 내 집계)---
+${docUploadSummary}${top5Str ? '\n주요 건(금액 큰 순 Top5):\n' + top5Str : ''}
+
+---담당자 메모 (방 단위, 내부 전용) — 각 줄 형식: [타입] 📅기한 🔗#연결메시지 (작성자) 시각: 내용---
 ${memoBlock}
 
 ---대화 기록 (각 줄 형식: [HH:MM]#msgId 역할: 내용)---
