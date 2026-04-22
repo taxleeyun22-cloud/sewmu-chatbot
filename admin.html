@@ -41,7 +41,8 @@
 <button id="tabReview" onclick="tab('review')">검증 <span id="reviewBadge" style="display:none;background:#f04452;color:#fff;padding:1px 6px;border-radius:10px;font-size:.9em;margin-left:2px"></span></button>
 <button id="tabFaq" onclick="tab('faq')">📚 FAQ</button>
 </div>
-<button class="logout" onclick="openSearch()" style="margin-left:auto" title="전역 검색">🔍 검색</button>
+<button id="myTodosBtn" class="logout" onclick="openMyTodos()" style="margin-left:auto" title="내 할 일 대시보드 — 전체 방·개인 일정 통합 보기">📋 할 일 <span id="myTodosBadge" style="display:none;background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:.72em;font-weight:800;margin-left:4px"></span></button>
+<button class="logout" onclick="openSearch()" title="전역 검색">🔍 검색</button>
 <button id="pcNotifyBtn" class="logout" onclick="togglePcNotify()" title="PC 알림 (새 고객 메시지 알림)">🔕 알림</button>
 <a href="/" class="logout" style="text-decoration:none" title="일반 챗봇 페이지로">🏠 챗봇</a>
 <button class="logout" onclick="logout()">로그아웃</button>
@@ -594,7 +595,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=65"></script>
+<script src="/admin.js?v=66"></script>
 <style>
 #imgViewer{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:10000;display:none;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain}
 #imgViewer.open{display:flex}
@@ -778,6 +779,26 @@
   #memoModal.side-dock .memo-panel{pointer-events:auto;width:100%;max-width:100%;height:78vh;max-height:78vh;border-radius:16px 16px 0 0;box-shadow:0 -8px 22px rgba(0,0,0,.18);margin:0}
 }
 </style>
+<!-- 📋 내 할 일 대시보드 모달 (전체 방 + 개인 일정 통합 뷰) -->
+<div id="myTodosModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11200;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:720px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="font-weight:700;font-size:1em">📋 내 할 일 <span id="mtMeta" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <label style="font-size:.75em;color:#6b7280;display:flex;align-items:center;gap:4px"><input type="checkbox" id="mtOnlyMine" onchange="loadMyTodos()" style="width:14px;height:14px;cursor:pointer"> 내 것만</label>
+        <button onclick="loadMyTodos()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">🔄</button>
+        <button onclick="closeMyTodos()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+      </div>
+    </div>
+    <!-- 개인 일정 추가 폼 -->
+    <div style="padding:10px 16px;border-bottom:1px solid #f2f4f6;background:#fffbeb;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input id="mtNewContent" type="text" placeholder="+ 개인 일정 (방 없이): 예) 은행 방문 · 세미나 참석" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;outline:none" onkeydown="if(event.key==='Enter'){event.preventDefault();addPersonalTask()}">
+      <input id="mtNewDue" type="date" style="padding:6px 8px;border:1px solid #e5e8eb;border-radius:6px;font-size:.78em;font-family:inherit" title="기한">
+      <button onclick="addPersonalTask()" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:7px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit">추가</button>
+    </div>
+    <div id="myTodosList" style="flex:1;overflow-y:auto;padding:10px 16px 18px;background:#fff"></div>
+  </div>
+</div>
 <div id="memoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11100;align-items:center;justify-content:center;padding:20px">
   <div class="memo-panel" style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">

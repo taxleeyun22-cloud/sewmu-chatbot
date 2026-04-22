@@ -3373,6 +3373,170 @@ async function postSummaryToRoom(){
   }catch(err){alert('오류: '+err.message)}
 }
 
+/* ===== 📋 내 할 일 대시보드 — 전체 방 + 개인 일정 통합 뷰 =====
+   Purpose: 방 150개 일일이 클릭 안 해도 오늘·내일·이번주 할 일 한 번에 파악
+   Data source: /api/memos?scope=my (미완료 할 일만, 방 정보 JOIN) */
+let _myTodosCache=[];
+async function openMyTodos(){
+  const m=$g('myTodosModal');if(!m)return;
+  m.style.display='flex';
+  document.body.style.overflow='hidden';
+  if($g('mtNewContent'))$g('mtNewContent').value='';
+  if($g('mtNewDue'))$g('mtNewDue').value='';
+  await loadMyTodos();
+}
+function closeMyTodos(){
+  const m=$g('myTodosModal');if(m)m.style.display='none';
+  document.body.style.overflow='';
+}
+async function loadMyTodos(){
+  const list=$g('myTodosList');if(!list)return;
+  list.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div>';
+  const onlyMine=$g('mtOnlyMine')?.checked?1:0;
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my&only_mine='+onlyMine);
+    const d=await r.json();
+    if(d.error){list.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(d.error)+'</div>';return}
+    _myTodosCache=(d.memos||[]).map(m=>({...m, _t:_normType(m.memo_type_display||m.memo_type)}));
+    _renderMyTodos();
+    _updateMyTodosBadge();
+  }catch(err){list.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>'}
+}
+/* 기한 그룹핑: 지남 / 오늘 / 내일 / 이번주(2~7일) / 다음주이후 / 기한없음 */
+function _bucketByDue(due){
+  if(!due||!/^\d{4}-\d{2}-\d{2}$/.test(due))return 'none';
+  const today=new Date(Date.now()+9*60*60*1000).toISOString().substring(0,10);
+  const diff=Math.round((new Date(due+'T00:00:00')-new Date(today+'T00:00:00'))/86400000);
+  if(diff<0)return 'overdue';
+  if(diff===0)return 'today';
+  if(diff===1)return 'tomorrow';
+  if(diff<=7)return 'week';
+  return 'later';
+}
+function _renderMyTodos(){
+  const list=$g('myTodosList');if(!list)return;
+  if(!_myTodosCache.length){
+    list.innerHTML='<div style="text-align:center;padding:50px 20px;color:#8b95a1;font-size:.9em">📭 처리할 일이 없습니다<br><span style="font-size:.85em;color:#adb5bd">위 입력창에서 개인 일정을 추가하거나<br>상담방 📒 메모에서 할 일을 작성하세요</span></div>';
+    $g('mtMeta').textContent='0건';
+    return;
+  }
+  const groups={overdue:[],today:[],tomorrow:[],week:[],later:[],none:[]};
+  for(const m of _myTodosCache)groups[_bucketByDue(m.due_date)].push(m);
+  const labels=[
+    ['overdue','🔴 지남','#dc2626'],
+    ['today','🟠 오늘','#ea580c'],
+    ['tomorrow','🟡 내일','#ca8a04'],
+    ['week','🟢 이번주','#059669'],
+    ['later','🔵 다음주 이후','#2563eb'],
+    ['none','⚪ 기한 없음','#6b7280'],
+  ];
+  let html='';
+  const total=_myTodosCache.length;
+  for(const [k,lab,col] of labels){
+    const arr=groups[k];if(!arr.length)continue;
+    html+='<div style="margin-bottom:14px">'
+      +'<div style="font-size:.82em;font-weight:700;color:'+col+';margin-bottom:6px;padding:3px 0;border-bottom:2px solid '+col+'">'+e(lab)+' <span style="font-weight:500;color:#6b7280">('+arr.length+')</span></div>'
+      +arr.map(_todoRow).join('')
+      +'</div>';
+  }
+  list.innerHTML=html;
+  $g('mtMeta').textContent=total+'건';
+}
+function _todoRow(m){
+  const isPersonal=!m.room_id;
+  const roomBadge=isPersonal
+    ? '<span style="background:#fef3c7;color:#92400e;padding:1px 7px;border-radius:8px;font-size:.7em;font-weight:700">📍 개인</span>'
+    : '<a href="javascript:void(0)" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(m.room_id)+'\')" style="background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:8px;font-size:.7em;font-weight:700;text-decoration:none" title="이 방으로 이동">📍 '+e(m.room_name||m.room_id)+'</a>';
+  const dueLbl=m.due_date?'<span style="font-size:.7em;color:#6b7280">📅 '+e(m.due_date)+'</span>':'';
+  const linkBtn=m.linked_message_id
+    ? '<a href="javascript:void(0)" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(m.room_id||'')+'\','+m.linked_message_id+')" style="color:#3182f6;font-size:.72em;text-decoration:none" title="원본 메시지">🔗#'+m.linked_message_id+'</a>'
+    : '';
+  return '<div style="display:flex;gap:9px;padding:8px 10px;border:1px solid #fde68a;border-radius:7px;margin-bottom:5px;background:#fffef5;align-items:flex-start">'
+    +'<input type="checkbox" onchange="completeTodo('+m.id+')" style="width:18px;height:18px;cursor:pointer;accent-color:#10b981;flex-shrink:0;margin-top:1px">'
+    +'<div style="flex:1;min-width:0">'
+    +'<div style="font-size:.88em;color:#191f28;line-height:1.45;word-break:break-word">'+e(m.content||'')+'</div>'
+    +'<div style="display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap">'
+    +roomBadge+dueLbl+linkBtn
+    +'<span style="font-size:.7em;color:#9ca3af;margin-left:auto">'+e(m.author_name||'')+'</span>'
+    +'<button onclick="deleteTodoFromDashboard('+m.id+')" style="background:none;border:none;color:#f04452;font-size:.76em;cursor:pointer;font-family:inherit;padding:0 2px" title="삭제">🗑️</button>'
+    +'</div></div></div>';
+}
+async function completeTodo(id){
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&id='+id,{
+      method:'PATCH',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({memo_type:'완료'})
+    });
+    const d=await r.json();
+    if(!d.ok){alert('완료 처리 실패: '+(d.error||'unknown'));return}
+    /* 즉시 UI 제거 (캐시에서 빼고 리렌더) */
+    _myTodosCache=_myTodosCache.filter(m=>m.id!==id);
+    _renderMyTodos();
+    _updateMyTodosBadge();
+  }catch(err){alert('오류: '+err.message)}
+}
+async function deleteTodoFromDashboard(id){
+  if(!confirm('이 할 일을 삭제할까요?'))return;
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&id='+id,{method:'DELETE'});
+    const d=await r.json();
+    if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
+    _myTodosCache=_myTodosCache.filter(m=>m.id!==id);
+    _renderMyTodos();
+    _updateMyTodosBadge();
+  }catch(err){alert('오류: '+err.message)}
+}
+async function addPersonalTask(){
+  const content=($g('mtNewContent')?.value||'').trim();
+  const due=($g('mtNewDue')?.value||'').trim();
+  if(!content){alert('일정 내용을 입력하세요');return}
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({memo_type:'할 일', content, due_date: due||null}) /* room_id 없음 = 개인 일정 */
+    });
+    const d=await r.json();
+    if(!d.ok){alert('추가 실패: '+(d.error||'unknown'));return}
+    $g('mtNewContent').value='';
+    $g('mtNewDue').value='';
+    await loadMyTodos();
+  }catch(err){alert('오류: '+err.message)}
+}
+/* 대시보드에서 방 점프 — 모달 닫고 방 열기 */
+function jumpToRoomFromTodo(roomId, msgId){
+  if(!roomId)return;
+  closeMyTodos();
+  if(typeof openRoom==='function'){
+    setTimeout(()=>{
+      openRoom(roomId);
+      if(msgId){
+        setTimeout(()=>jumpToRoomMessage(msgId), 500);
+      }
+    }, 100);
+  }
+}
+/* 📋 할 일 버튼 뱃지 (미완료 총 개수) */
+function _updateMyTodosBadge(){
+  const b=$g('myTodosBadge');if(!b)return;
+  const n=_myTodosCache.filter(m=>m._t==='할 일').length;
+  if(n>0){b.textContent=n;b.style.display='inline-block'}
+  else{b.style.display='none'}
+}
+/* 초기 로드 — 헤더 뱃지 표시용 조용히 한 번 조회 */
+async function _silentLoadMyTodos(){
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my');
+    const d=await r.json();
+    if(d.memos){
+      _myTodosCache=d.memos.map(m=>({...m, _t:_normType(m.memo_type_display||m.memo_type)}));
+      _updateMyTodosBadge();
+    }
+  }catch(_){}
+}
+/* 페이지 로드 후 한 번 + 이후 60초마다 뱃지 갱신 */
+setTimeout(_silentLoadMyTodos, 2000);
+setInterval(_silentLoadMyTodos, 60000);
+
 /* ===== 📒 담당자 메모 (내부 전용 · 할 일 체크리스트 방식) =====
    타입 3종: '할 일' / '완료' / '참고'
    체크박스: 할 일 ↔ 완료 토글 (PATCH memo_type)
