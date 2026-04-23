@@ -100,9 +100,57 @@ export async function onRequestPost(context) {
     const body = await context.request.json();
     const now = kst();
 
+    /* === 중복 감지 (UPSERT) ===
+       같은 user 가 두 경로(관리자 수동 등록 + 고객 본인 입력)로 사업장을 등록해
+       '세무회계 이윤' 과 '세무회계이윤' 이 따로 저장되는 문제 방지.
+       규칙: 정규화된 사업자번호가 같으면 UPDATE, 사업자번호 둘 다 없고
+       정규화된 상호가 같으면 UPDATE */
+    const normBiz = (body.business_number || "").replace(/\D/g, "");
+    const normName = String(body.company_name || "").replace(/\s+/g, "").toLowerCase();
+    let existing = null;
+    try {
+      const { results: rows } = await db.prepare(
+        `SELECT id, company_name, business_number FROM client_businesses WHERE user_id = ?`
+      ).bind(userId).all();
+      for (const r of (rows || [])) {
+        const rb = String(r.business_number || "").replace(/\D/g, "");
+        const rn = String(r.company_name || "").replace(/\s+/g, "").toLowerCase();
+        if (normBiz && rb && normBiz === rb) { existing = r; break; }
+        if (!normBiz && !rb && normName && rn && normName === rn) { existing = r; break; }
+      }
+    } catch {}
+
     // 주 사업장(is_primary) 설정 처리: 기존 주 사업장 해제
     if (body.is_primary) {
       await db.prepare(`UPDATE client_businesses SET is_primary = 0 WHERE user_id = ?`).bind(userId).run();
+    }
+
+    if (existing) {
+      await db.prepare(`
+        UPDATE client_businesses SET
+          company_name = ?, business_number = ?, ceo_name = ?, industry = ?,
+          business_type = ?, tax_type = ?, establishment_date = ?, address = ?,
+          phone = ?, employee_count = ?, last_revenue = ?, vat_period = ?,
+          notes = ?, is_primary = ?, updated_at = ?, updated_by = 'admin'
+        WHERE id = ?
+      `).bind(
+        body.company_name || existing.company_name || null,
+        normBiz || null,
+        body.ceo_name || null,
+        body.industry || null,
+        body.business_type || null,
+        body.tax_type || null,
+        body.establishment_date || null,
+        body.address || null,
+        body.phone || null,
+        body.employee_count != null && body.employee_count !== '' ? Number(body.employee_count) : null,
+        body.last_revenue != null && body.last_revenue !== '' ? Number(body.last_revenue) : null,
+        body.vat_period || null,
+        body.notes || null,
+        body.is_primary ? 1 : 0,
+        now, existing.id
+      ).run();
+      return Response.json({ ok: true, id: existing.id, merged: true });
     }
 
     const result = await db.prepare(`
@@ -115,7 +163,7 @@ export async function onRequestPost(context) {
     `).bind(
       userId,
       body.company_name || null,
-      (body.business_number || "").replace(/\D/g, "") || null,
+      normBiz || null,
       body.ceo_name || null,
       body.industry || null,
       body.business_type || null,

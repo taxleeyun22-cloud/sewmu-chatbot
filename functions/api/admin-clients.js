@@ -71,7 +71,7 @@ export async function onRequestPost(context) {
     const userId = r.meta?.last_row_id;
     if (!userId) return Response.json({ error: "user insert failed" }, { status: 500 });
 
-    /* client_businesses 에도 insert (정보 있으면) */
+    /* client_businesses 에도 insert (정보 있으면) — 정규화 비교 후 UPSERT */
     if (businessNumber || companyName) {
       try {
         await db.prepare(
@@ -87,10 +87,30 @@ export async function onRequestPost(context) {
             updated_at TEXT
           )`
         ).run();
-        await db.prepare(
-          `INSERT INTO client_businesses (user_id, company_name, ceo_name, business_number, is_primary, created_at, updated_at)
-           VALUES (?, ?, ?, ?, 1, ?, ?)`
-        ).bind(userId, companyName || null, ceoName || null, businessNumber || null, now, now).run();
+        const normBiz = String(businessNumber || "").replace(/\D/g, "");
+        const normName = String(companyName || "").replace(/\s+/g, "").toLowerCase();
+        let existing = null;
+        try {
+          const { results: rows } = await db.prepare(
+            `SELECT id, company_name, business_number FROM client_businesses WHERE user_id = ?`
+          ).bind(userId).all();
+          for (const r of (rows || [])) {
+            const rb = String(r.business_number || "").replace(/\D/g, "");
+            const rn = String(r.company_name || "").replace(/\s+/g, "").toLowerCase();
+            if (normBiz && rb && normBiz === rb) { existing = r; break; }
+            if (!normBiz && !rb && normName && rn && normName === rn) { existing = r; break; }
+          }
+        } catch {}
+        if (existing) {
+          await db.prepare(
+            `UPDATE client_businesses SET company_name = ?, ceo_name = ?, business_number = ?, updated_at = ? WHERE id = ?`
+          ).bind(companyName || existing.company_name || null, ceoName || null, normBiz || null, now, existing.id).run();
+        } else {
+          await db.prepare(
+            `INSERT INTO client_businesses (user_id, company_name, ceo_name, business_number, is_primary, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 1, ?, ?)`
+          ).bind(userId, companyName || null, ceoName || null, normBiz || null, now, now).run();
+        }
       } catch {}
     }
 
