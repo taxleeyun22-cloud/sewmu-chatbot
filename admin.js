@@ -671,6 +671,10 @@ async function loadRoomList(){
       const preview=rm.last_msg_preview?escAttr(rm.last_msg_preview):'새 상담방';
       const lastTime=rm.last_msg_at ? (rm.last_msg_at.substring(5,10).replace('-','.')+' '+rm.last_msg_at.substring(11,16)) : '';
       const closedTag=rm.status==='closed'?'<span class="ri-closed" style="font-size:.65em;color:#9ca3af;margin-left:4px">종료</span>':'';
+      /* 🏢 연결된 업체 배지 — business_id 설정돼 있으면 상호 표시 */
+      const bizBadge = rm.business_name
+        ? '<span style="font-size:.66em;color:#1e40af;background:#dbeafe;padding:1px 6px;border-radius:10px;margin-right:4px" title="연결된 업체">🏢 '+escAttr(String(rm.business_name).slice(0,14))+'</span>'
+        : '';
       return '<div class="'+cls.join(' ')+'" onclick="openRoom(\''+rm.id+'\')" ondblclick="event.stopPropagation();currentRoomId=\''+rm.id+'\';popoutCurrentRoom()" title="더블클릭하면 새 창으로 열립니다" style="display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid #f2f4f6;cursor:pointer">'
         +avatar
         +'<div style="flex:1;min-width:0">'
@@ -679,7 +683,7 @@ async function loadRoomList(){
         +    '<span style="font-size:.66em;color:#9ca3af;flex-shrink:0">'+aiIcon+' '+lastTime+'</span>'
         +  '</div>'
         +  '<div style="display:flex;align-items:center;gap:6px;margin-top:3px">'
-        +    '<span style="flex:1;min-width:0;font-size:.78em;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+preview+closedTag+'</span>'
+        +    '<span style="flex:1;min-width:0;font-size:.78em;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+bizBadge+preview+closedTag+'</span>'
         +    badge
         +  '</div>'
         +  '<div style="display:flex;align-items:center;gap:6px;margin-top:4px">'

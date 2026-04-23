@@ -38,6 +38,19 @@ async function ensureTables(db) {
     updated_at TEXT
   )`).run();
   try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN business_id INTEGER`).run(); } catch {}
+  /* 🏢 위하고 레이아웃 호환 필드 — 장기적으로 위하고 전표 엑셀 export/import 매핑용 */
+  const add = (sql) => db.prepare(sql).run().catch(()=>{});
+  await add(`ALTER TABLE businesses ADD COLUMN sub_business_number TEXT`);      /* 종사업자번호 */
+  await add(`ALTER TABLE businesses ADD COLUMN corporate_number TEXT`);          /* 법인등록번호 (13자리) */
+  await add(`ALTER TABLE businesses ADD COLUMN business_category TEXT`);         /* 업태 */
+  await add(`ALTER TABLE businesses ADD COLUMN industry_code TEXT`);             /* 업종코드 (통계청) */
+  await add(`ALTER TABLE businesses ADD COLUMN service_type TEXT`);              /* 기장 | 기장외 | 조정 | 신고대행 | 기타 */
+  await add(`ALTER TABLE businesses ADD COLUMN contract_date TEXT`);             /* 수임일자 */
+  await add(`ALTER TABLE businesses ADD COLUMN fiscal_year_start TEXT`);         /* 회계기간 시작 YYYY-MM-DD */
+  await add(`ALTER TABLE businesses ADD COLUMN fiscal_year_end TEXT`);           /* 회계기간 종료 YYYY-MM-DD */
+  await add(`ALTER TABLE businesses ADD COLUMN fiscal_term INTEGER`);            /* N기 (몇 번째 회계연도) */
+  await add(`ALTER TABLE businesses ADD COLUMN hr_year INTEGER`);                /* 인사연도 */
+  await add(`ALTER TABLE businesses ADD COLUMN company_form TEXT`);              /* 회사구분: 법인사업자/개인사업자/간이사업자 등 */
 }
 
 export async function onRequestGet(context) {
@@ -132,17 +145,63 @@ export async function onRequestPost(context) {
     const r = await db.prepare(
       `INSERT INTO businesses (company_name, business_number, ceo_name, industry, business_type, tax_type,
                                establishment_date, address, phone, employee_count, last_revenue, vat_period,
-                               notes, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
+                               notes, status, created_at, updated_at,
+                               sub_business_number, corporate_number, business_category, industry_code,
+                               service_type, contract_date, fiscal_year_start, fiscal_year_end, fiscal_term,
+                               hr_year, company_form)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?,
+               ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       name, bn || null, body.ceo_name || null, body.industry || null,
       body.business_type || null, body.tax_type || null,
       body.establishment_date || null, body.address || null, body.phone || null,
       body.employee_count != null && body.employee_count !== '' ? Number(body.employee_count) : null,
       body.last_revenue != null && body.last_revenue !== '' ? Number(body.last_revenue) : null,
-      body.vat_period || null, body.notes || null, now, now
+      body.vat_period || null, body.notes || null, now, now,
+      String(body.sub_business_number || '').replace(/\D/g, '') || null,
+      String(body.corporate_number || '').replace(/\D/g, '') || null,
+      body.business_category || null,
+      body.industry_code || null,
+      body.service_type || null,
+      body.contract_date || null,
+      body.fiscal_year_start || null,
+      body.fiscal_year_end || null,
+      body.fiscal_term != null && body.fiscal_term !== '' ? Number(body.fiscal_term) : null,
+      body.hr_year != null && body.hr_year !== '' ? Number(body.hr_year) : null,
+      body.company_form || null
     ).run();
-    return Response.json({ ok: true, id: r.meta?.last_row_id });
+    const bid = r.meta?.last_row_id;
+
+    /* 🏢 auto_create_room — 업체 생성과 동시에 상담방 자동 개설 (기본 true).
+       body.auto_create_room === false 면 skip. 대표자 있으면 is_primary user 를 room_members 에 */
+    let createdRoomId = null;
+    if (bid && body.auto_create_room !== false) {
+      try {
+        /* 방 id — 6자리 영숫자 */
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let rid = '';
+        for (let i = 0; i < 6; i++) rid += chars[Math.floor(Math.random() * chars.length)];
+        const roomName = (name + ' 상담방').slice(0, 80);
+        await db.prepare(
+          `INSERT INTO chat_rooms (id, name, created_by_admin, max_members, ai_mode, status, business_id, created_at)
+           VALUES (?, ?, 1, 10, 'on', 'active', ?, ?)`
+        ).bind(rid, roomName, bid, now).run();
+        /* 관리자(is_admin=1) 전원 자동 참여 — 다른 방 생성 경로와 통일 */
+        try {
+          const { results: admins } = await db.prepare(`SELECT id FROM users WHERE is_admin = 1`).all();
+          for (const ad of (admins || [])) {
+            try {
+              await db.prepare(
+                `INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'admin', ?)`
+              ).bind(rid, ad.id, now).run();
+            } catch {}
+          }
+        } catch {}
+        createdRoomId = rid;
+      } catch {}
+    }
+
+    return Response.json({ ok: true, id: bid, room_id: createdRoomId });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }

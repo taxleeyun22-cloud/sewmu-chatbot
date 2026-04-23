@@ -86,6 +86,30 @@ async function ensureTables(db) {
   try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN phone TEXT`).run(); } catch {}
   /* 기존 방 max_members 최소 10 으로 상향 — 관리자 자동 참여 후 공간 부족 방지 */
   try { await db.prepare(`UPDATE chat_rooms SET max_members = 10 WHERE max_members < 10`).run(); } catch {}
+  /* 🏢 업체 연결 컬럼 + 업체 테이블 미리 보장 (JOIN 안전) */
+  try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN business_id INTEGER`).run(); } catch {}
+  try {
+    await db.prepare(`CREATE TABLE IF NOT EXISTS businesses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_name TEXT NOT NULL,
+      business_number TEXT,
+      ceo_name TEXT,
+      industry TEXT,
+      business_type TEXT,
+      tax_type TEXT,
+      establishment_date TEXT,
+      address TEXT,
+      phone TEXT,
+      employee_count INTEGER,
+      last_revenue INTEGER,
+      vat_period TEXT,
+      notes TEXT,
+      status TEXT DEFAULT 'active',
+      source_client_business_id INTEGER,
+      created_at TEXT,
+      updated_at TEXT
+    )`).run();
+  } catch {}
 }
 
 function kst() {
@@ -307,9 +331,13 @@ export async function onRequestGet(context) {
       return Response.json({ room, members: members || [], messages: messages || [] });
     }
 
-    // 목록 — priority 먼저, 최근순. 카톡 스타일 미리보기·아바타 포함
+    /* business_id 컬럼·businesses 테이블이 아직 없어도 LEFT JOIN 이 NULL 로 떨어져 안전.
+       과거 배포 환경에서 ALTER 누락되지 않도록 방어적으로 시도 */
+    try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN business_id INTEGER`).run(); } catch {}
+    // 목록 — priority 먼저, 최근순. 카톡 스타일 미리보기·아바타·업체명 포함
     const { results } = await db.prepare(`
       SELECT r.*,
+             b.company_name AS business_name,
              (SELECT COUNT(*) FROM room_members WHERE room_id = r.id AND left_at IS NULL) as member_count,
              (SELECT COUNT(*) FROM conversations WHERE room_id = r.id) as msg_count,
              (SELECT COUNT(*) FROM conversations WHERE room_id = r.id AND role = 'user') as user_msg_count,
@@ -319,6 +347,7 @@ export async function onRequestGet(context) {
              (SELECT content FROM conversations WHERE room_id = r.id AND (deleted_at IS NULL) ORDER BY created_at DESC LIMIT 1) as last_msg_content,
              (SELECT role    FROM conversations WHERE room_id = r.id AND (deleted_at IS NULL) ORDER BY created_at DESC LIMIT 1) as last_msg_role
       FROM chat_rooms r
+      LEFT JOIN businesses b ON r.business_id = b.id
       ORDER BY r.status ASC,
                COALESCE(r.priority, 99) ASC,
                last_msg_at DESC NULLS LAST,
