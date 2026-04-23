@@ -470,11 +470,14 @@ let IS_OWNER=true;
   }catch{}
 })();
 
+/* 🔐 상담방 목록 모드: 'external'(기본) | 'internal'(관리자방) */
+let _roomsMode='external';
 function tab(t){
 try{localStorage.setItem('admin_last_tab',t)}catch{}
 $g('tabChat').className=t==='chat'?'on':'';
 $g('tabLive').className=t==='live'?'on':'';
 $g('tabRooms').className=t==='rooms'?'on':'';
+if($g('tabInternal'))$g('tabInternal').className=t==='internal'?'on':'';
 if($g('tabDocs').className!==undefined)$g('tabDocs').className=t==='docs'?'on':'';
 $g('tabUsers').className=t==='users'?'on':'';
 $g('tabAnal').className=t==='anal'?'on':'';
@@ -483,7 +486,8 @@ $g('tabFaq').className=t==='faq'?'on':'';
 $g('chatView').style.display=t==='chat'?'block':'none';
 $g('detailView').style.display='none';
 $g('liveView').style.display=t==='live'?'block':'none';
-$g('roomsView').style.display=t==='rooms'?'block':'none';
+/* 상담방/관리자방은 같은 roomsView 재활용하되 모드만 다름 */
+$g('roomsView').style.display=(t==='rooms'||t==='internal')?'block':'none';
 $g('docsView').style.display=t==='docs'?'block':'none';
 document.body.classList.toggle('docs-wide', t==='docs');
 $g('usersView').style.display=t==='users'?'block':'none';
@@ -497,7 +501,8 @@ if(t==='faq'){loadFaqStatus();loadFaqs()}
 if(t==='docs')loadDocsTab();
 if(t==='live')startLivePolling();
 else stopLivePolling();
-if(t==='rooms')startRoomsPolling();
+if(t==='rooms'){_roomsMode='external';currentRoomId=null;startRoomsPolling()}
+else if(t==='internal'){_roomsMode='internal';currentRoomId=null;startRoomsPolling()}
 else stopRoomsPolling();
 }
 
@@ -587,7 +592,7 @@ function toggleRoomFilter(key){
 
 async function loadRoomList(){
   try{
-    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY));
+    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+(_roomsMode==='internal'?'&internal=1':''));
     const d=await r.json();
     const el=$g('roomList');
     if(!d.rooms||d.rooms.length===0){el.innerHTML='<div class="empty" style="padding:40px 20px">상담방이 없습니다</div>';return}
@@ -595,10 +600,18 @@ async function loadRoomList(){
     /* 담당자 라벨 동적 로드 (캐시) */
     const labels=await _ensureRoomLabels();
     const labelMap={};for(const lb of labels)labelMap[lb.id]=lb;
+    /* 🔍 검색어 필터 — 방 이름 / 업체명 / 멤버 이름 / 마지막 메시지 미리보기 */
+    const searchQ=((($g('roomListSearch')||{}).value)||'').trim().toLowerCase();
+    const filteredRooms=searchQ
+      ? d.rooms.filter(rm=>{
+          const hay=((rm.name||'')+' '+(rm.business_name||'')+' '+(rm.first_member_name||'')+' '+(rm.last_msg_preview||'')+' '+(rm.last_msg_content||'')).toLowerCase();
+          return hay.indexOf(searchQ)>=0;
+        })
+      : d.rooms;
     /* 우선순위 그룹화 — 라벨 id 별 + 미분류 + 종료 */
     const groups={};for(const lb of labels)groups[lb.id]=[];
     groups.none=[];groups.closed=[];
-    for(const rm of d.rooms){
+    for(const rm of filteredRooms){
       if(rm.status==='closed'){groups.closed.push(rm);continue}
       const p=Number(rm.priority||0);
       if(p&&labelMap[p])(groups[p]=groups[p]||[]).push(rm);
@@ -6650,6 +6663,24 @@ function _showMemberCtx(spanEl, x, y){
   if(y-rect.height-8<8)top=Math.min(y+8, vh-rect.height-8);
   m.style.left=left+'px';m.style.top=top+'px';
   if(navigator.vibrate)try{navigator.vibrate(15)}catch{}
+}
+
+/* 🔍 상담방 목록 검색 — 디바운스 */
+let _roomListSearchT=null;
+function onRoomListSearchInput(){
+  if(_roomListSearchT)clearTimeout(_roomListSearchT);
+  _roomListSearchT=setTimeout(function(){if(typeof loadRoomList==='function')loadRoomList()}, 200);
+}
+
+/* 🏠 관리자 → 챗봇: 카톡 세션 제거 후 이동 — 본인 계정에 얽매이지 않게 */
+function goToChatbotAsAdmin(){
+  try{
+    document.cookie='session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    /* PWA 등에서 캐시된 user id 등도 지움 */
+    try{localStorage.removeItem('currentUserId')}catch(_){}
+    try{sessionStorage.removeItem('currentUserId')}catch(_){}
+  }catch(_){}
+  location.href='/';
 }
 
 /* ===== 🧹 중복 사업장 정리 (일회성 유틸) ===== */

@@ -88,6 +88,8 @@ async function ensureTables(db) {
   try { await db.prepare(`UPDATE chat_rooms SET max_members = 10 WHERE max_members < 10`).run(); } catch {}
   /* 🏢 업체 연결 컬럼 + 업체 테이블 미리 보장 (JOIN 안전) */
   try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN business_id INTEGER`).run(); } catch {}
+  /* 🔐 내부 업무방 플래그 — 관리자끼리만 쓰는 방 (거래처 노출 X) */
+  try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN is_internal INTEGER DEFAULT 0`).run(); } catch {}
   try {
     await db.prepare(`CREATE TABLE IF NOT EXISTS businesses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -334,6 +336,9 @@ export async function onRequestGet(context) {
     /* business_id 컬럼·businesses 테이블이 아직 없어도 LEFT JOIN 이 NULL 로 떨어져 안전.
        과거 배포 환경에서 ALTER 누락되지 않도록 방어적으로 시도 */
     try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN business_id INTEGER`).run(); } catch {}
+    try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN is_internal INTEGER DEFAULT 0`).run(); } catch {}
+    /* 🔐 internal=1 이면 관리자방만, 기본은 외부 상담방만 */
+    const internalMode = url.searchParams.get('internal') === '1';
     // 목록 — priority 먼저, 최근순. 카톡 스타일 미리보기·아바타·업체명 포함
     const { results } = await db.prepare(`
       SELECT r.*,
@@ -348,12 +353,13 @@ export async function onRequestGet(context) {
              (SELECT role    FROM conversations WHERE room_id = r.id AND (deleted_at IS NULL) ORDER BY created_at DESC LIMIT 1) as last_msg_role
       FROM chat_rooms r
       LEFT JOIN businesses b ON r.business_id = b.id
+      WHERE COALESCE(r.is_internal, 0) = ?
       ORDER BY r.status ASC,
                COALESCE(r.priority, 99) ASC,
                last_msg_at DESC NULLS LAST,
                r.created_at DESC
       LIMIT 200
-    `).all();
+    `).bind(internalMode ? 1 : 0).all();
 
     /* 각 방의 첫 멤버 정보 (아바타용) 일괄 조회 */
     const roomIds = (results || []).map(r => r.id);
@@ -436,10 +442,11 @@ export async function onRequestPost(context) {
         if (!exists) break;
       }
 
+      const isInternal = body.is_internal ? 1 : 0;
       await db.prepare(`
-        INSERT INTO chat_rooms (id, name, created_by_admin, max_members, ai_mode, status, created_at)
-        VALUES (?, ?, 1, ?, 'on', 'active', ?)
-      `).bind(roomId, name, maxMembers, now).run();
+        INSERT INTO chat_rooms (id, name, created_by_admin, max_members, ai_mode, status, is_internal, created_at)
+        VALUES (?, ?, 1, ?, 'on', 'active', ?, ?)
+      `).bind(roomId, name, maxMembers, isInternal, now).run();
 
       // 거래처 멤버 추가 (방 생성 UI에서 선택한 거래처 사장들)
       for (const uid of memberIds) {

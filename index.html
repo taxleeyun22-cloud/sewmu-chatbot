@@ -68,7 +68,7 @@ body.dark .tax-alert-text{color:#ffd866}
 .mp-item:active{background:var(--bg)}
 .mp-item-icon{width:28px;text-align:center;font-size:1.1em;flex-shrink:0}
 .mp-item-main{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
-.mp-item-label{font-size:.88em;font-weight:500;color:var(--text)}
+.mp-item-label{font-size:.88em;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mp-item-value{font-size:.78em;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mp-item-arrow{color:var(--text3);font-size:1.1em;flex-shrink:0}
 .mp-item-toggle{flex-shrink:0}
@@ -571,6 +571,14 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       </div>
       <div class="mp-item-arrow">›</div>
     </div>
+    <div class="mp-item" onclick="openCompanyRequestModal()">
+      <div class="mp-item-icon">📝</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">업체 등록 요청 (세무사에게)</div>
+        <div class="mp-item-value" id="mpCompanyReqValue">아직 등록 요청 안 함</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </div>
     <div class="mp-item" id="mpAdminBtn" style="display:none" onclick="location.href='/staff.html'">
       <div class="mp-item-icon">👑</div>
       <div class="mp-item-main">
@@ -906,6 +914,33 @@ mark{background:#fef3c7;color:inherit;padding:0 2px;border-radius:2px}
 .rc-closed-notice{padding:10px;text-align:center;background:#fef3c7;color:#8b6914;font-size:.8em;flex-shrink:0}
 </style>
 
+
+<!-- 📝 업체 등록 요청 모달 (고객 → 세무사에게 자기 소개) -->
+<div id="companyRequestModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg);color:var(--text);border-radius:16px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:700;font-size:1em">📝 업체 등록 요청</div>
+      <button onclick="closeCompanyRequestModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--text2)">✕</button>
+    </div>
+    <div style="padding:18px 20px">
+      <div style="font-size:.82em;color:var(--text2);margin-bottom:14px;line-height:1.5">여기 정보를 입력해두시면 세무사님이 승인하실 때 자동으로 <b>업체 등록·구성원 연결</b>이 진행됩니다.<br>정확히 기재해주세요.</div>
+      <label style="display:block;font-size:.8em;font-weight:600;margin-bottom:4px">상호 (회사명) *</label>
+      <input id="cprName" type="text" placeholder="예) 박승호 치킨집" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:.9em;font-family:inherit;background:var(--card);color:var(--text);box-sizing:border-box;margin-bottom:12px">
+      <label style="display:block;font-size:.8em;font-weight:600;margin-bottom:4px">사업자등록번호 (선택)</label>
+      <input id="cprBiz" type="text" placeholder="예) 123-45-67890" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:.9em;font-family:inherit;background:var(--card);color:var(--text);box-sizing:border-box;margin-bottom:12px">
+      <label style="display:block;font-size:.8em;font-weight:600;margin-bottom:6px">역할 *</label>
+      <div style="display:flex;gap:14px;margin-bottom:6px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:.9em;cursor:pointer"><input type="radio" name="cprRole" value="대표자"> 대표자</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:.9em;cursor:pointer"><input type="radio" name="cprRole" value="담당자" checked> 담당자 (경리·직원 등)</label>
+      </div>
+      <div style="font-size:.72em;color:var(--text2);margin-bottom:14px">대표자는 사장님 본인, 담당자는 사장 대신 업무 보는 분 (경리·배우자·직원 등)</div>
+    </div>
+    <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;background:var(--card)">
+      <button onclick="closeCompanyRequestModal()" style="background:var(--card);border:1px solid var(--border);padding:9px 16px;border-radius:8px;font-size:.88em;cursor:pointer;font-family:inherit;color:var(--text)">취소</button>
+      <button onclick="submitCompanyRequest()" id="cprSubmitBtn" style="background:#3182f6;color:#fff;border:none;padding:9px 20px;border-radius:8px;font-size:.88em;font-weight:700;cursor:pointer;font-family:inherit">📤 요청 보내기</button>
+    </div>
+  </div>
+</div>
 
 <!-- 내 정보 수정 모달 -->
 <div id="editInfoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
@@ -3519,6 +3554,8 @@ async function loadMyPage(){
 
   /* 내 정보 요약 */
   document.getElementById('mpInfoValue').textContent=nm+(currentUser.phone?(' · '+currentUser.phone):'');
+  /* 업체 등록 요청 상태 불러오기 */
+  try{loadMyCompanyRequest()}catch(_){}
 
   /* 관리자 권한이 있으면 관리자 페이지 버튼 노출 */
   var adminBtn=document.getElementById('mpAdminBtn');
@@ -3585,6 +3622,61 @@ async function loadMyPage(){
     card.style.display='none';
     bizSection.style.display='none';
   }
+}
+
+/* 📝 업체 등록 요청 — 마이페이지에서 자기 업체 정보·역할을 세무사에게 미리 요청 */
+async function loadMyCompanyRequest(){
+  var el=document.getElementById('mpCompanyReqValue');
+  if(!el)return;
+  try{
+    var r=await fetch('/api/my-company-request');
+    if(!r.ok){el.textContent='아직 등록 요청 안 함';return}
+    var d=await r.json();
+    var req=d.request;
+    if(req && req.requested_company_name){
+      var role=req.requested_role||'담당자';
+      el.textContent='✅ '+req.requested_company_name+' · '+role+(req.requested_business_number?' ('+req.requested_business_number+')':'');
+      el.style.color='#10b981';
+    } else {
+      el.textContent='아직 등록 요청 안 함';
+      el.style.color='';
+    }
+  }catch(_){}
+}
+async function openCompanyRequestModal(){
+  var m=document.getElementById('companyRequestModal');if(!m)return;
+  /* 기존 요청 값 미리 채움 (수정 지원) */
+  try{
+    var r=await fetch('/api/my-company-request');
+    var d=r.ok?await r.json():{};
+    var req=(d&&d.request)||{};
+    document.getElementById('cprName').value=req.requested_company_name||'';
+    document.getElementById('cprBiz').value=req.requested_business_number||'';
+    var role=req.requested_role||'담당자';
+    var rr=document.querySelector('input[name=cprRole][value='+role+']');
+    if(rr)rr.checked=true;
+  }catch(_){}
+  m.style.display='flex';
+}
+function closeCompanyRequestModal(){
+  var m=document.getElementById('companyRequestModal');if(m)m.style.display='none';
+}
+async function submitCompanyRequest(){
+  var name=(document.getElementById('cprName').value||'').trim();
+  var bn=(document.getElementById('cprBiz').value||'').trim();
+  var role=(document.querySelector('input[name=cprRole]:checked')||{}).value||'담당자';
+  if(!name){alert('상호를 입력해주세요');return}
+  var btn=document.getElementById('cprSubmitBtn');
+  if(btn){btn.disabled=true;btn.textContent='전송 중...';btn.style.opacity='.6'}
+  try{
+    var r=await fetch('/api/my-company-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:name,business_number:bn,role:role})});
+    var d=await r.json();
+    if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
+    alert('✅ 업체 등록 요청이 세무사님께 전달됐습니다.\n승인되면 알림이 갑니다.');
+    closeCompanyRequestModal();
+    loadMyCompanyRequest();
+  }catch(err){alert('오류: '+err.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent='📤 요청 보내기';btn.style.opacity=''}}
 }
 
 function editMyInfo(){

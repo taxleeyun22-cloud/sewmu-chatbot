@@ -29,7 +29,7 @@
 <button class="logout" onclick="openBulkSend()" title="단체발송">📢 단체발송</button>
 <button class="logout" onclick="openSearch()" title="전역 검색">🔍 검색</button>
 <button id="pcNotifyBtn" class="logout" onclick="togglePcNotify()" title="PC 알림 (새 고객 메시지 알림)">🔕 알림</button>
-<a href="/" class="logout" style="text-decoration:none" title="일반 챗봇 페이지로">🏠 챗봇</a>
+<a href="javascript:void(0)" class="logout" style="text-decoration:none;cursor:pointer" title="카톡 세션 로그아웃 후 챗봇 페이지로" onclick="goToChatbotAsAdmin()">🏠 챗봇</a>
 <button class="logout" onclick="staffLogout()">로그아웃</button>
 </div>
 <!-- 전역 검색 모달 -->
@@ -433,7 +433,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=99"></script>
+<script src="/admin.js?v=100"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;

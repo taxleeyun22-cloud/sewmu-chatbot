@@ -35,6 +35,7 @@
 <button class="on" id="tabChat" onclick="tab('chat')">대화</button>
 <button id="tabLive" onclick="tab('live')" style="position:relative">📡 실시간<span id="liveBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
 <button id="tabRooms" onclick="tab('rooms')">💬 상담방</button>
+<button id="tabInternal" onclick="tab('internal')" title="관리자·직원 내부 업무방 (거래처 노출 X)">🔐 관리자방</button>
 <button id="tabDocs" onclick="tab('docs')" style="position:relative">📄 문서<span id="docsPendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
 <button id="tabUsers" onclick="tab('users')">🏢 거래처<span id="pendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
 <button id="tabAnal" onclick="tab('anal')">분석</button>
@@ -45,7 +46,7 @@
 <button class="logout" onclick="openBulkSend()" title="단체발송 — 여러 거래처에 한 번에 메시지">📢 단체발송</button>
 <button class="logout" onclick="openSearch()" title="전역 검색">🔍 검색</button>
 <button id="pcNotifyBtn" class="logout" onclick="togglePcNotify()" title="PC 알림 (새 고객 메시지 알림)">🔕 알림</button>
-<a href="/" class="logout" style="text-decoration:none" title="일반 챗봇 페이지로">🏠 챗봇</a>
+<a href="javascript:void(0)" class="logout" style="text-decoration:none;cursor:pointer" title="카톡 세션 로그아웃 후 챗봇 페이지로 — 관리자가 자기 계정에 얽매이지 않게" onclick="goToChatbotAsAdmin()">🏠 챗봇</a>
 <button class="logout" onclick="logout()">로그아웃</button>
 </div>
 
@@ -375,6 +376,9 @@
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <button onclick="openCreateRoom()" class="room-create-btn" style="flex:1">＋ 상담방 개설</button>
       <button onclick="openLabelManageModal()" title="담당자 라벨 관리 (우선순위 이름·색 편집)" style="background:#f2f4f6;border:1px solid #e5e8eb;color:#4b5563;padding:8px 10px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit">⚙️</button>
+    </div>
+    <div style="padding:6px 10px;border-bottom:1px solid #e5e8eb;background:#fafbfc">
+      <input id="roomListSearch" type="text" placeholder="🔍 이름·업체·메시지 내용 검색" oninput="onRoomListSearchInput()" style="width:100%;padding:7px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.82em;font-family:inherit;outline:none;box-sizing:border-box">
     </div>
     <div id="roomList" style="flex:1;overflow-y:auto"></div>
   </div>
@@ -736,7 +740,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=99"></script>
+<script src="/admin.js?v=100"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면

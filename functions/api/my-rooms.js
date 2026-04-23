@@ -68,13 +68,23 @@ export async function onRequestGet(context) {
 
   try {
     if (roomId) {
-      // 권한 체크: 내가 이 방의 멤버인지
+      // 권한 체크: 내가 이 방의 멤버인지. role='admin'(관리자 자동 참여) 이면 고객 뷰 접근 X
       const membership = await db.prepare(
         `SELECT role, left_at FROM room_members WHERE room_id = ? AND user_id = ?`
       ).bind(roomId, user.user_id).first();
       if (!membership || membership.left_at) {
         return Response.json({ error: "방에 대한 접근 권한이 없습니다" }, { status: 403 });
       }
+      if (membership.role === 'admin') {
+        return Response.json({ error: "이 상담방은 관리자 화면에서만 확인할 수 있습니다" }, { status: 403 });
+      }
+      /* 종료된 방(status='closed') 또는 내부 업무방은 고객 접근 차단 */
+      const rcheck = await db.prepare(
+        `SELECT status, COALESCE(is_internal,0) AS is_internal FROM chat_rooms WHERE id = ?`
+      ).bind(roomId).first();
+      if (!rcheck) return Response.json({ error: "방을 찾을 수 없습니다" }, { status: 404 });
+      if (rcheck.status === 'closed') return Response.json({ error: "종료된 상담방입니다", closed: true }, { status: 403 });
+      if (rcheck.is_internal) return Response.json({ error: "내부 업무방입니다" }, { status: 403 });
 
       // 서브 뷰: 미디어·파일·공지·검색 (정보 모달용)
       if (view === "media") {
@@ -241,6 +251,9 @@ export async function onRequestGet(context) {
       FROM chat_rooms r
       INNER JOIN room_members rm ON rm.room_id = r.id
       WHERE rm.user_id = ? AND rm.left_at IS NULL
+        AND rm.role != 'admin'               -- 🚨 보안: admin 역할로 자동 참여한 방은 '내 상담방' 에 노출 X
+        AND COALESCE(r.status, 'active') = 'active'  -- 종료(closed)·내부(internal) 숨김
+        AND COALESCE(r.is_internal, 0) = 0
       ORDER BY last_msg_at DESC NULLS LAST, r.created_at DESC
       LIMIT 50
     `).bind(user.user_id, user.user_id).all();
