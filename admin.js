@@ -509,6 +509,37 @@ let currentRoomMembers=[];   /* 최신 members (관리자→사장 전화 시 �
 const DEFAULT_COMPANY_PHONE='053-269-1213';
 let roomsPollTimer=null;
 let roomMsgPollTimer=null;
+/* 탭 숨김 시 polling 중지 · 보일 때 즉시 한 번 + 재개 (리소스 절약) */
+(function _visibilityPolling(){
+  if(window._vpBound)return;window._vpBound=true;
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden){
+      /* 숨김: 모든 polling 중지 */
+      if(roomsPollTimer){clearInterval(roomsPollTimer);roomsPollTimer=null}
+      if(roomMsgPollTimer){clearInterval(roomMsgPollTimer);roomMsgPollTimer=null}
+      if(typeof livePollTimer!=='undefined' && livePollTimer){clearInterval(livePollTimer);livePollTimer=null}
+      if(typeof liveMsgPollTimer!=='undefined' && liveMsgPollTimer){clearInterval(liveMsgPollTimer);liveMsgPollTimer=null}
+    } else {
+      /* 보임: 즉시 한 번 새로고침 + polling 재개 */
+      if(typeof loadRoomList==='function' && document.getElementById('roomList')){
+        try{loadRoomList()}catch(_){}
+        if(!roomsPollTimer)roomsPollTimer=setInterval(loadRoomList,15000);
+      }
+      if(typeof loadRoomDetail==='function' && typeof currentRoomId!=='undefined' && currentRoomId){
+        try{loadRoomDetail()}catch(_){}
+        if(!roomMsgPollTimer)roomMsgPollTimer=setInterval(loadRoomDetail,2000);
+      }
+      if(typeof loadLiveSessions==='function' && typeof livePollTimer!=='undefined' && !livePollTimer){
+        try{loadLiveSessions()}catch(_){}
+        livePollTimer=setInterval(loadLiveSessions,10000);
+      }
+      if(typeof loadLiveMessages==='function' && typeof liveCurrentSession!=='undefined' && liveCurrentSession && typeof liveMsgPollTimer!=='undefined' && !liveMsgPollTimer){
+        try{loadLiveMessages()}catch(_){}
+        liveMsgPollTimer=setInterval(loadLiveMessages,2000);
+      }
+    }
+  });
+})();
 let crSelectedUsers={};
 
 function startRoomsPolling(){
@@ -880,7 +911,7 @@ async function openRoom(roomId){
   await loadRoomDetail();
   loadRoomList();
   if(roomMsgPollTimer)clearInterval(roomMsgPollTimer);
-  roomMsgPollTimer=setInterval(loadRoomDetail,5000);
+  roomMsgPollTimer=setInterval(loadRoomDetail,2000);
 }
 
 function closeRoomOnMobile(){
@@ -1297,17 +1328,52 @@ async function sendRoomMessage(){
   input.value='';
   cancelRoomReply();
   adminForceScrollOnNext=true;
+  /* 🚀 낙관적 렌더링: 서버 응답 기다리지 않고 즉시 말풍선 표시 */
+  const optId='opt-'+Date.now();
+  _adminInsertOptimisticBubble(optId, content);
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId,content:content})});
     const d=await r.json();
     if(d.ok){
+      /* 성공: 낙관 버블 제거 (다음 poll 결과에서 진짜 메시지 들어옴) */
+      _adminRemoveOptimisticBubble(optId);
       await loadRoomDetail();
-      /* poll 경합 대비 명시적 강제 스크롤 */
       const _c=$g('roomMessages');
       if(_c)_c.scrollTop=_c.scrollHeight;
       setTimeout(function(){const c2=$g('roomMessages');if(c2)c2.scrollTop=c2.scrollHeight;},80);
-    } else alert('실패: '+(d.error||'unknown'));
-  }catch(err){alert('오류: '+err.message)}
+    } else {
+      /* 실패: 낙관 버블에 실패 표시 */
+      _adminMarkOptimisticFailed(optId, d.error||'unknown');
+    }
+  }catch(err){
+    _adminMarkOptimisticFailed(optId, err.message);
+  }
+}
+function _adminInsertOptimisticBubble(optId, content){
+  const c=document.getElementById('roomMessages');if(!c)return;
+  const now=new Date(Date.now()+9*60*60*1000);
+  const hh=now.getHours(), mm=String(now.getMinutes()).padStart(2,'0');
+  const ap=hh<12?'오전':'오후'; const h12=hh%12||12;
+  const time=ap+' '+h12+':'+mm;
+  const div=document.createElement('div');
+  div.id=optId;
+  div.style.cssText='display:flex;justify-content:flex-end;align-items:flex-end;gap:6px;margin-bottom:12px';
+  /* 메시지 본문 렌더 (내 regex 재활용 — 간이) */
+  const safeText=String(content).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  div.innerHTML='<div style="font-size:.68em;color:#9ca3af;white-space:nowrap;padding-bottom:2px" data-opt-status>⏱ '+time+'</div>'
+    +'<div style="display:inline-block;background:#FEE500;color:#191f28;padding:9px 12px;border-radius:16px 4px 16px 16px;max-width:75%;font-size:.9em;white-space:pre-wrap;word-break:break-word;opacity:.7">'+safeText+'</div>';
+  c.appendChild(div);
+  c.scrollTop=c.scrollHeight;
+}
+function _adminRemoveOptimisticBubble(optId){
+  const el=document.getElementById(optId);if(el)el.remove();
+}
+function _adminMarkOptimisticFailed(optId, reason){
+  const el=document.getElementById(optId);if(!el)return;
+  const status=el.querySelector('[data-opt-status]');
+  if(status){status.innerHTML='🔴 전송 실패';status.style.color='#dc2626';status.style.fontWeight='700';status.title=reason||''}
+  const bubble=el.querySelector('[style*="FEE500"]');
+  if(bubble){bubble.style.opacity='1';bubble.style.border='1px solid #dc2626'}
 }
 
 async function deleteAdminMessage(messageId){
@@ -1916,7 +1982,7 @@ async function openLiveSession(sid,uid){
   await loadLiveMessages();
   loadLiveSessions();
   if(liveMsgPollTimer)clearInterval(liveMsgPollTimer);
-  liveMsgPollTimer=setInterval(loadLiveMessages,5000);
+  liveMsgPollTimer=setInterval(loadLiveMessages,2000);
 }
 
 async function loadLiveMessages(){

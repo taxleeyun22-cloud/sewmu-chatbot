@@ -1367,6 +1367,20 @@ function switchTab(tab){
 
 /* ===== 상담방 기능 ===== */
 var rcRoomId=null;
+/* 탭 숨김 시 polling 중지 · 보일 때 즉시 1회 + 재개 */
+(function _rcVisibilityPolling(){
+  if(window._rcVpBound)return;window._rcVpBound=true;
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden){
+      if(typeof rcMsgPollTimer!=='undefined' && rcMsgPollTimer){clearInterval(rcMsgPollTimer);rcMsgPollTimer=null}
+    } else {
+      if(rcRoomId && typeof loadRoomChat==='function'){
+        try{loadRoomChat()}catch(_){}
+        if(!rcMsgPollTimer)rcMsgPollTimer=setInterval(loadRoomChat,2000);
+      }
+    }
+  });
+})();
 var rcIsActive=false;
 var rcMsgPollTimer=null;
 var prevRoomUnread={};
@@ -1779,7 +1793,7 @@ async function openMyRoom(roomId){
   if(freelancerAttach)freelancerAttach.style.display=isClient?'':'none';
   await loadRoomChat();
   if(rcMsgPollTimer)clearInterval(rcMsgPollTimer);
-  rcMsgPollTimer=setInterval(loadRoomChat,5000);
+  rcMsgPollTimer=setInterval(loadRoomChat,2000);
   /* 뒤로가기 = 상담방 닫기 (앱 종료 X) */
   try{history.pushState({room:roomId},'',location.href)}catch{}
 }
@@ -2169,17 +2183,49 @@ async function sendRoomMsg(){
   input.value='';
   cancelReply();
   rcForceScrollOnNext=true;
+  /* 🚀 낙관적 렌더링 */
+  var optId='rcopt-'+Date.now();
+  _rcInsertOptimisticBubble(optId, content);
   try{
     var r=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,content:content})});
     var d=await r.json();
     if(d.ok){
+      _rcRemoveOptimisticBubble(optId);
       await loadRoomChat();
-      /* poll 경합으로 플래그가 미리 소모되는 경우 대비 — 명시적 강제 스크롤 */
       var _c=document.getElementById('rcMessages');
       if(_c)_c.scrollTop=_c.scrollHeight;
       setTimeout(function(){var c2=document.getElementById('rcMessages');if(c2)c2.scrollTop=c2.scrollHeight;},80);
-    } else alert('실패: '+(d.error||'unknown'));
-  }catch(e){alert('오류: '+e.message)}
+    } else {
+      _rcMarkOptimisticFailed(optId, d.error||'unknown');
+    }
+  }catch(e){
+    _rcMarkOptimisticFailed(optId, e.message);
+  }
+}
+function _rcInsertOptimisticBubble(optId, content){
+  var c=document.getElementById('rcMessages');if(!c)return;
+  var now=new Date(Date.now()+9*60*60*1000);
+  var hh=now.getHours(), mm=String(now.getMinutes()).padStart(2,'0');
+  var ap=hh<12?'오전':'오후'; var h12=hh%12||12;
+  var time=ap+' '+h12+':'+mm;
+  var div=document.createElement('div');
+  div.id=optId;
+  div.style.cssText='margin-bottom:10px;display:flex;justify-content:flex-end;align-items:flex-end;gap:4px';
+  var safeText=String(content).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  div.innerHTML='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:.6em;color:var(--text2)" data-opt-status><span>⏱ '+time+'</span></div>'
+    +'<div style="background:#FEE500;color:#191f28;padding:10px 13px;border-radius:16px 4px 16px 16px;max-width:75%;font-size:.9em;line-height:1.45;white-space:pre-wrap;word-break:break-word;opacity:.7">'+safeText+'</div>';
+  c.appendChild(div);
+  c.scrollTop=c.scrollHeight;
+}
+function _rcRemoveOptimisticBubble(optId){
+  var el=document.getElementById(optId);if(el)el.remove();
+}
+function _rcMarkOptimisticFailed(optId, reason){
+  var el=document.getElementById(optId);if(!el)return;
+  var status=el.querySelector('[data-opt-status]');
+  if(status){status.innerHTML='<span style="color:#dc2626;font-weight:700">🔴 실패</span>';status.title=reason||''}
+  var bubble=el.querySelector('[style*="FEE500"]');
+  if(bubble){bubble.style.opacity='1';bubble.style.border='1px solid #dc2626'}
 }
 
 function toggleAttachSheet(){
