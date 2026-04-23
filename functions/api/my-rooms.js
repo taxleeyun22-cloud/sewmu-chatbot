@@ -285,13 +285,10 @@ export async function onRequestPost(context) {
   try {
     const body = await context.request.json();
 
-    // ── 상담방 생성 (고객이 직접) ──
+    // ── 상담방 생성 차단 (정책 변경: 모든 상담방은 관리자만 생성) ──
     if (action === "create") {
-      // approved_client 만 생성 가능 (승인 안 된 사용자 제한)
-      const u = await db.prepare(`SELECT approval_status FROM users WHERE id = ?`).bind(user.user_id).first();
-      if (!u || !['approved_client', 'approved_guest'].includes(u.approval_status)) {
-        return Response.json({ error: "승인된 사용자만 상담방을 만들 수 있습니다. 먼저 가입 승인을 받아주세요." }, { status: 403 });
-      }
+      return Response.json({ error: "상담방은 관리자(세무사)만 만들 수 있습니다. 업체 등록 요청을 통해 문의해 주세요." }, { status: 403 });
+    }
 
       const name = (body.name || "").trim() || "상담방";
       if (name.length > 50) return Response.json({ error: "이름은 50자 이내" }, { status: 400 });

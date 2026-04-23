@@ -605,17 +605,9 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
     </div>
   </div>
 
-  <!-- 상담방 -->
-  <div class="mp-section">
+  <!-- 상담방 — 생성은 관리자만. 고객은 기존 방 이용만. -->
+  <div class="mp-section" id="mpMyRoomsSection" style="display:none">
     <div class="mp-section-title">상담방</div>
-    <div class="mp-item" onclick="createMyRoom()">
-      <div class="mp-item-icon">💬</div>
-      <div class="mp-item-main">
-        <div class="mp-item-label">＋ 새 상담방 만들기</div>
-        <div class="mp-item-value">세무사 이재윤과 1:1 채팅방 개설</div>
-      </div>
-      <div class="mp-item-arrow">›</div>
-    </div>
     <div id="mpMyRooms"></div>
   </div>
 
