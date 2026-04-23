@@ -1140,7 +1140,8 @@ function showMsgCtxMenu(bubbleEl, x, y){
   const mine=bubbleEl.getAttribute('data-mine')==='1';
   const deletable=bubbleEl.getAttribute('data-deletable')==='1';
   const kind=bubbleEl.getAttribute('data-kind')||'text';
-  m.dataset.msg=mid;m.dataset.sender=sender;m.dataset.text=text;m.dataset.kind=kind;
+  const imgSrc=bubbleEl.getAttribute('data-img-src')||'';
+  m.dataset.msg=mid;m.dataset.sender=sender;m.dataset.text=text;m.dataset.kind=kind;m.dataset.imgSrc=imgSrc;
   let items='';
   /* 답장·복사는 텍스트가 있거나 (사진/영수증/파일처럼) 의미있는 preview 가 있으면 노출 */
   const hasContent = !!text || kind!=='text';
@@ -1173,7 +1174,78 @@ function doReplyFromMenu(){
 }
 function doCopyFromMenu(){
   const m=$g('msgCtxMenu');if(!m||!m.dataset)return;
+  const kind=m.dataset.kind||'';
+  const imgSrc=m.dataset.imgSrc||'';
+  if(kind==='img' && imgSrc){
+    doCopyImage(imgSrc);
+    return;
+  }
   doCopyMsg(m.dataset.text||'');
+}
+/* 사진 자체를 클립보드에 복사 — 카톡/메모 붙여넣기 시 실제 이미지로 전송됨.
+   1) navigator.clipboard.write(ClipboardItem) 시도 (Chrome/Edge/iOS16+/Android)
+   2) 실패 → Web Share API (모바일) 로 공유 시트
+   3) 둘 다 실패 → URL 텍스트 복사 (최종 fallback) */
+async function doCopyImage(url){
+  hideMsgCtxMenu();
+  _adminShowToast('🔄 사진 복사 중...');
+  try{
+    const resp=await fetch(url,{cache:'no-store',credentials:'same-origin'});
+    if(!resp.ok)throw new Error('fetch failed: '+resp.status);
+    let blob=await resp.blob();
+    if(!blob.type.startsWith('image/'))throw new Error('not an image');
+    /* Safari·일부 브라우저는 PNG만 수용. JPEG 등은 Canvas 로 재인코딩 */
+    if(blob.type!=='image/png'){
+      try{blob=await _convertImageToPng(blob)}catch(_){}
+    }
+    if(navigator.clipboard && window.ClipboardItem){
+      await navigator.clipboard.write([new ClipboardItem({[blob.type]:blob})]);
+      _adminShowToast('📋 사진이 복사되었습니다');
+      return;
+    }
+    throw new Error('ClipboardItem not supported');
+  }catch(errClip){
+    /* 모바일 Web Share fallback */
+    try{
+      const resp2=await fetch(url,{cache:'no-store',credentials:'same-origin'});
+      const blob2=await resp2.blob();
+      const nm=(url.split('/').pop()||'photo').split('?')[0].slice(0,80)||'photo.jpg';
+      const file=new File([blob2],nm,{type:blob2.type||'image/jpeg'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file]});
+        return;
+      }
+    }catch(_){}
+    /* 최종 fallback: URL 텍스트 */
+    doCopyMsg(url);
+  }
+}
+function _convertImageToPng(blob){
+  return new Promise(function(resolve,reject){
+    const objUrl=URL.createObjectURL(blob);
+    const img=new Image();
+    img.onload=function(){
+      const c=document.createElement('canvas');
+      c.width=img.naturalWidth||img.width;
+      c.height=img.naturalHeight||img.height;
+      try{c.getContext('2d').drawImage(img,0,0)}catch(e){URL.revokeObjectURL(objUrl);return reject(e)}
+      c.toBlob(function(b){URL.revokeObjectURL(objUrl);b?resolve(b):reject(new Error('toBlob'))},'image/png');
+    };
+    img.onerror=function(e){URL.revokeObjectURL(objUrl);reject(e)};
+    img.src=objUrl;
+  });
+}
+function _adminShowToast(msg){
+  try{
+    let t=document.getElementById('adminToast');
+    if(!t){
+      t=document.createElement('div');t.id='adminToast';
+      t.style.cssText='position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#fff;padding:10px 18px;border-radius:20px;font-size:.85em;z-index:11001;pointer-events:none;opacity:0;transition:opacity .2s';
+      document.body.appendChild(t);
+    }
+    t.textContent=msg;t.style.opacity='1';
+    clearTimeout(t._hideT);t._hideT=setTimeout(()=>{t.style.opacity='0'},1800);
+  }catch(_){}
 }
 function doReplyTo(mid,sender,text){
   roomReplyingTo={mid:mid, sender:sender, text:String(text).slice(0,100)};

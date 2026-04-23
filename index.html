@@ -2003,7 +2003,8 @@ function showMsgCtxMenu(bubbleEl, x, y){
   var deletable=bubbleEl.getAttribute('data-deletable')==='1';
   var kind=bubbleEl.getAttribute('data-kind')||'text';
   /* 데이터는 메뉴 dataset에 — 이스케이프 이슈 회피 */
-  m.dataset.msg=mid;m.dataset.sender=sender;m.dataset.text=text;m.dataset.kind=kind;
+  var imgSrc=bubbleEl.getAttribute('data-img-src')||'';
+  m.dataset.msg=mid;m.dataset.sender=sender;m.dataset.text=text;m.dataset.kind=kind;m.dataset.imgSrc=imgSrc;
   var items='';
   /* 답장·복사는 텍스트가 있거나 (사진/영수증/파일처럼) 의미있는 preview 가 있으면 노출 */
   var hasContent = !!text || kind!=='text';
@@ -2034,7 +2035,64 @@ function doReplyFromMenu(){
 }
 function doCopyFromMenu(){
   var m=document.getElementById('msgCtxMenu');if(!m)return;
+  var kind=m.dataset.kind||'';
+  var imgSrc=m.dataset.imgSrc||'';
+  if(kind==='img' && imgSrc){
+    doCopyImage(imgSrc);
+    return;
+  }
   doCopyMsg(m.dataset.text||'');
+}
+/* 사진 자체를 클립보드에 복사 — 카톡/메모 붙여넣기 시 실제 이미지로 전송됨.
+   1) navigator.clipboard.write(ClipboardItem) 시도 (Chrome/Edge/iOS16+/Android)
+   2) 실패 → Web Share API (모바일) 로 공유 시트
+   3) 둘 다 실패 → URL 텍스트 복사 (최종 fallback) */
+async function doCopyImage(url){
+  hideMsgCtxMenu();
+  if(typeof showInAppToastSilent==='function')showInAppToastSilent('🔄 사진 복사 중...');
+  try{
+    var resp=await fetch(url,{cache:'no-store',credentials:'same-origin'});
+    if(!resp.ok)throw new Error('fetch failed: '+resp.status);
+    var blob=await resp.blob();
+    if(!blob.type.startsWith('image/'))throw new Error('not an image');
+    if(blob.type!=='image/png'){
+      try{blob=await _rcConvertImageToPng(blob)}catch(_){}
+    }
+    if(navigator.clipboard && window.ClipboardItem){
+      await navigator.clipboard.write([new ClipboardItem({[blob.type]:blob})]);
+      if(typeof showInAppToastSilent==='function')showInAppToastSilent('📋 사진이 복사되었습니다');
+      return;
+    }
+    throw new Error('ClipboardItem not supported');
+  }catch(errClip){
+    /* 모바일 Web Share fallback */
+    try{
+      var resp2=await fetch(url,{cache:'no-store',credentials:'same-origin'});
+      var blob2=await resp2.blob();
+      var nm=(url.split('/').pop()||'photo').split('?')[0].slice(0,80)||'photo.jpg';
+      var file=new File([blob2],nm,{type:blob2.type||'image/jpeg'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file]});
+        return;
+      }
+    }catch(_){}
+    doCopyMsg(url);
+  }
+}
+function _rcConvertImageToPng(blob){
+  return new Promise(function(resolve,reject){
+    var objUrl=URL.createObjectURL(blob);
+    var img=new Image();
+    img.onload=function(){
+      var c=document.createElement('canvas');
+      c.width=img.naturalWidth||img.width;
+      c.height=img.naturalHeight||img.height;
+      try{c.getContext('2d').drawImage(img,0,0)}catch(e){URL.revokeObjectURL(objUrl);return reject(e)}
+      c.toBlob(function(b){URL.revokeObjectURL(objUrl);b?resolve(b):reject(new Error('toBlob'))},'image/png');
+    };
+    img.onerror=function(e){URL.revokeObjectURL(objUrl);reject(e)};
+    img.src=objUrl;
+  });
 }
 function doReplyTo(mid,sender,text){
   rcReplyingTo={mid:mid, sender:sender, text:String(text).slice(0,100)};
