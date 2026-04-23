@@ -1248,6 +1248,11 @@ function _adminShowToast(msg){
   }catch(_){}
 }
 function doReplyTo(mid,sender,text){
+  if(_pendingAttachments && _pendingAttachments.length){
+    if(!confirm('첨부한 사진이 있습니다. 답장을 하려면 첨부를 취소해야 합니다. 계속할까요?')){hideMsgCtxMenu();return}
+    _pendingAttachments.forEach(p=>{try{URL.revokeObjectURL(p.previewUrl)}catch(_){}});
+    _pendingAttachments=[];_renderPendingAttachments();
+  }
   roomReplyingTo={mid:mid, sender:sender, text:String(text).slice(0,100)};
   const bar=$g('roomReplyBar');
   $g('roomReplyToName').textContent=sender;
@@ -1417,38 +1422,105 @@ async function setRoomPhone(){
 /* 내가 방금 보낸 메시지는 상단 보고 있어도 강제 스크롤 플래그 */
 var adminForceScrollOnNext=false;
 var adminForceLiveScrollOnNext=false;
+/* 첨부 대기열 — 붙여넣기/드래그한 이미지는 바로 전송하지 않고 여기 쌓였다가 전송 버튼 누를 때 일괄 전송 */
+var _pendingAttachments=[]; /* [{file, previewUrl}] */
+
 async function sendRoomMessage(){
   if(!currentRoomId)return;
   const input=$g('roomInput');
   let content=input.value.trim();
-  if(!content)return;
-  if(roomReplyingTo){
-    const meta={t:roomReplyingTo.text, s:roomReplyingTo.sender, i:roomReplyingTo.mid};
-    content='[REPLY]'+JSON.stringify(meta)+'\n'+content;
+  const pending=_pendingAttachments.slice();
+  if(!content && !pending.length)return;
+  /* 답장 + 첨부 동시 금지 (서버 포맷 한계) */
+  if(pending.length && roomReplyingTo){
+    alert('답장하면서 사진 첨부는 불가합니다.\n답장을 취소하거나 사진을 빼주세요.');
+    return;
   }
-  input.value='';
+  const replyMeta = roomReplyingTo ? {t:roomReplyingTo.text, s:roomReplyingTo.sender, i:roomReplyingTo.mid} : null;
+  input.value='';input.style.height='auto';
+  _pendingAttachments=[];_renderPendingAttachments();
   cancelRoomReply();
   adminForceScrollOnNext=true;
-  /* 🚀 낙관적 렌더링: 서버 응답 기다리지 않고 즉시 말풍선 표시 */
-  const optId='opt-'+Date.now();
-  _adminInsertOptimisticBubble(optId, content);
+
   try{
-    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId,content:content})});
-    const d=await r.json();
-    if(d.ok){
-      /* 성공: 낙관 버블 제거 (다음 poll 결과에서 진짜 메시지 들어옴) */
-      _adminRemoveOptimisticBubble(optId);
+    if(pending.length){
+      /* 이미지 순차 업로드·전송. 캡션(content) 은 마지막 1장에만 붙여 카톡처럼 "사진 아래 한 줄" 로 보이게 */
+      for(let i=0;i<pending.length;i++){
+        const fd=new FormData();fd.append('file',pending[i].file);
+        const upR=await fetch('/api/upload-image?key='+encodeURIComponent(KEY),{method:'POST',body:fd});
+        const upD=await upR.json();
+        if(!upD.ok){alert('사진 '+(i+1)+'장 업로드 실패: '+(upD.error||'unknown'));continue}
+        const body={room_id:currentRoomId,image_url:upD.url};
+        if(i===pending.length-1 && content)body.content=content;
+        const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const d=await r.json();
+        if(!d.ok){alert('사진 '+(i+1)+'장 전송 실패: '+(d.error||'unknown'))}
+      }
+      pending.forEach(p=>{try{URL.revokeObjectURL(p.previewUrl)}catch(_){}});
       await loadRoomDetail();
       const _c=$g('roomMessages');
       if(_c)_c.scrollTop=_c.scrollHeight;
       setTimeout(function(){const c2=$g('roomMessages');if(c2)c2.scrollTop=c2.scrollHeight;},80);
-    } else {
-      /* 실패: 낙관 버블에 실패 표시 */
-      _adminMarkOptimisticFailed(optId, d.error||'unknown');
+      return;
     }
-  }catch(err){
-    _adminMarkOptimisticFailed(optId, err.message);
+
+    /* 텍스트만 — 낙관적 렌더링 */
+    let finalContent=content;
+    if(replyMeta)finalContent='[REPLY]'+JSON.stringify(replyMeta)+'\n'+finalContent;
+    const optId='opt-'+Date.now();
+    _adminInsertOptimisticBubble(optId, finalContent);
+    try{
+      const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId,content:finalContent})});
+      const d=await r.json();
+      if(d.ok){
+        _adminRemoveOptimisticBubble(optId);
+        await loadRoomDetail();
+        const _c=$g('roomMessages');
+        if(_c)_c.scrollTop=_c.scrollHeight;
+        setTimeout(function(){const c2=$g('roomMessages');if(c2)c2.scrollTop=c2.scrollHeight;},80);
+      } else {
+        _adminMarkOptimisticFailed(optId, d.error||'unknown');
+      }
+    }catch(err){
+      _adminMarkOptimisticFailed(optId, err.message);
+    }
+  }catch(err){alert('오류: '+err.message)}
+}
+
+/* ===== 첨부 대기열 프리뷰 ===== */
+function _renderPendingAttachments(){
+  let bar=document.getElementById('roomAttachPreview');
+  if(_pendingAttachments.length===0){if(bar)bar.style.display='none';return}
+  if(!bar){
+    const area=document.getElementById('roomInputArea');if(!area)return;
+    bar=document.createElement('div');
+    bar.id='roomAttachPreview';
+    bar.style.cssText='padding:8px 12px;border-top:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:8px;overflow-x:auto';
+    area.parentNode.insertBefore(bar,area);
   }
+  bar.style.display='flex';
+  bar.innerHTML=_pendingAttachments.map(function(a,i){
+    return '<div style="position:relative;flex-shrink:0">'
+      +'<img src="'+a.previewUrl+'" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #e5e8eb;display:block">'
+      +'<button onclick="_removePendingAttach('+i+')" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;background:#000;color:#fff;border:none;border-radius:50%;font-size:.72em;cursor:pointer;line-height:1;padding:0;display:flex;align-items:center;justify-content:center" aria-label="제거">×</button>'
+      +'</div>';
+  }).join('');
+}
+function _removePendingAttach(i){
+  const a=_pendingAttachments[i];
+  if(a && a.previewUrl){try{URL.revokeObjectURL(a.previewUrl)}catch(_){}}
+  _pendingAttachments.splice(i,1);
+  _renderPendingAttachments();
+}
+function _addPendingAttachments(files){
+  const arr=Array.from(files||[]).filter(f=>f&&f.type&&f.type.indexOf('image/')===0);
+  if(!arr.length)return;
+  for(const f of arr){
+    if(_pendingAttachments.length>=10){alert('한 번에 최대 10장까지');break}
+    _pendingAttachments.push({file:f, previewUrl:URL.createObjectURL(f)});
+  }
+  _renderPendingAttachments();
+  const inp=document.getElementById('roomInput');if(inp)inp.focus();
 }
 function _adminInsertOptimisticBubble(optId, content){
   const c=document.getElementById('roomMessages');if(!c)return;
@@ -1509,15 +1581,10 @@ async function sendRoomImageFile(file){
     else alert('전송 실패: '+(d2.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
 }
-/* 메시지 입력칸 클립보드(Ctrl+V) + 드래그앤드롭 첨부 — 관리자 */
+/* 메시지 입력칸 클립보드(Ctrl+V) + 드래그앤드롭 첨부 — 관리자
+   카톡식 UX: 바로 전송하지 않고 _pendingAttachments 에 쌓아 프리뷰 표시. 전송 버튼으로 일괄 발송 */
 (function(){
   function isImage(f){return f&&f.type&&f.type.indexOf('image/')===0}
-  async function sendImagesAdmin(files){
-    let arr=Array.from(files||[]).filter(isImage);
-    if(!arr.length)return;
-    if(arr.length>10){alert('한 번에 최대 10장까지');arr=arr.slice(0,10)}
-    for(const f of arr) await sendRoomImageFile(f);
-  }
   function init(){
     const input=document.getElementById('roomInput');
     const area=document.getElementById('roomInputArea');
@@ -1528,14 +1595,14 @@ async function sendRoomImageFile(file){
       const imgs=Array.from(files).filter(isImage);
       if(!imgs.length)return;
       e.preventDefault();
-      sendImagesAdmin(imgs);
+      _addPendingAttachments(imgs);
     });
     let overlay=null,depth=0;
     function showOverlay(){
       if(overlay)return;
       overlay=document.createElement('div');
       overlay.style.cssText='position:fixed;inset:0;background:rgba(49,130,246,.18);border:3px dashed #3182f6;pointer-events:none;z-index:99999;display:flex;align-items:center;justify-content:center;color:#1e3a8a;font-size:1.4em;font-weight:800';
-      overlay.textContent='📎 이미지를 놓으면 전송됩니다';
+      overlay.textContent='📎 사진을 놓으면 첨부됩니다';
       document.body.appendChild(overlay);
     }
     function hideOverlay(){if(overlay){overlay.remove();overlay=null}}
@@ -1557,7 +1624,7 @@ async function sendRoomImageFile(file){
       depth=0;hideOverlay();
       if(!imgs.length)return;
       e.preventDefault();
-      sendImagesAdmin(imgs);
+      _addPendingAttachments(imgs);
     });
     return true;
   }

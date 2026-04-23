@@ -2095,6 +2095,11 @@ function _rcConvertImageToPng(blob){
   });
 }
 function doReplyTo(mid,sender,text){
+  if(_rcPendingAttachments && _rcPendingAttachments.length){
+    if(!confirm('첨부한 사진이 있습니다. 답장을 하려면 첨부를 취소해야 합니다. 계속할까요?')){hideMsgCtxMenu();return}
+    _rcPendingAttachments.forEach(function(p){try{URL.revokeObjectURL(p.previewUrl)}catch(_){}});
+    _rcPendingAttachments=[];_rcRenderPendingAttachments();
+  }
   rcReplyingTo={mid:mid, sender:sender, text:String(text).slice(0,100)};
   var bar=document.getElementById('rcReplyBar');
   document.getElementById('rcReplyToName').textContent=sender;
@@ -2196,7 +2201,9 @@ async function doCopyMsg(text){
     if(!rcRoomId||!rcIsActive)return;
     var imgs=[], docs=[];
     Array.from(files).forEach(function(f){(isImage(f)?imgs:docs).push(f)});
-    if(imgs.length) await sendImages(imgs);
+    /* 카톡식 UX: 이미지는 바로 전송하지 않고 첨부 프리뷰에 쌓아두기 */
+    if(imgs.length) _rcAddPendingAttachments(imgs);
+    /* 파일(PDF 등)은 기존대로 즉시 업로드 — 영수증 OCR 처리가 연결돼있어 흐름 유지 */
     for(var i=0;i<docs.length;i++) await sendOneDocFile(docs[i]);
   }
   function init(){
@@ -2249,37 +2256,105 @@ async function doCopyMsg(text){
 
 /* 내가 방금 보낸 메시지는 상단 보고 있어도 강제 스크롤 플래그 */
 var rcForceScrollOnNext=false;
+/* 첨부 대기열 — 붙여넣기/드래그 시 바로 전송하지 않고 여기 쌓았다가 전송 버튼 누를 때 일괄 발송 */
+var _rcPendingAttachments=[]; /* [{file, previewUrl}] */
+
 async function sendRoomMsg(){
   if(!rcRoomId||!rcIsActive)return;
   var input=document.getElementById('rcInput');
   var content=input.value.trim();
-  if(!content)return;
-  /* 답장 중이면 [REPLY]{json}\n 접두사 */
-  if(rcReplyingTo){
-    var meta={t:rcReplyingTo.text, s:rcReplyingTo.sender, i:rcReplyingTo.mid};
-    content='[REPLY]'+JSON.stringify(meta)+'\n'+content;
+  var pending=_rcPendingAttachments.slice();
+  if(!content && !pending.length)return;
+  /* 답장 + 첨부 동시 금지 */
+  if(pending.length && rcReplyingTo){
+    alert('답장하면서 사진 첨부는 불가합니다.\n답장을 취소하거나 사진을 빼주세요.');
+    return;
   }
-  input.value='';
+  var replyMeta = rcReplyingTo ? {t:rcReplyingTo.text, s:rcReplyingTo.sender, i:rcReplyingTo.mid} : null;
+  input.value='';input.style.height='auto';
+  _rcPendingAttachments=[];_rcRenderPendingAttachments();
   cancelReply();
   rcForceScrollOnNext=true;
-  /* 🚀 낙관적 렌더링 */
-  var optId='rcopt-'+Date.now();
-  _rcInsertOptimisticBubble(optId, content);
+
   try{
-    var r=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,content:content})});
-    var d=await r.json();
-    if(d.ok){
-      _rcRemoveOptimisticBubble(optId);
+    if(pending.length){
+      /* 이미지 순차 업로드·전송. 캡션은 마지막 1장에만 붙여 카톡처럼 표시 */
+      for(var i=0;i<pending.length;i++){
+        var fd=new FormData();fd.append('file',pending[i].file);
+        var upR=await fetch('/api/upload-image',{method:'POST',body:fd});
+        var upD=await upR.json();
+        if(!upD.ok){alert('사진 '+(i+1)+'장 업로드 실패: '+(upD.error||'unknown'));continue}
+        var body={room_id:rcRoomId,image_url:upD.url};
+        if(i===pending.length-1 && content)body.content=content;
+        var r2=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        var d2=await r2.json();
+        if(!d2.ok){alert('사진 '+(i+1)+'장 전송 실패: '+(d2.error||'unknown'))}
+      }
+      pending.forEach(function(p){try{URL.revokeObjectURL(p.previewUrl)}catch(_){}});
       await loadRoomChat();
       var _c=document.getElementById('rcMessages');
       if(_c)_c.scrollTop=_c.scrollHeight;
       setTimeout(function(){var c2=document.getElementById('rcMessages');if(c2)c2.scrollTop=c2.scrollHeight;},80);
-    } else {
-      _rcMarkOptimisticFailed(optId, d.error||'unknown');
+      return;
     }
-  }catch(e){
-    _rcMarkOptimisticFailed(optId, e.message);
+
+    /* 텍스트만 — 낙관적 렌더링 */
+    var finalContent=content;
+    if(replyMeta)finalContent='[REPLY]'+JSON.stringify(replyMeta)+'\n'+finalContent;
+    var optId='rcopt-'+Date.now();
+    _rcInsertOptimisticBubble(optId, finalContent);
+    try{
+      var r=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,content:finalContent})});
+      var d=await r.json();
+      if(d.ok){
+        _rcRemoveOptimisticBubble(optId);
+        await loadRoomChat();
+        var _c2=document.getElementById('rcMessages');
+        if(_c2)_c2.scrollTop=_c2.scrollHeight;
+        setTimeout(function(){var c2=document.getElementById('rcMessages');if(c2)c2.scrollTop=c2.scrollHeight;},80);
+      } else {
+        _rcMarkOptimisticFailed(optId, d.error||'unknown');
+      }
+    }catch(e){
+      _rcMarkOptimisticFailed(optId, e.message);
+    }
+  }catch(e){alert('오류: '+e.message)}
+}
+
+/* ===== 첨부 대기열 프리뷰 (고객) ===== */
+function _rcRenderPendingAttachments(){
+  var bar=document.getElementById('rcAttachPreview');
+  if(_rcPendingAttachments.length===0){if(bar)bar.style.display='none';return}
+  if(!bar){
+    var area=document.getElementById('rcInputArea');if(!area)return;
+    bar=document.createElement('div');
+    bar.id='rcAttachPreview';
+    bar.style.cssText='padding:8px 12px;border-top:1px solid var(--border);background:var(--card);display:flex;gap:8px;overflow-x:auto';
+    area.parentNode.insertBefore(bar,area);
   }
+  bar.style.display='flex';
+  bar.innerHTML=_rcPendingAttachments.map(function(a,i){
+    return '<div style="position:relative;flex-shrink:0">'
+      +'<img src="'+a.previewUrl+'" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--border);display:block">'
+      +'<button onclick="_rcRemovePendingAttach('+i+')" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;background:#000;color:#fff;border:none;border-radius:50%;font-size:.72em;cursor:pointer;line-height:1;padding:0;display:flex;align-items:center;justify-content:center" aria-label="제거">×</button>'
+      +'</div>';
+  }).join('');
+}
+function _rcRemovePendingAttach(i){
+  var a=_rcPendingAttachments[i];
+  if(a && a.previewUrl){try{URL.revokeObjectURL(a.previewUrl)}catch(_){}}
+  _rcPendingAttachments.splice(i,1);
+  _rcRenderPendingAttachments();
+}
+function _rcAddPendingAttachments(files){
+  var arr=Array.from(files||[]).filter(function(f){return f&&f.type&&f.type.indexOf('image/')===0});
+  if(!arr.length)return;
+  for(var i=0;i<arr.length;i++){
+    if(_rcPendingAttachments.length>=10){alert('한 번에 최대 10장까지');break}
+    _rcPendingAttachments.push({file:arr[i], previewUrl:URL.createObjectURL(arr[i])});
+  }
+  _rcRenderPendingAttachments();
+  var inp=document.getElementById('rcInput');if(inp)inp.focus();
 }
 function _rcInsertOptimisticBubble(optId, content){
   var c=document.getElementById('rcMessages');if(!c)return;
