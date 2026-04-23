@@ -513,6 +513,23 @@ export async function onRequestPost(context) {
       return Response.json({ ok: true, ai_mode: mode });
     }
 
+    /* 🏢 업체 연결 — 이 상담방을 어느 업체(businesses.id) 에 묶을지 지정.
+       business_id=null 로 보내면 연결 해제 */
+    if (action === "link_business") {
+      try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN business_id INTEGER`).run(); } catch {}
+      const raw = body.business_id;
+      let bid = null;
+      if (raw !== null && raw !== undefined && raw !== '') {
+        const n = Number(raw);
+        if (!Number.isInteger(n) || n <= 0) return Response.json({ error: 'business_id 는 양수 또는 null' }, { status: 400 });
+        const chk = await db.prepare(`SELECT id FROM businesses WHERE id = ?`).bind(n).first();
+        if (!chk) return Response.json({ error: 'business 없음' }, { status: 404 });
+        bid = n;
+      }
+      await db.prepare(`UPDATE chat_rooms SET business_id = ? WHERE id = ?`).bind(bid, roomId).run();
+      return Response.json({ ok: true, business_id: bid });
+    }
+
     /* 우선순위 지정 (1/2/3 또는 NULL) */
     if (action === "set_priority") {
       const raw = body.priority;

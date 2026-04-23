@@ -1,0 +1,209 @@
+// 🏢 업체(businesses) 관리 — 최상위 거래처 엔티티
+//
+// GET    /api/admin-businesses?key=                → 업체 목록 (검색·상태 필터)
+//        &search= &status=active|closed|terminated
+// GET    /api/admin-businesses?key=&id=            → 단건 + 구성원 + 연결된 상담방
+// POST   /api/admin-businesses?key=                → 신규 생성 (중복 방지 UPSERT 아님, 중복 감지 후 400)
+// PUT    /api/admin-businesses?key=&id=            → 수정
+// DELETE /api/admin-businesses?key=&id=            → 삭제 (owner 전용, 연결된 구성원·상담방 해제)
+
+import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
+
+function kst() {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+}
+function normBiz(s) { return String(s || '').replace(/\D/g, ''); }
+function normName(s) { return String(s || '').replace(/\s+/g, '').toLowerCase(); }
+
+async function ensureTables(db) {
+  /* 신규 배포 환경에서 자동 생성 — 마이그레이션 API 와 동일 스키마 */
+  await db.prepare(`CREATE TABLE IF NOT EXISTS businesses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_name TEXT NOT NULL,
+    business_number TEXT,
+    ceo_name TEXT,
+    industry TEXT,
+    business_type TEXT,
+    tax_type TEXT,
+    establishment_date TEXT,
+    address TEXT,
+    phone TEXT,
+    employee_count INTEGER,
+    last_revenue INTEGER,
+    vat_period TEXT,
+    notes TEXT,
+    status TEXT DEFAULT 'active',
+    source_client_business_id INTEGER,
+    created_at TEXT,
+    updated_at TEXT
+  )`).run();
+  try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN business_id INTEGER`).run(); } catch {}
+}
+
+export async function onRequestGet(context) {
+  if (!(await checkAdmin(context))) return adminUnauthorized();
+  const db = context.env.DB;
+  if (!db) return Response.json({ error: 'DB error' }, { status: 500 });
+  await ensureTables(db);
+
+  const url = new URL(context.request.url);
+  const id = url.searchParams.get('id');
+  const search = (url.searchParams.get('search') || '').trim();
+  const status = (url.searchParams.get('status') || '').trim();
+
+  if (id) {
+    try {
+      const biz = await db.prepare(`SELECT * FROM businesses WHERE id = ?`).bind(id).first();
+      if (!biz) return Response.json({ error: 'not found' }, { status: 404 });
+      const { results: members } = await db.prepare(
+        `SELECT bm.id, bm.business_id, bm.user_id, bm.role, bm.is_primary, bm.phone, bm.memo, bm.added_at,
+                u.real_name, u.name, u.profile_image, u.approval_status, u.phone AS user_phone
+           FROM business_members bm
+           LEFT JOIN users u ON bm.user_id = u.id
+          WHERE bm.business_id = ? AND bm.removed_at IS NULL
+          ORDER BY bm.is_primary DESC, bm.added_at ASC`
+      ).bind(id).all();
+      const { results: rooms } = await db.prepare(
+        `SELECT id, name, status, created_at FROM chat_rooms WHERE business_id = ? ORDER BY created_at DESC LIMIT 50`
+      ).bind(id).all();
+      return Response.json({ ok: true, business: biz, members: members || [], rooms: rooms || [] });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
+  /* 목록 */
+  let query = `SELECT b.*,
+      (SELECT COUNT(*) FROM business_members WHERE business_id = b.id AND removed_at IS NULL) AS member_count,
+      (SELECT COUNT(*) FROM chat_rooms WHERE business_id = b.id) AS room_count
+      FROM businesses b`;
+  const binds = [];
+  const where = [];
+  if (status) { where.push(`b.status = ?`); binds.push(status); }
+  if (search) {
+    where.push(`(b.company_name LIKE ? OR b.business_number LIKE ? OR b.ceo_name LIKE ? OR b.phone LIKE ?)`);
+    const q = '%' + search + '%';
+    binds.push(q, q, q, q);
+  }
+  if (where.length) query += ' WHERE ' + where.join(' AND ');
+  query += ' ORDER BY b.created_at DESC LIMIT 500';
+  try {
+    const { results } = await db.prepare(query).bind(...binds).all();
+    /* 상태별 카운트 */
+    const counts = {};
+    for (const s of ['active', 'closed', 'terminated']) {
+      const r = await db.prepare(`SELECT COUNT(*) AS c FROM businesses WHERE status = ?`).bind(s).first();
+      counts[s] = r?.c || 0;
+    }
+    return Response.json({ ok: true, businesses: results || [], counts });
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
+}
+
+export async function onRequestPost(context) {
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
+  const db = context.env.DB;
+  if (!db) return Response.json({ error: 'DB error' }, { status: 500 });
+  await ensureTables(db);
+  let body = {};
+  try { body = await context.request.json(); } catch { return Response.json({ error: 'invalid json' }, { status: 400 }); }
+
+  const name = String(body.company_name || '').trim().slice(0, 120);
+  if (!name) return Response.json({ error: 'company_name 필요' }, { status: 400 });
+  const bn = normBiz(body.business_number);
+
+  /* 중복 감지 — 사업자번호 우선, 없으면 상호 정규화 */
+  try {
+    if (bn) {
+      const dup = await db.prepare(`SELECT id, company_name FROM businesses WHERE business_number = ? LIMIT 1`).bind(bn).first();
+      if (dup) return Response.json({ error: '같은 사업자번호의 업체가 이미 있습니다: #' + dup.id + ' ' + dup.company_name, duplicate_id: dup.id }, { status: 409 });
+    } else {
+      const nn = normName(name);
+      const { results: all } = await db.prepare(`SELECT id, company_name FROM businesses WHERE business_number IS NULL OR business_number = ''`).all();
+      const dup = (all || []).find(b => normName(b.company_name) === nn);
+      if (dup) return Response.json({ error: '같은 상호의 업체가 이미 있습니다: #' + dup.id + ' ' + dup.company_name, duplicate_id: dup.id }, { status: 409 });
+    }
+  } catch {}
+
+  const now = kst();
+  try {
+    const r = await db.prepare(
+      `INSERT INTO businesses (company_name, business_number, ceo_name, industry, business_type, tax_type,
+                               establishment_date, address, phone, employee_count, last_revenue, vat_period,
+                               notes, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
+    ).bind(
+      name, bn || null, body.ceo_name || null, body.industry || null,
+      body.business_type || null, body.tax_type || null,
+      body.establishment_date || null, body.address || null, body.phone || null,
+      body.employee_count != null && body.employee_count !== '' ? Number(body.employee_count) : null,
+      body.last_revenue != null && body.last_revenue !== '' ? Number(body.last_revenue) : null,
+      body.vat_period || null, body.notes || null, now, now
+    ).run();
+    return Response.json({ ok: true, id: r.meta?.last_row_id });
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
+}
+
+export async function onRequestPut(context) {
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
+  const db = context.env.DB;
+  if (!db) return Response.json({ error: 'DB error' }, { status: 500 });
+  await ensureTables(db);
+  const url = new URL(context.request.url);
+  const id = url.searchParams.get('id');
+  if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
+  let body = {};
+  try { body = await context.request.json(); } catch { return Response.json({ error: 'invalid json' }, { status: 400 }); }
+
+  const existing = await db.prepare(`SELECT id FROM businesses WHERE id = ?`).bind(id).first();
+  if (!existing) return Response.json({ error: 'not found' }, { status: 404 });
+
+  const fields = [];
+  const vals = [];
+  const allow = ['company_name', 'business_number', 'ceo_name', 'industry', 'business_type', 'tax_type',
+    'establishment_date', 'address', 'phone', 'employee_count', 'last_revenue', 'vat_period', 'notes', 'status'];
+  for (const k of allow) {
+    if (k in body) {
+      let v = body[k];
+      if (k === 'business_number') v = normBiz(v) || null;
+      if (k === 'employee_count' || k === 'last_revenue') v = (v === '' || v == null) ? null : Number(v);
+      fields.push(`${k} = ?`);
+      vals.push(v == null || v === '' ? null : v);
+    }
+  }
+  if (!fields.length) return Response.json({ error: '변경 필드 없음' }, { status: 400 });
+  fields.push(`updated_at = ?`);
+  vals.push(kst());
+  vals.push(id);
+  try {
+    await db.prepare(`UPDATE businesses SET ${fields.join(', ')} WHERE id = ?`).bind(...vals).run();
+    return Response.json({ ok: true });
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
+}
+
+export async function onRequestDelete(context) {
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
+  if (!auth.owner) return ownerOnly();
+  const db = context.env.DB;
+  if (!db) return Response.json({ error: 'DB error' }, { status: 500 });
+  await ensureTables(db);
+  const url = new URL(context.request.url);
+  const id = url.searchParams.get('id');
+  if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
+  try {
+    /* 연결 해제 + 소프트 삭제 대신 status='closed' 로만 */
+    await db.prepare(`UPDATE businesses SET status = 'closed', updated_at = ? WHERE id = ?`).bind(kst(), id).run();
+    /* 멤버는 유지 (소속 기록), 상담방 연결도 유지 — 필요 시 수동 해제 */
+    return Response.json({ ok: true, note: '실제 삭제는 하지 않음. status=closed 로만 변경.' });
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
+}
