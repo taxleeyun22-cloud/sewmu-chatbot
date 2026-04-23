@@ -60,19 +60,20 @@ export async function onRequestGet(context) {
       counts.admin = a?.c || 0;
       return Response.json({ users: results, counts });
     }
-    /* 목록 필터: is_admin 으로 숨기지 않음.
-       '거래처이면서 관리자' (예: 대표 본인) 가 실제 거래 기록이 있으면
-       기장거래처 탭에도, 👑 관리자 탭에도 양쪽 모두 노출되어야 함. */
+    /* is_admin=1 은 '👑 관리자' 탭에서만 노출. 기장/일반/대기/거절/종료 에서 숨김.
+       관리자 겸 거래처(대표 본인 등)는 관리자 탭에서만 관리 */
     let query = `
       SELECT id, provider, name, real_name, email, phone, profile_image,
              approval_status, approved_at, created_at, last_login_at, name_confirmed, is_admin
       FROM users
     `;
     const binds = [];
+    const where = [`COALESCE(is_admin, 0) = 0`];
     if (status && status !== 'all' && APPROVAL_STATUSES.includes(status)) {
-      query += ` WHERE COALESCE(approval_status, 'pending') = ?`;
+      where.push(`COALESCE(approval_status, 'pending') = ?`);
       binds.push(status);
     }
+    query += ` WHERE ` + where.join(' AND ');
     query += ` ORDER BY created_at DESC LIMIT 200`;
 
     const { results } = await db.prepare(query).bind(...binds).all();

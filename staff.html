@@ -506,9 +506,9 @@ async function loadClients(){
     /* 필터 탭 */
     const counts=d.counts||{};
     const tabs='<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">'
-      +['pending','approved_client','approved_guest','rejected'].map(s=>{
+      +['pending','approved_client','approved_guest','rejected','terminated','admin'].map(s=>{
         const active=clientsFilter===s;
-        const labels={pending:'⏳ 대기',approved_client:'🏢 기장거래처',approved_guest:'✅ 일반승인',rejected:'❌ 거절'};
+        const labels={pending:'⏳ 대기',approved_client:'🏢 기장거래처',approved_guest:'✅ 일반승인',rejected:'❌ 거절',terminated:'🚫 종료',admin:'👑 관리자'};
         return '<button onclick="setClientsFilter(\''+s+'\')" style="background:'+(active?'#191f28':'#e5e8eb')+';color:'+(active?'#fff':'#555')+';border:none;padding:5px 11px;border-radius:7px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:'+(active?'700':'500')+'">'+labels[s]+' '+(counts[s]||0)+'</button>';
       }).join('')+'</div>';
     if(users.length===0){el.innerHTML=tabs+'<div class="empty">'+(q?'검색 결과 없음':'해당 상태 사용자 없음')+'</div>';return}
