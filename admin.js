@@ -3707,6 +3707,9 @@ function _rsToggleButtons(busy){
   });
 }
 function closeRoomSummary(){
+  /* 거래처 단위 요약 모드 리셋 (openCustomerSummary 로 열렸을 경우) */
+  if(typeof _summaryMode!=='undefined')_summaryMode='room';
+  if(typeof _customerSummaryUserId!=='undefined')_customerSummaryUserId=null;
   const modal=$g('roomSummaryModal');
   if(modal)modal.style.display='none';
   document.body.style.overflow='';
@@ -5119,14 +5122,9 @@ async function runRoomSummary(){
     if(typeof _rsToggleButtons==='function')_rsToggleButtons(false);
   }
 }
-/* closeRoomSummary 가 호출되면 모드 리셋 */
-const _origCloseRoomSummary=(typeof closeRoomSummary==='function')?closeRoomSummary:null;
-function closeRoomSummary(){
-  _summaryMode='room';
-  _customerSummaryUserId=null;
-  if(_origCloseRoomSummary)_origCloseRoomSummary();
-  else{const m=$g('roomSummaryModal');if(m)m.style.display='none';document.body.style.overflow=''}
-}
+/* closeRoomSummary 모드 리셋은 원본 함수(line 3709)에 직접 넣음 —
+   이전에 재선언(function)으로 덮어쓰면서 _origCloseRoomSummary 가
+   호이스팅으로 자기 자신을 가리켜 무한 재귀되는 버그가 있었음 */
 
 /* ===== ⚙️ 담당자 라벨 관리 (room_labels CRUD) ===== */
 let _roomLabelsCache=null;
