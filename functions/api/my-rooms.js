@@ -293,6 +293,22 @@ export async function onRequestPost(context) {
         VALUES (?, ?, 'creator', ?)
       `).bind(roomId, user.user_id, now).run();
 
+      /* 관리자(is_admin=1) 전원 자동 참여 — 카톡 그룹방 스타일 (admin-rooms 생성 경로와 통일).
+         고객이 혼자 방 만든 뒤에도 세무사가 즉시 참여 상태가 되어 미읽음·알림 누락 방지 */
+      try {
+        const { results: admins } = await db.prepare(
+          `SELECT id FROM users WHERE is_admin = 1 AND id != ?`
+        ).bind(user.user_id).all();
+        for (const a of (admins || [])) {
+          try {
+            await db.prepare(`
+              INSERT INTO room_members (room_id, user_id, role, joined_at)
+              VALUES (?, ?, 'admin', ?)
+            `).bind(roomId, a.id, now).run();
+          } catch { /* 이미 참여돼있으면 무시 */ }
+        }
+      } catch {}
+
       return Response.json({ ok: true, room_id: roomId });
     }
 
