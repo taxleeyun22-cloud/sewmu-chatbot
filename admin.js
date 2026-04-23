@@ -2331,10 +2331,23 @@ actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +adminBtn
 +'</div>';
 }
+/* 상호 + 이름 + 대표/담당자 뱃지 — 검색성·식별성 향상 (server: company_name·ceo_name JOIN) */
+const company=(u.company_name||'').trim();
+const ceoName=(u.ceo_name||'').trim();
+const realNm=(u.real_name||'').trim();
+const roleBadge=ceoName
+  ? (realNm && realNm===ceoName
+    ? '<span style="font-size:.62em;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600">🧑‍💼 대표</span>'
+    : '<span style="font-size:.62em;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600">👤 담당자</span>')
+  : '';
+const kakaoAlias=(u.name&&u.real_name&&u.name!==u.real_name?' <span style="font-size:.72em;color:#8b95a1">(카톡: '+e(u.name)+')</span>':'');
+const nameLine=company
+  ? '<div class="name">🏢 '+e(company)+' <span style="font-weight:500;color:#8b95a1;font-size:.88em">· '+e(nm)+'</span>'+roleBadge+kakaoAlias+adminMark+'</div>'
+  : '<div class="name">'+e(nm)+roleBadge+kakaoAlias+adminMark+'</div>';
 return '<div data-user-id="'+u.id+'" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.03)">'
 +'<div style="display:flex;align-items:center;gap:14px">'
 +'<div class="avatar">'+av+'</div>'
-+'<div class="info"><div class="name">'+e(nm)+(u.name&&u.real_name&&u.name!==u.real_name?' <span style="font-size:.72em;color:#8b95a1">(카톡: '+e(u.name)+')</span>':'')+adminMark+'</div>'
++'<div class="info">'+nameLine
 +'<div class="meta">'+nameConf+(pv?'<span class="badge">'+pv+'</span> ':'')+e(u.email||'')+phone+'</div>'
 +'<div class="meta" style="margin-top:3px">가입 '+e(u.created_at||'')+' · 오늘 '+todayCnt+'건</div>'
 +'</div></div>'

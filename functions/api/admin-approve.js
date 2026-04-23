@@ -61,20 +61,29 @@ export async function onRequestGet(context) {
       return Response.json({ users: results, counts });
     }
     /* is_admin=1 은 '👑 관리자' 탭에서만 노출. 기장/일반/대기/거절/종료 에서 숨김.
-       관리자 겸 거래처(대표 본인 등)는 관리자 탭에서만 관리 */
+       관리자 겸 거래처(대표 본인 등)는 관리자 탭에서만 관리.
+       거래처 카드에서 '상호 + 이름 + 대표/담당자 구분' 을 한눈에 보려고
+       client_businesses 의 주 사업장 company_name·ceo_name 을 같이 반환
+       (is_primary DESC, id ASC 우선). real_name === ceo_name 이면 대표, 아니면 담당자 */
     let query = `
-      SELECT id, provider, name, real_name, email, phone, profile_image,
-             approval_status, approved_at, created_at, last_login_at, name_confirmed, is_admin
-      FROM users
+      SELECT u.id, u.provider, u.name, u.real_name, u.email, u.phone, u.profile_image,
+             u.approval_status, u.approved_at, u.created_at, u.last_login_at, u.name_confirmed, u.is_admin,
+             (SELECT company_name FROM client_businesses
+              WHERE user_id = u.id
+              ORDER BY is_primary DESC, id ASC LIMIT 1) AS company_name,
+             (SELECT ceo_name FROM client_businesses
+              WHERE user_id = u.id
+              ORDER BY is_primary DESC, id ASC LIMIT 1) AS ceo_name
+      FROM users u
     `;
     const binds = [];
-    const where = [`COALESCE(is_admin, 0) = 0`];
+    const where = [`COALESCE(u.is_admin, 0) = 0`];
     if (status && status !== 'all' && APPROVAL_STATUSES.includes(status)) {
-      where.push(`COALESCE(approval_status, 'pending') = ?`);
+      where.push(`COALESCE(u.approval_status, 'pending') = ?`);
       binds.push(status);
     }
     query += ` WHERE ` + where.join(' AND ');
-    query += ` ORDER BY created_at DESC LIMIT 200`;
+    query += ` ORDER BY u.created_at DESC LIMIT 200`;
 
     const { results } = await db.prepare(query).bind(...binds).all();
 

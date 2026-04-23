@@ -433,7 +433,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=94"></script>
+<script src="/admin.js?v=95"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;
@@ -526,9 +526,21 @@ async function loadClients(){
         +(canTerminate?'<button onclick="terminateUser('+u.id+',\''+e(nm).replace(/\'/g,"")+'\');event.stopPropagation()" title="거래 종료 — 상담방 모두 closed, 거래처 접근 차단" style="background:#fff;color:#6b7280;border:1px solid #6b7280;padding:4px 9px;border-radius:5px;font-size:.72em;cursor:pointer;font-family:inherit">🚫 종료</button>':'')
         +(canRevive?'<button onclick="changeTier('+u.id+',\'approve_client\',event)" style="background:#3182f6;color:#fff;border:none;padding:4px 9px;border-radius:5px;font-size:.72em;cursor:pointer;font-family:inherit">🔄 재개(기장)</button>':'')
         +'</div>';
+      /* 상호 + 이름 + 대표/담당자 뱃지 — 검색성·식별성 향상 */
+      const company=(u.company_name||'').trim();
+      const ceoName=(u.ceo_name||'').trim();
+      const realName=(u.real_name||'').trim();
+      const roleBadge=ceoName
+        ? (realName && realName===ceoName
+          ? '<span style="font-size:.62em;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600">🧑‍💼 대표</span>'
+          : '<span style="font-size:.62em;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600">👤 담당자</span>')
+        : '';
+      const nameLine=company
+        ? '<div class="name">🏢 '+e(company)+' <span style="font-weight:500;color:#8b95a1;font-size:.88em">· '+e(nm)+'</span>'+roleBadge+'</div>'
+        : '<div class="name">'+e(nm)+roleBadge+'</div>';
       return '<div class="item">'
         +'<div class="avatar" onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,"")+'\')" style="cursor:pointer">'+av+'</div>'
-        +'<div class="info" onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,"")+'\')" style="cursor:pointer"><div class="name">'+e(nm)+'</div>'
+        +'<div class="info" onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,"")+'\')" style="cursor:pointer">'+nameLine
         +'<div class="meta">'+e(u.email||'')+phone+'</div>'
         +tierBtns
         +'</div>'
