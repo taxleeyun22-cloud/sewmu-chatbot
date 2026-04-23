@@ -519,6 +519,23 @@ export async function onRequestPost(context) {
           visible_since = excluded.visible_since,
           role = CASE WHEN room_members.role = 'admin' THEN 'admin' ELSE excluded.role END
       `).bind(roomId, userId, now, visibleSince).run();
+
+      /* 📣 초대 시스템 메시지 — "xxx님이 초대되었습니다" 카톡 스타일 */
+      try {
+        const u = await db.prepare(`SELECT real_name, name FROM users WHERE id = ?`).bind(userId).first();
+        const whoName = (u && (u.real_name || u.name)) || '구성원';
+        const inviterName = auth.name || auth.realName || (auth.owner ? '대표' : '담당자');
+        const sysMsg = `[ALERT]${JSON.stringify({
+          t: '👋 초대',
+          m: `${whoName}님이 ${inviterName}에 의해 초대되었습니다.`,
+          d: now.substring(0, 16),
+        })}`;
+        await db.prepare(
+          `INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at)
+           VALUES (?, NULL, 'human_advisor', ?, ?, ?)`
+        ).bind('room_' + roomId, sysMsg, roomId, now).run();
+      } catch {}
+
       return Response.json({ ok: true, visible_since: visibleSince });
     }
 

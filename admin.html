@@ -75,8 +75,15 @@
 
 <div class="analytics" id="analView"></div>
 
-<!-- 사용자 승인 관리 -->
+<!-- 사용자 승인 관리 / 업체 관리 -->
 <div id="usersView" style="display:none">
+<!-- 🏢 업체 / 👤 사용자 모드 토글 -->
+<div style="margin-bottom:10px;display:flex;gap:6px;padding:4px;background:#f2f4f6;border-radius:10px;width:fit-content">
+  <button id="modeBtnUser" onclick="setClientTabMode('user')" style="background:#191f28;color:#fff;border:none;padding:7px 16px;border-radius:7px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit">👤 사용자</button>
+  <button id="modeBtnBiz" onclick="setClientTabMode('business')" style="background:transparent;color:#6b7280;border:none;padding:7px 16px;border-radius:7px;font-size:.82em;cursor:pointer;font-family:inherit">🏢 업체</button>
+</div>
+<!-- 사용자 모드 뷰 -->
+<div id="userModeView">
 <div class="tabs" style="margin-bottom:14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
 <button class="on" id="uStPending" onclick="userStatus('pending')" style="background:#f04452;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#fff;font-weight:500">대기 <span id="cPending">0</span></button>
 <button id="uStClient" onclick="userStatus('approved_client')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">기장거래처 <span id="cClient">0</span></button>
@@ -89,6 +96,16 @@
 <button onclick="cleanDupBiz()" title="같은 사용자에게 중복 저장된 사업장을 감지·정리 (먼저 미리보기 후 실행)" style="background:#f2f4f6;color:#4b5563;border:1px solid #e5e8eb;padding:6px 12px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">🧹 중복 사업장 정리</button>
 </div>
 <div id="userList"></div>
+</div>
+<!-- 업체 모드 뷰 -->
+<div id="bizModeView" style="display:none">
+  <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <input id="bizSearchInput" type="text" placeholder="🔍 업체명·사업자번호·대표자명 검색" oninput="onBizSearchInput()" style="flex:1;min-width:200px;padding:9px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;outline:none">
+    <button onclick="openNewBusinessModal()" style="background:#10b981;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit">＋ 새 업체</button>
+    <span id="bizCounts" style="font-size:.8em;color:#6b7280"></span>
+  </div>
+  <div id="bizList"></div>
+</div>
 
 <!-- ⚙️ 담당자 라벨 관리 모달 -->
 <div id="labelManageModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11300;align-items:center;justify-content:center;padding:20px">
@@ -741,7 +758,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=103"></script>
+<script src="/admin.js?v=104"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면
@@ -1258,6 +1275,54 @@
     </div>
     <div id="termReqList" style="flex:1;overflow-y:auto;padding:10px 14px;background:#fff">
       <div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div>
+    </div>
+  </div>
+</div>
+
+<!-- 🏢 업체 대시보드 모달 -->
+<div id="businessDashboardModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11900;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:760px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1.02em">🏢 <span id="bdName">업체</span> <span id="bdSub" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
+      <button onclick="closeBusinessDashboard()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
+    </div>
+    <div id="bdBody" style="flex:1;overflow-y:auto;padding:14px 18px;background:#f9fafb">
+      <div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ＋ 새 업체 생성 모달 -->
+<div id="newBusinessModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11950;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1em">＋ 새 업체</div>
+      <button onclick="closeNewBusinessModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
+    </div>
+    <div style="padding:16px 18px;overflow-y:auto">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><label style="font-size:.76em;font-weight:600;color:#374151">회사명 *</label><input id="nbName" type="text" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
+        <div><label style="font-size:.76em;font-weight:600;color:#374151">회사구분</label>
+          <select id="nbForm" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box">
+            <option value="법인사업자">법인사업자</option><option value="개인사업자" selected>개인사업자</option><option value="간이사업자">간이사업자</option><option value="기타">기타</option>
+          </select>
+        </div>
+        <div><label style="font-size:.76em;font-weight:600;color:#374151">대표자명</label><input id="nbCeo" type="text" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
+        <div><label style="font-size:.76em;font-weight:600;color:#374151">사업자등록번호</label><input id="nbBiz" type="text" placeholder="123-45-67890" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
+        <div><label style="font-size:.76em;font-weight:600;color:#374151">업태</label><input id="nbCategory" type="text" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
+        <div><label style="font-size:.76em;font-weight:600;color:#374151">업종</label><input id="nbIndustry" type="text" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
+        <div style="grid-column:span 2"><label style="font-size:.76em;font-weight:600;color:#374151">사업장 주소</label><input id="nbAddress" type="text" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
+        <div><label style="font-size:.76em;font-weight:600;color:#374151">사업장 전화</label><input id="nbPhone" type="text" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
+        <div><label style="font-size:.76em;font-weight:600;color:#374151">수임일자</label><input id="nbContract" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:12px;font-size:.88em;cursor:pointer">
+        <input id="nbAutoRoom" type="checkbox" checked>
+        <span>생성과 동시에 기본 상담방 개설</span>
+      </label>
+    </div>
+    <div style="padding:10px 18px;border-top:1px solid #e5e8eb;display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeNewBusinessModal()" style="background:#e5e8eb;border:none;padding:9px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
+      <button onclick="submitNewBusiness()" id="nbSubmitBtn" style="background:var(--brand-primary,#3182f6);color:#fff;border:none;padding:9px 20px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">생성</button>
     </div>
   </div>
 </div>
