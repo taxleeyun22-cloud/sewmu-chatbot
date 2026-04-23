@@ -92,7 +92,7 @@ async function getUserFromSession(db, cookieHeader) {
   if (!match) return null;
   try {
     const session = await db.prepare(`
-      SELECT s.user_id, u.approval_status, u.name_confirmed,
+      SELECT s.user_id, u.approval_status, u.name_confirmed, u.is_admin,
              u.consent_age_14, u.consent_tos, u.consent_privacy, u.consent_overseas
       FROM sessions s
       JOIN users u ON s.user_id = u.id
@@ -576,9 +576,10 @@ export async function onRequestPost(context) {
     } catch {}
   }
 
-  // 일일 사용량 체크
+  // 일일 사용량 체크 — is_admin=1 은 카운트만 기록하고 제한 없음
   if (db) {
-    const dailyLimit = getDailyLimit(approvalStatus);
+    const isAdminFlag = !!sessionInfo.is_admin;
+    const dailyLimit = isAdminFlag ? 999999 : getDailyLimit(approvalStatus);
     const usage = await checkAndIncrementDaily(db, userId, dailyLimit);
     if (!usage.ok) {
       let msg;
