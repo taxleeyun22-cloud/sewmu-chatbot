@@ -225,12 +225,20 @@ export async function onRequestGet(context) {
      ORDER BY d.created_at DESC LIMIT ?`
   ).bind(...args, limit).all();
 
-  // 카운트 (상태별)
+  // 카운트 (상태별) — user_id 필터가 있으면 그 거래처만 집계 (거래처 대시보드용).
+  // status 필터는 제외 → 탭별 개수(대기/승인/반려)를 모두 보여주기 위함
   const counts = {};
   try {
+    const countClauses = [];
+    const countArgs = [];
+    if (userId) { countClauses.push('user_id = ?'); countArgs.push(userId); }
+    if (from) { countClauses.push("DATE(created_at) >= DATE(?)"); countArgs.push(from); }
+    if (to) { countClauses.push("DATE(created_at) <= DATE(?)"); countArgs.push(to); }
+    if (month) { countClauses.push("strftime('%Y-%m', created_at) = ?"); countArgs.push(month); }
+    const countWhere = countClauses.length ? ' WHERE ' + countClauses.join(' AND ') : '';
     const cnt = await db.prepare(
-      `SELECT status, COUNT(*) AS c FROM documents GROUP BY status`
-    ).all();
+      `SELECT status, COUNT(*) AS c FROM documents${countWhere} GROUP BY status`
+    ).bind(...countArgs).all();
     (cnt.results || []).forEach(r => counts[r.status] = r.c);
   } catch {}
 
