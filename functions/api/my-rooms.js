@@ -145,6 +145,16 @@ export async function onRequestGet(context) {
       const room = await db.prepare(`SELECT * FROM chat_rooms WHERE id = ?`).bind(roomId).first();
       if (!room) return Response.json({ error: "방을 찾을 수 없습니다" }, { status: 404 });
 
+      /* 이 사용자의 visible_since (과거 대화 공개 시점) 조회 — 초대 시 설정 가능 */
+      try { await db.prepare(`ALTER TABLE room_members ADD COLUMN visible_since TEXT`).run(); } catch {}
+      let myVisibleSince = null;
+      try {
+        const me = await db.prepare(
+          `SELECT visible_since FROM room_members WHERE room_id = ? AND user_id = ?`
+        ).bind(roomId, user.user_id).first();
+        if (me && me.visible_since) myVisibleSince = me.visible_since;
+      } catch {}
+
       // 멤버 목록 (이름만)
       const { results: members } = await db.prepare(`
         SELECT rm.user_id, rm.role, u.real_name, u.name, u.profile_image
@@ -170,6 +180,8 @@ export async function onRequestGet(context) {
       `;
       const binds = [roomId];
       if (since) { query += ` AND c.created_at > ?`; binds.push(since); }
+      /* visible_since: 이 사용자가 초대된 시점 이전 메시지는 숨김 */
+      if (myVisibleSince) { query += ` AND c.created_at >= ?`; binds.push(myVisibleSince); }
       query += ` ORDER BY c.created_at ASC LIMIT 500`;
 
       const { results: messages } = await db.prepare(query).bind(...binds).all();

@@ -442,7 +442,22 @@
 <button onclick="document.getElementById('addMemberModal').style.display='none'" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#8b95a1">✕</button>
 </div>
 <input id="amSearch" type="text" placeholder="이름/전화 검색..." oninput="filterAddMember()" style="width:100%;padding:9px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit;margin-bottom:10px">
-<div id="amList" style="max-height:420px;overflow-y:auto;border:1px solid #e5e8eb;border-radius:8px">로딩...</div>
+<!-- 과거 대화 공개 범위 -->
+<div style="padding:10px 12px;background:#f9fafb;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:10px">
+  <div style="font-size:.78em;font-weight:700;color:#374151;margin-bottom:6px">📜 과거 대화 공개 범위</div>
+  <label style="display:flex;align-items:center;gap:6px;font-size:.82em;padding:4px 0;cursor:pointer">
+    <input type="radio" name="amVisSince" value="all" checked onchange="_amSyncVisSince()"> 전체 내역 공개 (기본)
+  </label>
+  <label style="display:flex;align-items:center;gap:6px;font-size:.82em;padding:4px 0;cursor:pointer">
+    <input type="radio" name="amVisSince" value="now" onchange="_amSyncVisSince()"> 지금부터 보이기 (과거 대화 숨김)
+  </label>
+  <label style="display:flex;align-items:center;gap:6px;font-size:.82em;padding:4px 0;cursor:pointer">
+    <input type="radio" name="amVisSince" value="date" onchange="_amSyncVisSince()"> 특정 날짜부터
+    <input type="date" id="amVisSinceDate" onchange="document.querySelector('input[name=amVisSince][value=date]').checked=true;_amSyncVisSince()" style="padding:3px 6px;border:1px solid #e5e8eb;border-radius:5px;font-size:.78em;font-family:inherit;margin-left:4px">
+  </label>
+  <div id="amVisSinceHint" style="font-size:.72em;color:#6b7280;margin-top:4px">선택한 시점 이후 메시지만 이 사람에게 보입니다.</div>
+</div>
+<div id="amList" style="max-height:360px;overflow-y:auto;border:1px solid #e5e8eb;border-radius:8px">로딩...</div>
 <p style="font-size:.72em;color:#8b95a1;margin:10px 0 0;text-align:center">선택하면 바로 방에 추가됩니다</p>
 </div>
 </div>
@@ -720,7 +735,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=97"></script>
+<script src="/admin.js?v=98"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면

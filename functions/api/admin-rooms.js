@@ -458,12 +458,32 @@ export async function onRequestPost(context) {
         return Response.json({ error: "정원이 가득찼습니다" }, { status: 400 });
       }
 
+      /* visible_since 옵션 — 이 사용자가 볼 수 있는 과거 메시지 시작점.
+         null: 전체 공개 (기본, 과거 대화 모두 열람 가능)
+         'now': 현재 초대 시각으로 설정 → 이후 메시지만 공개
+         'YYYY-MM-DD' 또는 'YYYY-MM-DD HH:MM:SS': 해당 시각 이후만 공개 */
+      try { await db.prepare(`ALTER TABLE room_members ADD COLUMN visible_since TEXT`).run(); } catch {}
+      let visibleSince = null;
+      const vsRaw = body.visible_since;
+      if (vsRaw === 'now' || vsRaw === true) {
+        visibleSince = now;
+      } else if (typeof vsRaw === 'string' && vsRaw.trim()) {
+        const t = vsRaw.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(t)) visibleSince = t + ' 00:00:00';
+        else if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(t)) visibleSince = t.replace('T', ' ').slice(0, 19);
+        /* 잘못된 포맷이면 null (= 전체 공개) 로 fallback */
+      }
+
+      /* ON CONFLICT 로 기존 행 복구 시 visible_since·role 도 같이 업데이트 */
       await db.prepare(`
-        INSERT INTO room_members (room_id, user_id, role, joined_at)
-        VALUES (?, ?, 'member', ?)
-        ON CONFLICT(room_id, user_id) DO UPDATE SET left_at = NULL
-      `).bind(roomId, userId, now).run();
-      return Response.json({ ok: true });
+        INSERT INTO room_members (room_id, user_id, role, joined_at, visible_since)
+        VALUES (?, ?, 'member', ?, ?)
+        ON CONFLICT(room_id, user_id) DO UPDATE SET
+          left_at = NULL,
+          visible_since = excluded.visible_since,
+          role = CASE WHEN room_members.role = 'admin' THEN 'admin' ELSE excluded.role END
+      `).bind(roomId, userId, now, visibleSince).run();
+      return Response.json({ ok: true, visible_since: visibleSince });
     }
 
     // ── 멤버 제거 ──

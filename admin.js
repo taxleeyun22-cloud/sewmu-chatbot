@@ -2167,9 +2167,32 @@ function renderAddMemberList(users){
 
 function filterAddMember(){renderAddMemberList(window._amAvailable||[])}
 
+function _amSyncVisSince(){
+  /* 라디오 선택 반영 — 힌트 텍스트 갱신 */
+  const el=document.querySelector('input[name=amVisSince]:checked');
+  if(!el)return;
+  const h=$g('amVisSinceHint');
+  if(el.value==='all')h.textContent='이 사람에게 방의 전체 과거 대화가 보입니다.';
+  else if(el.value==='now')h.textContent='이 사람은 초대 시점 이후 메시지만 볼 수 있습니다. (민감정보 포함된 과거 대화 숨김 시 권장)';
+  else {
+    const d=$g('amVisSinceDate').value;
+    h.textContent=d?'이 사람은 '+d+' 00:00 이후 메시지부터 볼 수 있습니다.':'날짜를 선택하세요.';
+  }
+}
+function _amVisibleSinceValue(){
+  const el=document.querySelector('input[name=amVisSince]:checked');
+  if(!el || el.value==='all')return null;
+  if(el.value==='now')return 'now';
+  if(el.value==='date'){
+    const d=$g('amVisSinceDate').value;
+    return d||'now';
+  }
+  return null;
+}
 async function addMemberPick(userId,nm){
+  const vs=_amVisibleSinceValue();
   try{
-    const rr=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=add_member',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId,user_id:userId})});
+    const rr=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=add_member',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId,user_id:userId, visible_since:vs})});
     const dd=await rr.json();
     if(dd.ok){
       $g('addMemberModal').style.display='none';
