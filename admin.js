@@ -6270,3 +6270,43 @@ async function runDueSchedules(){
   setTimeout(runDueSchedules, 3000);
   setInterval(runDueSchedules, 60*1000);
 })();
+
+/* ===== 🧹 중복 사업장 정리 (일회성 유틸) ===== */
+async function cleanDupBiz(){
+  try{
+    const r=await fetch('/api/admin-clean-duplicate-businesses?key='+encodeURIComponent(KEY));
+    const d=await r.json();
+    if(!d.ok){alert('조회 실패: '+(d.error||'unknown'));return}
+    if(!d.total_removable){alert('🎉 정리할 중복 사업장이 없습니다.');return}
+    /* 요약 텍스트 */
+    const lines=[];
+    lines.push('🧹 중복 사업장 감지 결과');
+    lines.push('영향 받는 거래처: '+d.total_users_affected+'명');
+    lines.push('삭제 예정 사업장: '+d.total_removable+'개');
+    lines.push('');
+    for(const u of d.users.slice(0,12)){
+      lines.push('• '+(u.user_name||'user#'+u.user_id));
+      for(const g of u.groups){
+        const keepDesc=(g.keep.company_name||'(이름없음)')+(g.keep.business_number?' · '+g.keep.business_number:'');
+        lines.push('   ↳ 유지: '+keepDesc);
+        for(const rm of g.remove){
+          const d2=(rm.company_name||'(이름없음)')+(rm.business_number?' · '+rm.business_number:'');
+          lines.push('   ✖ 삭제: '+d2);
+        }
+      }
+    }
+    if(d.users.length>12)lines.push('... (외 '+(d.users.length-12)+'명)');
+    lines.push('');
+    lines.push('⚠️ 실제 삭제하려면 확인하세요.');
+    if(!confirm(lines.join('\n')))return;
+    if(!confirm('마지막 확인: '+d.total_removable+'개 사업장을 실제로 삭제합니다. 되돌릴 수 없습니다.\n\n계속할까요?'))return;
+    const r2=await fetch('/api/admin-clean-duplicate-businesses?key='+encodeURIComponent(KEY)+'&action=execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});
+    const d2=await r2.json();
+    if(!d2.ok){alert('실행 실패: '+(d2.error||'unknown'));return}
+    alert('✅ '+d2.deleted+'개 사업장 삭제 완료'+(d2.primary_reassigned&&d2.primary_reassigned.length?'\n주 사업장 재지정: '+d2.primary_reassigned.length+'건':''));
+    /* 현재 열린 거래처 대시보드가 있으면 새로고침 */
+    if(typeof currentProfileUserId!=='undefined' && currentProfileUserId && typeof openCustomerDashboard==='function'){
+      openCustomerDashboard(currentProfileUserId);
+    }
+  }catch(err){alert('오류: '+err.message)}
+}

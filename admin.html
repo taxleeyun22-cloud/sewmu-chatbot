@@ -83,6 +83,7 @@
 <button id="uStAdmin" onclick="userStatus('admin')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500" title="is_admin=1 관리자 사용자">👑 관리자 <span id="cAdmin">0</span></button>
 <button onclick="openManualClientModal()" style="margin-left:auto;background:#10b981;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="OAuth 없이 관리자가 직접 거래처 생성 — 오프라인 고객·기존 거래처 마이그레이션용">➕ 수동 거래처</button>
 <button onclick="showBulkUpload()" style="background:#191f28;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📤 CSV 일괄 업로드</button>
+<button onclick="cleanDupBiz()" title="같은 사용자에게 중복 저장된 사업장을 감지·정리 (먼저 미리보기 후 실행)" style="background:#f2f4f6;color:#4b5563;border:1px solid #e5e8eb;padding:6px 12px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">🧹 중복 사업장 정리</button>
 </div>
 <div id="userList"></div>
 
@@ -717,7 +718,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=90"></script>
+<script src="/admin.js?v=91"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면
