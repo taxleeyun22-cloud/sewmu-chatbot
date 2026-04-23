@@ -3805,18 +3805,81 @@ async function postSummaryToRoom(){
    안전장치: 2단계 confirm, closed 방 자동 제외, 최대 200개 제한, 기본 선택 없음 */
 let _bulkRooms=[];
 let _bulkSelected=new Set();
+/* 첨부 대기열 — 업로드 전엔 file 보관, 업로드 후 url·name·size 업데이트 */
+let _bulkAttachments=[]; /* [{type:'image'|'file', file, url?, name, size}] */
 async function openBulkSend(){
   const m=$g('bulkSendModal');if(!m)return;
   m.style.display='flex';
   document.body.style.overflow='hidden';
   _bulkSelected=new Set();
+  _bulkAttachments=[];
   if($g('bulkContent'))$g('bulkContent').value='';
   if($g('bulkCount'))$g('bulkCount').textContent='0';
+  _bulkRenderAttachments();
   await _bulkLoadRooms();
 }
 function closeBulkSend(){
   const m=$g('bulkSendModal');if(m)m.style.display='none';
   document.body.style.overflow='';
+  /* 업로드된 임시 URL 은 서버에 이미 저장된 파일이라 별도 cleanup 불필요,
+     Blob URL 프리뷰만 revoke */
+  for(const a of _bulkAttachments){if(a._previewUrl){try{URL.revokeObjectURL(a._previewUrl)}catch(_){}} }
+  _bulkAttachments=[];
+}
+
+/* 이미지/파일 첨부 — 선택 즉시 업로드해서 서버 URL 확보 (단체발송 시점엔 URL 만 사용) */
+async function _bulkAddFiles(fileList, type){
+  const files=Array.from(fileList||[]);
+  if(!files.length)return;
+  for(const f of files){
+    if(_bulkAttachments.length>=10){alert('첨부는 최대 10개까지');break}
+    /* 이미지 제한 10MB, 파일 100MB — upload-image/upload-file 제약 */
+    if(type==='image' && f.size>10*1024*1024){alert('['+f.name+'] 이미지는 10MB 이하');continue}
+    if(type==='file' && f.size>100*1024*1024){alert('['+f.name+'] 파일은 100MB 이하 (대용량은 상담방 직접 업로드 이용)');continue}
+    const entry={type, file:f, name:f.name, size:f.size, status:'uploading'};
+    if(type==='image')entry._previewUrl=URL.createObjectURL(f);
+    _bulkAttachments.push(entry);
+    _bulkRenderAttachments();
+    /* 백그라운드 업로드 */
+    (async()=>{
+      try{
+        const fd=new FormData();fd.append('file',f);
+        const ep=type==='image'?'/api/upload-image':'/api/upload-file';
+        const r=await fetch(ep+'?key='+encodeURIComponent(KEY),{method:'POST',body:fd});
+        const d=await r.json();
+        if(!d.ok){entry.status='failed';entry._error=d.error||'업로드 실패'}
+        else{entry.url=d.url;entry.status='ready'}
+      }catch(err){entry.status='failed';entry._error=err.message}
+      _bulkRenderAttachments();
+    })();
+  }
+}
+function _bulkRemoveAttachment(idx){
+  const a=_bulkAttachments[idx];
+  if(a && a._previewUrl){try{URL.revokeObjectURL(a._previewUrl)}catch(_){}}
+  _bulkAttachments.splice(idx,1);
+  _bulkRenderAttachments();
+}
+function _bulkRenderAttachments(){
+  const el=$g('bulkAttachPreview');if(!el)return;
+  if(!_bulkAttachments.length){el.style.display='none';return}
+  el.style.display='flex';
+  el.innerHTML=_bulkAttachments.map(function(a,i){
+    let body='';
+    if(a.type==='image'){
+      const src=a._previewUrl||a.url||'';
+      body='<img src="'+escAttr(src)+'" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #e5e8eb;display:block">';
+    } else {
+      body='<div style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;border-radius:6px;font-size:1.4em">'+(typeof fileIconFor==='function'?fileIconFor(a.name||''):'📄')+'</div>';
+    }
+    let status='';
+    if(a.status==='uploading')status='<div style="position:absolute;inset:0;background:rgba(0,0,0,.45);color:#fff;font-size:.62em;display:flex;align-items:center;justify-content:center;border-radius:6px">업로드중...</div>';
+    else if(a.status==='failed')status='<div style="position:absolute;inset:0;background:rgba(220,38,38,.7);color:#fff;font-size:.62em;display:flex;align-items:center;justify-content:center;border-radius:6px" title="'+escAttr(a._error||'')+'">실패</div>';
+    const label='<div style="font-size:.7em;color:#374151;max-width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;margin-top:2px">'+e(a.name||'')+'</div>';
+    return '<div style="position:relative;width:64px;flex-shrink:0"><div style="position:relative">'+body+status
+      +'<button onclick="_bulkRemoveAttachment('+i+')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#000;color:#fff;border:none;border-radius:50%;font-size:.7em;cursor:pointer;line-height:1;padding:0;display:flex;align-items:center;justify-content:center" aria-label="제거">×</button>'
+      +'</div>'+label+'</div>';
+  }).join('');
 }
 async function _bulkLoadRooms(){
   const list=$g('bulkRoomList');if(!list)return;
@@ -3883,17 +3946,35 @@ function _bulkSelectNone(){
 }
 async function submitBulkSend(){
   const content=($g('bulkContent')?.value||'').trim();
-  if(!content){alert('메시지 내용을 입력하세요');return}
+  if(!content && !_bulkAttachments.length){alert('메시지 내용이나 첨부 파일이 필요합니다');return}
   if(!_bulkSelected.size){alert('최소 1개 이상의 상담방을 선택하세요');return}
+  /* 실패한 첨부는 발송 전에 제거 권유 */
+  const failedAtt=_bulkAttachments.filter(a=>a.status==='failed');
+  if(failedAtt.length){
+    if(!confirm('업로드 실패한 첨부가 '+failedAtt.length+'개 있습니다. 해당 항목은 제외하고 발송할까요?'))return;
+  }
+  /* 업로드가 아직 진행 중인 첨부는 대기 — 최대 30초 */
+  const deadline=Date.now()+30000;
+  while(_bulkAttachments.some(a=>a.status==='uploading') && Date.now()<deadline){
+    await new Promise(res=>setTimeout(res,200));
+  }
+  const stillUploading=_bulkAttachments.some(a=>a.status==='uploading');
+  if(stillUploading){alert('첨부 업로드가 아직 완료되지 않았습니다. 잠시 후 다시 시도하세요');return}
+  const ready=_bulkAttachments.filter(a=>a.status==='ready' && a.url);
   const n=_bulkSelected.size;
-  if(!confirm('⚠️ '+n+'개 상담방에 메시지를 발송합니다.\n고객들이 바로 볼 수 있습니다.\n\n정말 발송할까요?'))return;
-  if(!confirm('한 번 더 확인: '+n+'개 상담방 · 메시지 '+content.length+'자\n\n발송을 시작합니다.'))return;
+  const attachDesc=ready.length?' + '+ready.filter(a=>a.type==='image').length+'장 사진 / '+ready.filter(a=>a.type==='file').length+'개 파일':'';
+  if(!confirm('⚠️ '+n+'개 상담방에 메시지를 발송합니다'+attachDesc+'.\n고객들이 바로 볼 수 있습니다.\n\n정말 발송할까요?'))return;
+  if(!confirm('한 번 더 확인: '+n+'개 상담방 · 메시지 '+content.length+'자'+attachDesc+'\n\n발송을 시작합니다.'))return;
   const btn=$g('bulkSubmitBtn');
   if(btn){btn.disabled=true;btn.style.opacity='.55';btn.textContent='📢 발송 중...'}
   try{
+    const attachments=ready.map(a=>{
+      if(a.type==='image')return {type:'image', url:a.url};
+      return {type:'file', url:a.url, name:a.name, size:a.size};
+    });
     const r=await fetch('/api/admin-bulk-send?key='+encodeURIComponent(KEY),{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({room_ids:Array.from(_bulkSelected), content})
+      body:JSON.stringify({room_ids:Array.from(_bulkSelected), content, attachments})
     });
     const d=await r.json();
     if(!d.ok){alert('발송 실패: '+(d.error||'unknown'));return}

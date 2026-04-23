@@ -433,7 +433,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=89"></script>
+<script src="/admin.js?v=90"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;
@@ -817,7 +817,15 @@ async function saveImgViewer(){
     </div>
     <div style="padding:12px 16px;border-bottom:1px solid #f2f4f6;background:#fffbeb">
       <textarea id="bulkContent" placeholder="예) 2026년 2기 부가세 신고 기한이 1/25입니다. 매입 영수증 올려주세요." style="width:100%;min-height:80px;padding:10px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.9em;font-family:inherit;resize:vertical;box-sizing:border-box;outline:none"></textarea>
-      <div style="font-size:.72em;color:#8b95a1;margin-top:4px">⚠️ 선택한 모든 거래처의 상담방에 동시 발송됩니다. 고객이 바로 볼 수 있습니다.</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
+        <label for="bulkImgInput" style="background:#f2f4f6;border:1px solid #e5e8eb;color:#4b5563;padding:5px 10px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">📷 사진 첨부</label>
+        <input id="bulkImgInput" type="file" accept="image/*" multiple onchange="_bulkAddFiles(this.files,'image');this.value=''" style="display:none">
+        <label for="bulkFileInput" style="background:#f2f4f6;border:1px solid #e5e8eb;color:#4b5563;padding:5px 10px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">📎 파일 첨부</label>
+        <input id="bulkFileInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip" multiple onchange="_bulkAddFiles(this.files,'file');this.value=''" style="display:none">
+        <span style="font-size:.72em;color:#8b95a1">안내 자료 첨부 시 이용 (이미지+파일 합쳐 최대 10개)</span>
+      </div>
+      <div id="bulkAttachPreview" style="display:none;margin-top:8px;gap:8px;flex-wrap:wrap;padding:8px;background:#fff;border:1px solid #e5e8eb;border-radius:8px"></div>
+      <div style="font-size:.72em;color:#8b95a1;margin-top:6px">⚠️ 선택한 모든 거래처의 상담방에 동시 발송됩니다. 고객이 바로 볼 수 있습니다.</div>
     </div>
     <div style="padding:10px 16px;border-bottom:1px solid #f2f4f6;background:#fafbfc;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       <span style="font-size:.78em;color:#6b7280;margin-right:2px">대상:</span>

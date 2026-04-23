@@ -717,7 +717,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=89"></script>
+<script src="/admin.js?v=90"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면
@@ -1020,10 +1020,18 @@
       <div style="font-weight:700;font-size:1em">📢 단체발송 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">여러 상담방에 한 번에 메시지 전송 (고객에게 발송됨)</span></div>
       <button onclick="closeBulkSend()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
     </div>
-    <!-- 메시지 입력 -->
+    <!-- 메시지 입력 + 첨부 -->
     <div style="padding:12px 16px;border-bottom:1px solid #f2f4f6;background:#fffbeb">
       <textarea id="bulkContent" placeholder="예) 2026년 2기 부가세 신고 기한이 1/25입니다. 매입 영수증 올려주세요." style="width:100%;min-height:80px;padding:10px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.9em;font-family:inherit;resize:vertical;box-sizing:border-box;outline:none"></textarea>
-      <div style="font-size:.72em;color:#8b95a1;margin-top:4px">⚠️ 선택한 모든 거래처의 상담방에 동시 발송됩니다. 고객이 바로 볼 수 있습니다.</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
+        <label for="bulkImgInput" style="background:#f2f4f6;border:1px solid #e5e8eb;color:#4b5563;padding:5px 10px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">📷 사진 첨부</label>
+        <input id="bulkImgInput" type="file" accept="image/*" multiple onchange="_bulkAddFiles(this.files,'image');this.value=''" style="display:none">
+        <label for="bulkFileInput" style="background:#f2f4f6;border:1px solid #e5e8eb;color:#4b5563;padding:5px 10px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">📎 파일 첨부</label>
+        <input id="bulkFileInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip" multiple onchange="_bulkAddFiles(this.files,'file');this.value=''" style="display:none">
+        <span style="font-size:.72em;color:#8b95a1">안내 자료 첨부 시 이용 (이미지+파일 합쳐 최대 10개)</span>
+      </div>
+      <div id="bulkAttachPreview" style="display:none;margin-top:8px;gap:8px;flex-wrap:wrap;padding:8px;background:#fff;border:1px solid #e5e8eb;border-radius:8px"></div>
+      <div style="font-size:.72em;color:#8b95a1;margin-top:6px">⚠️ 선택한 모든 거래처의 상담방에 동시 발송됩니다. 고객이 바로 볼 수 있습니다.</div>
     </div>
     <!-- 대상 필터 -->
     <div style="padding:10px 16px;border-bottom:1px solid #f2f4f6;background:#fafbfc;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
