@@ -2083,7 +2083,11 @@ function filterRoomUsers(){
 async function createRoom(){
   const name=$g('crName').value.trim();
   const ids=Object.keys(crSelectedUsers).map(Number);
-  if(ids.length===0){alert('최소 1명 이상 선택해주세요');return}
+  /* 거래처 0명 허용 — 관리자끼리 틀만 먼저 만들 수도 있음.
+     확인만 한 번 더 묻고 진행. 서버는 멤버 0명 허용. 관리자는 자동 참여 */
+  if(ids.length===0){
+    if(!confirm('거래처를 한 명도 선택하지 않았습니다.\n관리자끼리만 들어있는 빈 방을 먼저 만드시겠어요?\n(나중에 참여자 초대 가능)'))return;
+  }
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name||'상담방',max_members:Number($g('crMaxMembers').value),member_user_ids:ids})});
     const d=await r.json();
@@ -6681,6 +6685,108 @@ function _showMemberCtx(spanEl, x, y){
   m.style.left=left+'px';m.style.top=top+'px';
   if(navigator.vibrate)try{navigator.vibrate(15)}catch{}
 }
+
+/* ===== 🚫 거래 종료 요청 큐 (owner 전용 승인 플로우) ===== */
+async function _refreshTermReqBadge(){
+  try{
+    const r=await fetch('/api/admin-termination-requests?key='+encodeURIComponent(KEY)+'&status=pending');
+    const d=await r.json();
+    const btn=$g('termReqBtn'); const bd=$g('termReqBadge');
+    const n=d.pending_count||0;
+    if(!btn)return;
+    /* owner 에게만 표시. IS_OWNER 플래그는 admin.js 초기에 세팅됨 */
+    if(typeof IS_OWNER!=='undefined' && IS_OWNER && n>0){
+      btn.style.display='inline-flex';
+      if(bd)bd.textContent=String(n);
+    } else {
+      btn.style.display='none';
+    }
+  }catch(_){}
+}
+(function(){
+  if(window._termReqBadgeBound)return;window._termReqBadgeBound=true;
+  setTimeout(_refreshTermReqBadge, 2500);
+  setInterval(_refreshTermReqBadge, 60*1000);
+})();
+async function openTerminationRequests(){
+  const m=$g('termReqModal');if(!m)return;
+  m.style.display='flex';
+  document.body.style.overflow='hidden';
+  await _loadTermReqList();
+}
+function closeTerminationRequests(){
+  const m=$g('termReqModal');if(m)m.style.display='none';
+  document.body.style.overflow='';
+}
+async function _loadTermReqList(){
+  const el=$g('termReqList');if(!el)return;
+  el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/admin-termination-requests?key='+encodeURIComponent(KEY)+'&status=pending');
+    const d=await r.json();
+    const items=d.items||[];
+    $g('termReqCount').textContent='('+items.length+'건 대기)';
+    if(!items.length){el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">🎉 승인 대기 중인 종료 요청이 없습니다</div>';return}
+    el.innerHTML=items.map(function(it){
+      const target=e(it.real_name||it.name||'#'+it.user_id);
+      const phone=it.phone?' · '+e(it.phone):'';
+      const req=e(it.requested_by_name||'직원');
+      const reason=it.reason?'<div style="margin-top:6px;padding:7px 10px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;font-size:.82em;color:#92400e"><b>요청 사유:</b> '+e(it.reason)+'</div>':'';
+      return '<div style="padding:12px;border:1px solid #e5e8eb;border-radius:10px;margin-bottom:10px;background:#fff">'
+        +'<div style="display:flex;align-items:flex-start;gap:8px">'
+        +'<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:.95em">🏢 '+target+phone+'</div>'
+        +'<div style="font-size:.75em;color:#6b7280;margin-top:2px">👤 '+req+' 직원 요청 · '+e(it.requested_at||'')+'</div>'
+        +reason+'</div>'
+        +'</div>'
+        +'<div style="display:flex;gap:6px;margin-top:10px">'
+        +'<button onclick="_termReqAction('+it.id+',\'approve\',\''+target.replace(/\'/g,'')+'\')" style="flex:1;background:#dc2626;color:#fff;border:none;padding:8px;border-radius:6px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit">✅ 승인 (거래 종료 실행)</button>'
+        +'<button onclick="_termReqAction('+it.id+',\'reject\',\''+target.replace(/\'/g,'')+'\')" style="flex:1;background:#fff;color:#6b7280;border:1px solid #6b7280;padding:8px;border-radius:6px;font-size:.82em;cursor:pointer;font-family:inherit">반려</button>'
+        +'</div></div>';
+    }).join('');
+  }catch(err){el.innerHTML='<div style="color:#f04452;padding:20px;font-size:.85em">오류: '+e(err.message)+'</div>'}
+}
+async function _termReqAction(id, action, targetName){
+  const actLabel=action==='approve'?'✅ 승인':'❌ 반려';
+  const warn=action==='approve'?'\n\n⚠️ 승인하면 '+targetName+' 의 앱 접근이 즉시 차단되고 모든 상담방이 종료됩니다. 되돌리려면 거래처 탭에서 "🔄 거래 재개" 필요.':'';
+  if(!confirm(actLabel+' 처리하시겠습니까?'+warn))return;
+  const note=prompt('사유·메모 (선택):','')||null;
+  try{
+    const r=await fetch('/api/admin-termination-requests?key='+encodeURIComponent(KEY)+'&action='+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id, note:note})});
+    const d=await r.json();
+    if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
+    _loadTermReqList();
+    _refreshTermReqBadge();
+    if(typeof loadUsers==='function')loadUsers(currentStatus);
+    if(typeof loadRoomList==='function')loadRoomList();
+  }catch(err){alert('오류: '+err.message)}
+}
+
+/* terminateUser 호출 시 직원이면 서버가 큐 응답 반환 → 알림 */
+(function wrapTerminateUser(){
+  if(window._termUserWrapped)return;window._termUserWrapped=true;
+  const orig=window.terminateUser;
+  if(typeof orig!=='function')return;
+  window.terminateUser=async function(id, displayName){
+    /* 기존 로직 그대로 호출 — alert 메시지 차별화만 서버 응답 보고 */
+    /* 단순화: 원본 함수는 response.d.ok 만 검사하므로 여기서 한 번 fetch 선행해 queued 확인 */
+    const nm=displayName||'이 거래처';
+    if(!confirm('🚫 '+nm+' 와의 거래를 종료 요청합니다.\n\n- owner(대표)는 즉시 실행됨\n- 직원은 대표 승인 대기 큐에 등록됨\n\n계속할까요?'))return;
+    const reason=prompt('종료 사유 (내부 기록용, 선택):','')||null;
+    try{
+      const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id, action:'terminate', reason:reason})});
+      const d=await r.json();
+      if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
+      if(d.queued){
+        alert('✅ 거래 종료 요청이 대표 승인 대기 큐에 등록되었습니다'+(d.already_pending?' (이미 같은 대상 요청 있음)':'')+'.\n요청 ID #'+(d.request_id||'-'));
+      } else {
+        alert('✅ 거래 종료 완료');
+      }
+      if(typeof loadUsers==='function')loadUsers(currentStatus);
+      if(typeof loadRoomList==='function')loadRoomList();
+      if(typeof _refreshTermReqBadge==='function')_refreshTermReqBadge();
+    }catch(err){alert('오류: '+err.message)}
+  };
+})();
 
 /* 🔍 상담방 목록 검색 — 디바운스 */
 let _roomListSearchT=null;

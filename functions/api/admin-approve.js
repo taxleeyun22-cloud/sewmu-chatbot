@@ -150,8 +150,36 @@ export async function onRequestPost(context) {
       newStatus = 'rejected';
     }
     else if (action === 'terminate') {
-      /* 거래 종료 — 직원(is_admin=1) 도 가능. 실제 데이터 삭제는 아니고 상태 변경 +
-         방 closed 라서 '재개(기장)' 로 되돌릴 수 있음. reject 와 달리 owner 전용 X */
+      /* 거래 종료 — owner 는 즉시 실행, 직원은 승인 요청 큐에 등록 (파괴적 방지).
+         세무사(owner) 가 승인해야 실제 terminated 처리 발동 */
+      if (!auth.owner) {
+        try {
+          await db.prepare(`CREATE TABLE IF NOT EXISTS termination_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            requested_by INTEGER,
+            requested_by_name TEXT,
+            reason TEXT,
+            status TEXT DEFAULT 'pending',
+            requested_at TEXT NOT NULL,
+            reviewed_by INTEGER,
+            reviewed_at TEXT,
+            review_note TEXT
+          )`).run();
+        } catch {}
+        /* 동일 대상 pending 중복 방지 */
+        const existing = await db.prepare(
+          `SELECT id FROM termination_requests WHERE user_id = ? AND status = 'pending'`
+        ).bind(userId).first();
+        if (existing) {
+          return Response.json({ ok: true, queued: true, already_pending: true, request_id: existing.id, message: '이미 대기 중인 요청이 있습니다 (요청 id #' + existing.id + ')' });
+        }
+        const r = await db.prepare(
+          `INSERT INTO termination_requests (user_id, requested_by, requested_by_name, reason, status, requested_at)
+           VALUES (?, ?, ?, ?, 'pending', ?)`
+        ).bind(userId, auth.userId || null, auth.name || auth.realName || '직원', reason || null, kst).run();
+        return Response.json({ ok: true, queued: true, request_id: r.meta?.last_row_id, message: '대표(owner) 승인 대기 큐에 등록됨' });
+      }
       newStatus = 'terminated';
     }
     else if (action === 'pending') newStatus = 'pending';
