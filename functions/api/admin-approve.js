@@ -65,9 +65,16 @@ export async function onRequestGet(context) {
        거래처 카드에서 '상호 + 이름 + 대표/담당자 구분' 을 한눈에 보려고
        client_businesses 의 주 사업장 company_name·ceo_name 을 같이 반환
        (is_primary DESC, id ASC 우선). real_name === ceo_name 이면 대표, 아니면 담당자 */
+    /* 고객이 마이페이지에서 직접 요청한 상호·사업자번호·역할도 같이 내려줌
+       → 관리자 승인 모달에서 자동 prefill */
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_company_name TEXT`).run(); } catch {}
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_business_number TEXT`).run(); } catch {}
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_role TEXT`).run(); } catch {}
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_at TEXT`).run(); } catch {}
     let query = `
       SELECT u.id, u.provider, u.name, u.real_name, u.email, u.phone, u.profile_image,
              u.approval_status, u.approved_at, u.created_at, u.last_login_at, u.name_confirmed, u.is_admin,
+             u.requested_company_name, u.requested_business_number, u.requested_role, u.requested_at,
              (SELECT company_name FROM client_businesses
               WHERE user_id = u.id
               ORDER BY is_primary DESC, id ASC LIMIT 1) AS company_name,

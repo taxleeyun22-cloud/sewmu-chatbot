@@ -2404,6 +2404,20 @@ const phone=u.phone?' · '+e(u.phone):'';
 const nameConf=u.name_confirmed?'':'<span style="color:#f04452;font-size:.72em">⚠️본명미확인</span> ';
 const adminMark=u.is_admin?' <span style="color:#fff;background:#8b6914;font-size:.65em;padding:2px 6px;border-radius:4px;font-weight:700">👑 관리자</span>':'';
 const todayCnt=u.today_count||0;
+/* 🏢 고객이 직접 요청한 업체 등록 정보 — 대기 탭에서 승인 판단에 활용 */
+const reqInfo=(u.requested_company_name||u.requested_business_number||u.requested_role)
+  ? '<div style="margin-top:6px;padding:7px 10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;font-size:.76em;color:#0c4a6e">'
+    +'📝 고객 요청: '
+    +(u.requested_company_name?'<b>'+e(u.requested_company_name)+'</b>':'')
+    +(u.requested_business_number?' <span style="color:#4b5563">· '+e(u.requested_business_number)+'</span>':'')
+    +(u.requested_role?' <span style="background:'+(u.requested_role==='대표자'?'#fef3c7':'#e0f2fe')+';color:'+(u.requested_role==='대표자'?'#92400e':'#075985')+';padding:1px 6px;border-radius:4px;margin-left:4px;font-weight:700">'+e(u.requested_role)+'</span>':'')
+    +(u.requested_at?' <span style="color:#9ca3af;font-size:.9em">· '+e(String(u.requested_at).substring(5,16))+'</span>':'')
+    +'</div>'
+  : '';
+/* prefill 을 JSON 으로 데이터 속성에 안전 전달 */
+const prefill=(u.requested_company_name||u.requested_business_number||u.requested_role)
+  ? JSON.stringify({name:u.requested_company_name||'', bn:u.requested_business_number||'', role:u.requested_role||''}).replace(/"/g,'&quot;')
+  : '';
 let actions='';
 const adminBtn=IS_OWNER?(u.is_admin
   ?'<button onclick="setAdminFlag('+u.id+',0)" style="background:#fff;color:#8b6914;border:1px solid #8b6914;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">👑 관리자 해제</button>'
@@ -2411,8 +2425,8 @@ const adminBtn=IS_OWNER?(u.is_admin
 ):'';
 if(status==='pending'){
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
-+'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✓ 기장거래처 승인</button>'
-+'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#00c471;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">○ 일반 승인</button>'
++'<button onclick="openApproveWithBusiness('+u.id+',\''+e(nm).replace(/\'/g,'')+'\',\''+e(u.phone||'').replace(/\'/g,'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="승인 + 업체·역할 연결을 한 번에">✓ 기장거래처 승인</button>'
++'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#00c471;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="간단 승인 (업체 연결 없음)">○ 일반 승인</button>'
 +'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✕ 거절</button>'
 +adminBtn
@@ -2420,7 +2434,7 @@ actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 }else{
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
-+(status!=='approved_client'?'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 기장거래처</button>':'')
++(status!=='approved_client'?'<button onclick="openApproveWithBusiness('+u.id+',\''+e(nm).replace(/\'/g,'')+'\',\''+e(u.phone||'').replace(/\'/g,'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="승인 + 업체 연결">→ 기장거래처</button>':'')
 +(status!=='approved_guest'?'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#00c471;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 일반승인</button>':'')
 +(status!=='pending'?'<button onclick="approveUser('+u.id+',\'pending\')" style="background:#8b95a1;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 대기로</button>':'')
 +(status!=='rejected'?'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 거절</button>':'')
@@ -2449,6 +2463,7 @@ return '<div data-user-id="'+u.id+'" style="background:#fff;border-radius:12px;p
 +'<div class="meta">'+nameConf+(pv?'<span class="badge">'+pv+'</span> ':'')+e(u.email||'')+phone+'</div>'
 +'<div class="meta" style="margin-top:3px">가입 '+e(u.created_at||'')+' · 오늘 '+todayCnt+'건</div>'
 +'</div></div>'
++reqInfo
 +actions
 +'</div>';
 }).join('');
@@ -2462,6 +2477,169 @@ const d=await r.json();
 if(d.ok){loadUsers(currentStatus);refreshPendingBadge()}
 else alert('실패: '+(d.error||'unknown'));
 }catch(err){alert('오류: '+err.message)}
+}
+
+/* ===== ✅ 승인 + 🏢 업체 연결 원클릭 플로우 =====
+   기장/일반 승인 버튼 → 이 모달 → (승인) + (업체 연결·역할) + (방 참여) 한 번에 */
+let _apbUser=null;       /* {id, name, phone, action} */
+let _apbAllBiz=[];
+let _apbSelectedBizId=null;
+
+async function openApproveWithBusiness(userId, displayName, phone, action, prefill){
+  _apbUser={id:userId, name:displayName||'', phone:phone||'', action:action||'approve_client'};
+  _apbSelectedBizId=null;
+  const m=$g('approveBizModal');if(!m)return;
+  const actLabel=action==='approve_guest'?'일반승인':'기장거래처 승인';
+  const pfMark=prefill?' <span style="font-size:.72em;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;margin-left:4px">📝 고객 요청 자동 채움</span>':'';
+  $g('apbUser').innerHTML='<b>'+e(displayName||'이름없음')+'</b>'+(phone?' · '+e(phone):'')
+    +' <span style="font-size:.78em;color:#3b82f6;font-weight:700">→ '+actLabel+'</span>'+pfMark;
+  /* 기본: 기존 업체 모드. 라디오·폼 초기화 */
+  document.querySelector('input[name=apbMode][value=existing]').checked=true;
+  _apbSwitchMode('existing');
+  $g('apbSearch').value='';
+  $g('apbNewName').value='';
+  $g('apbNewCeo').value='';
+  $g('apbNewBiz').value='';
+  $g('apbNewForm').value='개인사업자';
+  document.querySelector('input[name=apbRole][value=담당자]').checked=true;
+  $g('apbAutoJoin').checked=true;
+
+  /* 고객이 직접 요청한 값 있으면 → '새 업체 생성' 모드 + 자동 채움.
+     세무사는 내용 확인·수정 후 승인만 누르면 됨 */
+  if(prefill && (prefill.name || prefill.bn || prefill.role)){
+    document.querySelector('input[name=apbMode][value=new]').checked=true;
+    _apbSwitchMode('new');
+    if(prefill.name)$g('apbNewName').value=prefill.name;
+    if(prefill.bn)$g('apbNewBiz').value=prefill.bn;
+    /* 대표자명 힌트: real_name 이 있으면 (prefill 외부라 displayName 사용) */
+    if(displayName)$g('apbNewCeo').value=displayName;
+    if(prefill.role){
+      const rr=document.querySelector('input[name=apbRole][value='+prefill.role+']');
+      if(rr)rr.checked=true;
+    }
+  }
+
+  m.style.display='flex';
+  document.body.style.overflow='hidden';
+  await _apbLoadBusinesses();
+}
+function closeApproveBizModal(){
+  const m=$g('approveBizModal');if(m)m.style.display='none';
+  document.body.style.overflow='';
+  _apbUser=null;_apbSelectedBizId=null;
+}
+function _apbSwitchMode(mode){
+  $g('apbExistingBox').style.display=mode==='existing'?'block':'none';
+  $g('apbNewBox').style.display=mode==='new'?'block':'none';
+}
+async function _apbLoadBusinesses(){
+  const el=$g('apbList');if(!el)return;
+  el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:20px 0;font-size:.8em">불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY));
+    const d=await r.json();
+    _apbAllBiz=(d.businesses||[]).filter(b=>b.status==='active');
+    _apbFilterList();
+  }catch(err){el.innerHTML='<div style="color:#f04452;padding:12px;font-size:.8em">오류: '+e(err.message)+'</div>'}
+}
+function _apbFilterList(){
+  const el=$g('apbList');if(!el)return;
+  const q=($g('apbSearch').value||'').trim().toLowerCase();
+  const list=q
+    ? _apbAllBiz.filter(b=>((b.company_name||'')+' '+(b.business_number||'')+' '+(b.ceo_name||'')).toLowerCase().indexOf(q)>=0)
+    : _apbAllBiz;
+  if(!list.length){el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:16px 0;font-size:.8em">'+(q?'검색 결과 없음':'등록된 업체가 없습니다')+'</div>';return}
+  el.innerHTML=list.slice(0,30).map(b=>{
+    const selected=_apbSelectedBizId===b.id;
+    const sub=[b.business_number?('#'+b.business_number):'', b.ceo_name||''].filter(Boolean).join(' · ');
+    return '<div onclick="_apbPickBiz('+b.id+')" style="padding:8px 12px;border-bottom:1px solid #f2f4f6;cursor:pointer;background:'+(selected?'#dbeafe':'#fff')+'">'
+      +'<div style="font-size:.88em;font-weight:600">'+e(b.company_name)+(selected?' ✅':'')+'</div>'
+      +(sub?'<div style="font-size:.72em;color:#6b7280">'+e(sub)+'</div>':'')
+      +'</div>';
+  }).join('');
+}
+function _apbPickBiz(bid){
+  _apbSelectedBizId=bid;
+  _apbFilterList();
+}
+async function submitApproveWithBusiness(){
+  if(!_apbUser)return;
+  const mode=(document.querySelector('input[name=apbMode]:checked')||{}).value;
+  const role=(document.querySelector('input[name=apbRole]:checked')||{}).value||'담당자';
+  const autoJoin=$g('apbAutoJoin').checked;
+  const btn=$g('apbSubmitBtn');
+
+  if(mode==='existing' && !_apbSelectedBizId){
+    alert('기존 업체를 선택하거나 "새 업체 생성" 으로 전환하세요');return;
+  }
+  if(mode==='new'){
+    const nm=($g('apbNewName').value||'').trim();
+    if(!nm){alert('새 업체의 회사명을 입력하세요');return}
+  }
+  if(btn){btn.disabled=true;btn.textContent='처리 중...';btn.style.opacity='.6'}
+  try{
+    /* 1) 승인 */
+    const r1=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:_apbUser.id, action:_apbUser.action})});
+    const d1=await r1.json();
+    if(!d1.ok){alert('승인 실패: '+(d1.error||''));return}
+
+    /* 2) 업체 — 기존 선택 or 신규 생성 */
+    let businessId=_apbSelectedBizId;
+    let createdRoomId=null;
+    if(mode==='new'){
+      const body={
+        company_name:$g('apbNewName').value.trim(),
+        company_form:$g('apbNewForm').value,
+        ceo_name:($g('apbNewCeo').value||'').trim()||null,
+        business_number:($g('apbNewBiz').value||'').trim()||null,
+        auto_create_room: autoJoin, /* 자동 참여 체크 시 같이 방 개설 */
+      };
+      const r2=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const d2=await r2.json();
+      if(!d2.ok){alert('업체 생성 실패: '+(d2.error||''));return}
+      businessId=d2.id;
+      createdRoomId=d2.room_id||null;
+    }
+
+    /* 3) 구성원 연결 */
+    const isPrimary=(role==='대표자')?1:0;
+    const r3=await fetch('/api/admin-business-members?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({business_id:businessId, user_id:_apbUser.id, role:role, is_primary:isPrimary, phone:_apbUser.phone||null})});
+    const d3=await r3.json();
+    if(!d3.ok){alert('구성원 연결 실패: '+(d3.error||''));return}
+
+    /* 4) 상담방 참여 — autoJoin 체크된 경우 */
+    if(autoJoin){
+      let targetRoomId=createdRoomId;
+      if(!targetRoomId){
+        /* 기존 업체의 첫 active 방 찾기 */
+        const r4=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY)+'&id='+businessId);
+        const d4=await r4.json();
+        const activeRooms=(d4.rooms||[]).filter(x=>x.status==='active');
+        if(activeRooms.length){targetRoomId=activeRooms[0].id}
+        else {
+          /* 방 없으면 새로 만들기 — auto_create_room flow 재사용 어렵고 admin-rooms action=create 호출 */
+          const r5=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:(d4.business?.company_name||'상담방')+' 상담방', max_members:10, member_user_ids:[_apbUser.id]})});
+          const d5=await r5.json();
+          if(d5.ok){
+            targetRoomId=d5.room_id;
+            /* 생성된 방을 이 업체에 연결 */
+            try{ await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=link_business&room_id='+encodeURIComponent(d5.room_id),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:d5.room_id, business_id:businessId})});}catch{}
+          }
+        }
+      }
+      if(targetRoomId){
+        try{
+          await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=add_member&room_id='+encodeURIComponent(targetRoomId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:targetRoomId, user_id:_apbUser.id})});
+        }catch{}
+      }
+    }
+
+    alert('✅ 승인 + 업체 연결 완료'+(createdRoomId?('\n📢 상담방도 함께 개설됨: '+createdRoomId):''));
+    closeApproveBizModal();
+    if(typeof loadUsers==='function')loadUsers(currentStatus);
+    if(typeof refreshPendingBadge==='function')refreshPendingBadge();
+  }catch(err){alert('오류: '+err.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent='✅ 승인하고 연결';btn.style.opacity=''}}
 }
 
 async function setAdminFlag(id,flag){
