@@ -51,23 +51,29 @@ export async function onRequestGet(context) {
       }
       const counts = {};
       for (const s of APPROVAL_STATUSES) {
-        const r = await db.prepare(`SELECT COUNT(*) as c FROM users WHERE COALESCE(approval_status, 'pending') = ?`).bind(s).first();
+        const r = await db.prepare(`SELECT COUNT(*) as c FROM users WHERE COALESCE(approval_status, 'pending') = ? AND COALESCE(is_admin, 0) = 0`).bind(s).first();
         counts[s] = r?.c || 0;
       }
       const a = await db.prepare(`SELECT COUNT(*) as c FROM users WHERE is_admin = 1`).first();
       counts.admin = a?.c || 0;
       return Response.json({ users: results, counts });
     }
+    /* is_admin=1 은 '👑 관리자' 탭 (status='admin') 에서만 보이게.
+       기장/일반/대기/거절 목록에서는 제외 → 관리자 승급된 세무사·직원이
+       기장거래처로 중복 노출되는 문제 해결 */
     let query = `
       SELECT id, provider, name, real_name, email, phone, profile_image,
              approval_status, approved_at, created_at, last_login_at, name_confirmed, is_admin
       FROM users
     `;
     const binds = [];
+    const where = [];
     if (status && status !== 'all' && APPROVAL_STATUSES.includes(status)) {
-      query += ` WHERE COALESCE(approval_status, 'pending') = ?`;
+      where.push(`COALESCE(approval_status, 'pending') = ?`);
       binds.push(status);
     }
+    where.push(`COALESCE(is_admin, 0) = 0`);
+    query += ` WHERE ` + where.join(' AND ');
     query += ` ORDER BY created_at DESC LIMIT 200`;
 
     const { results } = await db.prepare(query).bind(...binds).all();
@@ -85,7 +91,7 @@ export async function onRequestGet(context) {
     const counts = {};
     for (const s of APPROVAL_STATUSES) {
       const r = await db.prepare(
-        `SELECT COUNT(*) as c FROM users WHERE COALESCE(approval_status, 'pending') = ?`
+        `SELECT COUNT(*) as c FROM users WHERE COALESCE(approval_status, 'pending') = ? AND COALESCE(is_admin, 0) = 0`
       ).bind(s).first();
       counts[s] = r?.c || 0;
     }
