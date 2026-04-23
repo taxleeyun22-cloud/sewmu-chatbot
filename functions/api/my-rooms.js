@@ -53,6 +53,10 @@ export async function onRequestGet(context) {
 
   const user = await getUserFromCookie(db, context.request);
   if (!user) return Response.json({ error: "로그인 필요" }, { status: 401 });
+  /* 거래 종료된 사용자는 상담방 접근 전면 차단 (대화 열람·전송 모두 X) */
+  if (user.approval_status === 'terminated') {
+    return Response.json({ error: "거래가 종료되어 상담방을 이용하실 수 없습니다.\n재문의는 카카오톡 채널 또는 053-269-1213 으로 연락해주세요.", terminated: true }, { status: 403 });
+  }
 
   await ensureTables(db);
 
@@ -243,6 +247,10 @@ export async function onRequestPost(context) {
 
   const user = await getUserFromCookie(db, context.request);
   if (!user) return Response.json({ error: "로그인 필요" }, { status: 401 });
+  /* 거래 종료된 사용자는 상담방 접근 전면 차단 (대화 열람·전송 모두 X) */
+  if (user.approval_status === 'terminated') {
+    return Response.json({ error: "거래가 종료되어 상담방을 이용하실 수 없습니다.\n재문의는 카카오톡 채널 또는 053-269-1213 으로 연락해주세요.", terminated: true }, { status: 403 });
+  }
 
   await ensureTables(db);
 

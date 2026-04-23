@@ -1728,6 +1728,10 @@ function openDocDetail(docId){
 async function loadMyRooms(){
   try{
     var r=await fetch('/api/my-rooms');
+    if(r.status===403){
+      /* 거래 종료 응답 처리 */
+      try{var ed=await r.json();if(ed&&ed.terminated){_showTerminatedNotice(ed.error||'');return}}catch(_){}
+    }
     if(!r.ok)return;
     var d=await r.json();
     var sec=document.getElementById('mpRoomsSection');
@@ -1806,6 +1810,20 @@ function closeRoomChat(){
   loadMyRooms();
   /* 직접 닫을 때 history 정리 (popstate로 이미 닫혔으면 skip) */
   try{if(history.state&&history.state.room)history.back()}catch{}
+}
+
+/* 거래 종료 고지 — 방 목록 숨기고 메시지만 표시 */
+function _showTerminatedNotice(msg){
+  var sec=document.getElementById('mpRoomsSection');if(sec)sec.style.display='none';
+  updateAppBadge(0);
+  if(document.getElementById('_termNotice'))return;
+  var div=document.createElement('div');
+  div.id='_termNotice';
+  div.style.cssText='margin:12px;padding:14px 16px;background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;color:#78350f;font-size:.88em;line-height:1.5;white-space:pre-wrap';
+  div.textContent='🚫 '+String(msg||'거래가 종료되어 상담방을 이용하실 수 없습니다.');
+  var mp=document.getElementById('mpRoomsSection');
+  if(mp&&mp.parentNode)mp.parentNode.insertBefore(div, mp);
+  else document.body.appendChild(div);
 }
 
 async function loadRoomChat(){

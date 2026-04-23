@@ -942,7 +942,14 @@ async function loadRoomDetail(){
     $g('roomChatTitle').innerHTML='<b>'+e(d.room.name||'상담방')+'</b> <span style="font-size:.75em;color:#8b95a1">('+currentRoomId+')</span>';
     $g('roomStatusBtn').textContent=currentRoomStatus==='active'?'종료':'재개';
     const mm=(d.members||[]).filter(m=>!m.left_at);
-    $g('roomMembers').innerHTML='👥 멤버 '+mm.length+'명: '+mm.map(m=>e(m.real_name||m.name||'이름없음')).join(', ')+'  + 🏢 세무회계 이윤';
+    /* 각 멤버를 span 으로 감싸 long-press·우클릭 시 '거래 종료' 등 메뉴 노출.
+       role='admin' (세무사/직원) 은 제외 — 거래처 고객만 종료 대상 */
+    $g('roomMembers').innerHTML='👥 멤버 '+mm.length+'명: '+mm.map(function(m){
+      const nm=e(m.real_name||m.name||'이름없음');
+      if(m.role==='admin')return nm+'(관리)';
+      return '<span class="room-member" data-uid="'+(m.user_id||'')+'" data-name="'+escAttr(m.real_name||m.name||'')+'" style="cursor:context-menu;text-decoration:underline dotted #9ca3af;text-underline-offset:2px" title="꾹 누르면 메뉴 (거래 종료 등)">'+nm+'</span>';
+    }).join(', ')+'  + 🏢 세무회계 이윤';
+    _bindRoomMemberLongPress();
 
     const container=$g('roomMessages');
     const atBottom=container.scrollHeight-container.scrollTop-container.clientHeight<50;
@@ -2267,10 +2274,10 @@ if(n>0){b.textContent=n;b.style.display='inline-block'}else{b.style.display='non
 
 function userStatus(s){
 currentStatus=s;
-['Pending','Client','Guest','Rejected','Admin'].forEach(k=>{
+['Pending','Client','Guest','Rejected','Terminated','Admin'].forEach(k=>{
 const el=$g('uSt'+k);if(!el)return;
 const active=('uSt'+k).toLowerCase().indexOf(s.replace('approved_','').toLowerCase())>=0;
-el.style.background=active?(s==='rejected'?'#8b95a1':s==='pending'?'#f04452':s==='admin'?'#b45309':'#3182f6'):'#e5e8eb';
+el.style.background=active?(s==='rejected'?'#8b95a1':s==='terminated'?'#6b7280':s==='pending'?'#f04452':s==='admin'?'#b45309':'#3182f6'):'#e5e8eb';
 el.style.color=active?'#fff':'#8b95a1';
 });
 loadUsers(s);
@@ -2287,6 +2294,7 @@ $g('cPending').textContent=d.counts.pending||0;
 $g('cClient').textContent=d.counts.approved_client||0;
 $g('cGuest').textContent=d.counts.approved_guest||0;
 $g('cRejected').textContent=d.counts.rejected||0;
+if($g('cTerminated'))$g('cTerminated').textContent=d.counts.terminated||0;
 if($g('cAdmin'))$g('cAdmin').textContent=d.counts.admin||0;
 }
 if(!d.users||d.users.length===0){el.innerHTML='<div class="empty">해당 상태의 사용자가 없습니다</div>';return}
@@ -2318,6 +2326,8 @@ actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +(status!=='approved_guest'?'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#00c471;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 일반승인</button>':'')
 +(status!=='pending'?'<button onclick="approveUser('+u.id+',\'pending\')" style="background:#8b95a1;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 대기로</button>':'')
 +(status!=='rejected'?'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 거절</button>':'')
++(status==='approved_client'||status==='approved_guest'?'<button onclick="terminateUser('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" title="거래 종료 — 상담방 모두 closed, 고객 접근 차단" style="background:#fff;color:#6b7280;border:1px solid #6b7280;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🚫 거래 종료</button>':'')
++(status==='terminated'?'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🔄 거래 재개(기장)</button>':'')
 +adminBtn
 +'</div>';
 }
@@ -2363,6 +2373,25 @@ const d=await r.json();
 if(d.ok){loadUsers(currentStatus);refreshPendingBadge()}
 else alert('실패: '+(d.error||'unknown'));
 }catch(err){alert('오류: '+err.message)}
+}
+
+/* 거래 종료 — 해당 사용자 접근 차단 + 모든 활성 방 closed */
+async function terminateUser(id, displayName){
+  const nm=displayName||'이 거래처';
+  if(!confirm('🚫 '+nm+' 와의 거래를 종료합니다.\n\n- 이 거래처의 모든 상담방이 "종료"로 변경됩니다\n- 해당 거래처는 앱에서 대화 내용을 더 이상 볼 수 없습니다\n- 관리자는 "🚫 종료" 탭에서 기록 관리 가능\n\n계속할까요?'))return;
+  if(!confirm('한 번 더 확인: 거래 종료를 실행합니다.\n나중에 "🔄 거래 재개" 버튼으로 복구 가능합니다.'))return;
+  const reason=prompt('종료 사유 (선택, 내부 기록용):','')||null;
+  try{
+    const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id,action:'terminate',reason:reason})});
+    const d=await r.json();
+    if(d.ok){
+      alert('✅ 거래 종료 완료');
+      loadUsers(currentStatus);
+      if(typeof loadRoomList==='function')loadRoomList();
+    } else {
+      alert('실패: '+(d.error||'unknown'));
+    }
+  }catch(err){alert('오류: '+err.message)}
 }
 
 /* ===== 거래처 사업장 관리 (복수 지원) ===== */
@@ -6270,6 +6299,54 @@ async function runDueSchedules(){
   setTimeout(runDueSchedules, 3000);
   setInterval(runDueSchedules, 60*1000);
 })();
+
+/* ===== 👤 상담방 멤버 꾹 눌러 거래 종료 메뉴 (d) ===== */
+function _bindRoomMemberLongPress(){
+  const root=document.getElementById('roomMembers');if(!root)return;
+  if(root.dataset.mlpBound)return;
+  root.dataset.mlpBound='1';
+  let lpTimer=null, lpTarget=null, lpX=0, lpY=0;
+  root.addEventListener('touchstart',function(e){
+    const sp=e.target.closest('.room-member');if(!sp)return;
+    const t=e.touches[0];lpX=t.clientX;lpY=t.clientY;lpTarget=sp;
+    lpTimer=setTimeout(()=>{lpTimer=null;window._lpJustFired=true;setTimeout(()=>{window._lpJustFired=false},600);_showMemberCtx(sp, lpX, lpY)},500);
+  },{passive:true});
+  root.addEventListener('touchmove',function(e){
+    if(lpTimer){const t=e.touches[0];if(Math.abs(t.clientX-lpX)>8||Math.abs(t.clientY-lpY)>8){clearTimeout(lpTimer);lpTimer=null}}
+  },{passive:true});
+  root.addEventListener('touchend',()=>{if(lpTimer){clearTimeout(lpTimer);lpTimer=null}});
+  root.addEventListener('contextmenu',function(e){
+    const sp=e.target.closest('.room-member');if(!sp)return;
+    e.preventDefault();
+    _showMemberCtx(sp, e.clientX, e.clientY);
+  });
+}
+function _showMemberCtx(spanEl, x, y){
+  const uid=parseInt(spanEl.getAttribute('data-uid')||'0',10);
+  const nm=spanEl.getAttribute('data-name')||'';
+  if(!uid)return;
+  let m=document.getElementById('memberCtxMenu');
+  if(!m){
+    m=document.createElement('div');m.id='memberCtxMenu';
+    m.style.cssText='position:fixed;min-width:170px;background:#fff;border:1px solid #e5e8eb;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:12000;padding:4px;display:none';
+    document.body.appendChild(m);
+    document.addEventListener('click',function(ev){
+      if(ev.target.closest('#memberCtxMenu'))return;
+      m.style.display='none';
+    });
+  }
+  m.innerHTML='<div style="padding:8px 10px;font-size:.8em;color:#6b7280;border-bottom:1px solid #f2f4f6">'+e(nm||'user#'+uid)+'</div>'
+    +'<button onclick="document.getElementById(\'memberCtxMenu\').style.display=\'none\';openCustomerDashboard('+uid+')" style="display:block;width:100%;text-align:left;background:none;border:none;padding:8px 10px;font-size:.85em;cursor:pointer;font-family:inherit">📋 거래처 정보</button>'
+    +'<button onclick="document.getElementById(\'memberCtxMenu\').style.display=\'none\';terminateUser('+uid+',\''+escAttr(nm).replace(/\'/g,'')+'\')" style="display:block;width:100%;text-align:left;background:none;border:none;padding:8px 10px;font-size:.85em;cursor:pointer;font-family:inherit;color:#dc2626">🚫 거래 종료</button>';
+  m.style.display='block';
+  const rect=m.getBoundingClientRect();
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const left=Math.max(8, Math.min(x-rect.width/2, vw-rect.width-8));
+  let top=Math.max(8, Math.min(y-rect.height-8, vh-rect.height-8));
+  if(y-rect.height-8<8)top=Math.min(y+8, vh-rect.height-8);
+  m.style.left=left+'px';m.style.top=top+'px';
+  if(navigator.vibrate)try{navigator.vibrate(15)}catch{}
+}
 
 /* ===== 🧹 중복 사업장 정리 (일회성 유틸) ===== */
 async function cleanDupBiz(){

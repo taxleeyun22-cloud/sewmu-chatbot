@@ -1,5 +1,7 @@
-// 관리자: 사용자 승인/거절/기장승인 관리
-const APPROVAL_STATUSES = ['pending', 'approved_client', 'approved_guest', 'rejected'];
+// 관리자: 사용자 승인/거절/기장승인/거래종료 관리
+// - pending/approved_client/approved_guest/rejected : 초기 가입 상태 관리
+// - terminated : 기존 거래 관계를 중간에 해지 (상담방도 모두 closed, 접근 차단)
+const APPROVAL_STATUSES = ['pending', 'approved_client', 'approved_guest', 'rejected', 'terminated'];
 
 import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
 
@@ -133,6 +135,11 @@ export async function onRequestPost(context) {
       if (!auth.owner) return ownerOnly();
       newStatus = 'rejected';
     }
+    else if (action === 'terminate') {
+      /* 거래 종료 — owner 전용. 상담방 모두 closed + 해당 사용자 접근 차단 */
+      if (!auth.owner) return ownerOnly();
+      newStatus = 'terminated';
+    }
     else if (action === 'pending') newStatus = 'pending';
     else return Response.json({ error: "invalid action" }, { status: 400 });
 
@@ -155,6 +162,25 @@ export async function onRequestPost(context) {
         `INSERT INTO audit_log (actor, action, entity_type, entity_id, before, after) VALUES (?, ?, 'user', ?, ?, ?)`
       ).bind(actor, 'approval_change', userId, prev?.approval_status || null, newStatus).run();
     } catch {}
+
+    /* 거래 종료 처리 — 해당 사용자가 속한 모든 활성 방 closed + 해당 사용자 left_at 마킹.
+       일반 관리자 멤버는 '종료된 방' 탭에서 계속 볼 수 있고, 거래처 본인은
+       my-rooms 조회 시 terminated 상태에 의해 접근 차단됨 (아래 my-rooms 쿼리 수정 참고) */
+    if (newStatus === 'terminated' && prev?.approval_status !== 'terminated') {
+      try {
+        const { results: rooms } = await db.prepare(
+          `SELECT rm.room_id FROM room_members rm
+           JOIN chat_rooms r ON rm.room_id = r.id
+           WHERE rm.user_id = ? AND rm.left_at IS NULL AND r.status = 'active'`
+        ).bind(userId).all();
+        for (const rm of (rooms || [])) {
+          try {
+            await db.prepare(`UPDATE chat_rooms SET status = 'closed' WHERE id = ?`).bind(rm.room_id).run();
+            await db.prepare(`UPDATE room_members SET left_at = ? WHERE room_id = ? AND user_id = ?`).bind(kst, rm.room_id, userId).run();
+          } catch {}
+        }
+      } catch {}
+    }
 
     /* 신규 approved_client 로 승급 시 자동 환영 메시지 (상담방 멤버인 경우만) */
     if (newStatus === 'approved_client' && prev?.approval_status !== 'approved_client') {

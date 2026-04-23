@@ -80,6 +80,7 @@
 <button id="uStClient" onclick="userStatus('approved_client')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">기장거래처 <span id="cClient">0</span></button>
 <button id="uStGuest" onclick="userStatus('approved_guest')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">일반승인 <span id="cGuest">0</span></button>
 <button id="uStRejected" onclick="userStatus('rejected')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">거절 <span id="cRejected">0</span></button>
+<button id="uStTerminated" onclick="userStatus('terminated')" title="거래가 종료된 거래처 — 상담방 모두 closed, 접근 차단됨" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">🚫 종료 <span id="cTerminated">0</span></button>
 <button id="uStAdmin" onclick="userStatus('admin')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500" title="is_admin=1 관리자 사용자">👑 관리자 <span id="cAdmin">0</span></button>
 <button onclick="openManualClientModal()" style="margin-left:auto;background:#10b981;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="OAuth 없이 관리자가 직접 거래처 생성 — 오프라인 고객·기존 거래처 마이그레이션용">➕ 수동 거래처</button>
 <button onclick="showBulkUpload()" style="background:#191f28;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📤 CSV 일괄 업로드</button>
@@ -718,7 +719,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=91"></script>
+<script src="/admin.js?v=92"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면
