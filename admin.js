@@ -300,7 +300,7 @@ function renderMsgBody(content, attachedDoc){
   if(p.image){
     /* 관리자 채널: 이미지 wrapper + 의심 배지 overlay (onload 휴리스틱) */
     h+='<span class="rc-img-wrap" style="position:relative;display:inline-block;line-height:0">'
-      +  '<img class="rc-img-msg" src="'+e(p.image)+'" alt="이미지" loading="lazy" style="display:inline-block;max-width:220px;max-height:300px;border-radius:10px;background:rgba(0,0,0,.06);object-fit:cover;cursor:zoom-in" onload="rcCheckDocSuspect(this)" onclick="openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">'
+      +  '<img class="rc-img-msg" src="'+e(p.image)+'" alt="이미지" loading="lazy" style="display:inline-block;max-width:220px;max-height:300px;border-radius:10px;background:rgba(0,0,0,.06);object-fit:cover;cursor:zoom-in" onload="rcCheckDocSuspect(this)" onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">'
       +  '<span class="rc-doc-badge" style="display:none;position:absolute;top:6px;right:6px;background:rgba(255,255,255,.92);border:1px solid #fcd34d;color:#92400e;font-size:.68em;font-weight:700;padding:2px 7px;border-radius:10px;line-height:1.4;box-shadow:0 1px 3px rgba(0,0,0,.15);pointer-events:none"></span>'
       +'</span>';
   }
@@ -1043,14 +1043,19 @@ function renderPhotoGroupAdmin(m){
   const showMax=Math.min(n,9);
   const allUrls=photos.slice(0,9).map(p=>p.url);
   const allUrlsJs=JSON.stringify(allUrls).replace(/"/g,'&quot;');
+  /* 꾹 누름(long-press)용 데이터: 각 타일이 독립 메시지라 자기 msgId 사용 */
+  const isAdvisor=m.role==='human_advisor';
+  const mineFlag=isAdvisor?1:0;
+  const canDel=isAdvisor?1:0;
+  const senderName=isAdvisor?'세무사':(m.real_name||m.name||'');
   let tiles='';
   for(let i=0;i<showMax;i++){
     const p=photos[i];
     const overlay=(n>9&&i===8)
       ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4em;font-weight:800">+'+(n-9)+'</div>'
       : '';
-    tiles+='<div style="position:relative;aspect-ratio:1/1;overflow:hidden;background:#f3f4f6;cursor:zoom-in" '
-      +'onclick="openImgViewer(\''+p.url+'\','+allUrlsJs+')">'
+    tiles+='<div class="rc-msg-bubble" data-msg="'+p.msgId+'" data-sender="'+escAttr(senderName)+'" data-text="[사진]" data-mine="'+mineFlag+'" data-deletable="'+canDel+'" data-kind="img" data-img-src="'+escAttr(p.url)+'" style="position:relative;aspect-ratio:1/1;overflow:hidden;background:#f3f4f6;cursor:zoom-in" '
+      +'onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer(\''+p.url+'\','+allUrlsJs+')">'
       +'<img src="'+p.url+'" alt="사진" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">'
       +overlay+'</div>';
   }
@@ -1217,7 +1222,13 @@ async function doCopyMsg(text){
     root.addEventListener('touchstart',function(e){
       const b=e.target.closest('.rc-msg-bubble');if(!b)return;
       const t=e.touches[0];lpX=t.clientX;lpY=t.clientY;
-      lpTimer=setTimeout(()=>{lpTimer=null;showMsgCtxMenu(b, lpX, lpY)}, 450);
+      lpTimer=setTimeout(()=>{
+        lpTimer=null;
+        /* 사진 타일 onclick(openImgViewer) 이 long-press 직후 같이 터지는 것 차단 */
+        window._lpJustFired=true;
+        setTimeout(function(){window._lpJustFired=false},600);
+        showMsgCtxMenu(b, lpX, lpY);
+      }, 450);
     },{passive:true});
     root.addEventListener('touchmove',function(e){
       if(lpTimer){

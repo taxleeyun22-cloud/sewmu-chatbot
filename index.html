@@ -2075,6 +2075,9 @@ async function doCopyMsg(text){
       var t=e.touches[0];lpX=t.clientX;lpY=t.clientY;
       lpTimer=setTimeout(function(){
         lpTimer=null;
+        /* 사진 타일 onclick(openImgViewer) 이 long-press 직후 같이 터지는 것 차단 */
+        window._lpJustFired=true;
+        setTimeout(function(){window._lpJustFired=false},600);
         showMsgCtxMenu(b, lpX, lpY);
       }, 450);
     },{passive:true});
@@ -2987,6 +2990,9 @@ function renderPhotoGroup(m, isMe, nm){
   /* 그리드: 1장 → 1열, 2장 → 2열, 3-4장 → 2×2, 5-9장 → 3×3 */
   var cols=n===1?1:(n<=4?2:3);
   var allUrlsJs=JSON.stringify(photos.map(function(p){return p.url}));
+  /* 꾹 누름(long-press)용 데이터: 각 타일이 독립 메시지라 자기 msgId 사용 */
+  var isAdvisor=m.role==='human_advisor';
+  var senderName=isAdvisor?'세무사':(isMe?'나':(nm||''));
   var tiles='';
   var showMax=n;
   for(var i=0;i<showMax;i++){
@@ -2995,8 +3001,14 @@ function renderPhotoGroup(m, isMe, nm){
     if(n>9&&i===8){
       overlay='<div style="position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4em;font-weight:800">+'+(n-9)+'</div>';
     }
-    tiles+='<div style="position:relative;aspect-ratio:1/1;overflow:hidden;background:#f3f4f6;cursor:zoom-in" '
-      +'onclick="openImgViewer(\''+p.url+'\','+allUrlsJs.replace(/"/g,'&quot;')+')">'
+    /* 내 사진은 5분 내만 삭제 가능 — 타일 단위로 계산 */
+    var _canDel=0;
+    if(isMe && p.createdAt){
+      var _elapsed=Date.now()-new Date(p.createdAt).getTime();
+      _canDel=_elapsed<5*60*1000?1:0;
+    }
+    tiles+='<div class="rc-msg-bubble" data-msg="'+p.msgId+'" data-sender="'+escAttr(senderName)+'" data-text="[사진]" data-mine="'+(isMe?1:0)+'" data-deletable="'+_canDel+'" data-kind="img" data-img-src="'+escAttr(p.url)+'" style="position:relative;aspect-ratio:1/1;overflow:hidden;background:#f3f4f6;cursor:zoom-in" '
+      +'onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer(\''+p.url+'\','+allUrlsJs.replace(/"/g,'&quot;')+')">'
       +'<img src="'+p.url+'" alt="사진" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">'
       +overlay+'</div>';
   }
@@ -3070,7 +3082,7 @@ function renderMessageBody(content, attachedDoc){
     return html;
   }
   if(parsed.image){
-    html+='<img class="rc-img-msg" src="'+parsed.image+'" alt="이미지" loading="lazy" onclick="openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">';
+    html+='<img class="rc-img-msg" src="'+parsed.image+'" alt="이미지" loading="lazy" onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">';
   }
   if(parsed.file){
     var nm=parsed.file.name||'파일';
