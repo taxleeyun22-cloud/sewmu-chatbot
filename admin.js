@@ -2061,6 +2061,77 @@ async function createRoom(){
   }catch(err){alert('오류: '+err.message)}
 }
 
+/* ===== 👥 상담방 참여자 관리 모달 ===== */
+async function openRoomMembersModal(){
+  if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
+  const m=$g('roomMembersModal');if(!m)return;
+  m.style.display='flex';
+  document.body.style.overflow='hidden';
+  const rn=$g('rmmRoomName');if(rn)rn.textContent=currentRoomId;
+  await _rmmLoad();
+}
+function closeRoomMembersModal(){
+  const m=$g('roomMembersModal');if(m)m.style.display='none';
+  document.body.style.overflow='';
+}
+async function _rmmLoad(){
+  const el=$g('rmmBody');if(!el)return;
+  el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
+    const d=await r.json();
+    const members=(d.members||[]).filter(m=>!m.left_at);
+    currentRoomMembers=members;
+    const admins=members.filter(m=>m.role==='admin');
+    const others=members.filter(m=>m.role!=='admin');
+    let html='';
+    html+='<div style="font-size:.76em;font-weight:700;color:#8b6914;margin:6px 2px 4px">👑 관리자 ('+admins.length+')</div>';
+    if(admins.length){
+      html+='<div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;overflow:hidden;margin-bottom:14px">'
+        +admins.map(function(m){
+          const nm=e(m.real_name||m.name||'이름없음');
+          const av=m.profile_image?'<img src="'+escAttr(m.profile_image)+'" style="width:32px;height:32px;border-radius:50%;object-fit:cover" alt="">':'<div style="width:32px;height:32px;border-radius:50%;background:#8b6914;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85em">'+(nm[0]||'?')+'</div>';
+          return '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #f2f4f6">'
+            +av
+            +'<div style="flex:1;min-width:0"><div style="font-size:.9em;font-weight:600">'+nm+(m.role==='admin'?' <span style="font-size:.7em;color:#8b6914">관리자</span>':'')+'</div>'
+            +(m.phone?'<div style="font-size:.72em;color:#8b95a1">'+e(m.phone)+'</div>':'')+'</div>'
+            +'</div>';
+        }).join('').replace(/border-bottom:1px solid #f2f4f6"><\/div>$/,'"></div>')
+        +'</div>';
+    }
+    html+='<div style="font-size:.76em;font-weight:700;color:#1e40af;margin:6px 2px 4px">🏢 거래처 참여자 ('+others.length+')</div>';
+    if(!others.length){
+      html+='<div style="padding:20px;text-align:center;color:#8b95a1;font-size:.82em;background:#fff;border:1px solid #e5e8eb;border-radius:10px">참여 중인 거래처가 없습니다. 아래 [＋ 참여자 초대] 로 추가하세요.</div>';
+    } else {
+      html+='<div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;overflow:hidden">'
+        +others.map(function(m){
+          const nm=e(m.real_name||m.name||'이름없음');
+          const safeName=escAttr(m.real_name||m.name||'');
+          const av=m.profile_image?'<img src="'+escAttr(m.profile_image)+'" style="width:32px;height:32px;border-radius:50%;object-fit:cover" alt="">':'<div style="width:32px;height:32px;border-radius:50%;background:#3182f6;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85em">'+(nm[0]||'?')+'</div>';
+          return '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #f2f4f6">'
+            +av
+            +'<div style="flex:1;min-width:0"><div style="font-size:.9em;font-weight:600;cursor:pointer" onclick="closeRoomMembersModal();openCustomerDashboard('+m.user_id+')">'+nm+' <span style="font-size:.7em;color:#3b82f6">📋</span></div>'
+            +(m.phone?'<div style="font-size:.72em;color:#8b95a1">'+e(m.phone)+'</div>':'')+'</div>'
+            +'<button onclick="removeRoomMember('+m.user_id+',\''+safeName.replace(/\'/g,'')+'\')" title="이 참여자를 상담방에서 내보내기" style="background:#fee2e2;color:#dc2626;border:none;padding:5px 10px;border-radius:6px;font-size:.75em;cursor:pointer;font-family:inherit;flex-shrink:0">🚪 내보내기</button>'
+            +'</div>';
+        }).join('')
+        +'</div>';
+    }
+    el.innerHTML=html;
+  }catch(err){el.innerHTML='<div style="color:#f04452;padding:20px;font-size:.85em">오류: '+e(err.message)+'</div>'}
+}
+async function removeRoomMember(userId, displayName){
+  if(!currentRoomId||!userId)return;
+  if(!confirm('🚪 '+(displayName||'이 참여자')+' 을(를) 이 상담방에서 내보냅니다.\n\n(거래처 자체는 유지, 이 방에서만 나가게 됩니다)\n계속할까요?'))return;
+  try{
+    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=remove_member',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId,user_id:userId})});
+    const d=await r.json();
+    if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
+    _rmmLoad();
+    if(typeof loadRoomDetail==='function')loadRoomDetail();
+  }catch(err){alert('오류: '+err.message)}
+}
+
 async function addMemberPrompt(){
   if(!currentRoomId)return;
   try{
