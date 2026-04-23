@@ -60,22 +60,19 @@ export async function onRequestGet(context) {
       counts.admin = a?.c || 0;
       return Response.json({ users: results, counts });
     }
-    /* is_admin=1 은 '👑 관리자' 탭 (status='admin') 에서만 보이게.
-       기장/일반/대기/거절 목록에서는 제외 → 관리자 승급된 세무사·직원이
-       기장거래처로 중복 노출되는 문제 해결 */
+    /* 목록 필터: is_admin 으로 숨기지 않음.
+       '거래처이면서 관리자' (예: 대표 본인) 가 실제 거래 기록이 있으면
+       기장거래처 탭에도, 👑 관리자 탭에도 양쪽 모두 노출되어야 함. */
     let query = `
       SELECT id, provider, name, real_name, email, phone, profile_image,
              approval_status, approved_at, created_at, last_login_at, name_confirmed, is_admin
       FROM users
     `;
     const binds = [];
-    const where = [];
     if (status && status !== 'all' && APPROVAL_STATUSES.includes(status)) {
-      where.push(`COALESCE(approval_status, 'pending') = ?`);
+      query += ` WHERE COALESCE(approval_status, 'pending') = ?`;
       binds.push(status);
     }
-    where.push(`COALESCE(is_admin, 0) = 0`);
-    query += ` WHERE ` + where.join(' AND ');
     query += ` ORDER BY created_at DESC LIMIT 200`;
 
     const { results } = await db.prepare(query).bind(...binds).all();

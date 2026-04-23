@@ -2375,6 +2375,23 @@ else alert('실패: '+(d.error||'unknown'));
 }catch(err){alert('오류: '+err.message)}
 }
 
+/* 상담방 헤더 ☰ → 🚫 거래 종료: 현재 방 멤버 중 role!='admin' 인 거래처 사장을 찾아 terminate */
+function terminateCurrentRoomClient(){
+  if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
+  const candidates=(currentRoomMembers||[]).filter(m=>!m.left_at && m.role!=='admin' && m.user_id);
+  if(!candidates.length){alert('이 방에 거래 종료 대상 거래처가 없습니다.\n(관리자만 있는 방이거나 이미 모두 나간 상태)');return}
+  let picked=candidates[0];
+  if(candidates.length>1){
+    const list=candidates.map((m,i)=>(i+1)+') '+(m.real_name||m.name||'user#'+m.user_id)).join('\n');
+    const choice=prompt('거래 종료할 거래처를 선택하세요:\n\n'+list+'\n\n번호 입력 (1~'+candidates.length+')','1');
+    if(choice===null)return;
+    const idx=parseInt(choice,10)-1;
+    if(!(idx>=0 && idx<candidates.length)){alert('잘못된 번호');return}
+    picked=candidates[idx];
+  }
+  terminateUser(picked.user_id, picked.real_name||picked.name||'');
+}
+
 /* 거래 종료 — 해당 사용자 접근 차단 + 모든 활성 방 closed */
 async function terminateUser(id, displayName){
   const nm=displayName||'이 거래처';

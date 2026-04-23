@@ -36,7 +36,7 @@
 <button id="tabLive" onclick="tab('live')" style="position:relative">📡 실시간<span id="liveBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
 <button id="tabRooms" onclick="tab('rooms')">💬 상담방</button>
 <button id="tabDocs" onclick="tab('docs')" style="position:relative">📄 문서<span id="docsPendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
-<button id="tabUsers" onclick="tab('users')">사용자<span id="pendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
+<button id="tabUsers" onclick="tab('users')">🏢 거래처<span id="pendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
 <button id="tabAnal" onclick="tab('anal')">분석</button>
 <button id="tabReview" onclick="tab('review')">검증 <span id="reviewBadge" style="display:none;background:#f04452;color:#fff;padding:1px 6px;border-radius:10px;font-size:.9em;margin-left:2px"></span></button>
 <button id="tabFaq" onclick="tab('faq')">📚 FAQ</button>
@@ -398,6 +398,7 @@
       <button onclick="renameRoom()" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">✏️ 이름</button>
       <button onclick="addMemberPrompt()" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">＋ 멤버</button>
       <button onclick="toggleRoomStatus()" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit" id="roomStatusBtn">종료</button>
+      <button onclick="terminateCurrentRoomClient()" title="이 상담방 거래처와의 거래 자체를 종료 — 상담방 모두 closed, 거래처 접근 차단" style="background:#fee2e2;color:#6b7280;border:1px solid #6b7280;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">🚫 거래 종료</button>
       <button onclick="deleteCurrentRoom()" style="background:#fee2e2;color:#f04452;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">🗑️ 삭제</button>
     </div>
     <!-- 멤버 라인: 기본 1줄로 축약, 클릭 시 전체 펼침 -->
@@ -719,7 +720,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=92"></script>
+<script src="/admin.js?v=93"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면
