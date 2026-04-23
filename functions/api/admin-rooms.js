@@ -725,6 +725,22 @@ export async function onRequestPost(context) {
 
     // ── 게시판: 삭제 ──
     // ── 메시지 삭제 (admin은 어떤 메시지든 삭제 가능) ──
+    /* 상담방 영구 삭제 — DELETE 메서드 막히는 프록시 대비 POST 경로 */
+    if (action === "delete_room") {
+      if (!auth.owner) return ownerOnly();
+      try {
+        await db.prepare(`DELETE FROM conversations WHERE room_id = ?`).bind(roomId).run();
+        await db.prepare(`DELETE FROM room_members WHERE room_id = ?`).bind(roomId).run();
+        try { await db.prepare(`DELETE FROM room_notices WHERE room_id = ?`).bind(roomId).run(); } catch {}
+        try { await db.prepare(`DELETE FROM room_summaries WHERE room_id = ?`).bind(roomId).run(); } catch {}
+        try { await db.prepare(`DELETE FROM memos WHERE room_id = ?`).bind(roomId).run(); } catch {}
+        await db.prepare(`DELETE FROM chat_rooms WHERE id = ?`).bind(roomId).run();
+        return Response.json({ ok: true });
+      } catch (e) {
+        return Response.json({ error: e.message }, { status: 500 });
+      }
+    }
+
     if (action === "delete_message") {
       const messageId = Number(body.message_id);
       if (!messageId) return Response.json({ error: "message_id required" }, { status: 400 });

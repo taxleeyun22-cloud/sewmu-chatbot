@@ -501,9 +501,14 @@ if(t==='faq'){loadFaqStatus();loadFaqs()}
 if(t==='docs')loadDocsTab();
 if(t==='live')startLivePolling();
 else stopLivePolling();
-if(t==='rooms'){_roomsMode='external';currentRoomId=null;startRoomsPolling()}
-else if(t==='internal'){_roomsMode='internal';currentRoomId=null;startRoomsPolling()}
-else stopRoomsPolling();
+/* 모드 전환 시 현재 열린 방이 성격이 다르면 해제, 같으면 유지 */
+if(t==='rooms'){
+  if(_roomsMode!=='external')currentRoomId=null;
+  _roomsMode='external';startRoomsPolling();
+} else if(t==='internal'){
+  if(_roomsMode!=='internal')currentRoomId=null;
+  _roomsMode='internal';startRoomsPolling();
+} else stopRoomsPolling();
 }
 
 /* ===== 상담방 (단톡방) ===== */
@@ -1995,22 +2000,34 @@ async function toggleRoomStatus(){
 
 async function deleteCurrentRoom(){
   if(!currentRoomId)return;
-  if(!confirm('이 상담방과 모든 대화기록을 영구 삭제합니다.\n(복구 불가)\n계속할까요?'))return;
+  if(!confirm('🗑️ 이 상담방과 모든 대화기록을 영구 삭제합니다.\n(대화·멤버·게시판·메시지 모두 삭제 · 복구 불가)\n계속할까요?'))return;
   if(!confirm('정말 삭제하시겠습니까? 마지막 확인입니다.'))return;
+  const rid=currentRoomId;
   try{
-    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+currentRoomId,{method:'DELETE'});
-    const d=await r.json();
-    if(d.ok){
-      currentRoomId=null;
-      $g('roomChatTitle').textContent='좌측 상담방을 선택하세요';
-      $g('roomMessages').innerHTML='';
-      $g('roomMembers').style.display='none';
-      $g('roomActions').style.display='none';
-      $g('roomInputArea').style.display='none';
-      $g('roomsLayout').classList.remove('show-chat');
-      if(roomMsgPollTimer)clearInterval(roomMsgPollTimer);
-      loadRoomList();
-    } else alert('실패: '+(d.error||'unknown'));
+    /* POST action=delete_room 우선 시도 — DELETE 메서드가 일부 프록시에서 막히는 경우 대비 */
+    let r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=delete_room',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rid})});
+    let d;
+    try{d=await r.json()}catch(_){d={error:'응답 파싱 실패 (HTTP '+r.status+')'}}
+    /* 서버가 action=delete_room 미지원이면 구 DELETE 방식 fallback */
+    if(!r.ok && (r.status===400||r.status===404)){
+      r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(rid),{method:'DELETE'});
+      try{d=await r.json()}catch(_){d={error:'응답 파싱 실패 (HTTP '+r.status+')'}}
+    }
+    if(!r.ok){
+      alert('삭제 실패 (HTTP '+r.status+'): '+(d.error||'unknown')+'\n권한: owner 전용입니다. 직원 계정이면 대표님께 요청하세요.');
+      return;
+    }
+    if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
+    currentRoomId=null;
+    try{$g('roomChatTitle').textContent='좌측 상담방을 선택하세요'}catch(_){}
+    try{$g('roomMessages').innerHTML=''}catch(_){}
+    try{$g('roomMembers').style.display='none'}catch(_){}
+    try{$g('roomActions').style.display='none'}catch(_){}
+    try{$g('roomInputArea').style.display='none'}catch(_){}
+    try{$g('roomsLayout').classList.remove('show-chat')}catch(_){}
+    if(roomMsgPollTimer)clearInterval(roomMsgPollTimer);
+    _adminShowToast('🗑️ 상담방 삭제됨');
+    loadRoomList();
   }catch(err){alert('오류: '+err.message)}
 }
 
