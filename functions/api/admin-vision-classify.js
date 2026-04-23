@@ -13,8 +13,38 @@ export async function onRequestPost(context) {
   let body = {};
   try { body = await context.request.json(); } catch {}
   const imageUrl = String(body.image_url || '').trim();
-  if (!imageUrl || !/^https?:\/\//.test(imageUrl)) {
-    return Response.json({ error: "image_url 필수 (http/https)" }, { status: 400 });
+  /* 내부 프록시(/api/image?k=...) 또는 외부 http(s) 모두 허용 */
+  const isInternal = /^\/api\/(image|file)\?k=/.test(imageUrl);
+  const isExternal = /^https?:\/\//.test(imageUrl);
+  if (!imageUrl || (!isInternal && !isExternal)) {
+    return Response.json({ error: "image_url 필수 (http/https 또는 /api/image?k=)" }, { status: 400 });
+  }
+
+  /* OpenAI Vision 은 외부 접근 가능한 URL 또는 data:base64 만 수용.
+     내부 프록시는 인증 쿠키 필요할 수 있어 서버에서 base64 로 변환해 전달 */
+  let imgForOpenAI = imageUrl;
+  if (isInternal) {
+    try {
+      const origin = new URL(context.request.url).origin;
+      /* 내부 fetch — Workers 에서 같은 도메인 호출. 세션 쿠키 전달 */
+      const cookie = context.request.headers.get('Cookie') || '';
+      const ir = await fetch(origin + imageUrl, { headers: cookie ? { Cookie: cookie } : {} });
+      if (!ir.ok) return Response.json({ error: "내부 이미지 접근 실패: " + ir.status }, { status: 500 });
+      const ct = ir.headers.get('content-type') || 'image/jpeg';
+      const buf = await ir.arrayBuffer();
+      if (buf.byteLength > 8 * 1024 * 1024) return Response.json({ error: "이미지 8MB 초과 — Vision 분석 불가" }, { status: 400 });
+      /* base64 인코딩 (chunk 로 call stack 회피) */
+      const u8 = new Uint8Array(buf);
+      let bin = '';
+      const CHUNK = 32768;
+      for (let i = 0; i < u8.length; i += CHUNK) {
+        bin += String.fromCharCode.apply(null, u8.subarray(i, i + CHUNK));
+      }
+      const b64 = btoa(bin);
+      imgForOpenAI = `data:${ct};base64,${b64}`;
+    } catch (e) {
+      return Response.json({ error: "이미지 변환 실패: " + e.message }, { status: 500 });
+    }
   }
 
   const prompt = `이 이미지가 아래 중 무엇인지 판정해. JSON만 출력.
@@ -48,7 +78,7 @@ confidence: 0.0~1.0 / summary: 20~40자 한국어 요약`;
           role: 'user',
           content: [
             { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: imageUrl, detail: 'low' } },
+            { type: 'image_url', image_url: { url: imgForOpenAI, detail: 'low' } },
           ],
         }],
       }),
