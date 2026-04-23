@@ -2478,7 +2478,8 @@ actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +(status!=='approved_guest'?'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#00c471;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 일반승인</button>':'')
 +(status!=='pending'?'<button onclick="approveUser('+u.id+',\'pending\')" style="background:#8b95a1;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 대기로</button>':'')
 +(status!=='rejected'?'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 거절</button>':'')
-+(status==='approved_client'||status==='approved_guest'?'<button onclick="terminateUser('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" title="거래 종료 — 상담방 모두 closed, 고객 접근 차단" style="background:#fff;color:#6b7280;border:1px solid #6b7280;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🚫 거래 종료</button>':'')
++(status==='approved_client'||status==='approved_guest'?'<button onclick="archiveClient('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" title="폐업 처리 — 방만 closed, 고객 접근·계정은 유지" style="background:#fff;color:#8b6914;border:1px solid #fcd34d;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">📦 폐업 처리</button>':'')
++(status==='approved_client'||status==='approved_guest'?'<button onclick="terminateUser('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" title="거래 종료(기장이관) — 상담방 모두 closed, 고객 접근 차단" style="background:#fff;color:#6b7280;border:1px solid #6b7280;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🚫 거래 종료</button>':'')
 +(status==='terminated'?'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🔄 거래 재개(기장)</button>':'')
 +adminBtn
 +'</div>';
@@ -2721,7 +2722,23 @@ function terminateCurrentRoomClient(){
   terminateUser(picked.user_id, picked.real_name||picked.name||'');
 }
 
-/* 거래 종료 — 해당 사용자 접근 차단 + 모든 활성 방 closed */
+/* 📦 폐업 처리 — 방만 closed. 접근은 유지 (가벼운 종료) */
+async function archiveClient(id, displayName){
+  const nm=displayName||'이 거래처';
+  if(!confirm('📦 '+nm+' 을(를) 폐업 처리합니다.\n\n- 이 거래처의 모든 상담방이 "종료" 로 변경됩니다\n- 계정·기장거래처 상태·앱 접근은 그대로 유지 (언제든 재가동 가능)\n- 업체(businesses) 도 status=closed\n\n계속할까요?'))return;
+  const reason=prompt('폐업 사유·메모 (선택):','')||null;
+  try{
+    const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id, action:'archive', reason:reason})});
+    const d=await r.json();
+    if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
+    alert('✅ 폐업 처리 완료\n상담방 '+(d.rooms_closed||0)+'개 / 업체 '+(d.businesses_closed||0)+'개 closed');
+    if(typeof loadUsers==='function')loadUsers(currentStatus);
+    if(typeof loadRoomList==='function')loadRoomList();
+    if(typeof loadBusinessList==='function' && _clientTabMode==='business')loadBusinessList();
+  }catch(err){alert('오류: '+err.message)}
+}
+
+/* 거래 종료(기장이관) — 해당 사용자 접근 차단 + 모든 활성 방 closed. owner 는 즉시, staff 는 요청 큐 */
 async function terminateUser(id, displayName){
   const nm=displayName||'이 거래처';
   if(!confirm('🚫 '+nm+' 와의 거래를 종료합니다.\n\n- 이 거래처의 모든 상담방이 "종료"로 변경됩니다\n- 해당 거래처는 앱에서 대화 내용을 더 이상 볼 수 없습니다\n- 관리자는 "🚫 종료" 탭에서 기록 관리 가능\n\n계속할까요?'))return;

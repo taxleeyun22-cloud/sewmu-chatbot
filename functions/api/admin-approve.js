@@ -141,6 +141,48 @@ export async function onRequestPost(context) {
 
     if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
 
+    /* 📦 폐업 처리 (archive) — 거래 종료보다 가볍게: 상담방만 closed,
+       사용자 approval_status·계정·접근 권한은 그대로 유지 */
+    if (action === 'archive') {
+      const kst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+      try {
+        const { results: rooms } = await db.prepare(
+          `SELECT rm.room_id FROM room_members rm
+           JOIN chat_rooms r ON rm.room_id = r.id
+           WHERE rm.user_id = ? AND rm.left_at IS NULL AND r.status = 'active' AND COALESCE(r.is_internal,0)=0`
+        ).bind(userId).all();
+        let closed = 0;
+        for (const rm of (rooms || [])) {
+          try {
+            await db.prepare(`UPDATE chat_rooms SET status = 'closed' WHERE id = ?`).bind(rm.room_id).run();
+            closed++;
+          } catch {}
+        }
+        /* 연결된 업체도 status='closed' 로 (있으면) */
+        let bizClosed = 0;
+        try {
+          const { results: bms } = await db.prepare(
+            `SELECT DISTINCT business_id FROM business_members WHERE user_id = ? AND removed_at IS NULL`
+          ).bind(userId).all();
+          for (const bm of (bms || [])) {
+            try { await db.prepare(`UPDATE businesses SET status = 'closed', updated_at = ? WHERE id = ?`).bind(kst, bm.business_id).run(); bizClosed++; } catch {}
+          }
+        } catch {}
+        /* 감사 로그 */
+        try {
+          await db.prepare(`INSERT INTO audit_log (actor, action, entity_type, entity_id, before, after) VALUES (?, 'archive', 'user', ?, ?, ?)`).bind(
+            auth.owner ? 'owner' : ('staff#' + (auth.userId || '?')),
+            userId,
+            JSON.stringify({ reason }),
+            JSON.stringify({ rooms_closed: closed, businesses_closed: bizClosed })
+          ).run();
+        } catch {}
+        return Response.json({ ok: true, archived: true, rooms_closed: closed, businesses_closed: bizClosed, note: '방만 closed. 사용자 계정·접근 권한은 유지됩니다.' });
+      } catch (e) {
+        return Response.json({ error: e.message }, { status: 500 });
+      }
+    }
+
     let newStatus;
     if (action === 'approve_client') newStatus = 'approved_client';
     else if (action === 'approve_guest') newStatus = 'approved_guest';
