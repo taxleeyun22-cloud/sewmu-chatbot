@@ -313,6 +313,7 @@ export async function onRequestGet(context) {
              (SELECT COUNT(*) FROM room_members WHERE room_id = r.id AND left_at IS NULL) as member_count,
              (SELECT COUNT(*) FROM conversations WHERE room_id = r.id) as msg_count,
              (SELECT COUNT(*) FROM conversations WHERE room_id = r.id AND role = 'user') as user_msg_count,
+             (SELECT COUNT(*) FROM conversations WHERE room_id = r.id AND role != 'human_advisor') as non_advisor_msg_count,
              (SELECT MAX(created_at) FROM conversations WHERE room_id = r.id AND role = 'user') as last_user_msg_at,
              (SELECT MAX(created_at) FROM conversations WHERE room_id = r.id) as last_msg_at,
              (SELECT content FROM conversations WHERE room_id = r.id AND (deleted_at IS NULL) ORDER BY created_at DESC LIMIT 1) as last_msg_content,

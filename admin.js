@@ -553,6 +553,9 @@ function stopRoomsPolling(){
   roomsPollTimer=null;roomMsgPollTimer=null;
 }
 
+function _adminRoomSeenRaw(roomId){
+  try{return localStorage.getItem('aread.'+roomId)}catch{return null}
+}
 function _adminRoomReadCount(roomId){
   try{const v=localStorage.getItem('aread.'+roomId);return v==null?0:Number(v)||0}catch{return 0}
 }
@@ -622,9 +625,18 @@ async function loadRoomList(){
       if(currentRoomId===rm.id)cls.push('active');
       if(rm.status==='closed')cls.push('closed');
       const aiIcon=rm.ai_mode==='off'?'🙅':'🤖';
-      const userCount=Number(rm.user_msg_count||0);
+      /* 미읽음 기준: 세무사(human_advisor) 가 보낸 것 외 전부 (고객 + AI).
+         사용자 피드백: user 메시지만 세면 AI 답변만 있는 방은 뱃지가 안 떠서 놓침 */
+      const userCount=Number(rm.non_advisor_msg_count||rm.user_msg_count||0);
       const seen=_adminRoomReadCount(rm.id);
-      let unread=Math.max(0, userCount - seen);
+      /* 첫 접속(seen=null) 시 과거 전부를 미읽음으로 보지 않도록 — 그 시점 기준값을 자동 저장
+         = "앱 처음 연 시점까지는 본 것으로 간주" */
+      if(_adminRoomSeenRaw(rm.id)===null){
+        _adminRoomMarkRead(rm.id, userCount);
+      }
+      let unread=Math.max(0, userCount - (seen||0));
+      /* 세션 첫 로드 때 바로 세팅된 방은 unread=0 이어야 함 */
+      if(_adminRoomSeenRaw(rm.id)===null) unread=0;
       if(currentRoomId===rm.id) unread=0;
       totalUnread+=unread;
       const badge=unread>0?'<span class="ri-unread" style="background:#f04452;color:#fff;border-radius:11px;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;font-size:.7em;font-weight:800;flex-shrink:0">'+(unread>99?'99+':unread)+'</span>':'';
@@ -706,10 +718,10 @@ async function loadRoomList(){
         }
       }
     }catch{}
-    /* 현재 열려있는 방의 user_msg_count를 읽음 마킹 */
+    /* 현재 열려있는 방은 미읽음 마킹 — non_advisor_msg_count (우선) */
     if(currentRoomId){
       const cur=d.rooms.find(rm=>rm.id===currentRoomId);
-      if(cur)_adminRoomMarkRead(currentRoomId, cur.user_msg_count||0);
+      if(cur)_adminRoomMarkRead(currentRoomId, cur.non_advisor_msg_count||cur.user_msg_count||0);
     }
     /* PC 알림 — 새 고객 메시지 감지 */
     _detectNewMessagesForNotify(d.rooms);
@@ -1147,6 +1159,7 @@ function showMsgCtxMenu(bubbleEl, x, y){
   const hasContent = !!text || kind!=='text';
   if(hasContent)items+='<button class="msg-ctx-item" onclick="doReplyFromMenu()">↩︎ 답장</button>';
   if(hasContent)items+='<button class="msg-ctx-item" onclick="doCopyFromMenu()">📋 복사</button>';
+  if(mid)items+='<button class="msg-ctx-item" onclick="doToggleBookmark('+mid+')">⭐ 북마크</button>';
   /* 관리자는 누구 메시지든 영수증으로 변환 가능 */
   if(kind==='img'||kind==='file'){
     items+='<button class="msg-ctx-item" onclick="convertMsgToReceiptAdmin('+mid+')">🧾 영수증으로 변환</button>';
@@ -1781,9 +1794,11 @@ function switchRiTab(t){
   $g('riLinkPanel').style.display=t==='link'?'block':'none';
   $g('riFilePanel').style.display=t==='file'?'block':'none';
   $g('riNoticePanel').style.display=t==='notice'?'block':'none';
+  const bm=$g('riBookmarkPanel'); if(bm)bm.style.display=t==='bookmark'?'block':'none';
   if(t==='search')setTimeout(function(){$g('riSearchInput').focus()},100);
   if(t==='file')loadRoomFiles();
   if(t==='notice')loadRoomNotices();
+  if(t==='bookmark')loadRoomBookmarks();
 }
 function onRiSearchInput(){
   if(riSearchTimer)clearTimeout(riSearchTimer);
@@ -6009,6 +6024,70 @@ async function saveBlobAs(blob, suggestedName, mimeType){
   a.download=suggestedName;
   document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},200);
+}
+
+/* ===== ⭐ 메시지 북마크 (#6) ===== */
+async function doToggleBookmark(messageId){
+  if(!currentRoomId||!messageId){hideMsgCtxMenu();return}
+  hideMsgCtxMenu();
+  /* 이미 북마크인지 확인하려고 목록 조회 — 작은 방이라 OK. 큰 방은 개선 여지 */
+  try{
+    const listR=await fetch('/api/admin-bookmark?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
+    const listD=await listR.json();
+    const exists=(listD.items||[]).some(it=>Number(it.message_id)===Number(messageId));
+    if(exists){
+      const r=await fetch('/api/admin-bookmark?key='+encodeURIComponent(KEY)+'&action=remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message_id:messageId})});
+      const d=await r.json();
+      if(d.ok)_adminShowToast('⭐ 북마크 해제');
+      else alert('실패: '+(d.error||'unknown'));
+    } else {
+      const r=await fetch('/api/admin-bookmark?key='+encodeURIComponent(KEY)+'&action=add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId, message_id:messageId})});
+      const d=await r.json();
+      if(d.ok)_adminShowToast('⭐ 북마크 저장');
+      else alert('실패: '+(d.error||'unknown'));
+    }
+    /* 현재 열린 북마크 패널이면 목록 새로고침 */
+    const bm=document.getElementById('riBookmarkPanel');
+    if(bm && bm.style.display!=='none')loadRoomBookmarks();
+  }catch(err){alert('오류: '+err.message)}
+}
+async function loadRoomBookmarks(){
+  const el=$g('riBookmarkList');if(!el||!currentRoomId)return;
+  el.innerHTML='<div style="text-align:center;color:#8b95a1;font-size:.8em;padding:30px 0">불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/admin-bookmark?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
+    const d=await r.json();
+    const items=(d.items||[]).filter(it=>it.content!=null);
+    if(!items.length){el.innerHTML='<div style="text-align:center;color:#8b95a1;font-size:.8em;padding:30px 0">북마크한 메시지가 없습니다.<br>메시지를 꾹 누르면 "⭐ 북마크" 메뉴가 나옵니다.</div>';return}
+    el.innerHTML=items.map(function(it){
+      const who=it.role==='human_advisor'?'👨‍💼 세무사':it.role==='assistant'?'🤖 AI':'👤 '+(it.real_name||it.name||'사용자');
+      let content=String(it.content||'');
+      const imgMatch=content.match(/^\[IMG\]\S+\n?([\s\S]*)$/);
+      if(imgMatch)content='[사진] '+imgMatch[1];
+      const fileMatch=content.match(/^\[FILE\](\{[^\n]+\})\n?([\s\S]*)$/);
+      if(fileMatch){try{const o=JSON.parse(fileMatch[1]);content='[파일] '+(o.name||'')+' '+(fileMatch[2]||'')}catch{}}
+      const preview=e(content).slice(0,200);
+      return '<div style="padding:10px 12px;background:#fff;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:8px;display:flex;gap:8px">'
+        +'<div style="flex:1;min-width:0;cursor:pointer" onclick="jumpFromBookmark('+it.message_id+')" title="클릭하면 원본 메시지로 이동">'
+        +'<div style="font-size:.72em;color:#8b95a1;margin-bottom:4px">'+who+' · '+e(it.created_at||'')+' · <span style="color:#3182f6">↗ 이동</span></div>'
+        +'<div style="font-size:.85em;color:#191f28;white-space:pre-wrap;word-break:break-word">'+preview+'</div>'
+        +'</div>'
+        +'<button onclick="removeBookmark('+it.message_id+')" style="background:#fee2e2;color:#f04452;border:none;padding:4px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit;flex-shrink:0;align-self:flex-start">해제</button>'
+        +'</div>';
+    }).join('');
+  }catch(err){el.innerHTML='<div style="color:#f04452;font-size:.8em;padding:20px">오류: '+e(err.message)+'</div>'}
+}
+async function removeBookmark(messageId){
+  try{
+    const r=await fetch('/api/admin-bookmark?key='+encodeURIComponent(KEY)+'&action=remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message_id:messageId})});
+    const d=await r.json();
+    if(d.ok)loadRoomBookmarks();
+    else alert('실패: '+(d.error||'unknown'));
+  }catch(err){alert('오류: '+err.message)}
+}
+function jumpFromBookmark(mid){
+  const m=$g('roomInfoModal');if(m)m.style.display='none';
+  setTimeout(function(){if(typeof jumpToOriginalMsgAdmin==='function')jumpToOriginalMsgAdmin(String(mid))},80);
 }
 
 /* ===== 🕒 예약 발송 (#4) ===== */

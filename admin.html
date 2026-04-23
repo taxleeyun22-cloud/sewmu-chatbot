@@ -457,6 +457,7 @@
       <button class="ri-tab" data-tab="file" onclick="switchRiTab('file')"><span class="ri-tab-ic">📁</span><span class="ri-tab-lb">파일</span></button>
       <button class="ri-tab" data-tab="link" onclick="switchRiTab('link')"><span class="ri-tab-ic">🔗</span><span class="ri-tab-lb">링크</span></button>
       <button class="ri-tab" data-tab="notice" onclick="switchRiTab('notice')"><span class="ri-tab-ic">📌</span><span class="ri-tab-lb">게시판</span></button>
+      <button class="ri-tab" data-tab="bookmark" onclick="switchRiTab('bookmark')"><span class="ri-tab-ic">⭐</span><span class="ri-tab-lb">북마크</span></button>
     </div>
     <div style="flex:1;overflow-y:auto;background:#f9fafb">
       <!-- 검색 패널 -->
@@ -486,6 +487,12 @@
           <button onclick="openNoticeForm(null)" style="background:#3182f6;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">＋ 공지 작성</button>
         </div>
         <div id="riNoticeList" style="padding:10px 12px"></div>
+      </div>
+      <!-- 북마크 패널 -->
+      <div id="riBookmarkPanel" class="ri-panel" style="display:none">
+        <div id="riBookmarkList" style="padding:10px 12px">
+          <div style="text-align:center;color:#8b95a1;font-size:.8em;padding:30px 0">불러오는 중...</div>
+        </div>
       </div>
     </div>
   </div>
@@ -710,7 +717,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=88"></script>
+<script src="/admin.js?v=89"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면
