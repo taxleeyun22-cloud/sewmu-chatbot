@@ -2441,9 +2441,9 @@ const todayCnt=u.today_count||0;
 /* 🏢 고객이 직접 요청한 업체 등록 정보 — 대기 탭에서 승인 판단에 활용 */
 const reqInfo=(u.requested_company_name||u.requested_business_number||u.requested_role)
   ? '<div style="margin-top:6px;padding:7px 10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;font-size:.76em;color:#0c4a6e">'
-    +'📝 고객 요청: '
-    +(u.requested_company_name?'<b>'+e(u.requested_company_name)+'</b>':'')
-    +(u.requested_business_number?' <span style="color:#4b5563">· '+e(u.requested_business_number)+'</span>':'')
+    +'📝 본인 제출 회사정보 · '
+    +(u.requested_company_name?'<b>회사명:</b> '+e(u.requested_company_name):'')
+    +(u.requested_business_number?' <span style="color:#4b5563">· <b>사업자번호:</b> '+e(u.requested_business_number)+'</span>':'')
     +(u.requested_role?' <span style="background:'+(u.requested_role==='대표자'?'#fef3c7':'#e0f2fe')+';color:'+(u.requested_role==='대표자'?'#92400e':'#075985')+';padding:1px 6px;border-radius:4px;margin-left:4px;font-weight:700">'+e(u.requested_role)+'</span>':'')
     +(u.requested_at?' <span style="color:#9ca3af;font-size:.9em">· '+e(String(u.requested_at).substring(5,16))+'</span>':'')
     +'</div>'

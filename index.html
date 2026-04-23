@@ -572,10 +572,10 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       <div class="mp-item-arrow">›</div>
     </div>
     <div class="mp-item" onclick="openCompanyRequestModal()">
-      <div class="mp-item-icon">📝</div>
+      <div class="mp-item-icon">🏢</div>
       <div class="mp-item-main">
-        <div class="mp-item-label">업체 등록 요청 (세무사에게)</div>
-        <div class="mp-item-value" id="mpCompanyReqValue">아직 등록 요청 안 함</div>
+        <div class="mp-item-label">내 회사 정보 등록 (세무사 확인용)</div>
+        <div class="mp-item-value" id="mpCompanyReqValue">아직 등록 안 함</div>
       </div>
       <div class="mp-item-arrow">›</div>
     </div>
@@ -907,25 +907,26 @@ mark{background:#fef3c7;color:inherit;padding:0 2px;border-radius:2px}
 </style>
 
 
-<!-- 📝 업체 등록 요청 모달 (고객 → 세무사에게 자기 소개) -->
+<!-- 🏢 내 회사 정보 등록 모달 (고객 → 세무사에게 자기 소개) -->
 <div id="companyRequestModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--bg);color:var(--text);border-radius:16px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-      <div style="font-weight:700;font-size:1em">📝 업체 등록 요청</div>
+      <div style="font-weight:700;font-size:1em">🏢 내 회사 정보 등록</div>
       <button onclick="closeCompanyRequestModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--text2)">✕</button>
     </div>
     <div style="padding:18px 20px">
-      <div style="font-size:.82em;color:var(--text2);margin-bottom:14px;line-height:1.5">여기 정보를 입력해두시면 세무사님이 승인하실 때 자동으로 <b>업체 등록·구성원 연결</b>이 진행됩니다.<br>정확히 기재해주세요.</div>
-      <label style="display:block;font-size:.8em;font-weight:600;margin-bottom:4px">상호 (회사명) *</label>
-      <input id="cprName" type="text" placeholder="예) 박승호 치킨집" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:.9em;font-family:inherit;background:var(--card);color:var(--text);box-sizing:border-box;margin-bottom:12px">
+      <div style="font-size:.82em;color:var(--text2);margin-bottom:14px;line-height:1.5">사장님 <b>회사 정보</b>를 입력해 주세요. 세무사님이 확인 후 기장 등록·구성원 연결이 진행됩니다.<br>⚠️ <b>본인 이름 말고 회사명</b>을 적어야 합니다.</div>
+      <label style="display:block;font-size:.8em;font-weight:600;margin-bottom:4px">회사명 (상호) *</label>
+      <input id="cprName" type="text" placeholder="예) 온나플러스(주), ○○카페, ○○상사" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:.9em;font-family:inherit;background:var(--card);color:var(--text);box-sizing:border-box;margin-bottom:4px">
+      <div style="font-size:.72em;color:var(--text2);margin-bottom:12px">사업자등록증에 찍혀있는 상호. 사람 이름은 아래 "내 이름"에 이미 등록돼 있어요.</div>
       <label style="display:block;font-size:.8em;font-weight:600;margin-bottom:4px">사업자등록번호 (선택)</label>
       <input id="cprBiz" type="text" placeholder="예) 123-45-67890" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:.9em;font-family:inherit;background:var(--card);color:var(--text);box-sizing:border-box;margin-bottom:12px">
-      <label style="display:block;font-size:.8em;font-weight:600;margin-bottom:6px">역할 *</label>
+      <label style="display:block;font-size:.8em;font-weight:600;margin-bottom:6px">내 역할 *</label>
       <div style="display:flex;gap:14px;margin-bottom:6px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:.9em;cursor:pointer"><input type="radio" name="cprRole" value="대표자"> 대표자</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:.9em;cursor:pointer"><input type="radio" name="cprRole" value="대표자"> 대표자 (사장)</label>
         <label style="display:flex;align-items:center;gap:6px;font-size:.9em;cursor:pointer"><input type="radio" name="cprRole" value="담당자" checked> 담당자 (경리·직원 등)</label>
       </div>
-      <div style="font-size:.72em;color:var(--text2);margin-bottom:14px">대표자는 사장님 본인, 담당자는 사장 대신 업무 보는 분 (경리·배우자·직원 등)</div>
+      <div style="font-size:.72em;color:var(--text2);margin-bottom:14px">대표자는 사장님 본인, 담당자는 사장 대신 업무 보는 분</div>
     </div>
     <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;background:var(--card)">
       <button onclick="closeCompanyRequestModal()" style="background:var(--card);border:1px solid var(--border);padding:9px 16px;border-radius:8px;font-size:.88em;cursor:pointer;font-family:inherit;color:var(--text)">취소</button>
@@ -3664,7 +3665,7 @@ async function submitCompanyRequest(){
     var r=await fetch('/api/my-company-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:name,business_number:bn,role:role})});
     var d=await r.json();
     if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
-    alert('✅ 업체 등록 요청이 세무사님께 전달됐습니다.\n승인되면 알림이 갑니다.');
+    alert('✅ 회사 정보가 세무사님께 전달됐습니다.\n승인되면 알림이 갑니다.');
     closeCompanyRequestModal();
     loadMyCompanyRequest();
   }catch(err){alert('오류: '+err.message)}
