@@ -148,25 +148,29 @@ function _mentionOnKeydown(input, ev){
 
 /* [REPLY]{json}\n, [IMG], [FILE], [DOC:id] 프리픽스 파싱 */
 function parseMsg(content){
-  if(!content)return {reply:null,image:null,file:null,doc_id:null,alert:null,text:''};
+  if(!content)return {reply:null,image:null,file:null,doc_id:null,alert:null,chatbot_share:null,text:''};
   let reply=null;
   const mr=/^\[REPLY\](\{[^\n]+\})\n([\s\S]*)$/.exec(content);
   if(mr){
     try{reply=JSON.parse(mr[1]);content=mr[2]}catch{}
   }
+  const mc=/^\[CHATBOT_SHARE\](\{[\s\S]+\})$/.exec(content);
+  if(mc){
+    try{return {reply:reply,image:null,file:null,doc_id:null,alert:null,chatbot_share:JSON.parse(mc[1]),text:''}}catch{}
+  }
   const ma=/^\[ALERT\](\{[\s\S]+\})$/.exec(content);
   if(ma){
-    try{return {reply:reply,image:null,file:null,doc_id:null,alert:JSON.parse(ma[1]),text:''}}catch{}
+    try{return {reply:reply,image:null,file:null,doc_id:null,alert:JSON.parse(ma[1]),chatbot_share:null,text:''}}catch{}
   }
   const md=/^\[DOC:(\d+)\](\n([\s\S]*))?$/.exec(content);
-  if(md)return {reply:reply,image:null,file:null,doc_id:parseInt(md[1],10),alert:null,text:md[3]||''};
+  if(md)return {reply:reply,image:null,file:null,doc_id:parseInt(md[1],10),alert:null,chatbot_share:null,text:md[3]||''};
   const mf=/^\[FILE\](\{[^\n]+\})(\n([\s\S]*))?$/.exec(content);
   if(mf){
-    try{const obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,doc_id:null,alert:null,text:mf[3]||''}}catch{}
+    try{const obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,doc_id:null,alert:null,chatbot_share:null,text:mf[3]||''}}catch{}
   }
   const m=/^\[IMG\](\S+)(\n([\s\S]*))?$/.exec(content);
-  if(m)return {reply:reply,image:m[1],file:null,doc_id:null,alert:null,text:m[3]||''};
-  return {reply:reply,image:null,file:null,doc_id:null,alert:null,text:content};
+  if(m)return {reply:reply,image:m[1],file:null,doc_id:null,alert:null,chatbot_share:null,text:m[3]||''};
+  return {reply:reply,image:null,file:null,doc_id:null,alert:null,chatbot_share:null,text:content};
 }
 
 /* 영수증 카드 렌더링 — 세무사측 (승인/반려 버튼 포함) */
@@ -261,6 +265,21 @@ function renderMsgBody(content, attachedDoc){
   if(p.reply){
     const s=p.reply.s||'', t=(p.reply.t||'').slice(0,100), ji=p.reply.i||'';
     h+='<div class="rc-quote" data-jump-mid="'+escAttr(String(ji))+'" onclick="jumpToOriginalMsgAdmin(\''+escAttr(String(ji))+'\')" style="cursor:pointer"><div class="rc-quote-sender">↩︎ '+e(s)+'</div><div class="rc-quote-text">'+e(t)+'</div></div>';
+  }
+  if(p.chatbot_share){
+    const cs=p.chatbot_share;
+    h+='<div style="border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;overflow:hidden;min-width:260px;max-width:400px">'
+      +'<div style="padding:6px 10px;background:#dbeafe;color:#1e40af;font-size:.72em;font-weight:700;display:flex;align-items:center;gap:4px">🤖 챗봇 Q&A 공유 (고객이 챗봇에서 물어봄)</div>'
+      +'<div style="padding:8px 10px;border-bottom:1px dashed #bfdbfe">'
+      +'<div style="font-size:.7em;color:#3b82f6;font-weight:700;margin-bottom:2px">Q</div>'
+      +'<div style="font-size:.88em;color:#1e3a8a;line-height:1.45;white-space:pre-wrap;word-break:break-word">'+e(String(cs.q||'').slice(0,400))+'</div>'
+      +'</div>'
+      +'<div style="padding:8px 10px">'
+      +'<div style="font-size:.7em;color:#3b82f6;font-weight:700;margin-bottom:2px">A (AI 답변)</div>'
+      +'<div style="font-size:.85em;color:#1e293b;line-height:1.5;white-space:pre-wrap;word-break:break-word">'+e(String(cs.a||'').slice(0,1500))+'</div>'
+      +'</div>'
+      +'</div>';
+    return h;
   }
   if(p.alert){
     const a=p.alert;

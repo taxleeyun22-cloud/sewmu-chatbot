@@ -1162,11 +1162,72 @@ async function sendMessage(){
         if(!streamStarted)hideDots();
         if(bubble)bubble.removeAttribute("id");
         messages.push({role:"assistant",content:fullText});
+        /* 📤 상담방 공유 버튼 — 마지막 user 질문 + 이번 AI 답변 묶어서 전송 */
+        if(msgDiv && fullText){
+          const lastUserMsg = [...messages].reverse().find((m,i)=>i>0 && m.role==='user');
+          const q = lastUserMsg ? lastUserMsg.content : t;
+          _attachChatbotShareBtn(msgDiv, q, fullText);
+        }
     }catch(e){hideDots();add("ai","오류가 발생했습니다: "+e.message)}
     finally{loading=false;document.getElementById("sendBtn").disabled=false;i.focus()}
 }
 
 function askQuick(b){document.getElementById("userInput").value=b.textContent;sendMessage()}
+
+/* ===== 📤 챗봇 Q&A → 내 상담방에 공유 =====
+   마지막 질문·답변을 사용자의 기장 상담방에 [CHATBOT_SHARE] 포맷으로 전송.
+   상담방 렌더에서 특수 카드로 표시. */
+function _attachChatbotShareBtn(msgDiv, question, answer){
+  try{
+    const wrap = msgDiv.querySelector('.msg-wrap');
+    if(!wrap)return;
+    /* 이미 붙어있으면 skip */
+    if(wrap.querySelector('.chatbot-share-btn'))return;
+    const btn = document.createElement('button');
+    btn.className = 'chatbot-share-btn';
+    btn.innerHTML = '📤 상담방에 공유';
+    btn.style.cssText = 'margin-top:6px;background:none;border:1px dashed #3182f6;color:#3182f6;padding:4px 10px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;align-self:flex-start';
+    btn.onclick = ()=>shareChatbotToRoom(question, answer, btn);
+    wrap.appendChild(btn);
+  }catch{}
+}
+async function shareChatbotToRoom(question, answer, btn){
+  if(!question || !answer){alert('공유할 내용이 없습니다');return}
+  /* 상담방 목록 먼저 조회 */
+  try{
+    const r = await fetch('/api/my-rooms');
+    const d = await r.json();
+    const rooms = (d.rooms||[]).filter(rm=>rm.status==='active');
+    if(!rooms.length){
+      alert('현재 이용 가능한 상담방이 없습니다.\n기장거래처 승급 후 이용 가능합니다.');
+      return;
+    }
+    /* 여러 개면 첫 번째 (최근 활성 방) */
+    const roomId = rooms[0].id;
+    if(btn){btn.disabled=true;btn.style.opacity='.6';btn.textContent='📤 전송 중...'}
+    const marker = '[CHATBOT_SHARE]' + JSON.stringify({
+      q: String(question).slice(0, 1000),
+      a: String(answer).slice(0, 3000),
+      t: Date.now(),
+    });
+    const send = await fetch('/api/my-rooms?action=send', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ room_id: roomId, content: marker })
+    });
+    const sj = await send.json();
+    if(!sj.ok){
+      alert('공유 실패: ' + (sj.error||'unknown'));
+      if(btn){btn.disabled=false;btn.style.opacity='';btn.textContent='📤 상담방에 공유'}
+      return;
+    }
+    if(btn){btn.textContent='✅ 공유됨';btn.style.borderColor='#10b981';btn.style.color='#10b981';setTimeout(()=>{btn.textContent='📤 다시 공유';btn.disabled=false;btn.style.opacity='';btn.style.borderColor='#3182f6';btn.style.color='#3182f6'},2000)}
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('📤 상담방으로 공유됨');
+  }catch(err){
+    alert('오류: '+err.message);
+    if(btn){btn.disabled=false;btn.style.opacity='';btn.textContent='📤 상담방에 공유'}
+  }
+}
 
 async function resetChat(){
     if(!confirm('대화창을 초기화합니다.\n(DB엔 보관되어 나중에 "대화 복구" 버튼으로 되돌릴 수 있어요)\n계속할까요?'))return;
@@ -2652,26 +2713,30 @@ async function sendOneLegacyImage(file){
 
 /* content가 [IMG]url\n text 형식이면 분리해서 반환 */
 function parseMessageContent(content){
-  if(!content)return {reply:null,image:null,file:null,doc_id:null,alert:null,text:''};
+  if(!content)return {reply:null,image:null,file:null,doc_id:null,alert:null,chatbot_share:null,text:''};
   /* [REPLY]{json}\n... 접두사 먼저 제거 */
   var reply=null;
   var mr=/^\[REPLY\](\{[^\n]+\})\n([\s\S]*)$/.exec(content);
   if(mr){
     try{reply=JSON.parse(mr[1]);content=mr[2]}catch(e){}
   }
+  var mc=/^\[CHATBOT_SHARE\](\{[\s\S]+\})$/.exec(content);
+  if(mc){
+    try{return {reply:reply,image:null,file:null,doc_id:null,alert:null,chatbot_share:JSON.parse(mc[1]),text:''}}catch(e){}
+  }
   var ma=/^\[ALERT\](\{[\s\S]+\})$/.exec(content);
   if(ma){
-    try{return {reply:reply,image:null,file:null,doc_id:null,alert:JSON.parse(ma[1]),text:''}}catch(e){}
+    try{return {reply:reply,image:null,file:null,doc_id:null,alert:JSON.parse(ma[1]),chatbot_share:null,text:''}}catch(e){}
   }
   var md=/^\[DOC:(\d+)\](\n([\s\S]*))?$/.exec(content);
-  if(md)return {reply:reply,image:null,file:null,doc_id:parseInt(md[1],10),alert:null,text:md[3]||''};
+  if(md)return {reply:reply,image:null,file:null,doc_id:parseInt(md[1],10),alert:null,chatbot_share:null,text:md[3]||''};
   var mf=/^\[FILE\](\{[^\n]+\})(\n([\s\S]*))?$/.exec(content);
   if(mf){
-    try{var obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,doc_id:null,alert:null,text:mf[3]||''}}catch(e){}
+    try{var obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,doc_id:null,alert:null,chatbot_share:null,text:mf[3]||''}}catch(e){}
   }
   var m=/^\[IMG\](\S+)(\n([\s\S]*))?$/.exec(content);
-  if(m)return {reply:reply,image:m[1],file:null,doc_id:null,alert:null,text:m[3]||''};
-  return {reply:reply,image:null,file:null,doc_id:null,alert:null,text:content};
+  if(m)return {reply:reply,image:m[1],file:null,doc_id:null,alert:null,chatbot_share:null,text:m[3]||''};
+  return {reply:reply,image:null,file:null,doc_id:null,alert:null,chatbot_share:null,text:content};
 }
 
 /* 영수증 카드 렌더링 (msg.document 서버에서 JOIN해서 내려옴) */
@@ -2918,6 +2983,21 @@ function renderMessageBody(content, attachedDoc){
       +  '<div style="font-size:.82em;color:#78350f;line-height:1.4">'+esc(a.m||'')+'</div>'
       +  (a.d?'<div style="font-size:.72em;color:#a16207;margin-top:4px">📅 '+esc(a.d)+'</div>':'')
       +'</div></div>';
+    return html;
+  }
+  if(parsed.chatbot_share){
+    var cs=parsed.chatbot_share;
+    html+='<div style="border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;overflow:hidden;min-width:240px;max-width:360px">'
+      +'<div style="padding:6px 10px;background:#dbeafe;color:#1e40af;font-size:.72em;font-weight:700;display:flex;align-items:center;gap:4px">🤖 챗봇 Q&A 공유</div>'
+      +'<div style="padding:8px 10px;border-bottom:1px dashed #bfdbfe">'
+      +'<div style="font-size:.7em;color:#3b82f6;font-weight:700;margin-bottom:2px">Q</div>'
+      +'<div style="font-size:.85em;color:#1e3a8a;line-height:1.45;white-space:pre-wrap;word-break:break-word">'+esc(String(cs.q||'').slice(0,400))+'</div>'
+      +'</div>'
+      +'<div style="padding:8px 10px">'
+      +'<div style="font-size:.7em;color:#3b82f6;font-weight:700;margin-bottom:2px">A</div>'
+      +'<div style="font-size:.85em;color:#1e293b;line-height:1.5;white-space:pre-wrap;word-break:break-word">'+esc(String(cs.a||'').slice(0,1200))+'</div>'
+      +'</div>'
+      +'</div>';
     return html;
   }
   if(parsed.doc_id){
