@@ -1902,7 +1902,23 @@ async function loadRoomChat(){
       }
       /* 컨텍스트 메뉴용 데이터 */
       var parsed=parseMessageContent(m.content);
-      var preview=parsed.text||(parsed.image?'[사진]':(parsed.file?'[파일]':''));
+      /* 영수증은 "🧾 가게 · 금액원 · 날짜", 사진은 "[사진]", 파일은 "[파일] 이름" 으로
+         답장 인용 프리뷰와 복사 내용이 의미있는 텍스트가 되게 함 */
+      var preview=parsed.text;
+      if(!preview){
+        if(parsed.doc_id && m.document){
+          var _d=m.document;
+          var _parts=[];
+          if(_d.vendor)_parts.push(_d.vendor);
+          if(_d.amount)_parts.push(Number(_d.amount).toLocaleString()+'원');
+          if(_d.receipt_date)_parts.push(_d.receipt_date);
+          preview='🧾 '+(_parts.length?_parts.join(' · '):'영수증');
+        } else if(parsed.image){
+          preview='[사진]';
+        } else if(parsed.file){
+          preview='[파일] '+(parsed.file.name||'');
+        }
+      }
       var canDel=0;
       if(m.role==='user'&&isMe){
         var elapsed=Date.now()-new Date(m.created_at).getTime();
@@ -1989,8 +2005,10 @@ function showMsgCtxMenu(bubbleEl, x, y){
   /* 데이터는 메뉴 dataset에 — 이스케이프 이슈 회피 */
   m.dataset.msg=mid;m.dataset.sender=sender;m.dataset.text=text;m.dataset.kind=kind;
   var items='';
-  if(text)items+='<button class="msg-ctx-item" onclick="doReplyFromMenu()">↩︎ 답장</button>';
-  if(text)items+='<button class="msg-ctx-item" onclick="doCopyFromMenu()">📋 복사</button>';
+  /* 답장·복사는 텍스트가 있거나 (사진/영수증/파일처럼) 의미있는 preview 가 있으면 노출 */
+  var hasContent = !!text || kind!=='text';
+  if(hasContent)items+='<button class="msg-ctx-item" onclick="doReplyFromMenu()">↩︎ 답장</button>';
+  if(hasContent)items+='<button class="msg-ctx-item" onclick="doCopyFromMenu()">📋 복사</button>';
   /* 사진↔영수증 분류 전환은 관리자 채널(admin/staff)에서만. 거래처 사장 화면에서는 메뉴 숨김 */
   if(mine&&deletable)items+='<button class="msg-ctx-item danger" onclick="hideMsgCtxMenu();deleteMyMessage('+mid+')">🗑️ 삭제</button>';
   if(!items)return;

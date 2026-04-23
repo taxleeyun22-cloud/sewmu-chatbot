@@ -995,7 +995,23 @@ async function loadRoomDetail(){
       }
       /* 컨텍스트 메뉴용 데이터 (답장·복사·삭제) */
       const parsed=parseMsg(m.content);
-      const preview=parsed.text||(parsed.image?'[사진]':(parsed.file?'[파일]':''));
+      /* 영수증은 "🧾 가게 · 금액원 · 날짜", 사진은 "[사진]", 파일은 "[파일] 이름" 으로
+         답장 인용 프리뷰와 복사 내용이 의미있는 텍스트가 되게 함 */
+      let preview=parsed.text;
+      if(!preview){
+        if(parsed.doc_id && m.document){
+          const d=m.document;
+          const parts=[];
+          if(d.vendor)parts.push(d.vendor);
+          if(d.amount)parts.push(Number(d.amount).toLocaleString()+'원');
+          if(d.receipt_date)parts.push(d.receipt_date);
+          preview='🧾 '+(parts.length?parts.join(' · '):'영수증');
+        } else if(parsed.image){
+          preview='[사진]';
+        } else if(parsed.file){
+          preview='[파일] '+(parsed.file.name||'');
+        }
+      }
       const isAdvisor=m.role==='human_advisor';
       const canDel=isAdvisor?1:0;
       const kind = parsed.doc_id ? 'doc' : (parsed.image ? 'img' : (parsed.file ? 'file' : 'text'));
@@ -1119,10 +1135,12 @@ function showMsgCtxMenu(bubbleEl, x, y){
   const mine=bubbleEl.getAttribute('data-mine')==='1';
   const deletable=bubbleEl.getAttribute('data-deletable')==='1';
   const kind=bubbleEl.getAttribute('data-kind')||'text';
-  m.dataset.msg=mid;m.dataset.sender=sender;m.dataset.text=text;
+  m.dataset.msg=mid;m.dataset.sender=sender;m.dataset.text=text;m.dataset.kind=kind;
   let items='';
-  if(text)items+='<button class="msg-ctx-item" onclick="doReplyFromMenu()">↩︎ 답장</button>';
-  if(text)items+='<button class="msg-ctx-item" onclick="doCopyFromMenu()">📋 복사</button>';
+  /* 답장·복사는 텍스트가 있거나 (사진/영수증/파일처럼) 의미있는 preview 가 있으면 노출 */
+  const hasContent = !!text || kind!=='text';
+  if(hasContent)items+='<button class="msg-ctx-item" onclick="doReplyFromMenu()">↩︎ 답장</button>';
+  if(hasContent)items+='<button class="msg-ctx-item" onclick="doCopyFromMenu()">📋 복사</button>';
   /* 관리자는 누구 메시지든 영수증으로 변환 가능 */
   if(kind==='img'||kind==='file'){
     items+='<button class="msg-ctx-item" onclick="convertMsgToReceiptAdmin('+mid+')">🧾 영수증으로 변환</button>';
