@@ -2292,13 +2292,13 @@ if(status==='pending'){
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✓ 기장거래처 승인</button>'
 +'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#00c471;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">○ 일반 승인</button>'
-+'<button onclick="openProfile('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
++'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✕ 거절</button>'
 +adminBtn
 +'</div>';
 }else{
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
-+'<button onclick="openProfile('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
++'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +(status!=='approved_client'?'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 기장거래처</button>':'')
 +(status!=='approved_guest'?'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#00c471;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 일반승인</button>':'')
 +(status!=='pending'?'<button onclick="approveUser('+u.id+',\'pending\')" style="background:#8b95a1;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 대기로</button>':'')
@@ -6010,3 +6010,103 @@ async function saveBlobAs(blob, suggestedName, mimeType){
   document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},200);
 }
+
+/* ===== 🕒 예약 발송 (#4) ===== */
+function _pad2(n){return String(n).padStart(2,'0')}
+function _fmtDateLocal(d){return d.getFullYear()+'-'+_pad2(d.getMonth()+1)+'-'+_pad2(d.getDate())}
+function _fmtTimeLocal(d){return _pad2(d.getHours())+':'+_pad2(d.getMinutes())}
+function openScheduleSend(){
+  if(!currentRoomId){alert('상담방을 먼저 선택하세요');return}
+  const inp=$g('roomInput');
+  const content=(inp&&inp.value||'').trim();
+  if(!content){alert('예약할 내용을 입력창에 먼저 쓰신 뒤 🕒 를 눌러주세요');return}
+  $g('schedPreview').textContent=content;
+  /* 기본: 15분 뒤 */
+  const d=new Date(Date.now()+15*60*1000);
+  $g('schedDate').value=_fmtDateLocal(d);
+  $g('schedTime').value=_fmtTimeLocal(d);
+  $g('scheduleSendModal').style.display='flex';
+  loadScheduledList();
+}
+function closeScheduleSend(){
+  const m=$g('scheduleSendModal');if(m)m.style.display='none';
+}
+function schedQuick(minutes){
+  const d=new Date(Date.now()+minutes*60*1000);
+  $g('schedDate').value=_fmtDateLocal(d);
+  $g('schedTime').value=_fmtTimeLocal(d);
+}
+function schedQuickAt(hour, daysAhead){
+  const d=new Date();
+  d.setDate(d.getDate()+(daysAhead||0));
+  d.setHours(hour,0,0,0);
+  $g('schedDate').value=_fmtDateLocal(d);
+  $g('schedTime').value=_fmtTimeLocal(d);
+}
+async function submitScheduleSend(){
+  if(!currentRoomId)return;
+  const date=$g('schedDate').value;
+  const time=$g('schedTime').value;
+  const content=$g('schedPreview').textContent;
+  if(!date||!time){alert('날짜·시각을 입력하세요');return}
+  const when=date+' '+time+':00';
+  const target=new Date(date+'T'+time+':00').getTime();
+  if(target<=Date.now()){alert('예약 시각은 현재 이후여야 합니다');return}
+  try{
+    const r=await fetch('/api/admin-schedule?key='+encodeURIComponent(KEY)+'&action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId, content:content, scheduled_at:when})});
+    const d=await r.json();
+    if(!d.ok){alert('예약 실패: '+(d.error||'unknown'));return}
+    /* 입력창 비우고 모달 유지 (목록 갱신) */
+    const inp=$g('roomInput');if(inp){inp.value='';inp.style.height='auto'}
+    $g('schedPreview').textContent='';
+    _adminShowToast('🕒 예약 등록됨 ('+when+')');
+    loadScheduledList();
+  }catch(err){alert('오류: '+err.message)}
+}
+async function loadScheduledList(){
+  const el=$g('schedList');if(!el||!currentRoomId)return;
+  el.innerHTML='불러오는 중...';
+  try{
+    const r=await fetch('/api/admin-schedule?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
+    const d=await r.json();
+    const items=(d.items||[]);
+    if(!items.length){el.innerHTML='<div style="color:#8b95a1">예약된 항목 없음</div>';return}
+    el.innerHTML=items.map(function(it){
+      const preview=String(it.content||'').slice(0,80).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return '<div style="padding:8px 10px;background:#f9fafb;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:6px;display:flex;gap:8px;align-items:flex-start">'
+        +'<div style="flex:1;min-width:0"><div style="font-size:.78em;color:#3182f6;font-weight:700">🕒 '+e(it.scheduled_at||'')+'</div>'
+        +'<div style="font-size:.82em;color:#191f28;white-space:pre-wrap;word-break:break-word;margin-top:3px">'+preview+(it.content.length>80?'...':'')+'</div></div>'
+        +'<button onclick="cancelScheduled('+it.id+')" style="background:#fee2e2;color:#f04452;border:none;padding:4px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit;flex-shrink:0">취소</button>'
+        +'</div>';
+    }).join('');
+  }catch(err){el.innerHTML='<div style="color:#f04452">오류: '+e(err.message)+'</div>'}
+}
+async function cancelScheduled(id){
+  if(!confirm('이 예약을 취소할까요?'))return;
+  try{
+    const r=await fetch('/api/admin-schedule?key='+encodeURIComponent(KEY)+'&action=cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})});
+    const d=await r.json();
+    if(!d.ok){alert('취소 실패: '+(d.error||'unknown'));return}
+    loadScheduledList();
+  }catch(err){alert('오류: '+err.message)}
+}
+
+/* 예약 발송 트리거: 주기적으로 서버에 '만료된 것 실행' 요청.
+   Cloudflare Pages 자체 cron 미지원 이슈 회피 — 관리자가 열어둔 동안 클라이언트가 cron 역할 */
+async function runDueSchedules(){
+  try{
+    const r=await fetch('/api/admin-schedule?key='+encodeURIComponent(KEY)+'&action=run_due',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const d=await r.json();
+    if(d && d.sent>0){
+      /* 발송된 것이 있으면 현재 방 메시지 새로고침 */
+      if(typeof loadRoomDetail==='function' && currentRoomId)loadRoomDetail();
+      if(typeof loadRoomList==='function')loadRoomList();
+    }
+  }catch(_){}
+}
+(function(){
+  if(window._schedRunBound)return;window._schedRunBound=true;
+  /* 로드 직후 1회, 이후 60초마다 */
+  setTimeout(runDueSchedules, 3000);
+  setInterval(runDueSchedules, 60*1000);
+})();

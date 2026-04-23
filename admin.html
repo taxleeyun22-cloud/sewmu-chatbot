@@ -423,6 +423,7 @@
       </label>
       <input id="roomDocInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip,.mp4,.mov,.m4v,.webm,.mp3,.m4a,.wav" onchange="sendRoomFile(this)" style="display:none">
       <button id="roomQuickMemoBtn" onclick="toggleQuickMemoMode()" title="빠른 메모 (내부 전용 · 고객 안 보임)" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;font-family:inherit;font-size:1em;line-height:1">📒</button>
+      <button id="roomScheduleBtn" onclick="openScheduleSend()" title="예약 발송 (지정한 시각에 자동 전송)" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;font-family:inherit;font-size:1em;line-height:1">🕒</button>
       <textarea id="roomInput" rows="1" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();if(_quickMemoMode)submitQuickMemo();else sendRoomMessage()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'" style="flex:1;min-width:0;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit;resize:none;max-height:120px;overflow-y:auto"></textarea>
       <button id="roomSendBtn" onclick="if(_quickMemoMode)submitQuickMemo();else sendRoomMessage()" style="background:#3182f6;color:#fff;border:none;padding:10px 16px;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">전송</button>
     </div>
@@ -709,7 +710,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=87"></script>
+<script src="/admin.js?v=88"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면
@@ -1087,5 +1088,45 @@
     <div id="memoList" style="flex:1;overflow-y:auto;padding:10px 16px 16px;background:#fff"></div>
   </div>
 </div>
+
+<!-- 🕒 예약 발송 모달 -->
+<div id="scheduleSendModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11500;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:460px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;gap:8px">
+      <div style="font-weight:700;font-size:1em">🕒 예약 발송</div>
+      <div style="flex:1"></div>
+      <button onclick="closeScheduleSend()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1">✕</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:16px 18px">
+      <div style="font-size:.78em;color:#6b7280;margin-bottom:4px">발송 내용 (입력창에 쓰신 메시지)</div>
+      <div id="schedPreview" style="padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e8eb;font-size:.85em;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow-y:auto;margin-bottom:14px;min-height:44px;color:#191f28"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-size:.78em;color:#6b7280;margin-bottom:4px">날짜</div>
+          <input id="schedDate" type="date" style="width:100%;padding:9px 10px;border:1px solid #e5e8eb;border-radius:8px;font-family:inherit">
+        </div>
+        <div>
+          <div style="font-size:.78em;color:#6b7280;margin-bottom:4px">시각</div>
+          <input id="schedTime" type="time" style="width:100%;padding:9px 10px;border:1px solid #e5e8eb;border-radius:8px;font-family:inherit">
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+        <button onclick="schedQuick(15)" style="background:#f2f4f6;border:none;padding:6px 12px;border-radius:16px;font-size:.78em;cursor:pointer;font-family:inherit">+ 15분</button>
+        <button onclick="schedQuick(60)" style="background:#f2f4f6;border:none;padding:6px 12px;border-radius:16px;font-size:.78em;cursor:pointer;font-family:inherit">+ 1시간</button>
+        <button onclick="schedQuickAt(9, 1)" style="background:#f2f4f6;border:none;padding:6px 12px;border-radius:16px;font-size:.78em;cursor:pointer;font-family:inherit">내일 오전 9시</button>
+        <button onclick="schedQuickAt(14, 1)" style="background:#f2f4f6;border:none;padding:6px 12px;border-radius:16px;font-size:.78em;cursor:pointer;font-family:inherit">내일 오후 2시</button>
+      </div>
+      <div id="schedListWrap" style="border-top:1px solid #e5e8eb;padding-top:12px">
+        <div style="font-size:.78em;color:#6b7280;margin-bottom:6px">예약된 메시지</div>
+        <div id="schedList" style="font-size:.82em;color:#6b7280">불러오는 중...</div>
+      </div>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid #e5e8eb;display:flex;gap:8px">
+      <button onclick="closeScheduleSend()" style="flex:1;background:#f2f4f6;border:none;padding:10px;border-radius:10px;font-family:inherit;cursor:pointer">취소</button>
+      <button onclick="submitScheduleSend()" style="flex:2;background:var(--brand-primary);color:#fff;border:none;padding:10px;border-radius:10px;font-family:inherit;font-weight:700;cursor:pointer">🕒 예약 등록</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
