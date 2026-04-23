@@ -177,9 +177,10 @@ export async function onRequestPost(context) {
           created_at TEXT, updated_at TEXT, deleted_at TEXT
         )`).run();
         const authorName = auth.name || auth.realName || (auth.owner ? '대표' : '담당자');
+        /* 구버전 room_id NOT NULL 제약 회피용 placeholder */
         await db.prepare(
-          `INSERT INTO memos (target_user_id, author_user_id, author_name, memo_type, content, visibility, created_at, updated_at)
-           VALUES (?, ?, ?, '거래처 정보', ?, 'internal', ?, ?)`
+          `INSERT INTO memos (room_id, target_user_id, author_user_id, author_name, memo_type, content, visibility, created_at, updated_at)
+           VALUES ('__none__', ?, ?, ?, '거래처 정보', ?, 'internal', ?, ?)`
         ).bind(userId, auth.userId || null, authorName, notes, now, now).run();
       } catch {}
     }

@@ -168,8 +168,11 @@ export async function onRequestPost(context) {
   let body;
   try { body = await context.request.json(); } catch { return Response.json({ error: "invalid json" }, { status: 400 }); }
 
-  /* room_id 없으면 개인 일정 (NULL 허용) */
-  const roomId = body.room_id ? String(body.room_id || '').trim() : null;
+  /* room_id 없으면 개인 일정 또는 거래처 단위 영구 메모.
+     구버전 D1 테이블이 room_id NOT NULL 제약 가진 경우가 있어
+     placeholder '__none__' 로 채움. 조회는 target_user_id 기반이라 무관 */
+  const rawRoomId = body.room_id ? String(body.room_id || '').trim() : '';
+  const roomId = rawRoomId || '__none__';
   const memoType = ALLOWED_TYPES.includes(body.memo_type) ? body.memo_type : '할 일';
   const content = String(body.content || '').trim();
   if (!content) return Response.json({ error: "content required" }, { status: 400 });
