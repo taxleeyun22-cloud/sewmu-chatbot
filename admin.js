@@ -1631,16 +1631,25 @@ async function doRiSearch(){
     const d=await r.json();
     if(!d.matches||d.matches.length===0){el.innerHTML='<div style="text-align:center;color:#8b95a1;font-size:.8em;padding:30px 0">결과 없음</div>';return}
     const qRe=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
-    el.innerHTML=d.matches.map(function(m){
+    const header='<div style="padding:6px 4px 10px;font-size:.78em;color:#6b7280;font-weight:600">총 '+d.matches.length+'건 매칭 — 결과를 누르면 해당 메시지로 이동</div>';
+    el.innerHTML=header+d.matches.map(function(m){
       const who=m.role==='human_advisor'?'👨‍💼 세무사':m.role==='assistant'?'🤖 AI':'👤 '+(m.real_name||m.name||'사용자');
       let content=String(m.content||'');
       const imgMatch=content.match(/^\[IMG\]\S+\n?([\s\S]*)$/);
       if(imgMatch)content='[사진] '+imgMatch[1];
       const escaped=e(content).slice(0,200);
       const hi=escaped.replace(qRe,'<mark>$1</mark>');
-      return '<div class="ri-match"><div class="ri-who">'+who+' · '+e(m.created_at||'')+'</div>'+hi+'</div>';
+      return '<div class="ri-match" onclick="jumpFromSearch('+m.id+')" style="cursor:pointer" title="클릭하면 원본 메시지로 이동"><div class="ri-who">'+who+' · '+e(m.created_at||'')+' · <span style="color:#3182f6">↗ 이동</span></div>'+hi+'</div>';
     }).join('');
   }catch(err){el.innerHTML='<div style="color:#f04452;font-size:.8em;padding:20px">오류: '+e(err.message)+'</div>'}
+}
+/* 검색 결과 클릭 → 정보 패널 닫고 원본 메시지로 스크롤·하이라이트 */
+function jumpFromSearch(mid){
+  const m=$g('roomInfoModal');
+  if(m)m.style.display='none';
+  setTimeout(function(){
+    if(typeof jumpToOriginalMsgAdmin==='function')jumpToOriginalMsgAdmin(String(mid));
+  },80);
 }
 async function loadRoomMedia(){
   try{

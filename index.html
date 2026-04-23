@@ -3130,7 +3130,8 @@ async function doUriSearch(){
     var d=await r.json();
     if(!d.matches||d.matches.length===0){el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">결과 없음</div>';return}
     var qRe=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
-    el.innerHTML=d.matches.map(function(m){
+    var header='<div style="padding:6px 4px 10px;font-size:.78em;color:var(--text2);font-weight:600">총 '+d.matches.length+'건 매칭 — 결과를 누르면 해당 메시지로 이동</div>';
+    el.innerHTML=header+d.matches.map(function(m){
       var who=m.role==='human_advisor'?'👨‍💼 세무사':m.role==='assistant'?'🤖 AI':'👤 '+(m.real_name||m.name||'나');
       var content=String(m.content||'');
       var imgM=content.match(/^\[IMG\]\S+\n?([\s\S]*)$/);
@@ -3139,9 +3140,16 @@ async function doUriSearch(){
       if(fileM){try{var o=JSON.parse(fileM[1]);content='[파일] '+(o.name||'')+' '+(fileM[2]||'')}catch(e){}}
       var escaped=esc(content).slice(0,200);
       var hi=escaped.replace(qRe,'<mark>$1</mark>');
-      return '<div class="uri-item"><div class="uri-meta">'+who+' · '+esc(m.created_at||'')+'</div>'+hi+'</div>';
+      return '<div class="uri-item" onclick="jumpFromUriSearch('+m.id+')" style="cursor:pointer" title="클릭하면 원본 메시지로 이동"><div class="uri-meta">'+who+' · '+esc(m.created_at||'')+' · <span style="color:#3182f6">↗ 이동</span></div>'+hi+'</div>';
     }).join('');
   }catch(err){el.innerHTML='<div style="color:#f04452;font-size:.8em;padding:20px">오류: '+esc(err.message)+'</div>'}
+}
+/* 검색 결과 클릭 → 정보 모달 닫고 원본 메시지로 스크롤·하이라이트 */
+function jumpFromUriSearch(mid){
+  closeRoomInfo();
+  setTimeout(function(){
+    if(typeof jumpToOriginalMsg==='function')jumpToOriginalMsg(String(mid));
+  },120);
 }
 async function loadUriMedia(){
   try{
