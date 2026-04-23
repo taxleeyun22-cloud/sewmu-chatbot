@@ -134,8 +134,8 @@ export async function onRequestPost(context) {
       newStatus = 'rejected';
     }
     else if (action === 'terminate') {
-      /* 거래 종료 — owner 전용. 상담방 모두 closed + 해당 사용자 접근 차단 */
-      if (!auth.owner) return ownerOnly();
+      /* 거래 종료 — 직원(is_admin=1) 도 가능. 실제 데이터 삭제는 아니고 상태 변경 +
+         방 closed 라서 '재개(기장)' 로 되돌릴 수 있음. reject 와 달리 owner 전용 X */
       newStatus = 'terminated';
     }
     else if (action === 'pending') newStatus = 'pending';

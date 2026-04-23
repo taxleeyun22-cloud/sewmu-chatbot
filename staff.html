@@ -433,7 +433,7 @@
 </div>
 </div>
 
-<script src="/admin.js?v=93"></script>
+<script src="/admin.js?v=94"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;
@@ -516,11 +516,15 @@ async function loadClients(){
       const nm=u.real_name||u.name||'이름없음';
       const av=u.profile_image?'<img src="'+e(u.profile_image)+'" alt="">':nm[0];
       const phone=u.phone?' · '+e(u.phone):'';
-      /* 승급·강등 버튼 (현재 상태 아닌 것만) */
+      /* 승급·강등 + 거래 종료 버튼 (현재 상태 아닌 것만) */
+      const canTerminate=(u.approval_status==='approved_client'||u.approval_status==='approved_guest');
+      const canRevive=(u.approval_status==='terminated');
       const tierBtns='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px" onclick="event.stopPropagation()">'
         +(u.approval_status!=='approved_client'?'<button onclick="changeTier('+u.id+',\'approve_client\',event)" style="background:#10b981;color:#fff;border:none;padding:4px 9px;border-radius:5px;font-size:.72em;font-weight:600;cursor:pointer;font-family:inherit">🏢 기장</button>':'')
         +(u.approval_status!=='approved_guest'?'<button onclick="changeTier('+u.id+',\'approve_guest\',event)" style="background:#3182f6;color:#fff;border:none;padding:4px 9px;border-radius:5px;font-size:.72em;font-weight:600;cursor:pointer;font-family:inherit">✅ 일반</button>':'')
         +(u.approval_status!=='pending'?'<button onclick="changeTier('+u.id+',\'pending\',event)" style="background:#e5e8eb;color:#555;border:none;padding:4px 9px;border-radius:5px;font-size:.72em;cursor:pointer;font-family:inherit">⏳ 대기</button>':'')
+        +(canTerminate?'<button onclick="terminateUser('+u.id+',\''+e(nm).replace(/\'/g,"")+'\');event.stopPropagation()" title="거래 종료 — 상담방 모두 closed, 거래처 접근 차단" style="background:#fff;color:#6b7280;border:1px solid #6b7280;padding:4px 9px;border-radius:5px;font-size:.72em;cursor:pointer;font-family:inherit">🚫 종료</button>':'')
+        +(canRevive?'<button onclick="changeTier('+u.id+',\'approve_client\',event)" style="background:#3182f6;color:#fff;border:none;padding:4px 9px;border-radius:5px;font-size:.72em;cursor:pointer;font-family:inherit">🔄 재개(기장)</button>':'')
         +'</div>';
       return '<div class="item">'
         +'<div class="avatar" onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,"")+'\')" style="cursor:pointer">'+av+'</div>'
