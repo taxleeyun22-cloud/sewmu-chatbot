@@ -462,7 +462,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
 </div>
 
 <div class="input-bar" id="inputBar" style="display:none">
-    <textarea id="userInput" rows="1" placeholder="메시지 보내기" style="resize:none;max-height:120px;font-family:inherit;overflow-y:auto" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+    <textarea id="userInput" rows="1" placeholder="메시지 보내기" style="resize:none;max-height:120px;font-family:inherit;overflow-y:auto" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();sendMessage()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
     <button class="send" id="sendBtn" onclick="sendMessage()">
         <svg viewBox="0 0 24 24"><path d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a.993.993 0 00-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z"/></svg>
     </button>
@@ -738,7 +738,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
     <button onclick="toggleAttachSheet()" id="rcAttachBtn" class="rc-attach-btn" title="첨부">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
-    <textarea id="rcInput" rows="1" placeholder="메시지 입력..." autocomplete="off" style="resize:none;max-height:120px;font-family:inherit;overflow-y:auto" oninput="updateSendBtn();this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendRoomMsg()}"></textarea>
+    <textarea id="rcInput" rows="1" placeholder="메시지 입력..." autocomplete="off" style="resize:none;max-height:120px;font-family:inherit;overflow-y:auto" oninput="updateSendBtn();this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();sendRoomMsg()}"></textarea>
     <button onclick="sendRoomMsg()" class="rc-send-btn" id="rcSendBtn">전송</button>
   </div>
 </div>
@@ -824,7 +824,7 @@ mark{background:#fef3c7;color:inherit;padding:0 2px;border-radius:2px}
 .msg-ctx-item.danger{color:#f04452}
 .rc-msg-bubble{-webkit-user-select:none;user-select:none}
 .rc-input-area input,.rc-input-area textarea{flex:1;min-width:0;padding:11px 14px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:20px;font-size:16px;outline:none;font-family:inherit;line-height:1.4}
-.rc-send-btn{background:var(--blue);color:#fff;border:none;padding:10px 16px;border-radius:20px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap}
+.rc-send-btn{background:var(--blue);color:#fff;border:none;padding:10px 16px;border-radius:20px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;min-width:56px}
 .rc-attach-btn{display:inline-flex;align-items:center;justify-content:center;background:var(--bg);border:1px solid var(--border);color:var(--text2);width:40px;height:40px;border-radius:50%;cursor:pointer;flex-shrink:0;line-height:0;padding:0}
 .rc-attach-btn:active,.rc-attach-btn.on{background:var(--border);transform:rotate(45deg);transition:transform .15s}
 .rc-photo-btn{display:inline-flex;align-items:center;justify-content:center;background:var(--bg);border:1px solid var(--border);color:var(--text2);padding:10px;border-radius:10px;cursor:pointer;flex-shrink:0;line-height:0}
