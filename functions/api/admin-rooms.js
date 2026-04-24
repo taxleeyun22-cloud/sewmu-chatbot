@@ -339,13 +339,8 @@ export async function onRequestGet(context) {
     try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN is_internal INTEGER DEFAULT 0`).run(); } catch {}
     /* 🔐 internal=1 이면 관리자방만, 기본은 외부 상담방만 */
     const internalMode = url.searchParams.get('internal') === '1';
-    /* 🚀 user_id 지정 시 해당 유저가 속한 방만 (거래처 대시보드 경량화). LIMIT 20. */
-    const byUserId = url.searchParams.get('user_id');
-    const userFilter = byUserId
-      ? `AND r.id IN (SELECT DISTINCT room_id FROM room_members WHERE user_id = ? AND left_at IS NULL)`
-      : '';
     // 목록 — priority 먼저, 최근순. 카톡 스타일 미리보기·아바타·업체명 포함
-    const listQuery = `
+    const { results } = await db.prepare(`
       SELECT r.*,
              b.company_name AS business_name,
              (SELECT COUNT(*) FROM room_members WHERE room_id = r.id AND left_at IS NULL) as member_count,
@@ -359,17 +354,12 @@ export async function onRequestGet(context) {
       FROM chat_rooms r
       LEFT JOIN businesses b ON r.business_id = b.id
       WHERE COALESCE(r.is_internal, 0) = ?
-        ${userFilter}
       ORDER BY r.status ASC,
                COALESCE(r.priority, 99) ASC,
                last_msg_at DESC NULLS LAST,
                r.created_at DESC
-      LIMIT ${byUserId ? 20 : 200}
-    `;
-    const listStmt = byUserId
-      ? db.prepare(listQuery).bind(internalMode ? 1 : 0, Number(byUserId))
-      : db.prepare(listQuery).bind(internalMode ? 1 : 0);
-    const { results } = await listStmt.all();
+      LIMIT 200
+    `).bind(internalMode ? 1 : 0).all();
 
     /* 각 방의 첫 멤버 정보 (아바타용) 일괄 조회 */
     const roomIds = (results || []).map(r => r.id);

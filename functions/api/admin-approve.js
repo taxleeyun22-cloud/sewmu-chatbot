@@ -36,32 +36,7 @@ export async function onRequestGet(context) {
   try { await db.prepare(`ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0`).run(); } catch {}
 
   const status = url.searchParams.get("status");
-  const singleUserId = url.searchParams.get("user_id");
   try {
-    /* 🚀 단일 사용자 조회 (거래처 대시보드 성능 최적화): 전체 목록 대신 1명만 */
-    if (singleUserId) {
-      try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_company_name TEXT`).run(); } catch {}
-      try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_business_number TEXT`).run(); } catch {}
-      try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_role TEXT`).run(); } catch {}
-      try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_at TEXT`).run(); } catch {}
-      const u = await db.prepare(
-        `SELECT u.id, u.provider, u.name, u.real_name, u.email, u.phone, u.profile_image,
-                u.approval_status, u.approved_at, u.created_at, u.last_login_at, u.name_confirmed, u.is_admin,
-                u.requested_company_name, u.requested_business_number, u.requested_role, u.requested_at,
-                (SELECT company_name FROM client_businesses
-                 WHERE user_id = u.id ORDER BY is_primary DESC, id ASC LIMIT 1) AS company_name,
-                (SELECT ceo_name FROM client_businesses
-                 WHERE user_id = u.id ORDER BY is_primary DESC, id ASC LIMIT 1) AS ceo_name
-           FROM users u WHERE u.id = ? LIMIT 1`
-      ).bind(Number(singleUserId)).first();
-      if (!u) return Response.json({ users: [] });
-      const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      try {
-        const usage = await db.prepare(`SELECT count FROM daily_usage WHERE user_id = ? AND date = ?`).bind(u.id, today).first();
-        u.today_count = usage ? usage.count : 0;
-      } catch { u.today_count = 0; }
-      return Response.json({ users: [u] });
-    }
     /* 신규: status=admin 은 is_admin=1 전용 필터 */
     if (status === 'admin') {
       const { results } = await db.prepare(
