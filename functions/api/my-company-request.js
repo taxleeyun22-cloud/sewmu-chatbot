@@ -58,14 +58,16 @@ export async function onRequestPost(context) {
   let body = {};
   try { body = await context.request.json(); } catch { return Response.json({ error: 'invalid json' }, { status: 400 }); }
   const name = String(body.company_name || '').trim().slice(0, 120);
+  const realName = String(body.real_name || '').trim().slice(0, 20);
   const bn = String(body.business_number || '').replace(/\D/g, '').slice(0, 12);
   const role = body.role === '대표자' ? '대표자' : (body.role === '담당자' ? '담당자' : null);
   if (!name) return Response.json({ error: '회사명(상호) 을 입력해주세요' }, { status: 400 });
+  if (!realName || realName.length < 2) return Response.json({ error: '본인 실명을 2자 이상 입력해주세요' }, { status: 400 });
   if (!role) return Response.json({ error: '역할(대표자/담당자) 를 선택해주세요' }, { status: 400 });
   try {
     await db.prepare(
-      `UPDATE users SET requested_company_name = ?, requested_business_number = ?, requested_role = ?, requested_at = ? WHERE id = ?`
-    ).bind(name, bn || null, role, kst(), user.user_id).run();
+      `UPDATE users SET requested_company_name = ?, requested_business_number = ?, requested_role = ?, requested_at = ?, real_name = ? WHERE id = ?`
+    ).bind(name, bn || null, role, kst(), realName, user.user_id).run();
     return Response.json({ ok: true });
   } catch (e) { return Response.json({ error: e.message }, { status: 500 }); }
 }
