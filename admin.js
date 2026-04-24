@@ -2877,11 +2877,28 @@ async function loadBusinesses(){
 }
 
 function pmClearForm(){
-  ['pmCompany','pmBizNo','pmCEO','pmPhone','pmIndustry','pmAddr','pmEstDate','pmEmp','pmRevenue','pmNotes','pmSubBizNo','pmCorpNo','pmBizCategory','pmIndustryCode','pmFiscalStart','pmFiscalEnd'].forEach(id=>{const el=$g(id);if(el)el.value=''});
+  ['pmCompany','pmBizNo','pmCEO','pmPhone','pmIndustry','pmAddr','pmAddr2','pmEstDate','pmEmp','pmRevenue','pmNotes','pmSubBizNo','pmCorpNo','pmBizCategory','pmIndustryCode','pmFiscalStart','pmFiscalEnd','pmFiscalTerm','pmHrYear'].forEach(id=>{const el=$g(id);if(el)el.value=''});
   $g('pmBizType').value='';
   $g('pmTaxType').value='';
   $g('pmVatPeriod').value='';
   $g('pmIsPrimary').checked=false;
+}
+function _pmOpenAddressSearch(){
+  if(typeof daum==='undefined'||!daum.Postcode){
+    alert('주소검색 스크립트가 아직 로드 중입니다.');return;
+  }
+  new daum.Postcode({
+    oncomplete:function(data){
+      var full=data.roadAddress||data.jibunAddress||data.address||'';
+      if(data.buildingName)full+=' ('+data.buildingName+')';
+      $g('pmAddr').value=full;
+      var d2=$g('pmAddr2');if(d2)d2.focus();
+    }
+  }).open();
+}
+function _pmUpdateFiscalTerm(){
+  var t=_calcFiscalTerm($g('pmEstDate')?.value);
+  var el=$g('pmFiscalTerm');if(el)el.value=t;
 }
 
 function pmNewBusiness(){
@@ -2921,6 +2938,12 @@ async function pmEditBusiness(bizId){
     $g('pmIndustryCode').value=b.industry_code||'';
     $g('pmFiscalStart').value=b.fiscal_year_start||'';
     $g('pmFiscalEnd').value=b.fiscal_year_end||'';
+    /* 위하고 확장 (company_form · fiscal_term · hr_year · addr2) */
+    if($g('pmBizType')&&b.company_form)$g('pmBizType').value=b.company_form;
+    if($g('pmFiscalTerm'))$g('pmFiscalTerm').value=b.fiscal_term||'';
+    if($g('pmHrYear'))$g('pmHrYear').value=b.hr_year||'';
+    /* pmAddr2 는 저장 시 address 에 병합됐을 수 있음 — 분리 로직 없으면 빈값 */
+    if($g('pmAddr2'))$g('pmAddr2').value='';
   }catch(err){alert('불러오기 실패: '+err.message)}
 }
 
@@ -2947,7 +2970,14 @@ async function saveBusiness(){
     industry_code:$g('pmIndustryCode').value.trim(),
     fiscal_year_start:$g('pmFiscalStart').value,
     fiscal_year_end:$g('pmFiscalEnd').value,
+    /* 위하고 확장 3필드 + address 병합 */
+    company_form:$g('pmBizType').value||null,
+    fiscal_term:$g('pmFiscalTerm')?.value?Number($g('pmFiscalTerm').value):null,
+    hr_year:$g('pmHrYear')?.value?Number($g('pmHrYear').value):null,
   };
+  /* pmAddr + pmAddr2 병합 저장 */
+  var _addr2=($g('pmAddr2')?.value||'').trim();
+  if(_addr2)payload.address=[(payload.address||'').trim(),_addr2].filter(Boolean).join(' ');
   try{
     let r,d;
     if(currentEditingBizId){
@@ -2972,125 +3002,7 @@ async function deleteBusiness(){
   }catch(err){alert('오류: '+err.message)}
 }
 
-/* ===== CSV 일괄 업로드 ===== */
-let bulkRows=null;
-function showBulkUpload(){
-$g('bulkFile').value='';
-$g('bulkPreview').innerHTML='';
-$g('bulkResult').innerHTML='';
-$g('bulkUploadBtn').disabled=true;
-$g('bulkUploadBtn').style.opacity='.5';
-bulkRows=null;
-$g('bulkModal').style.display='flex';
-}
-function closeBulkModal(){$g('bulkModal').style.display='none'}
-
-// CSV 파서 (따옴표 고려)
-function parseCSV(text){
-const lines=text.split(/\r?\n/).filter(l=>l.trim());
-if(lines.length<2)return [];
-const parseLine=(line)=>{
-const out=[];let cur='';let inQ=false;
-for(let i=0;i<line.length;i++){
-const c=line[i];
-if(c==='"'){
-if(inQ&&line[i+1]==='"'){cur+='"';i++}
-else inQ=!inQ;
-}else if(c===','&&!inQ){out.push(cur);cur=''}
-else cur+=c;
-}
-out.push(cur);
-return out;
-};
-const headers=parseLine(lines[0]).map(h=>h.trim());
-const rows=[];
-for(let i=1;i<lines.length;i++){
-const vals=parseLine(lines[i]);
-const obj={};
-headers.forEach((h,j)=>{obj[h]=(vals[j]||'').trim()});
-rows.push(obj);
-}
-return {headers,rows};
-}
-
-// 컬럼명 매핑 (한글→영문 표준)
-const COL_MAP={
-'상호':'company_name','company_name':'company_name','사업체명':'company_name','거래처명':'company_name','업체명':'company_name',
-'사업자번호':'business_number','사업자등록번호':'business_number','business_number':'business_number','등록번호':'business_number',
-'대표자':'ceo_name','대표자명':'ceo_name','ceo_name':'ceo_name','대표':'ceo_name',
-'업종':'industry','industry':'industry','종목':'industry',
-'사업형태':'business_type','business_type':'business_type','법인구분':'business_type','개인법인':'business_type',
-'과세유형':'tax_type','tax_type':'tax_type','과세구분':'tax_type',
-'개업일':'establishment_date','establishment_date':'establishment_date','개업일자':'establishment_date',
-'주소':'address','address':'address','사업장주소':'address',
-'전화':'phone','phone':'phone','연락처':'phone','휴대폰':'phone','전화번호':'phone',
-'직원수':'employee_count','employee_count':'employee_count','종업원수':'employee_count',
-'매출':'last_revenue','last_revenue':'last_revenue','전년매출':'last_revenue','연매출':'last_revenue',
-'부가세주기':'vat_period','vat_period':'vat_period','신고주기':'vat_period',
-'메모':'notes','notes':'notes','특이사항':'notes','비고':'notes',
-};
-function mapRows(parsed){
-const mapped=[];
-for(const row of parsed.rows){
-const o={};
-for(const h of parsed.headers){
-const key=COL_MAP[h]||COL_MAP[h.replace(/\s/g,'')];
-if(key)o[key]=row[h];
-}
-if(o.business_number)mapped.push(o);
-}
-return mapped;
-}
-
-function previewCSV(input){
-const file=input.files[0];
-if(!file)return;
-const reader=new FileReader();
-reader.onload=()=>{
-try{
-// EUC-KR 대응: 먼저 UTF-8로 시도
-let text=reader.result;
-const parsed=parseCSV(text);
-if(!parsed.headers||parsed.headers.length===0){$g('bulkPreview').innerHTML='<span style="color:#f04452">CSV 파싱 실패</span>';return}
-bulkRows=mapRows(parsed);
-if(bulkRows.length===0){
-$g('bulkPreview').innerHTML='<span style="color:#f04452">사업자번호 포함된 행이 없습니다. 헤더를 확인하세요.<br>받은 헤더: '+e(parsed.headers.join(', '))+'</span>';
-return;
-}
-const sample=bulkRows.slice(0,3).map(r=>
-'• '+e(r.company_name||'(상호없음)')+' / '+e(r.business_number||'')+' / '+e(r.ceo_name||'-')
-).join('<br>');
-$g('bulkPreview').innerHTML='<b>'+bulkRows.length+'개 행 인식됨</b> (매핑 성공)<br><div style="margin-top:6px;font-size:.75em;color:#666">'+sample+(bulkRows.length>3?'<br>...':'')+'</div>';
-$g('bulkUploadBtn').disabled=false;
-$g('bulkUploadBtn').style.opacity='1';
-}catch(err){$g('bulkPreview').innerHTML='<span style="color:#f04452">오류: '+e(err.message)+'</span>'}
-};
-// UTF-8이 기본, 한글 깨지면 EUC-KR 재시도는 추후 보강
-reader.readAsText(file,'UTF-8');
-}
-
-async function submitBulk(){
-if(!bulkRows||bulkRows.length===0)return;
-const auto=$g('bulkAutoApprove').checked;
-$g('bulkUploadBtn').disabled=true;
-$g('bulkUploadBtn').textContent='업로드 중...';
-try{
-const r=await fetch('/api/admin-client-profile-bulk?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:bulkRows,auto_approve:auto})});
-const d=await r.json();
-if(d.error){$g('bulkResult').innerHTML='<div style="color:#f04452">실패: '+e(d.error)+'</div>';return}
-$g('bulkResult').innerHTML=
-'<div style="background:#e0f5ec;padding:12px;border-radius:8px;font-size:.85em">'
-+'<b style="color:#10b981">✅ 완료</b><br>'
-+'총 '+d.total+'건 중<br>'
-+'• 기존 가입자 매칭+승격: <b>'+d.matched_approved+'</b>건<br>'
-+'• 대기 프로필 생성(미가입): <b>'+d.unbound_created+'</b>건<br>'
-+'• 건너뜀(사업자번호 오류): '+d.skipped+'건<br>'
-+'• 에러: '+d.error_count+'건'
-+'</div>';
-loadUsers(currentStatus);refreshPendingBadge();
-}catch(err){$g('bulkResult').innerHTML='<div style="color:#f04452">오류: '+e(err.message)+'</div>'}
-finally{$g('bulkUploadBtn').disabled=false;$g('bulkUploadBtn').textContent='업로드'}
-}
+/* CSV 일괄 업로드 기능은 2026-04-24 제거됨. 위하고 폼으로 거래처 1건씩 등록. */
 
 /* ===== 검증 탭 (원격 유지) ===== */
 let curFilter='pending';
@@ -5069,12 +4981,34 @@ async function openCustomerDashboard(userId){
     $g('cdBasic').innerHTML='<div style="color:#f04452">로드 실패: '+e(err.message)+'</div>';
   }
 }
-/* ===== ➕ 수동 거래처 등록 (OAuth 없는 관리용) ===== */
+/* ===== 공통 유틸: 개업연도 기준 N기 자동 계산 =====
+   올해 기준 (2026년 개업 → 1기 / 2025년 개업 → 2기 / 2024년 → 3기 ...) */
+function _calcFiscalTerm(estDate){
+  if(!estDate)return '';
+  var m=/^(\d{4})/.exec(String(estDate));
+  if(!m)return '';
+  var y=parseInt(m[1],10);
+  if(!y||isNaN(y))return '';
+  var cur=new Date().getFullYear();
+  var term=cur-y+1;
+  return term>0?String(term):'';
+}
+
+/* ===== ➕ 수동 거래처 등록 (위하고 수임처 신규생성 스타일) ===== */
 async function openManualClientModal(){
   const m=$g('manualClientModal');if(!m)return;
   m.style.display='flex';
   document.body.style.overflow='hidden';
-  ['mcRealName','mcPhone','mcCompany','mcBizNo','mcNotes'].forEach(id=>{const el=$g(id);if(el)el.value=''});
+  /* 👤 사람 정보 */
+  ['mcRealName','mcPhone','mcCompany','mcCeo','mcBizNo','mcSubBiz','mcCorpNo',
+   'mcAddr1','mcAddr2','mcBizPhone','mcIndustryCode','mcBizCategory','mcIndustry',
+   'mcEstDate','mcFiscalTerm','mcNotes'].forEach(id=>{const el=$g(id);if(el)el.value=''});
+  if($g('mcForm'))$g('mcForm').value='0.법인사업자';
+  /* 📊 기수·인사연도 — 올해 기본값 */
+  var curYear=new Date().getFullYear();
+  if($g('mcFiscalStart'))$g('mcFiscalStart').value=curYear+'-01-01';
+  if($g('mcFiscalEnd'))$g('mcFiscalEnd').value=curYear+'-12-31';
+  if($g('mcHrYear'))$g('mcHrYear').value=String(curYear);
   if($g('mcAutoRoom'))$g('mcAutoRoom').checked=true;
   /* 담당자 라벨 select 채우기 */
   const sel=$g('mcPriority');
@@ -5092,27 +5026,63 @@ function closeManualClientModal(){
   const m=$g('manualClientModal');if(m)m.style.display='none';
   document.body.style.overflow='';
 }
+/* 🔍 카카오 주소검색 — 수동 거래처용 */
+function _mcOpenAddressSearch(){
+  if(typeof daum==='undefined'||!daum.Postcode){
+    alert('주소검색 스크립트가 아직 로드 중입니다. 잠시 후 다시 시도해주세요.');return;
+  }
+  new daum.Postcode({
+    oncomplete:function(data){
+      var full=data.roadAddress||data.jibunAddress||data.address||'';
+      if(data.buildingName)full+=' ('+data.buildingName+')';
+      $g('mcAddr1').value=full;
+      var d2=$g('mcAddr2');if(d2)d2.focus();
+    }
+  }).open();
+}
+/* 개업일 변경 시 N기 자동 계산 */
+function _mcUpdateFiscalTerm(){
+  var t=_calcFiscalTerm($g('mcEstDate')?.value);
+  var el=$g('mcFiscalTerm');if(el)el.value=t;
+}
 async function submitManualClient(){
   const realName=($g('mcRealName')?.value||'').trim();
   if(!realName){alert('이름(실명)은 필수입니다');return}
   const phone=($g('mcPhone')?.value||'').trim();
   const company=($g('mcCompany')?.value||'').trim();
+  const ceo=($g('mcCeo')?.value||'').trim()||realName;
   const bizNo=($g('mcBizNo')?.value||'').trim();
   const notes=($g('mcNotes')?.value||'').trim();
   const autoRoom=$g('mcAutoRoom')?.checked?true:false;
   const priorityRaw=$g('mcPriority')?.value||'';
   const priority=priorityRaw?Number(priorityRaw):null;
+  /* 위하고 호환 필드 */
+  const addr1=($g('mcAddr1')?.value||'').trim();
+  const addr2=($g('mcAddr2')?.value||'').trim();
+  const body={
+    name:realName, real_name:realName, phone,
+    company_name:company, ceo_name:ceo, business_number:bizNo, notes,
+    auto_create_room: autoRoom, priority: priority,
+    company_form:$g('mcForm')?.value||null,
+    sub_business_number:($g('mcSubBiz')?.value||'').trim()||null,
+    corporate_number:($g('mcCorpNo')?.value||'').trim()||null,
+    address:[addr1,addr2].filter(Boolean).join(' ')||null,
+    biz_phone:($g('mcBizPhone')?.value||'').trim()||null,
+    industry_code:($g('mcIndustryCode')?.value||'').trim()||null,
+    business_category:($g('mcBizCategory')?.value||'').trim()||null,
+    industry:($g('mcIndustry')?.value||'').trim()||null,
+    establishment_date:$g('mcEstDate')?.value||null,
+    fiscal_year_start:$g('mcFiscalStart')?.value||null,
+    fiscal_year_end:$g('mcFiscalEnd')?.value||null,
+    fiscal_term:$g('mcFiscalTerm')?.value?Number($g('mcFiscalTerm').value):null,
+    hr_year:$g('mcHrYear')?.value?Number($g('mcHrYear').value):null,
+  };
   const btn=$g('mcSubmitBtn');
   if(btn){btn.disabled=true;btn.style.opacity='.55';btn.textContent='등록 중...'}
   try{
     const r=await fetch('/api/admin-clients?key='+encodeURIComponent(KEY),{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        name:realName, real_name:realName, phone, company_name:company,
-        ceo_name:realName, business_number:bizNo, notes,
-        auto_create_room: autoRoom,
-        priority: priority,
-      })
+      body:JSON.stringify(body)
     });
     const d=await r.json();
     if(!d.ok){alert('등록 실패: '+(d.error||'unknown'));return}
@@ -5121,7 +5091,6 @@ async function submitManualClient(){
     if(typeof showAdminToast==='function')showAdminToast(msg);
     else alert(msg);
     closeManualClientModal();
-    /* 목록 리로드 */
     if(typeof userStatus==='function')userStatus('approved_client');
     if(typeof loadRoomList==='function')loadRoomList();
   }catch(err){alert('오류: '+err.message)}
@@ -6845,31 +6814,71 @@ function _renderBizList(){
   }).join('');
 }
 
-/* ＋ 새 업체 생성 모달 */
+/* ＋ 새 업체 생성 모달 (위하고 수임처 신규생성 스타일) */
 function openNewBusinessModal(){
-  $g('nbName').value='';$g('nbForm').value='개인사업자';
-  $g('nbCeo').value='';$g('nbBiz').value='';
-  $g('nbCategory').value='';$g('nbIndustry').value='';
-  $g('nbAddress').value='';$g('nbPhone').value='';$g('nbContract').value='';
+  ['nbName','nbCeo','nbBiz','nbSubBiz','nbCorpNo','nbAddress','nbAddress2',
+   'nbPhone','nbIndustryCode','nbCategory','nbIndustry','nbEstDate','nbFiscalTerm'].forEach(id=>{const el=$g(id);if(el)el.value=''});
+  $g('nbForm').value='0.법인사업자';
+  var curYear=new Date().getFullYear();
+  if($g('nbFiscalStart'))$g('nbFiscalStart').value=curYear+'-01-01';
+  if($g('nbFiscalEnd'))$g('nbFiscalEnd').value=curYear+'-12-31';
+  if($g('nbHrYear'))$g('nbHrYear').value=String(curYear);
   $g('nbAutoRoom').checked=true;
   $g('newBusinessModal').style.display='flex';
 }
 function closeNewBusinessModal(){$g('newBusinessModal').style.display='none'}
+function _nbOpenAddressSearch(){
+  if(typeof daum==='undefined'||!daum.Postcode){
+    alert('주소검색 스크립트가 아직 로드 중입니다. 잠시 후 다시 시도해주세요.');return;
+  }
+  new daum.Postcode({
+    oncomplete:function(data){
+      var full=data.roadAddress||data.jibunAddress||data.address||'';
+      if(data.buildingName)full+=' ('+data.buildingName+')';
+      $g('nbAddress').value=full;
+      var d2=$g('nbAddress2');if(d2)d2.focus();
+    }
+  }).open();
+}
+function _nbUpdateFiscalTerm(){
+  var t=_calcFiscalTerm($g('nbEstDate')?.value);
+  var el=$g('nbFiscalTerm');if(el)el.value=t;
+}
 async function submitNewBusiness(){
   const name=$g('nbName').value.trim();
+  const ceo=$g('nbCeo').value.trim();
+  const biz=$g('nbBiz').value.trim();
+  const fy1=$g('nbFiscalStart').value;
+  const fy2=$g('nbFiscalEnd').value;
+  const hy=$g('nbHrYear').value;
   if(!name){alert('회사명을 입력하세요');return}
+  if(!ceo){alert('대표자명을 입력하세요');return}
+  if(!biz){alert('사업자등록번호를 입력하세요');return}
+  if(!fy1||!fy2){alert('기수 회계기간(시작/종료)을 입력하세요');return}
+  if(!hy){alert('인사연도를 입력하세요');return}
   const btn=$g('nbSubmitBtn');if(btn){btn.disabled=true;btn.textContent='생성 중...'}
   try{
+    const addr1=$g('nbAddress').value.trim();
+    const addr2=$g('nbAddress2').value.trim();
     const body={
       company_name:name,
       company_form:$g('nbForm').value,
-      ceo_name:$g('nbCeo').value.trim()||null,
-      business_number:$g('nbBiz').value.trim()||null,
+      ceo_name:ceo,
+      business_number:biz.replace(/\D/g,''),
+      sub_business_number:$g('nbSubBiz').value.trim().replace(/\D/g,'')||null,
+      corporate_number:$g('nbCorpNo').value.trim().replace(/\D/g,'')||null,
+      address:[addr1,addr2].filter(Boolean).join(' ')||null,
+      phone:$g('nbPhone').value.trim()||null,
+      industry_code:$g('nbIndustryCode').value.trim()||null,
       business_category:$g('nbCategory').value.trim()||null,
       industry:$g('nbIndustry').value.trim()||null,
-      address:$g('nbAddress').value.trim()||null,
-      phone:$g('nbPhone').value.trim()||null,
-      contract_date:$g('nbContract').value||null,
+      establishment_date:$g('nbEstDate').value||null,
+      fiscal_year_start:fy1,
+      fiscal_year_end:fy2,
+      fiscal_term:$g('nbFiscalTerm').value?Number($g('nbFiscalTerm').value):null,
+      hr_year:Number(hy),
+      service_type:'기장',
+      contract_date:new Date().toISOString().slice(0,10),
       auto_create_room: $g('nbAutoRoom').checked,
     };
     const r=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});

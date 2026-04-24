@@ -47,6 +47,20 @@ export async function onRequestPost(context) {
   const companyName = sanitizeName(body.company_name);
   const ceoName = sanitizeName(body.ceo_name || body.real_name);
   const notes = String(body.notes || '').trim().slice(0, 1000);
+  /* 위하고 호환 필드 (2026-04-24) — 수동 거래처도 동일 폼 */
+  const companyForm = String(body.company_form || '').trim().slice(0, 20) || null;
+  const subBizNo = sanitizeBiz(body.sub_business_number);
+  const corpNo = sanitizeBiz(body.corporate_number);
+  const address = String(body.address || '').trim().slice(0, 200) || null;
+  const bizPhone = sanitizePhone(body.biz_phone || body.company_phone);
+  const industryCode = String(body.industry_code || '').trim().slice(0, 10) || null;
+  const bizCategory = String(body.business_category || '').trim().slice(0, 40) || null;
+  const industry = String(body.industry || '').trim().slice(0, 40) || null;
+  const estDate = String(body.establishment_date || '').trim().slice(0, 10) || null;
+  const fiscalStart = String(body.fiscal_year_start || '').trim().slice(0, 10) || null;
+  const fiscalEnd = String(body.fiscal_year_end || '').trim().slice(0, 10) || null;
+  const fiscalTerm = body.fiscal_term ? Number(body.fiscal_term) : null;
+  const hrYear = body.hr_year ? Number(body.hr_year) : null;
 
   if (!realName) return Response.json({ error: "이름(real_name) 필수" }, { status: 400 });
 
@@ -71,7 +85,7 @@ export async function onRequestPost(context) {
     const userId = r.meta?.last_row_id;
     if (!userId) return Response.json({ error: "user insert failed" }, { status: 500 });
 
-    /* client_businesses 에도 insert (정보 있으면) — 정규화 비교 후 UPSERT */
+    /* client_businesses 에도 insert (정보 있으면) — 위하고 전체 필드 포함 */
     if (businessNumber || companyName) {
       try {
         await db.prepare(
@@ -87,6 +101,20 @@ export async function onRequestPost(context) {
             updated_at TEXT
           )`
         ).run();
+        /* 위하고 호환 컬럼 lazy ALTER */
+        const addCol = async (sql) => { try { await db.prepare(sql).run(); } catch {} };
+        await addCol(`ALTER TABLE client_businesses ADD COLUMN company_form TEXT`);
+        await addCol(`ALTER TABLE client_businesses ADD COLUMN sub_business_number TEXT`);
+        await addCol(`ALTER TABLE client_businesses ADD COLUMN corporate_number TEXT`);
+        await addCol(`ALTER TABLE client_businesses ADD COLUMN business_category TEXT`);
+        await addCol(`ALTER TABLE client_businesses ADD COLUMN industry_code TEXT`);
+        await addCol(`ALTER TABLE client_businesses ADD COLUMN industry TEXT`);
+        await addCol(`ALTER TABLE client_businesses ADD COLUMN phone TEXT`);
+        await addCol(`ALTER TABLE client_businesses ADD COLUMN establishment_date TEXT`);
+        await addCol(`ALTER TABLE client_businesses ADD COLUMN fiscal_year_start TEXT`);
+        await addCol(`ALTER TABLE client_businesses ADD COLUMN fiscal_year_end TEXT`);
+        await addCol(`ALTER TABLE client_businesses ADD COLUMN fiscal_term INTEGER`);
+        await addCol(`ALTER TABLE client_businesses ADD COLUMN hr_year INTEGER`);
         const normBiz = String(businessNumber || "").replace(/\D/g, "");
         const normName = String(companyName || "").replace(/\s+/g, "").toLowerCase();
         let existing = null;
@@ -103,13 +131,38 @@ export async function onRequestPost(context) {
         } catch {}
         if (existing) {
           await db.prepare(
-            `UPDATE client_businesses SET company_name = ?, ceo_name = ?, business_number = ?, updated_at = ? WHERE id = ?`
-          ).bind(companyName || existing.company_name || null, ceoName || null, normBiz || null, now, existing.id).run();
+            `UPDATE client_businesses SET
+               company_name = ?, ceo_name = ?, business_number = ?,
+               company_form = ?, sub_business_number = ?, corporate_number = ?,
+               address = ?, phone = ?, industry_code = ?, business_category = ?, industry = ?,
+               establishment_date = ?, fiscal_year_start = ?, fiscal_year_end = ?,
+               fiscal_term = ?, hr_year = ?,
+               updated_at = ?
+             WHERE id = ?`
+          ).bind(
+            companyName || existing.company_name || null, ceoName || null, normBiz || null,
+            companyForm, subBizNo || null, corpNo || null,
+            address, bizPhone || null, industryCode, bizCategory, industry,
+            estDate, fiscalStart, fiscalEnd, fiscalTerm, hrYear,
+            now, existing.id
+          ).run();
         } else {
           await db.prepare(
-            `INSERT INTO client_businesses (user_id, company_name, ceo_name, business_number, is_primary, created_at, updated_at)
-             VALUES (?, ?, ?, ?, 1, ?, ?)`
-          ).bind(userId, companyName || null, ceoName || null, normBiz || null, now, now).run();
+            `INSERT INTO client_businesses (
+               user_id, company_name, ceo_name, business_number,
+               company_form, sub_business_number, corporate_number,
+               address, phone, industry_code, business_category, industry,
+               establishment_date, fiscal_year_start, fiscal_year_end,
+               fiscal_term, hr_year,
+               is_primary, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`
+          ).bind(
+            userId, companyName || null, ceoName || null, normBiz || null,
+            companyForm, subBizNo || null, corpNo || null,
+            address, bizPhone || null, industryCode, bizCategory, industry,
+            estDate, fiscalStart, fiscalEnd, fiscalTerm, hrYear,
+            now, now
+          ).run();
         }
       } catch {}
     }

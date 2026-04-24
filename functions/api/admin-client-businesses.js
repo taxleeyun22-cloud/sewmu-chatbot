@@ -41,6 +41,9 @@ async function ensureTable(db) {
   await add(`ALTER TABLE client_businesses ADD COLUMN industry_code TEXT`);
   await add(`ALTER TABLE client_businesses ADD COLUMN fiscal_year_start TEXT`);
   await add(`ALTER TABLE client_businesses ADD COLUMN fiscal_year_end TEXT`);
+  await add(`ALTER TABLE client_businesses ADD COLUMN company_form TEXT`);
+  await add(`ALTER TABLE client_businesses ADD COLUMN fiscal_term INTEGER`);
+  await add(`ALTER TABLE client_businesses ADD COLUMN hr_year INTEGER`);
 
   // 기존 client_profiles 데이터 1회 마이그레이션
   try {
@@ -146,6 +149,7 @@ export async function onRequestPost(context) {
           notes = ?, is_primary = ?,
           sub_business_number = ?, corporate_number = ?, business_category = ?,
           industry_code = ?, fiscal_year_start = ?, fiscal_year_end = ?,
+          company_form = ?, fiscal_term = ?, hr_year = ?,
           updated_at = ?, updated_by = 'admin'
         WHERE id = ?
       `).bind(
@@ -168,6 +172,9 @@ export async function onRequestPost(context) {
         body.industry_code || null,
         body.fiscal_year_start || null,
         body.fiscal_year_end || null,
+        body.company_form || null,
+        body.fiscal_term != null && body.fiscal_term !== '' ? Number(body.fiscal_term) : null,
+        body.hr_year != null && body.hr_year !== '' ? Number(body.hr_year) : null,
         now, existing.id
       ).run();
       return Response.json({ ok: true, id: existing.id, merged: true });
@@ -180,8 +187,9 @@ export async function onRequestPost(context) {
         employee_count, last_revenue, vat_period, notes, is_primary,
         sub_business_number, corporate_number, business_category,
         industry_code, fiscal_year_start, fiscal_year_end,
+        company_form, fiscal_term, hr_year,
         created_at, updated_at, updated_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'admin')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'admin')
     `).bind(
       userId,
       body.company_name || null,
@@ -203,6 +211,9 @@ export async function onRequestPost(context) {
       body.industry_code || null,
       body.fiscal_year_start || null,
       body.fiscal_year_end || null,
+      body.company_form || null,
+      body.fiscal_term != null && body.fiscal_term !== '' ? Number(body.fiscal_term) : null,
+      body.hr_year != null && body.hr_year !== '' ? Number(body.hr_year) : null,
       now, now
     ).run();
 
@@ -244,6 +255,7 @@ export async function onRequestPut(context) {
         notes = ?, is_primary = ?,
         sub_business_number = ?, corporate_number = ?, business_category = ?,
         industry_code = ?, fiscal_year_start = ?, fiscal_year_end = ?,
+        company_form = ?, fiscal_term = ?, hr_year = ?,
         updated_at = ?, updated_by = 'admin'
       WHERE id = ?
     `).bind(
@@ -267,6 +279,9 @@ export async function onRequestPut(context) {
       body.industry_code || null,
       body.fiscal_year_start || null,
       body.fiscal_year_end || null,
+      body.company_form || null,
+      body.fiscal_term != null && body.fiscal_term !== '' ? Number(body.fiscal_term) : null,
+      body.hr_year != null && body.hr_year !== '' ? Number(body.hr_year) : null,
       now, id
     ).run();
 

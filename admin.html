@@ -92,7 +92,6 @@
 <button id="uStTerminated" onclick="userStatus('terminated')" title="거래가 종료된 거래처 — 상담방 모두 closed, 접근 차단됨" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">🚫 종료 <span id="cTerminated">0</span></button>
 <button id="uStAdmin" onclick="userStatus('admin')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500" title="is_admin=1 관리자 사용자">👑 관리자 <span id="cAdmin">0</span></button>
 <button onclick="openManualClientModal()" style="margin-left:auto;background:#10b981;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="OAuth 없이 관리자가 직접 거래처 생성 — 오프라인 고객·기존 거래처 마이그레이션용">➕ 수동 거래처</button>
-<button onclick="showBulkUpload()" style="background:#191f28;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📤 CSV 일괄 업로드</button>
 <button onclick="cleanDupBiz()" title="같은 사용자에게 중복 저장된 사업장을 감지·정리 (먼저 미리보기 후 실행)" style="background:#f2f4f6;color:#4b5563;border:1px solid #e5e8eb;padding:6px 12px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">🧹 중복 사업장 정리</button>
 </div>
 <div id="userList"></div>
@@ -168,44 +167,85 @@
     </div>
   </div>
 </div>
-<!-- 수동 거래처 등록 모달 -->
+<!-- 수동 거래처 등록 모달 (위하고 수임처 신규생성 스타일) -->
 <div id="manualClientModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11200;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:500px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:680px;max-height:92vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
-      <div style="font-weight:700;font-size:1em">➕ 수동 거래처 등록 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">로그인 없는 관리용 거래처</span></div>
+      <div style="font-weight:700;font-size:1em">➕ 수동 거래처 등록 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">로그인 없는 관리용</span></div>
       <button onclick="closeManualClientModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
     </div>
-    <div style="padding:16px 18px">
-      <div style="font-size:.78em;color:#6b7280;margin-bottom:12px;line-height:1.55">
-        ⚠️ 이 거래처는 <b>로그인 불가</b>합니다. 관리자 화면에서 관리·문서·메모·요약만 사용 가능.<br>
-        OAuth 가입 고객과 합치려면 나중에 승인 탭에서 대체 가능.
+    <div style="padding:14px 18px">
+      <div style="font-size:.76em;color:#6b7280;margin-bottom:10px;line-height:1.5;padding:8px 10px;background:#fef3c7;border-radius:6px">
+        ⚠️ 로그인 불가 · 관리자 화면에서 관리·문서·메모·요약만 사용. 가입 고객과 합치려면 승인 탭에서 대체.
       </div>
-      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">이름 (실명) <span style="color:#f04452">*</span></label>
-      <input id="mcRealName" type="text" placeholder="예) 김철수" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
 
-      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">전화번호</label>
-      <input id="mcPhone" type="tel" placeholder="010-1234-5678" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+      <!-- 👤 사람 정보 (수동 특유) -->
+      <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:6px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">👤 사람 정보</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+        <input id="mcRealName" type="text" placeholder="이름 (실명) *" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="mcPhone" type="tel" placeholder="010-1234-5678" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+      </div>
 
-      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">상호명</label>
-      <input id="mcCompany" type="text" placeholder="예) 철수상회" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+      <!-- 📋 수임처 정보 -->
+      <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:10px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">📋 수임처 정보</div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="mcCompany" type="text" placeholder="회사명 (수임처명)" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <select id="mcForm" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+          <option value="0.법인사업자" selected>0.법인사업자</option>
+          <option value="1.개인사업자">1.개인사업자</option>
+          <option value="2.간이사업자">2.간이사업자</option>
+          <option value="3.기타">3.기타</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="mcCeo" type="text" placeholder="대표자명" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="mcBizNo" type="text" placeholder="사업자등록번호" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="mcSubBiz" type="text" placeholder="종사업자번호" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="mcCorpNo" type="text" placeholder="법인등록번호" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:6px">
+        <input id="mcAddr1" type="text" placeholder="사업장주소 (도로명)" readonly style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;background:#f9fafb;cursor:pointer" onclick="_mcOpenAddressSearch()">
+        <button type="button" onclick="_mcOpenAddressSearch()" style="padding:8px 14px;border:1px solid #3182f6;background:#eff6ff;color:#1e40af;border-radius:6px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">🔍 주소검색</button>
+      </div>
+      <input id="mcAddr2" type="text" placeholder="나머지 주소 (상세)" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box;margin-bottom:6px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="mcBizPhone" type="text" placeholder="사업장전화번호" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="mcIndustryCode" type="text" placeholder="업종코드" maxlength="10" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="mcBizCategory" type="text" placeholder="업태 (예: 도매업)" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="mcIndustry" type="text" placeholder="업종 (음식점/서비스 등)" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+      </div>
 
-      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">사업자등록번호</label>
-      <input id="mcBizNo" type="text" placeholder="123-45-67890" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;outline:none">
+      <!-- 📊 회계/급여관리 정보 -->
+      <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:10px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">📊 회계/급여관리 정보</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <div><label style="font-size:.72em;color:#6b7280">개업년월일</label><input id="mcEstDate" type="date" onchange="_mcUpdateFiscalTerm()" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+        <div><label style="font-size:.72em;color:#6b7280">N기 <span style="color:#8b95a1;font-weight:400">(개업일 입력 시 자동)</span></label><input id="mcFiscalTerm" type="number" min="1" placeholder="자동" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <div><label style="font-size:.72em;color:#6b7280">기수 회계기간 시작</label><input id="mcFiscalStart" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+        <div><label style="font-size:.72em;color:#6b7280">기수 회계기간 종료</label><input id="mcFiscalEnd" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:.72em;color:#6b7280">인사연도</label>
+        <input id="mcHrYear" type="number" min="2000" max="2100" placeholder="예: 2026" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box">
+      </div>
 
-      <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">거래처 노트 (초기 기본 정보)</label>
-      <textarea id="mcNotes" placeholder="예) 음식점 / 현금 매출 많음 / 배당 연 2회 / 대표 성격 급함" rows="3" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:6px;box-sizing:border-box;outline:none;resize:vertical"></textarea>
-      <div style="font-size:.72em;color:#8b95a1;margin-bottom:14px">↑ 작성하면 🏢 거래처 노트로 자동 저장 · AI 요약에 자동 반영</div>
-
-      <div style="border-top:1px dashed #e5e8eb;padding-top:12px;margin-top:6px">
-        <label style="font-size:.8em;font-weight:600;color:#374151;display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px">
-          <input type="checkbox" id="mcAutoRoom" checked style="width:16px;height:16px;cursor:pointer;accent-color:#10b981">
-          이 거래처용 상담방 같이 만들기
-        </label>
-        <label style="font-size:.8em;font-weight:600;color:#374151;display:block;margin-bottom:4px">담당자 라벨 (선택)</label>
-        <select id="mcPriority" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:4px;box-sizing:border-box">
+      <!-- 🏢 운영 -->
+      <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:10px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">🏢 운영</div>
+      <textarea id="mcNotes" placeholder="거래처 노트 · AI 요약에 자동 반영 (예: 음식점 / 현금 매출 많음)" rows="2" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;margin-bottom:8px;box-sizing:border-box;outline:none;resize:vertical"></textarea>
+      <label style="font-size:.82em;font-weight:600;color:#374151;display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="mcAutoRoom" checked style="width:16px;height:16px;cursor:pointer;accent-color:#10b981">
+        이 거래처용 상담방 같이 만들기
+      </label>
+      <div>
+        <label style="font-size:.72em;color:#6b7280">담당자 라벨 (선택)</label>
+        <select id="mcPriority" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box">
           <option value="">— 미지정</option>
         </select>
-        <div style="font-size:.72em;color:#8b95a1">담당자 지정하면 상담방 카드 색상으로 표시됨 · ⚙️ 라벨 관리에서 추가</div>
       </div>
     </div>
     <div style="padding:12px 18px;border-top:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:8px;justify-content:flex-end">
@@ -239,12 +279,12 @@
 <div><label style="font-size:.75em;font-weight:600;color:#555">대표자</label><input id="pmCEO" type="text" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
 <div><label style="font-size:.75em;font-weight:600;color:#555">연락처</label><input id="pmPhone" type="text" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
 <div><label style="font-size:.75em;font-weight:600;color:#555">업종</label><input id="pmIndustry" type="text" placeholder="음식점/도소매/서비스 등" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
-<div><label style="font-size:.75em;font-weight:600;color:#555">사업형태</label><select id="pmBizType" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"><option value="">선택</option><option value="개인">개인사업자</option><option value="법인">법인사업자</option></select></div>
+<div><label style="font-size:.75em;font-weight:600;color:#555">회사구분 <span style="font-weight:400;color:#8b95a1">(위하고)</span></label><select id="pmBizType" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"><option value="">선택</option><option value="0.법인사업자">0.법인사업자</option><option value="1.개인사업자">1.개인사업자</option><option value="2.간이사업자">2.간이사업자</option><option value="3.기타">3.기타</option></select></div>
 <div><label style="font-size:.75em;font-weight:600;color:#555">과세유형</label><select id="pmTaxType" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"><option value="">선택</option><option value="일반과세">일반과세</option><option value="간이과세">간이과세</option><option value="면세">면세</option><option value="법인">법인세</option></select></div>
 <div><label style="font-size:.75em;font-weight:600;color:#555">부가세 주기</label><select id="pmVatPeriod" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"><option value="">선택</option><option value="연 2회 (1/7월)">연 2회 (1/7월)</option><option value="연 4회 (예정+확정)">연 4회</option><option value="면세(신고 없음)">면세(없음)</option></select></div>
-<div><label style="font-size:.75em;font-weight:600;color:#555">개업일</label><input id="pmEstDate" type="date" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div><label style="font-size:.75em;font-weight:600;color:#555">개업일 <span style="font-weight:400;color:#8b95a1">(N기 자동 계산)</span></label><input id="pmEstDate" type="date" onchange="_pmUpdateFiscalTerm()" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
 <div><label style="font-size:.75em;font-weight:600;color:#555">직원수</label><input id="pmEmp" type="number" min="0" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
-<div style="grid-column:span 2"><label style="font-size:.75em;font-weight:600;color:#555">주소</label><input id="pmAddr" type="text" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div style="grid-column:span 2"><label style="font-size:.75em;font-weight:600;color:#555">주소 <span style="font-weight:400;color:#8b95a1">(🔍 눌러 검색)</span></label><div style="display:grid;grid-template-columns:1fr auto;gap:6px"><input id="pmAddr" type="text" readonly onclick="_pmOpenAddressSearch()" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;background:#f9fafb;cursor:pointer;box-sizing:border-box"><button type="button" onclick="_pmOpenAddressSearch()" style="padding:9px 12px;border:1px solid #3182f6;background:#eff6ff;color:#1e40af;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit">🔍</button></div><input id="pmAddr2" type="text" placeholder="나머지 주소 (상세)" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;box-sizing:border-box;margin-top:4px"></div>
 <div style="grid-column:span 2"><label style="font-size:.75em;font-weight:600;color:#555">최근 매출 (원)</label><input id="pmRevenue" type="number" min="0" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
 <div style="grid-column:span 2"><label style="font-size:.75em;font-weight:600;color:#555">세무사 메모 (AI가 참조)</label><textarea id="pmNotes" rows="3" placeholder="예: 배달 비중 큼. 올해 시설투자 예정. 가지급금 이슈 있음." style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;resize:vertical"></textarea></div>
 <div><label style="font-size:.75em;font-weight:600;color:#555">종사업자번호 <span style="font-weight:400;color:#8b95a1">(선택)</span></label><input id="pmSubBizNo" type="text" placeholder="000-00-00000" maxlength="14" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
@@ -253,6 +293,8 @@
 <div><label style="font-size:.75em;font-weight:600;color:#555">업종코드 <span style="font-weight:400;color:#8b95a1">(통계청 6자리)</span></label><input id="pmIndustryCode" type="text" placeholder="예: 512321" maxlength="10" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
 <div><label style="font-size:.75em;font-weight:600;color:#555">기수 시작일 <span style="font-weight:400;color:#8b95a1">(회계기간)</span></label><input id="pmFiscalStart" type="date" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
 <div><label style="font-size:.75em;font-weight:600;color:#555">기수 종료일</label><input id="pmFiscalEnd" type="date" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div><label style="font-size:.75em;font-weight:600;color:#555">N기 <span style="font-weight:400;color:#8b95a1">(개업일 기준 자동)</span></label><input id="pmFiscalTerm" type="number" min="1" placeholder="자동" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div><label style="font-size:.75em;font-weight:600;color:#555">인사연도</label><input id="pmHrYear" type="number" min="2000" max="2100" placeholder="예: 2026" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
 <div style="grid-column:span 2"><label style="display:flex;align-items:center;gap:8px;font-size:.8em;font-weight:600;color:#555"><input type="checkbox" id="pmIsPrimary"><span>⭐ 주 사업장으로 설정 (대표 사업장)</span></label></div>
 </div>
 <div style="display:flex;gap:8px;margin-top:14px">
@@ -261,33 +303,6 @@
 <button id="pmDeleteBtn" onclick="deleteBusiness()" style="display:none;background:#fee2e2;color:#f04452;border:none;padding:11px 16px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">🗑️ 삭제</button>
 </div>
 </div>
-</div>
-</div>
-
-<!-- CSV 일괄 업로드 모달 -->
-<div id="bulkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
-<div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-<h3 style="font-size:1.1em;margin:0">📤 거래처 CSV 일괄 업로드</h3>
-<button onclick="closeBulkModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#8b95a1">✕</button>
-</div>
-<p style="font-size:.85em;color:#555;margin:0 0 8px">위하고/세무사랑에서 거래처 목록 <b>Excel 다운로드 → CSV 저장</b> 후 업로드</p>
-<div style="background:#f2f4f6;padding:10px 12px;border-radius:8px;font-size:.72em;color:#555;margin-bottom:12px;line-height:1.55">
-<b>지원 컬럼명 (순서 무관, 한 줄 헤더):</b><br>
-상호, 사업자번호, 대표자, 업종, 사업형태, 과세유형, 개업일, 주소, 전화, 직원수, 매출, 부가세주기, 메모<br>
-<span style="color:#8b95a1">* 영문도 인식: company_name, business_number, ceo_name, industry, business_type, tax_type, establishment_date, address, phone, employee_count, last_revenue, vat_period, notes</span>
-</div>
-<input type="file" id="bulkFile" accept=".csv,.txt" onchange="previewCSV(this)" style="width:100%;padding:9px;border:1px dashed #3182f6;border-radius:8px;font-family:inherit">
-<div id="bulkPreview" style="margin-top:12px;font-size:.8em;color:#555"></div>
-<label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:.85em">
-<input type="checkbox" id="bulkAutoApprove" checked>
-<span>사업자번호·연락처 매칭되는 기존 가입자를 <b>기장거래처로 자동 승격</b></span>
-</label>
-<div style="display:flex;gap:8px;margin-top:14px">
-<button id="bulkUploadBtn" onclick="submitBulk()" disabled style="flex:1;background:#3182f6;color:#fff;border:none;padding:11px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit;opacity:.5">업로드</button>
-<button onclick="closeBulkModal()" style="background:#e5e8eb;color:#555;border:none;padding:11px 20px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
-</div>
-<div id="bulkResult" style="margin-top:14px"></div>
 </div>
 </div>
 
@@ -765,7 +780,7 @@
 </div>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=110"></script>
+<script src="/admin.js?v=111"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면
@@ -1333,33 +1348,67 @@
   </div>
 </div>
 
-<!-- ＋ 새 업체 생성 모달 -->
+<!-- ＋ 새 업체 생성 모달 (위하고 수임처 신규생성 스타일) -->
 <div id="newBusinessModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11950;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
-      <div style="font-weight:700;font-size:1em">＋ 새 업체</div>
+      <div style="font-weight:700;font-size:1em">＋ 새 업체 생성 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">위하고 스타일</span></div>
       <button onclick="closeNewBusinessModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
     </div>
-    <div style="padding:16px 18px;overflow-y:auto">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div><label style="font-size:.76em;font-weight:600;color:#374151">회사명 *</label><input id="nbName" type="text" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
-        <div><label style="font-size:.76em;font-weight:600;color:#374151">회사구분</label>
-          <select id="nbForm" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box">
-            <option value="법인사업자">법인사업자</option><option value="개인사업자" selected>개인사업자</option><option value="간이사업자">간이사업자</option><option value="기타">기타</option>
-          </select>
-        </div>
-        <div><label style="font-size:.76em;font-weight:600;color:#374151">대표자명</label><input id="nbCeo" type="text" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
-        <div><label style="font-size:.76em;font-weight:600;color:#374151">사업자등록번호</label><input id="nbBiz" type="text" placeholder="123-45-67890" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
-        <div><label style="font-size:.76em;font-weight:600;color:#374151">업태</label><input id="nbCategory" type="text" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
-        <div><label style="font-size:.76em;font-weight:600;color:#374151">업종</label><input id="nbIndustry" type="text" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
-        <div style="grid-column:span 2"><label style="font-size:.76em;font-weight:600;color:#374151">사업장 주소</label><input id="nbAddress" type="text" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
-        <div><label style="font-size:.76em;font-weight:600;color:#374151">사업장 전화</label><input id="nbPhone" type="text" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
-        <div><label style="font-size:.76em;font-weight:600;color:#374151">수임일자</label><input id="nbContract" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box"></div>
+    <div style="padding:14px 18px;overflow-y:auto">
+      <!-- 📋 수임처 정보 -->
+      <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:2px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">📋 수임처 정보</div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="nbName" type="text" placeholder="회사명 (수임처명) *" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <select id="nbForm" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+          <option value="0.법인사업자" selected>0.법인사업자</option>
+          <option value="1.개인사업자">1.개인사업자</option>
+          <option value="2.간이사업자">2.간이사업자</option>
+          <option value="3.기타">3.기타</option>
+        </select>
       </div>
-      <label style="display:flex;align-items:center;gap:6px;margin-top:12px;font-size:.88em;cursor:pointer">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="nbCeo" type="text" placeholder="대표자명 *" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="nbBiz" type="text" placeholder="사업자등록번호 *" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="nbSubBiz" type="text" placeholder="종사업자번호" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="nbCorpNo" type="text" placeholder="법인등록번호" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:6px">
+        <input id="nbAddress" type="text" placeholder="사업장주소 (도로명)" readonly style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;background:#f9fafb;cursor:pointer" onclick="_nbOpenAddressSearch()">
+        <button type="button" onclick="_nbOpenAddressSearch()" style="padding:8px 14px;border:1px solid #3182f6;background:#eff6ff;color:#1e40af;border-radius:6px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">🔍 주소검색</button>
+      </div>
+      <input id="nbAddress2" type="text" placeholder="나머지 주소 (상세)" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box;margin-bottom:6px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="nbPhone" type="text" placeholder="사업장전화번호" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="nbIndustryCode" type="text" placeholder="업종코드" maxlength="10" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="nbCategory" type="text" placeholder="업태 (예: 도매업)" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="nbIndustry" type="text" placeholder="업종 (음식점/서비스 등)" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+      </div>
+
+      <!-- 📊 회계/급여관리 정보 -->
+      <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:10px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">📊 회계/급여관리 정보</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <div><label style="font-size:.72em;color:#6b7280">개업년월일</label><input id="nbEstDate" type="date" onchange="_nbUpdateFiscalTerm()" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+        <div><label style="font-size:.72em;color:#6b7280">N기 <span style="color:#8b95a1;font-weight:400">(자동)</span></label><input id="nbFiscalTerm" type="number" min="1" placeholder="자동" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <div><label style="font-size:.72em;color:#6b7280">기수 회계기간 시작 *</label><input id="nbFiscalStart" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+        <div><label style="font-size:.72em;color:#6b7280">기수 회계기간 종료 *</label><input id="nbFiscalEnd" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:.72em;color:#6b7280">인사연도 *</label>
+        <input id="nbHrYear" type="number" min="2000" max="2100" placeholder="예: 2026" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box">
+      </div>
+
+      <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:.88em;cursor:pointer">
         <input id="nbAutoRoom" type="checkbox" checked>
         <span>생성과 동시에 기본 상담방 개설</span>
       </label>
+      <div style="font-size:.7em;color:#8b95a1;margin-top:4px">* 서비스 제공형태: 기장 고정 / 수임일자 자동 오늘로 저장</div>
     </div>
     <div style="padding:10px 18px;border-top:1px solid #e5e8eb;display:flex;gap:8px;justify-content:flex-end">
       <button onclick="closeNewBusinessModal()" style="background:#e5e8eb;border:none;padding:9px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
