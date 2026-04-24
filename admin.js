@@ -2542,10 +2542,27 @@ async function openApproveWithBusiness(userId, displayName, phone, action, prefi
   modeRadio.checked=true;
   _apbSwitchMode('existing');
   $g('apbSearch').value='';
+  /* 📋 수임처 정보 */
   $g('apbNewName').value='';
+  $g('apbNewForm').value='0.법인사업자';
   $g('apbNewCeo').value='';
   $g('apbNewBiz').value='';
-  $g('apbNewForm').value='개인사업자';
+  $g('apbNewSubBiz').value='';
+  $g('apbNewCorpNo').value='';
+  $g('apbNewAddr1').value='';
+  $g('apbNewAddr2').value='';
+  $g('apbNewPhone').value='';
+  $g('apbNewIndustryCode').value='';
+  $g('apbNewBizCategory').value='';
+  $g('apbNewIndustry').value='';
+  /* 📊 회계/급여 */
+  $g('apbNewEstDate').value='';
+  $g('apbNewFiscalTerm').value='';
+  /* 기수: 올해 1/1 ~ 12/31 기본값 */
+  var _thisYear=new Date().getFullYear();
+  $g('apbNewFiscalStart').value=_thisYear+'-01-01';
+  $g('apbNewFiscalEnd').value=_thisYear+'-12-31';
+  $g('apbNewHrYear').value=_thisYear;
   const roleRadio=document.querySelector('input[name=apbRole][value=담당자]');
   if(roleRadio)roleRadio.checked=true;
   $g('apbAutoJoin').checked=true;
@@ -2577,6 +2594,21 @@ function closeApproveBizModal(){
   const m=$g('approveBizModal');if(m)m.style.display='none';
   document.body.style.overflow='';
   _apbUser=null;_apbSelectedBizId=null;
+}
+/* 🔍 카카오 주소검색 (위하고 스타일) — 승인 모달 '새 업체 생성' 주소 입력용 */
+function _apbOpenAddressSearch(){
+  if(typeof daum==='undefined'||!daum.Postcode){
+    alert('주소검색 스크립트가 아직 로드 중입니다. 잠시 후 다시 시도해주세요.');
+    return;
+  }
+  new daum.Postcode({
+    oncomplete: function(data){
+      var full=data.roadAddress||data.jibunAddress||data.address||'';
+      if(data.buildingName)full+=' ('+data.buildingName+')';
+      $g('apbNewAddr1').value=full;
+      var d2=$g('apbNewAddr2');if(d2)d2.focus();
+    }
+  }).open();
 }
 function _apbSwitchMode(mode){
   $g('apbExistingBox').style.display=mode==='existing'?'block':'none';
@@ -2624,7 +2656,16 @@ async function submitApproveWithBusiness(){
   }
   if(mode==='new'){
     const nm=($g('apbNewName').value||'').trim();
-    if(!nm){alert('새 업체의 회사명을 입력하세요');return}
+    const ceo=($g('apbNewCeo').value||'').trim();
+    const biz=($g('apbNewBiz').value||'').trim();
+    const fy1=$g('apbNewFiscalStart').value;
+    const fy2=$g('apbNewFiscalEnd').value;
+    const hy=$g('apbNewHrYear').value;
+    if(!nm){alert('회사명을 입력하세요');return}
+    if(!ceo){alert('대표자명을 입력하세요');return}
+    if(!biz){alert('사업자등록번호를 입력하세요');return}
+    if(!fy1||!fy2){alert('기수 회계기간(시작/종료)을 입력하세요');return}
+    if(!hy){alert('인사연도를 입력하세요');return}
   }
   if(btn){btn.disabled=true;btn.textContent='처리 중...';btn.style.opacity='.6'}
   try{
@@ -2637,12 +2678,29 @@ async function submitApproveWithBusiness(){
     let businessId=_apbSelectedBizId;
     let createdRoomId=null;
     if(mode==='new'){
+      /* 위하고 수임처 신규생성 스타일 — 전체 필드 */
+      const addr1=($g('apbNewAddr1').value||'').trim();
+      const addr2=($g('apbNewAddr2').value||'').trim();
       const body={
         company_name:$g('apbNewName').value.trim(),
         company_form:$g('apbNewForm').value,
         ceo_name:($g('apbNewCeo').value||'').trim()||null,
-        business_number:($g('apbNewBiz').value||'').trim()||null,
-        auto_create_room: autoJoin, /* 자동 참여 체크 시 같이 방 개설 */
+        business_number:($g('apbNewBiz').value||'').trim().replace(/\D/g,'')||null,
+        sub_business_number:($g('apbNewSubBiz').value||'').trim().replace(/\D/g,'')||null,
+        corporate_number:($g('apbNewCorpNo').value||'').trim().replace(/\D/g,'')||null,
+        address:[addr1,addr2].filter(Boolean).join(' ')||null,
+        phone:($g('apbNewPhone').value||'').trim()||null,
+        industry_code:($g('apbNewIndustryCode').value||'').trim()||null,
+        business_category:($g('apbNewBizCategory').value||'').trim()||null,
+        industry:($g('apbNewIndustry').value||'').trim()||null,
+        establishment_date:$g('apbNewEstDate').value||null,
+        fiscal_year_start:$g('apbNewFiscalStart').value||null,
+        fiscal_year_end:$g('apbNewFiscalEnd').value||null,
+        fiscal_term:$g('apbNewFiscalTerm').value?Number($g('apbNewFiscalTerm').value):null,
+        hr_year:$g('apbNewHrYear').value?Number($g('apbNewHrYear').value):null,
+        service_type:'기장', /* 세무사 지시: 기장 고정 */
+        contract_date:new Date().toISOString().slice(0,10), /* 수임일자 자동 오늘 */
+        auto_create_room: autoJoin,
       };
       const r2=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       const d2=await r2.json();

@@ -764,7 +764,8 @@
 </div>
 </div>
 
-<script src="/admin.js?v=109"></script>
+<script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+<script src="/admin.js?v=110"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면
@@ -1208,9 +1209,9 @@
   </div>
 </div>
 
-<!-- ✅ 승인 + 🏢 업체·👥 역할 연결 모달 -->
+<!-- ✅ 승인 + 🏢 업체·👥 역할 연결 모달 (위하고 수임처 신규생성 스타일) -->
 <div id="approveBizModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11900;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">✅ 승인 + 🏢 업체 연결</div>
       <button onclick="closeApproveBizModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
@@ -1232,20 +1233,54 @@
         <input type="radio" name="apbMode" value="new" onchange="_apbSwitchMode('new')"> 새 업체 생성
       </label>
       <div id="apbNewBox" style="display:none;padding:0 0 10px 22px">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-          <input id="apbNewName" type="text" placeholder="회사명 *" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <!-- 📋 수임처 정보 (위하고 스타일) -->
+        <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:6px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">📋 수임처 정보</div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-bottom:6px">
+          <input id="apbNewName" type="text" placeholder="회사명 (수임처명) *" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
           <select id="apbNewForm" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
-            <option value="법인사업자">법인사업자</option>
-            <option value="개인사업자" selected>개인사업자</option>
-            <option value="간이사업자">간이사업자</option>
-            <option value="기타">기타</option>
+            <option value="0.법인사업자" selected>0.법인사업자</option>
+            <option value="1.개인사업자">1.개인사업자</option>
+            <option value="2.간이사업자">2.간이사업자</option>
+            <option value="3.기타">3.기타</option>
           </select>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-          <input id="apbNewCeo" type="text" placeholder="대표자명" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
-          <input id="apbNewBiz" type="text" placeholder="사업자등록번호" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewCeo" type="text" placeholder="대표자명 *" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewBiz" type="text" placeholder="사업자등록번호 *" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
         </div>
-        <div style="font-size:.72em;color:#8b95a1">추가 필드(업태·주소·회계기간 등)는 업체 대시보드에서 수정 가능합니다.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+          <input id="apbNewSubBiz" type="text" placeholder="종사업자번호" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewCorpNo" type="text" placeholder="법인등록번호" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:6px">
+          <input id="apbNewAddr1" type="text" placeholder="사업장주소 (도로명)" readonly style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;background:#f9fafb;cursor:pointer" onclick="_apbOpenAddressSearch()">
+          <button type="button" onclick="_apbOpenAddressSearch()" style="padding:8px 14px;border:1px solid #3182f6;background:#eff6ff;color:#1e40af;border-radius:6px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">🔍 주소검색</button>
+        </div>
+        <input id="apbNewAddr2" type="text" placeholder="나머지 주소 (상세)" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box;margin-bottom:6px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+          <input id="apbNewPhone" type="text" placeholder="사업장전화번호" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewIndustryCode" type="text" placeholder="업종코드" maxlength="10" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+          <input id="apbNewBizCategory" type="text" placeholder="업태 (예: 도매업)" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewIndustry" type="text" placeholder="업종 (음식점/서비스 등)" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        </div>
+
+        <!-- 📊 회계/급여관리 정보 -->
+        <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:12px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">📊 회계/급여관리 정보</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+          <div><label style="font-size:.72em;color:#6b7280">개업년월일</label><input id="apbNewEstDate" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+          <div><label style="font-size:.72em;color:#6b7280">N기</label><input id="apbNewFiscalTerm" type="number" min="1" placeholder="예: 5" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+          <div><label style="font-size:.72em;color:#6b7280">기수 회계기간 시작 *</label><input id="apbNewFiscalStart" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+          <div><label style="font-size:.72em;color:#6b7280">기수 회계기간 종료 *</label><input id="apbNewFiscalEnd" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+        </div>
+        <div style="margin-bottom:6px">
+          <label style="font-size:.72em;color:#6b7280">인사연도 *</label>
+          <input id="apbNewHrYear" type="number" min="2000" max="2100" placeholder="예: 2026" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box">
+        </div>
+        <div style="font-size:.7em;color:#8b95a1;margin-top:4px">* 서비스 제공형태: 기장 고정 / 수임일자 자동 오늘로 저장</div>
       </div>
 
       <div style="border-top:1px solid #f2f4f6;margin:6px 0 10px"></div>
