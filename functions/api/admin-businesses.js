@@ -173,20 +173,30 @@ export async function onRequestPost(context) {
     const bid = r.meta?.last_row_id;
 
     /* 🏢 auto_create_room — 업체 생성과 동시에 상담방 자동 개설 (기본 true).
-       body.auto_create_room === false 면 skip. 대표자 있으면 is_primary user 를 room_members 에 */
+       body.auto_create_room === false 면 skip. body.priority (담당자 라벨 id) 도 함께 저장. */
     let createdRoomId = null;
     if (bid && body.auto_create_room !== false) {
       try {
-        /* 방 id — 6자리 영숫자 */
         const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         let rid = '';
         for (let i = 0; i < 6; i++) rid += chars[Math.floor(Math.random() * chars.length)];
         const roomName = (name + ' 상담방').slice(0, 80);
+        /* priority 라벨 id 검증 (존재 확인) */
+        let roomPriority = null;
+        if (body.priority != null && body.priority !== '') {
+          const pn = Number(body.priority);
+          if (Number.isInteger(pn) && pn > 0) {
+            try {
+              const chk = await db.prepare(`SELECT id FROM room_labels WHERE id = ?`).bind(pn).first();
+              if (chk) roomPriority = pn;
+            } catch {}
+          }
+        }
         await db.prepare(
-          `INSERT INTO chat_rooms (id, name, created_by_admin, max_members, ai_mode, status, business_id, created_at)
-           VALUES (?, ?, 1, 10, 'on', 'active', ?, ?)`
-        ).bind(rid, roomName, bid, now).run();
-        /* 관리자(is_admin=1) 전원 자동 참여 — 다른 방 생성 경로와 통일 */
+          `INSERT INTO chat_rooms (id, name, created_by_admin, max_members, ai_mode, status, business_id, priority, created_at)
+           VALUES (?, ?, 1, 10, 'on', 'active', ?, ?, ?)`
+        ).bind(rid, roomName, bid, roomPriority, now).run();
+        /* 관리자(is_admin=1) 전원 자동 참여 */
         try {
           const { results: admins } = await db.prepare(`SELECT id FROM users WHERE is_admin = 1`).all();
           for (const ad of (admins || [])) {

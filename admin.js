@@ -2566,6 +2566,16 @@ async function openApproveWithBusiness(userId, displayName, phone, action, prefi
   const roleRadio=document.querySelector('input[name=apbRole][value=담당자]');
   if(roleRadio)roleRadio.checked=true;
   $g('apbAutoJoin').checked=true;
+  /* 🏷️ 담당자 라벨 select 채우기 */
+  const apbSel=$g('apbPriority');
+  if(apbSel){
+    apbSel.innerHTML='<option value="">— 미지정</option><option value="" disabled>불러오는 중...</option>';
+    try{
+      const labels=await _ensureRoomLabels(true);
+      apbSel.innerHTML='<option value="">— 미지정</option>'
+        +labels.map(lb=>'<option value="'+lb.id+'" style="background:'+escAttr(lb.color||'#fff')+'">'+e(lb.name)+'</option>').join('');
+    }catch(_){}
+  }
 
   /* 고객이 직접 요청한 값 있으면 → '새 업체 생성' 모드 + 자동 채움.
      세무사는 내용 확인·수정 후 승인만 누르면 됨 */
@@ -2701,6 +2711,7 @@ async function submitApproveWithBusiness(){
         service_type:'기장', /* 세무사 지시: 기장 고정 */
         contract_date:new Date().toISOString().slice(0,10), /* 수임일자 자동 오늘 */
         auto_create_room: autoJoin,
+        priority: $g('apbPriority')?.value?Number($g('apbPriority').value):null,
       };
       const r2=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       const d2=await r2.json();
@@ -2876,12 +2887,22 @@ async function loadBusinesses(){
   }catch(err){listEl.innerHTML='<div style="padding:20px;color:#f04452">오류: '+e(err.message)+'</div>'}
 }
 
-function pmClearForm(){
+async function pmClearForm(){
   ['pmCompany','pmBizNo','pmCEO','pmPhone','pmIndustry','pmAddr','pmAddr2','pmEstDate','pmEmp','pmRevenue','pmNotes','pmSubBizNo','pmCorpNo','pmBizCategory','pmIndustryCode','pmFiscalStart','pmFiscalEnd','pmFiscalTerm','pmHrYear'].forEach(id=>{const el=$g(id);if(el)el.value=''});
   $g('pmBizType').value='';
   $g('pmTaxType').value='';
   $g('pmVatPeriod').value='';
   $g('pmIsPrimary').checked=false;
+  /* 🏷️ 담당자 라벨 select 채우기 */
+  const pmSel=$g('pmPriority');
+  if(pmSel){
+    pmSel.innerHTML='<option value="">— 미지정</option>';
+    try{
+      const labels=await _ensureRoomLabels(true);
+      pmSel.innerHTML='<option value="">— 미지정</option>'
+        +labels.map(lb=>'<option value="'+lb.id+'" style="background:'+escAttr(lb.color||'#fff')+'">'+e(lb.name)+'</option>').join('');
+    }catch(_){}
+  }
 }
 function _pmOpenAddressSearch(){
   if(typeof daum==='undefined'||!daum.Postcode){
@@ -2938,10 +2959,11 @@ async function pmEditBusiness(bizId){
     $g('pmIndustryCode').value=b.industry_code||'';
     $g('pmFiscalStart').value=b.fiscal_year_start||'';
     $g('pmFiscalEnd').value=b.fiscal_year_end||'';
-    /* 위하고 확장 (company_form · fiscal_term · hr_year · addr2) */
+    /* 위하고 확장 (company_form · fiscal_term · hr_year · addr2 · priority) */
     if($g('pmBizType')&&b.company_form)$g('pmBizType').value=b.company_form;
     if($g('pmFiscalTerm'))$g('pmFiscalTerm').value=b.fiscal_term||'';
     if($g('pmHrYear'))$g('pmHrYear').value=b.hr_year||'';
+    if($g('pmPriority'))$g('pmPriority').value=b.priority||'';
     /* pmAddr2 는 저장 시 address 에 병합됐을 수 있음 — 분리 로직 없으면 빈값 */
     if($g('pmAddr2'))$g('pmAddr2').value='';
   }catch(err){alert('불러오기 실패: '+err.message)}
@@ -2970,10 +2992,11 @@ async function saveBusiness(){
     industry_code:$g('pmIndustryCode').value.trim(),
     fiscal_year_start:$g('pmFiscalStart').value,
     fiscal_year_end:$g('pmFiscalEnd').value,
-    /* 위하고 확장 3필드 + address 병합 */
+    /* 위하고 확장 3필드 + 담당자 라벨 + address 병합 */
     company_form:$g('pmBizType').value||null,
     fiscal_term:$g('pmFiscalTerm')?.value?Number($g('pmFiscalTerm').value):null,
     hr_year:$g('pmHrYear')?.value?Number($g('pmHrYear').value):null,
+    priority:$g('pmPriority')?.value?Number($g('pmPriority').value):null,
   };
   /* pmAddr + pmAddr2 병합 저장 */
   var _addr2=($g('pmAddr2')?.value||'').trim();
@@ -6815,7 +6838,7 @@ function _renderBizList(){
 }
 
 /* ＋ 새 업체 생성 모달 (위하고 수임처 신규생성 스타일) */
-function openNewBusinessModal(){
+async function openNewBusinessModal(){
   ['nbName','nbCeo','nbBiz','nbSubBiz','nbCorpNo','nbAddress','nbAddress2',
    'nbPhone','nbIndustryCode','nbCategory','nbIndustry','nbEstDate','nbFiscalTerm'].forEach(id=>{const el=$g(id);if(el)el.value=''});
   $g('nbForm').value='0.법인사업자';
@@ -6824,6 +6847,16 @@ function openNewBusinessModal(){
   if($g('nbFiscalEnd'))$g('nbFiscalEnd').value=curYear+'-12-31';
   if($g('nbHrYear'))$g('nbHrYear').value=String(curYear);
   $g('nbAutoRoom').checked=true;
+  /* 🏷️ 담당자 라벨 select 채우기 */
+  const nbSel=$g('nbPriority');
+  if(nbSel){
+    nbSel.innerHTML='<option value="">— 미지정</option><option value="" disabled>불러오는 중...</option>';
+    try{
+      const labels=await _ensureRoomLabels(true);
+      nbSel.innerHTML='<option value="">— 미지정</option>'
+        +labels.map(lb=>'<option value="'+lb.id+'" style="background:'+escAttr(lb.color||'#fff')+'">'+e(lb.name)+'</option>').join('');
+    }catch(_){}
+  }
   $g('newBusinessModal').style.display='flex';
 }
 function closeNewBusinessModal(){$g('newBusinessModal').style.display='none'}
@@ -6880,6 +6913,7 @@ async function submitNewBusiness(){
       service_type:'기장',
       contract_date:new Date().toISOString().slice(0,10),
       auto_create_room: $g('nbAutoRoom').checked,
+      priority: $g('nbPriority')?.value?Number($g('nbPriority').value):null,
     };
     const r=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json();

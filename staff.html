@@ -316,6 +316,7 @@
 <div><label style="font-size:.75em;font-weight:600;color:#555">기수 종료일</label><input id="pmFiscalEnd" type="date" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
 <div><label style="font-size:.75em;font-weight:600;color:#555">N기 <span style="font-weight:400;color:#8b95a1">(자동)</span></label><input id="pmFiscalTerm" type="number" min="1" placeholder="자동" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
 <div><label style="font-size:.75em;font-weight:600;color:#555">인사연도</label><input id="pmHrYear" type="number" min="2000" max="2100" placeholder="예: 2026" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
+<div style="grid-column:span 2"><label style="font-size:.75em;font-weight:600;color:#555">🏷️ 담당자 라벨</label><select id="pmPriority" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"><option value="">— 미지정</option></select></div>
 <div style="grid-column:span 2"><label style="display:flex;align-items:center;gap:8px;font-size:.8em;font-weight:600;color:#555"><input type="checkbox" id="pmIsPrimary"><span>⭐ 주 사업장으로 설정 (대표 사업장)</span></label></div>
 </div>
 <div style="display:flex;gap:8px;margin-top:14px">
@@ -528,6 +529,14 @@
         <span>이 업체의 기본 상담방에 자동 참여</span>
       </label>
       <div style="font-size:.72em;color:#8b95a1;margin-left:22px;margin-top:2px">업체에 상담방이 없으면 새로 개설합니다.</div>
+
+      <div style="margin-top:10px">
+        <label style="font-size:.82em;font-weight:700;color:#374151;display:block;margin-bottom:4px">🏷️ 담당자 라벨</label>
+        <select id="apbPriority" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box">
+          <option value="">— 미지정</option>
+        </select>
+        <div style="font-size:.72em;color:#8b95a1;margin-top:3px">상담방 카드에 색상으로 표시됨</div>
+      </div>
     </div>
     <div style="padding:10px 18px;border-top:1px solid #e5e8eb;display:flex;gap:8px;justify-content:flex-end">
       <button onclick="closeApproveBizModal()" style="background:#e5e8eb;border:none;padding:9px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
@@ -537,7 +546,7 @@
 </div>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=111"></script>
+<script src="/admin.js?v=112"></script>
 <script>
 /* staff.html 진입 로직 + 거래처 탭 + tab 래핑 (admin.js의 IS_OWNER 플래그를 false로 오버라이드) */
 IS_OWNER=false;
