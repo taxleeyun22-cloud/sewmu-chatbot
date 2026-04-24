@@ -4924,12 +4924,13 @@ async function openCustomerDashboard(userId){
   /* 병렬 조회: 거래처 기본·재무·서류·상담방·문서 */
   const q=(p)=>'/api/'+p+(p.includes('?')?'&':'?')+'key='+encodeURIComponent(KEY);
   try{
+    /* 🚀 Phase 4: 거래처 대시보드 경량화 — 전체 사용자/전체 방 대신 해당 user_id 만 조회 */
     const [custRes, finRes, bizDocsRes, docsRes, roomsRes] = await Promise.all([
-      fetch(q('admin-approve?status=all')).then(r=>r.json()).catch(()=>({users:[]})),
+      fetch(q('admin-approve?user_id='+userId)).then(r=>r.json()).catch(()=>({users:[]})),
       fetch(q('admin-finance?user_id='+userId+'&action=summary')).then(r=>r.json()).catch(()=>({})),
       fetch(q('admin-biz-docs?user_id='+userId)).then(r=>r.json()).catch(()=>({businesses:[]})),
       fetch(q('admin-documents?user_id='+userId+'&limit=5')).then(r=>r.json()).catch(()=>({documents:[],counts:{}})),
-      fetch(q('admin-rooms')).then(r=>r.json()).catch(()=>({rooms:[]})),
+      fetch(q('admin-rooms?user_id='+userId)).then(r=>r.json()).catch(()=>({rooms:[]})),
     ]);
     const u=(custRes.users||[]).find(x=>x.id===userId);
     const nm=u?(u.real_name||u.name||'#'+userId):'#'+userId;
