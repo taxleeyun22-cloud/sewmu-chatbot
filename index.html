@@ -565,14 +565,6 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       </div>
       <div class="mp-item-arrow">›</div>
     </div>
-    <div class="mp-item" onclick="openBizModal()">
-      <div class="mp-item-icon">🏢</div>
-      <div class="mp-item-main">
-        <div class="mp-item-label">상호명 등록 / 사업장 추가</div>
-        <div class="mp-item-value">사업자분만 입력해주세요</div>
-      </div>
-      <div class="mp-item-arrow">›</div>
-    </div>
     <div class="mp-item" onclick="openCompanyRequestModal()">
       <div class="mp-item-icon">📝</div>
       <div class="mp-item-main">
@@ -4084,23 +4076,6 @@ function rejectConsent(){
   };
 })();
 
-/* ===== 사업장 등록 모달 ===== */
-function openBizModal(){
-  document.getElementById('bizCompany').value='';
-  document.getElementById('bizNo').value='';
-  document.getElementById('bizCeo').value='';
-  document.getElementById('bizIndustry').value='';
-  document.getElementById('bizType').value='';
-  var iamCb=document.getElementById('bizIamContact');if(iamCb)iamCb.checked=true; // 기본값: 본인
-  var cn=document.getElementById('bizContactName');if(cn)cn.value='';
-  var cp=document.getElementById('bizContactPhone');if(cp)cp.value='';
-  toggleBizContactFields();
-  document.getElementById('bizModal').style.display='flex';
-  setTimeout(function(){document.getElementById('bizCompany').focus()},100);
-}
-function closeBizModal(){
-  document.getElementById('bizModal').style.display='none';
-}
 function openWithdrawModal(){
   var r=document.getElementById('withdrawReason');if(r)r.value='';
   var a=document.getElementById('withdrawAgree');if(a)a.checked=false;
@@ -4123,41 +4098,6 @@ async function submitWithdraw(){
     alert('네트워크 오류. 잠시 후 다시 시도해주세요.');
   }
 }
-function toggleBizContactFields(){
-  var cb=document.getElementById('bizIamContact');
-  var box=document.getElementById('bizContactFields');
-  if(!cb||!box)return;
-  /* 본인이 담당자 체크 시 별도 담당자 필드 숨김 (본인 정보가 담당자) */
-  box.style.display=cb.checked?'none':'block';
-}
-async function submitBizModal(){
-  var company=document.getElementById('bizCompany').value.trim();
-  if(!company){alert('상호명을 입력해주세요');return}
-  var iamContact=document.getElementById('bizIamContact').checked;
-  var contactName=document.getElementById('bizContactName').value.trim();
-  var contactPhone=document.getElementById('bizContactPhone').value.trim();
-  var body={
-    company_name:company,
-    business_number:document.getElementById('bizNo').value.trim(),
-    ceo_name:document.getElementById('bizCeo').value.trim(),
-    industry:document.getElementById('bizIndustry').value.trim(),
-    business_type:document.getElementById('bizType').value,
-    /* 담당자 정보: 본인이 담당자면 user.real_name/phone 사용 (서버쪽), 아니면 명시값 */
-    contact_is_self: iamContact?1:0,
-    contact_name: iamContact?'':contactName,
-    contact_phone: iamContact?'':contactPhone
-  };
-  try{
-    var r=await fetch('/api/auth/my-businesses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    var d=await r.json();
-    if(d.ok){
-      alert('✅ 등록 완료\n세무사 검토 후 AI 답변에 반영됩니다.');
-      closeBizModal();
-      if(typeof loadMyPage==='function')loadMyPage();
-    } else alert('등록 실패: '+(d.error||'unknown'));
-  }catch(e){alert('오류: '+e.message)}
-}
-
 /* ===== 뒤로가기 (Android/브라우저) — 한 단계만 뒤로 ===== */
 /* 오버레이(모달·시트) close가 history.back()을 호출하면 popstate cascade 방지용 플래그 */
 var _popCascade=false;
@@ -4525,44 +4465,6 @@ function closeIosInstall(){
   </div>
 </div>
 
-<!-- 사업장 등록 모달 -->
-<div id="bizModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--bg);color:var(--text);border-radius:16px;padding:22px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <h3 style="font-size:1.1em;margin:0">🏢 사업장 등록</h3>
-      <button onclick="closeBizModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--text2)">✕</button>
-    </div>
-    <p style="font-size:.78em;color:var(--text2);margin:0 0 14px;line-height:1.5">등록하시면 세무사 검토 후 AI 답변에 반영됩니다.</p>
-    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">상호명 <span style="color:#f04452">*</span></label>
-    <input id="bizCompany" type="text" placeholder="예: ○○상회" maxlength="80" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
-    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">사업자번호</label>
-    <input id="bizNo" type="text" placeholder="000-00-00000 (선택)" maxlength="14" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
-    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">대표자명</label>
-    <input id="bizCeo" type="text" placeholder="(선택)" maxlength="40" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:6px;box-sizing:border-box">
-    <label style="display:flex;align-items:center;gap:6px;font-size:.8em;color:var(--text2);margin-bottom:10px;cursor:pointer;user-select:none">
-      <input id="bizIamContact" type="checkbox" onchange="toggleBizContactFields()" style="width:16px;height:16px;cursor:pointer">
-      <span>본인이 세무 담당자입니다 (체크 시 담당자=본인)</span>
-    </label>
-    <div id="bizContactFields" style="display:none">
-      <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">담당자 이름 <span style="color:var(--text2);font-weight:400">(대표자와 다를 때)</span></label>
-      <input id="bizContactName" type="text" placeholder="(선택)" maxlength="40" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
-      <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">담당자 연락처</label>
-      <input id="bizContactPhone" type="tel" placeholder="010-0000-0000 (선택)" maxlength="13" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
-    </div>
-    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">업종</label>
-    <input id="bizIndustry" type="text" placeholder="음식점/도소매/서비스 등 (선택)" maxlength="40" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
-    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">사업형태</label>
-    <select id="bizType" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:14px;box-sizing:border-box">
-      <option value="">선택 (선택)</option>
-      <option value="개인">개인사업자</option>
-      <option value="법인">법인사업자</option>
-    </select>
-    <div style="display:flex;gap:8px">
-      <button onclick="submitBizModal()" style="flex:1;background:var(--blue);color:#fff;border:none;padding:12px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">등록</button>
-      <button onclick="closeBizModal()" style="background:var(--border);color:var(--text);border:none;padding:12px 20px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
-    </div>
-  </div>
-</div>
 
 <!-- 회원 탈퇴 확인 모달 -->
 <div id="withdrawModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
