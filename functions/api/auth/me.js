@@ -44,9 +44,11 @@ export async function onRequestGet(context) {
       todayCount = usage ? usage.count : 0;
     } catch {}
 
-    // 승인상태별 일일 한도
+    // 승인상태별 일일 한도 (is_admin=1 관리자/스태프는 무제한)
     const status = session.approval_status || 'pending';
-    const dailyLimit = status === 'approved_client' ? 999999
+    const isAdmin = !!session.is_admin;
+    const dailyLimit = isAdmin ? 999999
+                     : status === 'approved_client' ? 999999
                      : status === 'approved_guest' ? 5
                      : status === 'rejected' ? 0
                      : 3;

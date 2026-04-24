@@ -3531,7 +3531,10 @@ async function loadMyPage(){
   var pct=lim>0?Math.min(100,(used/lim)*100):0;
   var statusEl=document.getElementById('mpStatus');
   var statusHtml='';
-  if(st==='approved_client'){
+  if(currentUser.is_admin){
+    statusHtml='<div style="font-weight:700;margin-bottom:4px">👑 관리자 · 무제한 이용</div>';
+    statusHtml+='<div class="mp-profile-usage"><span>오늘</span><div style="font-weight:700">'+used+'건 이용</div></div>';
+  } else if(st==='approved_client'){
     statusHtml='<div style="font-weight:700;margin-bottom:4px">✓ 기장거래처 · 무제한 이용</div>';
     statusHtml+='<div class="mp-profile-usage"><span>오늘</span><div style="font-weight:700">'+used+'건 이용</div></div>';
   } else if(st==='approved_guest'){
@@ -3778,7 +3781,10 @@ function showApprovalBanner(){
   var st=currentUser.approval_status||'pending';
   var used=currentUser.daily_used||0;
   var lim=currentUser.daily_limit||3;
-  if(st==='pending'){
+  if(currentUser.is_admin){
+    bar.style.display='block';bar.style.background='#fef3c7';bar.style.color='#92400e';
+    bar.innerHTML='👑 관리자 · 무제한 이용 (오늘 '+used+'건)';
+  } else if(st==='pending'){
     bar.style.display='block';
     bar.style.background='#fff8e1';bar.style.color='#8b6914';
     bar.innerHTML='⏳ 승인 대기 중 · 오늘 '+used+'/'+lim+'건 이용 · 기장거래처 승인 시 무제한 이용 가능';
