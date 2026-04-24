@@ -7244,3 +7244,24 @@ async function cleanDupBiz(){
     }
   }catch(err){alert('오류: '+err.message)}
 }
+
+/* 📱 상담방 헤더 '+' 더보기 바텀시트 — 모바일에서만 노출
+   admin.html/staff.html 의 #roomMoreSheet DOM 제어 */
+function openRoomMoreSheet(){
+  const el=document.getElementById('roomMoreSheet');
+  if(!el)return;
+  el.style.display='flex';
+  requestAnimationFrame(()=>{
+    el.style.background='rgba(0,0,0,.35)';
+    const panel=el.querySelector('.rms-panel');
+    if(panel)panel.style.transform='translateY(0)';
+  });
+}
+function closeRoomMoreSheet(){
+  const el=document.getElementById('roomMoreSheet');
+  if(!el)return;
+  el.style.background='rgba(0,0,0,0)';
+  const panel=el.querySelector('.rms-panel');
+  if(panel)panel.style.transform='translateY(100%)';
+  setTimeout(()=>{el.style.display='none'},220);
+}

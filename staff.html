@@ -8,7 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/admin.css?v=20">
+<link rel="stylesheet" href="/admin.css?v=21">
 <!-- AG-Grid Community (엑셀 스타일 그리드) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-quartz.css">
@@ -435,14 +435,31 @@
       <button onclick="openRoomSummary()" style="background:#e0f5ec;color:#065f46;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:700" title="AI 대화 요약">📝 요약</button>
       <button onclick="openRoomMemos()" style="background:#fef3c7;color:#92400e;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:700" title="담당자 내부 메모 (고객 비공개) — 요약에 반영됨">📒 메모</button>
       <button onclick="callRoom()" style="background:#fef3c7;color:#92400e;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:700" title="거래처 사장에게 전화 (users.phone)">📞 전화</button>
-      <button onclick="setRoomPhone()" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit" title="거래처 사장이 📞 누를 때 연결될 전담 세무사 직통번호 설정">☎ 번호</button>
+      <button onclick="setRoomPhone()" class="ra-hide-mobile" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit" title="거래처 사장이 📞 누를 때 연결될 전담 세무사 직통번호 설정">☎ 번호</button>
       <button onclick="openRoomSearch()" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit" title="이 방 대화 검색">🔍 검색</button>
-      <button onclick="openRoomInfo()" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit" title="사진·파일·링크">📂 정보</button>
-      <button onclick="renameRoom()" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">✏️ 이름</button>
-      <button onclick="openRoomMembersModal()" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">👥 참여자</button>
-      <button onclick="toggleRoomStatus()" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit" id="roomStatusBtn">종료</button>
-      <button onclick="terminateCurrentRoomClient()" title="이 상담방 거래처와의 거래 자체를 종료 — 상담방 모두 closed, 거래처 접근 차단" style="background:#fee2e2;color:#6b7280;border:1px solid #6b7280;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">🚫 거래 종료</button>
-      <button onclick="deleteCurrentRoom()" style="background:#fee2e2;color:#f04452;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">🗑️ 삭제</button>
+      <button onclick="openRoomInfo()" class="ra-hide-mobile" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit" title="사진·파일·링크">📂 정보</button>
+      <button onclick="renameRoom()" class="ra-hide-mobile" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">✏️ 이름</button>
+      <button onclick="openRoomMembersModal()" class="ra-hide-mobile" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">👥 참여자</button>
+      <button onclick="toggleRoomStatus()" class="ra-hide-mobile" style="background:#e5e8eb;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit" id="roomStatusBtn">종료</button>
+      <button onclick="terminateCurrentRoomClient()" class="ra-hide-mobile" title="이 상담방 거래처와의 거래 자체를 종료 — 상담방 모두 closed, 거래처 접근 차단" style="background:#fee2e2;color:#6b7280;border:1px solid #6b7280;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">🚫 거래 종료</button>
+      <button onclick="deleteCurrentRoom()" class="ra-hide-mobile" style="background:#fee2e2;color:#f04452;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">🗑️ 삭제</button>
+      <button onclick="openRoomMoreSheet()" class="ra-more-btn" style="display:none;background:#3182f6;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:.9em;cursor:pointer;font-family:inherit;font-weight:700" title="더 많은 기능">+</button>
+    </div>
+    <!-- 📱 모바일 전용: 위로 올라오는 더보기 시트 -->
+    <div id="roomMoreSheet" onclick="if(event.target===this)closeRoomMoreSheet()" style="display:none;position:fixed;inset:0;z-index:10500;background:rgba(0,0,0,0);align-items:flex-end;justify-content:center;transition:background .2s">
+      <div class="rms-panel" style="width:100%;max-width:640px;background:#fff;border-radius:16px 16px 0 0;padding:14px 16px 22px;transform:translateY(100%);transition:transform .22s cubic-bezier(.2,.8,.2,1);box-shadow:0 -6px 24px rgba(0,0,0,.15)">
+        <div style="width:36px;height:4px;background:#d1d5db;border-radius:2px;margin:0 auto 12px"></div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+          <button onclick="setRoomPhone();closeRoomMoreSheet()" style="padding:12px;border:1px solid #e5e8eb;background:#fff;border-radius:10px;font-size:.92em;cursor:pointer;font-family:inherit;text-align:left">☎ 번호</button>
+          <button onclick="openRoomInfo();closeRoomMoreSheet()" style="padding:12px;border:1px solid #e5e8eb;background:#fff;border-radius:10px;font-size:.92em;cursor:pointer;font-family:inherit;text-align:left">📂 정보</button>
+          <button onclick="renameRoom();closeRoomMoreSheet()" style="padding:12px;border:1px solid #e5e8eb;background:#fff;border-radius:10px;font-size:.92em;cursor:pointer;font-family:inherit;text-align:left">✏️ 이름</button>
+          <button onclick="openRoomMembersModal();closeRoomMoreSheet()" style="padding:12px;border:1px solid #e5e8eb;background:#fff;border-radius:10px;font-size:.92em;cursor:pointer;font-family:inherit;text-align:left">👥 참여자</button>
+          <button onclick="toggleRoomStatus();closeRoomMoreSheet()" style="padding:12px;border:1px solid #e5e8eb;background:#fff;border-radius:10px;font-size:.92em;cursor:pointer;font-family:inherit;text-align:left">종료</button>
+          <button onclick="terminateCurrentRoomClient();closeRoomMoreSheet()" style="padding:12px;border:1px solid #6b7280;background:#fee2e2;color:#6b7280;border-radius:10px;font-size:.92em;cursor:pointer;font-family:inherit;text-align:left">🚫 거래 종료</button>
+          <button onclick="deleteCurrentRoom();closeRoomMoreSheet()" style="padding:12px;border:1px solid #f04452;background:#fee2e2;color:#f04452;border-radius:10px;font-size:.92em;cursor:pointer;font-family:inherit;text-align:left;grid-column:span 2">🗑️ 삭제</button>
+        </div>
+        <button onclick="closeRoomMoreSheet()" style="width:100%;margin-top:10px;padding:11px;background:#f2f4f6;border:none;border-radius:10px;font-size:.92em;cursor:pointer;font-family:inherit;color:#191f28">닫기</button>
+      </div>
     </div>
     <!-- 멤버 라인: 기본 1줄로 축약, 클릭 시 전체 펼침 -->
     <div id="roomMembers" style="display:none;padding:6px 14px;border-bottom:1px solid #e5e8eb;background:#fafbfc;font-size:.73em;color:#6b7280;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" onclick="this.style.whiteSpace=(this.style.whiteSpace==='normal'?'nowrap':'normal')" title="클릭하면 전체 보임"></div>
@@ -779,7 +796,7 @@
 </div>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=113"></script>
+<script src="/admin.js?v=114"></script>
 <script>
 /* ===== staff.html 전용 진입 로직 =====
    - admin.js 의 IIFE 는 pathname.endsWith('/staff.html') 이면 스킵됨

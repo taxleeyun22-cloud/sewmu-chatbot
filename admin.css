@@ -242,6 +242,9 @@ body.staff-mode .owner-only{display:none !important}
   .adm-doc-card .rc-doc-thumb{width:70px !important;height:70px !important}
   /* 카드 본문이 썸네일 옆에 붙어 줄바꿈되지 않게 */
   .adm-doc-card > div:last-child{flex:1 1 0;min-width:0}
+  /* 📱 상담방 헤더 액션 축약: 자주 안 쓰는 7개 숨기고 '+' 더보기 버튼 표시 */
+  #roomActions .ra-hide-mobile{display:none !important}
+  #roomActions .ra-more-btn{display:inline-flex !important;align-items:center;justify-content:center}
 }
 @media(max-width:380px){
   /* 아주 좁은 기기: 썸네일/본문 세로 스택 */
