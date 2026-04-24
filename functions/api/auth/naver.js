@@ -22,6 +22,9 @@ async function initTables(db) {
       FOREIGN KEY (user_id) REFERENCES users(id)
     )`)
   ]);
+  const addCol = async (sql) => { try { await db.prepare(sql).run(); } catch {} };
+  await addCol(`ALTER TABLE users ADD COLUMN deleted_at TEXT`);
+  await addCol(`ALTER TABLE users ADD COLUMN withdrawal_reason TEXT`);
 }
 
 export async function onRequestGet(context) {
@@ -89,7 +92,9 @@ export async function onRequestGet(context) {
         email = excluded.email,
         phone = excluded.phone,
         profile_image = excluded.profile_image,
-        last_login_at = datetime('now')
+        last_login_at = datetime('now'),
+        deleted_at = NULL,
+        withdrawal_reason = NULL
     `).bind(naverId, name, email, phone, profileImage).run();
 
     const user = await db.prepare(

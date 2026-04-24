@@ -19,6 +19,8 @@ export async function onRequestGet(context) {
     try { await db.prepare(`ALTER TABLE users ADD COLUMN consent_marketing INTEGER DEFAULT 0`).run(); } catch {}
     try { await db.prepare(`ALTER TABLE users ADD COLUMN consent_all_at TEXT`).run(); } catch {}
     try { await db.prepare(`ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0`).run(); } catch {}
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN deleted_at TEXT`).run(); } catch {}
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN withdrawal_reason TEXT`).run(); } catch {}
 
     const session = await db.prepare(`
       SELECT s.user_id, s.expires_at, u.name, u.real_name, u.email, u.phone, u.provider, u.profile_image,
@@ -27,7 +29,7 @@ export async function onRequestGet(context) {
              u.consent_marketing, u.consent_all_at, u.consent_overseas_at
       FROM sessions s
       JOIN users u ON s.user_id = u.id
-      WHERE s.token = ? AND s.expires_at > datetime('now')
+      WHERE s.token = ? AND s.expires_at > datetime('now') AND u.deleted_at IS NULL
     `).bind(token).first();
 
     if (!session) return Response.json({ logged_in: false });

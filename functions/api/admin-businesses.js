@@ -225,12 +225,15 @@ export async function onRequestPut(context) {
   const fields = [];
   const vals = [];
   const allow = ['company_name', 'business_number', 'ceo_name', 'industry', 'business_type', 'tax_type',
-    'establishment_date', 'address', 'phone', 'employee_count', 'last_revenue', 'vat_period', 'notes', 'status'];
+    'establishment_date', 'address', 'phone', 'employee_count', 'last_revenue', 'vat_period', 'notes', 'status',
+    'sub_business_number', 'corporate_number', 'business_category', 'industry_code',
+    'fiscal_year_start', 'fiscal_year_end', 'fiscal_term', 'hr_year', 'company_form',
+    'service_type', 'contract_date'];
   for (const k of allow) {
     if (k in body) {
       let v = body[k];
-      if (k === 'business_number') v = normBiz(v) || null;
-      if (k === 'employee_count' || k === 'last_revenue') v = (v === '' || v == null) ? null : Number(v);
+      if (k === 'business_number' || k === 'sub_business_number' || k === 'corporate_number') v = normBiz(v) || null;
+      if (k === 'employee_count' || k === 'last_revenue' || k === 'fiscal_term' || k === 'hr_year') v = (v === '' || v == null) ? null : Number(v);
       fields.push(`${k} = ?`);
       vals.push(v == null || v === '' ? null : v);
     }

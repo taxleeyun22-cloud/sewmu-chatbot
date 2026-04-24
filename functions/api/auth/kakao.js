@@ -42,6 +42,8 @@ async function initTables(db) {
   await addCol(`ALTER TABLE users ADD COLUMN approved_by TEXT`);
   await addCol(`ALTER TABLE users ADD COLUMN rejection_reason TEXT`);
   await addCol(`ALTER TABLE users ADD COLUMN name_confirmed INTEGER DEFAULT 0`);
+  await addCol(`ALTER TABLE users ADD COLUMN deleted_at TEXT`);
+  await addCol(`ALTER TABLE users ADD COLUMN withdrawal_reason TEXT`);
 }
 
 export async function onRequestGet(context) {
@@ -120,7 +122,9 @@ export async function onRequestGet(context) {
         email = excluded.email,
         phone = excluded.phone,
         profile_image = excluded.profile_image,
-        last_login_at = datetime('now', '+9 hours')
+        last_login_at = datetime('now', '+9 hours'),
+        deleted_at = NULL,
+        withdrawal_reason = NULL
     `).bind(kakaoId, name, email, phone, profileImage).run();
 
     // 사용자 ID 조회

@@ -2810,7 +2810,7 @@ async function loadBusinesses(){
 }
 
 function pmClearForm(){
-  ['pmCompany','pmBizNo','pmCEO','pmPhone','pmIndustry','pmAddr','pmEstDate','pmEmp','pmRevenue','pmNotes'].forEach(id=>{const el=$g(id);if(el)el.value=''});
+  ['pmCompany','pmBizNo','pmCEO','pmPhone','pmIndustry','pmAddr','pmEstDate','pmEmp','pmRevenue','pmNotes','pmSubBizNo','pmCorpNo','pmBizCategory','pmIndustryCode','pmFiscalStart','pmFiscalEnd'].forEach(id=>{const el=$g(id);if(el)el.value=''});
   $g('pmBizType').value='';
   $g('pmTaxType').value='';
   $g('pmVatPeriod').value='';
@@ -2848,6 +2848,12 @@ async function pmEditBusiness(bizId){
     $g('pmRevenue').value=b.last_revenue||'';
     $g('pmNotes').value=b.notes||'';
     $g('pmIsPrimary').checked=!!b.is_primary;
+    $g('pmSubBizNo').value=b.sub_business_number||'';
+    $g('pmCorpNo').value=b.corporate_number||'';
+    $g('pmBizCategory').value=b.business_category||'';
+    $g('pmIndustryCode').value=b.industry_code||'';
+    $g('pmFiscalStart').value=b.fiscal_year_start||'';
+    $g('pmFiscalEnd').value=b.fiscal_year_end||'';
   }catch(err){alert('불러오기 실패: '+err.message)}
 }
 
@@ -2868,6 +2874,12 @@ async function saveBusiness(){
     last_revenue:$g('pmRevenue').value,
     notes:$g('pmNotes').value.trim(),
     is_primary:$g('pmIsPrimary').checked?1:0,
+    sub_business_number:$g('pmSubBizNo').value.trim(),
+    corporate_number:$g('pmCorpNo').value.trim(),
+    business_category:$g('pmBizCategory').value.trim(),
+    industry_code:$g('pmIndustryCode').value.trim(),
+    fiscal_year_start:$g('pmFiscalStart').value,
+    fiscal_year_end:$g('pmFiscalEnd').value,
   };
   try{
     let r,d;
@@ -6852,9 +6864,13 @@ async function openBusinessDashboard(bid){
         const badge=mm.role==='대표자'?'<span style="background:#fef3c7;color:#92400e;font-size:.68em;padding:1px 7px;border-radius:4px;margin-left:6px;font-weight:700">🧑‍💼 대표자</span>':'<span style="background:#e0f2fe;color:#075985;font-size:.68em;padding:1px 7px;border-radius:4px;margin-left:6px">👤 담당자</span>';
         const primary=mm.is_primary?'<span style="background:#fee2e2;color:#991b1b;font-size:.66em;padding:1px 6px;border-radius:4px;margin-left:4px">주 연락</span>':'';
         const phone=mm.phone||mm.user_phone;
-        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f2f4f6">'
+        const curRole=mm.role||'담당자';
+        const curPrimary=mm.is_primary?1:0;
+        return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f2f4f6;flex-wrap:wrap">'
           +'<div style="flex:1;min-width:0"><div style="font-size:.88em;font-weight:600">'+nm+badge+primary+'</div>'
           +(phone?'<div style="font-size:.74em;color:#8b95a1">'+e(phone)+'</div>':'')+'</div>'
+          +'<button onclick="_bdChangeRole('+mm.id+',\''+curRole+'\')" style="background:#f3f4f6;color:#374151;border:none;padding:5px 9px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit" title="대표자↔담당자 전환">역할</button>'
+          +'<button onclick="_bdTogglePrimary('+mm.id+','+curPrimary+')" style="background:'+(curPrimary?'#fee2e2':'#f3f4f6')+';color:'+(curPrimary?'#991b1b':'#374151')+';border:none;padding:5px 9px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit" title="주 연락 설정/해제">'+(curPrimary?'주연락 해제':'주연락')+'</button>'
           +'<button onclick="_bdRemoveMember('+mm.id+',\''+nm.replace(/\'/g,'')+'\')" style="background:#fee2e2;color:#dc2626;border:none;padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit">제거</button>'
           +'</div>';
       }).join('');
@@ -6924,6 +6940,26 @@ async function _bdAddMember(){
   const role=confirm('👉 확인 = 대표자 / 취소 = 담당자')?'대표자':'담당자';
   try{
     const r=await fetch('/api/admin-business-members?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({business_id:_bdCurrent.id, user_id:uid, role:role, is_primary:(role==='대표자'?1:0)})});
+    const d=await r.json();
+    if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
+    openBusinessDashboard(_bdCurrent.id);
+  }catch(err){alert('오류: '+err.message)}
+}
+async function _bdChangeRole(memberId, currentRole){
+  const nextRole=currentRole==='대표자'?'담당자':'대표자';
+  if(!confirm('역할을 "'+currentRole+'" → "'+nextRole+'" 로 변경합니까?'))return;
+  try{
+    const r=await fetch('/api/admin-business-members?key='+encodeURIComponent(KEY)+'&id='+memberId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:nextRole})});
+    const d=await r.json();
+    if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
+    openBusinessDashboard(_bdCurrent.id);
+  }catch(err){alert('오류: '+err.message)}
+}
+async function _bdTogglePrimary(memberId, currentPrimary){
+  const next=currentPrimary?0:1;
+  if(!confirm(next?'이 사람을 "주 연락처" 로 설정합니까? (기존 주연락은 해제됨)':'주 연락처 지정을 해제합니까?'))return;
+  try{
+    const r=await fetch('/api/admin-business-members?key='+encodeURIComponent(KEY)+'&id='+memberId,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_primary:next})});
     const d=await r.json();
     if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
     openBusinessDashboard(_bdCurrent.id);

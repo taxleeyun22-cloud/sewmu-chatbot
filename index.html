@@ -85,6 +85,8 @@ body.dark .mp-client-card{background:linear-gradient(135deg,#132a1d,#1e3a2a);bor
 body.dark .mp-client-notes{background:rgba(0,0,0,.3);color:var(--text)}
 .mp-logout-btn{margin-top:12px;background:none;border:1px solid var(--border);color:var(--text2);padding:14px;border-radius:12px;font-size:.88em;cursor:pointer;font-family:inherit;font-weight:500}
 .mp-logout-btn:active{background:var(--bg)}
+.mp-withdraw-btn{display:block;width:100%;margin-top:8px;background:none;border:none;color:var(--text3);padding:10px;font-size:.75em;cursor:pointer;font-family:inherit;text-decoration:underline}
+.mp-withdraw-btn:hover{color:#dc2626}
 
 /* ── 헤더 뒤로/내정보 버튼 ── */
 .hdr-back{display:inline-flex;align-items:center;justify-content:center;color:var(--text);padding:6px;border-radius:8px;cursor:pointer;text-decoration:none;line-height:0}
@@ -671,6 +673,7 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
 
   <!-- 로그아웃 -->
   <button class="mp-logout-btn" onclick="location.href='/api/auth/logout'">로그아웃</button>
+  <button class="mp-withdraw-btn" onclick="openWithdrawModal()">회원 탈퇴</button>
 
   <div style="text-align:center;color:var(--text3);font-size:.7em;padding:12px 0">
     세무회계 이윤 · 대표세무사 이재윤<br>
@@ -4092,6 +4095,28 @@ function openBizModal(){
 function closeBizModal(){
   document.getElementById('bizModal').style.display='none';
 }
+function openWithdrawModal(){
+  var r=document.getElementById('withdrawReason');if(r)r.value='';
+  var a=document.getElementById('withdrawAgree');if(a)a.checked=false;
+  document.getElementById('withdrawModal').style.display='flex';
+}
+function closeWithdrawModal(){
+  document.getElementById('withdrawModal').style.display='none';
+}
+async function submitWithdraw(){
+  var agree=document.getElementById('withdrawAgree');
+  if(!agree||!agree.checked){alert('탈퇴 동의 체크박스를 선택해주세요.');return;}
+  var reason=(document.getElementById('withdrawReason').value||'').trim();
+  try{
+    var res=await fetch('/api/auth/withdraw',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:reason})});
+    var data=await res.json().catch(function(){return{};});
+    if(!res.ok||!data.ok){alert('탈퇴 처리 실패. 잠시 후 다시 시도해주세요.');return;}
+    alert('탈퇴 처리됐습니다. 로그인 화면으로 이동합니다.');
+    location.href='/';
+  }catch(e){
+    alert('네트워크 오류. 잠시 후 다시 시도해주세요.');
+  }
+}
 function toggleBizContactFields(){
   var cb=document.getElementById('bizIamContact');
   var box=document.getElementById('bizContactFields');
@@ -4529,6 +4554,31 @@ function closeIosInstall(){
     <div style="display:flex;gap:8px">
       <button onclick="submitBizModal()" style="flex:1;background:var(--blue);color:#fff;border:none;padding:12px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">등록</button>
       <button onclick="closeBizModal()" style="background:var(--border);color:var(--text);border:none;padding:12px 20px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 회원 탈퇴 확인 모달 -->
+<div id="withdrawModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--bg);color:var(--text);border-radius:16px;padding:22px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="font-size:1.1em;margin:0;color:#dc2626">회원 탈퇴</h3>
+      <button onclick="closeWithdrawModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--text2)">✕</button>
+    </div>
+    <div style="background:#fff7ed;border:1px solid #fdba74;color:#9a3412;padding:12px;border-radius:8px;font-size:.82em;line-height:1.55;margin-bottom:14px">
+      · 탈퇴하면 즉시 로그아웃되고 로그인 차단됩니다.<br>
+      · 세무사님 승인 이력·상담 대화·문서는 DB 에는 남습니다 (법적 보관 의무).<br>
+      · 같은 카카오/네이버 계정으로 다시 로그인하면 계정이 자동 복구됩니다.
+    </div>
+    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">탈퇴 사유 <span style="color:var(--text3);font-weight:400">(선택)</span></label>
+    <textarea id="withdrawReason" rows="2" maxlength="200" placeholder="개선에 참고하겠습니다" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box;resize:none;line-height:1.4"></textarea>
+    <label style="display:flex;align-items:center;gap:8px;font-size:.85em;color:var(--text);margin-bottom:14px;cursor:pointer;user-select:none">
+      <input id="withdrawAgree" type="checkbox" style="width:16px;height:16px;cursor:pointer">
+      <span>위 내용을 확인했으며 탈퇴에 동의합니다</span>
+    </label>
+    <div style="display:flex;gap:8px">
+      <button onclick="submitWithdraw()" style="flex:1;background:#dc2626;color:#fff;border:none;padding:12px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">탈퇴</button>
+      <button onclick="closeWithdrawModal()" style="background:var(--border);color:var(--text);border:none;padding:12px 20px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
     </div>
   </div>
 </div>

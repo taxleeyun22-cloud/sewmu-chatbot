@@ -33,6 +33,15 @@ async function ensureTable(db) {
     await db.prepare(`CREATE INDEX IF NOT EXISTS idx_client_businesses_user ON client_businesses(user_id)`).run();
   } catch {}
 
+  // 위하고 호환 확장 필드 (2026-04-24)
+  const add = async (sql) => { try { await db.prepare(sql).run(); } catch {} };
+  await add(`ALTER TABLE client_businesses ADD COLUMN sub_business_number TEXT`);
+  await add(`ALTER TABLE client_businesses ADD COLUMN corporate_number TEXT`);
+  await add(`ALTER TABLE client_businesses ADD COLUMN business_category TEXT`);
+  await add(`ALTER TABLE client_businesses ADD COLUMN industry_code TEXT`);
+  await add(`ALTER TABLE client_businesses ADD COLUMN fiscal_year_start TEXT`);
+  await add(`ALTER TABLE client_businesses ADD COLUMN fiscal_year_end TEXT`);
+
   // 기존 client_profiles 데이터 1회 마이그레이션
   try {
     const migrated = await db.prepare(
@@ -125,13 +134,19 @@ export async function onRequestPost(context) {
       await db.prepare(`UPDATE client_businesses SET is_primary = 0 WHERE user_id = ?`).bind(userId).run();
     }
 
+    const subBizNo = String(body.sub_business_number || "").replace(/\D/g, "") || null;
+    const corpNo = String(body.corporate_number || "").replace(/\D/g, "") || null;
+
     if (existing) {
       await db.prepare(`
         UPDATE client_businesses SET
           company_name = ?, business_number = ?, ceo_name = ?, industry = ?,
           business_type = ?, tax_type = ?, establishment_date = ?, address = ?,
           phone = ?, employee_count = ?, last_revenue = ?, vat_period = ?,
-          notes = ?, is_primary = ?, updated_at = ?, updated_by = 'admin'
+          notes = ?, is_primary = ?,
+          sub_business_number = ?, corporate_number = ?, business_category = ?,
+          industry_code = ?, fiscal_year_start = ?, fiscal_year_end = ?,
+          updated_at = ?, updated_by = 'admin'
         WHERE id = ?
       `).bind(
         body.company_name || existing.company_name || null,
@@ -148,6 +163,11 @@ export async function onRequestPost(context) {
         body.vat_period || null,
         body.notes || null,
         body.is_primary ? 1 : 0,
+        subBizNo, corpNo,
+        body.business_category || null,
+        body.industry_code || null,
+        body.fiscal_year_start || null,
+        body.fiscal_year_end || null,
         now, existing.id
       ).run();
       return Response.json({ ok: true, id: existing.id, merged: true });
@@ -158,8 +178,10 @@ export async function onRequestPost(context) {
         user_id, company_name, business_number, ceo_name, industry,
         business_type, tax_type, establishment_date, address, phone,
         employee_count, last_revenue, vat_period, notes, is_primary,
+        sub_business_number, corporate_number, business_category,
+        industry_code, fiscal_year_start, fiscal_year_end,
         created_at, updated_at, updated_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'admin')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'admin')
     `).bind(
       userId,
       body.company_name || null,
@@ -176,6 +198,11 @@ export async function onRequestPost(context) {
       body.vat_period || null,
       body.notes || null,
       body.is_primary ? 1 : 0,
+      subBizNo, corpNo,
+      body.business_category || null,
+      body.industry_code || null,
+      body.fiscal_year_start || null,
+      body.fiscal_year_end || null,
       now, now
     ).run();
 
@@ -214,7 +241,10 @@ export async function onRequestPut(context) {
         company_name = ?, business_number = ?, ceo_name = ?, industry = ?,
         business_type = ?, tax_type = ?, establishment_date = ?, address = ?,
         phone = ?, employee_count = ?, last_revenue = ?, vat_period = ?,
-        notes = ?, is_primary = ?, updated_at = ?, updated_by = 'admin'
+        notes = ?, is_primary = ?,
+        sub_business_number = ?, corporate_number = ?, business_category = ?,
+        industry_code = ?, fiscal_year_start = ?, fiscal_year_end = ?,
+        updated_at = ?, updated_by = 'admin'
       WHERE id = ?
     `).bind(
       body.company_name || null,
@@ -231,6 +261,12 @@ export async function onRequestPut(context) {
       body.vat_period || null,
       body.notes || null,
       body.is_primary ? 1 : 0,
+      String(body.sub_business_number || "").replace(/\D/g, "") || null,
+      String(body.corporate_number || "").replace(/\D/g, "") || null,
+      body.business_category || null,
+      body.industry_code || null,
+      body.fiscal_year_start || null,
+      body.fiscal_year_end || null,
       now, id
     ).run();
 
