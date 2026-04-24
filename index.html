@@ -572,10 +572,10 @@ body{font-family:'Noto Sans KR',-apple-system,'Malgun Gothic',sans-serif;backgro
       <div class="mp-item-arrow">›</div>
     </div>
     <div class="mp-item" onclick="openCompanyRequestModal()">
-      <div class="mp-item-icon">🏢</div>
+      <div class="mp-item-icon">📝</div>
       <div class="mp-item-main">
-        <div class="mp-item-label">내 회사 정보 등록 (세무사 확인용)</div>
-        <div class="mp-item-value" id="mpCompanyReqValue">아직 등록 안 함</div>
+        <div class="mp-item-label">업체 등록 요청 (세무사에게)</div>
+        <div class="mp-item-value" id="mpCompanyReqValue">아직 등록 요청 안 함</div>
       </div>
       <div class="mp-item-arrow">›</div>
     </div>
@@ -907,11 +907,11 @@ mark{background:#fef3c7;color:inherit;padding:0 2px;border-radius:2px}
 </style>
 
 
-<!-- 🏢 내 회사 정보 등록 모달 (고객 → 세무사에게 자기 소개) -->
+<!-- 📝 업체 등록 요청 모달 (고객 → 세무사에게 자기 소개) -->
 <div id="companyRequestModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--bg);color:var(--text);border-radius:16px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-      <div style="font-weight:700;font-size:1em">🏢 내 회사 정보 등록</div>
+      <div style="font-weight:700;font-size:1em">📝 업체 등록 요청</div>
       <button onclick="closeCompanyRequestModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--text2)">✕</button>
     </div>
     <div style="padding:18px 20px">
@@ -3665,7 +3665,7 @@ async function submitCompanyRequest(){
     var r=await fetch('/api/my-company-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:name,business_number:bn,role:role})});
     var d=await r.json();
     if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
-    alert('✅ 회사 정보가 세무사님께 전달됐습니다.\n승인되면 알림이 갑니다.');
+    alert('✅ 업체 등록 요청이 세무사님께 전달됐습니다.\n승인되면 알림이 갑니다.');
     closeCompanyRequestModal();
     loadMyCompanyRequest();
   }catch(err){alert('오류: '+err.message)}
