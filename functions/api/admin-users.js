@@ -96,8 +96,20 @@ export async function onRequestPost(context) {
     if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
     try {
       await db.prepare(`UPDATE users SET is_admin = ? WHERE id = ?`).bind(isAdmin, userId).run();
-      /* 승급(1)이면 기존 활성 방 전체에 자동 참여 — 카톡 그룹방 스타일 통일 */
+      /* 승급(1)이면 기존 활성 방 전체에 자동 참여 — 카톡 그룹방 스타일 통일.
+         강등(0)이면 강제 참여로 'admin' 박혔던 멤버십을 'member' 로 환원 —
+         my-rooms.js '내 상담방' 필터에 막혀 기장거래처 전환 후 빈 화면 나는 버그 방지. */
       let addedRooms = 0;
+      let demotedMemberships = 0;
+      if (isAdmin === 0) {
+        try {
+          const r = await db.prepare(
+            `UPDATE room_members SET role = 'member'
+             WHERE user_id = ? AND role = 'admin' AND left_at IS NULL`
+          ).bind(userId).run();
+          demotedMemberships = r?.meta?.changes || 0;
+        } catch {}
+      }
       if (isAdmin === 1) {
         try {
           const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
@@ -131,7 +143,7 @@ export async function onRequestPost(context) {
           }
         } catch {}
       }
-      return Response.json({ ok: true, user_id: userId, is_admin: isAdmin, added_rooms: addedRooms });
+      return Response.json({ ok: true, user_id: userId, is_admin: isAdmin, added_rooms: addedRooms, demoted_memberships: demotedMemberships });
     } catch (e) {
       return Response.json({ error: e.message }, { status: 500 });
     }

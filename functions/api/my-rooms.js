@@ -10,7 +10,7 @@ async function getUserFromCookie(db, request) {
   if (!match) return null;
   try {
     const row = await db.prepare(
-      `SELECT s.user_id, u.real_name, u.name, u.approval_status FROM sessions s
+      `SELECT s.user_id, u.real_name, u.name, u.approval_status, COALESCE(u.is_admin, 0) AS is_admin FROM sessions s
        JOIN users u ON s.user_id = u.id
        WHERE s.token = ? AND s.expires_at > datetime('now')`
     ).bind(match[1]).first();
@@ -75,7 +75,10 @@ export async function onRequestGet(context) {
       if (!membership || membership.left_at) {
         return Response.json({ error: "방에 대한 접근 권한이 없습니다" }, { status: 403 });
       }
-      if (membership.role === 'admin') {
+      /* role='admin' 차단은 현재 is_admin=1 인 유저에 한정.
+         과거 관리자였다가 강등된 기장거래처 유저는 room_members.role='admin' 이
+         남아있어도 본인 방은 열람 허용 (데이터 불일치 방어). */
+      if (membership.role === 'admin' && user.is_admin) {
         return Response.json({ error: "이 상담방은 관리자 화면에서만 확인할 수 있습니다" }, { status: 403 });
       }
       /* 종료된 방(status='closed') 또는 내부 업무방은 고객 접근 차단 */
@@ -237,7 +240,10 @@ export async function onRequestGet(context) {
       });
     }
 
-    // 내 방 목록
+    /* 🚨 보안 필터: 현재 is_admin=1 인 유저일 때만 role='admin' 방 숨김.
+       과거 관리자였다가 강등된 유저(users.is_admin=0) 는 room_members.role 이
+       'admin' 으로 남아있어도 정상 노출. 데이터 불일치 방어 + 기장거래처 복귀 대응. */
+    const hideAdminRooms = user.is_admin ? `AND rm.role != 'admin'` : '';
     const { results } = await db.prepare(`
       SELECT r.id, r.name, r.status, r.ai_mode, r.created_at,
              (SELECT COUNT(*) FROM room_members WHERE room_id = r.id AND left_at IS NULL) as member_count,
@@ -251,7 +257,7 @@ export async function onRequestGet(context) {
       FROM chat_rooms r
       INNER JOIN room_members rm ON rm.room_id = r.id
       WHERE rm.user_id = ? AND rm.left_at IS NULL
-        AND rm.role != 'admin'               -- 🚨 보안: admin 역할로 자동 참여한 방은 '내 상담방' 에 노출 X
+        ${hideAdminRooms}
         AND COALESCE(r.status, 'active') = 'active'  -- 종료(closed)·내부(internal) 숨김
         AND COALESCE(r.is_internal, 0) = 0
       ORDER BY last_msg_at DESC NULLS LAST, r.created_at DESC
