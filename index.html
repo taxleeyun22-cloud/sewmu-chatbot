@@ -4077,6 +4077,12 @@ function rejectConsent(){
       if(!streamStarted)hideDots();
       if(bubble)bubble.removeAttribute("id");
       messages.push({role:"assistant",content:fullText});
+      /* 📤 상담방 공유 버튼 붙이기 (오버라이드 sendMessage 에서 누락된 것 복구) */
+      if(msgDiv && fullText){
+        var lastUserMsg=[...messages].reverse().find(function(m,i){return i>0 && m.role==='user'});
+        var q=lastUserMsg?lastUserMsg.content:t;
+        if(typeof _attachChatbotShareBtn==='function')_attachChatbotShareBtn(msgDiv,q,fullText);
+      }
       // 사용량 갱신
       if(currentUser){currentUser.daily_used=(currentUser.daily_used||0)+1;showApprovalBanner()}
     }catch(e){hideDots();add("ai","오류: "+e.message)}
