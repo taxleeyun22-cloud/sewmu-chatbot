@@ -2527,29 +2527,34 @@ let _apbAllBiz=[];
 let _apbSelectedBizId=null;
 
 async function openApproveWithBusiness(userId, displayName, phone, action, prefill){
+  try {
   _apbUser={id:userId, name:displayName||'', phone:phone||'', action:action||'approve_client'};
   _apbSelectedBizId=null;
-  const m=$g('approveBizModal');if(!m)return;
+  const m=$g('approveBizModal');
+  if(!m){alert('승인 모달이 페이지에 없습니다. Ctrl+Shift+R 로 강제 새로고침 후 다시 시도해주세요.');return;}
+  const modeRadio=document.querySelector('input[name=apbMode][value=existing]');
+  if(!modeRadio){alert('승인 모달 구성이 옛 버전입니다. Ctrl+Shift+R (또는 시크릿 창에서 테스트)');return;}
   const actLabel=action==='approve_guest'?'일반승인':'기장거래처 승인';
   const pfMark=prefill?' <span style="font-size:.72em;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;margin-left:4px">📝 고객 요청 자동 채움</span>':'';
   $g('apbUser').innerHTML='<b>'+e(displayName||'이름없음')+'</b>'+(phone?' · '+e(phone):'')
     +' <span style="font-size:.78em;color:#3b82f6;font-weight:700">→ '+actLabel+'</span>'+pfMark;
   /* 기본: 기존 업체 모드. 라디오·폼 초기화 */
-  document.querySelector('input[name=apbMode][value=existing]').checked=true;
+  modeRadio.checked=true;
   _apbSwitchMode('existing');
   $g('apbSearch').value='';
   $g('apbNewName').value='';
   $g('apbNewCeo').value='';
   $g('apbNewBiz').value='';
   $g('apbNewForm').value='개인사업자';
-  document.querySelector('input[name=apbRole][value=담당자]').checked=true;
+  const roleRadio=document.querySelector('input[name=apbRole][value=담당자]');
+  if(roleRadio)roleRadio.checked=true;
   $g('apbAutoJoin').checked=true;
 
   /* 고객이 직접 요청한 값 있으면 → '새 업체 생성' 모드 + 자동 채움.
      세무사는 내용 확인·수정 후 승인만 누르면 됨 */
   if(prefill && (prefill.name || prefill.bn || prefill.role)){
-    document.querySelector('input[name=apbMode][value=new]').checked=true;
-    _apbSwitchMode('new');
+    const newRadio=document.querySelector('input[name=apbMode][value=new]');
+    if(newRadio){newRadio.checked=true;_apbSwitchMode('new');}
     if(prefill.name)$g('apbNewName').value=prefill.name;
     if(prefill.bn)$g('apbNewBiz').value=prefill.bn;
     /* 대표자명 힌트: real_name 이 있으면 (prefill 외부라 displayName 사용) */
@@ -2563,6 +2568,10 @@ async function openApproveWithBusiness(userId, displayName, phone, action, prefi
   m.style.display='flex';
   document.body.style.overflow='hidden';
   await _apbLoadBusinesses();
+  } catch(err) {
+    console.error('openApproveWithBusiness error:', err);
+    alert('승인 모달 오류: '+(err&&err.message||err)+'\n(F12 → Console 에서 상세 확인 가능)');
+  }
 }
 function closeApproveBizModal(){
   const m=$g('approveBizModal');if(m)m.style.display='none';
