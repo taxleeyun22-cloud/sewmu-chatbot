@@ -7244,3 +7244,22 @@ async function cleanDupBiz(){
     }
   }catch(err){alert('오류: '+err.message)}
 }
+
+/* 📱 관리자/스태프 상담방 입력창 '+' 첨부 시트 — 모바일에서만 활성 */
+function toggleRoomAttachSheet(){
+  const sheet=document.getElementById('roomAttachSheet');
+  const btn=document.getElementById('roomAttachBtn');
+  if(!sheet)return;
+  if(sheet.classList.contains('open')){
+    closeRoomAttachSheet();
+  }else{
+    sheet.classList.add('open');
+    if(btn)btn.classList.add('on');
+  }
+}
+function closeRoomAttachSheet(){
+  const sheet=document.getElementById('roomAttachSheet');
+  const btn=document.getElementById('roomAttachBtn');
+  if(sheet)sheet.classList.remove('open');
+  if(btn)btn.classList.remove('on');
+}

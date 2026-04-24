@@ -242,7 +242,15 @@ body.staff-mode .owner-only{display:none !important}
   .adm-doc-card .rc-doc-thumb{width:70px !important;height:70px !important}
   /* 카드 본문이 썸네일 옆에 붙어 줄바꿈되지 않게 */
   .adm-doc-card > div:last-child{flex:1 1 0;min-width:0}
+  /* 📱 상담방 입력창 아이콘 5개 숨기고 '+' 버튼만 노출 */
+  #roomInputArea .room-attach-hide-mobile{display:none !important}
+  #roomInputArea .room-attach-btn{display:inline-flex !important}
 }
+/* 첨부 시트: 기본 숨김, .open 클래스일 때 펼침 */
+.room-attach-sheet.open{display:flex !important;animation:roomAttachSlideUp .2s ease-out}
+@keyframes roomAttachSlideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+/* '+' 버튼 시트 열린 상태: 45도 회전해서 × 모양 */
+.room-attach-btn.on{background:#e5e8eb;transform:rotate(45deg);transition:transform .15s}
 @media(max-width:380px){
   /* 아주 좁은 기기: 썸네일/본문 세로 스택 */
   .adm-doc-card{flex-direction:column !important}
