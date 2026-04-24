@@ -1205,17 +1205,20 @@ function askQuick(b){document.getElementById("userInput").value=b.textContent;se
    상담방 렌더에서 특수 카드로 표시. */
 function _attachChatbotShareBtn(msgDiv, question, answer){
   try{
-    const wrap = msgDiv.querySelector('.msg-wrap');
-    if(!wrap)return;
-    /* 이미 붙어있으면 skip */
+    if(!msgDiv)return;
+    /* wrap 찾지 못하면 msgDiv 자체에 붙이는 fallback */
+    var wrap = msgDiv.querySelector('.msg-wrap') || msgDiv;
     if(wrap.querySelector('.chatbot-share-btn'))return;
-    const btn = document.createElement('button');
+    var btn = document.createElement('button');
     btn.className = 'chatbot-share-btn';
     btn.innerHTML = '📤 상담방에 공유';
-    btn.style.cssText = 'margin-top:6px;background:none;border:1px dashed #3182f6;color:#3182f6;padding:4px 10px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;align-self:flex-start';
-    btn.onclick = ()=>shareChatbotToRoom(question, answer, btn);
+    /* display:block + 명시적 너비 지정으로 확실하게 렌더 */
+    btn.style.cssText = 'display:block;margin-top:8px;background:#eff6ff;border:1px dashed #3182f6;color:#3182f6;padding:6px 12px;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit;width:fit-content';
+    btn.onclick = function(){shareChatbotToRoom(question, answer, btn);};
     wrap.appendChild(btn);
-  }catch{}
+  }catch(e){
+    console.error('[share-btn] attach failed:', e);
+  }
 }
 async function shareChatbotToRoom(question, answer, btn){
   if(!question || !answer){alert('공유할 내용이 없습니다');return}
