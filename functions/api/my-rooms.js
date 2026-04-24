@@ -290,58 +290,6 @@ export async function onRequestPost(context) {
       return Response.json({ error: "상담방은 관리자(세무사)만 만들 수 있습니다. 업체 등록 요청을 통해 문의해 주세요." }, { status: 403 });
     }
 
-      const name = (body.name || "").trim() || "상담방";
-      if (name.length > 50) return Response.json({ error: "이름은 50자 이내" }, { status: 400 });
-
-      // 본인이 만든 활성 방 개수 제한 (과도한 생성 방지, 최대 3개)
-      const cnt = await db.prepare(
-        `SELECT COUNT(*) as n FROM chat_rooms WHERE created_by_user_id = ? AND status = 'active'`
-      ).bind(user.user_id).first();
-      if ((cnt?.n || 0) >= 3) {
-        return Response.json({ error: "활성 상담방은 최대 3개까지 만들 수 있습니다. 기존 방을 종료 후 다시 시도해 주세요." }, { status: 400 });
-      }
-
-      // 6자리 ID 생성
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let roomId = "";
-      for (let i = 0; i < 20; i++) {
-        let s = '';
-        for (let j = 0; j < 6; j++) s += chars[Math.floor(Math.random() * chars.length)];
-        const exists = await db.prepare(`SELECT id FROM chat_rooms WHERE id = ?`).bind(s).first();
-        if (!exists) { roomId = s; break; }
-      }
-      if (!roomId) return Response.json({ error: "방 ID 생성 실패" }, { status: 500 });
-
-      const now = kst();
-      await db.prepare(`
-        INSERT INTO chat_rooms (id, name, created_by_admin, created_by_user_id, max_members, ai_mode, status, created_at)
-        VALUES (?, ?, 0, ?, 5, 'on', 'active', ?)
-      `).bind(roomId, name, user.user_id, now).run();
-
-      await db.prepare(`
-        INSERT INTO room_members (room_id, user_id, role, joined_at)
-        VALUES (?, ?, 'creator', ?)
-      `).bind(roomId, user.user_id, now).run();
-
-      /* 관리자(is_admin=1) 전원 자동 참여 — 카톡 그룹방 스타일 (admin-rooms 생성 경로와 통일).
-         고객이 혼자 방 만든 뒤에도 세무사가 즉시 참여 상태가 되어 미읽음·알림 누락 방지 */
-      try {
-        const { results: admins } = await db.prepare(
-          `SELECT id FROM users WHERE is_admin = 1 AND id != ?`
-        ).bind(user.user_id).all();
-        for (const a of (admins || [])) {
-          try {
-            await db.prepare(`
-              INSERT INTO room_members (room_id, user_id, role, joined_at)
-              VALUES (?, ?, 'admin', ?)
-            `).bind(roomId, a.id, now).run();
-          } catch { /* 이미 참여돼있으면 무시 */ }
-        }
-      } catch {}
-
-      return Response.json({ ok: true, room_id: roomId });
-    }
-
     const roomId = body.room_id;
     if (!roomId) return Response.json({ error: "room_id required" }, { status: 400 });
 
