@@ -5441,14 +5441,20 @@ function cdExportCsv(){
 }
 /* 상담방 헤더 "🏢 거래처" 버튼 → 상담방 멤버의 첫 사용자 대시보드 열기 */
 async function openCustomerDashboardFromRoom(){
+  alert('[진단1] 함수 호출됨 / currentRoomId='+currentRoomId);
   if(!currentRoomId){alert('상담방을 먼저 열어주세요');return}
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
+    alert('[진단2] fetch status='+r.status);
     const d=await r.json();
+    const allMembers=(d.members||[]);
+    alert('[진단3] members 총 '+allMembers.length+'명\n'+allMembers.map(m=>'- uid='+m.user_id+' role='+m.role+' left='+(m.left_at||'-')+' name='+(m.real_name||m.name||'?')).join('\n'));
     /* 관리자 자동 참여 기능 이후 members 에 관리자(role='admin')가 포함됨.
        고객만 골라야 함 — role !== 'admin' 필터 필수. 없으면 관리자 본인 user_id 로 dashboard 열려 빈 데이터. */
-    const customers=(d.members||[]).filter(m=>!m.left_at && m.user_id && m.role!=='admin');
+    const customers=allMembers.filter(m=>!m.left_at && m.user_id && m.role!=='admin');
+    alert('[진단4] customers (관리자 제외) '+customers.length+'명\n'+customers.map(c=>'uid='+c.user_id+' '+(c.real_name||c.name||'?')).join('\n'));
     if(!customers.length){alert('상담방에 고객이 없습니다\n(관리자만 참여 중)');return}
+    alert('[진단5] openCustSidePanel('+customers[0].user_id+') 호출');
     /* 🏢 거래처 버튼 — 가벼운 사이드 패널로 열기 (메모와 동일 도킹 방식).
        풀 대시보드는 패널 우측 "자세히 →" 링크로 접근 */
     openCustSidePanel(customers[0].user_id);
