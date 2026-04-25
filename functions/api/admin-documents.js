@@ -200,36 +200,16 @@ export async function onRequestGet(context) {
 
   const status = url.searchParams.get('status');   // pending|approved|rejected
   const userId = url.searchParams.get('user_id');
-  const businessId = url.searchParams.get('business_id');
   const month = url.searchParams.get('month');     // YYYY-MM
   const from = url.searchParams.get('from');       // YYYY-MM-DD
   const to = url.searchParams.get('to');
   const docType = url.searchParams.get('doc_type');
   const limit = Math.min(500, parseInt(url.searchParams.get('limit') || '100', 10));
 
-  /* 업체 단위 필터 — documents 에 business_id 컬럼 없으므로
-     business_members 의 user_id list 로 IN 절 변환 */
-  let bizUserIds = null;
-  if (businessId) {
-    try {
-      const { results } = await db.prepare(
-        `SELECT user_id FROM business_members
-         WHERE business_id = ? AND user_id IS NOT NULL AND removed_at IS NULL`
-      ).bind(Number(businessId)).all();
-      bizUserIds = (results || []).map(r => r.user_id).filter(Boolean);
-      if (!bizUserIds.length) bizUserIds = [-1]; /* 매칭 없음 → 빈 결과 강제 */
-    } catch { bizUserIds = [-1]; }
-  }
-
   const clauses = ['1=1'];
   const args = [];
   if (status && ['pending','approved','rejected'].includes(status)) { clauses.push('d.status = ?'); args.push(status); }
   if (userId) { clauses.push('d.user_id = ?'); args.push(userId); }
-  if (bizUserIds) {
-    const ph = bizUserIds.map(()=>'?').join(',');
-    clauses.push('d.user_id IN (' + ph + ')');
-    args.push(...bizUserIds);
-  }
   if (month) { clauses.push(`substr(d.created_at,1,7) = ?`); args.push(month); }
   if (from) { clauses.push(`substr(d.created_at,1,10) >= ?`); args.push(from); }
   if (to) { clauses.push(`substr(d.created_at,1,10) <= ?`); args.push(to); }
@@ -252,11 +232,6 @@ export async function onRequestGet(context) {
     const countClauses = [];
     const countArgs = [];
     if (userId) { countClauses.push('user_id = ?'); countArgs.push(userId); }
-    if (bizUserIds) {
-      const ph = bizUserIds.map(()=>'?').join(',');
-      countClauses.push('user_id IN (' + ph + ')');
-      countArgs.push(...bizUserIds);
-    }
     if (from) { countClauses.push("DATE(created_at) >= DATE(?)"); countArgs.push(from); }
     if (to) { countClauses.push("DATE(created_at) <= DATE(?)"); countArgs.push(to); }
     if (month) { countClauses.push("strftime('%Y-%m', created_at) = ?"); countArgs.push(month); }

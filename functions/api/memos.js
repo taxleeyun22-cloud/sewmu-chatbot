@@ -96,27 +96,6 @@ export async function onRequestGet(context) {
     }
   }
 
-  /* === 거래처(업체) 단위 D-day 일정 (target_business_id + due_date 있는 미완료 메모) === */
-  if (scope === 'business_due') {
-    const businessId = Number(url.searchParams.get('business_id') || 0);
-    if (!businessId) return Response.json({ error: "business_id required" }, { status: 400 });
-    try {
-      const { results } = await db.prepare(
-        `SELECT id, target_business_id, author_user_id, author_name, memo_type, content, due_date,
-                filing_type, filing_period, linked_message_id, created_at, updated_at
-           FROM memos
-          WHERE target_business_id = ?
-            AND due_date IS NOT NULL
-            AND deleted_at IS NULL
-            AND memo_type IN ('할 일','확인필요','고객요청','거래처 정보')
-          ORDER BY due_date ASC LIMIT 30`
-      ).bind(businessId).all();
-      return Response.json({ ok: true, schedule: results || [] });
-    } catch (e) {
-      return Response.json({ error: e.message }, { status: 500 });
-    }
-  }
-
   /* === 거래처(업체) 단위 영구 메모 (target_business_id 기반) === */
   if (scope === 'business_info') {
     const businessId = Number(url.searchParams.get('business_id') || 0);

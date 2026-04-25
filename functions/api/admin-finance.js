@@ -50,23 +50,13 @@ export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const action = url.searchParams.get('action');
   const userId = url.searchParams.get('user_id');
-  const businessId = url.searchParams.get('business_id');
 
   if (action === 'summary') {
-    if (businessId) return getSummaryBiz(db, Number(businessId));
-    if (!userId) return Response.json({ error: 'user_id 또는 business_id required' }, { status: 400 });
+    if (!userId) return Response.json({ error: 'user_id required' }, { status: 400 });
     return getSummary(db, userId);
   }
 
-  /* 업체 단위 재무 — chat_rooms.business_id 기준 */
-  if (businessId) {
-    const { results } = await db.prepare(
-      `SELECT * FROM client_finance WHERE business_id = ? ORDER BY period DESC LIMIT 200`
-    ).bind(Number(businessId)).all();
-    return Response.json({ rows: results || [] });
-  }
-
-  if (!userId) return Response.json({ error: 'user_id 또는 business_id required' }, { status: 400 });
+  if (!userId) return Response.json({ error: 'user_id required' }, { status: 400 });
 
   const { results } = await db.prepare(
     `SELECT * FROM client_finance WHERE user_id = ? ORDER BY period DESC LIMIT 200`
@@ -86,32 +76,6 @@ async function getSummary(db, userId) {
 
   // chat.js 가 사용하기 좋게 텍스트 요약도 같이
   const lines = ['[' + (recent[0].period) + '~' + (recent[recent.length-1].period) + ' 재무 데이터]'];
-  for (const r of recent.slice(0, 12)) {
-    const parts = [r.period];
-    if (r.revenue != null) parts.push('매출 ' + r.revenue.toLocaleString('ko-KR'));
-    if (r.cost != null) parts.push('매입 ' + r.cost.toLocaleString('ko-KR'));
-    if (r.vat_payable != null) parts.push('부가세 ' + r.vat_payable.toLocaleString('ko-KR'));
-    if (r.income_tax != null) parts.push('소득세 ' + r.income_tax.toLocaleString('ko-KR'));
-    if (r.payroll_total != null) parts.push('인건비 ' + r.payroll_total.toLocaleString('ko-KR'));
-    lines.push('  - ' + parts.join(' / '));
-  }
-  return Response.json({
-    summary: lines.join('\n'),
-    has_data: true,
-    rows: recent,
-    last_period: recent[0].period,
-  });
-}
-
-/* 업체 단위 요약 — business_id 기준 */
-async function getSummaryBiz(db, businessId) {
-  const { results: recent } = await db.prepare(
-    `SELECT period, period_type, revenue, cost, vat_payable, income_tax, taxable_income, payroll_total, notes
-     FROM client_finance WHERE business_id = ?
-     ORDER BY period DESC LIMIT 24`
-  ).bind(businessId).all();
-  if (!recent || !recent.length) return Response.json({ summary: null, has_data: false, rows: [] });
-  const lines = ['[' + (recent[0].period) + '~' + (recent[recent.length-1].period) + ' 업체 재무]'];
   for (const r of recent.slice(0, 12)) {
     const parts = [r.period];
     if (r.revenue != null) parts.push('매출 ' + r.revenue.toLocaleString('ko-KR'));
