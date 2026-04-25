@@ -280,7 +280,8 @@ export async function onRequestGet(context) {
 
       const { results: members } = await db.prepare(`
         SELECT rm.user_id, rm.role, rm.joined_at, rm.left_at,
-               u.real_name, u.name, u.profile_image, u.phone
+               u.real_name, u.name, u.profile_image, u.phone,
+               u.is_admin, u.approval_status
         FROM room_members rm
         LEFT JOIN users u ON rm.user_id = u.id
         WHERE rm.room_id = ?

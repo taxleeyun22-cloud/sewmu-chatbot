@@ -5439,25 +5439,38 @@ function cdGotoRoom(){
 function cdExportCsv(){
   exportWehago();
 }
-/* 상담방 헤더 "🏢 거래처" 버튼 → 상담방 멤버의 첫 사용자 대시보드 열기 */
+/* 상담방 헤더 "🏢 거래처" 버튼 → 상담방의 진짜 거래처(고객) 사이드 패널 열기.
+   거래처 식별 로직:
+   - room_members.role = 'admin' 제외 (방 단위 관리자)
+   - users.is_admin = 1 제외 (세무사·직원 계정. role='member' 로 잘못 등록되어도 차단)
+   - users.approval_status = 'rejected' 제외
+   거래처 0명이면 "내부 업무방" 안내. 1명이면 자동 열기. 2명+ 이면 선택 팝업. */
 async function openCustomerDashboardFromRoom(){
-  alert('[진단1] 함수 호출됨 / currentRoomId='+currentRoomId);
   if(!currentRoomId){alert('상담방을 먼저 열어주세요');return}
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
-    alert('[진단2] fetch status='+r.status);
     const d=await r.json();
-    const allMembers=(d.members||[]);
-    alert('[진단3] members 총 '+allMembers.length+'명\n'+allMembers.map(m=>'- uid='+m.user_id+' role='+m.role+' left='+(m.left_at||'-')+' name='+(m.real_name||m.name||'?')).join('\n'));
-    /* 관리자 자동 참여 기능 이후 members 에 관리자(role='admin')가 포함됨.
-       고객만 골라야 함 — role !== 'admin' 필터 필수. 없으면 관리자 본인 user_id 로 dashboard 열려 빈 데이터. */
-    const customers=allMembers.filter(m=>!m.left_at && m.user_id && m.role!=='admin');
-    alert('[진단4] customers (관리자 제외) '+customers.length+'명\n'+customers.map(c=>'uid='+c.user_id+' '+(c.real_name||c.name||'?')).join('\n'));
-    if(!customers.length){alert('상담방에 고객이 없습니다\n(관리자만 참여 중)');return}
-    alert('[진단5] openCustSidePanel('+customers[0].user_id+') 호출');
-    /* 🏢 거래처 버튼 — 가벼운 사이드 패널로 열기 (메모와 동일 도킹 방식).
-       풀 대시보드는 패널 우측 "자세히 →" 링크로 접근 */
-    openCustSidePanel(customers[0].user_id);
+    const customers=(d.members||[]).filter(m=>
+      !m.left_at &&
+      m.user_id &&
+      m.role!=='admin' &&
+      Number(m.is_admin)!==1 &&
+      m.approval_status!=='rejected'
+    );
+    if(!customers.length){
+      alert('이 방엔 거래처(고객)가 없습니다.\n관리자·직원만 참여 중인 내부 업무방입니다.');
+      return;
+    }
+    if(customers.length===1){
+      openCustSidePanel(customers[0].user_id);
+      return;
+    }
+    /* 거래처 2명 이상 — prompt 로 선택 (간단·안전) */
+    const options=customers.map((c,i)=>(i+1)+'. '+(c.real_name||c.name||('user#'+c.user_id))).join('\n');
+    const pick=prompt('거래처가 '+customers.length+'명입니다. 번호 선택:\n\n'+options,'1');
+    const idx=parseInt(pick,10)-1;
+    if(!Number.isFinite(idx)||idx<0||idx>=customers.length)return;
+    openCustSidePanel(customers[idx].user_id);
   }catch(e){alert('오류: '+e.message)}
 }
 
