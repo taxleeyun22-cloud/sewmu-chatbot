@@ -24,30 +24,54 @@ export async function onRequestGet(context) {
 
   const url = new URL(context.request.url);
   const userId = Number(url.searchParams.get("user_id") || 0);
+  const businessId = Number(url.searchParams.get("business_id") || 0);
   const range = url.searchParams.get("range") || 'recent';
   const fromDate = url.searchParams.get("from") || '';
   const toDate = url.searchParams.get("to") || '';
-  if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
+  if (!userId && !businessId) return Response.json({ error: "user_id 또는 business_id 필요" }, { status: 400 });
 
-  /* 1. 거래처 기본 정보 */
-  let userInfo;
-  try {
-    userInfo = await db.prepare(
-      `SELECT id, real_name, name, phone, email, provider, approval_status FROM users WHERE id = ?`
-    ).bind(userId).first();
-  } catch (e) { return Response.json({ error: "user lookup: " + e.message }, { status: 500 }); }
-  if (!userInfo) return Response.json({ error: "user not found" }, { status: 404 });
-  const customerName = userInfo.real_name || userInfo.name || ('#' + userId);
+  /* 1. 대상(거래처/업체) 기본 정보 */
+  let customerName = '';
+  let scopeKind = userId ? 'user' : 'business';
+  if (userId) {
+    let userInfo;
+    try {
+      userInfo = await db.prepare(
+        `SELECT id, real_name, name, phone, email, provider, approval_status FROM users WHERE id = ?`
+      ).bind(userId).first();
+    } catch (e) { return Response.json({ error: "user lookup: " + e.message }, { status: 500 }); }
+    if (!userInfo) return Response.json({ error: "user not found" }, { status: 404 });
+    customerName = userInfo.real_name || userInfo.name || ('#' + userId);
+  } else {
+    let bizInfo;
+    try {
+      bizInfo = await db.prepare(
+        `SELECT id, company_name, business_number, ceo_name, company_form FROM businesses WHERE id = ?`
+      ).bind(businessId).first();
+    } catch (e) { return Response.json({ error: "business lookup: " + e.message }, { status: 500 }); }
+    if (!bizInfo) return Response.json({ error: "business not found" }, { status: 404 });
+    customerName = bizInfo.company_name || ('#biz-' + businessId);
+  }
 
-  /* 2. 이 거래처가 속한 모든 방 id */
+  /* 2. 대상에 속한 모든 방 id */
   let roomIds = [];
-  try {
-    const { results } = await db.prepare(
-      `SELECT DISTINCT room_id FROM room_members
-       WHERE user_id = ? AND left_at IS NULL`
-    ).bind(userId).all();
-    roomIds = (results || []).map(r => r.room_id).filter(Boolean);
-  } catch {}
+  if (userId) {
+    try {
+      const { results } = await db.prepare(
+        `SELECT DISTINCT room_id FROM room_members
+         WHERE user_id = ? AND left_at IS NULL`
+      ).bind(userId).all();
+      roomIds = (results || []).map(r => r.room_id).filter(Boolean);
+    } catch {}
+  } else {
+    /* business_id 매핑된 모든 방 — chat_rooms.business_id 직접 매칭 */
+    try {
+      const { results } = await db.prepare(
+        `SELECT DISTINCT id AS room_id FROM chat_rooms WHERE business_id = ?`
+      ).bind(businessId).all();
+      roomIds = (results || []).map(r => r.room_id).filter(Boolean);
+    } catch {}
+  }
 
   /* 3. 기간별 메시지 쿼리 (모든 방 통합) */
   let msgs = [];
@@ -114,14 +138,17 @@ export async function onRequestGet(context) {
     return '  · ' + bits.join(' · ');
   }).join('\n');
 
-  /* 5. 거래처 영구 메모 (target_user_id 기반) */
+  /* 5. 거래처 영구 메모 — user 면 target_user_id, business 면 target_business_id */
   let customerInfoBlock = '(등록된 기본 정보 없음)';
   try {
-    const { results: cinfo } = await db.prepare(
-      `SELECT content, author_name, created_at FROM memos
-       WHERE target_user_id = ? AND memo_type = '거래처 정보' AND deleted_at IS NULL
-       ORDER BY created_at ASC LIMIT 30`
-    ).bind(userId).all();
+    const memoSql = userId
+      ? `SELECT content, author_name, created_at FROM memos
+         WHERE target_user_id = ? AND memo_type = '거래처 정보' AND deleted_at IS NULL
+         ORDER BY created_at ASC LIMIT 30`
+      : `SELECT content, author_name, created_at FROM memos
+         WHERE target_business_id = ? AND memo_type = '거래처 정보' AND deleted_at IS NULL
+         ORDER BY created_at ASC LIMIT 30`;
+    const { results: cinfo } = await db.prepare(memoSql).bind(userId || businessId).all();
     if (cinfo && cinfo.length) {
       customerInfoBlock = cinfo.map(m=>{
         const t=(m.created_at||'').substring(0,10);

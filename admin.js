@@ -4054,9 +4054,10 @@ function _rsToggleButtons(busy){
   });
 }
 function closeRoomSummary(){
-  /* 거래처 단위 요약 모드 리셋 (openCustomerSummary 로 열렸을 경우) */
+  /* 거래처/업체 단위 요약 모드 리셋 (openCustomerSummary / _bdRunBusinessSummary 로 열렸을 경우) */
   if(typeof _summaryMode!=='undefined')_summaryMode='room';
   if(typeof _customerSummaryUserId!=='undefined')_customerSummaryUserId=null;
+  if(typeof _customerSummaryBusinessId!=='undefined')_customerSummaryBusinessId=null;
   const modal=$g('roomSummaryModal');
   if(modal)modal.style.display='none';
   document.body.style.overflow='';
@@ -5618,8 +5619,9 @@ async function openCustomerDashboardFromRoom(){
 /* ===== 📝 거래처 단위 AI 요약 — user_id 기반 통합 (모든 방 대화 + 메모) =====
    현재 거래처 대시보드(_cdCurrentUserId) 기준. 기존 roomSummaryModal 재사용.
    _summaryMode='customer' 일 때 runRoomSummary 가 customer-summary API 호출. */
-let _summaryMode='room'; /* 'room' (기존 방단위) | 'customer' (거래처단위) */
+let _summaryMode='room'; /* 'room' (방단위) | 'customer' (사람단위 user_id) | 'business' (업체단위 business_id) */
 let _customerSummaryUserId=null;
+let _customerSummaryBusinessId=null;
 function openCustomerSummary(){
   const uid=_cdCurrentUserId;
   if(!uid){alert('거래처가 선택되지 않았습니다');return}
@@ -5644,9 +5646,11 @@ function _cdCurrentCustomerName(){
 /* runRoomSummary 가 _summaryMode 분기해서 fetch 대상 바꾸도록 — 기존 함수 wrap */
 const _origRunRoomSummary = (typeof runRoomSummary==='function') ? runRoomSummary : null;
 async function runRoomSummary(){
-  if(_summaryMode!=='customer'){return _origRunRoomSummary&&_origRunRoomSummary()}
-  /* 거래처 단위 모드 */
-  if(!_customerSummaryUserId){alert('거래처 미선택');return}
+  if(_summaryMode==='room'){return _origRunRoomSummary&&_origRunRoomSummary()}
+  /* 거래처(사람) 또는 업체 단위 모드 */
+  const isBusiness=(_summaryMode==='business');
+  if(isBusiness && !_customerSummaryBusinessId){alert('업체 미선택');return}
+  if(!isBusiness && !_customerSummaryUserId){alert('거래처 미선택');return}
   if(_rsGenerating)return;
   _rsGenerating=true;
   const range=_lastSummaryRange||'recent';
@@ -5659,10 +5663,12 @@ async function runRoomSummary(){
     rangeLabel=f+' ~ '+t;
   }
   if(typeof _rsToggleButtons==='function')_rsToggleButtons(true);
-  if(body)body.innerHTML='<div style="text-align:center;padding:40px 0;color:#8b95a1"><div style="display:inline-block;width:22px;height:22px;border:3px solid #e5e8eb;border-top-color:#10b981;border-radius:50%;animation:rsSpin .7s linear infinite;vertical-align:middle;margin-right:8px"></div>🤖 거래처 요약 생성 중... (5~20초)</div>';
+  const loadingLabel=isBusiness?'🏢 업체 요약 생성 중...':'🤖 거래처 요약 생성 중...';
+  if(body)body.innerHTML='<div style="text-align:center;padding:40px 0;color:#8b95a1"><div style="display:inline-block;width:22px;height:22px;border:3px solid #e5e8eb;border-top-color:#10b981;border-radius:50%;animation:rsSpin .7s linear infinite;vertical-align:middle;margin-right:8px"></div>'+loadingLabel+' (5~20초)</div>';
   if(meta)meta.textContent='';
   try{
-    const r=await fetch('/api/admin-customer-summary?key='+encodeURIComponent(KEY)+'&user_id='+_customerSummaryUserId+'&range='+encodeURIComponent(range)+extraQS);
+    const idQS=isBusiness?('business_id='+_customerSummaryBusinessId):('user_id='+_customerSummaryUserId);
+    const r=await fetch('/api/admin-customer-summary?key='+encodeURIComponent(KEY)+'&'+idQS+'&range='+encodeURIComponent(range)+extraQS);
     const d=await r.json();
     if(d.error){
       if(body)body.innerHTML='<div style="padding:30px 20px;text-align:center;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b"><div style="font-size:1.1em;margin-bottom:8px">⚠️ 요약 실패</div><div style="font-size:.85em">'+e(d.error)+'</div></div>';
@@ -7116,22 +7122,48 @@ async function openBusinessDashboard(bid){
     $g('bdSub').textContent=[biz.business_number?'#'+biz.business_number:'', biz.ceo_name?'대표 '+biz.ceo_name:'', biz.company_form||''].filter(Boolean).join(' · ');
     stage='6.body html';
     let html='';
-    /* 기본정보 */
+    /* 기본정보 — 위하고 풍성 그리드 — 각 KV 행 try/catch */
+    try {
+      html+='<div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:12px">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-weight:700;font-size:.92em">📋 기본 정보 <span style="font-size:.7em;color:#9ca3af;font-weight:500;margin-left:4px">(위하고 호환)</span></div><button onclick="_bdEditBasic()" style="background:#f2f4f6;border:1px solid #e5e8eb;padding:5px 12px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">편집</button></div>'
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;font-size:.84em;color:#374151">'
+        +_bdKV('회사구분',biz.company_form)
+        +_bdKV('사업자등록번호',biz.business_number)
+        +_bdKV('종사업자번호',biz.sub_business_number)
+        +_bdKV('법인등록번호',biz.corporate_number)
+        +_bdKV('대표자',biz.ceo_name)
+        +_bdKV('업태',biz.business_category)
+        +_bdKV('업종',biz.industry)
+        +_bdKV('업종코드',biz.industry_code)
+        +_bdKV('과세유형',biz.tax_type)
+        +_bdKV('사업장주소',biz.address)
+        +_bdKV('사업장전화',biz.phone)
+        +_bdKV('개업일',biz.establishment_date)
+        +_bdKV('수임일자',biz.contract_date)
+        +_bdKV('회계기간',[biz.fiscal_year_start,biz.fiscal_year_end].filter(Boolean).join(' ~ '))
+        +_bdKV('기수',biz.fiscal_term)
+        +_bdKV('인사연도',biz.hr_year)
+        +_bdKV('노트',biz.notes)
+        +'</div></div>';
+    } catch(secErr){
+      html+='<div style="color:#f04452;padding:10px;font-size:.82em">⚠️ 기본정보 렌더 실패: '+e(String(secErr&&secErr.message||secErr))+'</div>';
+    }
+    /* 📝 거래처 메모 — 본문 표시 후 비동기 로드 */
     html+='<div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:12px">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-weight:700;font-size:.92em">📋 기본 정보</div><button onclick="_bdEditBasic()" style="background:#f2f4f6;border:1px solid #e5e8eb;padding:5px 12px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">편집</button></div>'
-      +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;font-size:.84em;color:#374151">'
-      +_bdKV('회사구분',biz.company_form)
-      +_bdKV('사업자등록번호',biz.business_number)
-      +_bdKV('대표자',biz.ceo_name)
-      +_bdKV('업태',biz.business_category)
-      +_bdKV('업종',biz.industry)
-      +_bdKV('과세유형',biz.tax_type)
-      +_bdKV('사업장주소',biz.address)
-      +_bdKV('전화',biz.phone)
-      +_bdKV('수임일자',biz.contract_date)
-      +_bdKV('회계기간',[biz.fiscal_year_start,biz.fiscal_year_end].filter(Boolean).join(' ~ '))
-      +_bdKV('노트',biz.notes)
-      +'</div></div>';
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+        +'<div style="font-weight:700;font-size:.92em">📝 거래처 메모</div>'
+        +'<button onclick="_bdAddMemo('+bid+')" style="background:var(--brand-primary,#3182f6);color:#fff;border:none;padding:5px 13px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">＋ 메모</button>'
+      +'</div>'
+      +'<div id="bdMemoList" style="font-size:.85em;color:#8b95a1;padding:6px 0">메모 불러오는 중...</div>'
+    +'</div>';
+    /* 🤖 거래처 AI 요약 — 버튼 클릭 시 roomSummaryModal 재활용해서 business 모드로 실행 */
+    html+='<div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:12px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+        +'<div style="font-weight:700;font-size:.92em">🤖 거래처 AI 요약</div>'
+        +'<button onclick="_bdRunBusinessSummary('+bid+')" style="background:#10b981;color:#fff;border:none;padding:5px 13px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">✨ 요약 생성</button>'
+      +'</div>'
+      +'<div style="font-size:.78em;color:#8b95a1;padding:4px 0">이 거래처(업체) 의 모든 상담방 대화 + 메모 통합 요약. 클릭 시 별도 모달.</div>'
+    +'</div>';
     /* 구성원 */
     html+='<div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:12px">'
       +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-weight:700;font-size:.92em">👥 구성원 ('+members.length+'명)</div><button onclick="_bdAddMember()" style="background:var(--brand-primary,#3182f6);color:#fff;border:none;padding:5px 14px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">＋ 구성원 추가</button></div>';
@@ -7181,12 +7213,79 @@ async function openBusinessDashboard(bid){
     html+='</div>';
     stage='7.body set';
     $g('bdBody').innerHTML=html;
-    stage='8.done';
+    stage='8.memo load';
+    /* 본문 표시 후 메모 비동기 로드 — 본문 표시 실패해도 별도 로드 */
+    setTimeout(()=>_bdLoadMemos(bid),50);
+    stage='9.done';
   }catch(err){
     const msg='⚠️ 업체 정보 로딩 오류\n[stage='+stage+']\n'+(err&&err.message?err.message:'unknown');
     try{$g('bdBody').innerHTML='<div style="color:#f04452;padding:20px;font-size:.85em;white-space:pre-wrap">'+e(msg)+'</div>'}
     catch(_){alert(msg)}
   }
+}
+/* 📝 거래처(업체) 메모 — 조회·추가·삭제. memos 테이블의 target_business_id 사용. */
+async function _bdLoadMemos(bid){
+  const box=$g('bdMemoList');if(!box)return;
+  try{
+    const r=await fetch('/api/memos?scope=business_info&business_id='+encodeURIComponent(bid)+'&key='+encodeURIComponent(KEY));
+    const d=await r.json();
+    if(!d.ok){box.innerHTML='<span style="color:#f04452">메모 로드 실패: '+e(d.error||'unknown')+'</span>';return}
+    const memos=d.memos||[];
+    if(!memos.length){box.innerHTML='<span style="color:#9ca3af;font-size:.85em">아직 메모 없음. ＋ 메모 버튼으로 추가.</span>';return}
+    box.innerHTML=memos.map(m=>{
+      try{
+        const t=(m.created_at||'').slice(0,10);
+        const by=m.author_name?e(m.author_name):'';
+        const content=e(String(m.content||'')).replace(/\n/g,'<br>');
+        return '<div style="padding:8px 10px;border-left:3px solid #3182f6;background:#f9fafb;margin-bottom:6px;border-radius:4px">'
+          +'<div style="font-size:.74em;color:#6b7280;margin-bottom:3px">'+t+(by?(' · '+by):'')
+          +' <button onclick="_bdDeleteMemo('+m.id+','+bid+')" style="float:right;background:none;border:none;color:#dc2626;font-size:.78em;cursor:pointer;font-family:inherit;padding:0 4px">삭제</button></div>'
+          +'<div style="line-height:1.5">'+content+'</div>'
+        +'</div>';
+      }catch(_){return ''}
+    }).join('');
+  }catch(err){
+    box.innerHTML='<span style="color:#f04452">오류: '+e(err.message)+'</span>';
+  }
+}
+async function _bdAddMemo(bid){
+  const txt=prompt('거래처 메모 입력');
+  if(!txt||!txt.trim())return;
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({memo_type:'거래처 정보',content:txt.trim(),target_business_id:Number(bid)})
+    });
+    const d=await r.json();
+    if(!d.ok){alert('추가 실패: '+(d.error||'unknown'));return}
+    _bdLoadMemos(bid);
+  }catch(err){alert('오류: '+err.message)}
+}
+async function _bdDeleteMemo(memoId, bid){
+  if(!confirm('이 메모를 삭제하시겠습니까?'))return;
+  try{
+    const r=await fetch('/api/memos?id='+memoId+'&key='+encodeURIComponent(KEY),{method:'DELETE'});
+    const d=await r.json();
+    if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
+    _bdLoadMemos(bid);
+  }catch(err){alert('오류: '+err.message)}
+}
+/* 🤖 거래처(업체) AI 요약 — 기존 roomSummaryModal 재활용. _summaryMode='business' 추가 분기. */
+async function _bdRunBusinessSummary(bid){
+  if(!bid){alert('업체 ID 없음');return}
+  _summaryMode='business';
+  _customerSummaryUserId=null;
+  _customerSummaryBusinessId=Number(bid);
+  const modal=$g('roomSummaryModal');
+  const body=$g('rsBody');
+  const meta=$g('rsMeta');
+  if(!modal)return;
+  modal.style.display='flex';
+  document.body.style.overflow='hidden';
+  _lastSummaryText=''; _lastSummaryJson=null;
+  if(body)body.innerHTML='<div style="text-align:center;padding:40px 20px;color:#8b95a1;font-size:.9em;line-height:1.7">🏢 거래처(업체) 단위 요약 모드<br>기간 선택 후 <b style="color:#10b981">✨ 요약 생성</b> 버튼.<br><span style="font-size:.85em;color:#adb5bd">※ 이 업체의 모든 상담방 대화 + 메모 통합 요약</span></div>';
+  if(meta)meta.textContent='[업체 단위] '+(_bdCurrent?.biz?.company_name||'#'+bid);
+  if(typeof _setSummaryRangeUI==='function')_setSummaryRangeUI(_lastSummaryRange||'recent');
 }
 function _bdKV(k,v){
   if(v==null||v==='')return '<div style="color:#9ca3af"><b style="color:#6b7280;margin-right:6px">'+e(k)+'</b>—</div>';

@@ -60,6 +60,9 @@ async function ensureTable(db) {
   try { await db.prepare(`ALTER TABLE memos ADD COLUMN target_user_id INTEGER`).run(); } catch {}
   try { await db.prepare(`ALTER TABLE memos ADD COLUMN filing_type TEXT`).run(); } catch {}
   try { await db.prepare(`ALTER TABLE memos ADD COLUMN filing_period TEXT`).run(); } catch {}
+  /* 거래처(업체) 단위 영구 메모 — Phase 3 (사람 ⊃ 거래처 ⊃ 상담방) 계층 */
+  try { await db.prepare(`ALTER TABLE memos ADD COLUMN target_business_id INTEGER`).run(); } catch {}
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_memos_target_biz ON memos(target_business_id, memo_type)`).run(); } catch {}
 }
 
 function validDate(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')); }
@@ -87,6 +90,24 @@ export async function onRequestGet(context) {
           WHERE target_user_id = ? AND memo_type = '거래처 정보' AND deleted_at IS NULL
           ORDER BY created_at DESC LIMIT 100`
       ).bind(userIdParam).all();
+      return Response.json({ ok: true, memos: results || [], types: NEW_TYPES });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
+  /* === 거래처(업체) 단위 영구 메모 (target_business_id 기반) === */
+  if (scope === 'business_info') {
+    const businessId = Number(url.searchParams.get('business_id') || 0);
+    if (!businessId) return Response.json({ error: "business_id required" }, { status: 400 });
+    try {
+      const { results } = await db.prepare(
+        `SELECT id, target_business_id, target_user_id, author_user_id, author_name, memo_type, content, is_edited,
+                due_date, linked_message_id, filing_type, filing_period, created_at, updated_at
+           FROM memos
+          WHERE target_business_id = ? AND memo_type = '거래처 정보' AND deleted_at IS NULL
+          ORDER BY created_at DESC LIMIT 200`
+      ).bind(businessId).all();
       return Response.json({ ok: true, memos: results || [], types: NEW_TYPES });
     } catch (e) {
       return Response.json({ error: e.message }, { status: 500 });
@@ -201,6 +222,8 @@ export async function onRequestPost(context) {
       if (mem?.user_id) targetUserId = mem.user_id;
     } catch {}
   }
+  /* target_business_id: 거래처(업체) 단위 영구 메모 저장 대상. body 에서 직접 받음. */
+  const targetBusinessId = body.target_business_id ? Number(body.target_business_id) : null;
 
   const authorUserId = auth.userId || null;
   const authorName = auth.name || auth.realName || (auth.owner ? '대표' : '담당자');
@@ -208,9 +231,9 @@ export async function onRequestPost(context) {
   const now = kst();
   try {
     const r = await db.prepare(
-      `INSERT INTO memos (room_id, target_user_id, author_user_id, author_name, assigned_to_user_id, memo_type, content, visibility, is_edited, due_date, linked_message_id, filing_type, filing_period, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'internal', 0, ?, ?, ?, ?, ?, ?)`
-    ).bind(roomId, targetUserId, authorUserId, authorName, assignedToUserId, memoType, content, dueDate, linkedMsgId, filingType, filingPeriod, now, now).run();
+      `INSERT INTO memos (room_id, target_user_id, target_business_id, author_user_id, author_name, assigned_to_user_id, memo_type, content, visibility, is_edited, due_date, linked_message_id, filing_type, filing_period, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'internal', 0, ?, ?, ?, ?, ?, ?)`
+    ).bind(roomId, targetUserId, targetBusinessId, authorUserId, authorName, assignedToUserId, memoType, content, dueDate, linkedMsgId, filingType, filingPeriod, now, now).run();
     return Response.json({ ok: true, id: r.meta?.last_row_id || null });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
