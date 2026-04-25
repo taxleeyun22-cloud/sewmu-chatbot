@@ -1,6 +1,6 @@
 // 관리자 전역 검색
 // GET /api/admin-search?q=XXX
-// 반환: { users, conversations, rooms, room_messages } 각 최대 10건
+// 반환: { users, conversations, rooms, room_messages, memos, businesses, documents } 각 최대 10~30건
 import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
 
 export async function onRequestGet(context) {
@@ -11,7 +11,7 @@ export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const q = (url.searchParams.get("q") || "").trim();
   if (!q || q.length < 2) {
-    return Response.json({ users: [], conversations: [], rooms: [], room_messages: [], query: q });
+    return Response.json({ users: [], conversations: [], rooms: [], room_messages: [], memos: [], businesses: [], documents: [], query: q });
   }
 
   const pat = `%${q}%`;
@@ -67,12 +67,62 @@ export async function onRequestGet(context) {
       `).bind(pat).all();
     } catch {}
 
+    // 5) 메모 — content 검색 + 메모가 박힌 위치(room/user/business) 컨텍스트 JOIN
+    let memosR = { results: [] };
+    try {
+      memosR = await db.prepare(`
+        SELECT m.id, m.room_id, m.target_user_id, m.target_business_id,
+               m.memo_type, m.content, m.due_date, m.author_name, m.created_at,
+               r.name AS room_name,
+               u.real_name AS target_user_real_name, u.name AS target_user_name,
+               b.company_name AS target_business_name
+          FROM memos m
+          LEFT JOIN chat_rooms r ON m.room_id = r.id AND m.room_id != '__none__'
+          LEFT JOIN users u ON m.target_user_id = u.id
+          LEFT JOIN businesses b ON m.target_business_id = b.id
+         WHERE m.deleted_at IS NULL AND m.content LIKE ?
+         ORDER BY m.created_at DESC
+         LIMIT 30
+      `).bind(pat).all();
+    } catch {}
+
+    // 6) 사업장 (회사명/사업자번호/대표자명)
+    let businessesR = { results: [] };
+    try {
+      businessesR = await db.prepare(`
+        SELECT id, company_name, business_number, ceo_name, company_form,
+               business_category, industry, status
+          FROM businesses
+         WHERE company_name LIKE ? OR business_number LIKE ? OR ceo_name LIKE ?
+         ORDER BY id DESC
+         LIMIT 20
+      `).bind(pat, pat, pat).all();
+    } catch {}
+
+    // 7) 문서 (vendor / note / category)
+    let docsR = { results: [] };
+    try {
+      docsR = await db.prepare(`
+        SELECT d.id, d.user_id, d.room_id, d.doc_type, d.vendor, d.amount, d.vat_amount,
+               d.receipt_date, d.category, d.status, d.created_at,
+               u.real_name, u.name
+          FROM documents d
+          LEFT JOIN users u ON d.user_id = u.id
+         WHERE d.vendor LIKE ? OR d.note LIKE ? OR d.category LIKE ?
+         ORDER BY d.created_at DESC
+         LIMIT 20
+      `).bind(pat, pat, pat).all();
+    } catch {}
+
     return Response.json({
       query: q,
       users: usersR.results || [],
       conversations: convsR.results || [],
       rooms: roomsR.results || [],
       room_messages: roomMsgsR.results || [],
+      memos: memosR.results || [],
+      businesses: businessesR.results || [],
+      documents: docsR.results || [],
     });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });

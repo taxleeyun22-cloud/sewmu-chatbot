@@ -55,7 +55,7 @@
 <div id="searchModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:flex-start;justify-content:center;padding:40px 20px">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">
     <div style="padding:14px 16px;border-bottom:1px solid #e5e8eb;display:flex;gap:8px;align-items:center">
-      <input id="searchInput" type="text" placeholder="사용자·대화·상담방 전체 검색 (2자 이상)..." oninput="onSearchInput()" style="flex:1;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.9em;font-family:inherit;outline:none">
+      <input id="searchInput" type="text" placeholder="사용자·대화·상담방·메모·사업장·문서 전체 검색 (2자 이상)..." oninput="onSearchInput()" style="flex:1;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.9em;font-family:inherit;outline:none">
       <button onclick="document.getElementById('searchModal').style.display='none'" style="background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:10px;font-size:.85em;cursor:pointer;font-family:inherit">✕</button>
     </div>
     <div id="searchResults" style="flex:1;overflow-y:auto;padding:14px 16px;background:#f9fafb">
@@ -807,7 +807,7 @@
 </div>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=124"></script>
+<script src="/admin.js?v=125"></script>
 <style>
 /* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
    기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면

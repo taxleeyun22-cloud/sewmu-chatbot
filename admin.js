@@ -1,5 +1,5 @@
 /* ⛳ 디버깅 — 캐시 적용 여부 즉시 확인. 화면 좌상단에 5초간 작은 라벨 표시. */
-window.__ADMIN_VERSION='v=124';
+window.__ADMIN_VERSION='v=125';
 try{
   setTimeout(function(){
     try{
@@ -423,8 +423,93 @@ async function doSearch(){
       }).join('');
       html+='</div>';
     }
+    /* 메모 — 메모가 박힌 위치(상담방/사람/사업장) 컨텍스트 표시 + 점프 */
+    if(d.memos&&d.memos.length){
+      html+='<div class="sr-group"><div class="sr-title">📝 메모 '+d.memos.length+'건</div>';
+      html+=d.memos.map(function(m){
+        try{
+          let where='', jumpFn='';
+          if(m.target_business_id){
+            where='[🏢 '+e(m.target_business_name||'#'+m.target_business_id)+']';
+            jumpFn='location.href=\'/business.html?id='+m.target_business_id+'&key=\'+encodeURIComponent(KEY)';
+          } else if(m.target_user_id){
+            where='[👤 '+e(m.target_user_real_name||m.target_user_name||'#'+m.target_user_id)+']';
+            jumpFn='closeSearchModal();openCustomerDashboard('+m.target_user_id+')';
+          } else if(m.room_id && m.room_id !== '__none__'){
+            where='[💬 '+e(m.room_name||m.room_id)+']';
+            jumpFn='jumpToRoom(\''+e(m.room_id).replace(/\'/g,'')+'\')';
+          } else {
+            where='[📌 분류 없음]';
+            jumpFn='void(0)';
+          }
+          const tp=m.memo_type?' <span style="background:#eef2ff;color:#3730a3;font-size:.7em;padding:1px 6px;border-radius:4px;margin-left:4px">'+e(m.memo_type)+'</span>':'';
+          const due=m.due_date?' <span style="color:#dc2626;font-size:.72em;margin-left:4px">📅 '+e(m.due_date)+'</span>':'';
+          const by=m.author_name?' · '+e(m.author_name):'';
+          const snip=String(m.content||'').slice(0,140);
+          return '<div class="sr-item" onclick="'+jumpFn+'"><b>'+where+'</b>'+tp+due+'<div class="sr-sub">'+e(snip)+(m.content&&m.content.length>140?'…':'')+'</div><div class="sr-sub" style="color:#c6cdd2">'+e((m.created_at||'').slice(0,16))+by+'</div></div>';
+        }catch(_){return ''}
+      }).join('');
+      html+='</div>';
+    }
+    /* 사업장 — 회사명·사업자번호·대표 매칭 → business.html 점프 */
+    if(d.businesses&&d.businesses.length){
+      html+='<div class="sr-group"><div class="sr-title">🏢 사업장 '+d.businesses.length+'개</div>';
+      html+=d.businesses.map(function(b){
+        try{
+          const meta=[
+            b.business_number?'#'+b.business_number:'',
+            b.ceo_name?'대표 '+b.ceo_name:'',
+            b.company_form||'',
+            b.business_category||'',
+            b.industry||''
+          ].filter(Boolean).join(' · ');
+          const stClosed=b.status==='closed'?' <span style="color:#9ca3af;font-size:.72em">(종료)</span>':'';
+          return '<div class="sr-item" onclick="jumpToBusiness('+b.id+')"><b>'+e(b.company_name||'#'+b.id)+'</b>'+stClosed+'<div class="sr-sub">'+e(meta)+'</div></div>';
+        }catch(_){return ''}
+      }).join('');
+      html+='</div>';
+    }
+    /* 문서 — vendor·category·note 매칭 → 문서 상세 모달 (admin-documents 의 모달) */
+    if(d.documents&&d.documents.length){
+      const TY={receipt:'영수증',lease:'임대차',payroll:'근로',freelancer_payment:'프리랜서',tax_invoice:'세금계산서',insurance:'보험',utility:'공과금',property_tax:'지방세',bank_stmt:'은행내역',business_reg:'사업자등록증',identity:'신분증',contract:'계약서',other:'기타'};
+      const ST={pending:'⏳',approved:'✅',rejected:'❌'};
+      html+='<div class="sr-group"><div class="sr-title">📋 문서 '+d.documents.length+'건</div>';
+      html+=d.documents.map(function(doc){
+        try{
+          const dt=(doc.created_at||'').slice(0,10);
+          const tp=TY[doc.doc_type]||doc.doc_type||'문서';
+          const st=ST[doc.status]||'';
+          const v=doc.vendor||doc.real_name||doc.name||'';
+          const amt=doc.amount?(Number(doc.amount).toLocaleString('ko-KR')+'원'):'';
+          const cat=doc.category?' · '+e(doc.category):'';
+          return '<div class="sr-item" onclick="jumpToDocument('+doc.id+')"><b>'+st+' '+e(tp)+'</b> '+e(dt)+(v?' · '+e(v):'')+(amt?' · '+e(amt):'')+cat+'</div>';
+        }catch(_){return ''}
+      }).join('');
+      html+='</div>';
+    }
     el.innerHTML=html;
   }catch(err){el.innerHTML='<div style="color:#f04452;font-size:.85em;padding:20px 0">오류: '+e(err.message)+'</div>'}
+}
+/* 사업장 점프 — business.html 단독 페이지로 이동 */
+function jumpToBusiness(bizId){
+  closeSearchModal();
+  try{ sessionStorage.setItem('ADMIN_KEY', KEY||''); }catch(_){}
+  location.href='/business.html?id='+encodeURIComponent(bizId)+'&key='+encodeURIComponent(KEY||'');
+}
+/* 문서 점프 — 기존 문서 상세 모달이 있으면 호출, 없으면 문서 탭으로 */
+function jumpToDocument(docId){
+  closeSearchModal();
+  if(typeof openDocumentDetail==='function'){
+    openDocumentDetail(docId);
+  } else if(typeof openDocumentModal==='function'){
+    openDocumentModal(docId);
+  } else {
+    tab('docs');
+    setTimeout(function(){
+      const card=document.querySelector('[data-doc-id="'+docId+'"]');
+      if(card){card.scrollIntoView({behavior:'smooth',block:'center'});card.style.outline='3px solid #3182f6';setTimeout(function(){card.style.outline=''},2000)}
+    },400);
+  }
 }
 function closeSearchModal(){$g('searchModal').style.display='none'}
 function jumpToUser(id){
