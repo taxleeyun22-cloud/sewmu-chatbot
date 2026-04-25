@@ -45,7 +45,7 @@
 </style>
 </head>
 <body>
-<div id="diag">✓ business.html v=1</div>
+<div id="diag">✓ business.html v=2 (편집 OK)</div>
 <div class="container">
   <div class="topbar">
     <a href="javascript:history.back()">← 뒤로</a>
@@ -59,7 +59,9 @@
   </div>
 
   <div class="section">
-    <div class="sec-title">📋 기본 정보 <span style="font-size:.7em;color:#9ca3af;font-weight:500">(위하고 호환)</span></div>
+    <div class="sec-title">📋 기본 정보 <span style="font-size:.7em;color:#9ca3af;font-weight:500">(위하고 호환)</span>
+      <span style="margin-left:auto" id="basicActions"><button class="btn-ghost" onclick="toggleEdit(true)">✏️ 편집</button></span>
+    </div>
     <div id="bizBasic"><div class="loading">기본 정보 불러오는 중...</div></div>
   </div>
 
@@ -103,7 +105,33 @@
 
   function $(id) { return document.getElementById(id); }
   function e(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function escAttr(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   function kv(k, v) { return (v == null || v === '') ? '' : '<div class="kv"><b>'+e(k)+'</b>'+e(String(v))+'</div>'; }
+
+  /* 편집 가능 필드 정의 — admin-businesses.js PUT 의 allow 리스트와 일치 */
+  const FIELDS = [
+    { k: 'company_name', label: '회사명' },
+    { k: 'company_form', label: '회사구분', type: 'select', options: ['', '0.법인사업자', '1.개인사업자', '2.간이사업자', '3.기타'] },
+    { k: 'business_number', label: '사업자등록번호', placeholder: '숫자만 (10자리)' },
+    { k: 'sub_business_number', label: '종사업자번호' },
+    { k: 'corporate_number', label: '법인등록번호' },
+    { k: 'ceo_name', label: '대표자' },
+    { k: 'business_category', label: '업태' },
+    { k: 'industry', label: '업종' },
+    { k: 'industry_code', label: '업종코드' },
+    { k: 'tax_type', label: '과세유형', placeholder: '예: 일반/간이' },
+    { k: 'address', label: '사업장주소' },
+    { k: 'phone', label: '사업장전화' },
+    { k: 'establishment_date', label: '개업일', type: 'date' },
+    { k: 'contract_date', label: '수임일자', type: 'date' },
+    { k: 'fiscal_year_start', label: '회계기간 시작', type: 'date' },
+    { k: 'fiscal_year_end', label: '회계기간 종료', type: 'date' },
+    { k: 'fiscal_term', label: '기수', type: 'number' },
+    { k: 'hr_year', label: '인사연도', type: 'number' },
+    { k: 'notes', label: '노트', type: 'textarea' }
+  ];
+  let _curBiz = null;       /* 마지막 fetch 한 biz 객체 */
+  let _editing = false;
 
   function fetchJson(path, timeoutMs) {
     timeoutMs = timeoutMs || 10000;
@@ -134,6 +162,7 @@
         return;
       }
       const biz = d.business || {};
+      _curBiz = biz;
       const members = d.members || [];
       const rooms = d.rooms || [];
       /* 헤더 */
@@ -144,32 +173,9 @@
         biz.company_form || ''
       ].filter(Boolean).join(' · ');
       try { document.title = biz.company_name || ('업체 #' + bid); } catch(_) {}
-      /* 기본정보 그리드 — 위하고 17필드 */
-      let basic = '';
-      try {
-        basic += '<div class="grid">'
-          + kv('회사구분', biz.company_form)
-          + kv('사업자등록번호', biz.business_number)
-          + kv('종사업자번호', biz.sub_business_number)
-          + kv('법인등록번호', biz.corporate_number)
-          + kv('대표자', biz.ceo_name)
-          + kv('업태', biz.business_category)
-          + kv('업종', biz.industry)
-          + kv('업종코드', biz.industry_code)
-          + kv('과세유형', biz.tax_type)
-          + kv('사업장주소', biz.address)
-          + kv('사업장전화', biz.phone)
-          + kv('개업일', biz.establishment_date)
-          + kv('수임일자', biz.contract_date)
-          + kv('회계기간', [biz.fiscal_year_start, biz.fiscal_year_end].filter(Boolean).join(' ~ '))
-          + kv('기수', biz.fiscal_term)
-          + kv('인사연도', biz.hr_year)
-          + kv('노트', biz.notes)
-          + '</div>';
-      } catch (err) {
-        basic = '<div class="err">기본정보 렌더 실패: ' + e(err.message) + '</div>';
-      }
-      $('bizBasic').innerHTML = basic;
+      /* 기본정보 그리드 — view 모드 */
+      try { $('bizBasic').innerHTML = renderBasic(false); }
+      catch (err) { $('bizBasic').innerHTML = '<div class="err">기본정보 렌더 실패: ' + e(err.message) + '</div>'; }
       /* 구성원 */
       if (!members.length) {
         $('memberList').innerHTML = '<div class="empty">구성원 없음</div>';
@@ -207,6 +213,114 @@
       $('bizName').textContent = '오류';
       $('bizBasic').innerHTML = '<div class="err">⚠️ 기본 정보 로드 실패\n' + e(err && err.message || 'unknown') + '</div>';
     });
+
+  /* 기본정보 렌더 (view 또는 edit 모드) */
+  function renderBasic(editMode) {
+    if (!_curBiz) return '<div class="loading">데이터 없음</div>';
+    if (!editMode) {
+      const items = FIELDS.map(function(f){
+        let v = _curBiz[f.k];
+        if (f.k === 'company_form') return kv(f.label, v);
+        return kv(f.label, v);
+      }).filter(Boolean);
+      /* 회계기간 합쳐서 한 줄 */
+      const fyStart = _curBiz.fiscal_year_start;
+      const fyEnd = _curBiz.fiscal_year_end;
+      let html = '<div class="grid">';
+      FIELDS.forEach(function(f){
+        if (f.k === 'fiscal_year_start' || f.k === 'fiscal_year_end') return;
+        html += kv(f.label, _curBiz[f.k]);
+      });
+      if (fyStart || fyEnd) html += kv('회계기간', [fyStart, fyEnd].filter(Boolean).join(' ~ '));
+      html += '</div>';
+      return html;
+    }
+    /* 편집 모드 */
+    let html = '<div class="grid" style="gap:10px 14px">';
+    FIELDS.forEach(function(f){
+      const v = _curBiz[f.k] == null ? '' : String(_curBiz[f.k]);
+      html += '<div>';
+      html += '<label style="font-size:.74em;color:#6b7280;display:block;margin-bottom:3px;font-weight:600">' + e(f.label) + '</label>';
+      if (f.type === 'select') {
+        html += '<select data-k="' + escAttr(f.k) + '" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;font-size:.85em;background:#fff">';
+        f.options.forEach(function(opt){
+          const sel = (opt === v) ? ' selected' : '';
+          html += '<option value="' + escAttr(opt) + '"' + sel + '>' + e(opt || '— 미지정') + '</option>';
+        });
+        html += '</select>';
+      } else if (f.type === 'textarea') {
+        html += '<textarea data-k="' + escAttr(f.k) + '" rows="2" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;font-size:.85em;resize:vertical;box-sizing:border-box">' + e(v) + '</textarea>';
+      } else {
+        const t = f.type || 'text';
+        const ph = f.placeholder ? ' placeholder="' + escAttr(f.placeholder) + '"' : '';
+        html += '<input data-k="' + escAttr(f.k) + '" type="' + t + '" value="' + escAttr(v) + '"' + ph + ' style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;font-size:.85em;box-sizing:border-box">';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  window.toggleEdit = function(on) {
+    if (!_curBiz) { alert('데이터 로드 안됨'); return; }
+    _editing = !!on;
+    $('bizBasic').innerHTML = renderBasic(_editing);
+    if (_editing) {
+      $('basicActions').innerHTML = '<button class="btn-success" onclick="saveEdit()">💾 저장</button> <button class="btn-ghost" onclick="toggleEdit(false)" style="margin-left:6px">취소</button>';
+    } else {
+      $('basicActions').innerHTML = '<button class="btn-ghost" onclick="toggleEdit(true)">✏️ 편집</button>';
+    }
+  };
+
+  window.saveEdit = function() {
+    if (!_curBiz) return;
+    const inputs = document.querySelectorAll('#bizBasic [data-k]');
+    const body = {};
+    let changed = 0;
+    inputs.forEach(function(el){
+      const k = el.getAttribute('data-k');
+      let v = el.value;
+      const orig = _curBiz[k] == null ? '' : String(_curBiz[k]);
+      if (v !== orig) { body[k] = (v === '' ? null : v); changed++; }
+    });
+    if (!changed) { alert('변경된 필드 없음'); toggleEdit(false); return; }
+    /* 사업자번호 검증 (숫자만 10자리) */
+    if (body.business_number != null && body.business_number !== '') {
+      const digits = String(body.business_number).replace(/\D/g, '');
+      if (digits.length !== 10) { if (!confirm('사업자번호가 10자리 숫자가 아닙니다 (' + digits.length + '자리). 그래도 저장할까요?')) return; }
+    }
+    /* PUT 전송 */
+    const btnArea = $('basicActions');
+    if (btnArea) btnArea.innerHTML = '<span style="color:#8b95a1;font-size:.84em">💾 저장 중...</span>';
+    fetch('/api/admin-businesses?id=' + bid + '&key=' + encodeURIComponent(KEY), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    .then(function(r){ return r.json().then(function(j){ j.__status = r.status; return j; }); })
+    .then(function(d){
+      if (!d.ok) {
+        alert('저장 실패: ' + (d.error || 'status='+d.__status));
+        if (btnArea) btnArea.innerHTML = '<button class="btn-success" onclick="saveEdit()">💾 저장</button> <button class="btn-ghost" onclick="toggleEdit(false)" style="margin-left:6px">취소</button>';
+        return;
+      }
+      alert('✅ 저장됨 (' + changed + '개 필드)');
+      Object.keys(body).forEach(function(k){ _curBiz[k] = body[k]; });
+      toggleEdit(false);
+      /* 헤더도 즉시 갱신 */
+      $('bizName').textContent = '🏢 ' + (_curBiz.company_name || '#' + bid);
+      $('bizSub').textContent = [
+        _curBiz.business_number ? '#' + _curBiz.business_number : '',
+        _curBiz.ceo_name ? '대표 ' + _curBiz.ceo_name : '',
+        _curBiz.company_form || ''
+      ].filter(Boolean).join(' · ');
+      try { document.title = _curBiz.company_name || ('업체 #' + bid); } catch(_) {}
+    })
+    .catch(function(err){
+      alert('오류: ' + err.message);
+      if (btnArea) btnArea.innerHTML = '<button class="btn-success" onclick="saveEdit()">💾 저장</button> <button class="btn-ghost" onclick="toggleEdit(false)" style="margin-left:6px">취소</button>';
+    });
+  };
 
   /* 메모 로드 */
   function loadMemos() {
