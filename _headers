@@ -22,6 +22,9 @@
 /staff.html
   Cache-Control: no-cache, no-store, must-revalidate
 
+/business.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
 /api/image
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
