@@ -25,6 +25,9 @@
 /business.html
   Cache-Control: no-cache, no-store, must-revalidate
 
+/admin.js
+  Cache-Control: no-cache, must-revalidate
+
 /api/image
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
