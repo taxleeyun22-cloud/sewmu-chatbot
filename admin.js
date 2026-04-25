@@ -5439,17 +5439,21 @@ function cdGotoRoom(){
 function cdExportCsv(){
   exportWehago();
 }
-/* 상담방 헤더 "🏢 거래처" 버튼 → 상담방의 진짜 거래처(고객) 사이드 패널 열기.
-   거래처 식별 로직:
-   - room_members.role = 'admin' 제외 (방 단위 관리자)
-   - users.is_admin = 1 제외 (세무사·직원 계정. role='member' 로 잘못 등록되어도 차단)
-   - users.approval_status = 'rejected' 제외
-   거래처 0명이면 "내부 업무방" 안내. 1명이면 자동 열기. 2명+ 이면 선택 팝업. */
+/* 상담방 헤더 "🏢 거래처" 버튼 →
+   1순위: 방에 연결된 업체(chat_rooms.business_id) 가 있으면 그 업체 대시보드 직행
+   2순위: 업체 연결 없는 방은 user 기반 거래처 사이드 패널 (3중 가드) */
 async function openCustomerDashboardFromRoom(){
   if(!currentRoomId){alert('상담방을 먼저 열어주세요');return}
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
     const d=await r.json();
+    /* 1순위 — 업체 직행 */
+    const bizId=d.room&&d.room.business_id;
+    if(bizId){
+      openBusinessDashboard(bizId);
+      return;
+    }
+    /* 2순위 — user 기반 fallback */
     const customers=(d.members||[]).filter(m=>
       !m.left_at &&
       m.user_id &&
@@ -5458,14 +5462,13 @@ async function openCustomerDashboardFromRoom(){
       m.approval_status!=='rejected'
     );
     if(!customers.length){
-      alert('이 방엔 거래처(고객)가 없습니다.\n관리자·직원만 참여 중인 내부 업무방입니다.');
+      alert('이 방에 연결된 거래처(업체)가 없습니다.\n💡 헤더 🔗 버튼으로 업체를 연결하거나,\n또는 거래처(고객) 사용자를 방에 초대하세요.');
       return;
     }
     if(customers.length===1){
       openCustSidePanel(customers[0].user_id);
       return;
     }
-    /* 거래처 2명 이상 — prompt 로 선택 (간단·안전) */
     const options=customers.map((c,i)=>(i+1)+'. '+(c.real_name||c.name||('user#'+c.user_id))).join('\n');
     const pick=prompt('거래처가 '+customers.length+'명입니다. 번호 선택:\n\n'+options,'1');
     const idx=parseInt(pick,10)-1;
@@ -6950,21 +6953,30 @@ let _bdCurrent=null;
 async function openBusinessDashboard(bid){
   if(!bid)return;
   _bdCurrent={id:bid};
-  const m=$g('businessDashboardModal');if(!m)return;
+  const m=$g('businessDashboardModal');if(!m){alert('업체 모달 element 없음');return}
   m.style.display='flex';document.body.style.overflow='hidden';
   $g('bdName').textContent='불러오는 중...';
   $g('bdSub').textContent='';
   $g('bdBody').innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0">불러오는 중...</div>';
+  let stage='1.fetch';
   try{
-    const r=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY)+'&id='+bid);
+    /* fetch 가 응답 안 줄 때 본문이 영구 "불러오는 중..." 으로 멈추는 사고 방지 — 15초 타임아웃 */
+    const fetchP=fetch('/api/admin-businesses?key='+encodeURIComponent(KEY)+'&id='+bid);
+    const timeoutP=new Promise((_,rej)=>setTimeout(()=>rej(new Error('서버 응답 15초 초과')),15000));
+    const r=await Promise.race([fetchP,timeoutP]);
+    stage='2.json (status='+r.status+')';
     const d=await r.json();
+    stage='3.check (ok='+d.ok+')';
     if(!d.ok){$g('bdBody').innerHTML='<div style="color:#f04452;padding:20px">'+e(d.error||'unknown')+'</div>';return}
+    stage='4.parse';
     const biz=d.business||{};
     const members=d.members||[];
     const rooms=d.rooms||[];
     _bdCurrent={id:bid, biz:biz};
+    stage='5.header';
     $g('bdName').textContent=biz.company_name||'(이름없음)';
     $g('bdSub').textContent=[biz.business_number?'#'+biz.business_number:'', biz.ceo_name?'대표 '+biz.ceo_name:'', biz.company_form||''].filter(Boolean).join(' · ');
+    stage='6.body html';
     let html='';
     /* 기본정보 */
     html+='<div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:12px">'
@@ -7020,8 +7032,14 @@ async function openBusinessDashboard(bid){
       }).join('');
     }
     html+='</div>';
+    stage='7.body set';
     $g('bdBody').innerHTML=html;
-  }catch(err){$g('bdBody').innerHTML='<div style="color:#f04452;padding:20px">오류: '+e(err.message)+'</div>'}
+    stage='8.done';
+  }catch(err){
+    const msg='⚠️ 업체 정보 로딩 오류\n[stage='+stage+']\n'+(err&&err.message?err.message:'unknown');
+    try{$g('bdBody').innerHTML='<div style="color:#f04452;padding:20px;font-size:.85em;white-space:pre-wrap">'+e(msg)+'</div>'}
+    catch(_){alert(msg)}
+  }
 }
 function _bdKV(k,v){
   if(v==null||v==='')return '<div style="color:#9ca3af"><b style="color:#6b7280;margin-right:6px">'+e(k)+'</b>—</div>';
