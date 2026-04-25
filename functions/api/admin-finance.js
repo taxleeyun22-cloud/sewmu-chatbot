@@ -77,7 +77,7 @@ export async function onRequestGet(context) {
 async function getSummary(db, userId) {
   // 최근 12개월 + 최근 4분기 + 최근 3년 요약
   const { results: recent } = await db.prepare(
-    `SELECT period, period_type, revenue, cost, vat_payable, income_tax, taxable_income, payroll_total, notes
+    `SELECT id, period, period_type, revenue, cost, vat_payable, income_tax, taxable_income, payroll_total, notes
      FROM client_finance WHERE user_id = ?
      ORDER BY period DESC LIMIT 24`
   ).bind(userId).all();
@@ -106,7 +106,7 @@ async function getSummary(db, userId) {
 /* 업체 단위 요약 — business_id 기준 */
 async function getSummaryBiz(db, businessId) {
   const { results: recent } = await db.prepare(
-    `SELECT period, period_type, revenue, cost, vat_payable, income_tax, taxable_income, payroll_total, notes
+    `SELECT id, period, period_type, revenue, cost, vat_payable, income_tax, taxable_income, payroll_total, notes
      FROM client_finance WHERE business_id = ?
      ORDER BY period DESC LIMIT 24`
   ).bind(businessId).all();
