@@ -45,7 +45,7 @@
 </style>
 </head>
 <body>
-<div id="diag">✓ business.html v=4 (재무 입력 보류)</div>
+<div id="diag">✓ business.html v=5 (재무 삭제 가능)</div>
 <div class="container">
   <div class="topbar">
     <a href="javascript:history.back()">← 뒤로</a>
@@ -76,7 +76,9 @@
   </div>
 
   <div class="section">
-    <div class="sec-title">📊 재무 <span style="font-size:.72em;color:#9ca3af;font-weight:500">읽기 전용 — 입력 방식 협의 중</span></div>
+    <div class="sec-title">📊 재무 <span style="font-size:.72em;color:#9ca3af;font-weight:500">읽기 전용 — 입력 방식 협의 중</span>
+      <button onclick="clearAllFinance()" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;padding:5px 11px;border-radius:6px;font-size:.76em;font-weight:600;cursor:pointer;font-family:inherit;margin-left:auto" title="이 사업장 재무 데이터 모두 삭제">🗑️ 전체 비우기</button>
+    </div>
     <div id="financeList"><div class="loading">재무 불러오는 중...</div></div>
     <div style="font-size:.72em;color:#9ca3af;margin-top:6px">💡 챗봇에서 거래처가 "우리 매출?" 물으면 위 데이터로 답변</div>
   </div>
@@ -377,7 +379,7 @@
         }
         const fmt = function(v){ return v == null ? '—' : Number(v).toLocaleString('ko-KR'); };
         let html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.82em;min-width:600px">';
-        html += '<thead><tr style="background:#f3f4f6;color:#374151"><th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d1d5db">기간</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">매출</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">매입</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">부가세</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">소득세</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">인건비</th></tr></thead><tbody>';
+        html += '<thead><tr style="background:#f3f4f6;color:#374151"><th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d1d5db">기간</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">매출</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">매입</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">부가세</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">소득세</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">인건비</th><th style="padding:6px 8px;text-align:center;border-bottom:1px solid #d1d5db;width:40px"></th></tr></thead><tbody>';
         d.rows.slice(0, 12).forEach(function(r){
           try {
             html += '<tr>'
@@ -387,6 +389,7 @@
               + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:right">' + fmt(r.vat_payable) + '</td>'
               + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:right">' + fmt(r.income_tax) + '</td>'
               + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:right">' + fmt(r.payroll_total) + '</td>'
+              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:center"><button onclick="deleteFinance(' + (r.id || 'null') + ',\'' + escAttr(r.period || '') + '\')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.95em;padding:2px 5px" title="이 행 삭제">🗑️</button></td>'
               + '</tr>';
           } catch(_) {}
         });
@@ -395,6 +398,39 @@
       })
       .catch(function(err){ $('financeList').innerHTML = '<div class="err">⚠️ 재무 로드 실패: ' + e(err && err.message || 'unknown') + '</div>'; });
   }
+
+  /* 단건 삭제 */
+  window.deleteFinance = function(rowId, period) {
+    if (!rowId) { alert('이 행은 ID 없어 삭제 불가'); return; }
+    if (!confirm('재무 기간 "' + period + '" 삭제하시겠습니까?\n되돌릴 수 없습니다.')) return;
+    fetch('/api/admin-finance?action=delete&key=' + encodeURIComponent(KEY), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: rowId })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) { alert('삭제 실패: ' + (d.error || 'unknown')); return; }
+      loadFinance();
+    })
+    .catch(function(err){ alert('오류: ' + err.message); });
+  };
+
+  /* 전체 비우기 — 이 사업장의 모든 재무 데이터 */
+  window.clearAllFinance = function() {
+    if (!_curBiz) { alert('데이터 로드 안됨'); return; }
+    const name = _curBiz.company_name || ('사업장 #' + bid);
+    if (!confirm('"' + name + '" 의 재무 데이터 모두 삭제\n되돌릴 수 없습니다. 진행하시겠습니까?')) return;
+    if (!confirm('정말 모두 삭제? 이 작업은 복구 불가합니다.')) return;
+    fetch('/api/admin-finance?action=clear&key=' + encodeURIComponent(KEY), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business_id: bid })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) { alert('삭제 실패: ' + (d.error || 'unknown')); return; }
+      alert('✅ ' + (d.deleted || 0) + '건 삭제됨');
+      loadFinance();
+    })
+    .catch(function(err){ alert('오류: ' + err.message); });
+  };
 
   /* 재무 새 기간 추가 — prompt 시리즈 */
   window.addFinance = function() {

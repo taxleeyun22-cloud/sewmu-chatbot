@@ -143,9 +143,24 @@ export async function onRequestPost(context) {
 
   if (action === 'delete') {
     const { id } = body;
-    if (!id) return Response.json({ error: 'id required' }, { status: 400 });
+    if (!id) return Response.json({ ok: false, error: 'id required' }, { status: 400 });
     await db.prepare(`DELETE FROM client_finance WHERE id = ?`).bind(id).run();
     return Response.json({ ok: true });
+  }
+
+  /* 사업장 또는 사람 단위 전체 비우기 — body { business_id } 또는 { user_id } */
+  if (action === 'clear') {
+    const bizId = body.business_id ? Number(body.business_id) : null;
+    const uId = body.user_id ? Number(body.user_id) : null;
+    if (!bizId && !uId) return Response.json({ ok: false, error: 'business_id 또는 user_id 필요' }, { status: 400 });
+    try {
+      let r;
+      if (bizId) r = await db.prepare(`DELETE FROM client_finance WHERE business_id = ?`).bind(bizId).run();
+      else r = await db.prepare(`DELETE FROM client_finance WHERE user_id = ?`).bind(uId).run();
+      return Response.json({ ok: true, deleted: r.meta?.changes || 0 });
+    } catch (e) {
+      return Response.json({ ok: false, error: e.message }, { status: 500 });
+    }
   }
 
   if (action === 'bulk_import') {
