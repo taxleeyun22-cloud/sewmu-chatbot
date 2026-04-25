@@ -5440,33 +5440,16 @@ function cdExportCsv(){
   exportWehago();
 }
 /* 상담방 헤더 "🏢 거래처" 버튼 → 상담방 멤버의 첫 사용자 대시보드 열기 */
-/* 🪪 현재 로그인한 세무사 본인 user_id 캐시 — customers 필터에서 '본인 제외' 용 */
-let _myAdminUserId=null;
-async function _resolveMyAdminUserId(){
-  if(_myAdminUserId!==null)return _myAdminUserId;
-  try{
-    const me=await fetch('/api/auth/me').then(r=>r.json()).catch(()=>null);
-    _myAdminUserId=(me&&me.logged_in&&me.user&&me.user.id)?me.user.id:0;
-  }catch{_myAdminUserId=0}
-  return _myAdminUserId;
-}
-
 async function openCustomerDashboardFromRoom(){
   if(!currentRoomId){alert('상담방을 먼저 열어주세요');return}
   try{
-    const myId=await _resolveMyAdminUserId();
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
     const d=await r.json();
     /* 관리자 자동 참여 기능 이후 members 에 관리자(role='admin' 또는 users.is_admin=1)가 포함됨.
-       고객만 골라야 함. 3중 필터:
-       (1) role !== 'admin'  — 서버 역할 기준 관리자 제외
-       (2) !m.is_admin       — users.is_admin=1 인 직원 명시적 제외 (role 데이터 불일치 방어)
-       (3) m.user_id !== 본인 — 세션 기반 로그인한 세무사 본인 제외
-           (2026-04-25: 기장거래처 전환 후 role='admin'→'member' 교정된 세무사 본인이
-            customer 로 잘못 분류되어 자기 사이드 패널이 열리던 버그 수정) */
-    const customers=(d.members||[]).filter(m=>
-      !m.left_at && m.user_id && m.role!=='admin' && !m.is_admin && m.user_id!==myId
-    );
+       고객만 골라야 함. role 은 과거 강등된 유저 데이터 불일치가 있을 수 있으니 users.is_admin 도 함께 체크.
+       (2026-04-25: 긴급 UPDATE 로 is_admin=0 유저의 role='admin'을 'member'로 일괄 교정한 후, 세무사 본인이
+       customer 로 잘못 분류되어 본인 사이드 패널이 열리던 버그 수정) */
+    const customers=(d.members||[]).filter(m=>!m.left_at && m.user_id && m.role!=='admin' && !m.is_admin);
     if(!customers.length){alert('상담방에 고객이 없습니다\n(관리자만 참여 중)');return}
     /* 🏢 거래처 버튼 — 가벼운 사이드 패널로 열기 (메모와 동일 도킹 방식).
        풀 대시보드는 패널 우측 "자세히 →" 링크로 접근 */
