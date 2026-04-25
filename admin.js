@@ -1,5 +1,5 @@
 /* ⛳ 디버깅 — 캐시 적용 여부 즉시 확인. 화면 좌상단에 5초간 작은 라벨 표시. */
-window.__ADMIN_VERSION='v=125';
+window.__ADMIN_VERSION='v=126';
 try{
   setTimeout(function(){
     try{
@@ -2694,8 +2694,9 @@ async function openApproveWithBusiness(userId, displayName, phone, action, prefi
   document.body.style.overflow='hidden';
   await _apbLoadBusinesses();
   } catch(err) {
+    /* Phase 5-23: 디버그 안내 ("F12 Console") 제거. 세무사용 메시지만. */
     console.error('openApproveWithBusiness error:', err);
-    alert('승인 모달 오류: '+(err&&err.message||err)+'\n(F12 → Console 에서 상세 확인 가능)');
+    alert('승인 모달 오류: '+(err&&err.message||err));
   }
 }
 function closeApproveBizModal(){
@@ -7506,6 +7507,8 @@ async function _refreshTermReqBadge(){
   setInterval(_refreshTermReqBadge, 60*1000);
 })();
 async function openTerminationRequests(){
+  /* Phase 5-20: owner 전용 — 직원이 거래종료 요청 직접 처리하면 안 됨 (CLAUDE.md 절대 규칙) */
+  if(!IS_OWNER){alert('거래 종료 요청은 사장님(owner)만 처리할 수 있습니다');return}
   const m=$g('termReqModal');if(!m)return;
   m.style.display='flex';
   document.body.style.overflow='hidden';
