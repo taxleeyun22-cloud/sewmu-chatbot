@@ -45,7 +45,7 @@
 </style>
 </head>
 <body>
-<div id="diag">✓ business.html v=2 (편집 OK)</div>
+<div id="diag">✓ business.html v=3 (재무·문서·일정)</div>
 <div class="container">
   <div class="topbar">
     <a href="javascript:history.back()">← 뒤로</a>
@@ -73,6 +73,22 @@
   <div class="section">
     <div class="sec-title">🤖 AI 요약 <button class="btn-success" onclick="runSummary()">✨ 요약 생성</button></div>
     <div id="summaryBody"><div class="empty">아직 요약 없음. ✨ 버튼으로 생성. (이 업체 모든 상담방 + 메모 통합 GPT 요약)</div></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">📊 재무 <button class="btn-primary" onclick="addFinance()">＋ 새 기간</button></div>
+    <div id="financeList"><div class="loading">재무 불러오는 중...</div></div>
+    <div style="font-size:.72em;color:#9ca3af;margin-top:6px">💡 챗봇에서 거래처가 "우리 매출?" 물으면 위 데이터로 답변</div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">📋 문서 <span style="font-size:.72em;color:#9ca3af;font-weight:500">최근 5건</span></div>
+    <div id="docList"><div class="loading">문서 불러오는 중...</div></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">📆 일정 (D-day) <button class="btn-primary" onclick="addSchedule()">＋ 일정</button></div>
+    <div id="scheduleList"><div class="loading">일정 불러오는 중...</div></div>
   </div>
 
   <div class="section">
@@ -345,6 +361,156 @@
       });
   }
   loadMemos();
+  /* Phase 2 — 재무·문서·일정 비동기 로드. 각 섹션 독립적으로 try/catch 격리. */
+  setTimeout(loadFinance, 100);
+  setTimeout(loadDocs, 150);
+  setTimeout(loadSchedule, 200);
+
+  /* 📊 재무 로드 */
+  function loadFinance() {
+    fetchJson('/api/admin-finance?business_id=' + bid + '&action=summary')
+      .then(function(d){
+        if (d.error) { $('financeList').innerHTML = '<div class="err">' + e(d.error) + '</div>'; return; }
+        if (!d.has_data || !d.rows || !d.rows.length) {
+          $('financeList').innerHTML = '<div class="empty">재무 데이터 없음. ＋ 새 기간 버튼으로 추가 또는 PDF 업로드 후 Claude 처리 요청.</div>';
+          return;
+        }
+        const fmt = function(v){ return v == null ? '—' : Number(v).toLocaleString('ko-KR'); };
+        let html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.82em;min-width:600px">';
+        html += '<thead><tr style="background:#f3f4f6;color:#374151"><th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d1d5db">기간</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">매출</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">매입</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">부가세</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">소득세</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">인건비</th></tr></thead><tbody>';
+        d.rows.slice(0, 12).forEach(function(r){
+          try {
+            html += '<tr>'
+              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;font-weight:600;color:#1e40af">' + e(r.period || '') + '</td>'
+              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:right">' + fmt(r.revenue) + '</td>'
+              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:right">' + fmt(r.cost) + '</td>'
+              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:right">' + fmt(r.vat_payable) + '</td>'
+              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:right">' + fmt(r.income_tax) + '</td>'
+              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:right">' + fmt(r.payroll_total) + '</td>'
+              + '</tr>';
+          } catch(_) {}
+        });
+        html += '</tbody></table></div>';
+        $('financeList').innerHTML = html;
+      })
+      .catch(function(err){ $('financeList').innerHTML = '<div class="err">⚠️ 재무 로드 실패: ' + e(err && err.message || 'unknown') + '</div>'; });
+  }
+
+  /* 재무 새 기간 추가 — prompt 시리즈 */
+  window.addFinance = function() {
+    const period = prompt('기간 (예: 2025-1기, 2025-2기, 2025-12, 2025)', '');
+    if (!period || !period.trim()) return;
+    const periodType = prompt('기간 타입 (vat / monthly / quarterly / yearly)', 'vat');
+    if (!periodType) return;
+    const num = function(label){
+      const v = prompt(label + ' (숫자만, 비우면 skip)', '');
+      if (v == null || v === '') return null;
+      const n = Number(String(v).replace(/,/g, ''));
+      return Number.isFinite(n) ? n : null;
+    };
+    const revenue = num('매출');
+    const cost = num('매입');
+    const vatPayable = num('부가세');
+    const incomeTax = num('소득세');
+    const payroll = num('인건비');
+    const notes = prompt('노트 (선택)', '') || null;
+    if (!_curBiz) { alert('데이터 로드 안 됨'); return; }
+    /* user_id 자동: business_members 의 대표자 또는 첫 매핑된 사용자 */
+    fetchJson('/api/admin-businesses?id=' + bid)
+      .then(function(d){
+        const members = (d && d.members) || [];
+        const rep = members.find(function(m){ return m.role === '대표자'; }) || members[0];
+        if (!rep || !rep.user_id) { alert('이 업체에 매핑된 사용자가 없어 재무 등록 불가. 먼저 구성원 추가.'); return null; }
+        const body = {
+          user_id: rep.user_id, business_id: bid, period: period.trim(), period_type: periodType.trim(),
+          revenue: revenue, cost: cost, vat_payable: vatPayable, income_tax: incomeTax, payroll_total: payroll, notes: notes
+        };
+        return fetch('/api/admin-finance?action=upsert&key=' + encodeURIComponent(KEY), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        }).then(function(r){ return r.json(); });
+      })
+      .then(function(d){
+        if (!d) return;
+        if (!d.ok) { alert('저장 실패: ' + (d.error || 'unknown')); return; }
+        alert(d.updated ? '✅ 갱신' : '✅ 추가');
+        loadFinance();
+      })
+      .catch(function(err){ alert('오류: ' + (err && err.message || err)); });
+  };
+
+  /* 📋 문서 로드 */
+  function loadDocs() {
+    fetchJson('/api/admin-documents?business_id=' + bid + '&limit=5')
+      .then(function(d){
+        const docs = d.documents || [];
+        const counts = d.counts || {};
+        const summary = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">'
+          + '<div style="padding:6px 9px;background:#fef3c7;border-radius:5px;font-size:.78em;text-align:center">⏳ 대기 <b>' + (counts.pending || 0) + '</b></div>'
+          + '<div style="padding:6px 9px;background:#d1fae5;border-radius:5px;font-size:.78em;text-align:center">✅ 승인 <b>' + (counts.approved || 0) + '</b></div>'
+          + '<div style="padding:6px 9px;background:#fee2e2;border-radius:5px;font-size:.78em;text-align:center">❌ 반려 <b>' + (counts.rejected || 0) + '</b></div>'
+          + '</div>';
+        if (!docs.length) { $('docList').innerHTML = summary + '<div class="empty">최근 문서 없음</div>'; return; }
+        const TY = {receipt:'영수증',lease:'임대차',payroll:'근로',freelancer_payment:'프리랜서',tax_invoice:'세금계산서',insurance:'보험',utility:'공과금',property_tax:'지방세',bank_stmt:'은행내역',business_reg:'사업자등록증',identity:'신분증',contract:'계약서',other:'기타'};
+        const ST = {pending:'⏳',approved:'✅',rejected:'❌'};
+        $('docList').innerHTML = summary + docs.map(function(doc){
+          try {
+            const dt = (doc.created_at || '').slice(0, 10);
+            const tp = TY[doc.doc_type] || doc.doc_type || '문서';
+            const st = ST[doc.status] || '';
+            const v = doc.vendor || doc.real_name || doc.name || '';
+            const amt = doc.amount ? (Number(doc.amount).toLocaleString('ko-KR') + '원') : '';
+            return '<div style="padding:7px 0;border-bottom:1px dashed #e5e8eb;font-size:.84em">' + st + ' ' + e(dt) + ' <b>' + e(tp) + '</b>' + (v ? ' · ' + e(v) : '') + (amt ? ' · ' + e(amt) : '') + '</div>';
+          } catch(_) { return ''; }
+        }).join('');
+      })
+      .catch(function(err){ $('docList').innerHTML = '<div class="err">⚠️ 문서 로드 실패: ' + e(err && err.message || 'unknown') + '</div>'; });
+  }
+
+  /* 📆 일정 로드 — D-day 색상 분기 */
+  function loadSchedule() {
+    fetchJson('/api/memos?scope=business_due&business_id=' + bid)
+      .then(function(d){
+        if (!d.ok) { $('scheduleList').innerHTML = '<div class="err">' + e(d.error || '일정 로드 실패') + '</div>'; return; }
+        const sch = d.schedule || [];
+        if (!sch.length) { $('scheduleList').innerHTML = '<div class="empty">예정된 일정 없음. ＋ 일정 버튼으로 추가.</div>'; return; }
+        const today = new Date().toISOString().slice(0, 10);
+        $('scheduleList').innerHTML = sch.map(function(m){
+          try {
+            const due = m.due_date || '';
+            const diff = Math.floor((new Date(due + 'T00:00:00').getTime() - new Date(today + 'T00:00:00').getTime()) / 86400000);
+            let dDay, color, dim = '';
+            if (diff < 0) { dDay = '⚪ 지남 ' + (-diff) + '일'; color = '#9ca3af'; dim = ';opacity:.55'; }
+            else if (diff === 0) { dDay = '🔴 D-day'; color = '#dc2626'; }
+            else if (diff <= 3) { dDay = '🔴 D-' + diff; color = '#dc2626'; }
+            else if (diff <= 7) { dDay = '🟡 D-' + diff; color = '#f59e0b'; }
+            else if (diff <= 30) { dDay = '🟢 D-' + diff; color = '#10b981'; }
+            else { dDay = '⚪ D-' + diff; color = '#9ca3af'; }
+            return '<div style="padding:8px 0;border-bottom:1px dashed #e5e8eb;font-size:.86em' + dim + '"><b style="color:' + color + ';margin-right:8px">' + dDay + '</b><span style="color:#6b7280;margin-right:6px">' + e(due) + '</span>' + e(String(m.content || '').slice(0, 80)) + '</div>';
+          } catch(_) { return ''; }
+        }).join('');
+      })
+      .catch(function(err){ $('scheduleList').innerHTML = '<div class="err">⚠️ 일정 로드 실패: ' + e(err && err.message || 'unknown') + '</div>'; });
+  }
+
+  /* ＋ 일정 추가 */
+  window.addSchedule = function() {
+    const due = prompt('마감일 (YYYY-MM-DD)', '');
+    if (!due) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(due.trim())) { alert('YYYY-MM-DD 형식'); return; }
+    const content = prompt('일정 내용 (예: 부가세 신고)', '');
+    if (!content || !content.trim()) return;
+    fetch('/api/memos?key=' + encodeURIComponent(KEY), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memo_type: '할 일', content: content.trim(), due_date: due.trim(), target_business_id: bid })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) { alert('추가 실패: ' + (d.error || 'unknown')); return; }
+      loadSchedule();
+    })
+    .catch(function(err){ alert('오류: ' + err.message); });
+  };
 
   /* 메모 추가 */
   window.addMemo = function() {
