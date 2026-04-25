@@ -5445,11 +5445,9 @@ async function openCustomerDashboardFromRoom(){
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
     const d=await r.json();
-    /* 관리자 자동 참여 기능 이후 members 에 관리자(role='admin' 또는 users.is_admin=1)가 포함됨.
-       고객만 골라야 함. role 은 과거 강등된 유저 데이터 불일치가 있을 수 있으니 users.is_admin 도 함께 체크.
-       (2026-04-25: 긴급 UPDATE 로 is_admin=0 유저의 role='admin'을 'member'로 일괄 교정한 후, 세무사 본인이
-       customer 로 잘못 분류되어 본인 사이드 패널이 열리던 버그 수정) */
-    const customers=(d.members||[]).filter(m=>!m.left_at && m.user_id && m.role!=='admin' && !m.is_admin);
+    /* 관리자 자동 참여 기능 이후 members 에 관리자(role='admin')가 포함됨.
+       고객만 골라야 함 — role !== 'admin' 필터 필수. 없으면 관리자 본인 user_id 로 dashboard 열려 빈 데이터. */
+    const customers=(d.members||[]).filter(m=>!m.left_at && m.user_id && m.role!=='admin');
     if(!customers.length){alert('상담방에 고객이 없습니다\n(관리자만 참여 중)');return}
     /* 🏢 거래처 버튼 — 가벼운 사이드 패널로 열기 (메모와 동일 도킹 방식).
        풀 대시보드는 패널 우측 "자세히 →" 링크로 접근 */

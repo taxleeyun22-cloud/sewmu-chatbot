@@ -280,8 +280,7 @@ export async function onRequestGet(context) {
 
       const { results: members } = await db.prepare(`
         SELECT rm.user_id, rm.role, rm.joined_at, rm.left_at,
-               u.real_name, u.name, u.profile_image, u.phone,
-               COALESCE(u.is_admin, 0) AS is_admin
+               u.real_name, u.name, u.profile_image, u.phone
         FROM room_members rm
         LEFT JOIN users u ON rm.user_id = u.id
         WHERE rm.room_id = ?
