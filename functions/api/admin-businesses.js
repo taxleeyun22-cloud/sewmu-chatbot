@@ -56,7 +56,7 @@ async function ensureTables(db) {
 export async function onRequestGet(context) {
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
-  if (!db) return Response.json({ error: 'DB error' }, { status: 500 });
+  if (!db) return Response.json({ ok: false, error: 'DB error' }, { status: 500 });
   await ensureTables(db);
 
   const url = new URL(context.request.url);
@@ -69,7 +69,7 @@ export async function onRequestGet(context) {
   if (userIdParam) {
     try {
       const uid = Number(userIdParam);
-      if (!uid) return Response.json({ error: 'user_id 잘못됨' }, { status: 400 });
+      if (!uid) return Response.json({ ok: false, error: 'user_id 잘못됨' }, { status: 400 });
       /* biz_docs 테이블 보장 (admin-biz-docs.js 와 동일 스키마) */
       try {
         await db.prepare(`CREATE TABLE IF NOT EXISTS biz_docs (
@@ -136,14 +136,14 @@ export async function onRequestGet(context) {
       }));
       return Response.json({ ok: true, businesses });
     } catch (e) {
-      return Response.json({ error: e.message }, { status: 500 });
+      return Response.json({ ok: false, error: e.message }, { status: 500 });
     }
   }
 
   if (id) {
     try {
       const biz = await db.prepare(`SELECT * FROM businesses WHERE id = ?`).bind(id).first();
-      if (!biz) return Response.json({ error: 'not found' }, { status: 404 });
+      if (!biz) return Response.json({ ok: false, error: 'not found' }, { status: 404 });
       const { results: members } = await db.prepare(
         `SELECT bm.id, bm.business_id, bm.user_id, bm.role, bm.is_primary, bm.phone, bm.memo, bm.added_at,
                 u.real_name, u.name, u.profile_image, u.approval_status, u.phone AS user_phone
@@ -157,7 +157,7 @@ export async function onRequestGet(context) {
       ).bind(id).all();
       return Response.json({ ok: true, business: biz, members: members || [], rooms: rooms || [] });
     } catch (e) {
-      return Response.json({ error: e.message }, { status: 500 });
+      return Response.json({ ok: false, error: e.message }, { status: 500 });
     }
   }
 
@@ -186,7 +186,7 @@ export async function onRequestGet(context) {
     }
     return Response.json({ ok: true, businesses: results || [], counts });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
 
@@ -194,10 +194,10 @@ export async function onRequestPost(context) {
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
   const db = context.env.DB;
-  if (!db) return Response.json({ error: 'DB error' }, { status: 500 });
+  if (!db) return Response.json({ ok: false, error: 'DB error' }, { status: 500 });
   await ensureTables(db);
   let body = {};
-  try { body = await context.request.json(); } catch { return Response.json({ error: 'invalid json' }, { status: 400 }); }
+  try { body = await context.request.json(); } catch { return Response.json({ ok: false, error: 'invalid json' }, { status: 400 }); }
 
   /* user 에 사업장 매핑 추가 — user dashboard 의 [+ 🏢 사업장 추가] 버튼이 호출.
      사업자번호로 기존 businesses 행 재사용, 없으면 INSERT. business_members 매핑은 항상 보장.
@@ -209,19 +209,19 @@ export async function onRequestPost(context) {
   }
 
   const name = String(body.company_name || '').trim().slice(0, 120);
-  if (!name) return Response.json({ error: 'company_name 필요' }, { status: 400 });
+  if (!name) return Response.json({ ok: false, error: 'company_name 필요' }, { status: 400 });
   const bn = normBiz(body.business_number);
 
   /* 중복 감지 — 사업자번호 우선, 없으면 상호 정규화 */
   try {
     if (bn) {
       const dup = await db.prepare(`SELECT id, company_name FROM businesses WHERE business_number = ? LIMIT 1`).bind(bn).first();
-      if (dup) return Response.json({ error: '같은 사업자번호의 업체가 이미 있습니다: #' + dup.id + ' ' + dup.company_name, duplicate_id: dup.id }, { status: 409 });
+      if (dup) return Response.json({ ok: false, error: '같은 사업자번호의 업체가 이미 있습니다: #' + dup.id + ' ' + dup.company_name, duplicate_id: dup.id }, { status: 409 });
     } else {
       const nn = normName(name);
       const { results: all } = await db.prepare(`SELECT id, company_name FROM businesses WHERE business_number IS NULL OR business_number = ''`).all();
       const dup = (all || []).find(b => normName(b.company_name) === nn);
-      if (dup) return Response.json({ error: '같은 상호의 업체가 이미 있습니다: #' + dup.id + ' ' + dup.company_name, duplicate_id: dup.id }, { status: 409 });
+      if (dup) return Response.json({ ok: false, error: '같은 상호의 업체가 이미 있습니다: #' + dup.id + ' ' + dup.company_name, duplicate_id: dup.id }, { status: 409 });
     }
   } catch {}
 
@@ -298,7 +298,7 @@ export async function onRequestPost(context) {
 
     return Response.json({ ok: true, id: bid, room_id: createdRoomId });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
 
@@ -306,16 +306,16 @@ export async function onRequestPut(context) {
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
   const db = context.env.DB;
-  if (!db) return Response.json({ error: 'DB error' }, { status: 500 });
+  if (!db) return Response.json({ ok: false, error: 'DB error' }, { status: 500 });
   await ensureTables(db);
   const url = new URL(context.request.url);
   const id = url.searchParams.get('id');
-  if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
+  if (!id) return Response.json({ ok: false, error: 'id 필요' }, { status: 400 });
   let body = {};
-  try { body = await context.request.json(); } catch { return Response.json({ error: 'invalid json' }, { status: 400 }); }
+  try { body = await context.request.json(); } catch { return Response.json({ ok: false, error: 'invalid json' }, { status: 400 }); }
 
   const existing = await db.prepare(`SELECT id FROM businesses WHERE id = ?`).bind(id).first();
-  if (!existing) return Response.json({ error: 'not found' }, { status: 404 });
+  if (!existing) return Response.json({ ok: false, error: 'not found' }, { status: 404 });
 
   const fields = [];
   const vals = [];
@@ -333,7 +333,7 @@ export async function onRequestPut(context) {
       vals.push(v == null || v === '' ? null : v);
     }
   }
-  if (!fields.length) return Response.json({ error: '변경 필드 없음' }, { status: 400 });
+  if (!fields.length) return Response.json({ ok: false, error: '변경 필드 없음' }, { status: 400 });
   fields.push(`updated_at = ?`);
   vals.push(kst());
   vals.push(id);
@@ -341,7 +341,7 @@ export async function onRequestPut(context) {
     await db.prepare(`UPDATE businesses SET ${fields.join(', ')} WHERE id = ?`).bind(...vals).run();
     return Response.json({ ok: true });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
 
@@ -350,18 +350,18 @@ export async function onRequestDelete(context) {
   if (!auth) return adminUnauthorized();
   if (!auth.owner) return ownerOnly();
   const db = context.env.DB;
-  if (!db) return Response.json({ error: 'DB error' }, { status: 500 });
+  if (!db) return Response.json({ ok: false, error: 'DB error' }, { status: 500 });
   await ensureTables(db);
   const url = new URL(context.request.url);
   const id = url.searchParams.get('id');
-  if (!id) return Response.json({ error: 'id 필요' }, { status: 400 });
+  if (!id) return Response.json({ ok: false, error: 'id 필요' }, { status: 400 });
   try {
     /* 연결 해제 + 소프트 삭제 대신 status='closed' 로만 */
     await db.prepare(`UPDATE businesses SET status = 'closed', updated_at = ? WHERE id = ?`).bind(kst(), id).run();
     /* 멤버는 유지 (소속 기록), 상담방 연결도 유지 — 필요 시 수동 해제 */
     return Response.json({ ok: true, note: '실제 삭제는 하지 않음. status=closed 로만 변경.' });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
 
@@ -372,9 +372,9 @@ export async function onRequestDelete(context) {
    4) biz_docs 행 보장 (서류 업로드 즉시 가능) */
 async function addBusinessToUser(db, body) {
   const userId = Number(body.user_id);
-  if (!userId) return Response.json({ error: 'user_id 필요' }, { status: 400 });
+  if (!userId) return Response.json({ ok: false, error: 'user_id 필요' }, { status: 400 });
   const companyName = String(body.company_name || '').trim().slice(0, 120);
-  if (!companyName) return Response.json({ error: 'company_name 필요' }, { status: 400 });
+  if (!companyName) return Response.json({ ok: false, error: 'company_name 필요' }, { status: 400 });
   const role = ['대표자', '담당자'].includes(String(body.role || '')) ? String(body.role) : '대표자';
   const isPrimary = body.is_primary ? 1 : 0;
   const now = kst();
@@ -384,7 +384,7 @@ async function addBusinessToUser(db, body) {
   try {
     /* user 존재 확인 */
     const u = await db.prepare(`SELECT id FROM users WHERE id = ?`).bind(userId).first();
-    if (!u) return Response.json({ error: 'user 없음' }, { status: 404 });
+    if (!u) return Response.json({ ok: false, error: 'user 없음' }, { status: 404 });
 
     /* 1) businesses UPSERT */
     let bizId = null;
@@ -528,6 +528,6 @@ async function addBusinessToUser(db, body) {
 
     return Response.json({ ok: true, business_id: bizId, member_id: memberId, merged });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ ok: false, error: e.message }, { status: 500 });
   }
 }

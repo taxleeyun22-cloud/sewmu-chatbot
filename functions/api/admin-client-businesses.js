@@ -79,21 +79,21 @@ export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
-  if (!db) return Response.json({ error: "DB error" }, { status: 500 });
+  if (!db) return Response.json({ ok: false, error: "DB error" }, { status: 500 });
 
   await ensureTable(db);
 
   const userId = url.searchParams.get("user_id");
-  if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
+  if (!userId) return Response.json({ ok: false, error: "user_id required" }, { status: 400 });
 
   try {
     const { results } = await db.prepare(`
       SELECT * FROM client_businesses WHERE user_id = ?
       ORDER BY is_primary DESC, created_at ASC
     `).bind(userId).all();
-    return Response.json({ businesses: results || [] });
+    return Response.json({ ok: true, businesses: results || [] });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
 
@@ -102,12 +102,12 @@ export async function onRequestPost(context) {
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
-  if (!db) return Response.json({ error: "DB error" }, { status: 500 });
+  if (!db) return Response.json({ ok: false, error: "DB error" }, { status: 500 });
 
   await ensureTable(db);
 
   const userId = url.searchParams.get("user_id");
-  if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
+  if (!userId) return Response.json({ ok: false, error: "user_id required" }, { status: 400 });
 
   try {
     const body = await context.request.json();
@@ -222,7 +222,7 @@ export async function onRequestPost(context) {
 
     return Response.json({ ok: true, id: result.meta?.last_row_id });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
 
@@ -231,12 +231,12 @@ export async function onRequestPut(context) {
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
-  if (!db) return Response.json({ error: "DB error" }, { status: 500 });
+  if (!db) return Response.json({ ok: false, error: "DB error" }, { status: 500 });
 
   await ensureTable(db);
 
   const id = url.searchParams.get("id");
-  if (!id) return Response.json({ error: "id required" }, { status: 400 });
+  if (!id) return Response.json({ ok: false, error: "id required" }, { status: 400 });
 
   try {
     const body = await context.request.json();
@@ -244,7 +244,7 @@ export async function onRequestPut(context) {
 
     // 해당 id의 user_id 조회
     const existing = await db.prepare(`SELECT user_id FROM client_businesses WHERE id = ?`).bind(id).first();
-    if (!existing) return Response.json({ error: "not found" }, { status: 404 });
+    if (!existing) return Response.json({ ok: false, error: "not found" }, { status: 404 });
 
     if (body.is_primary) {
       await db.prepare(`UPDATE client_businesses SET is_primary = 0 WHERE user_id = ?`).bind(existing.user_id).run();
@@ -291,7 +291,7 @@ export async function onRequestPut(context) {
 
     return Response.json({ ok: true });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
 
@@ -300,17 +300,17 @@ export async function onRequestDelete(context) {
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
-  if (!db) return Response.json({ error: "DB error" }, { status: 500 });
+  if (!db) return Response.json({ ok: false, error: "DB error" }, { status: 500 });
 
   await ensureTable(db);
 
   const id = url.searchParams.get("id");
-  if (!id) return Response.json({ error: "id required" }, { status: 400 });
+  if (!id) return Response.json({ ok: false, error: "id required" }, { status: 400 });
 
   try {
     await db.prepare(`DELETE FROM client_businesses WHERE id = ?`).bind(id).run();
     return Response.json({ ok: true });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ ok: false, error: e.message }, { status: 500 });
   }
 }

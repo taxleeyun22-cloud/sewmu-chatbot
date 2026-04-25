@@ -36,38 +36,38 @@ function kst() {
 
 export async function onRequestGet(context) {
   const db = context.env.DB;
-  if (!db) return Response.json({ error: 'DB error' }, { status: 500 });
+  if (!db) return Response.json({ ok: false, error: 'DB error' }, { status: 500 });
   await ensureColumns(db);
   const user = await getUserFromCookie(db, context.request);
-  if (!user) return Response.json({ error: '로그인 필요' }, { status: 401 });
+  if (!user) return Response.json({ ok: false, error: '로그인 필요' }, { status: 401 });
   try {
     const r = await db.prepare(
       `SELECT requested_company_name, requested_business_number, requested_role, requested_at
          FROM users WHERE id = ?`
     ).bind(user.user_id).first();
     return Response.json({ ok: true, request: r || null });
-  } catch (e) { return Response.json({ error: e.message }, { status: 500 }); }
+  } catch (e) { return Response.json({ ok: false, error: e.message }, { status: 500 }); }
 }
 
 export async function onRequestPost(context) {
   const db = context.env.DB;
-  if (!db) return Response.json({ error: 'DB error' }, { status: 500 });
+  if (!db) return Response.json({ ok: false, error: 'DB error' }, { status: 500 });
   await ensureColumns(db);
   const user = await getUserFromCookie(db, context.request);
-  if (!user) return Response.json({ error: '로그인 필요' }, { status: 401 });
+  if (!user) return Response.json({ ok: false, error: '로그인 필요' }, { status: 401 });
   let body = {};
-  try { body = await context.request.json(); } catch { return Response.json({ error: 'invalid json' }, { status: 400 }); }
+  try { body = await context.request.json(); } catch { return Response.json({ ok: false, error: 'invalid json' }, { status: 400 }); }
   const name = String(body.company_name || '').trim().slice(0, 120);
   const realName = String(body.real_name || '').trim().slice(0, 20);
   const bn = String(body.business_number || '').replace(/\D/g, '').slice(0, 12);
   const role = body.role === '대표자' ? '대표자' : (body.role === '담당자' ? '담당자' : null);
-  if (!name) return Response.json({ error: '회사명(상호) 을 입력해주세요' }, { status: 400 });
-  if (!realName || realName.length < 2) return Response.json({ error: '본인 실명을 2자 이상 입력해주세요' }, { status: 400 });
-  if (!role) return Response.json({ error: '역할(대표자/담당자) 를 선택해주세요' }, { status: 400 });
+  if (!name) return Response.json({ ok: false, error: '회사명(상호) 을 입력해주세요' }, { status: 400 });
+  if (!realName || realName.length < 2) return Response.json({ ok: false, error: '본인 실명을 2자 이상 입력해주세요' }, { status: 400 });
+  if (!role) return Response.json({ ok: false, error: '역할(대표자/담당자) 를 선택해주세요' }, { status: 400 });
   try {
     await db.prepare(
       `UPDATE users SET requested_company_name = ?, requested_business_number = ?, requested_role = ?, requested_at = ?, real_name = ? WHERE id = ?`
     ).bind(name, bn || null, role, kst(), realName, user.user_id).run();
     return Response.json({ ok: true });
-  } catch (e) { return Response.json({ error: e.message }, { status: 500 }); }
+  } catch (e) { return Response.json({ ok: false, error: e.message }, { status: 500 }); }
 }
