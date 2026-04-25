@@ -1,3 +1,16 @@
+/* ⛳ 디버깅 — 캐시 적용 여부 즉시 확인. 화면 좌상단에 5초간 작은 라벨 표시. */
+window.__ADMIN_VERSION='v=123';
+try{
+  setTimeout(function(){
+    try{
+      var b=document.createElement('div');
+      b.style.cssText='position:fixed;top:0;left:0;background:#10b981;color:#fff;font-size:10px;padding:2px 6px;z-index:99999;font-family:monospace;border-bottom-right-radius:4px';
+      b.textContent='✓ '+window.__ADMIN_VERSION;
+      (document.body||document.documentElement).appendChild(b);
+      setTimeout(function(){try{b.remove()}catch(_){}},5000);
+    }catch(_){}
+  },300);
+}catch(_){}
 let KEY='';
 /* null-safe getElementById: 없으면 no-op 객체 반환 (admin.html/staff.html 공유용) */
 function _noop(){return {style:{},classList:{add:function(){},remove:function(){},toggle:function(){},contains:function(){return false}},dataset:{},children:[],value:'',innerHTML:'',textContent:'',checked:false,disabled:false,className:'',addEventListener:function(){},removeEventListener:function(){},focus:function(){},click:function(){},blur:function(){},scrollIntoView:function(){},closest:function(){return null},querySelector:function(){return null},querySelectorAll:function(){return []},appendChild:function(a){return a},removeChild:function(a){return a},setAttribute:function(){},getAttribute:function(){return null},removeAttribute:function(){},insertAdjacentHTML:function(){}}}
