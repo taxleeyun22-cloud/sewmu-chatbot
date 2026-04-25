@@ -5180,7 +5180,12 @@ async function submitAddBizForUser(userId){
     if(!d.ok){alert('추가 실패: '+(d.error||'unknown'));return}
     alert('✅ 사업장 매핑됨 ('+(d.merged?'기존 업체에 연결':'신규 업체 등록 후 연결')+')');
     closeManualClientModal();
-    if(typeof openCustomerDashboard==='function')openCustomerDashboard(Number(userId));
+    /* dashboard 강제 새로고침 — modal 닫고 다시 열어야 cdBizDocs 가 새 매핑 가져옴 */
+    const cm=$g('custDashModal');
+    if(cm){cm.style.display='none'; document.body.style.overflow=''}
+    setTimeout(()=>{
+      if(typeof openCustomerDashboard==='function')openCustomerDashboard(Number(userId));
+    }, 100);
   }catch(err){alert('오류: '+err.message)}
   finally{if(btn){btn.disabled=false;btn.style.opacity='1';btn.textContent='🏢 사업장 추가'}}
 }

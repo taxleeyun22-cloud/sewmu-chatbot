@@ -1,4 +1,6 @@
-const CACHE_NAME = 'sewmu-v64';
+/* v66: 핵심 사고 발견 — 이전 fetch handler 가 JS/CSS 까지 cache-first 로
+   처리해서 admin.js 신버전이 사용자한테 배포 안 됐음. 옛 cache 강제 무효화. */
+const CACHE_NAME = 'sewmu-v66';
 const STATIC_ASSETS = ['/logo.png', '/logo-icon.png', '/logo-vertical.png'];
 
 self.addEventListener('install', e => {
@@ -56,14 +58,19 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   if (e.request.url.includes('/api/')) return;
   const url = new URL(e.request.url);
-  // HTML 파일은 항상 네트워크에서 가져옴 (캐시 안 함)
-  if (e.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname === '/') {
+  /* 이전 사고: JS/CSS 가 cache-first 였어서 admin.js?v=N 신버전이 사용자한테
+     영원히 배포 안 되는 사고 발생. JS·CSS·HTML 은 항상 network-first. */
+  if (e.request.mode === 'navigate'
+      || url.pathname.endsWith('.html')
+      || url.pathname.endsWith('.js')
+      || url.pathname.endsWith('.css')
+      || url.pathname === '/') {
     e.respondWith(
       fetch(e.request).catch(() => caches.match(e.request))
     );
     return;
   }
-  // 이미지 등 정적 자산만 캐시
+  /* 이미지·로고 등 진짜 정적 자산만 cache-first */
   e.respondWith(
     caches.match(e.request).then(cached => {
       return cached || fetch(e.request).then(r => {
