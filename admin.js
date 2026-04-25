@@ -1,3 +1,5 @@
+/* ⛳ 디버깅 — 사용자가 console 또는 alert 로 즉시 v 확인 가능. 배포 검증용. */
+window.__ADMIN_VERSION='v=122';
 let KEY='';
 /* null-safe getElementById: 없으면 no-op 객체 반환 (admin.html/staff.html 공유용) */
 function _noop(){return {style:{},classList:{add:function(){},remove:function(){},toggle:function(){},contains:function(){return false}},dataset:{},children:[],value:'',innerHTML:'',textContent:'',checked:false,disabled:false,className:'',addEventListener:function(){},removeEventListener:function(){},focus:function(){},click:function(){},blur:function(){},scrollIntoView:function(){},closest:function(){return null},querySelector:function(){return null},querySelectorAll:function(){return []},appendChild:function(a){return a},removeChild:function(a){return a},setAttribute:function(){},getAttribute:function(){return null},removeAttribute:function(){},insertAdjacentHTML:function(){}}}
@@ -7169,6 +7171,30 @@ async function openBusinessDashboard(bid){
       +'</div>'
       +'<div style="font-size:.78em;color:#8b95a1;padding:4px 0">이 거래처(업체) 의 모든 상담방 대화 + 메모 통합 요약. 클릭 시 별도 모달.</div>'
     +'</div>';
+    /* 📊 재무 — 비동기 로드 */
+    html+='<div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:12px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+        +'<div style="font-weight:700;font-size:.92em">📊 재무</div>'
+        +'<span style="font-size:.72em;color:#9ca3af">최근 12건</span>'
+      +'</div>'
+      +'<div id="bdFinanceList" style="font-size:.85em;color:#8b95a1">재무 데이터 불러오는 중...</div>'
+    +'</div>';
+    /* 📋 문서 — 비동기 로드 */
+    html+='<div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:12px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+        +'<div style="font-weight:700;font-size:.92em">📋 문서</div>'
+        +'<span style="font-size:.72em;color:#9ca3af">최근 5건</span>'
+      +'</div>'
+      +'<div id="bdDocList" style="font-size:.85em;color:#8b95a1">문서 불러오는 중...</div>'
+    +'</div>';
+    /* 📆 일정 — 비동기 로드 (D-day) */
+    html+='<div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:12px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+        +'<div style="font-weight:700;font-size:.92em">📆 주요 일정</div>'
+        +'<button onclick="_bdAddSchedule('+bid+')" style="background:var(--brand-primary,#3182f6);color:#fff;border:none;padding:5px 13px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">＋ 일정</button>'
+      +'</div>'
+      +'<div id="bdScheduleList" style="font-size:.85em;color:#8b95a1">일정 불러오는 중...</div>'
+    +'</div>';
     /* 구성원 */
     html+='<div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:12px">'
       +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-weight:700;font-size:.92em">👥 구성원 ('+members.length+'명)</div><button onclick="_bdAddMember()" style="background:var(--brand-primary,#3182f6);color:#fff;border:none;padding:5px 14px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">＋ 구성원 추가</button></div>';
@@ -7218,9 +7244,12 @@ async function openBusinessDashboard(bid){
     html+='</div>';
     stage='7.body set';
     $g('bdBody').innerHTML=html;
-    stage='8.memo load';
-    /* 본문 표시 후 메모 비동기 로드 — 본문 표시 실패해도 별도 로드 */
-    setTimeout(()=>_bdLoadMemos(bid),50);
+    stage='8.async load';
+    /* 본문 표시 후 비동기 섹션 로드 — 각 섹션 독립적으로 로드. 한 섹션 실패가 다른 섹션 차단 X */
+    setTimeout(()=>{ try{_bdLoadMemos(bid)}catch(_){} }, 50);
+    setTimeout(()=>{ try{_bdLoadFinance(bid)}catch(_){} }, 80);
+    setTimeout(()=>{ try{_bdLoadDocs(bid)}catch(_){} }, 110);
+    setTimeout(()=>{ try{_bdLoadSchedule(bid)}catch(_){} }, 140);
     stage='9.done';
   }catch(err){
     const msg='⚠️ 업체 정보 로딩 오류\n[stage='+stage+']\n'+(err&&err.message?err.message:'unknown');
@@ -7292,6 +7321,102 @@ async function _bdRunBusinessSummary(bid){
   if(meta)meta.textContent='[업체 단위] '+(_bdCurrent?.biz?.company_name||'#'+bid);
   if(typeof _setSummaryRangeUI==='function')_setSummaryRangeUI(_lastSummaryRange||'recent');
 }
+
+/* 📊 업체 단위 재무 로드 — admin-finance ?business_id=X */
+async function _bdLoadFinance(bid){
+  const box=$g('bdFinanceList');if(!box)return;
+  try{
+    const r=await fetch('/api/admin-finance?business_id='+bid+'&action=summary&key='+encodeURIComponent(KEY));
+    const d=await r.json();
+    if(d.error){box.innerHTML='<span style="color:#f04452">'+e(d.error)+'</span>';return}
+    if(!d.has_data || !d.rows || !d.rows.length){box.innerHTML='<span style="color:#9ca3af">재무 데이터 없음. 거래처 탭 → 재무에서 등록 또는 PDF 업로드.</span>';return}
+    const fmt=v=>(Number(v)||0).toLocaleString('ko-KR');
+    box.innerHTML=d.rows.slice(0,12).map(r=>{
+      try{
+        const parts=[];
+        if(r.revenue!=null)parts.push('매출 '+fmt(r.revenue));
+        if(r.cost!=null)parts.push('매입 '+fmt(r.cost));
+        if(r.vat_payable!=null)parts.push('부가세 '+fmt(r.vat_payable));
+        if(r.income_tax!=null)parts.push('소득세 '+fmt(r.income_tax));
+        return '<div style="padding:5px 0;border-bottom:1px dashed #e5e8eb;font-size:.85em"><b style="color:#1e40af;margin-right:8px">'+e(r.period||'')+'</b>'+parts.join(' · ')+'</div>';
+      }catch(_){return ''}
+    }).join('');
+  }catch(err){box.innerHTML='<span style="color:#f04452">오류: '+e(err.message)+'</span>'}
+}
+
+/* 📋 업체 단위 문서 로드 — admin-documents ?business_id=X */
+async function _bdLoadDocs(bid){
+  const box=$g('bdDocList');if(!box)return;
+  try{
+    const r=await fetch('/api/admin-documents?business_id='+bid+'&limit=5&key='+encodeURIComponent(KEY));
+    const d=await r.json();
+    const docs=d.documents||[];
+    const counts=d.counts||{};
+    const summary='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">'
+      +'<div style="padding:5px 8px;background:#fef3c7;border-radius:5px;font-size:.74em"><span style="color:#92400e">⏳ 대기</span> <b>'+(counts.pending||0)+'</b></div>'
+      +'<div style="padding:5px 8px;background:#d1fae5;border-radius:5px;font-size:.74em"><span style="color:#065f46">✅ 승인</span> <b>'+(counts.approved||0)+'</b></div>'
+      +'<div style="padding:5px 8px;background:#fee2e2;border-radius:5px;font-size:.74em"><span style="color:#991b1b">❌ 반려</span> <b>'+(counts.rejected||0)+'</b></div>'
+      +'</div>';
+    if(!docs.length){box.innerHTML=summary+'<span style="color:#9ca3af">최근 문서 없음.</span>';return}
+    const TY={receipt:'영수증',lease:'임대차',payroll:'근로',freelancer_payment:'프리랜서',tax_invoice:'세금계산서',insurance:'보험',utility:'공과금',property_tax:'지방세',bank_stmt:'은행내역',business_reg:'사업자등록증',identity:'신분증',contract:'계약서',other:'기타'};
+    const ST={pending:'⏳',approved:'✅',rejected:'❌'};
+    box.innerHTML=summary+docs.map(doc=>{
+      try{
+        const dt=(doc.created_at||'').slice(0,10);
+        const tp=TY[doc.doc_type]||doc.doc_type||'문서';
+        const st=ST[doc.status]||'';
+        const v=doc.vendor||doc.real_name||doc.name||'';
+        const amt=doc.amount?(Number(doc.amount).toLocaleString('ko-KR')+'원'):'';
+        return '<div style="padding:5px 0;border-bottom:1px dashed #e5e8eb;font-size:.84em">'+st+' '+e(dt)+' <b>'+e(tp)+'</b>'+(v?' · '+e(v):'')+(amt?' · '+e(amt):'')+'</div>';
+      }catch(_){return ''}
+    }).join('');
+  }catch(err){box.innerHTML='<span style="color:#f04452">오류: '+e(err.message)+'</span>'}
+}
+
+/* 📆 업체 단위 일정 (D-day) 로드 — memos ?scope=business_due */
+async function _bdLoadSchedule(bid){
+  const box=$g('bdScheduleList');if(!box)return;
+  try{
+    const r=await fetch('/api/memos?scope=business_due&business_id='+bid+'&key='+encodeURIComponent(KEY));
+    const d=await r.json();
+    if(!d.ok){box.innerHTML='<span style="color:#f04452">'+e(d.error||'일정 로드 실패')+'</span>';return}
+    const sch=d.schedule||[];
+    if(!sch.length){box.innerHTML='<span style="color:#9ca3af">예정된 일정 없음. ＋ 일정 버튼으로 추가.</span>';return}
+    const today=new Date().toISOString().slice(0,10);
+    box.innerHTML=sch.map(m=>{
+      try{
+        const due=m.due_date||'';
+        const diff=Math.floor((new Date(due+'T00:00:00').getTime()-new Date(today+'T00:00:00').getTime())/86400000);
+        let dDay,color;
+        if(diff<0){dDay='⚪ 지남 '+(-diff)+'일';color='#9ca3af'}
+        else if(diff===0){dDay='🔴 D-day';color='#dc2626'}
+        else if(diff<=3){dDay='🔴 D-'+diff;color='#dc2626'}
+        else if(diff<=7){dDay='🟡 D-'+diff;color='#f59e0b'}
+        else if(diff<=30){dDay='🟢 D-'+diff;color='#10b981'}
+        else{dDay='⚪ D-'+diff;color='#9ca3af'}
+        return '<div style="padding:6px 0;border-bottom:1px dashed #e5e8eb;font-size:.84em"><b style="color:'+color+';margin-right:6px">'+dDay+'</b>'+e(due)+' · '+e(String(m.content||'').slice(0,80))+'</div>';
+      }catch(_){return ''}
+    }).join('');
+  }catch(err){box.innerHTML='<span style="color:#f04452">오류: '+e(err.message)+'</span>'}
+}
+
+/* ＋ 일정 추가 — prompt 로 due_date + content 받음 */
+async function _bdAddSchedule(bid){
+  const due=prompt('마감일 (YYYY-MM-DD)','');
+  if(!due||!/^\d{4}-\d{2}-\d{2}$/.test(due.trim())){if(due!==null)alert('YYYY-MM-DD 형식으로 입력');return}
+  const content=prompt('일정 내용 (예: 부가세 신고)','');
+  if(!content||!content.trim())return;
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({memo_type:'할 일',content:content.trim(),due_date:due.trim(),target_business_id:Number(bid)})
+    });
+    const d=await r.json();
+    if(!d.ok){alert('추가 실패: '+(d.error||'unknown'));return}
+    _bdLoadSchedule(bid);
+  }catch(err){alert('오류: '+err.message)}
+}
+
 function _bdKV(k,v){
   if(v==null||v==='')return '<div style="color:#9ca3af"><b style="color:#6b7280;margin-right:6px">'+e(k)+'</b>—</div>';
   return '<div><b style="color:#6b7280;margin-right:6px">'+e(k)+'</b>'+e(String(v))+'</div>';
