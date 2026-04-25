@@ -61,8 +61,84 @@ export async function onRequestGet(context) {
 
   const url = new URL(context.request.url);
   const id = url.searchParams.get('id');
+  const userIdParam = url.searchParams.get('user_id');
   const search = (url.searchParams.get('search') || '').trim();
   const status = (url.searchParams.get('status') || '').trim();
+
+  /* 사용자별 매핑된 사업장 (시스템 B: business_members) — user dashboard 의 cdBizDocs 섹션이 사용 */
+  if (userIdParam) {
+    try {
+      const uid = Number(userIdParam);
+      if (!uid) return Response.json({ error: 'user_id 잘못됨' }, { status: 400 });
+      /* biz_docs 테이블 보장 (admin-biz-docs.js 와 동일 스키마) */
+      try {
+        await db.prepare(`CREATE TABLE IF NOT EXISTS biz_docs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          business_id INTEGER NOT NULL,
+          id_card_key TEXT,
+          id_card_uploaded_at TEXT,
+          biz_reg_key TEXT,
+          biz_reg_uploaded_at TEXT,
+          hometax_id TEXT,
+          hometax_password_enc TEXT,
+          hometax_updated_at TEXT,
+          created_at TEXT,
+          updated_at TEXT,
+          UNIQUE(user_id, business_id)
+        )`).run();
+      } catch {}
+      const { results } = await db.prepare(`
+        SELECT b.*,
+               bm.id AS member_id, bm.role AS member_role,
+               bm.is_primary AS member_is_primary,
+               bm.added_at AS joined_at,
+               bd.id_card_key, bd.id_card_uploaded_at,
+               bd.biz_reg_key, bd.biz_reg_uploaded_at,
+               bd.hometax_id, bd.hometax_updated_at
+          FROM business_members bm
+          JOIN businesses b ON bm.business_id = b.id
+          LEFT JOIN biz_docs bd ON bd.user_id = bm.user_id AND bd.business_id = b.id
+         WHERE bm.user_id = ? AND bm.removed_at IS NULL
+         ORDER BY bm.is_primary DESC, bm.added_at ASC
+      `).bind(uid).all();
+      const businesses = (results || []).map(r => ({
+        id: r.id,
+        company_name: r.company_name,
+        business_number: r.business_number,
+        ceo_name: r.ceo_name,
+        company_form: r.company_form,
+        business_category: r.business_category,
+        industry: r.industry,
+        industry_code: r.industry_code,
+        tax_type: r.tax_type,
+        address: r.address,
+        phone: r.phone,
+        sub_business_number: r.sub_business_number,
+        corporate_number: r.corporate_number,
+        establishment_date: r.establishment_date,
+        contract_date: r.contract_date,
+        fiscal_year_start: r.fiscal_year_start,
+        fiscal_year_end: r.fiscal_year_end,
+        fiscal_term: r.fiscal_term,
+        hr_year: r.hr_year,
+        notes: r.notes,
+        status: r.status,
+        member_id: r.member_id,
+        member_role: r.member_role,
+        member_is_primary: r.member_is_primary,
+        joined_at: r.joined_at,
+        docs: {
+          id_card: { uploaded: !!r.id_card_key, at: r.id_card_uploaded_at || null },
+          biz_reg: { uploaded: !!r.biz_reg_key, at: r.biz_reg_uploaded_at || null },
+          hometax: { saved: !!(r.hometax_id && r.hometax_id.length), at: r.hometax_updated_at || null, hometax_id: r.hometax_id || null },
+        }
+      }));
+      return Response.json({ ok: true, businesses });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
 
   if (id) {
     try {
@@ -122,6 +198,15 @@ export async function onRequestPost(context) {
   await ensureTables(db);
   let body = {};
   try { body = await context.request.json(); } catch { return Response.json({ error: 'invalid json' }, { status: 400 }); }
+
+  /* user 에 사업장 매핑 추가 — user dashboard 의 [+ 🏢 사업장 추가] 버튼이 호출.
+     사업자번호로 기존 businesses 행 재사용, 없으면 INSERT. business_members 매핑은 항상 보장.
+     biz_docs 행도 같이 보장하여 서류 업로드 즉시 가능. */
+  const url = new URL(context.request.url);
+  const action = url.searchParams.get('action');
+  if (action === 'add_to_user') {
+    return await addBusinessToUser(db, body);
+  }
 
   const name = String(body.company_name || '').trim().slice(0, 120);
   if (!name) return Response.json({ error: 'company_name 필요' }, { status: 400 });
@@ -275,6 +360,173 @@ export async function onRequestDelete(context) {
     await db.prepare(`UPDATE businesses SET status = 'closed', updated_at = ? WHERE id = ?`).bind(kst(), id).run();
     /* 멤버는 유지 (소속 기록), 상담방 연결도 유지 — 필요 시 수동 해제 */
     return Response.json({ ok: true, note: '실제 삭제는 하지 않음. status=closed 로만 변경.' });
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
+}
+
+/* user dashboard 의 [+ 🏢 사업장 추가] → POST ?action=add_to_user
+   1) businesses UPSERT (사업자번호 같으면 기존 id 재사용)
+   2) business_members 매핑 INSERT or REVIVE
+   3) is_primary=1 이면 같은 user 의 다른 매핑 모두 0
+   4) biz_docs 행 보장 (서류 업로드 즉시 가능) */
+async function addBusinessToUser(db, body) {
+  const userId = Number(body.user_id);
+  if (!userId) return Response.json({ error: 'user_id 필요' }, { status: 400 });
+  const companyName = String(body.company_name || '').trim().slice(0, 120);
+  if (!companyName) return Response.json({ error: 'company_name 필요' }, { status: 400 });
+  const role = ['대표자', '담당자'].includes(String(body.role || '')) ? String(body.role) : '대표자';
+  const isPrimary = body.is_primary ? 1 : 0;
+  const now = kst();
+  const bn = normBiz(body.business_number);
+  const subBn = String(body.sub_business_number || '').replace(/\D/g, '') || null;
+  const corpNo = String(body.corporate_number || '').replace(/\D/g, '') || null;
+  try {
+    /* user 존재 확인 */
+    const u = await db.prepare(`SELECT id FROM users WHERE id = ?`).bind(userId).first();
+    if (!u) return Response.json({ error: 'user 없음' }, { status: 404 });
+
+    /* 1) businesses UPSERT */
+    let bizId = null;
+    let merged = false;
+    if (bn) {
+      const dup = await db.prepare(`SELECT id FROM businesses WHERE business_number = ? LIMIT 1`).bind(bn).first();
+      if (dup) { bizId = dup.id; merged = true; }
+    }
+    if (!bizId) {
+      /* 사업자번호 없으면 같은 상호 정규화 매칭으로 한 번 더 */
+      const nn = normName(companyName);
+      const { results: all } = await db.prepare(
+        `SELECT id, company_name FROM businesses WHERE business_number IS NULL OR business_number = ''`
+      ).all();
+      const dup2 = (all || []).find(b => normName(b.company_name) === nn);
+      if (dup2) { bizId = dup2.id; merged = true; }
+    }
+
+    if (bizId && merged) {
+      /* 기존 행에 위하고 필드 채워 넣기 — 비어있는 필드만 갱신 (덮어쓰기 X) */
+      await db.prepare(`UPDATE businesses SET
+        ceo_name = COALESCE(NULLIF(ceo_name,''), ?),
+        company_form = COALESCE(NULLIF(company_form,''), ?),
+        business_category = COALESCE(NULLIF(business_category,''), ?),
+        industry = COALESCE(NULLIF(industry,''), ?),
+        industry_code = COALESCE(NULLIF(industry_code,''), ?),
+        tax_type = COALESCE(NULLIF(tax_type,''), ?),
+        address = COALESCE(NULLIF(address,''), ?),
+        phone = COALESCE(NULLIF(phone,''), ?),
+        sub_business_number = COALESCE(NULLIF(sub_business_number,''), ?),
+        corporate_number = COALESCE(NULLIF(corporate_number,''), ?),
+        establishment_date = COALESCE(NULLIF(establishment_date,''), ?),
+        contract_date = COALESCE(NULLIF(contract_date,''), ?),
+        fiscal_year_start = COALESCE(NULLIF(fiscal_year_start,''), ?),
+        fiscal_year_end = COALESCE(NULLIF(fiscal_year_end,''), ?),
+        fiscal_term = COALESCE(fiscal_term, ?),
+        hr_year = COALESCE(hr_year, ?),
+        notes = COALESCE(NULLIF(notes,''), ?),
+        updated_at = ?
+        WHERE id = ?
+      `).bind(
+        body.ceo_name || null,
+        body.company_form || null,
+        body.business_category || null,
+        body.industry || null,
+        body.industry_code || null,
+        body.tax_type || null,
+        body.address || null,
+        body.phone || null,
+        subBn,
+        corpNo,
+        body.establishment_date || null,
+        body.contract_date || null,
+        body.fiscal_year_start || null,
+        body.fiscal_year_end || null,
+        body.fiscal_term != null && body.fiscal_term !== '' ? Number(body.fiscal_term) : null,
+        body.hr_year != null && body.hr_year !== '' ? Number(body.hr_year) : null,
+        body.notes || null,
+        now, bizId
+      ).run();
+    } else {
+      const r = await db.prepare(
+        `INSERT INTO businesses (company_name, business_number, ceo_name, industry, business_type, tax_type,
+                                 establishment_date, address, phone, notes, status, created_at, updated_at,
+                                 sub_business_number, corporate_number, business_category, industry_code,
+                                 contract_date, fiscal_year_start, fiscal_year_end, fiscal_term, hr_year, company_form)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        companyName, bn || null, body.ceo_name || null, body.industry || null,
+        body.business_type || null, body.tax_type || null,
+        body.establishment_date || null, body.address || null, body.phone || null,
+        body.notes || null, now, now,
+        subBn, corpNo,
+        body.business_category || null, body.industry_code || null,
+        body.contract_date || null, body.fiscal_year_start || null, body.fiscal_year_end || null,
+        body.fiscal_term != null && body.fiscal_term !== '' ? Number(body.fiscal_term) : null,
+        body.hr_year != null && body.hr_year !== '' ? Number(body.hr_year) : null,
+        body.company_form || null
+      ).run();
+      bizId = r.meta?.last_row_id;
+    }
+
+    /* 2) business_members UPSERT */
+    try { await db.prepare(`CREATE TABLE IF NOT EXISTS business_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      role TEXT,
+      is_primary INTEGER DEFAULT 0,
+      phone TEXT,
+      memo TEXT,
+      added_at TEXT,
+      removed_at TEXT
+    )`).run(); } catch {}
+    try { await db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_bm_unique ON business_members(business_id, user_id)`).run(); } catch {}
+
+    const existingMember = await db.prepare(
+      `SELECT id, removed_at FROM business_members WHERE business_id = ? AND user_id = ? LIMIT 1`
+    ).bind(bizId, userId).first();
+    let memberId;
+    if (existingMember) {
+      await db.prepare(
+        `UPDATE business_members SET role = ?, is_primary = ?, removed_at = NULL WHERE id = ?`
+      ).bind(role, isPrimary, existingMember.id).run();
+      memberId = existingMember.id;
+    } else {
+      const mr = await db.prepare(
+        `INSERT INTO business_members (business_id, user_id, role, is_primary, added_at) VALUES (?, ?, ?, ?, ?)`
+      ).bind(bizId, userId, role, isPrimary, now).run();
+      memberId = mr.meta?.last_row_id;
+    }
+
+    /* 3) is_primary 보정 — 같은 user 의 다른 매핑 모두 0 */
+    if (isPrimary) {
+      await db.prepare(
+        `UPDATE business_members SET is_primary = 0 WHERE user_id = ? AND id != ?`
+      ).bind(userId, memberId).run();
+    }
+
+    /* 4) biz_docs 행 보장 */
+    try {
+      await db.prepare(`CREATE TABLE IF NOT EXISTS biz_docs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        business_id INTEGER NOT NULL,
+        id_card_key TEXT,
+        id_card_uploaded_at TEXT,
+        biz_reg_key TEXT,
+        biz_reg_uploaded_at TEXT,
+        hometax_id TEXT,
+        hometax_password_enc TEXT,
+        hometax_updated_at TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        UNIQUE(user_id, business_id)
+      )`).run();
+      await db.prepare(
+        `INSERT OR IGNORE INTO biz_docs (user_id, business_id, created_at, updated_at) VALUES (?, ?, ?, ?)`
+      ).bind(userId, bizId, now, now).run();
+    } catch {}
+
+    return Response.json({ ok: true, business_id: bizId, member_id: memberId, merged });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
