@@ -1,5 +1,5 @@
 /* ⛳ 디버깅 — 캐시 적용 여부 즉시 확인. 화면 좌상단에 5초간 작은 라벨 표시. */
-window.__ADMIN_VERSION='v=123';
+window.__ADMIN_VERSION='v=124';
 try{
   setTimeout(function(){
     try{
@@ -7110,9 +7110,21 @@ async function submitNewBusiness(){
   finally{if(btn){btn.disabled=false;btn.textContent='생성'}}
 }
 
-/* 업체 대시보드 — 기본정보 + 구성원 + 상담방 */
+/* 업체 대시보드 — v=124 부터 별도 페이지(business.html)로 분리.
+   admin.js 7000+ 줄 의존성 0, 단순한 fetch+render 로 안정성 확보.
+   기존 모달 본문 코드는 deprecated (호출되지 않음). */
 let _bdCurrent=null;
-async function openBusinessDashboard(bid){
+function openBusinessDashboard(bid){
+  if(!bid)return;
+  _bdCurrent={id:bid};
+  /* 같은 탭에서 페이지 이동 — 모바일 친화적. ADMIN_KEY 는 sessionStorage 에도 저장되어 새 페이지가 자동 사용. */
+  try{ sessionStorage.setItem('ADMIN_KEY', KEY||''); }catch(_){}
+  const url='/business.html?id='+encodeURIComponent(bid)+'&key='+encodeURIComponent(KEY||'');
+  window.location.href=url;
+}
+/* 기존 풀 모달 코드는 아래 _openBusinessDashboardLegacy 로 유지 (회귀 0). 호출되지 않음.
+   언젠가 내부 모달 방식이 필요하면 여기로 다시 alias 할 수 있음. */
+async function _openBusinessDashboardLegacy(bid){
   if(!bid)return;
   _bdCurrent={id:bid};
   const m=$g('businessDashboardModal');if(!m){alert('업체 모달 element 없음');return}

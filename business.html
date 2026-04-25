@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+<title>거래처 정보</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', sans-serif; margin: 0; background: #f3f4f6; padding: 16px; line-height: 1.5; color: #1f2937; }
+  .container { max-width: 800px; margin: 0 auto; }
+  .topbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .topbar a { color: #3182f6; text-decoration: none; font-size: .9em; padding: 6px 10px; background: #fff; border-radius: 6px; border: 1px solid #e5e8eb; }
+  .header { background: #fff; border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,.04); margin-bottom: 12px; }
+  h1 { font-size: 1.3em; margin: 0 0 4px; word-break: keep-all; }
+  .sub { color: #6b7280; font-size: .85em; }
+  .section { background: #fff; border: 1px solid #e5e8eb; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+  .sec-title { font-weight: 700; font-size: .95em; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px 14px; font-size: .85em; color: #374151; }
+  .kv b { color: #6b7280; margin-right: 6px; font-weight: 600; }
+  .err { color: #b91c1c; padding: 12px 14px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: .88em; white-space: pre-wrap; }
+  .loading { text-align: center; padding: 24px 0; color: #8b95a1; font-size: .88em; }
+  .empty { color: #9ca3af; font-size: .85em; padding: 8px 0; }
+  button { font-family: inherit; font-size: .82em; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; }
+  .btn-primary { background: #3182f6; color: #fff; font-weight: 600; }
+  .btn-success { background: #10b981; color: #fff; font-weight: 600; }
+  .btn-ghost { background: #f3f4f6; color: #374151; border: 1px solid #e5e8eb; }
+  .memo-item { padding: 8px 10px; background: #f9fafb; border-left: 3px solid #3182f6; border-radius: 4px; margin-bottom: 6px; font-size: .85em; }
+  .memo-meta { font-size: .72em; color: #6b7280; margin-bottom: 3px; display: flex; justify-content: space-between; }
+  .memo-meta button { color: #dc2626; background: none; padding: 0 4px; font-size: .85em; border: 0; cursor: pointer; }
+  .member-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f2f4f6; font-size: .88em; }
+  .badge { display: inline-block; font-size: .7em; padding: 1px 7px; border-radius: 4px; margin-left: 4px; font-weight: 600; }
+  .badge-rep { background: #fef3c7; color: #92400e; }
+  .badge-staff { background: #e0f2fe; color: #075985; }
+  .badge-primary { background: #fee2e2; color: #991b1b; }
+  .room-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #f2f4f6; cursor: pointer; font-size: .88em; }
+  .room-row:hover { background: #f9fafb; }
+  #diag { position: fixed; top: 0; left: 0; background: #10b981; color: #fff; font-size: 10px; padding: 2px 6px; z-index: 99999; font-family: monospace; border-bottom-right-radius: 4px; }
+  @media (max-width: 480px) {
+    body { padding: 8px; }
+    .header, .section { padding: 12px 14px; }
+    h1 { font-size: 1.15em; }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="diag">✓ business.html v=1</div>
+<div class="container">
+  <div class="topbar">
+    <a href="javascript:history.back()">← 뒤로</a>
+    <a href="/admin.html">관리자</a>
+    <span style="color:#9ca3af;font-size:.78em;margin-left:auto" id="topMeta"></span>
+  </div>
+
+  <div class="header">
+    <h1 id="bizName">불러오는 중...</h1>
+    <div id="bizSub" class="sub"></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">📋 기본 정보 <span style="font-size:.7em;color:#9ca3af;font-weight:500">(위하고 호환)</span></div>
+    <div id="bizBasic"><div class="loading">기본 정보 불러오는 중...</div></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">📝 거래처 메모 <button class="btn-primary" onclick="addMemo()">＋ 메모</button></div>
+    <div id="memoList"><div class="loading">메모 불러오는 중...</div></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">🤖 AI 요약 <button class="btn-success" onclick="runSummary()">✨ 요약 생성</button></div>
+    <div id="summaryBody"><div class="empty">아직 요약 없음. ✨ 버튼으로 생성. (이 업체 모든 상담방 + 메모 통합 GPT 요약)</div></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">👥 구성원</div>
+    <div id="memberList"><div class="loading">구성원 불러오는 중...</div></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">💬 연결된 상담방</div>
+    <div id="roomList"><div class="loading">상담방 불러오는 중...</div></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  const params = new URLSearchParams(location.search);
+  const bid = parseInt(params.get('id'), 10);
+  let KEY = params.get('key') || '';
+  /* sessionStorage / localStorage 에서 ADMIN_KEY 확보 (admin.html 와 공유) */
+  if (!KEY) {
+    try { KEY = sessionStorage.getItem('ADMIN_KEY') || localStorage.getItem('ADMIN_KEY') || ''; } catch(_) {}
+  }
+  /* URL 에 key 가 들어왔으면 sessionStorage 에 저장 (다음 새로고침 시 query 없어도 동작) */
+  if (params.get('key')) {
+    try { sessionStorage.setItem('ADMIN_KEY', params.get('key')); } catch(_) {}
+  }
+  /* 5초 후 v 라벨 숨김 */
+  setTimeout(function(){ const d = document.getElementById('diag'); if (d) d.remove(); }, 5000);
+
+  function $(id) { return document.getElementById(id); }
+  function e(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function kv(k, v) { return (v == null || v === '') ? '' : '<div class="kv"><b>'+e(k)+'</b>'+e(String(v))+'</div>'; }
+
+  function fetchJson(path, timeoutMs) {
+    timeoutMs = timeoutMs || 10000;
+    const url = path + (path.indexOf('?') > -1 ? '&' : '?') + 'key=' + encodeURIComponent(KEY);
+    return Promise.race([
+      fetch(url).then(function(r){ return r.json().then(function(j){ j.__status = r.status; return j; }); }),
+      new Promise(function(_, rej){ setTimeout(function(){ rej(new Error(timeoutMs/1000+'초 응답 없음')); }, timeoutMs); })
+    ]);
+  }
+
+  if (!bid) {
+    $('bizName').textContent = '오류';
+    $('bizBasic').innerHTML = '<div class="err">URL 에 ?id=N 파라미터가 필요합니다.\n예: /business.html?id=1&key=ADMIN_KEY</div>';
+    return;
+  }
+
+  /* 헤더 + 기본정보 + 구성원 + 상담방 (admin-businesses ?id=X) */
+  fetchJson('/api/admin-businesses?id=' + bid)
+    .then(function(d){
+      if (!d || d.error) {
+        $('bizName').textContent = '오류';
+        $('bizBasic').innerHTML = '<div class="err">' + e(d && d.error || ('status='+(d&&d.__status||'?'))) + '</div>';
+        return;
+      }
+      if (!d.ok) {
+        $('bizName').textContent = '오류';
+        $('bizBasic').innerHTML = '<div class="err">응답 ok=false</div>';
+        return;
+      }
+      const biz = d.business || {};
+      const members = d.members || [];
+      const rooms = d.rooms || [];
+      /* 헤더 */
+      $('bizName').textContent = '🏢 ' + (biz.company_name || '#' + bid);
+      $('bizSub').textContent = [
+        biz.business_number ? '#' + biz.business_number : '',
+        biz.ceo_name ? '대표 ' + biz.ceo_name : '',
+        biz.company_form || ''
+      ].filter(Boolean).join(' · ');
+      try { document.title = biz.company_name || ('업체 #' + bid); } catch(_) {}
+      /* 기본정보 그리드 — 위하고 17필드 */
+      let basic = '';
+      try {
+        basic += '<div class="grid">'
+          + kv('회사구분', biz.company_form)
+          + kv('사업자등록번호', biz.business_number)
+          + kv('종사업자번호', biz.sub_business_number)
+          + kv('법인등록번호', biz.corporate_number)
+          + kv('대표자', biz.ceo_name)
+          + kv('업태', biz.business_category)
+          + kv('업종', biz.industry)
+          + kv('업종코드', biz.industry_code)
+          + kv('과세유형', biz.tax_type)
+          + kv('사업장주소', biz.address)
+          + kv('사업장전화', biz.phone)
+          + kv('개업일', biz.establishment_date)
+          + kv('수임일자', biz.contract_date)
+          + kv('회계기간', [biz.fiscal_year_start, biz.fiscal_year_end].filter(Boolean).join(' ~ '))
+          + kv('기수', biz.fiscal_term)
+          + kv('인사연도', biz.hr_year)
+          + kv('노트', biz.notes)
+          + '</div>';
+      } catch (err) {
+        basic = '<div class="err">기본정보 렌더 실패: ' + e(err.message) + '</div>';
+      }
+      $('bizBasic').innerHTML = basic;
+      /* 구성원 */
+      if (!members.length) {
+        $('memberList').innerHTML = '<div class="empty">구성원 없음</div>';
+      } else {
+        $('memberList').innerHTML = members.map(function(m){
+          try {
+            const nm = e(m.real_name || m.name || '#' + m.user_id);
+            const roleBadge = m.role === '대표자'
+              ? '<span class="badge badge-rep">🧑‍💼 대표자</span>'
+              : '<span class="badge badge-staff">👤 담당자</span>';
+            const primaryBadge = m.is_primary ? '<span class="badge badge-primary">주연락</span>' : '';
+            const phone = m.phone || m.user_phone;
+            return '<div class="member-row"><div style="flex:1;min-width:0"><b>' + nm + '</b>' + roleBadge + primaryBadge
+              + (phone ? '<div style="font-size:.74em;color:#8b95a1">' + e(phone) + '</div>' : '')
+              + '</div></div>';
+          } catch (_) { return ''; }
+        }).join('');
+      }
+      /* 상담방 */
+      if (!rooms.length) {
+        $('roomList').innerHTML = '<div class="empty">연결된 상담방 없음</div>';
+      } else {
+        $('roomList').innerHTML = rooms.map(function(r){
+          try {
+            const stClosed = r.status === 'closed' ? ' <span style="color:#9ca3af;font-size:.78em">종료</span>' : '';
+            return '<div class="room-row" onclick="location.href=\'/admin.html#rooms?room_id=' + encodeURIComponent(r.id) + '\'">'
+              + '<div style="flex:1"><b>' + e(r.name || r.id) + '</b>' + stClosed
+              + '<div style="font-size:.72em;color:#8b95a1">ID: ' + e(r.id) + '</div></div>'
+              + '<div style="color:#3182f6">›</div></div>';
+          } catch (_) { return ''; }
+        }).join('');
+      }
+    })
+    .catch(function(err){
+      $('bizName').textContent = '오류';
+      $('bizBasic').innerHTML = '<div class="err">⚠️ 기본 정보 로드 실패\n' + e(err && err.message || 'unknown') + '</div>';
+    });
+
+  /* 메모 로드 */
+  function loadMemos() {
+    fetchJson('/api/memos?scope=business_info&business_id=' + bid)
+      .then(function(d){
+        if (!d.ok) { $('memoList').innerHTML = '<div class="err">' + e(d.error || '메모 로드 실패') + '</div>'; return; }
+        const memos = d.memos || [];
+        if (!memos.length) { $('memoList').innerHTML = '<div class="empty">아직 메모 없음. ＋ 메모 버튼으로 추가.</div>'; return; }
+        $('memoList').innerHTML = memos.map(function(m){
+          try {
+            const t = (m.created_at || '').slice(0, 10);
+            const by = m.author_name ? e(m.author_name) : '';
+            const content = e(String(m.content || '')).replace(/\n/g, '<br>');
+            return '<div class="memo-item">'
+              + '<div class="memo-meta"><span>' + t + (by ? ' · ' + by : '') + '</span><button onclick="deleteMemo(' + m.id + ')">삭제</button></div>'
+              + '<div>' + content + '</div></div>';
+          } catch (_) { return ''; }
+        }).join('');
+      })
+      .catch(function(err){
+        $('memoList').innerHTML = '<div class="err">⚠️ 메모 로드 실패: ' + e(err && err.message || 'unknown') + '</div>';
+      });
+  }
+  loadMemos();
+
+  /* 메모 추가 */
+  window.addMemo = function() {
+    const txt = prompt('거래처 메모 입력');
+    if (!txt || !txt.trim()) return;
+    fetch('/api/memos?key=' + encodeURIComponent(KEY), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memo_type: '거래처 정보', content: txt.trim(), target_business_id: bid })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) { alert('추가 실패: ' + (d.error || 'unknown')); return; }
+      loadMemos();
+    })
+    .catch(function(err){ alert('오류: ' + err.message); });
+  };
+
+  /* 메모 삭제 */
+  window.deleteMemo = function(memoId) {
+    if (!confirm('이 메모를 삭제하시겠습니까?')) return;
+    fetch('/api/memos?id=' + memoId + '&key=' + encodeURIComponent(KEY), { method: 'DELETE' })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) { alert('삭제 실패: ' + (d.error || 'unknown')); return; }
+        loadMemos();
+      })
+      .catch(function(err){ alert('오류: ' + err.message); });
+  };
+
+  /* AI 요약 */
+  window.runSummary = function() {
+    const range = prompt('요약 기간 선택 (recent / week / month / all)', 'recent');
+    if (!range) return;
+    if (['recent','week','month','all'].indexOf(range) === -1) { alert('recent / week / month / all 중 하나'); return; }
+    $('summaryBody').innerHTML = '<div class="loading">🤖 요약 생성 중... (5~30초)</div>';
+    fetch('/api/admin-customer-summary?business_id=' + bid + '&range=' + encodeURIComponent(range) + '&key=' + encodeURIComponent(KEY))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d.error) { $('summaryBody').innerHTML = '<div class="err">' + e(d.error) + '</div>'; return; }
+        const text = d.summary || '';
+        if (!text) { $('summaryBody').innerHTML = '<div class="empty">결과 비어있음</div>'; return; }
+        const meta = '<div style="font-size:.72em;color:#9ca3af;margin-bottom:8px">기간: ' + e(range) + ' · 메시지 ' + (d.message_count || 0) + '건 · 비용 ₩' + Math.round((d.cost_cents||0)*14) + '</div>';
+        $('summaryBody').innerHTML = meta + '<div style="white-space:pre-wrap;line-height:1.7;font-size:.88em">' + e(text) + '</div>';
+      })
+      .catch(function(err){ $('summaryBody').innerHTML = '<div class="err">오류: ' + e(err.message) + '</div>'; });
+  };
+
+})();
+</script>
+</body>
+</html>
