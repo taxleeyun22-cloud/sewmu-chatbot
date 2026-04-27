@@ -36,16 +36,31 @@
   .room-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #f2f4f6; cursor: pointer; font-size: .88em; }
   .room-row:hover { background: #f9fafb; }
   #diag { position: fixed; top: 0; left: 0; background: #10b981; color: #fff; font-size: 10px; padding: 2px 6px; z-index: 99999; font-family: monospace; border-bottom-right-radius: 4px; }
+  /* 모달 (메모/일정/요약 공용) */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
+  .modal-overlay.open { display: flex; }
+  .modal-card { background: #fff; border-radius: 12px; width: 100%; max-width: 480px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
+  .modal-head { padding: 14px 18px; border-bottom: 1px solid #e5e8eb; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .modal-title { font-weight: 700; font-size: 1em; color: #1f2937; }
+  .modal-close { background: none; border: none; font-size: 1.2em; cursor: pointer; color: #8b95a1; padding: 0 6px; line-height: 1; font-family: inherit; }
+  .modal-body { padding: 14px 16px; overflow-y: auto; }
+  .modal-foot { padding: 10px 16px; border-top: 1px solid #f2f4f6; display: flex; gap: 8px; justify-content: flex-end; background: #fafbfc; }
+  .modal-input { width: 100%; padding: 8px 10px; border: 1px solid #e5e8eb; border-radius: 8px; font-size: .9em; font-family: inherit; box-sizing: border-box; outline: none; line-height: 1.4; }
+  .modal-input:focus { border-color: #3182f6; }
+  textarea.modal-input { min-height: 96px; resize: vertical; }
+  .modal-label { font-size: .78em; color: #6b7280; margin-bottom: 4px; display: block; font-weight: 600; }
   @media (max-width: 480px) {
     body { padding: 8px; }
     .header, .section { padding: 12px 14px; }
     h1 { font-size: 1.15em; }
     .grid { grid-template-columns: 1fr; }
+    .modal-overlay { padding: 8px; align-items: flex-end; }
+    .modal-card { max-width: 100%; max-height: 85vh; border-radius: 14px 14px 0 0; }
   }
 </style>
 </head>
 <body>
-<div id="diag">✓ business.html v=5 (재무 삭제 가능)</div>
+<div id="diag">✓ business.html v=6 (메모 모달)</div>
 <div class="container">
   <div class="topbar">
     <a href="javascript:history.back()">← 뒤로</a>
@@ -100,6 +115,24 @@
   <div class="section">
     <div class="sec-title">💬 연결된 상담방</div>
     <div id="roomList"><div class="loading">상담방 불러오는 중...</div></div>
+  </div>
+</div>
+
+<!-- 메모 추가 모달 -->
+<div id="memoModal" class="modal-overlay" onclick="if(event.target===this)closeMemoModal()" role="dialog" aria-labelledby="memoModalTitle" aria-hidden="true">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-title" id="memoModalTitle">📝 거래처 메모 추가</div>
+      <button class="modal-close" onclick="closeMemoModal()" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label" for="memoInput">메모 내용</label>
+      <textarea id="memoInput" class="modal-input" placeholder="예) 사장님 종소세 분납 요청 / 부가세 환급 계좌 변경 안내" rows="4"></textarea>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeMemoModal()">취소</button>
+      <button class="btn-primary" id="memoSaveBtn" onclick="submitMemo()">저장</button>
+    </div>
   </div>
 </div>
 
@@ -547,22 +580,52 @@
     .catch(function(err){ alert('오류: ' + err.message); });
   };
 
-  /* 메모 추가 */
+  /* 메모 추가 — 모달 방식 */
   window.addMemo = function() {
-    const txt = prompt('거래처 메모 입력');
-    if (!txt || !txt.trim()) return;
+    const m = document.getElementById('memoModal');
+    const input = document.getElementById('memoInput');
+    if (!m || !input) return;
+    input.value = '';
+    m.classList.add('open');
+    m.setAttribute('aria-hidden', 'false');
+    setTimeout(function(){ try { input.focus(); } catch(_){} }, 50);
+  };
+  window.closeMemoModal = function() {
+    const m = document.getElementById('memoModal');
+    if (!m) return;
+    m.classList.remove('open');
+    m.setAttribute('aria-hidden', 'true');
+  };
+  window.submitMemo = function() {
+    const input = document.getElementById('memoInput');
+    const btn = document.getElementById('memoSaveBtn');
+    if (!input) return;
+    const txt = (input.value || '').trim();
+    if (!txt) { try { input.focus(); } catch(_){} return; }
+    if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
     fetch('/api/memos?key=' + encodeURIComponent(KEY), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ memo_type: '거래처 정보', content: txt.trim(), target_business_id: bid })
+      body: JSON.stringify({ memo_type: '거래처 정보', content: txt, target_business_id: bid })
     })
     .then(function(r){ return r.json(); })
     .then(function(d){
+      if (btn) { btn.disabled = false; btn.textContent = '저장'; }
       if (!d.ok) { alert('추가 실패: ' + (d.error || 'unknown')); return; }
+      closeMemoModal();
       loadMemos();
     })
-    .catch(function(err){ alert('오류: ' + err.message); });
+    .catch(function(err){
+      if (btn) { btn.disabled = false; btn.textContent = '저장'; }
+      alert('오류: ' + (err && err.message || 'unknown'));
+    });
   };
+  /* ESC 로 모달 닫기 */
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Escape') return;
+    const m = document.getElementById('memoModal');
+    if (m && m.classList.contains('open')) closeMemoModal();
+  });
 
   /* 메모 삭제 */
   window.deleteMemo = function(memoId) {
