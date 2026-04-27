@@ -1,5 +1,5 @@
 /* ⛳ 디버깅 — 캐시 적용 여부 즉시 확인. 화면 좌상단에 5초간 작은 라벨 표시. */
-window.__ADMIN_VERSION='v=126';
+window.__ADMIN_VERSION='v=127';
 try{
   setTimeout(function(){
     try{
@@ -7364,19 +7364,47 @@ async function _bdLoadMemos(bid){
     box.innerHTML='<span style="color:#f04452">오류: '+e(err.message)+'</span>';
   }
 }
-async function _bdAddMemo(bid){
-  const txt=prompt('거래처 메모 입력');
-  if(!txt||!txt.trim())return;
+/* 거래처 메모 추가 — 모달 방식 (business.html / staff.html 과 통일). DOM: #bdMemoModal */
+function _bdAddMemo(bid){
+  const m=$g('bdMemoModal');const input=$g('bdMemoInput');
+  if(!m||!m.style||!input)return;
+  input.value='';
+  m.dataset.bid=String(Number(bid)||0);
+  m.style.display='flex';
+  setTimeout(function(){try{input.focus()}catch(_){}}, 50);
+}
+function _bdCloseMemoModal(){
+  const m=$g('bdMemoModal');if(m&&m.style)m.style.display='none';
+}
+async function _bdSubmitMemo(){
+  const m=$g('bdMemoModal');const input=$g('bdMemoInput');const btn=$g('bdMemoSaveBtn');
+  if(!m||!input)return;
+  const bid=Number(m.dataset&&m.dataset.bid||0);
+  const txt=String(input.value||'').trim();
+  if(!txt){try{input.focus()}catch(_){}return}
+  if(!bid){alert('거래처 ID 누락');return}
+  if(btn){btn.disabled=true;btn.textContent='저장 중...'}
   try{
     const r=await fetch('/api/memos?key='+encodeURIComponent(KEY),{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({memo_type:'거래처 정보',content:txt.trim(),target_business_id:Number(bid)})
+      body:JSON.stringify({memo_type:'거래처 정보',content:txt,target_business_id:bid})
     });
     const d=await r.json();
+    if(btn){btn.disabled=false;btn.textContent='저장'}
     if(!d.ok){alert('추가 실패: '+(d.error||'unknown'));return}
+    _bdCloseMemoModal();
     _bdLoadMemos(bid);
-  }catch(err){alert('오류: '+err.message)}
+  }catch(err){
+    if(btn){btn.disabled=false;btn.textContent='저장'}
+    alert('오류: '+err.message);
+  }
 }
+/* ESC 로 #bdMemoModal 닫기 (admin/staff 공유) */
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape')return;
+  const m=$g('bdMemoModal');
+  if(m&&m.style&&m.style.display==='flex')_bdCloseMemoModal();
+});
 async function _bdDeleteMemo(memoId, bid){
   if(!confirm('이 메모를 삭제하시겠습니까?'))return;
   try{
