@@ -420,9 +420,11 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
    사용자 입력값 렌더 시 escAttr 패턴 적용 필수
    ============================================ */
 
-const STAFF_COUNTS={예슬:12,윤지:8,다현:7,성준:11};
+/* STAFF_COUNTS·CLIENTS 는 더미 기본값. 실데이터 fetch 성공 시 fetchRealClients() 가 덮어씀.
+   직접 /office.html 로 접속한 비인증 방문자는 더미 그대로 보임 (회귀 0). */
+let STAFF_COUNTS={예슬:12,윤지:8,다현:7,성준:11};
 
-const CLIENTS=[
+let CLIENTS=[
   {id:1, name:'옆커폰',     owner:'김유남', staff:'예슬', status:'pending_filing', next:'4/29 종소세 분납',  dday:'today',    pri:1, biz:'휴대폰소매',   tax:'일반과세'},
   {id:2, name:'디모토',     owner:'이세진', staff:'예슬', status:'in_progress',     next:'5/01 부가세 분납',  dday:'week',     pri:2, biz:'음식점',       tax:'일반과세'},
   {id:3, name:'김미리',     owner:'김미리', staff:'예슬', status:'pending_filing', next:'4/29 원천세 신고',  dday:'tomorrow', pri:1, biz:'미용실',       tax:'간이과세'},
@@ -436,6 +438,39 @@ const CLIENTS=[
   {id:11,name:'청림식자재', owner:'정청림', staff:'예슬', status:'in_progress',    next:'5/05 4월 신고',     dday:'later',    pri:2, biz:'식자재 도매',  tax:'일반과세'},
   {id:12,name:'가람물류',   owner:'홍가람', staff:'예슬', status:'blocked',        next:'-',                 dday:null,       pri:3, biz:'운수업',       tax:'일반과세'}
 ];
+
+let DATA_SOURCE='dummy'; /* 'dummy' | 'live' — 실데이터 연결 성공 여부 */
+
+/* admin/staff 에서 진입 시 sessionStorage 의 admin_key 를 사용해 실데이터 fetch.
+   미인증 방문자는 더미 그대로. API 형식이 office Client 모델과 다른 부분은 '—' 로 표시.
+   장기적으로 신고 케이스·담당자 라벨·사업장 정보는 별도 API 호출로 채울 예정. */
+async function fetchRealClients(){
+  let key=null;
+  try{ key=sessionStorage.getItem('admin_key')||sessionStorage.getItem('ADMIN_KEY')||null }catch{}
+  if(!key) return null;
+  try{
+    const res=await fetch('/api/admin-rooms?key='+encodeURIComponent(key));
+    if(!res.ok) return null;
+    const data=await res.json();
+    const rooms=Array.isArray(data)?data:(data?.rooms||data?.results||[]);
+    if(!rooms.length) return [];
+    return rooms.map(r=>({
+      id:r.id,
+      name:r.name||'(이름없음)',
+      owner:r.first_member_name||'—',
+      staff:'—',
+      status:r.status==='closed'?'done':'in_progress',
+      next:'—',
+      dday:null,
+      pri:r.priority||3,
+      biz:r.business_name||'—',
+      tax:'—'
+    }));
+  }catch(e){
+    console.warn('[office] fetchRealClients 실패:',e);
+    return null;
+  }
+}
 
 const PANEL_DATA={
   1:{
@@ -695,7 +730,19 @@ document.addEventListener('click',e=>{
 
 /* ============== 초기 ============== */
 const initRole=new URLSearchParams(location.search).get('role')==='boss'?'boss':'staff';
-setRole(initRole);
+
+(async function init(){
+  /* admin/staff 에서 진입한 경우 실데이터 fetch 시도. 실패·미인증이면 더미 유지. */
+  const real=await fetchRealClients();
+  if(real&&real.length){
+    CLIENTS=real;
+    DATA_SOURCE='live';
+    /* 헤더 sub 텍스트 옆에 작은 LIVE 표시 (시각 변화 최소) */
+    const sub=$('mhdrSub');
+    if(sub) sub.innerHTML+=' <span style="display:inline-block;margin-left:6px;background:var(--of-success);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px">LIVE</span>';
+  }
+  setRole(initRole);
+})();
 </script>
 
 </body>
