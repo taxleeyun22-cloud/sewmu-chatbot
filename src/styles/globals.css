@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Phase 1 에서 디자인 토큰을 :root 에 추가:
+ *   --of-bg, --of-card, --of-primary, --sb-bg, --of-overdue, ... 등
+ * 현재 office.html 의 :root 에 박혀 있는 토큰을 끌어내서 여기 통합 예정
+ */
+:root {
+  /* Phase 1 에서 채움 */
+}
