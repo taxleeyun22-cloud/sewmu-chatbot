@@ -6,8 +6,8 @@ import { resolve } from 'node:path';
  * Phase 0 — 토대 구축 빌드 설정
  *
  * 핵심 결정:
- * - HTML 5개(index/admin/staff/articles/office)는 Vite 가 처리하지 않고 raw 복사
- *   ↳ admin.html / staff.html 의 `<script src="/admin.js?v=58">` 쿼리스트링 보존이
+ * - HTML 6개(index/admin/staff/articles/office/business)는 Vite 가 처리하지 않고 raw 복사
+ *   ↳ admin.html / staff.html 의 `<script src="/admin.js?v=NN">` 쿼리스트링 보존이
  *     최우선이라 Vite 의 HTML 자산 변환 경로를 통째로 우회
  * - Vite entry = src/main.ts 빈 placeholder 1개
  *   ↳ Phase 1 에서 Tailwind 토큰을 통해 사용, Phase 2 에서 office.html 분해 시 다중 entry 로 확장
@@ -45,12 +45,13 @@ export default defineConfig({
   plugins: [
     viteStaticCopy({
       targets: [
-        // HTML 5개 — byte-identical 복사 (Phase 2 에서 점진 분해)
+        // HTML 6개 — byte-identical 복사 (Phase 2 에서 점진 분해)
         { src: 'index.html', dest: '.' },
         { src: 'admin.html', dest: '.' },
         { src: 'staff.html', dest: '.' },
         { src: 'articles.html', dest: '.' },
         { src: 'office.html', dest: '.' },
+        { src: 'business.html', dest: '.' },
         // Cloudflare Pages 헤더 규칙
         { src: '_headers', dest: '.' },
         // PWA 자산
