@@ -65,3 +65,61 @@ export interface Task {
   status: 'open' | 'done' | 'snoozed' | 'passed';
   created_at: string;
 }
+
+/**
+ * 거래처(client) 의 사업장 1 개 — client_businesses 테이블
+ * 한 거래처가 여러 사업장 보유 가능 (개인사업자·법인 동시 등)
+ */
+export interface Business {
+  id: number;
+  user_id: number;
+  biz_no: string | null;
+  name: string;
+  industry: string | null;
+  tax_type: '일반과세' | '간이과세' | '면세' | null;
+  open_date: string | null;
+  closed_date: string | null;
+  is_active: 0 | 1;
+}
+
+/**
+ * 사업자등록증·홈택스 등 핵심 서류 (biz_docs 테이블)
+ */
+export interface BizDoc {
+  id: number;
+  business_id: number;
+  type: 'biz_reg' | 'homtax' | 'bank_book' | 'etc';
+  url: string;
+  uploaded_at: string;
+}
+
+/**
+ * 거래처 재무 행 (client_finance 테이블)
+ * 매출/매입/부가세/소득세 등 분기·연도별 적재
+ */
+export interface Finance {
+  id: number;
+  user_id: number;
+  period: string;          // '2026-1Q', '2026-Q2'
+  period_type: 'quarter' | 'half' | 'year';
+  revenue: number | null;
+  cost: number | null;
+  vat_payable: number | null;
+  income_tax: number | null;
+  taxable_income: number | null;
+  payroll_total: number | null;
+  source: 'pdf' | 'manual' | null;
+  source_file: string | null;
+}
+
+/**
+ * 거래처 메모 (memos 테이블)
+ */
+export interface Memo {
+  id: number;
+  room_id: number;
+  user_id: number;
+  body: string;
+  pinned: 0 | 1;
+  created_at: string;
+}
