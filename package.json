@@ -1,0 +1,39 @@
+{
+  "name": "sewmu-chatbot",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "세무회계 이윤 AI 세무 챗봇 + 사무실 OS",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "pages:dev": "wrangler pages dev dist --compatibility-date=2025-01-01",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.10.0",
+    "eslint-plugin-import": "^2.30.0",
+    "globals": "^15.9.0",
+    "happy-dom": "^15.0.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8",
+    "vite-plugin-static-copy": "^1.0.6",
+    "vitest": "^2.1.1",
+    "wrangler": "^3.78.0"
+  },
+  "dependencies": {
+    "nanostores": "^0.11.3"
+  }
+}

@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏢 사무실 OS — 세무회계 이윤</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* 메인 영역 톤 */
+  --of-bg:#f5f6f8; --of-card:#fff; --of-border:#e5e8eb;
+  --of-text-main:#111827; --of-text-sub:#4b5563; --of-text-mute:#8b95a1;
+
+  /* 브랜드 */
+  --of-primary:#3182f6; --of-primary-soft:#e8f3ff; --of-primary-dark:#1f6fdb;
+
+  /* 사이드바 (위멤버스 톤 다크 네이비) */
+  --sb-bg:#2b3345;
+  --sb-bg-deep:#252b3b;
+  --sb-text:#c8d0db;
+  --sb-text-mute:#7d8aa0;
+  --sb-hover:#36405a;
+  --sb-active-bg:#3d4b69;
+  --sb-active-text:#ffffff;
+  --sb-section:#909bb0;
+  --sb-divider:#3a4358;
+  --sb-cnt-bg:#1f2535;
+  --sb-cnt-text:#9ca7bc;
+
+  /* 상태·D-day */
+  --of-overdue:#dc2626; --of-today:#f04452; --of-tomorrow:#fb923c;
+  --of-week:#fbbf24; --of-later:#94a3b8;
+  --of-success:#10b981; --of-success-soft:#e0f5ec;
+  --of-warn:#fbbf24; --of-warn-soft:#fef3c7;
+  --of-danger:#dc2626; --of-danger-soft:#fee2e2;
+
+  /* 라운드·그림자 */
+  --of-r-sm:5px; --of-r-md:7px; --of-r-lg:10px;
+  --of-shadow-sm:0 1px 3px rgba(17,24,39,.06);
+  --of-shadow-md:0 4px 12px rgba(17,24,39,.08);
+  --of-shadow-lg:0 8px 28px rgba(17,24,39,.12);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{font-family:'Noto Sans KR',sans-serif;background:var(--of-bg);color:var(--of-text-main);-webkit-font-smoothing:antialiased;font-size:13px}
+body{height:100vh;overflow:hidden}
+button{font-family:inherit;cursor:pointer}
+
+/* ============== 앱 골격 ============== */
+.of-app{display:flex;height:100vh;width:100vw;overflow:hidden}
+
+/* ============== 사이드바 (다크 네이비) ============== */
+.of-sb{width:236px;flex-shrink:0;background:var(--sb-bg);color:var(--sb-text);display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.of-sb-brand{padding:16px 16px 14px;display:flex;align-items:center;gap:10px;background:var(--sb-bg-deep);border-bottom:1px solid var(--sb-divider);flex-shrink:0}
+.of-sb-brand .logo{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#3182f6,#5da3ff);display:flex;align-items:center;justify-content:center;font-size:.95em;flex-shrink:0;box-shadow:0 2px 6px rgba(49,130,246,.3)}
+.of-sb-brand .name{font-weight:800;font-size:14px;color:#fff;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.of-sb-user{padding:12px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--sb-divider);flex-shrink:0}
+.of-sb-user .avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#3182f6,#5da3ff);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+.of-sb-user .who{flex:1;min-width:0;overflow:hidden}
+.of-sb-user .who .nm{color:#fff;font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.of-sb-user .who .role{color:var(--sb-text-mute);font-size:11px;margin-top:1px}
+.of-sb-user .gear{background:transparent;border:0;color:var(--sb-text-mute);font-size:14px;padding:4px;cursor:pointer;border-radius:5px}
+.of-sb-user .gear:hover{background:var(--sb-hover);color:#fff}
+
+.of-sb-scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:8px 0 14px}
+.of-sb-scroll::-webkit-scrollbar{width:6px}
+.of-sb-scroll::-webkit-scrollbar-thumb{background:#3a4358;border-radius:3px}
+
+.of-sb-section{padding:10px 16px 4px;font-size:10.5px;font-weight:700;color:var(--sb-section);letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:6px}
+.of-sb-section .arrow{margin-left:auto;font-size:.85em;cursor:pointer;color:var(--sb-text-mute)}
+
+.of-sb-item{display:flex;align-items:center;gap:10px;padding:8px 16px;font-size:13px;color:var(--sb-text);cursor:pointer;border:0;background:transparent;width:100%;text-align:left;font-family:inherit;transition:background .12s,color .12s;border-left:3px solid transparent}
+.of-sb-item:hover{background:var(--sb-hover);color:#fff}
+.of-sb-item.on{background:var(--sb-active-bg);color:var(--sb-active-text);border-left-color:var(--of-primary);font-weight:600}
+.of-sb-item .ic{font-size:14px;width:18px;text-align:center;flex-shrink:0;opacity:.92}
+.of-sb-item .lb{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.of-sb-item .cnt{background:var(--sb-cnt-bg);color:var(--sb-cnt-text);font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;flex-shrink:0;min-width:24px;text-align:center;font-variant-numeric:tabular-nums}
+.of-sb-item.on .cnt{background:var(--of-primary);color:#fff}
+.of-sb-item .star{color:#fbbf24;font-size:11px;flex-shrink:0}
+.of-sb-item.alert .cnt{background:#7c2d12;color:#fbbf24}
+
+.of-sb-divider{height:1px;background:var(--sb-divider);margin:10px 14px}
+
+.of-sb-add{padding:8px 16px;font-size:12px;color:var(--of-primary);cursor:pointer;display:flex;align-items:center;gap:8px;font-weight:600}
+.of-sb-add:hover{background:var(--sb-hover)}
+
+.of-sb-drive{margin:6px 14px 0;padding:10px 12px;background:var(--sb-bg-deep);border-radius:7px;border:1px solid var(--sb-divider)}
+.of-sb-drive-h{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--sb-text);margin-bottom:6px;font-weight:600}
+.of-sb-drive-h .pct{color:var(--of-primary);font-weight:800;font-variant-numeric:tabular-nums}
+.of-sb-drive-bar{height:5px;background:var(--sb-divider);border-radius:3px;overflow:hidden}
+.of-sb-drive-bar .fill{height:100%;width:23%;background:linear-gradient(90deg,var(--of-primary),#5da3ff);border-radius:3px}
+.of-sb-drive-meta{font-size:10.5px;color:var(--sb-text-mute);margin-top:6px}
+
+/* 토글 (직원·세무사) */
+.of-sb-roletoggle{padding:10px 14px 4px;display:flex;gap:4px;background:var(--sb-bg-deep);border-bottom:1px solid var(--sb-divider);flex-shrink:0}
+.of-sb-roletoggle button{flex:1;background:transparent;border:1px solid var(--sb-divider);color:var(--sb-text-mute);padding:6px 4px;font-size:11px;font-weight:700;border-radius:5px}
+.of-sb-roletoggle button.on{background:var(--of-primary);color:#fff;border-color:var(--of-primary)}
+.of-sb-roletoggle button:hover:not(.on){color:#fff;border-color:var(--sb-text-mute)}
+
+/* ============== 메인 ============== */
+.of-main{flex:1;min-width:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--of-bg)}
+
+/* 메인 헤더 */
+.of-mhdr{background:var(--of-card);border-bottom:1px solid var(--of-border);padding:12px 18px;display:flex;align-items:center;gap:14px;flex-shrink:0}
+.of-mhdr-title{flex:1;min-width:0;overflow:hidden;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.of-mhdr-title h1{font-size:17px;font-weight:800;color:var(--of-text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.of-mhdr-title .sub{font-size:13px;color:var(--of-text-mute);font-weight:500}
+.of-mhdr-pills{display:flex;gap:8px;flex-shrink:0}
+.of-pill{display:inline-flex;align-items:center;gap:6px;background:var(--of-bg);border:1px solid var(--of-border);padding:6px 12px;border-radius:99px;font-size:12px;font-weight:600;color:var(--of-text-sub);white-space:nowrap;cursor:pointer;transition:all .15s}
+.of-pill:hover{background:var(--of-primary-soft);color:var(--of-primary);border-color:var(--of-primary-soft)}
+.of-pill .n{background:var(--of-danger);color:#fff;border-radius:11px;min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px;font-size:10.5px;font-weight:800}
+.of-mhdr-date{font-size:12px;color:var(--of-text-mute);font-weight:500;white-space:nowrap;flex-shrink:0;font-variant-numeric:tabular-nums}
+.of-mhdr-burger{display:none;background:transparent;border:0;font-size:18px;color:var(--of-text-sub);padding:6px 8px;border-radius:6px}
+.of-mhdr-burger:hover{background:var(--of-bg)}
+
+/* 필터 탭 */
+.of-tabs{background:var(--of-card);border-bottom:1px solid var(--of-border);padding:8px 18px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0}
+.of-tabs button{background:transparent;border:1px solid transparent;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:600;color:var(--of-text-sub);transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.of-tabs button:hover{background:var(--of-primary-soft);color:var(--of-primary)}
+.of-tabs button.on{background:var(--of-primary);color:#fff}
+.of-tabs button.on .cnt{background:rgba(255,255,255,.25);color:#fff}
+.of-tabs button .cnt{background:var(--of-bg);color:var(--of-text-mute);font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;min-width:18px;text-align:center}
+.of-tabs .sep{flex:1;min-width:8px}
+.of-tabs .search{position:relative;display:inline-flex;align-items:center}
+.of-tabs .search input{background:var(--of-bg);border:1px solid var(--of-border);border-radius:99px;padding:6px 12px 6px 30px;font-size:12px;font-family:inherit;color:var(--of-text-main);outline:none;width:200px;transition:all .15s}
+.of-tabs .search input:focus{border-color:var(--of-primary);background:var(--of-card)}
+.of-tabs .search::before{content:"🔍";position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:11px;opacity:.6}
+
+/* KPI (세무사 모드만) */
+.of-kpi-bar{display:none;padding:14px 18px;background:var(--of-card);border-bottom:1px solid var(--of-border);flex-shrink:0}
+body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
+.of-kpi-cell{flex:1;background:var(--of-bg);border-radius:var(--of-r-md);padding:12px 14px;display:flex;align-items:center;gap:10px;border-left:3px solid var(--of-primary)}
+.of-kpi-cell.processed{border-left-color:var(--of-success)}
+.of-kpi-cell.waiting{border-left-color:var(--of-primary)}
+.of-kpi-cell.blocked{border-left-color:var(--of-warn)}
+.of-kpi-cell.delayed{border-left-color:var(--of-danger)}
+.of-kpi-cell .l{font-size:11px;color:var(--of-text-mute);font-weight:600;flex:1}
+.of-kpi-cell .n{font-size:22px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.of-kpi-cell.processed .n{color:var(--of-success)}
+.of-kpi-cell.waiting .n{color:var(--of-primary)}
+.of-kpi-cell.blocked .n{color:#b45309}
+.of-kpi-cell.delayed .n{color:var(--of-danger)}
+
+/* 그리드 (엑셀 표) */
+.of-grid-wrap{flex:1;min-height:0;overflow:auto;background:var(--of-card);margin:14px 18px 18px;border:1px solid var(--of-border);border-radius:var(--of-r-md)}
+.of-grid{width:100%;border-collapse:collapse;font-size:13px}
+.of-grid thead th{background:#f9fafb;border-bottom:1px solid var(--of-border);padding:10px 14px;text-align:left;font-size:11.5px;font-weight:700;color:var(--of-text-sub);position:sticky;top:0;z-index:5;letter-spacing:.02em;white-space:nowrap}
+.of-grid thead th.checkbox{width:36px;padding-right:0}
+.of-grid thead th.sortable{cursor:pointer;user-select:none}
+.of-grid thead th.sortable::after{content:"⇅";opacity:.3;margin-left:4px;font-size:10px}
+.of-grid tbody tr{border-bottom:1px solid #f1f3f5;cursor:pointer;transition:background .12s}
+.of-grid tbody tr:hover{background:#f9fafb}
+.of-grid tbody tr.selected{background:var(--of-primary-soft)}
+.of-grid tbody tr.selected td:first-child{box-shadow:inset 3px 0 0 var(--of-primary)}
+.of-grid tbody td{padding:10px 14px;color:var(--of-text-main);font-size:13px;vertical-align:middle}
+.of-grid tbody td.checkbox{padding-right:0}
+.of-grid tbody td.checkbox input{cursor:pointer}
+.of-grid tbody td .nm{font-weight:700}
+.of-grid tbody td .priority{display:inline-block;width:18px;height:18px;border-radius:50%;font-size:10px;font-weight:800;text-align:center;line-height:18px;color:#fff;margin-right:4px;flex-shrink:0;vertical-align:middle}
+.of-grid tbody td .priority.p1{background:var(--of-danger)}
+.of-grid tbody td .priority.p2{background:var(--of-warn);color:#7c2d12}
+.of-grid tbody td .priority.p3{background:var(--of-text-mute)}
+
+/* 상태 칩 */
+.chip{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
+.chip.pending_filing{background:#fef3c7;color:#92400e}
+.chip.in_progress{background:var(--of-primary-soft);color:var(--of-primary)}
+.chip.blocked{background:var(--of-danger-soft);color:var(--of-danger)}
+.chip.waiting{background:#f1f3f5;color:#6b7684}
+.chip.done{background:var(--of-success-soft);color:var(--of-success)}
+
+/* D-day 뱃지 */
+.dday{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:800;letter-spacing:.03em;white-space:nowrap;color:#fff}
+.dday.today{background:var(--of-today)}
+.dday.overdue{background:var(--of-overdue)}
+.dday.tomorrow{background:var(--of-tomorrow)}
+.dday.week{background:var(--of-week);color:#7c2d12}
+.dday.later{background:var(--of-later)}
+.dday.none{background:#e5e8eb;color:#6b7684}
+
+.tag{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10.5px;font-weight:700;background:#f1f3f5;color:#6b7684;margin-right:3px}
+
+/* ============== 우측 슬라이드 패널 ============== */
+.of-panel-mask{position:fixed;inset:0;background:rgba(17,24,39,.32);z-index:48;opacity:0;pointer-events:none;transition:opacity .25s}
+.of-panel-mask.show{opacity:1;pointer-events:auto}
+.of-panel{position:fixed;top:0;right:0;bottom:0;width:440px;background:var(--of-card);box-shadow:var(--of-shadow-lg);z-index:50;transform:translateX(100%);transition:transform .28s cubic-bezier(.4,.0,.2,1);display:flex;flex-direction:column}
+.of-panel.open{transform:translateX(0)}
+.of-panel-hdr{padding:16px 18px 12px;border-bottom:1px solid var(--of-border);display:flex;align-items:flex-start;gap:10px;flex-shrink:0;background:linear-gradient(135deg,#fafbfc,#fff)}
+.of-panel-hdr .body{flex:1;min-width:0}
+.of-panel-hdr .nm{font-size:18px;font-weight:800;color:var(--of-text-main);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:8px}
+.of-panel-hdr .meta{font-size:12px;color:var(--of-text-mute);margin-bottom:8px}
+.of-panel-hdr .next{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--of-text-sub);background:var(--of-bg);padding:4px 10px;border-radius:99px;font-weight:600}
+.of-panel-hdr .close{background:transparent;border:0;font-size:20px;color:var(--of-text-mute);padding:4px 8px;border-radius:6px;line-height:1}
+.of-panel-hdr .close:hover{background:var(--of-bg);color:var(--of-text-main)}
+
+.of-panel-body{flex:1;overflow-y:auto;padding:0 18px 24px}
+.of-panel-sec{padding:14px 0;border-bottom:1px solid var(--of-border)}
+.of-panel-sec:last-child{border-bottom:0}
+.of-panel-sec-h{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--of-text-main);margin-bottom:10px}
+.of-panel-sec-h .more{margin-left:auto;background:transparent;border:0;color:var(--of-text-mute);font-size:11px;font-weight:600;padding:0;cursor:pointer}
+.of-panel-sec-h .more:hover{color:var(--of-primary)}
+
+/* 일정 */
+.task-row{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:13px;border-bottom:1px dashed var(--of-border)}
+.task-row:last-of-type{border-bottom:0}
+.task-row .chk{width:18px;height:18px;border:2px solid var(--of-border);border-radius:5px;flex-shrink:0;cursor:pointer;background:#fff;transition:all .15s}
+.task-row.done .chk{background:var(--of-success);border-color:var(--of-success);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+.task-row.done .chk::before{content:"✓"}
+.task-row .t{flex:1;min-width:0;color:var(--of-text-main);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-row.done .t{color:var(--of-text-mute);text-decoration:line-through}
+.task-row .dday{flex-shrink:0}
+.add-task{display:flex;gap:6px;margin-top:8px;padding:6px;background:var(--of-bg);border-radius:var(--of-r-sm);border:1px dashed var(--of-border);align-items:center}
+.add-task input{flex:1;background:transparent;border:0;outline:none;font-family:inherit;font-size:13px;color:var(--of-text-main);padding:5px 8px;min-width:0}
+.add-task input::placeholder{color:var(--of-text-mute)}
+.add-task button{background:var(--of-primary);color:#fff;border:0;padding:5px 12px;border-radius:5px;font-size:12px;font-weight:700;flex-shrink:0}
+
+/* 대화 요약 */
+.chat-row{padding:10px 12px;background:var(--of-bg);border-radius:var(--of-r-md);margin-bottom:6px;font-size:12.5px;border-left:3px solid var(--of-primary)}
+.chat-row.kakao{border-left-color:var(--of-warn)}
+.chat-row.app{border-left-color:var(--of-primary)}
+.chat-row .src{font-size:10.5px;color:var(--of-text-mute);font-weight:700;margin-bottom:3px;display:flex;justify-content:space-between}
+.chat-row .src .ch{color:var(--of-text-sub)}
+.chat-row .body{color:var(--of-text-main);line-height:1.45}
+
+/* 자료 */
+.file-row{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:12.5px;border-bottom:1px dashed var(--of-border)}
+.file-row:last-of-type{border-bottom:0}
+.file-row .ic{font-size:20px;flex-shrink:0;width:32px;height:32px;background:var(--of-bg);border-radius:6px;display:flex;align-items:center;justify-content:center}
+.file-row .b{flex:1;min-width:0}
+.file-row .b .n{color:var(--of-text-main);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-row .b .m{color:var(--of-text-mute);font-size:11px;margin-top:2px}
+.file-row .a{flex-shrink:0;font-size:11px;color:var(--of-primary);font-weight:700;text-decoration:none}
+
+/* 정보 (사업장·재무) */
+.info-row{display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px}
+.info-row .k{color:var(--of-text-mute)}
+.info-row .v{color:var(--of-text-main);font-weight:600;font-variant-numeric:tabular-nums}
+
+/* 패널 푸터 액션 */
+.of-panel-actions{flex-shrink:0;padding:12px 18px;border-top:1px solid var(--of-border);background:var(--of-bg);display:flex;gap:8px}
+.of-panel-actions button{flex:1;padding:10px;border:0;border-radius:var(--of-r-md);font-size:12px;font-weight:700}
+.of-panel-actions .primary{background:var(--of-primary);color:#fff}
+.of-panel-actions .primary:hover{background:var(--of-primary-dark)}
+.of-panel-actions .ghost{background:var(--of-card);color:var(--of-text-sub);border:1px solid var(--of-border)}
+.of-panel-actions .ghost:hover{background:var(--of-bg)}
+
+/* ============== 반응형 ============== */
+@media(max-width:1023px){
+  .of-sb{position:fixed;top:0;left:0;bottom:0;z-index:60;transform:translateX(-100%);transition:transform .25s}
+  .of-sb.open{transform:translateX(0);box-shadow:var(--of-shadow-lg)}
+  .of-mhdr-burger{display:inline-block}
+  .of-panel{width:420px}
+}
+@media(max-width:767px){
+  body{font-size:12.5px}
+  .of-mhdr{padding:10px 12px;gap:8px}
+  .of-mhdr-title h1{font-size:15px}
+  .of-mhdr-pills{display:none}
+  .of-tabs{padding:8px 12px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+  .of-tabs::-webkit-scrollbar{display:none}
+  .of-tabs .sep,.of-tabs .search{display:none}
+  .of-grid-wrap{margin:10px 12px 12px}
+  .of-grid thead th,.of-grid tbody td{padding:8px 10px;font-size:12px}
+  .of-panel{width:100%;left:0}
+  .of-kpi-bar{padding:10px 12px;flex-wrap:wrap}
+  body[data-role="boss"] .of-kpi-bar{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+}
+</style>
+</head>
+<body data-role="staff">
+
+<div class="of-app">
+
+  <!-- ======= 사이드바 ======= -->
+  <aside class="of-sb" id="sidebar">
+
+    <div class="of-sb-brand">
+      <div class="logo">🏢</div>
+      <div class="name">사무실 OS</div>
+    </div>
+
+    <div class="of-sb-roletoggle" role="tablist">
+      <button id="btnStaff" class="on" type="button">👤 직원</button>
+      <button id="btnBoss" type="button">🧑‍💼 세무사</button>
+    </div>
+
+    <div class="of-sb-user">
+      <div class="avatar" id="sbAvatar">예</div>
+      <div class="who">
+        <div class="nm" id="sbName">예슬</div>
+        <div class="role" id="sbRole">담당 직원</div>
+      </div>
+      <button class="gear" type="button" title="설정">⚙</button>
+    </div>
+
+    <div class="of-sb-scroll">
+
+      <div class="of-sb-section">거래처 <span class="arrow">▾</span></div>
+      <button class="of-sb-item on" data-filter="mine" type="button">
+        <span class="ic">📋</span><span class="lb">내 담당</span><span class="cnt">12</span>
+      </button>
+      <button class="of-sb-item" data-filter="all" type="button">
+        <span class="ic">📂</span><span class="lb">전체</span><span class="cnt">150</span>
+      </button>
+      <button class="of-sb-item" data-filter="unassigned" type="button">
+        <span class="ic">❔</span><span class="lb">미지정</span><span class="cnt">3</span>
+      </button>
+
+      <div class="of-sb-section" id="sbSecStaff">담당자별</div>
+      <div id="sbStaffList"></div>
+      <div class="of-sb-add" id="sbAddStaff" style="display:none">＋ 담당자 추가</div>
+
+      <div class="of-sb-divider"></div>
+      <button class="of-sb-item alert" type="button">
+        <span class="ic">📋</span><span class="lb">내 일정</span><span class="cnt">5</span>
+      </button>
+      <button class="of-sb-item alert" type="button">
+        <span class="ic">⚠️</span><span class="lb">막힌 일</span><span class="cnt">2</span>
+      </button>
+      <button class="of-sb-item" type="button">
+        <span class="ic">🗑️</span><span class="lb">휴지통</span><span class="cnt">3</span>
+      </button>
+
+      <div class="of-sb-divider"></div>
+      <div class="of-sb-section">자료보관</div>
+      <div class="of-sb-drive">
+        <div class="of-sb-drive-h"><span>📦 Google Drive</span><span class="pct">23%</span></div>
+        <div class="of-sb-drive-bar"><div class="fill"></div></div>
+        <div class="of-sb-drive-meta">460GB / 2TB · 오늘 +12건</div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- ======= 메인 ======= -->
+  <main class="of-main">
+
+    <header class="of-mhdr">
+      <button class="of-mhdr-burger" type="button" id="burger" aria-label="메뉴">☰</button>
+      <div class="of-mhdr-title">
+        <h1 id="mhdrTitle">거래처 조회</h1>
+        <span class="sub" id="mhdrSub">예슬 담당 12개</span>
+      </div>
+      <div class="of-mhdr-pills">
+        <span class="of-pill">📋 내 일정 <span class="n">5</span></span>
+        <span class="of-pill">🔔 <span class="n">3</span></span>
+      </div>
+      <div class="of-mhdr-date">2026-04-27 (월)</div>
+    </header>
+
+    <!-- KPI (세무사 모드만) -->
+    <div class="of-kpi-bar">
+      <div class="of-kpi-cell processed"><span class="l">처리</span><span class="n">47</span></div>
+      <div class="of-kpi-cell waiting"><span class="l">대기</span><span class="n">12</span></div>
+      <div class="of-kpi-cell blocked"><span class="l">막힘</span><span class="n">2</span></div>
+      <div class="of-kpi-cell delayed"><span class="l">지연</span><span class="n">1</span></div>
+    </div>
+
+    <!-- 필터 탭 -->
+    <div class="of-tabs">
+      <button class="on" data-status="all" type="button">전체 <span class="cnt" id="cntAll">12</span></button>
+      <button data-status="pending_filing" type="button">신고대기 <span class="cnt" id="cntPF">0</span></button>
+      <button data-status="in_progress" type="button">진행 <span class="cnt" id="cntIP">0</span></button>
+      <button data-status="blocked" type="button">막힘 <span class="cnt" id="cntBL">0</span></button>
+      <button data-status="done" type="button">완료 <span class="cnt" id="cntDN">0</span></button>
+      <span class="sep"></span>
+      <span class="search"><input type="text" id="searchBox" placeholder="거래처명·사장명 검색"></span>
+    </div>
+
+    <!-- 그리드 -->
+    <div class="of-grid-wrap">
+      <table class="of-grid">
+        <thead>
+          <tr>
+            <th class="checkbox"><input type="checkbox" aria-label="전체 선택"></th>
+            <th class="sortable">거래처명</th>
+            <th class="sortable">사장</th>
+            <th class="sortable">담당</th>
+            <th>상태</th>
+            <th>다음 신고</th>
+            <th>급박</th>
+            <th>업종</th>
+            <th>과세</th>
+          </tr>
+        </thead>
+        <tbody id="gridBody"></tbody>
+      </table>
+    </div>
+
+  </main>
+
+</div>
+
+<!-- ======= 우측 슬라이드 패널 ======= -->
+<div class="of-panel-mask" id="panelMask"></div>
+<aside class="of-panel" id="panel" aria-hidden="true">
+  <div class="of-panel-hdr">
+    <div class="body">
+      <div class="nm" id="pNm">—</div>
+      <div class="meta" id="pMeta">—</div>
+      <div class="next" id="pNext">—</div>
+    </div>
+    <button class="close" id="pClose" type="button" aria-label="닫기">✕</button>
+  </div>
+  <div class="of-panel-body" id="pBody"></div>
+  <div class="of-panel-actions">
+    <button class="ghost" type="button">💬 상담방</button>
+    <button class="ghost" type="button">📞 통화</button>
+    <button class="primary" type="button">＋ 일정</button>
+  </div>
+</aside>
+
+<script>
+/* ============================================
+   더미 데이터 (실데이터 0)
+   다음 세션 실 API 연결: /api/admin-rooms·conversations·documents·finance·biz-docs
+   사용자 입력값 렌더 시 escAttr 패턴 적용 필수
+   ============================================ */
+
+const STAFF_COUNTS={예슬:12,윤지:8,다현:7,성준:11};
+
+const CLIENTS=[
+  {id:1, name:'옆커폰',     owner:'김유남', staff:'예슬', status:'pending_filing', next:'4/29 종소세 분납',  dday:'today',    pri:1, biz:'휴대폰소매',   tax:'일반과세'},
+  {id:2, name:'디모토',     owner:'이세진', staff:'예슬', status:'in_progress',     next:'5/01 부가세 분납',  dday:'week',     pri:2, biz:'음식점',       tax:'일반과세'},
+  {id:3, name:'김미리',     owner:'김미리', staff:'예슬', status:'pending_filing', next:'4/29 원천세 신고',  dday:'tomorrow', pri:1, biz:'미용실',       tax:'간이과세'},
+  {id:4, name:'박정민',     owner:'박정민', staff:'예슬', status:'done',           next:'-',                 dday:null,       pri:3, biz:'학원',         tax:'면세'},
+  {id:5, name:'정성화',     owner:'김정성', staff:'예슬', status:'waiting',        next:'5/15 부가세',       dday:'later',    pri:3, biz:'카페',         tax:'간이과세'},
+  {id:6, name:'한솔건설',   owner:'박한솔', staff:'예슬', status:'in_progress',    next:'5/01 원천세 신고',  dday:'week',     pri:2, biz:'건설업',       tax:'일반과세'},
+  {id:7, name:'우주약국',   owner:'장우주', staff:'예슬', status:'pending_filing', next:'5/02 매입 마감',    dday:'week',     pri:1, biz:'약국',         tax:'면세'},
+  {id:8, name:'신라금속',   owner:'정신라', staff:'예슬', status:'blocked',        next:'5/03 인건비 정산',  dday:'week',     pri:2, biz:'제조업',       tax:'일반과세'},
+  {id:9, name:'명동공방',   owner:'한명동', staff:'예슬', status:'in_progress',    next:'5/03 부가세',       dday:'week',     pri:2, biz:'공방',         tax:'일반과세'},
+  {id:10,name:'동대구상사', owner:'배동훈', staff:'예슬', status:'waiting',        next:'5/04 분기 마감',    dday:'week',     pri:3, biz:'도소매',       tax:'일반과세'},
+  {id:11,name:'청림식자재', owner:'정청림', staff:'예슬', status:'in_progress',    next:'5/05 4월 신고',     dday:'later',    pri:2, biz:'식자재 도매',  tax:'일반과세'},
+  {id:12,name:'가람물류',   owner:'홍가람', staff:'예슬', status:'blocked',        next:'-',                 dday:null,       pri:3, biz:'운수업',       tax:'일반과세'}
+];
+
+const PANEL_DATA={
+  1:{
+    tasks:[
+      {id:101,title:'분납 1차 회신',dday:'today',done:false},
+      {id:102,title:'4월 매입 검토',dday:'week',done:false},
+      {id:103,title:'카톡 영수증 분류',dday:'tomorrow',done:true}
+    ],
+    chats:[
+      {ch:'카톡',cls:'kakao',when:'어제 16:08',body:'사장님: "분납 신청서 회신 부탁드립니다"'},
+      {ch:'챗봇어플',cls:'app',when:'오늘 09:42',body:'사업자등록 사본 업로드. AI 자동 분류: 사업자등록증'},
+      {ch:'카톡',cls:'kakao',when:'오늘 11:20',body:'사장님: "오늘 안에 회신 가능할까요?"'}
+    ],
+    files:[
+      {ic:'📄',name:'사업자등록증.pdf',meta:'412KB · 어제 14:20'},
+      {ic:'🗂️',name:'카톡_4-27_영수증12장.zip',meta:'8.4MB · 어제 16:08'},
+      {ic:'🖼️',name:'분납신청서_초안.jpg',meta:'1.2MB · 오늘 11:25'}
+    ],
+    biz:[
+      {k:'사업자번호',v:'651-09-03356'},
+      {k:'대표자',v:'김유남'},
+      {k:'업종',v:'휴대폰 도소매'},
+      {k:'과세유형',v:'개인 일반과세자'},
+      {k:'개업일',v:'2026-03-01'}
+    ],
+    finance:[
+      {k:'2026 1Q 매출',v:'45,800,000원'},
+      {k:'2026 1Q 매입',v:'31,200,000원'},
+      {k:'1Q 부가세',v:'1,460,000원'},
+      {k:'마지막 신고',v:'2026-04-25'}
+    ]
+  }
+};
+
+/* ============== 렌더 ============== */
+const $=id=>document.getElementById(id);
+const STATUS_LABEL={pending_filing:'신고대기',in_progress:'진행',blocked:'막힘',waiting:'대기',done:'완료'};
+const DDAY_LABEL={overdue:'지남',today:'D-DAY',tomorrow:'D-1',week:'D-3',later:'D-7+'};
+
+let currentFilter='mine';
+let currentStatus='all';
+let currentSearch='';
+let selectedRow=null;
+
+/* 사이드바 직원 목록 */
+function renderSbStaff(){
+  const isStaffMode=document.body.dataset.role==='staff';
+  const list=$('sbStaffList');
+  if(isStaffMode){
+    list.innerHTML=`
+      <button class="of-sb-item on" data-filter="staff:예슬" type="button">
+        <span class="ic">⭐</span><span class="lb">예슬</span><span class="cnt">${STAFF_COUNTS.예슬}</span>
+      </button>
+    `;
+    $('sbAddStaff').style.display='none';
+    $('sbSecStaff').firstChild.textContent='내 정보';
+  }else{
+    list.innerHTML=Object.entries(STAFF_COUNTS).map(([n,c],i)=>`
+      <button class="of-sb-item${i===0?' on':''}" data-filter="staff:${n}" type="button">
+        <span class="ic">${i===0?'⭐':'👤'}</span><span class="lb">${n}</span><span class="cnt">${c}</span>
+      </button>
+    `).join('');
+    $('sbAddStaff').style.display='flex';
+    $('sbSecStaff').firstChild.textContent='담당자별 ';
+  }
+}
+
+/* 그리드 */
+function applyFilter(){
+  let rows=CLIENTS.slice();
+  if(currentStatus!=='all') rows=rows.filter(r=>r.status===currentStatus);
+  if(currentSearch.trim()){
+    const q=currentSearch.trim().toLowerCase();
+    rows=rows.filter(r=>r.name.toLowerCase().includes(q)||r.owner.toLowerCase().includes(q));
+  }
+  return rows;
+}
+
+function renderGrid(){
+  const rows=applyFilter();
+  $('gridBody').innerHTML=rows.map(r=>`
+    <tr data-id="${r.id}">
+      <td class="checkbox"><input type="checkbox" aria-label="선택"></td>
+      <td><span class="priority p${r.pri}">${r.pri}</span><span class="nm">${r.name}</span></td>
+      <td>${r.owner}</td>
+      <td>${r.staff}</td>
+      <td><span class="chip ${r.status}">${STATUS_LABEL[r.status]}</span></td>
+      <td>${r.next}</td>
+      <td>${r.dday?`<span class="dday ${r.dday}">${DDAY_LABEL[r.dday]}</span>`:`<span class="dday none">—</span>`}</td>
+      <td><span class="tag">${r.biz}</span></td>
+      <td>${r.tax}</td>
+    </tr>
+  `).join('');
+
+  /* 카운트 */
+  $('cntAll').textContent=CLIENTS.length;
+  $('cntPF').textContent=CLIENTS.filter(r=>r.status==='pending_filing').length;
+  $('cntIP').textContent=CLIENTS.filter(r=>r.status==='in_progress').length;
+  $('cntBL').textContent=CLIENTS.filter(r=>r.status==='blocked').length;
+  $('cntDN').textContent=CLIENTS.filter(r=>r.status==='done').length;
+
+  /* 헤더 서브 텍스트 */
+  const isStaff=document.body.dataset.role==='staff';
+  $('mhdrSub').textContent=isStaff?`예슬 담당 ${rows.length}개`:`전체 ${rows.length}개`;
+}
+
+/* 패널 */
+function openPanel(id){
+  const c=CLIENTS.find(x=>x.id===id);
+  if(!c) return;
+  const data=PANEL_DATA[id]||PANEL_DATA[1]; /* 더미: 1번 데이터 재사용 */
+
+  $('pNm').innerHTML=`<span class="priority p${c.pri}" style="display:inline-block;width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:800;text-align:center;line-height:20px;color:#fff;${c.pri===1?'background:var(--of-danger)':c.pri===2?'background:var(--of-warn);color:#7c2d12':'background:var(--of-text-mute)'}">${c.pri}</span> ${c.name}`;
+  $('pMeta').textContent=`${c.owner} · ${c.biz} · ${c.tax} · 담당 ${c.staff}`;
+  $('pNext').innerHTML=`📅 다음 신고: <b style="color:var(--of-text-main);margin-left:4px">${c.next}</b>`;
+
+  $('pBody').innerHTML=`
+    <div class="of-panel-sec">
+      <div class="of-panel-sec-h">📋 일정 / 할 일 <span style="color:var(--of-text-mute);font-weight:500;font-size:11px">(${data.tasks.filter(t=>!t.done).length})</span><button class="more">전체 보기 →</button></div>
+      ${data.tasks.map(t=>`
+        <div class="task-row ${t.done?'done':''}">
+          <div class="chk"></div>
+          <div class="t">${t.title}</div>
+          ${t.dday?`<span class="dday ${t.dday}">${DDAY_LABEL[t.dday]}</span>`:''}
+        </div>
+      `).join('')}
+      <div class="add-task">
+        <input type="text" placeholder="새 일정·할 일 추가 (예: 4/30 부가세 자료 정리)">
+        <button type="button">＋</button>
+      </div>
+    </div>
+
+    <div class="of-panel-sec">
+      <div class="of-panel-sec-h">💬 최근 대화 요약 <span style="color:var(--of-text-mute);font-weight:500;font-size:11px">(AI)</span><button class="more">전체 대화 →</button></div>
+      ${data.chats.map(c=>`
+        <div class="chat-row ${c.cls}">
+          <div class="src"><span class="ch">${c.ch}</span><span>${c.when}</span></div>
+          <div class="body">${c.body}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="of-panel-sec">
+      <div class="of-panel-sec-h">📦 받은 자료 <span style="color:var(--of-text-mute);font-weight:500;font-size:11px">(Drive 자동)</span><button class="more">Drive 폴더 →</button></div>
+      ${data.files.map(f=>`
+        <div class="file-row">
+          <div class="ic">${f.ic}</div>
+          <div class="b"><div class="n">${f.name}</div><div class="m">${f.meta}</div></div>
+          <a class="a" href="https://drive.google.com" target="_blank" rel="noopener">열기</a>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="of-panel-sec">
+      <div class="of-panel-sec-h">💼 사업장 정보</div>
+      ${data.biz.map(r=>`<div class="info-row"><span class="k">${r.k}</span><span class="v">${r.v}</span></div>`).join('')}
+    </div>
+
+    <div class="of-panel-sec">
+      <div class="of-panel-sec-h">📊 최근 재무</div>
+      ${data.finance.map(r=>`<div class="info-row"><span class="k">${r.k}</span><span class="v">${r.v}</span></div>`).join('')}
+    </div>
+  `;
+
+  $('panel').classList.add('open');
+  $('panel').setAttribute('aria-hidden','false');
+  $('panelMask').classList.add('show');
+}
+
+function closePanel(){
+  $('panel').classList.remove('open');
+  $('panel').setAttribute('aria-hidden','true');
+  $('panelMask').classList.remove('show');
+  if(selectedRow){selectedRow.classList.remove('selected');selectedRow=null}
+}
+
+/* ============== 모드 토글 ============== */
+function setRole(role){
+  document.body.dataset.role=role;
+  $('btnStaff').classList.toggle('on',role==='staff');
+  $('btnBoss').classList.toggle('on',role==='boss');
+  $('sbName').textContent=role==='staff'?'예슬':'이재윤';
+  $('sbAvatar').textContent=role==='staff'?'예':'이';
+  $('sbRole').textContent=role==='staff'?'담당 직원':'세무사 (사장님)';
+  const u=new URL(location.href);
+  u.searchParams.set('role',role);
+  history.replaceState(null,'',u);
+  renderSbStaff();
+  renderGrid();
+}
+
+/* ============== 이벤트 ============== */
+$('btnStaff').addEventListener('click',()=>setRole('staff'));
+$('btnBoss').addEventListener('click',()=>setRole('boss'));
+
+document.querySelectorAll('.of-tabs button[data-status]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.of-tabs button[data-status]').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    currentStatus=b.dataset.status;
+    renderGrid();
+  });
+});
+
+$('searchBox').addEventListener('input',e=>{
+  currentSearch=e.target.value;
+  renderGrid();
+});
+
+/* 사이드바 클릭 (이벤트 위임) */
+$('sidebar').addEventListener('click',e=>{
+  const it=e.target.closest('.of-sb-item');
+  if(!it||!it.dataset.filter) return;
+  const grp=it.parentElement;
+  /* 같은 그룹 안에서만 활성 토글 (메뉴 항목 vs 담당자 항목 구분 단순화: 모두 풀어 데이터 그룹 단위로 갱신) */
+  document.querySelectorAll('.of-sb-item[data-filter^="staff:"]').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.of-sb-item[data-filter="mine"],.of-sb-item[data-filter="all"],.of-sb-item[data-filter="unassigned"]').forEach(x=>x.classList.remove('on'));
+  it.classList.add('on');
+  currentFilter=it.dataset.filter;
+  renderGrid();
+});
+
+/* 그리드 행 클릭 */
+$('gridBody').addEventListener('click',e=>{
+  if(e.target.closest('input[type="checkbox"]')) return;
+  const tr=e.target.closest('tr[data-id]');
+  if(!tr) return;
+  if(selectedRow) selectedRow.classList.remove('selected');
+  tr.classList.add('selected');
+  selectedRow=tr;
+  openPanel(parseInt(tr.dataset.id));
+});
+
+/* 패널 닫기 */
+$('pClose').addEventListener('click',closePanel);
+$('panelMask').addEventListener('click',closePanel);
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&$('panel').classList.contains('open')) closePanel();
+});
+
+/* 모바일 햄버거 */
+$('burger').addEventListener('click',()=>{
+  $('sidebar').classList.toggle('open');
+});
+document.addEventListener('click',e=>{
+  if(window.innerWidth>=1024) return;
+  if(!$('sidebar').classList.contains('open')) return;
+  if(e.target.closest('#sidebar')||e.target.closest('#burger')) return;
+  $('sidebar').classList.remove('open');
+});
+
+/* ============== 초기 ============== */
+const initRole=new URLSearchParams(location.search).get('role')==='boss'?'boss':'staff';
+setRole(initRole);
+</script>
+
+</body>
+</html>
