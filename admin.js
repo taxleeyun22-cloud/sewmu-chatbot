@@ -7270,6 +7270,8 @@ function onClientSearchInput(){
 function clearClientSearch(){
   const inp=$g('clientSearchInput'); if(inp) inp.value='';
   const x=$g('clientSearchClear'); if(x) x.style.display='none';
+  const dd=$g('clientSearchDropdown'); if(dd){ dd.style.display='none'; dd.innerHTML=''; }
+  _searchDropdownLastQ='';
   _doClientSearch();
 }
 function _doClientSearch(){
@@ -7287,7 +7289,6 @@ function _doClientSearch(){
       c.style.display = match ? '' : 'none';
       if(match) visible++;
     });
-    /* 빈 결과 메시지 (기존 .empty 가 있으면 건드리지 않고 추가 hint 만) */
     const hintId='userListSearchHint';
     let hint=$g(hintId);
     if(q && total>0 && visible===0){
@@ -7306,7 +7307,107 @@ function _doClientSearch(){
     if(bizInput){ bizInput.value=q; }
     if(typeof _renderBizList==='function') _renderBizList();
   }
+  /* 추가: 통합 드롭다운 (사용자 + 메모 + 업체) — 메모 빡센 세팅 */
+  _renderClientSearchDropdown(q);
 }
+
+/* 통합 검색 드롭다운 — admin-search API 호출 후 사용자/메모/업체 결과를 표시 */
+let _searchDropdownT=null;
+let _searchDropdownLastQ='';
+function _renderClientSearchDropdown(q){
+  const dd=$g('clientSearchDropdown'); if(!dd) return;
+  if(!q || q.length<2){ dd.style.display='none'; dd.innerHTML=''; return; }
+  if(_searchDropdownT) clearTimeout(_searchDropdownT);
+  _searchDropdownT=setTimeout(()=>_fetchSearchDropdown(q), 250);
+}
+async function _fetchSearchDropdown(q){
+  if(_searchDropdownLastQ===q) return;
+  _searchDropdownLastQ=q;
+  const dd=$g('clientSearchDropdown'); if(!dd) return;
+  dd.style.display='block';
+  dd.innerHTML='<div style="padding:14px;color:#8b95a1;font-size:.84em;text-align:center">검색 중...</div>';
+  try{
+    const r=await fetch('/api/admin-search?key='+encodeURIComponent(KEY)+'&q='+encodeURIComponent(q));
+    const d=await r.json();
+    if(_searchDropdownLastQ!==q) return;  /* 더 최신 q 입력됐으면 스킵 */
+    const users=(d.users||[]).slice(0,8);
+    const memos=(d.memos||[]).slice(0,12);
+    const businesses=(d.businesses||[]).slice(0,5);
+    const total=users.length+memos.length+businesses.length;
+    if(!total){
+      dd.innerHTML='<div style="padding:14px;color:#8b95a1;font-size:.84em;text-align:center">"'+e(q)+'" 결과 없음</div>';
+      return;
+    }
+    let html='';
+    if(users.length){
+      html+='<div style="padding:8px 12px 4px;font-size:.7em;font-weight:700;color:#8b95a1;letter-spacing:.05em;text-transform:uppercase;background:#fafbfc;border-bottom:1px solid #f3f4f6">👤 사용자 '+users.length+'명</div>';
+      html+=users.map(u=>{
+        const nm=u.real_name||u.name||'#'+u.id;
+        const sub=[u.phone||'',u.email||''].filter(Boolean).join(' · ');
+        const adminBadge=u.is_admin?' <span style="background:#8b6914;color:#fff;font-size:.66em;font-weight:700;padding:1px 5px;border-radius:99px">👑</span>':'';
+        return '<div onclick="_searchPickUser('+u.id+')" style="padding:8px 12px;border-bottom:1px solid #f3f4f6;cursor:pointer;transition:background .12s" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'\'"><div style="font-weight:700;font-size:.86em;color:#191f28">'+e(nm)+adminBadge+'</div><div style="font-size:.74em;color:#8b95a1;margin-top:1px">'+e(sub)+'</div></div>';
+      }).join('');
+    }
+    if(memos.length){
+      html+='<div style="padding:8px 12px 4px;font-size:.7em;font-weight:700;color:#8b95a1;letter-spacing:.05em;text-transform:uppercase;background:#fafbfc;border-bottom:1px solid #f3f4f6">📒 메모 '+memos.length+'건</div>';
+      const CAT_ICONS={'전화':'📞','문서':'📁','이슈':'⚠️','약속':'📅','일반':'📝'};
+      const TYPE_ICONS={'할 일':'📌','확인필요':'📌','고객요청':'📌','거래처 정보':'🏢','완료':'✅'};
+      html+=memos.map(m=>{
+        const ic=CAT_ICONS[m.category]||TYPE_ICONS[m.memo_type]||'📒';
+        const ctx=m.target_user_real_name||m.target_user_name||m.target_business_name||m.room_name||'';
+        const due=m.due_date?' · '+e(m.due_date):'';
+        const snip=String(m.content||'').slice(0,60);
+        const tagChips=Array.isArray(m.tags)&&m.tags.length?m.tags.slice(0,3).map(t=>'<span style="background:#dbeafe;color:#1e40af;font-size:.66em;font-weight:600;padding:1px 6px;border-radius:99px;margin-right:3px">#'+e(t)+'</span>').join(''):'';
+        const userId=m.target_user_id;
+        const onclick=userId?'_searchPickMemo('+userId+','+m.id+')':'';
+        const cursorStyle=userId?'cursor:pointer':'cursor:default;opacity:.7';
+        return '<div onclick="'+onclick+'" style="padding:8px 12px;border-bottom:1px solid #f3f4f6;'+cursorStyle+';transition:background .12s" onmouseover="if(this.onclick)this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'\'"><div style="display:flex;align-items:center;gap:5px;font-size:.78em"><span style="flex-shrink:0">'+ic+'</span><span style="color:#1e40af;font-weight:600">'+e(ctx)+'</span><span style="color:#8b95a1;font-size:.92em;margin-left:auto">'+e((m.created_at||'').substring(0,10))+due+'</span></div><div style="font-size:.78em;color:#191f28;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+e(snip)+(snip.length>=60?'…':'')+'</div>'+(tagChips?'<div style="margin-top:2px">'+tagChips+'</div>':'')+'</div>';
+      }).join('');
+    }
+    if(businesses.length){
+      html+='<div style="padding:8px 12px 4px;font-size:.7em;font-weight:700;color:#8b95a1;letter-spacing:.05em;text-transform:uppercase;background:#fafbfc;border-bottom:1px solid #f3f4f6">🏢 업체 '+businesses.length+'개</div>';
+      html+=businesses.map(b=>{
+        return '<div onclick="setClientTabMode(\'business\');document.getElementById(\'clientSearchDropdown\').style.display=\'none\'" style="padding:8px 12px;border-bottom:1px solid #f3f4f6;cursor:pointer;transition:background .12s" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'\'"><div style="font-weight:700;font-size:.86em;color:#191f28">'+e(b.company_name||'(이름없음)')+'</div><div style="font-size:.74em;color:#8b95a1;margin-top:1px">'+e([b.business_number||'',b.ceo_name?'대표 '+b.ceo_name:''].filter(Boolean).join(' · '))+'</div></div>';
+      }).join('');
+    }
+    dd.innerHTML=html;
+  }catch(err){
+    dd.innerHTML='<div style="padding:14px;color:#f04452;font-size:.84em">검색 오류: '+e(err.message||'')+'</div>';
+  }
+}
+
+/* 사용자 클릭 → 거래처 dashboard */
+function _searchPickUser(userId){
+  const dd=$g('clientSearchDropdown'); if(dd)dd.style.display='none';
+  if(typeof openCustomerDashboard==='function') openCustomerDashboard(Number(userId));
+}
+
+/* 메모 클릭 → 거래처 dashboard + 그 메모 highlight (1.5초) */
+function _searchPickMemo(userId, memoId){
+  const dd=$g('clientSearchDropdown'); if(dd)dd.style.display='none';
+  if(!userId) return;
+  if(typeof openCustomerDashboard==='function'){
+    openCustomerDashboard(Number(userId));
+    /* dashboard 메모 로드 후 해당 memoId 카드로 scroll + highlight */
+    setTimeout(()=>{
+      const card=document.querySelector('#cdMemoList [data-memo-id="'+memoId+'"]');
+      if(card){
+        card.scrollIntoView({behavior:'smooth', block:'center'});
+        const orig=card.style.background;
+        card.style.transition='background .25s';
+        card.style.background='#fef3c7';
+        setTimeout(()=>{ card.style.background=orig||''; }, 1500);
+      }
+    }, 1200);
+  }
+}
+
+/* 검색칸 밖 클릭 시 드롭다운 닫기 */
+document.addEventListener('click', function(e){
+  if(!e.target.closest('#clientSearchInput') && !e.target.closest('#clientSearchDropdown')){
+    const dd=document.getElementById('clientSearchDropdown'); if(dd) dd.style.display='none';
+  }
+});
 let _bizSearchT=null;
 function onBizSearchInput(){
   if(_bizSearchT)clearTimeout(_bizSearchT);

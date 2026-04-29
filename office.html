@@ -491,8 +491,16 @@ async function fetchSidebarCounts(){
       setCnt('sbUserAdmin',c.admin||0);
     }
     if(memoRes.ok){
-      const j=await memoRes.json(); const n=(j.memos||[]).length;
-      setCnt('sbCntTodo',n);
+      const j=await memoRes.json();
+      /* 사장님 명령: 카운트는 '오늘+오버듀+3일 이내' 만 (전체 X). 임박한 일만 빨간 뱃지. */
+      const today=new Date(Date.now()+9*60*60*1000); today.setHours(0,0,0,0);
+      const limit=new Date(today.getTime()+3*86400000);  /* +3일 */
+      const arr=(j.memos||[]).filter(m=>{
+        if(!m.due_date) return false;  /* 기한 없는 건 제외 */
+        const d=new Date(m.due_date+'T00:00:00+09:00');
+        return d<=limit;  /* 오버듀 + 오늘 + 3일 이내 */
+      });
+      setCnt('sbCntTodo',arr.length);
     }
     if(trashRes.ok){
       const j=await trashRes.json();

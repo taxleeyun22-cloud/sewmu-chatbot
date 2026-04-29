@@ -76,14 +76,17 @@
 
 <!-- 사용자 승인 관리 / 업체 관리 -->
 <div id="usersView" style="display:none">
-<!-- 🏢 업체 / 👤 사용자 모드 토글 + 통합 검색 (사장님 명령) -->
-<div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+<!-- 🏢 업체 / 👤 사용자 모드 토글 + 통합 검색 (사장님 명령: 사용자·업체·메모 통합) -->
+<div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:relative">
   <div style="display:flex;gap:6px;padding:4px;background:#f2f4f6;border-radius:10px;width:fit-content">
     <button id="modeBtnUser" onclick="setClientTabMode('user')" style="background:#191f28;color:#fff;border:none;padding:7px 16px;border-radius:7px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit">👤 사용자</button>
     <button id="modeBtnBiz" onclick="setClientTabMode('business')" style="background:transparent;color:#6b7280;border:none;padding:7px 16px;border-radius:7px;font-size:.82em;cursor:pointer;font-family:inherit">🏢 업체</button>
   </div>
-  <input id="clientSearchInput" type="text" placeholder="🔍 이름·전화·회사명·사업자번호 검색" oninput="onClientSearchInput()" autocomplete="off"
-    style="margin-left:auto;flex:0 1 340px;min-width:200px;padding:8px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit;outline:none;background:#fff" title="사용자(이름·닉·전화·이메일)와 업체(상호·사업자번호·대표자) 동시 검색">
+  <div style="margin-left:auto;flex:0 1 360px;min-width:220px;position:relative">
+    <input id="clientSearchInput" type="text" placeholder="🔍 사용자·업체·메모·#태그 통합 검색" oninput="onClientSearchInput()" autocomplete="off"
+      style="width:100%;padding:8px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit;outline:none;background:#fff" title="사용자(이름·전화·이메일) + 업체(상호·사업자번호) + 메모(content·#태그) 동시 검색">
+    <div id="clientSearchDropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid #e5e8eb;border-radius:10px;box-shadow:0 8px 28px rgba(17,24,39,.12);z-index:10500;max-height:480px;overflow-y:auto"></div>
+  </div>
   <button id="clientSearchClear" onclick="clearClientSearch()" style="display:none;background:#fff;color:#6b7280;border:1px solid #e5e8eb;padding:7px 12px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit" title="검색 초기화">✕</button>
 </div>
 <!-- 사용자 모드 뷰 -->
@@ -811,7 +814,7 @@
 </div>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=130"></script>
+<script src="/admin.js?v=131"></script>
 <script>
 /* ===== staff.html 전용 진입 로직 =====
    - admin.js 의 IIFE 는 pathname.endsWith('/staff.html') 이면 스킵됨
