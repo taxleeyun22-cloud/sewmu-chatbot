@@ -46,8 +46,45 @@ html,body{font-family:'Noto Sans KR',sans-serif;background:var(--of-bg);color:va
 body{height:100vh;overflow:hidden}
 button{font-family:inherit;cursor:pointer}
 
-/* ============== 앱 골격 ============== */
+/* ============== 앱 골격 (3-column: sidebar + iframe + right search) ============== */
 .of-app{display:flex;height:100vh;width:100vw;overflow:hidden}
+
+/* ============== 우측 검색·거래처 패널 ============== */
+.of-rsp{width:280px;flex-shrink:0;background:var(--of-card);border-left:1px solid var(--of-border);display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.of-rsp-h{padding:12px 14px;border-bottom:1px solid var(--of-border);background:#fafbfc;flex-shrink:0}
+.of-rsp-h .ttl{font-size:12.5px;font-weight:800;color:var(--of-text-main);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.of-rsp-h .ttl .pill{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--of-primary);background:var(--of-primary-soft);padding:2px 8px;border-radius:99px}
+.of-rsp-h .search{position:relative}
+.of-rsp-h .search input{width:100%;background:var(--of-card);border:1px solid var(--of-border);border-radius:8px;padding:7px 10px 7px 30px;font-size:12px;font-family:inherit;color:var(--of-text-main);outline:none;transition:all .15s}
+.of-rsp-h .search input:focus{border-color:var(--of-primary);box-shadow:0 0 0 3px rgba(49,130,246,.12)}
+.of-rsp-h .search::before{content:"🔍";position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:11px;opacity:.55}
+.of-rsp-tabs{display:flex;gap:4px;padding:8px 14px 0;flex-shrink:0;border-bottom:1px solid var(--of-border)}
+.of-rsp-tabs button{background:transparent;border:0;padding:6px 10px;font-size:11.5px;font-weight:700;color:var(--of-text-mute);cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
+.of-rsp-tabs button.on{color:var(--of-primary);border-bottom-color:var(--of-primary)}
+.of-rsp-list{flex:1;overflow-y:auto;padding:6px 0}
+.of-rsp-list::-webkit-scrollbar{width:5px}
+.of-rsp-list::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
+.of-rsp-row{padding:9px 14px;border-bottom:1px solid #f3f4f6;cursor:pointer;transition:background .12s;display:flex;align-items:center;gap:10px}
+.of-rsp-row:hover{background:var(--of-primary-soft)}
+.of-rsp-row .av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3182f6,#5da3ff);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0}
+.of-rsp-row.client .av{background:linear-gradient(135deg,#fbbf24,#fcd34d);color:#7c2d12}
+.of-rsp-row.admin .av{background:linear-gradient(135deg,#8b5a2b,#a78050)}
+.of-rsp-row .b{flex:1;min-width:0}
+.of-rsp-row .b .nm{font-size:12.5px;font-weight:700;color:var(--of-text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.of-rsp-row .b .meta{font-size:10.5px;color:var(--of-text-mute);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.of-rsp-row .badge{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:99px;background:#fef3c7;color:#92400e;flex-shrink:0}
+.of-rsp-row.client .badge{background:#fef3c7;color:#92400e}
+.of-rsp-row.guest .badge{background:#dcfce7;color:#166534}
+.of-rsp-row.pending .badge{background:#dbeafe;color:#1e40af}
+.of-rsp-row.admin .badge{background:#8b6914;color:#fff}
+.of-rsp-empty{padding:30px 14px;text-align:center;font-size:12px;color:var(--of-text-mute)}
+
+/* 사이드바 collapsible */
+.of-sb-section{cursor:pointer;user-select:none}
+.of-sb-section .arrow{transition:transform .18s;display:inline-block}
+.of-sb-section.collapsed .arrow{transform:rotate(-90deg)}
+.of-sb-section.collapsed + .sb-grp{display:none}
+.sb-grp{display:block}
 
 /* ============== 사이드바 (다크 네이비) ============== */
 .of-sb{width:236px;flex-shrink:0;background:var(--sb-bg);color:var(--sb-text);display:flex;flex-direction:column;height:100vh;overflow:hidden}
@@ -249,6 +286,10 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
 .of-panel-actions .ghost:hover{background:var(--of-bg)}
 
 /* ============== 반응형 ============== */
+@media(max-width:1279px){
+  /* 우측 패널은 넓을 때만 표시 (좁으면 iframe 우선) */
+  .of-rsp{display:none}
+}
 @media(max-width:1023px){
   .of-sb{position:fixed;top:0;left:0;bottom:0;z-index:60;transform:translateX(-100%);transition:transform .25s}
   .of-sb.open{transform:translateX(0);box-shadow:var(--of-shadow-lg)}
@@ -297,75 +338,84 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
 
     <div class="of-sb-scroll">
 
+      <!-- ===== 방 (상담방 + 관리자방) — 사장님 명령: 사용자 위로 ===== -->
+      <div class="of-sb-section" data-section-key="rooms">방 <span class="arrow">▾</span></div>
+      <div class="sb-grp" data-grp="rooms">
+        <button class="of-sb-item" data-admin-tab="rooms" type="button">
+          <span class="ic">💬</span><span class="lb">상담방</span>
+        </button>
+        <button class="of-sb-item" data-admin-tab="internal" type="button">
+          <span class="ic">🔐</span><span class="lb">관리자방</span>
+        </button>
+      </div>
+
       <!-- ===== 사용자 (거래처 사장) ===== -->
-      <div class="of-sb-section">사용자 <span class="arrow">▾</span></div>
-      <button class="of-sb-item" data-mode="user" data-status="pending" type="button">
-        <span class="ic">⏳</span><span class="lb">대기</span><span class="cnt" id="sbUserPending">0</span>
-      </button>
-      <button class="of-sb-item" data-mode="user" data-status="approved_client" type="button">
-        <span class="ic">⭐</span><span class="lb">기장거래처</span><span class="cnt" id="sbUserClient">0</span>
-      </button>
-      <button class="of-sb-item" data-mode="user" data-status="approved_guest" type="button">
-        <span class="ic">✓</span><span class="lb">일반승인</span><span class="cnt" id="sbUserGuest">0</span>
-      </button>
-      <button class="of-sb-item" data-mode="user" data-status="rejected" type="button">
-        <span class="ic">✕</span><span class="lb">거절</span><span class="cnt" id="sbUserRejected">0</span>
-      </button>
-      <button class="of-sb-item" data-mode="user" data-status="terminated" type="button">
-        <span class="ic">⛔</span><span class="lb">종료</span><span class="cnt" id="sbUserTerminated">0</span>
-      </button>
-      <button class="of-sb-item" data-mode="user" data-status="admin" type="button">
-        <span class="ic">👑</span><span class="lb">관리자</span><span class="cnt" id="sbUserAdmin">0</span>
-      </button>
+      <div class="of-sb-section" data-section-key="users">사용자 <span class="arrow">▾</span></div>
+      <div class="sb-grp" data-grp="users">
+        <button class="of-sb-item" data-mode="user" data-status="pending" type="button">
+          <span class="ic">⏳</span><span class="lb">대기</span><span class="cnt" id="sbUserPending">0</span>
+        </button>
+        <button class="of-sb-item" data-mode="user" data-status="approved_client" type="button">
+          <span class="ic">⭐</span><span class="lb">기장거래처</span><span class="cnt" id="sbUserClient">0</span>
+        </button>
+        <button class="of-sb-item" data-mode="user" data-status="approved_guest" type="button">
+          <span class="ic">✓</span><span class="lb">일반승인</span><span class="cnt" id="sbUserGuest">0</span>
+        </button>
+        <button class="of-sb-item" data-mode="user" data-status="rejected" type="button">
+          <span class="ic">✕</span><span class="lb">거절</span><span class="cnt" id="sbUserRejected">0</span>
+        </button>
+        <button class="of-sb-item" data-mode="user" data-status="terminated" type="button">
+          <span class="ic">⛔</span><span class="lb">종료</span><span class="cnt" id="sbUserTerminated">0</span>
+        </button>
+        <button class="of-sb-item" data-mode="user" data-status="admin" type="button">
+          <span class="ic">👑</span><span class="lb">관리자</span><span class="cnt" id="sbUserAdmin">0</span>
+        </button>
+      </div>
 
-      <!-- 업체 카테고리 제거 — admin 거래처 탭에 이미 '사용자/업체' 모드 토글 있어서 중복.
-           업체 모드 보려면 사용자 카테고리 클릭 후 iframe 안 '🏢 업체' 버튼 사용 -->
+      <!-- ===== 담당자별 ===== -->
+      <div class="of-sb-section" id="sbSecStaff" data-section-key="staff">담당자별 <span class="arrow">▾</span></div>
+      <div class="sb-grp" data-grp="staff">
+        <div id="sbStaffList"></div>
+        <div class="of-sb-add" id="sbAddStaff" style="display:none">＋ 담당자 추가</div>
+      </div>
 
-      <div class="of-sb-section" id="sbSecStaff">담당자별</div>
-      <div id="sbStaffList"></div>
-      <div class="of-sb-add" id="sbAddStaff" style="display:none">＋ 담당자 추가</div>
+      <div class="of-sb-divider"></div>
+
+      <!-- ===== 관리 (실시간/문서/분석/검증/FAQ) — 상담방·관리자방 은 위 '방' 섹션으로 이동 ===== -->
+      <div class="of-sb-section" data-section-key="admin">관리 <span class="arrow">▾</span></div>
+      <div class="sb-grp" data-grp="admin">
+        <button class="of-sb-item" data-admin-tab="live" type="button">
+          <span class="ic">📡</span><span class="lb">실시간</span>
+        </button>
+        <button class="of-sb-item" data-admin-tab="docs" type="button">
+          <span class="ic">📄</span><span class="lb">문서</span>
+        </button>
+        <button class="of-sb-item" data-admin-tab="anal" type="button">
+          <span class="ic">📊</span><span class="lb">분석</span>
+        </button>
+        <button class="of-sb-item" data-admin-tab="review" type="button">
+          <span class="ic">✓</span><span class="lb">검증</span>
+        </button>
+        <button class="of-sb-item" data-admin-tab="faq" type="button">
+          <span class="ic">📚</span><span class="lb">FAQ</span>
+        </button>
+      </div>
 
       <div class="of-sb-divider"></div>
 
-      <!-- ===== 관리 (admin 기능 임베드) ===== -->
-      <div class="of-sb-section">관리 <span class="arrow">▾</span></div>
-      <button class="of-sb-item" data-admin-tab="rooms" type="button">
-        <span class="ic">💬</span><span class="lb">상담방</span>
-      </button>
-      <button class="of-sb-item" data-admin-tab="live" type="button">
-        <span class="ic">📡</span><span class="lb">실시간</span>
-      </button>
-      <button class="of-sb-item" data-admin-tab="internal" type="button">
-        <span class="ic">🔐</span><span class="lb">관리자방</span>
-      </button>
-      <button class="of-sb-item" data-admin-tab="docs" type="button">
-        <span class="ic">📄</span><span class="lb">문서</span>
-      </button>
-      <button class="of-sb-item" data-admin-tab="anal" type="button">
-        <span class="ic">📊</span><span class="lb">분석</span>
-      </button>
-      <button class="of-sb-item" data-admin-tab="review" type="button">
-        <span class="ic">✓</span><span class="lb">검증</span>
-      </button>
-      <button class="of-sb-item" data-admin-tab="faq" type="button">
-        <span class="ic">📚</span><span class="lb">FAQ</span>
-      </button>
-
-      <div class="of-sb-divider"></div>
-      <button class="of-sb-item alert" type="button">
-        <span class="ic">📋</span><span class="lb">내 일정</span><span class="cnt" id="sbCntTodo">0</span>
-      </button>
-      <button class="of-sb-item alert" type="button">
-        <span class="ic">⚠️</span><span class="lb">막힌 일</span><span class="cnt" id="sbCntBlocked">0</span>
-      </button>
-      <button class="of-sb-item" type="button" id="sbTrashBtn">
-        <span class="ic">🗑️</span><span class="lb">휴지통</span><span class="cnt" id="sbCntTrash">0</span>
-      </button>
-
-      <!-- Drive 통계: R2 사용량 API 미구현이라 일단 숨김 -->
-      <!-- <div class="of-sb-divider"></div>
-      <div class="of-sb-section">자료보관</div>
-      <div class="of-sb-drive">...</div> -->
+      <!-- ===== 알림 ===== -->
+      <div class="of-sb-section" data-section-key="alerts">알림 <span class="arrow">▾</span></div>
+      <div class="sb-grp" data-grp="alerts">
+        <button class="of-sb-item alert" type="button" id="sbMyTodosBtn">
+          <span class="ic">📋</span><span class="lb">내 일정</span><span class="cnt" id="sbCntTodo">0</span>
+        </button>
+        <button class="of-sb-item alert" type="button" id="sbTermReqBtn">
+          <span class="ic">⚠️</span><span class="lb">종료 요청</span><span class="cnt" id="sbCntTermReq">0</span>
+        </button>
+        <button class="of-sb-item" type="button" id="sbTrashBtn">
+          <span class="ic">🗑️</span><span class="lb">휴지통</span><span class="cnt" id="sbCntTrash">0</span>
+        </button>
+      </div>
 
     </div>
   </aside>
@@ -374,6 +424,26 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
   <main class="of-main">
     <iframe id="adminFrame" src="/admin.html?embedded=1" style="flex:1;width:100%;border:0;background:var(--of-bg);min-height:0"></iframe>
   </main>
+
+  <!-- ======= 우측 검색·거래처 패널 (사장님 명령: 언제든 메모/거래처 전환) ======= -->
+  <aside class="of-rsp" id="rsp">
+    <div class="of-rsp-h">
+      <div class="ttl">🔍 빠른 거래처 <span class="pill" id="rspCount">0</span></div>
+      <div class="search">
+        <input id="rspSearch" type="text" placeholder="이름·전화·회사명 검색" autocomplete="off">
+      </div>
+    </div>
+    <div class="of-rsp-tabs" id="rspTabs">
+      <button data-rsp-tab="all" class="on" type="button">전체</button>
+      <button data-rsp-tab="approved_client" type="button">⭐기장</button>
+      <button data-rsp-tab="approved_guest" type="button">일반</button>
+      <button data-rsp-tab="pending" type="button">대기</button>
+      <button data-rsp-tab="admin" type="button">👑관리자</button>
+    </div>
+    <div class="of-rsp-list" id="rspList">
+      <div class="of-rsp-empty">불러오는 중...</div>
+    </div>
+  </aside>
 
 </div>
 
@@ -451,10 +521,11 @@ async function fetchRoomLabels(){
 async function fetchSidebarCounts(){
   /* ADMIN_KEY 없어도 cookie (사장님 카카오 로그인) 로 인증 통과 가능 — credentials:'include' */
   try{
-    const [apprRes,memoRes,trashRes]=await Promise.all([
+    const [apprRes,memoRes,trashRes,termRes]=await Promise.all([
       fetch('/api/admin-approve?status=pending'+authQSAmp(),{credentials:'include'}),
       fetch('/api/memos?scope=my&only_mine=1'+authQSAmp(),{credentials:'include'}),
-      fetch('/api/memos?scope=trash_count'+authQSAmp(),{credentials:'include'})
+      fetch('/api/memos?scope=trash_count'+authQSAmp(),{credentials:'include'}),
+      fetch('/api/admin-termination-requests?status=pending'+authQSAmp(),{credentials:'include'}).catch(()=>null)
     ]);
     if(apprRes.ok){
       const j=await apprRes.json(); const c=j.counts||{};
@@ -473,8 +544,128 @@ async function fetchSidebarCounts(){
       const j=await trashRes.json();
       setCnt('sbCntTrash',j.count||0);
     }
+    if(termRes && termRes.ok){
+      try{ const j=await termRes.json(); setCnt('sbCntTermReq',(j.requests||[]).length||0); }catch(_){}
+    }
   }catch(_){}
 }
+
+/* ===== 우측 검색·거래처 패널 ===== */
+const RSP={ users:[], filter:'all', q:'' };
+
+async function fetchRspUsers(){
+  /* admin-approve 는 status=all 시 is_admin=1 제외 → admin 도 별도 fetch 후 머지 */
+  try{
+    const [allRes,adminRes]=await Promise.all([
+      fetch('/api/admin-approve?status=all'+authQSAmp(),{credentials:'include'}),
+      fetch('/api/admin-approve?status=admin'+authQSAmp(),{credentials:'include'})
+    ]);
+    let merged=[];
+    if(allRes.ok){
+      const j=await allRes.json();
+      merged=merged.concat(j.users||[]);
+    }
+    if(adminRes.ok){
+      const j=await adminRes.json();
+      merged=merged.concat(j.users||[]);
+    }
+    /* dedupe by id */
+    const seen=new Set();
+    const dedup=[];
+    for(const u of merged){
+      if(seen.has(u.id)) continue;
+      seen.add(u.id);
+      dedup.push(u);
+    }
+    RSP.users=dedup.map(u=>({
+      id:u.id,
+      name:u.real_name||u.name||('user#'+u.id),
+      phone:u.phone||'',
+      email:u.email||'',
+      company:u.company_name||'',
+      status:u.approval_status||'',
+      is_admin:u.is_admin?1:0
+    }));
+    renderRsp();
+  }catch(_){ renderRsp(); }
+}
+
+function renderRsp(){
+  const list=$('rspList'); if(!list) return;
+  const q=(RSP.q||'').toLowerCase().trim();
+  let arr=RSP.users.slice();
+  if(RSP.filter==='admin') arr=arr.filter(u=>u.is_admin===1);
+  else if(RSP.filter!=='all') arr=arr.filter(u=>u.status===RSP.filter);
+  if(q) arr=arr.filter(u=>(u.name||'').toLowerCase().includes(q)||(u.phone||'').includes(q)||(u.email||'').toLowerCase().includes(q)||(u.company||'').toLowerCase().includes(q));
+  /* 정렬: 기장거래처 → 일반 → 대기 → 거절·종료 */
+  const order={approved_client:0,approved_guest:1,pending:2,admin:3,rejected:4,terminated:5};
+  arr.sort((a,b)=>(order[a.status]??9)-(order[b.status]??9)||a.name.localeCompare(b.name,'ko'));
+  if($('rspCount')) $('rspCount').textContent=arr.length;
+  if(!arr.length){ list.innerHTML='<div class="of-rsp-empty">결과 없음</div>'; return; }
+  const STBADGE={approved_client:'⭐기장',approved_guest:'일반',pending:'대기',rejected:'거절',terminated:'종료',admin:'👑관리자'};
+  const CLS={approved_client:'client',approved_guest:'guest',pending:'pending',admin:'admin'};
+  list.innerHTML=arr.slice(0,200).map(u=>{
+    const cls=u.is_admin===1?'admin':(CLS[u.status]||'');
+    const initial=(u.name||'?').charAt(0);
+    const meta=[u.company||'',u.phone||''].filter(Boolean).join(' · ')||(u.email||'-');
+    const badge=u.is_admin===1?'👑관리자':(STBADGE[u.status]||'');
+    return `<div class="of-rsp-row ${cls}" data-uid="${u.id}" data-name="${escAttr(u.name)}">
+      <div class="av">${escAttr(initial)}</div>
+      <div class="b">
+        <div class="nm">${escAttr(u.name)}</div>
+        <div class="meta">${escAttr(meta)}</div>
+      </div>
+      ${badge?`<div class="badge">${escAttr(badge)}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+/* 우측 패널 클릭 → admin iframe 의 거래처 dashboard 모달 */
+$('rspList')?.addEventListener('click',e=>{
+  const row=e.target.closest('.of-rsp-row'); if(!row) return;
+  const uid=parseInt(row.dataset.uid,10); if(!uid) return;
+  const nm=row.dataset.name||'';
+  callAdmin('openCustomerDashboard',uid,nm);
+});
+
+/* 우측 패널 검색 input */
+$('rspSearch')?.addEventListener('input',e=>{ RSP.q=e.target.value||''; renderRsp(); });
+
+/* 우측 패널 탭 */
+$('rspTabs')?.addEventListener('click',e=>{
+  const b=e.target.closest('button[data-rsp-tab]'); if(!b) return;
+  document.querySelectorAll('#rspTabs button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  RSP.filter=b.dataset.rspTab||'all';
+  renderRsp();
+});
+
+/* ===== Collapsible 사이드바 섹션 ===== */
+const COLLAPSE_KEY='office_collapsed_sections_v1';
+function loadCollapsed(){
+  try{ return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY)||'[]')); }
+  catch(_){ return new Set(); }
+}
+function saveCollapsed(set){
+  try{ localStorage.setItem(COLLAPSE_KEY,JSON.stringify(Array.from(set))); }catch(_){}
+}
+function applyCollapsed(){
+  const set=loadCollapsed();
+  document.querySelectorAll('.of-sb-section[data-section-key]').forEach(sec=>{
+    const k=sec.dataset.sectionKey;
+    if(set.has(k)) sec.classList.add('collapsed');
+    else sec.classList.remove('collapsed');
+  });
+}
+document.querySelectorAll('.of-sb-section[data-section-key]').forEach(sec=>{
+  sec.addEventListener('click',()=>{
+    const k=sec.dataset.sectionKey;
+    const set=loadCollapsed();
+    if(set.has(k)){ set.delete(k); sec.classList.remove('collapsed'); }
+    else{ set.add(k); sec.classList.add('collapsed'); }
+    saveCollapsed(set);
+  });
+});
 
 function renderSbStaff(){
   const list=$('sbStaffList'); if(!list) return;
@@ -582,8 +773,19 @@ $('sidebar')?.addEventListener('click',e=>{
   }
 });
 
+/* 알림 버튼 → admin iframe 모달 */
+$('sbMyTodosBtn')?.addEventListener('click',(e)=>{
+  e.stopPropagation();
+  callAdmin('openMyTodos');
+});
+$('sbTermReqBtn')?.addEventListener('click',(e)=>{
+  e.stopPropagation();
+  callAdmin('openTerminationRequests');
+});
+
 /* 휴지통 alert */
-$('sbTrashBtn')?.addEventListener('click',()=>{
+$('sbTrashBtn')?.addEventListener('click',(e)=>{
+  e.stopPropagation();
   const cnt=$('sbCntTrash')?.textContent||'0';
   alert(`휴지통 ${cnt}건. 보기·복원·영구삭제 화면은 후속 페이즈.`);
 });
@@ -601,14 +803,30 @@ document.addEventListener('click',e=>{
 /* ===== 부트스트랩 ===== */
 setRole('boss');
 renderHeaderDate();
+applyCollapsed();
 (async ()=>{
   try{
     await Promise.all([fetchCurrentUser(),fetchRoomLabels()]);
     setRole('boss');
     renderSbStaff();
-    await fetchSidebarCounts();
+    await Promise.all([fetchSidebarCounts(),fetchRspUsers()]);
   }catch(e){ console.error('[boot]',e); }
 })();
+
+/* iframe 안에서 status 변경 (승인·거절·종료·관리자 토글) 후 사이드바·우측 패널 동기화 */
+window.addEventListener('message',e=>{
+  if(!e.data||typeof e.data!=='object') return;
+  if(e.data.type==='admin:userStatusChanged'||e.data.type==='admin:roomLabelChanged'){
+    fetchSidebarCounts();
+    fetchRspUsers();
+    if(e.data.type==='admin:roomLabelChanged') fetchRoomLabels().then(renderSbStaff);
+  }
+});
+
+/* iframe 모달 열고 닫힐 때마다 사이드바 카운트 폴링 (간단). 1분마다 자동 갱신 */
+setInterval(()=>{
+  if(document.visibilityState==='visible') fetchSidebarCounts();
+},60000);
 
 /* 헤더 / 알림 등 admin 의 hdr 안 버튼들 직접 호출 매핑 (관리 카테고리에 추가 가능) */
 window.officeOpenSearch=()=>callAdmin('openSearch');

@@ -41,7 +41,14 @@ export async function checkAdmin(context) {
       WHERE s.token = ? AND s.expires_at > datetime('now')
     `).bind(m[1]).first();
     if (row && row.is_admin) {
-      return { ok: true, owner: false, userId: row.user_id };
+      // 사장님(이재윤, user_id=1) cookie 로그인도 owner 권한 부여.
+      // 이전: cookie 경로는 항상 owner=false → 사장님이 카톡 로그인만 한 상태에서
+      //   '👑 관리자 해제', '거래처 종료', 'set_admin' 등 owner 전용 액션 모두 403 으로 차단됨.
+      // 사장님 보고 (2026-04-29): "권한 해제가 안되네"
+      // 해결: user_id=1 + is_admin=1 동시 만족 시 cookie 경로에서도 owner=true.
+      // 보안: user_id=1 은 첫 가입자(사장님) 로 코드 전반에서 확정 (admin.js / office.html 동일 가정).
+      const isOwner = Number(row.user_id) === 1;
+      return { ok: true, owner: isOwner, userId: row.user_id };
     }
   } catch {}
   return null;
