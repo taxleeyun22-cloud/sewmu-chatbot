@@ -579,11 +579,12 @@ async function fetchPanelData(id){
 }
 
 async function addBusinessTodo(businessId,content){
-  if(!ADMIN_KEY||!businessId||!content||!content.trim()) return false;
+  if(!ADMIN_KEY||!businessId||!content||!content.trim()){
+    return { ok:false, error:'입력 또는 인증 누락' };
+  }
   try{
     const r=await fetch('/api/memos?key='+encodeURIComponent(ADMIN_KEY),{
       method:'POST',
-      credentials:'omit',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         target_business_id:businessId,
@@ -591,12 +592,15 @@ async function addBusinessTodo(businessId,content){
         content:content.trim()
       })
     });
-    if(!r.ok) return false;
-    /* 캐시 무효화 후 패널 재로드 */
+    const txt=await r.text();
+    let j=null; try{ j=JSON.parse(txt); }catch(_){}
+    if(!r.ok || !j || j.ok===false){
+      return { ok:false, status:r.status, error:(j&&j.error)||txt||('HTTP '+r.status) };
+    }
     BIZ_CACHE.delete(businessId);
-    return true;
-  }catch(_){
-    return false;
+    return { ok:true, id:j.id };
+  }catch(e){
+    return { ok:false, error:String(e&&e.message||e)||'네트워크 오류' };
   }
 }
 
@@ -883,6 +887,7 @@ function renderPanelBody(payload){
         <input type="text" id="pAddTaskInput" placeholder="새 할 일 추가 (Enter 로 저장)">
         <button type="button" id="pAddTaskBtn">＋</button>
       </div>
+      <div id="pAddTaskErr" style="display:none;padding:6px 16px 8px;color:#dc2626;font-size:12px;line-height:1.4"></div>
     </div>
 
     <div class="of-panel-sec">
@@ -924,33 +929,44 @@ function renderPanelBody(payload){
   /* 할 일 추가 wiring (현재 패널의 거래처 id 는 selectedRow 에서 가져옴) */
   const inp=document.getElementById('pAddTaskInput');
   const btn=document.getElementById('pAddTaskBtn');
+  const errBox=document.getElementById('pAddTaskErr');
+  const showErr=msg=>{
+    if(errBox){ errBox.textContent=msg||''; errBox.style.display=msg?'block':'none'; }
+  };
   const submit=async()=>{
     if(!inp||!btn) return;
     const txt=inp.value;
+    if(!txt.trim()){ showErr('내용을 입력해 주세요.'); return; }
     const rowId=selectedRow&&parseInt(selectedRow.dataset.id);
-    if(!rowId||!txt.trim()) return;
+    if(!rowId){ showErr('거래처가 선택되지 않았습니다.'); return; }
+    showErr('');
     btn.disabled=true; btn.textContent='…';
-    const ok=await addBusinessTodo(rowId,txt);
-    if(ok){
+    const res=await addBusinessTodo(rowId,txt);
+    btn.disabled=false; btn.textContent='＋';
+    if(res.ok){
       inp.value='';
-      /* 캐시 무효화됨 → 새로 fetch 해서 패널 재렌더 */
       const fresh=await fetchPanelData(rowId);
       if(selectedRow && parseInt(selectedRow.dataset.id)===rowId) renderPanelBody(fresh);
     }else{
-      btn.textContent='⚠️';
-      setTimeout(()=>{ if(btn) btn.textContent='＋'; },1500);
+      console.error('[addBusinessTodo]',res);
+      showErr('추가 실패: '+(res.error||'')+(res.status?' (HTTP '+res.status+')':''));
     }
-    btn.disabled=false;
-    if(btn.textContent==='…') btn.textContent='＋';
   };
   if(btn) btn.addEventListener('click',submit);
-  if(inp) inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); submit(); } });
+  if(inp) inp.addEventListener('keydown',e=>{
+    /* 한글 IME composition 중 Enter 는 무시 */
+    if(e.key==='Enter' && !e.isComposing && e.keyCode!==229){ e.preventDefault(); submit(); }
+  });
 
-  /* 상담방 클릭 → admin.html 의 해당 방으로 점프 (ADMIN_KEY 보유 시에만 의미 있음) */
+  /* 상담방 클릭 → admin.html 의 해당 방을 새 창(popup) 으로 열기.
+     admin.js 의 popupBoot 가 ?popup=1&room=ID 를 인식해 자동 진입함. */
   document.querySelectorAll('#pBody .chat-row[data-room-id]').forEach(el=>{
     el.addEventListener('click',()=>{
       const rid=el.dataset.roomId;
-      if(rid) location.href='/admin.html#room='+encodeURIComponent(rid);
+      if(!rid) return;
+      const url='/admin.html?popup=1&room='+encodeURIComponent(rid);
+      const w=window.open(url,'sewmuRoom_'+rid,'width=420,height=720');
+      if(!w){ /* 팝업 차단 시 같은 탭으로 폴백 */ location.href=url; }
     });
   });
 }
