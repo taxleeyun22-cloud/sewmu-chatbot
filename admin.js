@@ -7316,7 +7316,10 @@ let _searchDropdownT=null;
 let _searchDropdownLastQ='';
 function _renderClientSearchDropdown(q){
   const dd=$g('clientSearchDropdown'); if(!dd) return;
-  if(!q || q.length<2){ dd.style.display='none'; dd.innerHTML=''; return; }
+  /* 한글 1자 ('박', '김' 등 성씨) 도 검색 허용. 영문/숫자만 2자 이상 요구. */
+  const isKorean = /[가-힣]/.test(q);
+  const minLen = isKorean ? 1 : 2;
+  if(!q || q.length<minLen){ dd.style.display='none'; dd.innerHTML=''; return; }
   if(_searchDropdownT) clearTimeout(_searchDropdownT);
   _searchDropdownT=setTimeout(()=>_fetchSearchDropdown(q), 250);
 }
