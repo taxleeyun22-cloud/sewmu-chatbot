@@ -68,22 +68,47 @@ export async function onRequestGet(context) {
     } catch {}
 
     // 5) 메모 — content 검색 + 메모가 박힌 위치(room/user/business) 컨텍스트 JOIN
+    //    메모 빡센 세팅 (2026-04-29): category, tags, attachments 같이 반환 + tag 필터 지원
+    const tagParam = (url.searchParams.get('tag') || '').trim();
+    const categoryParam = (url.searchParams.get('category') || '').trim();
     let memosR = { results: [] };
     try {
-      memosR = await db.prepare(`
-        SELECT m.id, m.room_id, m.target_user_id, m.target_business_id,
-               m.memo_type, m.content, m.due_date, m.author_name, m.created_at,
-               r.name AS room_name,
-               u.real_name AS target_user_real_name, u.name AS target_user_name,
-               b.company_name AS target_business_name
-          FROM memos m
-          LEFT JOIN chat_rooms r ON m.room_id = r.id AND m.room_id != '__none__'
-          LEFT JOIN users u ON m.target_user_id = u.id
-          LEFT JOIN businesses b ON m.target_business_id = b.id
-         WHERE m.deleted_at IS NULL AND m.content LIKE ?
-         ORDER BY m.created_at DESC
-         LIMIT 30
-      `).bind(pat).all();
+      const memoWhere = [`m.deleted_at IS NULL`];
+      const memoBinds = [];
+      /* 검색어가 있으면 content + tags JSON 둘 다 LIKE */
+      if (q) {
+        memoWhere.push(`(m.content LIKE ? OR m.tags LIKE ?)`);
+        memoBinds.push(pat, pat);
+      }
+      if (tagParam) {
+        const tagStr = tagParam.slice(0, 50);
+        memoWhere.push(`(m.tags IS NOT NULL AND (m.tags LIKE ? OR m.tags LIKE ? OR m.tags LIKE ? OR m.tags = ?))`);
+        memoBinds.push(`%"${tagStr}"%`, `%"${tagStr}",%`, `%,"${tagStr}"%`, `["${tagStr}"]`);
+      }
+      if (categoryParam) {
+        memoWhere.push(`m.category = ?`);
+        memoBinds.push(categoryParam.slice(0, 30));
+      }
+      const sql = `SELECT m.id, m.room_id, m.target_user_id, m.target_business_id,
+                          m.memo_type, m.content, m.due_date, m.author_name, m.created_at,
+                          m.category, m.tags, m.attachments,
+                          r.name AS room_name,
+                          u.real_name AS target_user_real_name, u.name AS target_user_name,
+                          b.company_name AS target_business_name
+                     FROM memos m
+                     LEFT JOIN chat_rooms r ON m.room_id = r.id AND m.room_id != '__none__'
+                     LEFT JOIN users u ON m.target_user_id = u.id
+                     LEFT JOIN businesses b ON m.target_business_id = b.id
+                    WHERE ${memoWhere.join(' AND ')}
+                    ORDER BY m.created_at DESC
+                    LIMIT 30`;
+      memosR = await db.prepare(sql).bind(...memoBinds).all();
+      /* tags / attachments JSON parse */
+      memosR.results = (memosR.results || []).map(r => ({
+        ...r,
+        tags: r.tags ? (function(){ try { return JSON.parse(r.tags); } catch { return []; } })() : [],
+        attachments: r.attachments ? (function(){ try { return JSON.parse(r.attachments); } catch { return []; } })() : [],
+      }));
     } catch {}
 
     // 6) 사업장 (회사명/사업자번호/대표자명)

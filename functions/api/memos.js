@@ -20,8 +20,55 @@ const LEGACY_MAP = {
   '참고': '거래처 정보',
 };
 
+/* 카테고리 5종 (사장님 명령: 메모 빡센 세팅) — 세무 워크플로 분류
+   📞 전화 / 📁 문서 / ⚠️ 이슈 / 📅 약속 / 📝 일반
+   memo_type 과 직교 — type 은 할 일/완료/거래처 정보, category 는 일의 성격 */
+const ALLOWED_CATEGORIES = ['전화', '문서', '이슈', '약속', '일반', null];
+
 function kst() {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+}
+
+/* content 안의 #해시태그 자동 추출. 한글·영문·숫자·언더스코어 매칭 */
+function extractTags(content) {
+  if (!content) return [];
+  const matches = String(content).match(/#[\w가-힣]+/g) || [];
+  const tags = matches.map(m => m.slice(1)).filter(Boolean);
+  return Array.from(new Set(tags));  /* unique */
+}
+
+/* tags 입력값 (string|array|null) 을 JSON string 또는 null 로 정규화 + content 의 #태그 자동 머지 */
+function normalizeTags(tagsInput, content) {
+  let tags = [];
+  if (Array.isArray(tagsInput)) tags = tagsInput;
+  else if (typeof tagsInput === 'string' && tagsInput.trim()) {
+    try { tags = JSON.parse(tagsInput); if (!Array.isArray(tags)) tags = []; }
+    catch { tags = String(tagsInput).split(',').map(s=>s.trim()).filter(Boolean); }
+  }
+  /* content 의 #태그 머지 */
+  const fromContent = extractTags(content);
+  const merged = Array.from(new Set([...tags, ...fromContent].map(t => String(t).trim()).filter(Boolean)));
+  return merged.length ? JSON.stringify(merged) : null;
+}
+
+/* attachments 입력값 (array of {key,name,size,mime}) → JSON string 또는 null */
+function normalizeAttachments(input) {
+  if (!input) return null;
+  let arr = input;
+  if (typeof input === 'string') {
+    try { arr = JSON.parse(input); } catch { return null; }
+  }
+  if (!Array.isArray(arr)) return null;
+  /* 각 항목 검증 + sanitize */
+  const safe = arr.filter(a => a && typeof a === 'object' && a.key)
+    .slice(0, 10)  /* max 10 첨부 */
+    .map(a => ({
+      key: String(a.key).slice(0, 200),
+      name: String(a.name || '').slice(0, 200),
+      size: Number(a.size) || 0,
+      mime: String(a.mime || '').slice(0, 100),
+    }));
+  return safe.length ? JSON.stringify(safe) : null;
 }
 
 async function ensureTable(db) {
@@ -63,9 +110,19 @@ async function ensureTable(db) {
   /* 거래처(업체) 단위 영구 메모 — Phase 3 (사람 ⊃ 거래처 ⊃ 상담방) 계층 */
   try { await db.prepare(`ALTER TABLE memos ADD COLUMN target_business_id INTEGER`).run(); } catch {}
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_memos_target_biz ON memos(target_business_id, memo_type)`).run(); } catch {}
+  /* 메모 빡센 세팅 (2026-04-29 사장님 명령): 카테고리 / 태그 / 첨부 */
+  try { await db.prepare(`ALTER TABLE memos ADD COLUMN category TEXT`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE memos ADD COLUMN tags TEXT`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE memos ADD COLUMN attachments TEXT`).run(); } catch {}
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_memos_target_user_all ON memos(target_user_id, created_at DESC)`).run(); } catch {}
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_memos_category ON memos(category, created_at DESC)`).run(); } catch {}
 }
 
 function validDate(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')); }
+
+function safeParseJson(str) {
+  try { const v = JSON.parse(str); return v; } catch { return null; }
+}
 
 export async function onRequestGet(context) {
   const auth = await checkAdmin(context);
@@ -97,12 +154,51 @@ export async function onRequestGet(context) {
     try {
       const { results } = await db.prepare(
         `SELECT id, target_user_id, author_user_id, author_name, memo_type, content, is_edited,
-                due_date, linked_message_id, filing_type, filing_period, created_at, updated_at
+                due_date, linked_message_id, filing_type, filing_period, category, tags, attachments,
+                created_at, updated_at
            FROM memos
           WHERE target_user_id = ? AND memo_type = '거래처 정보' AND deleted_at IS NULL
           ORDER BY created_at DESC LIMIT 100`
       ).bind(userIdParam).all();
       return Response.json({ ok: true, memos: results || [], types: NEW_TYPES });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
+  /* === 거래처 통합 메모 (한 거래처의 모든 메모: 할 일+거래처 정보+완료) — 메모 빡센 세팅 ===
+     사장님 명령: cdCustomerInfo 영역 통합 메모로. 카테고리·태그 필터 지원. */
+  if (scope === 'customer_all') {
+    if (!userIdParam) return Response.json({ error: "user_id required" }, { status: 400 });
+    const category = url.searchParams.get('category');
+    const tag = url.searchParams.get('tag');
+    try {
+      const where = [`target_user_id = ?`, `deleted_at IS NULL`];
+      const binds = [userIdParam];
+      if (category && ALLOWED_CATEGORIES.includes(category)) {
+        where.push(`category = ?`); binds.push(category);
+      }
+      if (tag) {
+        /* JSON LIKE — exact key match in array */
+        where.push(`(tags IS NOT NULL AND (tags LIKE ? OR tags LIKE ? OR tags LIKE ? OR tags = ?))`);
+        const tagStr = String(tag).slice(0, 50);
+        binds.push(`%"${tagStr}"%`, `%"${tagStr}",%`, `%,"${tagStr}"%`, `["${tagStr}"]`);
+      }
+      const sql = `SELECT id, target_user_id, target_business_id, room_id, author_user_id, author_name,
+                          assigned_to_user_id, memo_type, content, is_edited,
+                          due_date, linked_message_id, filing_type, filing_period,
+                          category, tags, attachments, created_at, updated_at
+                     FROM memos
+                    WHERE ${where.join(' AND ')}
+                    ORDER BY created_at DESC LIMIT 200`;
+      const { results } = await db.prepare(sql).bind(...binds).all();
+      const normalized = (results || []).map(r => ({
+        ...r,
+        memo_type_display: LEGACY_MAP[r.memo_type] || r.memo_type,
+        tags: r.tags ? safeParseJson(r.tags) : [],
+        attachments: r.attachments ? safeParseJson(r.attachments) : [],
+      }));
+      return Response.json({ ok: true, memos: normalized, types: NEW_TYPES, categories: ALLOWED_CATEGORIES.filter(Boolean) });
     } catch (e) {
       return Response.json({ error: e.message }, { status: 500 });
     }
@@ -163,6 +259,7 @@ export async function onRequestGet(context) {
       const sql = `SELECT m.id, m.room_id, m.target_business_id, m.target_user_id,
                           m.author_user_id, m.author_name, m.assigned_to_user_id,
                           m.memo_type, m.content, m.is_edited, m.due_date, m.linked_message_id,
+                          m.category, m.tags, m.attachments,
                           m.created_at, m.updated_at,
                           r.name AS room_name
                      FROM memos m
@@ -179,6 +276,8 @@ export async function onRequestGet(context) {
       const normalized = (results || []).map(r => ({
         ...r,
         memo_type_display: LEGACY_MAP[r.memo_type] || r.memo_type,
+        tags: r.tags ? safeParseJson(r.tags) : [],
+        attachments: r.attachments ? safeParseJson(r.attachments) : [],
       }));
       return Response.json({ ok: true, memos: normalized, types: NEW_TYPES, scope: 'my' });
     } catch (e) {
@@ -192,7 +291,7 @@ export async function onRequestGet(context) {
   try {
     const { results } = await db.prepare(
       `SELECT id, room_id, author_user_id, author_name, assigned_to_user_id, memo_type, content, is_edited,
-              due_date, linked_message_id, created_at, updated_at
+              due_date, linked_message_id, category, tags, attachments, created_at, updated_at
          FROM memos
         WHERE room_id = ? AND deleted_at IS NULL
         ORDER BY
@@ -206,6 +305,8 @@ export async function onRequestGet(context) {
     const normalized = (results || []).map(r => ({
       ...r,
       memo_type_display: LEGACY_MAP[r.memo_type] || r.memo_type,
+      tags: r.tags ? safeParseJson(r.tags) : [],
+      attachments: r.attachments ? safeParseJson(r.attachments) : [],
     }));
     return Response.json({ ok: true, memos: normalized, types: NEW_TYPES });
   } catch (e) {
@@ -259,16 +360,21 @@ export async function onRequestPost(context) {
   /* target_business_id: 거래처(업체) 단위 영구 메모 저장 대상. body 에서 직접 받음. */
   const targetBusinessId = body.target_business_id ? Number(body.target_business_id) : null;
 
+  /* 메모 빡센 세팅 — 카테고리 / 태그 / 첨부 */
+  const category = ALLOWED_CATEGORIES.includes(body.category) ? (body.category || null) : null;
+  const tags = normalizeTags(body.tags, content);  /* content #태그 자동 추출 + 머지 */
+  const attachments = normalizeAttachments(body.attachments);
+
   const authorUserId = auth.userId || null;
   const authorName = auth.name || auth.realName || (auth.owner ? '대표' : '담당자');
 
   const now = kst();
   try {
     const r = await db.prepare(
-      `INSERT INTO memos (room_id, target_user_id, target_business_id, author_user_id, author_name, assigned_to_user_id, memo_type, content, visibility, is_edited, due_date, linked_message_id, filing_type, filing_period, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'internal', 0, ?, ?, ?, ?, ?, ?)`
-    ).bind(roomId, targetUserId, targetBusinessId, authorUserId, authorName, assignedToUserId, memoType, content, dueDate, linkedMsgId, filingType, filingPeriod, now, now).run();
-    return Response.json({ ok: true, id: r.meta?.last_row_id || null });
+      `INSERT INTO memos (room_id, target_user_id, target_business_id, author_user_id, author_name, assigned_to_user_id, memo_type, content, visibility, is_edited, due_date, linked_message_id, filing_type, filing_period, category, tags, attachments, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'internal', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(roomId, targetUserId, targetBusinessId, authorUserId, authorName, assignedToUserId, memoType, content, dueDate, linkedMsgId, filingType, filingPeriod, category, tags, attachments, now, now).run();
+    return Response.json({ ok: true, id: r.meta?.last_row_id || null, tags: tags ? safeParseJson(tags) : [] });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
@@ -338,6 +444,29 @@ export async function onRequestPatch(context) {
   }
   if (body.filing_period !== undefined) {
     fields.push('filing_period = ?'); binds.push(body.filing_period ? String(body.filing_period).slice(0,30) : null);
+  }
+  if (body.category !== undefined) {
+    if (body.category === null || body.category === '') {
+      fields.push('category = NULL');
+    } else if (ALLOWED_CATEGORIES.includes(body.category)) {
+      fields.push('category = ?'); binds.push(body.category);
+    } else return Response.json({ error: "invalid category" }, { status: 400 });
+  }
+  if (body.tags !== undefined) {
+    /* content 가 같이 변경되면 그것도 다시 #태그 추출 */
+    const contentForTags = body.content !== undefined ? String(body.content || '') : '';
+    const norm = normalizeTags(body.tags, contentForTags);
+    if (norm === null) fields.push('tags = NULL');
+    else { fields.push('tags = ?'); binds.push(norm); }
+  } else if (body.content !== undefined) {
+    /* tags 명시 안 했어도 content 변경되면 #태그 자동 재추출 */
+    const norm = normalizeTags([], body.content);
+    if (norm) { fields.push('tags = ?'); binds.push(norm); }
+  }
+  if (body.attachments !== undefined) {
+    const norm = normalizeAttachments(body.attachments);
+    if (norm === null) fields.push('attachments = NULL');
+    else { fields.push('attachments = ?'); binds.push(norm); }
   }
   if (!fields.length) return Response.json({ error: "nothing to update" }, { status: 400 });
   /* content 수정 시에만 is_edited=1. memo_type·due_date 단독 변경은 상태 전환이지 수정 아님 */

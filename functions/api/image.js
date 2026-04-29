@@ -3,6 +3,9 @@
 // - R2 키는 CSPRNG 기반 랜덤이라 URL 추측 사실상 불가 (업로드 라우트에서 crypto.randomUUID 사용)
 // - 키 포맷 regex로 path traversal·기형 키 차단
 // - nosniff + no-referrer 적용
+// - memos/ prefix (메모 첨부 이미지) 는 관리자 인증 필수
+
+import { checkAdmin } from "./_adminAuth.js";
 
 const KEY_RE = /^[A-Za-z0-9_.\-\/]{1,256}$/;
 
@@ -14,6 +17,12 @@ export async function onRequestGet(context) {
   const key = url.searchParams.get("k") || "";
   if (!key || !KEY_RE.test(key) || key.includes("..")) {
     return new Response("bad key", { status: 400 });
+  }
+
+  /* 메모 첨부 이미지는 관리자만 (거래처 자료 보호) */
+  if (key.startsWith('memos/')) {
+    const auth = await checkAdmin(context);
+    if (!auth) return new Response("Unauthorized", { status: 401 });
   }
 
   try {

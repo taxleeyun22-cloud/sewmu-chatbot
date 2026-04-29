@@ -4,6 +4,9 @@
 // - R2 키는 CSPRNG 랜덤 (업로드 라우트) → 추측 불가
 // - 키 regex로 path traversal 차단
 // - 파일명은 제어문자·경로 구분자 제거 후 Content-Disposition 세팅
+// - memos/ prefix (메모 첨부) 는 관리자 인증 필수 — 거래처 민감 자료 보호
+
+import { checkAdmin } from "./_adminAuth.js";
 
 const KEY_RE = /^[A-Za-z0-9_.\-\/]{1,256}$/;
 
@@ -22,6 +25,13 @@ export async function onRequestGet(context) {
   if (!key || !KEY_RE.test(key) || key.includes("..")) {
     return new Response("bad key", { status: 400 });
   }
+
+  /* 메모 첨부는 관리자만 접근 가능 (사업자등록증·영수증 등 민감 자료) */
+  if (key.startsWith('memos/')) {
+    const auth = await checkAdmin(context);
+    if (!auth) return new Response("Unauthorized", { status: 401 });
+  }
+
   const name = sanitizeDownloadName(nameRaw);
 
   try {
