@@ -1912,13 +1912,21 @@ renderGridHeader();
 renderSortIndicators();
 setLiveBadge('connecting');
 
-/* ME + 라벨 먼저 fetch 끝난 뒤 → 데이터 fetch — STAFF_COUNTS 채워진 상태에서 그리드/사이드바 렌더 */
-Promise.all([fetchCurrentUser(), fetchRoomLabels()]).then(()=>{
-  setRole('boss');           /* ME 반영해서 다시 그림 */
-  renderSbStaff();           /* 라벨 동적 표시 */
-  fetchClients();             /* 거래처 fetch */
-  fetchHeaderBadges();        /* 헤더 사이드바 카운트 */
-});
+/* 명시적 순서: 1) ME + 라벨 먼저 (STAFF_COUNTS 채움) 2) 사이드바 렌더 3) 거래처/헤더 fetch */
+(async ()=>{
+  try{
+    await Promise.all([fetchCurrentUser(), fetchRoomLabels()]);
+    console.log('[boot] STAFF_COUNTS after labels:', JSON.stringify(STAFF_COUNTS));
+    setRole('boss');
+    renderSbStaff();
+    await fetchClients();
+    await fetchHeaderBadges();
+    console.log('[boot] all done. STAFF_COUNTS:', JSON.stringify(STAFF_COUNTS));
+    renderSbStaff();  /* 한 번 더 (recomputeStaffCounts 갱신값 반영) */
+  }catch(e){
+    console.error('[boot] error', e);
+  }
+})();
 </script>
 
 </body>
