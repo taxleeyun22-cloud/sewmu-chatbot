@@ -318,14 +318,8 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
         <span class="ic">👑</span><span class="lb">관리자</span><span class="cnt" id="sbUserAdmin">0</span>
       </button>
 
-      <!-- ===== 업체 ===== -->
-      <div class="of-sb-section">업체 <span class="arrow">▾</span></div>
-      <button class="of-sb-item on" data-mode="business" data-filter="all" type="button">
-        <span class="ic">🏢</span><span class="lb">전체</span><span class="cnt" id="sbCntAll">0</span>
-      </button>
-      <button class="of-sb-item" data-mode="business" data-filter="unassigned" type="button">
-        <span class="ic">❔</span><span class="lb">미지정</span><span class="cnt" id="sbCntUnassigned">0</span>
-      </button>
+      <!-- 업체 카테고리 제거 — admin 거래처 탭에 이미 '사용자/업체' 모드 토글 있어서 중복.
+           업체 모드 보려면 사용자 카테고리 클릭 후 iframe 안 '🏢 업체' 버튼 사용 -->
 
       <div class="of-sb-section" id="sbSecStaff">담당자별</div>
       <div id="sbStaffList"></div>
