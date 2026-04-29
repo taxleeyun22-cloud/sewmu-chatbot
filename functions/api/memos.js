@@ -75,9 +75,21 @@ export async function onRequestGet(context) {
   await ensureTable(db);
 
   const url = new URL(context.request.url);
-  const scope = url.searchParams.get("scope");  // 'my' 전체 할일 | 'customer_info' 거래처 영구메모
+  const scope = url.searchParams.get("scope");  // 'my' 전체 할일 | 'customer_info' 거래처 영구메모 | 'trash_count'
   const roomId = url.searchParams.get("room_id");
   const userIdParam = Number(url.searchParams.get("user_id") || 0);
+
+  /* === 휴지통 카운트 (deleted_at IS NOT NULL) === */
+  if (scope === 'trash_count') {
+    try {
+      const r = await db.prepare(
+        `SELECT COUNT(*) AS c FROM memos WHERE deleted_at IS NOT NULL`
+      ).first();
+      return Response.json({ ok: true, count: r?.c || 0 });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
 
   /* === 거래처 정보 메모 (영구·user_id 기반) === */
   if (scope === 'customer_info') {

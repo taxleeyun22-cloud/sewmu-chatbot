@@ -320,7 +320,9 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
       <button class="of-sb-item alert" type="button">
         <span class="ic">⚠️</span><span class="lb">막힌 일</span><span class="cnt" id="sbCntBlocked">0</span>
       </button>
-      <!-- 휴지통: 후속 페이즈에서 구현 (memos deleted_at 카운트 별 endpoint 필요) -->
+      <button class="of-sb-item" type="button" id="sbTrashBtn">
+        <span class="ic">🗑️</span><span class="lb">휴지통</span><span class="cnt" id="sbCntTrash">0</span>
+      </button>
 
       <!-- Drive 통계: R2 사용량 API 미구현이라 일단 숨김 -->
       <!-- <div class="of-sb-divider"></div>
@@ -387,7 +389,6 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
             <th class="sortable" data-sort-key="owner">대표자</th>
             <th class="sortable" data-sort-key="staff">담당</th>
             <th class="sortable" data-sort-key="status">상태</th>
-            <th class="sortable" data-sort-key="next">다음 신고</th>
             <th class="sortable" data-sort-key="dday">급박</th>
             <th class="sortable" data-sort-key="biz">업종</th>
             <th class="sortable" data-sort-key="tax">과세</th>
@@ -729,9 +730,10 @@ async function fetchHeaderBadges(){
   if(!ADMIN_KEY) return;
   const k=encodeURIComponent(ADMIN_KEY);
   try{
-    const [memoRes,apprRes]=await Promise.all([
+    const [memoRes,apprRes,trashRes]=await Promise.all([
       fetch('/api/memos?scope=my&only_mine=1&key='+k,{credentials:'omit'}),
-      fetch('/api/admin-approve?status=pending&key='+k,{credentials:'omit'})
+      fetch('/api/admin-approve?status=pending&key='+k,{credentials:'omit'}),
+      fetch('/api/memos?scope=trash_count&key='+k,{credentials:'omit'})
     ]);
     let todoN=0, memos=[];
     if(memoRes.ok){
@@ -746,6 +748,13 @@ async function fetchHeaderBadges(){
       try{
         const j=await apprRes.json();
         pendingN=(j.counts&&j.counts.pending)||0;
+      }catch(_){}
+    }
+    let trashN=0;
+    if(trashRes.ok){
+      try{
+        const j=await trashRes.json();
+        trashN=j.count||0;
       }catch(_){}
     }
     /* 거래처별 가장 가까운 due_date 매핑 */
@@ -769,6 +778,7 @@ async function fetchHeaderBadges(){
     set('hdrAlertN',pendingN);
     set('sbCntTodo',todoN);
     set('sbCntBlocked',CLIENTS.filter(c=>c.status==='blocked').length);
+    set('sbCntTrash',trashN);
     if(changed){ renderGrid(); renderKpi(); }
   }catch(_){}
 }
@@ -797,7 +807,7 @@ function renderEmptyState(reason){
   const body=document.getElementById('gridBody');
   if(!body) return;
   body.innerHTML=`
-    <tr><td colspan="9" style="padding:60px 20px;text-align:center;color:var(--of-text-mute)">
+    <tr><td colspan="8" style="padding:60px 20px;text-align:center;color:var(--of-text-mute)">
       <div style="font-size:36px;margin-bottom:12px">${msg.ic}</div>
       <div style="font-weight:700;color:var(--of-text-main);margin-bottom:4px">${msg.h}</div>
       ${msg.s?`<div style="font-size:12px">${msg.s}</div>`:''}
@@ -928,7 +938,7 @@ function renderGrid(){
       s='필터·탭을 바꾸거나 전체로 돌아가 주세요.';
     }
     $('gridBody').innerHTML=`
-      <tr><td colspan="9" style="padding:60px 20px;text-align:center;color:var(--of-text-mute)">
+      <tr><td colspan="8" style="padding:60px 20px;text-align:center;color:var(--of-text-mute)">
         <div style="font-size:36px;margin-bottom:12px">${ic}</div>
         <div style="font-weight:700;color:var(--of-text-main);margin-bottom:4px">${h}</div>
         ${s?`<div style="font-size:12px">${s}</div>`:''}
@@ -942,7 +952,6 @@ function renderGrid(){
         <td>${escAttr(r.owner)}</td>
         <td>${escAttr(r.staff)}</td>
         <td><span class="chip ${r.status}">${STATUS_LABEL[r.status]}</span></td>
-        <td>${escAttr(r.next)}</td>
         <td>${r.dday?`<span class="dday ${r.dday}">${DDAY_LABEL[r.dday]}</span>`:`<span class="dday none">—</span>`}</td>
         <td><span class="tag">${escAttr(r.biz)}</span></td>
         <td>${escAttr(r.tax)}</td>
@@ -1273,6 +1282,15 @@ document.querySelectorAll('.of-tabs button[data-status]').forEach(b=>{
 document.querySelectorAll('.of-kpi-cell[data-jump-status]').forEach(cell=>{
   cell.addEventListener('click',()=>jumpToTab(cell.dataset.jumpStatus));
 });
+
+/* 휴지통 클릭 — 보기 화면은 후속 페이즈, 일단 안내만 */
+const trashBtn=document.getElementById('sbTrashBtn');
+if(trashBtn){
+  trashBtn.addEventListener('click',()=>{
+    const cnt=document.getElementById('sbCntTrash')?.textContent||'0';
+    alert(`휴지통에 ${cnt}건 있습니다. 보기·복원·영구삭제 화면은 후속 페이즈에서 추가됩니다.`);
+  });
+}
 
 /* 그리드 thead 정렬 클릭 — asc → desc → off */
 document.querySelectorAll('.of-grid thead th[data-sort-key]').forEach(th=>{
