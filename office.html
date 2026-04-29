@@ -456,6 +456,7 @@ let STAFF_COUNTS={예슬:0,윤지:0,다현:0,성준:0};
 let CLIENTS=[];
 
 const ADMIN_KEY=(typeof sessionStorage!=='undefined' && sessionStorage.getItem('admin_key'))||'';
+let ME=null; /* /api/auth/me 응답의 user 객체. 로그인 안 된 상태면 null. */
 const BIZ_CACHE=new Map(); /* key=business_id -> { business, members, rooms, financeSummary, schedule } */
 const ROOMS_BY_BIZ=new Map(); /* key=business_id -> rooms[] (admin-rooms 목록 응답에서 추출, last_msg_at/preview 포함) */
 const ROOM_SUMMARY_CACHE=new Map(); /* key=room_id -> { summary, ts } */
@@ -622,6 +623,16 @@ async function setUserAdmin(userId, flag){
     const j=await r.json().catch(()=>null);
     return { ok: r.ok && j && j.ok!==false, error: j&&j.error };
   }catch(e){ return { ok:false, error:String(e&&e.message) }; }
+}
+
+async function fetchCurrentUser(){
+  /* /api/auth/me — 세션 쿠키 기반 본인 정보. 로그인 안 됐으면 ME=null 유지 */
+  try{
+    const r=await fetch('/api/auth/me',{credentials:'include'});
+    const j=await r.json();
+    if(j && j.logged_in && j.user){ ME=j.user; }
+  }catch(_){}
+  return ME;
 }
 
 async function fetchUserPanelData(userId){
@@ -1619,9 +1630,25 @@ function setRole(role){
   document.body.dataset.role=role;
   $('btnStaff').classList.toggle('on',role==='staff');
   $('btnBoss').classList.toggle('on',role==='boss');
-  $('sbName').textContent=role==='staff'?'예슬':'이재윤';
-  $('sbAvatar').textContent=role==='staff'?'예':'이';
-  $('sbRole').textContent=role==='staff'?'담당 직원':'세무사 (사장님)';
+  /* 로그인된 본인 정보 우선 — ME 가 채워졌으면 그걸 표시.
+     아직 fetch 전이거나 로그인 안 됐으면 일시 폴백 (재호출 시 ME 적용됨) */
+  if(ME){
+    const name = ME.real_name || ME.name || '관리자';
+    $('sbName').textContent = name;
+    $('sbAvatar').textContent = name.charAt(0);
+    /* role 표시 — boss 모드는 사장님(id=1) 본인이면 '세무사 (사장님)', 아니면 '관리자(시뮬)'.
+       staff 모드는 '담당 직원' 통일. Stage C 에서 staff_role 컬럼으로 정밀화 예정. */
+    if(role==='staff'){
+      $('sbRole').textContent='담당 직원';
+    }else{
+      $('sbRole').textContent = (ME.id===1) ? '세무사 (사장님)' : '관리자';
+    }
+  }else{
+    /* fallback (로그인 안 됨 또는 ADMIN_KEY 만 있는 상태) — owner 가정 */
+    $('sbName').textContent=role==='staff'?'직원':'이재윤';
+    $('sbAvatar').textContent=role==='staff'?'직':'이';
+    $('sbRole').textContent=role==='staff'?'담당 직원':'세무사 (사장님)';
+  }
   const u=new URL(location.href);
   u.searchParams.set('role',role);
   history.replaceState(null,'',u);
@@ -1830,12 +1857,29 @@ document.addEventListener('click',e=>{
 });
 
 /* ============== 초기 ============== */
-const initRole=new URLSearchParams(location.search).get('role')==='boss'?'boss':'staff';
+const _qsRole=new URLSearchParams(location.search).get('role');
+const initRole = _qsRole==='boss'||_qsRole==='staff' ? _qsRole : 'staff'; /* 로그인 ME 받은 후 재결정 */
 setRole(initRole);
 renderHeaderDate();
 renderGridHeader(); /* 초기 mode='business' 헤더 세팅 — 정렬 + 전체 선택 핸들러 attach */
 renderSortIndicators();
 setLiveBadge(ADMIN_KEY?'connecting':'offline');
+
+/* 로그인된 본인 정보 fetch — 끝나면 사이드바 사용자 표시 갱신 */
+fetchCurrentUser().then(()=>{
+  if(!ME) return;
+  /* URL 에 role 명시 안 됐고 사장님(id=1) 본인이면 자동 boss 모드 */
+  if(!_qsRole && ME.id===1){
+    setRole('boss');
+    const u=new URL(location.href);
+    u.searchParams.set('role','boss');
+    history.replaceState(null,'',u);
+  }else{
+    /* 그대로 유지 — ME 정보로 sbName 등만 갱신 */
+    setRole(document.body.dataset.role);
+  }
+});
+
 if(ADMIN_KEY){
   fetchClients();
   fetchHeaderBadges();
