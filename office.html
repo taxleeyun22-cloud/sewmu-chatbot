@@ -19,7 +19,7 @@
 <!-- 로그인 -->
 <div class="login" id="loginView">
 <div class="login-box">
-<h1>🏢 사무실 OS</h1>
+<h1>관리자</h1>
 <p>세무회계 이윤 챗봇 관리</p>
 <input type="password" id="keyInput" placeholder="관리자 키" onkeydown="if(event.key==='Enter')login()">
 <button onclick="login()">로그인</button>
@@ -30,7 +30,7 @@
 <!-- 메인 -->
 <div class="wrap" id="mainView" style="display:none">
 <div class="hdr">
-<h1>🏢 사무실 OS</h1>
+<h1>관리자</h1>
 <div class="tabs">
 <button class="on" id="tabChat" onclick="tab('chat')">대화</button>
 <button id="tabLive" onclick="tab('live')" style="position:relative">📡 실시간<span id="liveBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
@@ -48,7 +48,7 @@
 <button class="logout" onclick="openSearch()" title="전역 검색">🔍 검색</button>
 <button id="pcNotifyBtn" class="logout" onclick="togglePcNotify()" title="PC 알림 (새 고객 메시지 알림)">🔕 알림</button>
 <a href="javascript:void(0)" class="logout" style="text-decoration:none;cursor:pointer" title="카톡 세션 로그아웃 후 챗봇 페이지로 — 관리자가 자기 계정에 얽매이지 않게" onclick="goToChatbotAsAdmin()">🏠 챗봇</a>
-<!-- 사무실 OS 링크 — 자기 자신이라 숨김 (제목 헤더에 이미 표시됨) -->
+<a href="/office.html?role=boss" class="logout" style="text-decoration:none;cursor:pointer" title="사무실 OS — 거래처 중심 CRM (Phase 2 진행 중)">🏢 사무실 OS</a>
 <button class="logout" onclick="logout()">로그아웃</button>
 </div>
 
@@ -1103,57 +1103,6 @@
 @media(max-width:1023px){
   #memoModal.side-dock,#custSidePanel.side-dock{background:rgba(0,0,0,.3) !important;pointer-events:auto;align-items:flex-end !important;justify-content:center !important;padding:0 !important}
   #memoModal.side-dock .memo-panel,#custSidePanel.side-dock .memo-panel{pointer-events:auto;width:100% !important;max-width:100% !important;height:78vh !important;max-height:78vh !important;border-radius:16px 16px 0 0 !important;box-shadow:0 -8px 22px rgba(0,0,0,.18);margin:0 !important}
-}
-
-/* === 사무실 OS 톤 오버라이드 (위멤버스 다크 네이비 헤더 + 회색 배경) === */
-body{background:#f5f6f8 !important}
-.hdr{
-  background:#2b3345 !important;
-  color:#fff !important;
-  padding:10px 16px !important;
-  border-bottom:1px solid #1f2533 !important;
-  box-shadow:0 1px 0 rgba(0,0,0,.05);
-}
-.hdr h1{
-  color:#fff !important;
-  font-size:1.05em !important;
-  margin:0 12px 0 0 !important;
-  font-weight:700 !important;
-  letter-spacing:.2px;
-  white-space:nowrap;
-}
-.hdr .tabs button{
-  background:transparent !important;
-  color:rgba(255,255,255,.78) !important;
-  border:1px solid transparent !important;
-  font-weight:500;
-}
-.hdr .tabs button:hover{
-  background:rgba(255,255,255,.08) !important;
-  color:#fff !important;
-}
-.hdr .tabs button.on{
-  background:#3182f6 !important;
-  color:#fff !important;
-  font-weight:700;
-  border-color:#3182f6 !important;
-}
-.hdr .logout{
-  background:rgba(255,255,255,.08) !important;
-  color:rgba(255,255,255,.85) !important;
-  border:1px solid rgba(255,255,255,.12) !important;
-  border-radius:8px !important;
-  padding:6px 12px !important;
-  font-size:.78em !important;
-  font-weight:500 !important;
-}
-.hdr .logout:hover{
-  background:rgba(255,255,255,.16) !important;
-  color:#fff !important;
-}
-.wrap{
-  max-width:1480px !important;
-  background:#f5f6f8 !important;
 }
 </style>
 <!-- 📢 단체발송 모달 -->
