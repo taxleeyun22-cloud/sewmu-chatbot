@@ -300,13 +300,13 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
 
       <div class="of-sb-section">거래처 <span class="arrow">▾</span></div>
       <button class="of-sb-item on" data-filter="mine" type="button">
-        <span class="ic">📋</span><span class="lb">내 담당</span><span class="cnt">12</span>
+        <span class="ic">📋</span><span class="lb">내 담당</span><span class="cnt" id="sbCntMine">0</span>
       </button>
       <button class="of-sb-item" data-filter="all" type="button">
-        <span class="ic">📂</span><span class="lb">전체</span><span class="cnt">150</span>
+        <span class="ic">📂</span><span class="lb">전체</span><span class="cnt" id="sbCntAll">0</span>
       </button>
       <button class="of-sb-item" data-filter="unassigned" type="button">
-        <span class="ic">❔</span><span class="lb">미지정</span><span class="cnt">3</span>
+        <span class="ic">❔</span><span class="lb">미지정</span><span class="cnt" id="sbCntUnassigned">0</span>
       </button>
 
       <div class="of-sb-section" id="sbSecStaff">담당자별</div>
@@ -548,9 +548,11 @@ async function fetchClients(){
       }catch(_){}
     }
     CLIENTS=(bizData.businesses||[]).map(b=>mapBusinessToClient(b,roomMetaMap.get(b.id)));
+    recomputeStaffCounts();
     setLiveBadge('live');
     renderSbStaff();
     renderGrid();
+    renderSbCounts();
   }catch(_){
     setLiveBadge('error');
     renderEmptyState('error');
@@ -598,6 +600,29 @@ function setLiveBadge(state){
   el.textContent=cfg.t;
   el.style.background=cfg.bg;
   el.style.color=cfg.fg;
+}
+
+function recomputeStaffCounts(){
+  /* CLIENTS 의 staff 필드 → STAFF_COUNTS 자동 집계.
+     기본 4명(예슬/윤지/다현/성준) 기준으로 0 초기화 후 카운팅. 알 수 없는 staff 는 무시 */
+  STAFF_COUNTS={예슬:0,윤지:0,다현:0,성준:0};
+  for(const c of CLIENTS){
+    if(c.staff && c.staff!=='—' && (c.staff in STAFF_COUNTS)){
+      STAFF_COUNTS[c.staff]+=1;
+    }
+  }
+}
+
+function renderSbCounts(){
+  /* 사이드바 거래처 메뉴 카운트 (전체 / 내 담당 / 미지정) */
+  const all=CLIENTS.length;
+  const mineKey=document.body.dataset.role==='staff'?'예슬':null; /* boss 는 전체를 '내 담당' 으로 — 사장님 입장 */
+  const mine=mineKey?CLIENTS.filter(c=>c.staff===mineKey).length:all;
+  const unassigned=CLIENTS.filter(c=>!c.staff||c.staff==='—').length;
+  const $=document.getElementById.bind(document);
+  if($('sbCntAll')) $('sbCntAll').textContent=all;
+  if($('sbCntMine')) $('sbCntMine').textContent=mine;
+  if($('sbCntUnassigned')) $('sbCntUnassigned').textContent=unassigned;
 }
 
 function renderEmptyState(reason){
@@ -837,6 +862,7 @@ function setRole(role){
     back.title=role==='staff'?'직원 화면으로 돌아가기':'관리자 화면으로 돌아가기';
   }
   renderSbStaff();
+  renderSbCounts();
   renderGrid();
 }
 
