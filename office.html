@@ -320,17 +320,12 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
       <button class="of-sb-item alert" type="button">
         <span class="ic">⚠️</span><span class="lb">막힌 일</span><span class="cnt" id="sbCntBlocked">0</span>
       </button>
-      <button class="of-sb-item" type="button">
-        <span class="ic">🗑️</span><span class="lb">휴지통</span><span class="cnt" id="sbCntTrash">0</span>
-      </button>
+      <!-- 휴지통: 후속 페이즈에서 구현 (memos deleted_at 카운트 별 endpoint 필요) -->
 
-      <div class="of-sb-divider"></div>
+      <!-- Drive 통계: R2 사용량 API 미구현이라 일단 숨김 -->
+      <!-- <div class="of-sb-divider"></div>
       <div class="of-sb-section">자료보관</div>
-      <div class="of-sb-drive">
-        <div class="of-sb-drive-h"><span>📦 Google Drive</span><span class="pct">23%</span></div>
-        <div class="of-sb-drive-bar"><div class="fill"></div></div>
-        <div class="of-sb-drive-meta">460GB / 2TB · 오늘 +12건</div>
-      </div>
+      <div class="of-sb-drive">...</div> -->
 
     </div>
   </aside>
@@ -371,12 +366,23 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
       <span class="search"><input type="text" id="searchBox" placeholder="거래처명·대표명 검색"></span>
     </div>
 
+    <!-- 일괄 액션 바 (선택 1개 이상일 때만 표시) -->
+    <div id="bulkBar" style="display:none;align-items:center;gap:10px;padding:10px 16px;background:#eaf3ff;border-bottom:1px solid #c4dafa;font-size:13px">
+      <span style="color:#1a56db;font-weight:600"><span id="bulkCount">0</span>개 선택됨</span>
+      <span style="color:var(--of-text-mute,#6b7684);font-size:12px">·</span>
+      <button type="button" id="bulkSetActive" class="bulk-btn" data-status="active" style="padding:5px 10px;border:1px solid #c4dafa;background:#fff;border-radius:6px;cursor:pointer;font-size:12px">진행으로</button>
+      <button type="button" id="bulkSetClosed" class="bulk-btn" data-status="closed" style="padding:5px 10px;border:1px solid #c4dafa;background:#fff;border-radius:6px;cursor:pointer;font-size:12px">완료(폐업)로</button>
+      <button type="button" id="bulkSetTerminated" class="bulk-btn" data-status="terminated" style="padding:5px 10px;border:1px solid #fecaca;background:#fff;border-radius:6px;cursor:pointer;font-size:12px;color:#b91c1c">종료로</button>
+      <span style="flex:1"></span>
+      <button type="button" id="bulkClear" style="padding:5px 10px;border:none;background:transparent;color:var(--of-text-mute,#6b7684);cursor:pointer;font-size:12px">선택 해제</button>
+    </div>
+
     <!-- 그리드 -->
     <div class="of-grid-wrap">
       <table class="of-grid">
         <thead>
           <tr>
-            <th class="checkbox"><input type="checkbox" aria-label="전체 선택"></th>
+            <th class="checkbox"><input type="checkbox" id="bulkSelectAll" aria-label="전체 선택"></th>
             <th class="sortable" data-sort-key="name">거래처명</th>
             <th class="sortable" data-sort-key="owner">대표자</th>
             <th class="sortable" data-sort-key="staff">담당</th>
@@ -428,6 +434,8 @@ let CLIENTS=[];
 
 const ADMIN_KEY=(typeof sessionStorage!=='undefined' && sessionStorage.getItem('admin_key'))||'';
 const BIZ_CACHE=new Map(); /* key=business_id -> { business, members, rooms, financeSummary, schedule } */
+const ROOMS_BY_BIZ=new Map(); /* key=business_id -> rooms[] (admin-rooms 목록 응답에서 추출, last_msg_at/preview 포함) */
+const ROOM_SUMMARY_CACHE=new Map(); /* key=room_id -> { summary, ts } */
 
 const escAttr=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -513,7 +521,15 @@ async function fetchClients(){
     if(roomsRes.ok){
       try{
         const roomsData=await roomsRes.json();
-        roomMetaMap=buildRoomMeta(roomsData.rooms||[]);
+        const rooms=roomsData.rooms||[];
+        roomMetaMap=buildRoomMeta(rooms);
+        /* business_id 별 rooms[] 그룹화 — 패널 상담방 섹션에서 last_msg_at / 미리보기 표시용 */
+        ROOMS_BY_BIZ.clear();
+        for(const r of rooms){
+          if(!r.business_id) continue;
+          if(!ROOMS_BY_BIZ.has(r.business_id)) ROOMS_BY_BIZ.set(r.business_id,[]);
+          ROOMS_BY_BIZ.get(r.business_id).push(r);
+        }
       }catch(_){}
     }
     CLIENTS=(bizData.businesses||[]).map(b=>mapBusinessToClient(b,roomMetaMap.get(b.id)));
@@ -648,6 +664,45 @@ function renderSbCounts(){
   if($('sbCntUnassigned')) $('sbCntUnassigned').textContent=unassigned;
 }
 
+function renderBulkBar(){
+  const bar=document.getElementById('bulkBar');
+  const cnt=document.getElementById('bulkCount');
+  if(!bar) return;
+  if(SELECTED_IDS.size>0){
+    bar.style.display='flex';
+    if(cnt) cnt.textContent=SELECTED_IDS.size;
+  }else{
+    bar.style.display='none';
+  }
+  /* 헤더 전체 선택 체크박스 indeterminate / checked 동기화 */
+  const head=document.getElementById('bulkSelectAll');
+  if(head){
+    const visibleIds=Array.from(document.querySelectorAll('#gridBody tr[data-id]')).map(t=>parseInt(t.dataset.id));
+    const visibleSelected=visibleIds.filter(id=>SELECTED_IDS.has(id)).length;
+    head.checked = visibleSelected>0 && visibleSelected===visibleIds.length;
+    head.indeterminate = visibleSelected>0 && visibleSelected<visibleIds.length;
+  }
+}
+
+async function bulkSetStatus(status){
+  if(SELECTED_IDS.size===0||!ADMIN_KEY) return { ok:false, error:'선택 또는 인증 누락' };
+  const ids=Array.from(SELECTED_IDS);
+  const k=encodeURIComponent(ADMIN_KEY);
+  const results=await Promise.all(ids.map(async id=>{
+    try{
+      const r=await fetch('/api/admin-businesses?id='+id+'&key='+k,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ status })
+      });
+      const j=await r.json().catch(()=>null);
+      return { id, ok:r.ok && j && j.ok!==false, error:j&&j.error };
+    }catch(e){ return { id, ok:false, error:String(e&&e.message)}; }
+  }));
+  const failed=results.filter(r=>!r.ok);
+  return { ok:failed.length===0, total:ids.length, failed };
+}
+
 function renderHeaderDate(){
   const el=document.getElementById('hdrDate');
   if(!el) return;
@@ -760,6 +815,7 @@ let currentStatus='all';
 let currentSearch='';
 let currentSort={ key:null, dir:'asc' }; /* 'asc' | 'desc' | null */
 let selectedRow=null;
+const SELECTED_IDS=new Set(); /* 일괄 액션용 — 거래처 id Set */
 
 /* D-day bucket 별 정렬 가중치 — overdue 가장 위, later 아래 */
 const DDAY_WEIGHT={ overdue:0, today:1, tomorrow:2, week:3, later:4 };
@@ -880,8 +936,8 @@ function renderGrid(){
     `;
   }else{
     $('gridBody').innerHTML=rows.map(r=>`
-      <tr data-id="${r.id}">
-        <td class="checkbox"><input type="checkbox" aria-label="선택"></td>
+      <tr data-id="${r.id}"${SELECTED_IDS.has(r.id)?' class="selected-bulk"':''}>
+        <td class="checkbox"><input type="checkbox" class="row-check" data-id="${r.id}" ${SELECTED_IDS.has(r.id)?'checked':''} aria-label="선택"></td>
         <td><span class="priority p${r.pri}">${r.pri}</span><span class="nm">${escAttr(r.name)}</span></td>
         <td>${escAttr(r.owner)}</td>
         <td>${escAttr(r.staff)}</td>
@@ -903,6 +959,9 @@ function renderGrid(){
 
   /* 헤더 서브 텍스트 — 현재 탭/필터/검색 컨텍스트 반영 */
   $('mhdrSub').textContent=buildHdrSubLabel(rows.length);
+
+  /* 일괄 액션 바 동기화 */
+  renderBulkBar();
 }
 
 function buildHdrSubLabel(n){
@@ -966,7 +1025,9 @@ function renderPanelBody(payload){
     return;
   }
   const business=payload.business||{};
-  const rooms=payload.rooms||[];
+  /* rooms: admin-rooms 목록 응답 (last_msg_at 포함) 우선, 없으면 단건 응답 폴백 */
+  const richRooms=ROOMS_BY_BIZ.get(business.id)||[];
+  const rooms=richRooms.length?richRooms:(payload.rooms||[]);
   const schedule=payload.schedule||[];
   const finRows=(payload.financeSummary&&payload.financeSummary.rows)||[];
   const finHasData=!!(payload.financeSummary&&payload.financeSummary.has_data);
@@ -1022,12 +1083,24 @@ function renderPanelBody(payload){
 
     <div class="of-panel-sec">
       <div class="of-panel-sec-h">💬 상담방 <span style="color:var(--of-text-mute);font-weight:500;font-size:11px">(${rooms.length}개 연결)</span></div>
-      ${rooms.length?rooms.slice(0,5).map(r=>`
+      ${rooms.length?rooms.slice(0,5).map(r=>{
+        const last=r.last_msg_at?escAttr(String(r.last_msg_at).slice(0,16)):escAttr((r.created_at||'').slice(0,16));
+        const stamp=r.last_msg_at?'마지막 메시지':'개설일';
+        return `
         <div class="chat-row app" data-room-id="${escAttr(r.id||'')}" style="cursor:pointer">
-          <div class="src"><span class="ch">${escAttr(r.name||'상담방')}</span><span>${escAttr((r.created_at||'').slice(0,16))}</span></div>
-          <div class="body">상태: ${escAttr(r.status||'진행중')}</div>
+          <div class="src">
+            <span class="ch">${escAttr(r.name||'상담방')}</span>
+            <span title="${stamp}">${last}</span>
+          </div>
+          <div class="body" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <span>상태: ${escAttr(r.status||'진행중')}${r.member_count?' · 참여 '+r.member_count+'명':''}</span>
+            <button type="button" class="room-summary-btn" data-room-id="${escAttr(r.id||'')}"
+              style="font-size:11px;padding:3px 8px;border:1px solid var(--of-border,#e5e8eb);background:#fff;border-radius:6px;cursor:pointer;color:var(--brand-primary,#3182f6);white-space:nowrap"
+              onclick="event.stopPropagation()">🤖 AI 요약</button>
+          </div>
+          <div class="room-summary-box" data-room-id="${escAttr(r.id||'')}" style="display:none;margin-top:6px;padding:10px;background:#f5f6f8;border-radius:6px;font-size:12px;line-height:1.5;white-space:pre-wrap;color:var(--of-text-main,#191f28)"></div>
         </div>
-      `).join(''):'<div style="padding:12px 16px;color:var(--of-text-mute);font-size:12px">연결된 상담방 없음</div>'}
+      `;}).join(''):'<div style="padding:12px 16px;color:var(--of-text-mute);font-size:12px">연결된 상담방 없음</div>'}
     </div>
 
     <div class="of-panel-sec">
@@ -1088,15 +1161,66 @@ function renderPanelBody(payload){
     if(e.key==='Enter' && !e.isComposing && e.keyCode!==229){ e.preventDefault(); submit(); }
   });
 
-  /* 상담방 클릭 → admin.html 의 해당 방을 새 창(popup) 으로 열기.
-     admin.js 의 popupBoot 가 ?popup=1&room=ID 를 인식해 자동 진입함. */
+  /* 상담방 row 클릭 → 새 창 popup, AI 요약 버튼 클릭 → 인라인 요약 표시 */
   document.querySelectorAll('#pBody .chat-row[data-room-id]').forEach(el=>{
     el.addEventListener('click',()=>{
       const rid=el.dataset.roomId;
       if(!rid) return;
       const url='/admin.html?popup=1&room='+encodeURIComponent(rid);
-      const w=window.open(url,'sewmuRoom_'+rid,'width=420,height=720');
-      if(!w){ /* 팝업 차단 시 같은 탭으로 폴백 */ location.href=url; }
+      const w=window.open(url,'sewmuRoom_'+rid,'width=420,height=720,noopener');
+      if(!w){
+        /* popup 차단 — a 태그 클릭 시뮬레이션으로 새 탭 강제 */
+        const a=document.createElement('a');
+        a.href=url; a.target='_blank'; a.rel='noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+    });
+  });
+
+  /* AI 요약 버튼 — 클릭 시 admin-rooms?action=summarize 호출, 캐시 hit 시 즉시 */
+  document.querySelectorAll('#pBody .room-summary-btn').forEach(btn=>{
+    btn.addEventListener('click',async (e)=>{
+      e.stopPropagation();
+      const rid=btn.dataset.roomId;
+      if(!rid) return;
+      const box=document.querySelector(`#pBody .room-summary-box[data-room-id="${rid}"]`);
+      if(!box) return;
+      /* 토글: 이미 표시 중이면 닫기 */
+      if(box.style.display!=='none' && box.dataset.loaded==='1'){
+        box.style.display='none'; box.dataset.loaded='0';
+        btn.textContent='🤖 AI 요약';
+        return;
+      }
+      box.style.display='block';
+      const cached=ROOM_SUMMARY_CACHE.get(rid);
+      if(cached){
+        box.textContent=cached.summary;
+        box.dataset.loaded='1';
+        btn.textContent='🤖 접기';
+        return;
+      }
+      box.textContent='요약 생성 중…';
+      btn.disabled=true; btn.textContent='…';
+      try{
+        const r=await fetch('/api/admin-rooms?action=summarize&room_id='+encodeURIComponent(rid)+'&range=recent&key='+encodeURIComponent(ADMIN_KEY),{credentials:'omit'});
+        const txt=await r.text();
+        let j=null; try{ j=JSON.parse(txt); }catch(_){}
+        if(!r.ok){
+          box.textContent='요약 실패: HTTP '+r.status+(j&&j.error?(' · '+j.error):'');
+        }else{
+          const summary=(j&&(j.summary||j.text||j.content))||'요약 결과 없음';
+          ROOM_SUMMARY_CACHE.set(rid,{summary,ts:Date.now()});
+          box.textContent=summary;
+          box.dataset.loaded='1';
+        }
+      }catch(err){
+        box.textContent='요약 실패: '+(err&&err.message||'네트워크 오류');
+      }finally{
+        btn.disabled=false;
+        btn.textContent=box.dataset.loaded==='1'?'🤖 접기':'🤖 AI 요약';
+      }
     });
   });
 }
@@ -1185,8 +1309,18 @@ $('sidebar').addEventListener('click',e=>{
   renderGrid();
 });
 
-/* 그리드 행 클릭 */
+/* 그리드 행 클릭 / 체크박스 */
 $('gridBody').addEventListener('click',e=>{
+  /* 행 체크박스 → 선택 토글 */
+  const cb=e.target.closest('input.row-check');
+  if(cb){
+    const id=parseInt(cb.dataset.id);
+    if(cb.checked) SELECTED_IDS.add(id); else SELECTED_IDS.delete(id);
+    e.target.closest('tr')?.classList.toggle('selected-bulk',cb.checked);
+    renderBulkBar();
+    return;
+  }
+  /* 다른 input — 무시 */
   if(e.target.closest('input[type="checkbox"]')) return;
   const tr=e.target.closest('tr[data-id]');
   if(!tr) return;
@@ -1195,6 +1329,55 @@ $('gridBody').addEventListener('click',e=>{
   selectedRow=tr;
   openPanel(parseInt(tr.dataset.id));
 });
+
+/* 헤더 전체 선택 체크박스 */
+const bulkSelectAll=document.getElementById('bulkSelectAll');
+if(bulkSelectAll){
+  bulkSelectAll.addEventListener('change',()=>{
+    const visibleIds=Array.from(document.querySelectorAll('#gridBody tr[data-id]')).map(t=>parseInt(t.dataset.id));
+    if(bulkSelectAll.checked){
+      visibleIds.forEach(id=>SELECTED_IDS.add(id));
+    }else{
+      visibleIds.forEach(id=>SELECTED_IDS.delete(id));
+    }
+    /* 행 체크박스 + 행 강조 동기화 */
+    document.querySelectorAll('#gridBody tr[data-id]').forEach(tr=>{
+      const id=parseInt(tr.dataset.id);
+      const cb=tr.querySelector('input.row-check');
+      const sel=SELECTED_IDS.has(id);
+      if(cb) cb.checked=sel;
+      tr.classList.toggle('selected-bulk',sel);
+    });
+    renderBulkBar();
+  });
+}
+
+/* 일괄 액션 바 — 상태 변경 / 선택 해제 */
+document.querySelectorAll('#bulkBar .bulk-btn').forEach(btn=>{
+  btn.addEventListener('click',async ()=>{
+    const status=btn.dataset.status;
+    const labelMap={ active:'진행', closed:'완료(폐업)', terminated:'종료' };
+    if(!confirm(`선택한 ${SELECTED_IDS.size}개 거래처를 "${labelMap[status]||status}" 상태로 변경하시겠습니까?`)) return;
+    btn.disabled=true; const orig=btn.textContent; btn.textContent='처리 중…';
+    const res=await bulkSetStatus(status);
+    btn.disabled=false; btn.textContent=orig;
+    if(res.ok){
+      SELECTED_IDS.clear();
+      await fetchClients(); /* 새로고침해서 새 상태 반영 */
+    }else{
+      alert('일괄 변경 실패: '+(res.failed||[]).map(f=>'id='+f.id+(f.error?(' ('+f.error+')'):'')).join(', '));
+    }
+  });
+});
+const bulkClearBtn=document.getElementById('bulkClear');
+if(bulkClearBtn){
+  bulkClearBtn.addEventListener('click',()=>{
+    SELECTED_IDS.clear();
+    document.querySelectorAll('#gridBody input.row-check').forEach(c=>c.checked=false);
+    document.querySelectorAll('#gridBody tr.selected-bulk').forEach(tr=>tr.classList.remove('selected-bulk'));
+    renderBulkBar();
+  });
+}
 
 /* 패널 닫기 */
 $('pClose').addEventListener('click',closePanel);
