@@ -546,17 +546,57 @@ async function fetchPanelData(id){
     const finJson = finRes.ok ? await finRes.json().catch(()=>null) : null;
     const schedJson = schedRes.ok ? await schedRes.json().catch(()=>null) : null;
     if(!bizJson||bizJson.ok===false) return null;
+
+    /* 받은 자료(biz-docs) 는 user_id 기반이라 대표 멤버 잡아서 한 번 더 호출 */
+    let bizDoc=null;
+    const primary=pickPrimaryUser(bizJson.members||[]);
+    if(primary&&primary.user_id){
+      try{
+        const dres=await fetch('/api/admin-biz-docs?user_id='+primary.user_id+'&key='+k,{credentials:'omit'});
+        if(dres.ok){
+          const dj=await dres.json().catch(()=>null);
+          /* 응답 businesses[] 중 현재 거래처 id 와 일치하는 것 */
+          if(dj&&dj.businesses){
+            bizDoc=dj.businesses.find(x=>x.id===id)||null;
+          }
+        }
+      }catch(_){}
+    }
+
     const payload={
       business: bizJson.business||null,
       members: bizJson.members||[],
       rooms: bizJson.rooms||[],
       financeSummary: finJson||null,
-      schedule: (schedJson&&schedJson.schedule)||[]
+      schedule: (schedJson&&schedJson.schedule)||[],
+      bizDoc: bizDoc /* { docs: { id_card, biz_reg, hometax } } 또는 null */
     };
     BIZ_CACHE.set(id,payload);
     return payload;
   }catch(_){
     return null;
+  }
+}
+
+async function addBusinessTodo(businessId,content){
+  if(!ADMIN_KEY||!businessId||!content||!content.trim()) return false;
+  try{
+    const r=await fetch('/api/memos?key='+encodeURIComponent(ADMIN_KEY),{
+      method:'POST',
+      credentials:'omit',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        target_business_id:businessId,
+        memo_type:'할 일',
+        content:content.trim()
+      })
+    });
+    if(!r.ok) return false;
+    /* 캐시 무효화 후 패널 재로드 */
+    BIZ_CACHE.delete(businessId);
+    return true;
+  }catch(_){
+    return false;
   }
 }
 
@@ -813,6 +853,22 @@ function renderPanelBody(payload){
     }catch(_){ return ''; }
   };
 
+  /* 받은 자료 (admin-biz-docs) — 사업자등록증 / 신분증 / 홈택스 ID */
+  const bd=payload.bizDoc&&payload.bizDoc.docs;
+  const docRow=(label,key)=>{
+    const d=bd&&bd[key];
+    if(!d) return `<div class="info-row"><span class="k">${label}</span><span class="v" style="color:var(--of-text-mute)">미업로드</span></div>`;
+    if(key==='hometax'){
+      return `<div class="info-row"><span class="k">${label}</span><span class="v">${d.saved?escAttr(d.hometax_id||'저장됨'):'<span style="color:var(--of-text-mute)">미저장</span>'}</span></div>`;
+    }
+    if(d.uploaded){
+      const at=d.at?` <span style="color:var(--of-text-mute);font-size:11px">${escAttr(d.at).slice(0,10)}</span>`:'';
+      const link=d.image_url?` <a href="${escAttr(d.image_url)}" target="_blank" rel="noopener" style="color:var(--brand-primary,#3182f6);font-size:12px">열기</a>`:'';
+      return `<div class="info-row"><span class="k">${label}</span><span class="v">업로드됨${at}${link}</span></div>`;
+    }
+    return `<div class="info-row"><span class="k">${label}</span><span class="v" style="color:var(--of-text-mute)">미업로드</span></div>`;
+  };
+
   $('pBody').innerHTML=`
     <div class="of-panel-sec">
       <div class="of-panel-sec-h">📋 일정 / 할 일 <span style="color:var(--of-text-mute);font-weight:500;font-size:11px">(${tasksOpen.length})</span></div>
@@ -823,21 +879,27 @@ function renderPanelBody(payload){
           ${fmtDday(t.due_date)}
         </div>
       `).join(''):'<div style="padding:12px 16px;color:var(--of-text-mute);font-size:12px">등록된 할 일 없음</div>'}
+      <div class="add-task">
+        <input type="text" id="pAddTaskInput" placeholder="새 할 일 추가 (Enter 로 저장)">
+        <button type="button" id="pAddTaskBtn">＋</button>
+      </div>
     </div>
 
     <div class="of-panel-sec">
       <div class="of-panel-sec-h">💬 상담방 <span style="color:var(--of-text-mute);font-weight:500;font-size:11px">(${rooms.length}개 연결)</span></div>
       ${rooms.length?rooms.slice(0,5).map(r=>`
-        <div class="chat-row app">
-          <div class="src"><span class="ch">${escAttr(r.name||'상담방')}</span><span>${escAttr(r.created_at||'')}</span></div>
+        <div class="chat-row app" data-room-id="${escAttr(r.id||'')}" style="cursor:pointer">
+          <div class="src"><span class="ch">${escAttr(r.name||'상담방')}</span><span>${escAttr((r.created_at||'').slice(0,16))}</span></div>
           <div class="body">상태: ${escAttr(r.status||'진행중')}</div>
         </div>
       `).join(''):'<div style="padding:12px 16px;color:var(--of-text-mute);font-size:12px">연결된 상담방 없음</div>'}
     </div>
 
     <div class="of-panel-sec">
-      <div class="of-panel-sec-h">📦 받은 자료 <span style="color:var(--of-text-mute);font-weight:500;font-size:11px">(Drive)</span></div>
-      <div style="padding:12px 16px;color:var(--of-text-mute);font-size:12px">파일 목록은 후속 단계 (B-3) 에서 admin-biz-docs 연동 예정입니다.</div>
+      <div class="of-panel-sec-h">📦 받은 자료</div>
+      ${docRow('사업자등록증','biz_reg')}
+      ${docRow('신분증','id_card')}
+      ${docRow('홈택스 ID','hometax')}
     </div>
 
     <div class="of-panel-sec">
@@ -858,6 +920,39 @@ function renderPanelBody(payload){
       `).join(''):'<div style="padding:12px 16px;color:var(--of-text-mute);font-size:12px">재무 데이터 없음</div>'}
     </div>
   `;
+
+  /* 할 일 추가 wiring (현재 패널의 거래처 id 는 selectedRow 에서 가져옴) */
+  const inp=document.getElementById('pAddTaskInput');
+  const btn=document.getElementById('pAddTaskBtn');
+  const submit=async()=>{
+    if(!inp||!btn) return;
+    const txt=inp.value;
+    const rowId=selectedRow&&parseInt(selectedRow.dataset.id);
+    if(!rowId||!txt.trim()) return;
+    btn.disabled=true; btn.textContent='…';
+    const ok=await addBusinessTodo(rowId,txt);
+    if(ok){
+      inp.value='';
+      /* 캐시 무효화됨 → 새로 fetch 해서 패널 재렌더 */
+      const fresh=await fetchPanelData(rowId);
+      if(selectedRow && parseInt(selectedRow.dataset.id)===rowId) renderPanelBody(fresh);
+    }else{
+      btn.textContent='⚠️';
+      setTimeout(()=>{ if(btn) btn.textContent='＋'; },1500);
+    }
+    btn.disabled=false;
+    if(btn.textContent==='…') btn.textContent='＋';
+  };
+  if(btn) btn.addEventListener('click',submit);
+  if(inp) inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); submit(); } });
+
+  /* 상담방 클릭 → admin.html 의 해당 방으로 점프 (ADMIN_KEY 보유 시에만 의미 있음) */
+  document.querySelectorAll('#pBody .chat-row[data-room-id]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const rid=el.dataset.roomId;
+      if(rid) location.href='/admin.html#room='+encodeURIComponent(rid);
+    });
+  });
 }
 
 function closePanel(){
