@@ -473,23 +473,33 @@ function setCnt(id,n){
 
 /* iframe 안 admin 함수 호출 (로드 안 끝났으면 폴링) */
 function callAdmin(fnName, ...args){
+  return callAdminSeq([[fnName, ...args]]);
+}
+
+/* 여러 함수를 동기 순서로 호출. 과거 setTimeout 체인 + 각 callAdmin 의 polling 이 race 를 만들어
+   '기장거래처 클릭 → 대기 탭에 active 가 남는 버그' 발생. 한 폴링 안에서 순차 실행. */
+function callAdminSeq(calls){
   const f=$('adminFrame');
-  if(!f) return;
-  const tryCall=()=>{
-    try{
-      const cw=f.contentWindow;
-      if(cw && typeof cw[fnName]==='function'){
-        cw[fnName](...args);
-        return true;
-      }
-    }catch(_){}
-    return false;
+  if(!f || !Array.isArray(calls) || !calls.length) return;
+  const ready=()=>{
+    try{ return !!(f.contentWindow && typeof f.contentWindow.tab === 'function'); }
+    catch(_){ return false; }
   };
-  if(tryCall()) return;
+  const run=()=>{
+    const cw=f.contentWindow;
+    for(const c of calls){
+      const [name, ...args] = c;
+      try{
+        if(typeof cw[name]==='function') cw[name](...args);
+      }catch(e){ console.warn('[callAdminSeq]',name,e); }
+    }
+  };
+  if(ready()){ run(); return; }
   let tries=0;
   const t=setInterval(()=>{
     tries++;
-    if(tryCall()||tries>=20) clearInterval(t);
+    if(ready()){ clearInterval(t); run(); }
+    else if(tries>=25) clearInterval(t);
   },200);
 }
 
@@ -718,17 +728,17 @@ $('sidebar')?.addEventListener('click',e=>{
   const it=e.target.closest('.of-sb-item');
   if(!it) return;
 
-  /* 사용자 카테고리 */
+  /* 사용자 카테고리 — 한 번의 sequential 호출 (race 방지) */
   if(it.dataset.mode==='user'){
     document.querySelectorAll('#sidebar .of-sb-item').forEach(x=>x.classList.remove('on'));
     it.classList.add('on');
     const st=it.dataset.status;
-    callAdmin('tab','users');
-    setTimeout(()=>{
-      callAdmin('setClientTabMode','user');
-      /* userStatus 가 currentStatus 갱신 + 탭 활성 색 + loadUsers 자동 호출 */
-      setTimeout(()=>callAdmin('userStatus',st), 250);
-    },300);
+    /* userStatus 안에 loadUsers 가 들어있으므로 tab 후 userStatus 만 호출하면 충분 */
+    callAdminSeq([
+      ['tab','users'],
+      ['setClientTabMode','user'],
+      ['userStatus',st]
+    ]);
     return;
   }
 
@@ -736,8 +746,10 @@ $('sidebar')?.addEventListener('click',e=>{
   if(it.dataset.mode==='business'){
     document.querySelectorAll('#sidebar .of-sb-item').forEach(x=>x.classList.remove('on'));
     it.classList.add('on');
-    callAdmin('tab','users');
-    setTimeout(()=>callAdmin('setClientTabMode','business'),300);
+    callAdminSeq([
+      ['tab','users'],
+      ['setClientTabMode','business']
+    ]);
     return;
   }
 
@@ -757,17 +769,15 @@ $('sidebar')?.addEventListener('click',e=>{
     for(const [id,info] of ROOM_LABELS){
       if(info.name===it.dataset.staff){ labelId=id; break; }
     }
-    callAdmin('tab','rooms');
+    /* tab(rooms) → _roomFilterSet → loadRoomList 순차 */
     if(labelId){
-      setTimeout(()=>{
-        try{
-          const f=$('adminFrame');
-          if(f && f.contentWindow && f.contentWindow._roomFilterSet){
-            f.contentWindow._roomFilterSet(new Set([labelId]));
-            if(typeof f.contentWindow.loadRoomList==='function') f.contentWindow.loadRoomList();
-          }
-        }catch(_){}
-      },400);
+      callAdminSeq([
+        ['tab','rooms'],
+        ['_roomFilterSet', new Set([labelId])],
+        ['loadRoomList']
+      ]);
+    }else{
+      callAdmin('tab','rooms');
     }
     return;
   }
