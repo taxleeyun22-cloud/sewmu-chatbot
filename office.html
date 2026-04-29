@@ -49,28 +49,6 @@ button{font-family:inherit;cursor:pointer}
 /* ============== 앱 골격 ============== */
 .of-app{display:flex;height:100vh;width:100vw;overflow:hidden}
 
-/* ============== 사이드바 안 사용자 검색 (사장님 명령: 우측 패널 폐기 → 사용자 섹션에) ============== */
-.of-sb-search{padding:6px 14px 4px}
-.of-sb-search .wrap{position:relative}
-.of-sb-search input{width:100%;background:var(--sb-bg-deep);border:1px solid var(--sb-divider);border-radius:6px;padding:6px 10px 6px 28px;font-size:12px;color:#fff;font-family:inherit;outline:none;transition:border .12s}
-.of-sb-search input::placeholder{color:var(--sb-text-mute)}
-.of-sb-search input:focus{border-color:var(--of-primary)}
-.of-sb-search .ic{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11px;opacity:.6;color:var(--sb-text)}
-.of-sb-results{max-height:240px;overflow-y:auto;margin:6px 8px 0;background:var(--sb-bg-deep);border-radius:6px;border:1px solid var(--sb-divider)}
-.of-sb-results::-webkit-scrollbar{width:5px}
-.of-sb-results::-webkit-scrollbar-thumb{background:#3a4358;border-radius:3px}
-.of-sb-results .empty{padding:10px;text-align:center;font-size:11px;color:var(--sb-text-mute)}
-.of-sb-results .row{padding:7px 10px;border-bottom:1px solid var(--sb-divider);cursor:pointer;transition:background .12s;font-size:12px}
-.of-sb-results .row:last-child{border-bottom:0}
-.of-sb-results .row:hover{background:var(--sb-hover)}
-.of-sb-results .row .nm{color:#fff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.of-sb-results .row .nm .badge{font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:99px;margin-left:4px;background:#3d4b69;color:#cbd5e1}
-.of-sb-results .row .nm .badge.client{background:#fbbf24;color:#7c2d12}
-.of-sb-results .row .nm .badge.guest{background:#10b981;color:#fff}
-.of-sb-results .row .nm .badge.pending{background:#3182f6;color:#fff}
-.of-sb-results .row .nm .badge.admin{background:#8b6914;color:#fff}
-.of-sb-results .row .meta{color:var(--sb-text-mute);font-size:10.5px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
 /* 사이드바 collapsible */
 .of-sb-section{cursor:pointer;user-select:none}
 .of-sb-section .arrow{transition:transform .18s;display:inline-block}
@@ -340,14 +318,7 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
       <!-- ===== 사용자 (거래처 사장) ===== -->
       <div class="of-sb-section" data-section-key="users">사용자 <span class="arrow">▾</span></div>
       <div class="sb-grp" data-grp="users">
-        <!-- 검색 — 사용자 섹션 안 (사장님 명령) -->
-        <div class="of-sb-search">
-          <div class="wrap">
-            <span class="ic">🔍</span>
-            <input id="sbUserSearch" type="text" placeholder="이름·전화·회사명 검색" autocomplete="off">
-          </div>
-          <div class="of-sb-results" id="sbUserResults" style="display:none"></div>
-        </div>
+        <!-- 검색은 admin iframe 안 거래처 탭 헤더로 이동 (사장님 명령: 통합 검색) -->
         <button class="of-sb-item" data-mode="user" data-status="pending" type="button">
           <span class="ic">⏳</span><span class="lb">대기</span><span class="cnt" id="sbUserPending">0</span>
         </button>
@@ -538,84 +509,7 @@ async function fetchSidebarCounts(){
   }catch(_){}
 }
 
-/* ===== 사이드바 사용자 검색 (사장님 명령) ===== */
-const SBUS={ users:[], q:'' };
-
-async function fetchSbUsers(){
-  /* admin-approve 는 status=all 시 is_admin=1 제외 → admin 도 별도 fetch 후 머지 */
-  try{
-    const [allRes,adminRes]=await Promise.all([
-      fetch('/api/admin-approve?status=all'+authQSAmp(),{credentials:'include'}),
-      fetch('/api/admin-approve?status=admin'+authQSAmp(),{credentials:'include'})
-    ]);
-    let merged=[];
-    if(allRes.ok){
-      const j=await allRes.json();
-      merged=merged.concat(j.users||[]);
-    }
-    if(adminRes.ok){
-      const j=await adminRes.json();
-      merged=merged.concat(j.users||[]);
-    }
-    const seen=new Set(); const dedup=[];
-    for(const u of merged){ if(seen.has(u.id)) continue; seen.add(u.id); dedup.push(u); }
-    SBUS.users=dedup.map(u=>({
-      id:u.id,
-      name:u.real_name||u.name||('user#'+u.id),
-      phone:u.phone||'',
-      email:u.email||'',
-      company:u.company_name||'',
-      status:u.approval_status||'',
-      is_admin:u.is_admin?1:0
-    }));
-  }catch(_){}
-}
-
-function renderSbUserResults(){
-  const box=$('sbUserResults'); if(!box) return;
-  const q=(SBUS.q||'').toLowerCase().trim();
-  if(!q){ box.style.display='none'; box.innerHTML=''; return; }
-  let arr=SBUS.users.filter(u=>
-    (u.name||'').toLowerCase().includes(q)||
-    (u.phone||'').includes(q)||
-    (u.email||'').toLowerCase().includes(q)||
-    (u.company||'').toLowerCase().includes(q)
-  );
-  const order={approved_client:0,approved_guest:1,pending:2,admin:3,rejected:4,terminated:5};
-  arr.sort((a,b)=>(order[a.status]??9)-(order[b.status]??9)||a.name.localeCompare(b.name,'ko'));
-  box.style.display='block';
-  if(!arr.length){ box.innerHTML='<div class="empty">결과 없음</div>'; return; }
-  const STBADGE={approved_client:'⭐기장',approved_guest:'일반',pending:'대기',rejected:'거절',terminated:'종료'};
-  const CLS={approved_client:'client',approved_guest:'guest',pending:'pending'};
-  box.innerHTML=arr.slice(0,30).map(u=>{
-    const badgeCls=u.is_admin===1?'admin':(CLS[u.status]||'');
-    const badgeTxt=u.is_admin===1?'👑':(STBADGE[u.status]||'');
-    const meta=[u.company||'',u.phone||''].filter(Boolean).join(' · ')||(u.email||'');
-    return `<div class="row" data-uid="${u.id}" data-name="${escAttr(u.name)}">
-      <div class="nm">${escAttr(u.name)}${badgeTxt?` <span class="badge ${badgeCls}">${escAttr(badgeTxt)}</span>`:''}</div>
-      ${meta?`<div class="meta">${escAttr(meta)}</div>`:''}
-    </div>`;
-  }).join('');
-}
-
-/* 결과 클릭 → admin iframe 의 거래처 dashboard 모달 */
-$('sbUserResults')?.addEventListener('click',e=>{
-  const row=e.target.closest('.row'); if(!row) return;
-  const uid=parseInt(row.dataset.uid,10); if(!uid) return;
-  const nm=row.dataset.name||'';
-  callAdmin('openCustomerDashboard',uid,nm);
-  /* 검색창 비우고 결과 닫기 */
-  if($('sbUserSearch')) $('sbUserSearch').value='';
-  SBUS.q=''; renderSbUserResults();
-});
-
-/* 검색 input */
-$('sbUserSearch')?.addEventListener('input',e=>{ SBUS.q=e.target.value||''; renderSbUserResults(); });
-/* 검색칸 밖 클릭 시 결과 닫기 */
-document.addEventListener('click',e=>{
-  if(e.target.closest('.of-sb-search')) return;
-  const box=$('sbUserResults'); if(box) box.style.display='none';
-});
+/* 사이드바 검색 폐기 — 통합 검색은 admin iframe 안 #clientSearchInput 가 담당 */
 
 /* ===== Collapsible 사이드바 섹션 ===== */
 const COLLAPSE_KEY='office_collapsed_sections_v1';
@@ -794,16 +688,15 @@ applyCollapsed();
     await Promise.all([fetchCurrentUser(),fetchRoomLabels()]);
     setRole('boss');
     renderSbStaff();
-    await Promise.all([fetchSidebarCounts(),fetchSbUsers()]);
+    await fetchSidebarCounts();
   }catch(e){ console.error('[boot]',e); }
 })();
 
-/* iframe 안에서 status 변경 (승인·거절·종료·관리자 토글) 후 사이드바·우측 패널 동기화 */
+/* iframe 안에서 status 변경 (승인·거절·종료·관리자 토글) 후 사이드바 카운트 동기화 */
 window.addEventListener('message',e=>{
   if(!e.data||typeof e.data!=='object') return;
   if(e.data.type==='admin:userStatusChanged'||e.data.type==='admin:roomLabelChanged'){
     fetchSidebarCounts();
-    fetchSbUsers();
     if(e.data.type==='admin:roomLabelChanged') fetchRoomLabels().then(renderSbStaff);
   }
 });

@@ -7087,6 +7087,61 @@ function setClientTabMode(m){
   if(mu){mu.style.background=(m==='user')?'#191f28':'transparent';mu.style.color=(m==='user')?'#fff':'#6b7280';mu.style.fontWeight=(m==='user')?'700':'500'}
   if(mb){mb.style.background=(m==='business')?'#191f28':'transparent';mb.style.color=(m==='business')?'#fff':'#6b7280';mb.style.fontWeight=(m==='business')?'700':'500'}
   if(m==='business')loadBusinessList();
+  /* 모드 전환 시 통합 검색이 비어있지 않으면 새 모드에도 즉시 필터 적용 */
+  if(typeof _doClientSearch==='function') setTimeout(_doClientSearch, 50);
+}
+
+/* ===== 통합 검색 (사용자 + 업체) — 사장님 명령: '사용자도 업체도 통합으로'
+   admin.html 모드 토글 줄의 #clientSearchInput 에 입력 시 현재 모드에 맞춰 필터 */
+let _clientSearchT=null;
+function onClientSearchInput(){
+  if(_clientSearchT)clearTimeout(_clientSearchT);
+  _clientSearchT=setTimeout(_doClientSearch, 200);
+  /* X 버튼 표시/숨김 */
+  try{
+    const v=($g('clientSearchInput')?.value||'').trim();
+    const x=$g('clientSearchClear'); if(x) x.style.display=v?'inline-block':'none';
+  }catch{}
+}
+function clearClientSearch(){
+  const inp=$g('clientSearchInput'); if(inp) inp.value='';
+  const x=$g('clientSearchClear'); if(x) x.style.display='none';
+  _doClientSearch();
+}
+function _doClientSearch(){
+  const q=($g('clientSearchInput')?.value||'').trim().toLowerCase();
+  if(_clientTabMode==='user'){
+    /* 사용자 모드 — 현재 렌더된 #userList 카드를 client-side filter
+       카드 텍스트(본명/닉/전화/이메일/회사명) 안 q 매칭 */
+    const list=$g('userList'); if(!list) return;
+    let visible=0, total=0;
+    Array.from(list.children).forEach(c=>{
+      total++;
+      if(!q){ c.style.display=''; visible++; return; }
+      const txt=(c.textContent||'').toLowerCase();
+      const match=txt.indexOf(q)>=0;
+      c.style.display = match ? '' : 'none';
+      if(match) visible++;
+    });
+    /* 빈 결과 메시지 (기존 .empty 가 있으면 건드리지 않고 추가 hint 만) */
+    const hintId='userListSearchHint';
+    let hint=$g(hintId);
+    if(q && total>0 && visible===0){
+      if(!hint){
+        hint=document.createElement('div');
+        hint.id=hintId;
+        hint.style.cssText='padding:30px 0;text-align:center;color:#8b95a1;font-size:.88em';
+        list.appendChild(hint);
+      }
+      hint.textContent='"'+q+'"에 일치하는 사용자가 없습니다 (현재 탭 내).';
+      hint.style.display='block';
+    }else if(hint){ hint.style.display='none'; }
+  }else{
+    /* 업체 모드 — 기존 bizSearchInput + _renderBizList 재사용. 통합 input 값을 sync */
+    const bizInput=$g('bizSearchInput');
+    if(bizInput){ bizInput.value=q; }
+    if(typeof _renderBizList==='function') _renderBizList();
+  }
 }
 let _bizSearchT=null;
 function onBizSearchInput(){
