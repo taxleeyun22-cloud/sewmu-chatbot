@@ -449,7 +449,7 @@ async function fetchRoomLabels(){
 }
 
 async function fetchSidebarCounts(){
-  if(!ADMIN_KEY) return;
+  /* ADMIN_KEY 없어도 cookie (사장님 카카오 로그인) 로 인증 통과 가능 — credentials:'include' */
   try{
     const [apprRes,memoRes,trashRes]=await Promise.all([
       fetch('/api/admin-approve?status=pending'+authQSAmp(),{credentials:'include'}),
