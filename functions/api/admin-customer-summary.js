@@ -14,13 +14,29 @@ function kst() {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
 }
 
+/* 거래처 요약 캐시 테이블 — user_id 또는 business_id 기준 + range. 24h 또는 메시지/메모 변화 시 갱신 */
+async function ensureSummaryCacheTable(db){
+  try{
+    await db.prepare(`CREATE TABLE IF NOT EXISTS customer_summary_cache (
+      scope TEXT NOT NULL,        -- 'user' | 'business'
+      target_id INTEGER NOT NULL,
+      range_key TEXT NOT NULL,    -- 'recent' | 'week' | 'month' | 'all'
+      summary_json TEXT,
+      summary_text TEXT,
+      message_count INTEGER,
+      memo_count INTEGER,
+      generated_at TEXT,
+      PRIMARY KEY (scope, target_id, range_key)
+    )`).run();
+  }catch(_){}
+}
+
 export async function onRequestGet(context) {
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
   const db = context.env.DB;
   const apiKey = context.env.OPENAI_API_KEY;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
-  if (!apiKey) return Response.json({ error: "OPENAI_API_KEY 미설정" }, { status: 500 });
 
   const url = new URL(context.request.url);
   const userId = Number(url.searchParams.get("user_id") || 0);
@@ -28,7 +44,36 @@ export async function onRequestGet(context) {
   const range = url.searchParams.get("range") || 'recent';
   const fromDate = url.searchParams.get("from") || '';
   const toDate = url.searchParams.get("to") || '';
+  const cacheOnly = url.searchParams.get("cache_only") === '1';
   if (!userId && !businessId) return Response.json({ error: "user_id 또는 business_id 필요" }, { status: 400 });
+
+  await ensureSummaryCacheTable(db);
+
+  /* === cache_only 모드 — DB 캐시만 반환, GPT 호출 X === */
+  if (cacheOnly) {
+    try {
+      const cached = await db.prepare(
+        `SELECT summary_text, summary_json, message_count, memo_count, generated_at
+           FROM customer_summary_cache
+          WHERE scope = ? AND target_id = ? AND range_key = ?`
+      ).bind(userId ? 'user' : 'business', userId || businessId, range).first();
+      if (cached) {
+        return Response.json({
+          summary: cached.summary_text,
+          summary_json: cached.summary_json ? JSON.parse(cached.summary_json) : null,
+          message_count: cached.message_count,
+          memo_count: cached.memo_count,
+          generated_at: cached.generated_at,
+          from_cache: true,
+        });
+      }
+      return Response.json({ summary: null, from_cache: true, has_cache: false });
+    } catch (e) {
+      return Response.json({ error: 'cache lookup: ' + e.message }, { status: 500 });
+    }
+  }
+
+  if (!apiKey) return Response.json({ error: "OPENAI_API_KEY 미설정" }, { status: 500 });
 
   /* 1. 대상(거래처/업체) 기본 정보 */
   let customerName = '';
@@ -301,6 +346,23 @@ ${conversation}`;
     if (mdMatch) summaryMd = mdMatch[1].trim();
     const usage = d.usage || {};
     const costCents = (usage.prompt_tokens || 0) * 0.15 / 10000 + (usage.completion_tokens || 0) * 0.60 / 10000;
+    /* 캐시 저장 — 다음 호출 시 cache_only=1 로 GPT 비용 0 */
+    try {
+      await db.prepare(
+        `INSERT OR REPLACE INTO customer_summary_cache
+         (scope, target_id, range_key, summary_json, summary_text, message_count, memo_count, generated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        userId ? 'user' : 'business',
+        userId || businessId,
+        range,
+        summaryJson ? JSON.stringify(summaryJson) : null,
+        summaryMd || raw,
+        lines.length,
+        0,
+        kst()
+      ).run();
+    } catch (_) {}
     return Response.json({
       ok: true,
       summary: summaryMd || raw,
