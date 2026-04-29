@@ -459,6 +459,7 @@ const ADMIN_KEY=(typeof sessionStorage!=='undefined' && sessionStorage.getItem('
 const BIZ_CACHE=new Map(); /* key=business_id -> { business, members, rooms, financeSummary, schedule } */
 const ROOMS_BY_BIZ=new Map(); /* key=business_id -> rooms[] (admin-rooms 목록 응답에서 추출, last_msg_at/preview 포함) */
 const ROOM_SUMMARY_CACHE=new Map(); /* key=room_id -> { summary, ts } */
+const USER_CACHE=new Map();  /* key=user_id -> { user, businesses, memos } */
 
 const escAttr=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -621,6 +622,30 @@ async function setUserAdmin(userId, flag){
     const j=await r.json().catch(()=>null);
     return { ok: r.ok && j && j.ok!==false, error: j&&j.error };
   }catch(e){ return { ok:false, error:String(e&&e.message) }; }
+}
+
+async function fetchUserPanelData(userId){
+  /* admin-businesses?user_id (매핑된 사업장) + memos?scope=customer_info (거래처 정보 메모) */
+  if(!ADMIN_KEY||!userId) return null;
+  const k=encodeURIComponent(ADMIN_KEY);
+  try{
+    const [bizRes,memoRes]=await Promise.all([
+      fetch('/api/admin-businesses?user_id='+userId+'&key='+k,{credentials:'omit'}),
+      fetch('/api/memos?scope=customer_info&user_id='+userId+'&key='+k,{credentials:'omit'})
+    ]);
+    if(bizRes.status===401||memoRes.status===401) return null;
+    const bizJson = bizRes.ok ? await bizRes.json().catch(()=>null) : null;
+    const memoJson = memoRes.ok ? await memoRes.json().catch(()=>null) : null;
+    const payload={
+      user: USERS.find(u=>u.id===userId) || null,
+      businesses: (bizJson&&bizJson.businesses)||[],
+      memos: (memoJson&&memoJson.memos)||[]
+    };
+    USER_CACHE.set(userId,payload);
+    return payload;
+  }catch(_){
+    return null;
+  }
 }
 
 async function fetchPanelData(id){
@@ -1180,6 +1205,146 @@ function renderUserActionsHtml(u){
   return h;
 }
 
+async function openUserPanel(userId){
+  const u=USERS.find(x=>x.id===userId);
+  if(!u) return;
+
+  /* 헤더: user mode */
+  const realName=u.real_name||'(본명 미등록)';
+  const nick=u.name||'';
+  const phone=(u.phone||'').replace(/(\d{3})(\d{3,4})(\d{4})/,'$1-$2-$3');
+  const created=(u.created_at||'').slice(0,10);
+  const statusLabel={pending:'대기',approved_client:'기장거래처',approved_guest:'일반승인',rejected:'거절',terminated:'종료'}[u.approval_status||'pending']||(u.approval_status||'대기');
+  $('pNm').innerHTML=`<span style="display:inline-block;width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:800;text-align:center;line-height:20px;color:#fff;background:${u.is_admin?'#7c3aed':'#3182f6'}">${u.is_admin?'👑':'👤'}</span> ${escAttr(realName)}${nick?` <span style="color:var(--of-text-mute);font-weight:400;font-size:12px">(${escAttr(nick)})</span>`:''}`;
+  $('pMeta').textContent=`${escAttr(phone||'-')} · 가입 ${escAttr(created)} · ${statusLabel}${u.is_admin?' · 👑':''}`;
+  $('pNext').innerHTML=``;
+
+  $('panel').classList.add('open');
+  $('panel').setAttribute('aria-hidden','false');
+  $('panelMask').classList.add('show');
+
+  const cached=USER_CACHE.get(userId);
+  if(cached){ renderUserPanelBody(cached); return; }
+
+  $('pBody').innerHTML=`
+    <div class="of-panel-sec"><div class="of-panel-sec-h">👤 사용자 정보</div><div style="padding:12px 16px;color:var(--of-text-mute);font-size:12px">불러오는 중…</div></div>
+    <div class="of-panel-sec"><div class="of-panel-sec-h">🏢 매핑 사업장</div><div style="padding:12px 16px;color:var(--of-text-mute);font-size:12px">불러오는 중…</div></div>
+  `;
+  const payload=await fetchUserPanelData(userId);
+  /* 그 사이 사장님이 다른 사용자 클릭했을 가능성 */
+  if(selectedRow && parseInt(selectedRow.dataset.id)!==userId) return;
+  renderUserPanelBody(payload);
+}
+
+function renderUserPanelBody(payload){
+  if(!payload || !payload.user){
+    $('pBody').innerHTML=`
+      <div class="of-panel-sec">
+        <div class="of-panel-sec-h">정보 없음</div>
+        <div style="padding:16px;color:var(--of-text-mute);font-size:13px">사용자 상세 정보를 불러오지 못했습니다.</div>
+      </div>`;
+    return;
+  }
+  const u=payload.user;
+  const businesses=payload.businesses||[];
+  const memos=payload.memos||[];
+  const phone=(u.phone||'').replace(/(\d{3})(\d{3,4})(\d{4})/,'$1-$2-$3');
+  const lastLogin=(u.last_login_at||'').slice(0,16);
+  const created=(u.created_at||'').slice(0,16);
+  const approved=(u.approved_at||'').slice(0,16);
+  const statusLabel={pending:'⏳ 대기',approved_client:'⭐ 기장거래처',approved_guest:'✓ 일반승인',rejected:'✕ 거절',terminated:'⛔ 종료'}[u.approval_status||'pending']||(u.approval_status||'대기');
+
+  $('pBody').innerHTML=`
+    <div class="of-panel-sec">
+      <div class="of-panel-sec-h">👤 사용자 정보</div>
+      ${[
+        ['본명', u.real_name||'미등록'],
+        ['닉네임', u.name||''],
+        ['이메일', u.email||'—'],
+        ['휴대폰', phone||'—'],
+        ['가입', created||'—'],
+        ['승인일', approved||'—'],
+        ['마지막 로그인', lastLogin||'—'],
+        ['승인 상태', statusLabel],
+        ['관리자', u.is_admin?'👑 예':'아니오'],
+        ['로그인 방식', u.provider||'—']
+      ].map(([k,v])=>`<div class="info-row"><span class="k">${k}</span><span class="v">${escAttr(v)}</span></div>`).join('')}
+    </div>
+
+    <div class="of-panel-sec">
+      <div class="of-panel-sec-h">🏢 매핑된 사업장 <span style="color:var(--of-text-mute);font-weight:500;font-size:11px">(${businesses.length}개)</span></div>
+      ${businesses.length?businesses.map(b=>{
+        const docs=b.docs||{};
+        const docBadges=[
+          docs.id_card&&docs.id_card.uploaded?'🪪':'',
+          docs.biz_reg&&docs.biz_reg.uploaded?'📄':'',
+          docs.hometax&&docs.hometax.saved?'🏛️':''
+        ].filter(Boolean).join(' ');
+        const isPrimary=b.member_is_primary?' ⭐':'';
+        return `
+          <div class="chat-row app" data-jump-biz-id="${b.id}" style="cursor:pointer">
+            <div class="src">
+              <span class="ch">${escAttr(b.company_name||'(상호 미기재)')}${isPrimary}</span>
+              <span style="color:var(--of-text-mute);font-size:11px">${escAttr(b.member_role||'')}</span>
+            </div>
+            <div class="body" style="display:flex;justify-content:space-between;gap:6px">
+              <span>${escAttr(b.business_number||'—')} · ${escAttr(b.ceo_name||'—')} · ${escAttr(b.tax_type||'—')}</span>
+              <span style="color:var(--of-text-mute)">${docBadges||''}</span>
+            </div>
+          </div>
+        `;
+      }).join(''):'<div style="padding:12px 16px;color:var(--of-text-mute);font-size:12px">매핑된 사업장 없음</div>'}
+    </div>
+
+    <div class="of-panel-sec">
+      <div class="of-panel-sec-h">📝 거래처 정보 메모 <span style="color:var(--of-text-mute);font-weight:500;font-size:11px">(${memos.length}개)</span></div>
+      ${memos.length?memos.slice(0,8).map(m=>`
+        <div style="padding:10px 16px;border-bottom:1px solid var(--of-border,#f2f4f6);font-size:13px;line-height:1.5">
+          <div style="white-space:pre-wrap">${escAttr(m.content||'')}</div>
+          <div style="font-size:11px;color:var(--of-text-mute);margin-top:4px">${escAttr((m.created_at||'').slice(0,16))} · ${escAttr(m.author_name||'')}</div>
+        </div>
+      `).join(''):'<div style="padding:12px 16px;color:var(--of-text-mute);font-size:12px">등록된 메모 없음</div>'}
+    </div>
+
+    <div class="of-panel-sec">
+      <div class="of-panel-sec-h">⚡ 빠른 액션</div>
+      <div style="padding:12px 16px;display:flex;flex-wrap:wrap;gap:6px">
+        ${renderUserActionsHtml(u)}
+      </div>
+    </div>
+  `;
+
+  /* 매핑 사업장 행 클릭 → business mode 전환 + 그 거래처 패널 */
+  document.querySelectorAll('#pBody .chat-row[data-jump-biz-id]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const bid=parseInt(el.dataset.jumpBizId);
+      if(!bid) return;
+      /* business mode 가 아직 fetch 안 됐을 수도 있음 — CLIENTS 안에 있으면 즉시, 없으면 fetchClients 후 */
+      if(CLIENTS.find(c=>c.id===bid)){
+        currentMode='business';
+        document.querySelectorAll('#sidebar .of-sb-item').forEach(x=>x.classList.remove('on'));
+        document.querySelector('#sidebar .of-sb-item[data-mode="business"][data-filter="all"]')?.classList.add('on');
+        renderGridHeader();
+        renderGrid();
+        openPanel(bid);
+      }else{
+        /* business 모드 데이터 없으면 일단 안내 */
+        alert('해당 거래처는 등록되어 있지 않거나 다른 사장님 데이터입니다.');
+      }
+    });
+  });
+
+  /* 빠른 액션 버튼 — 그리드와 동일 핸들러 (이벤트 위임이 #gridBody 라서 패널은 별도 wiring 필요) */
+  document.querySelectorAll('#pBody .user-act-btn').forEach(btn=>{
+    btn.addEventListener('click',async (e)=>{
+      e.stopPropagation();
+      await handleUserAction(parseInt(btn.dataset.id), btn.dataset.act, btn);
+      /* 액션 후 패널 캐시 무효화 + 재렌더 */
+      USER_CACHE.delete(parseInt(btn.dataset.id));
+    });
+  });
+}
+
 function buildHdrSubLabel(n){
   const isStaff=document.body.dataset.role==='staff';
   const parts=[];
@@ -1197,8 +1362,9 @@ function buildHdrSubLabel(n){
   return `${parts.join(' · ')} ${n}개`;
 }
 
-/* 패널 (Stage B: PANEL_DATA[1] 재사용 버그 픽스, 진짜 fetch) */
+/* 패널 — currentMode 따라 거래처/사용자 분기 */
 async function openPanel(id){
+  if(currentMode==='user'){ return openUserPanel(id); }
   const c=CLIENTS.find(x=>x.id===id);
   if(!c) return;
 
@@ -1571,12 +1737,8 @@ $('gridBody').addEventListener('click',async e=>{
   if(selectedRow) selectedRow.classList.remove('selected');
   tr.classList.add('selected');
   selectedRow=tr;
-  /* mode 별 분기 — business 는 패널, user 는 일단 alert (정보 모달은 후속) */
-  if(currentMode==='business'){
-    openPanel(parseInt(tr.dataset.id));
-  }else{
-    /* 사용자 정보 모달은 후속 페이즈. 일단 클릭 무시 (액션 버튼만 동작) */
-  }
+  /* mode 무관 — openPanel 안에서 currentMode 분기 */
+  openPanel(parseInt(tr.dataset.id));
 });
 
 async function handleUserAction(userId, action, btn){
