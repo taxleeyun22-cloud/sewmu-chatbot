@@ -148,7 +148,8 @@ export async function onRequestGet(context) {
         whereAssignee = ` AND (m.assigned_to_user_id = ? OR m.author_user_id = ? OR m.assigned_to_user_id IS NULL)`;
         binds.push(uid, uid);
       }
-      const sql = `SELECT m.id, m.room_id, m.author_user_id, m.author_name, m.assigned_to_user_id,
+      const sql = `SELECT m.id, m.room_id, m.target_business_id, m.target_user_id,
+                          m.author_user_id, m.author_name, m.assigned_to_user_id,
                           m.memo_type, m.content, m.is_edited, m.due_date, m.linked_message_id,
                           m.created_at, m.updated_at,
                           r.name AS room_name

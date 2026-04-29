@@ -352,12 +352,12 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
       <div class="of-mhdr-date" id="hdrDate"></div>
     </header>
 
-    <!-- KPI (세무사 모드만) -->
+    <!-- KPI (세무사 모드만) — 셀 클릭 시 4탭 자동 점프 -->
     <div class="of-kpi-bar">
-      <div class="of-kpi-cell processed"><span class="l">처리</span><span class="n" id="kpiProcessed">0</span></div>
-      <div class="of-kpi-cell waiting"><span class="l">대기</span><span class="n" id="kpiWaiting">0</span></div>
-      <div class="of-kpi-cell blocked"><span class="l">막힘</span><span class="n" id="kpiBlocked">0</span></div>
-      <div class="of-kpi-cell delayed"><span class="l">지연</span><span class="n" id="kpiDelayed">0</span></div>
+      <div class="of-kpi-cell processed" data-jump-status="done" style="cursor:pointer"><span class="l">처리</span><span class="n" id="kpiProcessed">0</span></div>
+      <div class="of-kpi-cell waiting" data-jump-status="in_progress" style="cursor:pointer"><span class="l">대기</span><span class="n" id="kpiWaiting">0</span></div>
+      <div class="of-kpi-cell blocked" data-jump-status="blocked" style="cursor:pointer"><span class="l">막힘</span><span class="n" id="kpiBlocked">0</span></div>
+      <div class="of-kpi-cell delayed" data-jump-status="pending_filing" style="cursor:pointer"><span class="l">지연</span><span class="n" id="kpiDelayed">0</span></div>
     </div>
 
     <!-- 필터 탭 -->
@@ -377,14 +377,14 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
         <thead>
           <tr>
             <th class="checkbox"><input type="checkbox" aria-label="전체 선택"></th>
-            <th class="sortable">거래처명</th>
-            <th class="sortable">대표자</th>
-            <th class="sortable">담당</th>
-            <th>상태</th>
-            <th>다음 신고</th>
-            <th>급박</th>
-            <th>업종</th>
-            <th>과세</th>
+            <th class="sortable" data-sort-key="name">거래처명</th>
+            <th class="sortable" data-sort-key="owner">대표자</th>
+            <th class="sortable" data-sort-key="staff">담당</th>
+            <th class="sortable" data-sort-key="status">상태</th>
+            <th class="sortable" data-sort-key="next">다음 신고</th>
+            <th class="sortable" data-sort-key="dday">급박</th>
+            <th class="sortable" data-sort-key="biz">업종</th>
+            <th class="sortable" data-sort-key="tax">과세</th>
           </tr>
         </thead>
         <tbody id="gridBody"></tbody>
@@ -668,7 +668,9 @@ function renderKpi(){
 }
 
 async function fetchHeaderBadges(){
-  /* 헤더 📋 내 일정 N (내 미완료 할 일) + 🔔 N (승인 대기 사용자) + 사이드바 막힌 일 */
+  /* 헤더 📋 내 일정 N + 🔔 N + 사이드바 막힌 일.
+     추가: memos 응답의 target_business_id 별 가장 가까운 due_date 로
+     CLIENTS 의 next/dday 채움 → 그리드 D-day 컬럼 진짜 데이터 */
   if(!ADMIN_KEY) return;
   const k=encodeURIComponent(ADMIN_KEY);
   try{
@@ -676,11 +678,12 @@ async function fetchHeaderBadges(){
       fetch('/api/memos?scope=my&only_mine=1&key='+k,{credentials:'omit'}),
       fetch('/api/admin-approve?status=pending&key='+k,{credentials:'omit'})
     ]);
-    let todoN=0;
+    let todoN=0, memos=[];
     if(memoRes.ok){
       try{
         const j=await memoRes.json();
-        todoN=(j.memos||[]).length;
+        memos=j.memos||[];
+        todoN=memos.length;
       }catch(_){}
     }
     let pendingN=0;
@@ -690,12 +693,43 @@ async function fetchHeaderBadges(){
         pendingN=(j.counts&&j.counts.pending)||0;
       }catch(_){}
     }
+    /* 거래처별 가장 가까운 due_date 매핑 */
+    const byBiz=new Map();
+    for(const m of memos){
+      if(!m.target_business_id||!m.due_date) continue;
+      const cur=byBiz.get(m.target_business_id);
+      if(!cur || m.due_date<cur) byBiz.set(m.target_business_id,m.due_date);
+    }
+    let changed=false;
+    for(const c of CLIENTS){
+      const due=byBiz.get(c.id);
+      if(due){
+        c.next=due;
+        c.dday=computeDdayBucket(due);
+        changed=true;
+      }
+    }
     const set=(id,n)=>{ const el=document.getElementById(id); if(el) el.textContent=n; };
     set('hdrTodoN',todoN);
     set('hdrAlertN',pendingN);
     set('sbCntTodo',todoN);
     set('sbCntBlocked',CLIENTS.filter(c=>c.status==='blocked').length);
+    if(changed){ renderGrid(); renderKpi(); }
   }catch(_){}
+}
+
+function computeDdayBucket(due){
+  if(!due) return null;
+  try{
+    const d=new Date(due+'T00:00:00');
+    const today=new Date(); today.setHours(0,0,0,0);
+    const diff=Math.round((d-today)/(1000*60*60*24));
+    if(diff<0) return 'overdue';
+    if(diff===0) return 'today';
+    if(diff===1) return 'tomorrow';
+    if(diff<=7) return 'week';
+    return 'later';
+  }catch(_){ return null; }
 }
 
 function renderEmptyState(reason){
@@ -724,7 +758,34 @@ const DDAY_LABEL={overdue:'지남',today:'D-DAY',tomorrow:'D-1',week:'D-3',later
 let currentFilter='mine';
 let currentStatus='all';
 let currentSearch='';
+let currentSort={ key:null, dir:'asc' }; /* 'asc' | 'desc' | null */
 let selectedRow=null;
+
+/* D-day bucket 별 정렬 가중치 — overdue 가장 위, later 아래 */
+const DDAY_WEIGHT={ overdue:0, today:1, tomorrow:2, week:3, later:4 };
+function sortRows(rows){
+  if(!currentSort.key) return rows;
+  const k=currentSort.key;
+  const dir=currentSort.dir==='desc'?-1:1;
+  return rows.slice().sort((a,b)=>{
+    let av=a[k], bv=b[k];
+    if(k==='dday'){
+      av=av==null?99:(DDAY_WEIGHT[av] ?? 99);
+      bv=bv==null?99:(DDAY_WEIGHT[bv] ?? 99);
+      return (av-bv)*dir;
+    }
+    if(k==='pri'){
+      return ((a.pri||99)-(b.pri||99))*dir;
+    }
+    /* 문자열 — 한국어 로케일 비교, '—' 는 항상 뒤 */
+    const aDash=av==='—'||av==null||av==='';
+    const bDash=bv==='—'||bv==null||bv==='';
+    if(aDash && !bDash) return 1;
+    if(!aDash && bDash) return -1;
+    if(aDash && bDash) return 0;
+    return String(av).localeCompare(String(bv),'ko')*dir;
+  });
+}
 
 /* 사이드바 직원 목록 */
 function renderSbStaff(){
@@ -773,7 +834,28 @@ function applyFilter(){
     const q=currentSearch.trim().toLowerCase();
     rows=rows.filter(r=>r.name.toLowerCase().includes(q)||r.owner.toLowerCase().includes(q));
   }
-  return rows;
+  return sortRows(rows);
+}
+
+function renderSortIndicators(){
+  document.querySelectorAll('.of-grid thead th[data-sort-key]').forEach(th=>{
+    const key=th.dataset.sortKey;
+    /* 기존 화살표 마커 제거 후 새로 추가 */
+    let marker=th.querySelector('.sort-mark');
+    if(!marker){
+      marker=document.createElement('span');
+      marker.className='sort-mark';
+      marker.style.cssText='margin-left:4px;font-size:10px;opacity:.6';
+      th.appendChild(marker);
+    }
+    if(currentSort.key===key){
+      marker.textContent=currentSort.dir==='desc'?'▼':'▲';
+      marker.style.opacity='1';
+    }else{
+      marker.textContent='↕';
+      marker.style.opacity='.35';
+    }
+  });
 }
 
 function renderGrid(){
@@ -1052,11 +1134,35 @@ function setRole(role){
 $('btnStaff').addEventListener('click',()=>setRole('staff'));
 $('btnBoss').addEventListener('click',()=>setRole('boss'));
 
+function jumpToTab(status){
+  document.querySelectorAll('.of-tabs button[data-status]').forEach(x=>{
+    x.classList.toggle('on',x.dataset.status===status);
+  });
+  currentStatus=status;
+  renderGrid();
+}
 document.querySelectorAll('.of-tabs button[data-status]').forEach(b=>{
-  b.addEventListener('click',()=>{
-    document.querySelectorAll('.of-tabs button[data-status]').forEach(x=>x.classList.remove('on'));
-    b.classList.add('on');
-    currentStatus=b.dataset.status;
+  b.addEventListener('click',()=>jumpToTab(b.dataset.status));
+});
+
+/* KPI 셀 클릭 → 해당 4탭 자동 점프 */
+document.querySelectorAll('.of-kpi-cell[data-jump-status]').forEach(cell=>{
+  cell.addEventListener('click',()=>jumpToTab(cell.dataset.jumpStatus));
+});
+
+/* 그리드 thead 정렬 클릭 — asc → desc → off */
+document.querySelectorAll('.of-grid thead th[data-sort-key]').forEach(th=>{
+  th.style.cursor='pointer';
+  th.addEventListener('click',()=>{
+    const k=th.dataset.sortKey;
+    if(currentSort.key!==k){
+      currentSort={ key:k, dir:'asc' };
+    }else if(currentSort.dir==='asc'){
+      currentSort={ key:k, dir:'desc' };
+    }else{
+      currentSort={ key:null, dir:'asc' };
+    }
+    renderSortIndicators();
     renderGrid();
   });
 });
@@ -1112,6 +1218,7 @@ document.addEventListener('click',e=>{
 const initRole=new URLSearchParams(location.search).get('role')==='boss'?'boss':'staff';
 setRole(initRole);
 renderHeaderDate();
+renderSortIndicators();
 setLiveBadge(ADMIN_KEY?'connecting':'offline');
 if(ADMIN_KEY){
   fetchClients();
