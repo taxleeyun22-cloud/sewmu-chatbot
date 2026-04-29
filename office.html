@@ -772,9 +772,9 @@ function setLiveBadge(state){
 }
 
 function recomputeStaffCounts(){
-  /* CLIENTS 의 staff 필드 → STAFF_COUNTS 자동 집계.
-     기본 4명(예슬/윤지/다현/성준) 기준으로 0 초기화 후 카운팅. 알 수 없는 staff 는 무시 */
-  STAFF_COUNTS={예슬:0,윤지:0,다현:0,성준:0};
+  /* CLIENTS.staff 필드 → STAFF_COUNTS 카운팅.
+     STAFF_COUNTS 키는 fetchRoomLabels 가 만든 admin 라벨 (예슬/정은/민지/...). 0 으로만 초기화하고 라벨 추가 X */
+  for(const k in STAFF_COUNTS){ STAFF_COUNTS[k]=0; }
   for(const c of CLIENTS){
     if(c.staff && c.staff!=='—' && (c.staff in STAFF_COUNTS)){
       STAFF_COUNTS[c.staff]+=1;
@@ -959,7 +959,7 @@ function renderEmptyState(reason){
 
 /* ============== 렌더 ============== */
 const $=id=>document.getElementById(id);
-const STATUS_LABEL={pending_filing:'신고대기',in_progress:'진행',blocked:'막힘',waiting:'대기',done:'완료'};
+const STATUS_LABEL={active:'활성',closed:'폐업',terminated:'종료',pending_filing:'신고대기',in_progress:'진행',blocked:'막힘',waiting:'대기',done:'완료'};
 const DDAY_LABEL={overdue:'지남',today:'D-DAY',tomorrow:'D-1',week:'D-3',later:'D-7+'};
 
 let currentMode='business'; /* 'business' | 'user' — 그리드 표시 데이터 종류 */
