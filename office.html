@@ -46,38 +46,30 @@ html,body{font-family:'Noto Sans KR',sans-serif;background:var(--of-bg);color:va
 body{height:100vh;overflow:hidden}
 button{font-family:inherit;cursor:pointer}
 
-/* ============== 앱 골격 (3-column: sidebar + iframe + right search) ============== */
+/* ============== 앱 골격 ============== */
 .of-app{display:flex;height:100vh;width:100vw;overflow:hidden}
 
-/* ============== 우측 검색·거래처 패널 ============== */
-.of-rsp{width:280px;flex-shrink:0;background:var(--of-card);border-left:1px solid var(--of-border);display:flex;flex-direction:column;height:100vh;overflow:hidden}
-.of-rsp-h{padding:12px 14px;border-bottom:1px solid var(--of-border);background:#fafbfc;flex-shrink:0}
-.of-rsp-h .ttl{font-size:12.5px;font-weight:800;color:var(--of-text-main);margin-bottom:8px;display:flex;align-items:center;gap:6px}
-.of-rsp-h .ttl .pill{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--of-primary);background:var(--of-primary-soft);padding:2px 8px;border-radius:99px}
-.of-rsp-h .search{position:relative}
-.of-rsp-h .search input{width:100%;background:var(--of-card);border:1px solid var(--of-border);border-radius:8px;padding:7px 10px 7px 30px;font-size:12px;font-family:inherit;color:var(--of-text-main);outline:none;transition:all .15s}
-.of-rsp-h .search input:focus{border-color:var(--of-primary);box-shadow:0 0 0 3px rgba(49,130,246,.12)}
-.of-rsp-h .search::before{content:"🔍";position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:11px;opacity:.55}
-.of-rsp-tabs{display:flex;gap:4px;padding:8px 14px 0;flex-shrink:0;border-bottom:1px solid var(--of-border)}
-.of-rsp-tabs button{background:transparent;border:0;padding:6px 10px;font-size:11.5px;font-weight:700;color:var(--of-text-mute);cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
-.of-rsp-tabs button.on{color:var(--of-primary);border-bottom-color:var(--of-primary)}
-.of-rsp-list{flex:1;overflow-y:auto;padding:6px 0}
-.of-rsp-list::-webkit-scrollbar{width:5px}
-.of-rsp-list::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
-.of-rsp-row{padding:9px 14px;border-bottom:1px solid #f3f4f6;cursor:pointer;transition:background .12s;display:flex;align-items:center;gap:10px}
-.of-rsp-row:hover{background:var(--of-primary-soft)}
-.of-rsp-row .av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3182f6,#5da3ff);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0}
-.of-rsp-row.client .av{background:linear-gradient(135deg,#fbbf24,#fcd34d);color:#7c2d12}
-.of-rsp-row.admin .av{background:linear-gradient(135deg,#8b5a2b,#a78050)}
-.of-rsp-row .b{flex:1;min-width:0}
-.of-rsp-row .b .nm{font-size:12.5px;font-weight:700;color:var(--of-text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.of-rsp-row .b .meta{font-size:10.5px;color:var(--of-text-mute);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.of-rsp-row .badge{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:99px;background:#fef3c7;color:#92400e;flex-shrink:0}
-.of-rsp-row.client .badge{background:#fef3c7;color:#92400e}
-.of-rsp-row.guest .badge{background:#dcfce7;color:#166534}
-.of-rsp-row.pending .badge{background:#dbeafe;color:#1e40af}
-.of-rsp-row.admin .badge{background:#8b6914;color:#fff}
-.of-rsp-empty{padding:30px 14px;text-align:center;font-size:12px;color:var(--of-text-mute)}
+/* ============== 사이드바 안 사용자 검색 (사장님 명령: 우측 패널 폐기 → 사용자 섹션에) ============== */
+.of-sb-search{padding:6px 14px 4px}
+.of-sb-search .wrap{position:relative}
+.of-sb-search input{width:100%;background:var(--sb-bg-deep);border:1px solid var(--sb-divider);border-radius:6px;padding:6px 10px 6px 28px;font-size:12px;color:#fff;font-family:inherit;outline:none;transition:border .12s}
+.of-sb-search input::placeholder{color:var(--sb-text-mute)}
+.of-sb-search input:focus{border-color:var(--of-primary)}
+.of-sb-search .ic{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11px;opacity:.6;color:var(--sb-text)}
+.of-sb-results{max-height:240px;overflow-y:auto;margin:6px 8px 0;background:var(--sb-bg-deep);border-radius:6px;border:1px solid var(--sb-divider)}
+.of-sb-results::-webkit-scrollbar{width:5px}
+.of-sb-results::-webkit-scrollbar-thumb{background:#3a4358;border-radius:3px}
+.of-sb-results .empty{padding:10px;text-align:center;font-size:11px;color:var(--sb-text-mute)}
+.of-sb-results .row{padding:7px 10px;border-bottom:1px solid var(--sb-divider);cursor:pointer;transition:background .12s;font-size:12px}
+.of-sb-results .row:last-child{border-bottom:0}
+.of-sb-results .row:hover{background:var(--sb-hover)}
+.of-sb-results .row .nm{color:#fff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.of-sb-results .row .nm .badge{font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:99px;margin-left:4px;background:#3d4b69;color:#cbd5e1}
+.of-sb-results .row .nm .badge.client{background:#fbbf24;color:#7c2d12}
+.of-sb-results .row .nm .badge.guest{background:#10b981;color:#fff}
+.of-sb-results .row .nm .badge.pending{background:#3182f6;color:#fff}
+.of-sb-results .row .nm .badge.admin{background:#8b6914;color:#fff}
+.of-sb-results .row .meta{color:var(--sb-text-mute);font-size:10.5px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* 사이드바 collapsible */
 .of-sb-section{cursor:pointer;user-select:none}
@@ -286,10 +278,6 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
 .of-panel-actions .ghost:hover{background:var(--of-bg)}
 
 /* ============== 반응형 ============== */
-@media(max-width:1279px){
-  /* 우측 패널은 넓을 때만 표시 (좁으면 iframe 우선) */
-  .of-rsp{display:none}
-}
 @media(max-width:1023px){
   .of-sb{position:fixed;top:0;left:0;bottom:0;z-index:60;transform:translateX(-100%);transition:transform .25s}
   .of-sb.open{transform:translateX(0);box-shadow:var(--of-shadow-lg)}
@@ -352,6 +340,14 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
       <!-- ===== 사용자 (거래처 사장) ===== -->
       <div class="of-sb-section" data-section-key="users">사용자 <span class="arrow">▾</span></div>
       <div class="sb-grp" data-grp="users">
+        <!-- 검색 — 사용자 섹션 안 (사장님 명령) -->
+        <div class="of-sb-search">
+          <div class="wrap">
+            <span class="ic">🔍</span>
+            <input id="sbUserSearch" type="text" placeholder="이름·전화·회사명 검색" autocomplete="off">
+          </div>
+          <div class="of-sb-results" id="sbUserResults" style="display:none"></div>
+        </div>
         <button class="of-sb-item" data-mode="user" data-status="pending" type="button">
           <span class="ic">⏳</span><span class="lb">대기</span><span class="cnt" id="sbUserPending">0</span>
         </button>
@@ -425,25 +421,7 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
     <iframe id="adminFrame" src="/admin.html?embedded=1" style="flex:1;width:100%;border:0;background:var(--of-bg);min-height:0"></iframe>
   </main>
 
-  <!-- ======= 우측 검색·거래처 패널 (사장님 명령: 언제든 메모/거래처 전환) ======= -->
-  <aside class="of-rsp" id="rsp">
-    <div class="of-rsp-h">
-      <div class="ttl">🔍 빠른 거래처 <span class="pill" id="rspCount">0</span></div>
-      <div class="search">
-        <input id="rspSearch" type="text" placeholder="이름·전화·회사명 검색" autocomplete="off">
-      </div>
-    </div>
-    <div class="of-rsp-tabs" id="rspTabs">
-      <button data-rsp-tab="all" class="on" type="button">전체</button>
-      <button data-rsp-tab="approved_client" type="button">⭐기장</button>
-      <button data-rsp-tab="approved_guest" type="button">일반</button>
-      <button data-rsp-tab="pending" type="button">대기</button>
-      <button data-rsp-tab="admin" type="button">👑관리자</button>
-    </div>
-    <div class="of-rsp-list" id="rspList">
-      <div class="of-rsp-empty">불러오는 중...</div>
-    </div>
-  </aside>
+  <!-- 우측 검색 패널 폐기 (사장님 명령: 사용자 섹션 안 검색칸으로 대체) -->
 
 </div>
 
@@ -560,10 +538,10 @@ async function fetchSidebarCounts(){
   }catch(_){}
 }
 
-/* ===== 우측 검색·거래처 패널 ===== */
-const RSP={ users:[], filter:'all', q:'' };
+/* ===== 사이드바 사용자 검색 (사장님 명령) ===== */
+const SBUS={ users:[], q:'' };
 
-async function fetchRspUsers(){
+async function fetchSbUsers(){
   /* admin-approve 는 status=all 시 is_admin=1 제외 → admin 도 별도 fetch 후 머지 */
   try{
     const [allRes,adminRes]=await Promise.all([
@@ -579,15 +557,9 @@ async function fetchRspUsers(){
       const j=await adminRes.json();
       merged=merged.concat(j.users||[]);
     }
-    /* dedupe by id */
-    const seen=new Set();
-    const dedup=[];
-    for(const u of merged){
-      if(seen.has(u.id)) continue;
-      seen.add(u.id);
-      dedup.push(u);
-    }
-    RSP.users=dedup.map(u=>({
+    const seen=new Set(); const dedup=[];
+    for(const u of merged){ if(seen.has(u.id)) continue; seen.add(u.id); dedup.push(u); }
+    SBUS.users=dedup.map(u=>({
       id:u.id,
       name:u.real_name||u.name||('user#'+u.id),
       phone:u.phone||'',
@@ -596,58 +568,53 @@ async function fetchRspUsers(){
       status:u.approval_status||'',
       is_admin:u.is_admin?1:0
     }));
-    renderRsp();
-  }catch(_){ renderRsp(); }
+  }catch(_){}
 }
 
-function renderRsp(){
-  const list=$('rspList'); if(!list) return;
-  const q=(RSP.q||'').toLowerCase().trim();
-  let arr=RSP.users.slice();
-  if(RSP.filter==='admin') arr=arr.filter(u=>u.is_admin===1);
-  else if(RSP.filter!=='all') arr=arr.filter(u=>u.status===RSP.filter);
-  if(q) arr=arr.filter(u=>(u.name||'').toLowerCase().includes(q)||(u.phone||'').includes(q)||(u.email||'').toLowerCase().includes(q)||(u.company||'').toLowerCase().includes(q));
-  /* 정렬: 기장거래처 → 일반 → 대기 → 거절·종료 */
+function renderSbUserResults(){
+  const box=$('sbUserResults'); if(!box) return;
+  const q=(SBUS.q||'').toLowerCase().trim();
+  if(!q){ box.style.display='none'; box.innerHTML=''; return; }
+  let arr=SBUS.users.filter(u=>
+    (u.name||'').toLowerCase().includes(q)||
+    (u.phone||'').includes(q)||
+    (u.email||'').toLowerCase().includes(q)||
+    (u.company||'').toLowerCase().includes(q)
+  );
   const order={approved_client:0,approved_guest:1,pending:2,admin:3,rejected:4,terminated:5};
   arr.sort((a,b)=>(order[a.status]??9)-(order[b.status]??9)||a.name.localeCompare(b.name,'ko'));
-  if($('rspCount')) $('rspCount').textContent=arr.length;
-  if(!arr.length){ list.innerHTML='<div class="of-rsp-empty">결과 없음</div>'; return; }
-  const STBADGE={approved_client:'⭐기장',approved_guest:'일반',pending:'대기',rejected:'거절',terminated:'종료',admin:'👑관리자'};
-  const CLS={approved_client:'client',approved_guest:'guest',pending:'pending',admin:'admin'};
-  list.innerHTML=arr.slice(0,200).map(u=>{
-    const cls=u.is_admin===1?'admin':(CLS[u.status]||'');
-    const initial=(u.name||'?').charAt(0);
-    const meta=[u.company||'',u.phone||''].filter(Boolean).join(' · ')||(u.email||'-');
-    const badge=u.is_admin===1?'👑관리자':(STBADGE[u.status]||'');
-    return `<div class="of-rsp-row ${cls}" data-uid="${u.id}" data-name="${escAttr(u.name)}">
-      <div class="av">${escAttr(initial)}</div>
-      <div class="b">
-        <div class="nm">${escAttr(u.name)}</div>
-        <div class="meta">${escAttr(meta)}</div>
-      </div>
-      ${badge?`<div class="badge">${escAttr(badge)}</div>`:''}
+  box.style.display='block';
+  if(!arr.length){ box.innerHTML='<div class="empty">결과 없음</div>'; return; }
+  const STBADGE={approved_client:'⭐기장',approved_guest:'일반',pending:'대기',rejected:'거절',terminated:'종료'};
+  const CLS={approved_client:'client',approved_guest:'guest',pending:'pending'};
+  box.innerHTML=arr.slice(0,30).map(u=>{
+    const badgeCls=u.is_admin===1?'admin':(CLS[u.status]||'');
+    const badgeTxt=u.is_admin===1?'👑':(STBADGE[u.status]||'');
+    const meta=[u.company||'',u.phone||''].filter(Boolean).join(' · ')||(u.email||'');
+    return `<div class="row" data-uid="${u.id}" data-name="${escAttr(u.name)}">
+      <div class="nm">${escAttr(u.name)}${badgeTxt?` <span class="badge ${badgeCls}">${escAttr(badgeTxt)}</span>`:''}</div>
+      ${meta?`<div class="meta">${escAttr(meta)}</div>`:''}
     </div>`;
   }).join('');
 }
 
-/* 우측 패널 클릭 → admin iframe 의 거래처 dashboard 모달 */
-$('rspList')?.addEventListener('click',e=>{
-  const row=e.target.closest('.of-rsp-row'); if(!row) return;
+/* 결과 클릭 → admin iframe 의 거래처 dashboard 모달 */
+$('sbUserResults')?.addEventListener('click',e=>{
+  const row=e.target.closest('.row'); if(!row) return;
   const uid=parseInt(row.dataset.uid,10); if(!uid) return;
   const nm=row.dataset.name||'';
   callAdmin('openCustomerDashboard',uid,nm);
+  /* 검색창 비우고 결과 닫기 */
+  if($('sbUserSearch')) $('sbUserSearch').value='';
+  SBUS.q=''; renderSbUserResults();
 });
 
-/* 우측 패널 검색 input */
-$('rspSearch')?.addEventListener('input',e=>{ RSP.q=e.target.value||''; renderRsp(); });
-
-/* 우측 패널 탭 */
-$('rspTabs')?.addEventListener('click',e=>{
-  const b=e.target.closest('button[data-rsp-tab]'); if(!b) return;
-  document.querySelectorAll('#rspTabs button').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on');
-  RSP.filter=b.dataset.rspTab||'all';
-  renderRsp();
+/* 검색 input */
+$('sbUserSearch')?.addEventListener('input',e=>{ SBUS.q=e.target.value||''; renderSbUserResults(); });
+/* 검색칸 밖 클릭 시 결과 닫기 */
+document.addEventListener('click',e=>{
+  if(e.target.closest('.of-sb-search')) return;
+  const box=$('sbUserResults'); if(box) box.style.display='none';
 });
 
 /* ===== Collapsible 사이드바 섹션 ===== */
@@ -728,16 +695,24 @@ $('sidebar')?.addEventListener('click',e=>{
   const it=e.target.closest('.of-sb-item');
   if(!it) return;
 
-  /* 사용자 카테고리 — 한 번의 sequential 호출 (race 방지) */
+  /* 사용자 카테고리 — 한 번의 sequential 호출 (race 방지)
+     주의: admin.js tab('users') 가 loadUsers(currentStatus||'pending') 를 자동으로
+     호출하기 때문에, currentStatus 를 먼저 세팅해야 잘못된 status 의 list 가 안 떠 옴.
+     과거 사고: userStatus('approved_client') 직전 tab('users') 가 loadUsers('pending')
+     fetch 를 시작 → race 로 pending 응답이 client 응답을 덮어쓰면 button 은 client 인데
+     list 는 pending. */
   if(it.dataset.mode==='user'){
     document.querySelectorAll('#sidebar .of-sb-item').forEach(x=>x.classList.remove('on'));
     it.classList.add('on');
     const st=it.dataset.status;
-    /* userStatus 안에 loadUsers 가 들어있으므로 tab 후 userStatus 만 호출하면 충분 */
+    const f=$('adminFrame');
+    /* currentStatus 를 직접 set — admin.js 안 module-scoped 변수라 안 됨.
+       대신 admin.js 가 현재 노출한 함수만 사용. tab() 호출 전에 status 를 설정할 방법은
+       userStatus() 자체를 먼저 호출하는 것 — 이러면 currentStatus 도 set 되고 styles 도 set */
     callAdminSeq([
-      ['tab','users'],
-      ['setClientTabMode','user'],
-      ['userStatus',st]
+      ['userStatus', st],          /* 1. currentStatus + buttons + loadUsers(st) */
+      ['setClientTabMode','user'], /* 2. user mode view 표시 */
+      ['tab','users']              /* 3. tab visibility — loadUsers(currentStatus=st) 동일 status fetch */
     ]);
     return;
   }
@@ -819,7 +794,7 @@ applyCollapsed();
     await Promise.all([fetchCurrentUser(),fetchRoomLabels()]);
     setRole('boss');
     renderSbStaff();
-    await Promise.all([fetchSidebarCounts(),fetchRspUsers()]);
+    await Promise.all([fetchSidebarCounts(),fetchSbUsers()]);
   }catch(e){ console.error('[boot]',e); }
 })();
 
@@ -828,7 +803,7 @@ window.addEventListener('message',e=>{
   if(!e.data||typeof e.data!=='object') return;
   if(e.data.type==='admin:userStatusChanged'||e.data.type==='admin:roomLabelChanged'){
     fetchSidebarCounts();
-    fetchRspUsers();
+    fetchSbUsers();
     if(e.data.type==='admin:roomLabelChanged') fetchRoomLabels().then(renderSbStaff);
   }
 });
