@@ -298,14 +298,36 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
 
     <div class="of-sb-scroll">
 
-      <div class="of-sb-section">거래처 <span class="arrow">▾</span></div>
-      <button class="of-sb-item on" data-filter="mine" type="button">
+      <!-- ===== 사용자 (거래처 사장) ===== -->
+      <div class="of-sb-section">사용자 <span class="arrow">▾</span></div>
+      <button class="of-sb-item" data-mode="user" data-status="pending" type="button">
+        <span class="ic">⏳</span><span class="lb">대기</span><span class="cnt" id="sbUserPending">0</span>
+      </button>
+      <button class="of-sb-item" data-mode="user" data-status="approved_client" type="button">
+        <span class="ic">⭐</span><span class="lb">기장거래처</span><span class="cnt" id="sbUserClient">0</span>
+      </button>
+      <button class="of-sb-item" data-mode="user" data-status="approved_guest" type="button">
+        <span class="ic">✓</span><span class="lb">일반승인</span><span class="cnt" id="sbUserGuest">0</span>
+      </button>
+      <button class="of-sb-item" data-mode="user" data-status="rejected" type="button">
+        <span class="ic">✕</span><span class="lb">거절</span><span class="cnt" id="sbUserRejected">0</span>
+      </button>
+      <button class="of-sb-item" data-mode="user" data-status="terminated" type="button">
+        <span class="ic">⛔</span><span class="lb">종료</span><span class="cnt" id="sbUserTerminated">0</span>
+      </button>
+      <button class="of-sb-item" data-mode="user" data-status="admin" type="button">
+        <span class="ic">👑</span><span class="lb">관리자</span><span class="cnt" id="sbUserAdmin">0</span>
+      </button>
+
+      <!-- ===== 업체 ===== -->
+      <div class="of-sb-section">업체 <span class="arrow">▾</span></div>
+      <button class="of-sb-item on" data-mode="business" data-filter="all" type="button">
+        <span class="ic">🏢</span><span class="lb">전체</span><span class="cnt" id="sbCntAll">0</span>
+      </button>
+      <button class="of-sb-item" data-mode="business" data-filter="mine" type="button">
         <span class="ic">📋</span><span class="lb">내 담당</span><span class="cnt" id="sbCntMine">0</span>
       </button>
-      <button class="of-sb-item" data-filter="all" type="button">
-        <span class="ic">📂</span><span class="lb">전체</span><span class="cnt" id="sbCntAll">0</span>
-      </button>
-      <button class="of-sb-item" data-filter="unassigned" type="button">
+      <button class="of-sb-item" data-mode="business" data-filter="unassigned" type="button">
         <span class="ic">❔</span><span class="lb">미지정</span><span class="cnt" id="sbCntUnassigned">0</span>
       </button>
 
@@ -549,6 +571,58 @@ async function fetchClients(){
   }
 }
 
+async function fetchUsers(status){
+  /* admin-approve?status=... → users 목록 */
+  if(!ADMIN_KEY){ renderEmptyState('unauth'); return; }
+  setLiveBadge('connecting');
+  renderEmptyState('loading');
+  const k=encodeURIComponent(ADMIN_KEY);
+  try{
+    const r=await fetch('/api/admin-approve?status='+encodeURIComponent(status)+'&key='+k,{credentials:'omit'});
+    if(r.status===401){ setLiveBadge('offline'); renderEmptyState('unauth'); return; }
+    if(!r.ok){ setLiveBadge('error'); renderEmptyState('error'); return; }
+    const data=await r.json();
+    USERS=(data.users||[]);
+    setLiveBadge('live');
+    renderGrid();
+  }catch(_){
+    setLiveBadge('error');
+    renderEmptyState('error');
+  }
+}
+
+async function userAction(userId, action, extraBody){
+  /* admin-approve POST 액션 통합 wrapper */
+  if(!ADMIN_KEY||!userId||!action) return { ok:false, error:'invalid' };
+  try{
+    const r=await fetch('/api/admin-approve?action='+encodeURIComponent(action)+'&key='+encodeURIComponent(ADMIN_KEY),{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(Object.assign({ user_id:userId }, extraBody||{}))
+    });
+    const txt=await r.text();
+    let j=null; try{ j=JSON.parse(txt); }catch(_){}
+    if(!r.ok || !j || j.ok===false){
+      return { ok:false, status:r.status, error:(j&&j.error)||txt||('HTTP '+r.status) };
+    }
+    return { ok:true, data:j };
+  }catch(e){ return { ok:false, error:String(e&&e.message)||'네트워크 오류' }; }
+}
+
+async function setUserAdmin(userId, flag){
+  /* admin-users?action=set_admin POST */
+  if(!ADMIN_KEY||!userId) return { ok:false };
+  try{
+    const r=await fetch('/api/admin-users?action=set_admin&key='+encodeURIComponent(ADMIN_KEY),{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ user_id:userId, is_admin: flag?1:0 })
+    });
+    const j=await r.json().catch(()=>null);
+    return { ok: r.ok && j && j.ok!==false, error: j&&j.error };
+  }catch(e){ return { ok:false, error:String(e&&e.message) }; }
+}
+
 async function fetchPanelData(id){
   if(!ADMIN_KEY) return null;
   const k=encodeURIComponent(ADMIN_KEY);
@@ -743,11 +817,12 @@ async function fetchHeaderBadges(){
         todoN=memos.length;
       }catch(_){}
     }
-    let pendingN=0;
+    let pendingN=0, userCounts={};
     if(apprRes.ok){
       try{
         const j=await apprRes.json();
-        pendingN=(j.counts&&j.counts.pending)||0;
+        userCounts=j.counts||{};
+        pendingN=userCounts.pending||0;
       }catch(_){}
     }
     let trashN=0;
@@ -779,6 +854,13 @@ async function fetchHeaderBadges(){
     set('sbCntTodo',todoN);
     set('sbCntBlocked',CLIENTS.filter(c=>c.status==='blocked').length);
     set('sbCntTrash',trashN);
+    /* 사이드바 사용자 카테고리 카운트 */
+    set('sbUserPending',userCounts.pending||0);
+    set('sbUserClient',userCounts.approved_client||0);
+    set('sbUserGuest',userCounts.approved_guest||0);
+    set('sbUserRejected',userCounts.rejected||0);
+    set('sbUserTerminated',userCounts.terminated||0);
+    set('sbUserAdmin',userCounts.admin||0);
     if(changed){ renderGrid(); renderKpi(); }
   }catch(_){}
 }
@@ -820,12 +902,16 @@ const $=id=>document.getElementById(id);
 const STATUS_LABEL={pending_filing:'신고대기',in_progress:'진행',blocked:'막힘',waiting:'대기',done:'완료'};
 const DDAY_LABEL={overdue:'지남',today:'D-DAY',tomorrow:'D-1',week:'D-3',later:'D-7+'};
 
-let currentFilter='mine';
-let currentStatus='all';
+let currentMode='business'; /* 'business' | 'user' — 그리드 표시 데이터 종류 */
+let currentFilter='all';    /* business 모드: mine|all|unassigned|staff:이름 */
+let currentStatus='all';    /* business 모드: all|pending_filing|in_progress|blocked|done */
+let currentUserStatus='pending'; /* user 모드: pending|approved_client|approved_guest|rejected|terminated|admin */
 let currentSearch='';
-let currentSort={ key:null, dir:'asc' }; /* 'asc' | 'desc' | null */
+let currentSort={ key:null, dir:'asc' };
 let selectedRow=null;
-const SELECTED_IDS=new Set(); /* 일괄 액션용 — 거래처 id Set */
+const SELECTED_IDS=new Set();
+let USERS=[]; /* 사용자 모드 데이터 (admin-approve 응답) */
+const USER_STATUS_LABEL={ pending:'대기', approved_client:'기장거래처', approved_guest:'일반승인', rejected:'거절', terminated:'종료', admin:'관리자' };
 
 /* D-day bucket 별 정렬 가중치 — overdue 가장 위, later 아래 */
 const DDAY_WEIGHT={ overdue:0, today:1, tomorrow:2, week:3, later:4 };
@@ -924,19 +1010,72 @@ function renderSortIndicators(){
   });
 }
 
+function renderGridHeader(){
+  /* currentMode 따라 thead 동적 교체 */
+  const head=document.querySelector('.of-grid thead tr');
+  if(!head) return;
+  if(currentMode==='user'){
+    head.innerHTML=`
+      <th class="checkbox"><input type="checkbox" id="bulkSelectAll" aria-label="전체 선택"></th>
+      <th class="sortable" data-sort-key="real_name">본명</th>
+      <th class="sortable" data-sort-key="name">닉네임</th>
+      <th class="sortable" data-sort-key="phone">휴대폰</th>
+      <th class="sortable" data-sort-key="company_name">회사</th>
+      <th class="sortable" data-sort-key="approval_status">상태</th>
+      <th class="sortable" data-sort-key="created_at">가입</th>
+      <th>액션</th>
+    `;
+  }else{
+    head.innerHTML=`
+      <th class="checkbox"><input type="checkbox" id="bulkSelectAll" aria-label="전체 선택"></th>
+      <th class="sortable" data-sort-key="name">거래처명</th>
+      <th class="sortable" data-sort-key="owner">대표자</th>
+      <th class="sortable" data-sort-key="staff">담당</th>
+      <th class="sortable" data-sort-key="status">상태</th>
+      <th class="sortable" data-sort-key="dday">급박</th>
+      <th class="sortable" data-sort-key="biz">업종</th>
+      <th class="sortable" data-sort-key="tax">과세</th>
+    `;
+  }
+  /* 정렬 인디케이터 + 클릭 핸들러 재바인딩 */
+  document.querySelectorAll('.of-grid thead th[data-sort-key]').forEach(th=>{
+    th.style.cursor='pointer';
+    th.addEventListener('click',()=>{
+      const k=th.dataset.sortKey;
+      if(currentSort.key!==k){ currentSort={ key:k, dir:'asc' }; }
+      else if(currentSort.dir==='asc'){ currentSort={ key:k, dir:'desc' }; }
+      else{ currentSort={ key:null, dir:'asc' }; }
+      renderSortIndicators(); renderGrid();
+    });
+  });
+  /* 헤더 전체 선택 체크박스 재바인딩 */
+  const head2=document.getElementById('bulkSelectAll');
+  if(head2){
+    head2.addEventListener('change',()=>{
+      const visibleIds=Array.from(document.querySelectorAll('#gridBody tr[data-id]')).map(t=>parseInt(t.dataset.id));
+      if(head2.checked){ visibleIds.forEach(id=>SELECTED_IDS.add(id)); }
+      else{ visibleIds.forEach(id=>SELECTED_IDS.delete(id)); }
+      document.querySelectorAll('#gridBody tr[data-id]').forEach(tr=>{
+        const id=parseInt(tr.dataset.id);
+        const cb=tr.querySelector('input.row-check');
+        const sel=SELECTED_IDS.has(id);
+        if(cb) cb.checked=sel;
+        tr.classList.toggle('selected-bulk',sel);
+      });
+      renderBulkBar();
+    });
+  }
+  renderSortIndicators();
+}
+
 function renderGrid(){
+  if(currentMode==='user'){ renderUserGrid(); return; }
   const rows=applyFilter();
   if(!rows.length){
-    /* 컨텍스트 별 안내 — Stage A 잔재 텍스트 제거 */
     let ic='🏢', h, s='';
-    if(CLIENTS.length===0){
-      h='등록된 거래처가 없습니다';
-    }else if(currentSearch.trim()){
-      ic='🔍'; h='검색 결과 없음'; s=`"${currentSearch}" 와 일치하는 거래처가 없습니다.`;
-    }else{
-      ic='📭'; h='해당 조건의 거래처가 없습니다';
-      s='필터·탭을 바꾸거나 전체로 돌아가 주세요.';
-    }
+    if(CLIENTS.length===0){ h='등록된 거래처가 없습니다'; }
+    else if(currentSearch.trim()){ ic='🔍'; h='검색 결과 없음'; s=`"${currentSearch}" 와 일치하는 거래처가 없습니다.`; }
+    else { ic='📭'; h='해당 조건의 거래처가 없습니다'; s='필터·탭을 바꾸거나 전체로 돌아가 주세요.'; }
     $('gridBody').innerHTML=`
       <tr><td colspan="8" style="padding:60px 20px;text-align:center;color:var(--of-text-mute)">
         <div style="font-size:36px;margin-bottom:12px">${ic}</div>
@@ -966,11 +1105,79 @@ function renderGrid(){
   $('cntBL').textContent=CLIENTS.filter(r=>r.status==='blocked').length;
   $('cntDN').textContent=CLIENTS.filter(r=>r.status==='done').length;
 
-  /* 헤더 서브 텍스트 — 현재 탭/필터/검색 컨텍스트 반영 */
   $('mhdrSub').textContent=buildHdrSubLabel(rows.length);
-
-  /* 일괄 액션 바 동기화 */
   renderBulkBar();
+}
+
+function renderUserGrid(){
+  let rows=USERS.slice();
+  if(currentSearch.trim()){
+    const q=currentSearch.trim().toLowerCase();
+    rows=rows.filter(u=>(u.real_name||u.name||'').toLowerCase().includes(q)||(u.phone||'').includes(q)||(u.company_name||'').toLowerCase().includes(q));
+  }
+  if(currentSort.key){
+    const dir=currentSort.dir==='desc'?-1:1;
+    rows.sort((a,b)=>{
+      const av=a[currentSort.key]||''; const bv=b[currentSort.key]||'';
+      return String(av).localeCompare(String(bv),'ko')*dir;
+    });
+  }
+  if(!rows.length){
+    $('gridBody').innerHTML=`
+      <tr><td colspan="8" style="padding:60px 20px;text-align:center;color:var(--of-text-mute)">
+        <div style="font-size:36px;margin-bottom:12px">👥</div>
+        <div style="font-weight:700;color:var(--of-text-main);margin-bottom:4px">${USER_STATUS_LABEL[currentUserStatus]||'사용자'} 0명</div>
+      </td></tr>
+    `;
+  }else{
+    const isOwner=true; /* TODO: 실제 owner 검증 — 현재 ADMIN_KEY 보유자 */
+    $('gridBody').innerHTML=rows.map(u=>{
+      const status=u.approval_status||'pending';
+      const statusLabel={pending:'대기',approved_client:'기장',approved_guest:'일반',rejected:'거절',terminated:'종료'}[status]||status;
+      const phone=(u.phone||'').replace(/(\d{3})(\d{3,4})(\d{4})/,'$1-$2-$3');
+      const created=(u.created_at||'').slice(0,10);
+      return `
+      <tr data-id="${u.id}">
+        <td class="checkbox"><input type="checkbox" class="row-check" data-id="${u.id}" aria-label="선택"></td>
+        <td><b>${escAttr(u.real_name||'—')}</b></td>
+        <td>${escAttr(u.name||'')}</td>
+        <td>${escAttr(phone)}</td>
+        <td>${escAttr(u.company_name||u.ceo_name||'—')}</td>
+        <td><span class="chip ${u.is_admin?'in_progress':status}">${u.is_admin?'👑 관리자':statusLabel}</span></td>
+        <td style="font-size:11px;color:var(--of-text-mute)">${created}</td>
+        <td>
+          ${renderUserActionsHtml(u)}
+        </td>
+      </tr>
+    `;}).join('');
+  }
+  $('mhdrSub').textContent=`${USER_STATUS_LABEL[currentUserStatus]||'사용자'} ${rows.length}명${currentSearch?` · "${currentSearch}" 검색`:''}`;
+  renderBulkBar();
+}
+
+function renderUserActionsHtml(u){
+  /* 사용자 행별 액션 버튼 */
+  const id=u.id;
+  const st=u.approval_status||'pending';
+  const isAdmin=!!u.is_admin;
+  const btn=(label,action,color)=>`<button class="user-act-btn" data-act="${action}" data-id="${id}" style="font-size:10px;padding:2px 6px;margin:0 2px;border:1px solid #d1d5db;background:#fff;border-radius:4px;cursor:pointer;color:${color||'#3182f6'}">${label}</button>`;
+  let h='';
+  if(st==='pending'){
+    h+=btn('⭐ 기장','approve_client','#16a34a');
+    h+=btn('✓ 일반','approve_guest','#3182f6');
+    h+=btn('✕ 거절','reject','#dc2626');
+  }else if(st==='approved_guest'){
+    h+=btn('⭐ 기장 승급','approve_client','#16a34a');
+    h+=btn('⛔ 종료','terminate','#dc2626');
+  }else if(st==='approved_client'){
+    h+=btn('⛔ 종료','terminate','#dc2626');
+    h+=btn('🔒 폐업','archive','#6b7280');
+  }else if(st==='rejected'||st==='terminated'){
+    h+=btn('✓ 일반 복귀','approve_guest','#3182f6');
+  }
+  /* 관리자 토글 */
+  h+=btn(isAdmin?'👑 해제':'👑 관리자', isAdmin?'unset_admin':'set_admin', isAdmin?'#dc2626':'#7c3aed');
+  return h;
 }
 
 function buildHdrSubLabel(n){
@@ -1292,22 +1499,8 @@ if(trashBtn){
   });
 }
 
-/* 그리드 thead 정렬 클릭 — asc → desc → off */
-document.querySelectorAll('.of-grid thead th[data-sort-key]').forEach(th=>{
-  th.style.cursor='pointer';
-  th.addEventListener('click',()=>{
-    const k=th.dataset.sortKey;
-    if(currentSort.key!==k){
-      currentSort={ key:k, dir:'asc' };
-    }else if(currentSort.dir==='asc'){
-      currentSort={ key:k, dir:'desc' };
-    }else{
-      currentSort={ key:null, dir:'asc' };
-    }
-    renderSortIndicators();
-    renderGrid();
-  });
-});
+/* 그리드 thead 정렬 클릭 — renderGridHeader 안에서 attach 됨 (mode 전환 시 thead 재생성)
+   여기 부트스트랩 단계에서 별도 attach 하지 않음 (중복 방지) */
 
 $('searchBox').addEventListener('input',e=>{
   currentSearch=e.target.value;
@@ -1317,9 +1510,34 @@ $('searchBox').addEventListener('input',e=>{
 /* 사이드바 클릭 (이벤트 위임) */
 $('sidebar').addEventListener('click',e=>{
   const it=e.target.closest('.of-sb-item');
-  if(!it||!it.dataset.filter) return;
-  const grp=it.parentElement;
-  /* 같은 그룹 안에서만 활성 토글 (메뉴 항목 vs 담당자 항목 구분 단순화: 모두 풀어 데이터 그룹 단위로 갱신) */
+  if(!it) return;
+  /* 사용자 카테고리 클릭 — mode='user' 전환 + 해당 status fetch */
+  if(it.dataset.mode==='user'){
+    const st=it.dataset.status;
+    document.querySelectorAll('#sidebar .of-sb-item').forEach(x=>x.classList.remove('on'));
+    it.classList.add('on');
+    currentMode='user';
+    currentUserStatus=st;
+    SELECTED_IDS.clear();
+    renderGridHeader();
+    fetchUsers(st);
+    return;
+  }
+  /* 업체 카테고리 클릭 — mode='business' 전환 */
+  if(it.dataset.mode==='business'){
+    document.querySelectorAll('#sidebar .of-sb-item').forEach(x=>x.classList.remove('on'));
+    it.classList.add('on');
+    if(currentMode!=='business'){
+      currentMode='business';
+      SELECTED_IDS.clear();
+      renderGridHeader();
+    }
+    currentFilter=it.dataset.filter||'all';
+    renderGrid();
+    return;
+  }
+  if(!it.dataset.filter) return;
+  /* 같은 그룹 안에서만 활성 토글 */
   document.querySelectorAll('.of-sb-item[data-filter^="staff:"]').forEach(x=>x.classList.remove('on'));
   document.querySelectorAll('.of-sb-item[data-filter="mine"],.of-sb-item[data-filter="all"],.of-sb-item[data-filter="unassigned"]').forEach(x=>x.classList.remove('on'));
   it.classList.add('on');
@@ -1327,9 +1545,18 @@ $('sidebar').addEventListener('click',e=>{
   renderGrid();
 });
 
-/* 그리드 행 클릭 / 체크박스 */
-$('gridBody').addEventListener('click',e=>{
-  /* 행 체크박스 → 선택 토글 */
+/* 그리드 행 클릭 / 체크박스 / 사용자 액션 버튼 */
+$('gridBody').addEventListener('click',async e=>{
+  /* 사용자 행 액션 버튼 — mode='user' 일 때 */
+  const ab=e.target.closest('.user-act-btn');
+  if(ab){
+    e.stopPropagation();
+    const userId=parseInt(ab.dataset.id);
+    const action=ab.dataset.act;
+    await handleUserAction(userId, action, ab);
+    return;
+  }
+  /* 행 체크박스 */
   const cb=e.target.closest('input.row-check');
   if(cb){
     const id=parseInt(cb.dataset.id);
@@ -1338,37 +1565,62 @@ $('gridBody').addEventListener('click',e=>{
     renderBulkBar();
     return;
   }
-  /* 다른 input — 무시 */
   if(e.target.closest('input[type="checkbox"]')) return;
   const tr=e.target.closest('tr[data-id]');
   if(!tr) return;
   if(selectedRow) selectedRow.classList.remove('selected');
   tr.classList.add('selected');
   selectedRow=tr;
-  openPanel(parseInt(tr.dataset.id));
+  /* mode 별 분기 — business 는 패널, user 는 일단 alert (정보 모달은 후속) */
+  if(currentMode==='business'){
+    openPanel(parseInt(tr.dataset.id));
+  }else{
+    /* 사용자 정보 모달은 후속 페이즈. 일단 클릭 무시 (액션 버튼만 동작) */
+  }
 });
 
-/* 헤더 전체 선택 체크박스 */
-const bulkSelectAll=document.getElementById('bulkSelectAll');
-if(bulkSelectAll){
-  bulkSelectAll.addEventListener('change',()=>{
-    const visibleIds=Array.from(document.querySelectorAll('#gridBody tr[data-id]')).map(t=>parseInt(t.dataset.id));
-    if(bulkSelectAll.checked){
-      visibleIds.forEach(id=>SELECTED_IDS.add(id));
-    }else{
-      visibleIds.forEach(id=>SELECTED_IDS.delete(id));
-    }
-    /* 행 체크박스 + 행 강조 동기화 */
-    document.querySelectorAll('#gridBody tr[data-id]').forEach(tr=>{
-      const id=parseInt(tr.dataset.id);
-      const cb=tr.querySelector('input.row-check');
-      const sel=SELECTED_IDS.has(id);
-      if(cb) cb.checked=sel;
-      tr.classList.toggle('selected-bulk',sel);
-    });
-    renderBulkBar();
-  });
+async function handleUserAction(userId, action, btn){
+  const u=USERS.find(x=>x.id===userId);
+  if(!u) return;
+  const userLabel = u.real_name || u.name || ('ID '+userId);
+  const confirmMsg = {
+    approve_client: `"${userLabel}" 을(를) ⭐ 기장거래처로 승인합니까?`,
+    approve_guest:  `"${userLabel}" 을(를) ✓ 일반승인 합니까?`,
+    reject:         `"${userLabel}" 을(를) ✕ 거절합니까?`,
+    terminate:      `"${userLabel}" 의 거래를 ⛔ 종료합니까? (상담방 모두 closed)`,
+    archive:        `"${userLabel}" 을(를) 🔒 폐업 처리합니까?`,
+    set_admin:      `"${userLabel}" 을(를) 👑 관리자로 승급합니까?`,
+    unset_admin:    `"${userLabel}" 의 관리자 권한을 해제합니까?`
+  }[action] || '진행하시겠습니까?';
+  if(!confirm(confirmMsg)) return;
+
+  let extra={};
+  if(action==='reject'){
+    const reason=prompt('거절 사유를 입력하세요:','');
+    if(!reason||!reason.trim()) return;
+    extra.reason=reason.trim();
+  }
+
+  const orig=btn.textContent;
+  btn.disabled=true; btn.textContent='…';
+  let res;
+  if(action==='set_admin'||action==='unset_admin'){
+    res=await setUserAdmin(userId, action==='set_admin');
+  }else{
+    res=await userAction(userId, action, extra);
+  }
+  btn.disabled=false; btn.textContent=orig;
+  if(!res.ok){
+    alert('실패: '+(res.error||'')+(res.status?' (HTTP '+res.status+')':''));
+    return;
+  }
+  /* 성공 — 현재 user list 새로고침 + 카운트 새로고침 */
+  await fetchUsers(currentUserStatus);
+  fetchHeaderBadges();
 }
+
+/* 헤더 전체 선택 체크박스 — renderGridHeader 안에서 attach 됨 (mode 전환 시 thead 재생성)
+   여기 부트스트랩 단계에서 별도 attach 하지 않음 (중복 방지) */
 
 /* 일괄 액션 바 — 상태 변경 / 선택 해제 */
 document.querySelectorAll('#bulkBar .bulk-btn').forEach(btn=>{
@@ -1419,6 +1671,7 @@ document.addEventListener('click',e=>{
 const initRole=new URLSearchParams(location.search).get('role')==='boss'?'boss':'staff';
 setRole(initRole);
 renderHeaderDate();
+renderGridHeader(); /* 초기 mode='business' 헤더 세팅 — 정렬 + 전체 선택 핸들러 attach */
 renderSortIndicators();
 setLiveBadge(ADMIN_KEY?'connecting':'offline');
 if(ADMIN_KEY){
