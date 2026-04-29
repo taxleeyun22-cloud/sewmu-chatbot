@@ -282,10 +282,7 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
       <div class="name">사무실 OS</div>
     </div>
 
-    <div class="of-sb-roletoggle" role="tablist">
-      <button id="btnStaff" class="on" type="button">👤 직원</button>
-      <button id="btnBoss" type="button">🧑‍💼 세무사</button>
-    </div>
+    <!-- 직원/세무사 토글 제거 — 어드민(사장님) 1인 운영. 나중에 스태프 권한 추가 시 복원 예정 -->
 
     <div class="of-sb-user">
       <div class="avatar" id="sbAvatar">예</div>
@@ -323,9 +320,6 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
       <div class="of-sb-section">업체 <span class="arrow">▾</span></div>
       <button class="of-sb-item on" data-mode="business" data-filter="all" type="button">
         <span class="ic">🏢</span><span class="lb">전체</span><span class="cnt" id="sbCntAll">0</span>
-      </button>
-      <button class="of-sb-item" data-mode="business" data-filter="mine" type="button">
-        <span class="ic">📋</span><span class="lb">내 담당</span><span class="cnt" id="sbCntMine">0</span>
       </button>
       <button class="of-sb-item" data-mode="business" data-filter="unassigned" type="button">
         <span class="ic">❔</span><span class="lb">미지정</span><span class="cnt" id="sbCntUnassigned">0</span>
@@ -389,31 +383,14 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
         <h1 id="mhdrTitle">거래처 조회</h1>
         <span class="sub" id="mhdrSub">예슬 담당 12개</span>
       </div>
-      <div class="of-mhdr-pills">
-        <span class="of-pill">📋 내 일정 <span class="n" id="hdrTodoN">0</span></span>
-        <span class="of-pill">🔔 <span class="n" id="hdrAlertN">0</span></span>
-        <span id="liveBadge" class="of-pill" style="background:#e5e8eb;color:#8b95a1;font-size:11px;letter-spacing:.4px">OFFLINE</span>
-      </div>
+      <!-- 헤더 pills 통째 hide — '내 일정/알림/LIVE' 가짜 표시 제거. 실제 데이터 알림은 사이드바 통해 관리 -->
       <div class="of-mhdr-date" id="hdrDate"></div>
     </header>
 
-    <!-- KPI (세무사 모드만) — 셀 클릭 시 4탭 자동 점프 -->
-    <div class="of-kpi-bar">
-      <div class="of-kpi-cell processed" data-jump-status="done" style="cursor:pointer"><span class="l">처리</span><span class="n" id="kpiProcessed">0</span></div>
-      <div class="of-kpi-cell waiting" data-jump-status="in_progress" style="cursor:pointer"><span class="l">대기</span><span class="n" id="kpiWaiting">0</span></div>
-      <div class="of-kpi-cell blocked" data-jump-status="blocked" style="cursor:pointer"><span class="l">막힘</span><span class="n" id="kpiBlocked">0</span></div>
-      <div class="of-kpi-cell delayed" data-jump-status="pending_filing" style="cursor:pointer"><span class="l">지연</span><span class="n" id="kpiDelayed">0</span></div>
-    </div>
-
-    <!-- 필터 탭 -->
+    <!-- KPI 바 / 신고대기·지연·진행·막힘 4탭 통째 제거 — businesses 실제 상태와 의미 안 맞음.
+         검색박스만 단독 라인으로 유지 -->
     <div class="of-tabs">
-      <button class="on" data-status="all" type="button">전체 <span class="cnt" id="cntAll">12</span></button>
-      <button data-status="pending_filing" type="button">신고대기 <span class="cnt" id="cntPF">0</span></button>
-      <button data-status="in_progress" type="button">진행 <span class="cnt" id="cntIP">0</span></button>
-      <button data-status="blocked" type="button">막힘 <span class="cnt" id="cntBL">0</span></button>
-      <button data-status="done" type="button">완료 <span class="cnt" id="cntDN">0</span></button>
-      <span class="sep"></span>
-      <span class="search"><input type="text" id="searchBox" placeholder="거래처명·대표명 검색"></span>
+      <span class="search" style="margin-left:auto"><input type="text" id="searchBox" placeholder="거래처명·대표명 검색"></span>
     </div>
 
     <!-- 일괄 액션 바 (선택 1개 이상일 때만 표시) -->
@@ -481,7 +458,8 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
 
 /* Stage B (B-1+B-2): /api/admin-businesses 실데이터 연결.
    sessionStorage admin_key 가 있을 때만 fetch — 미인증 직접 방문은 빈-그리드 안내 유지. */
-let STAFF_COUNTS={예슬:0,윤지:0,다현:0,성준:0};
+let STAFF_COUNTS={};   /* admin-room-labels 응답으로 동적 채움 (예슬/정은/민지/영철 등) */
+let ROOM_LABELS=new Map();  /* id → { name, color } — chat_rooms.priority 가 label_id 를 가리킴 */
 let CLIENTS=[];
 
 const ADMIN_KEY=(typeof sessionStorage!=='undefined' && sessionStorage.getItem('admin_key'))||'';
@@ -494,13 +472,8 @@ const USER_CACHE=new Map();  /* key=user_id -> { user, businesses, memos } */
 const escAttr=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function mapBusinessToClient(b, roomMeta){
-  /* businesses.status 3종(active/closed/terminated) + roomMeta(admin-rooms join) → 4-탭 매핑.
-     roomMeta = { priority(1|2|3|null), staff, room_count } */
-  let status='in_progress';
-  if(b.status==='closed') status='done';
-  else if(b.status==='terminated') status='blocked';
-  /* 신고대기 = 우선순위 1 (사장님 라벨링 기준) — B-4 에서 정확화 */
-  if(roomMeta && roomMeta.priority===1 && b.status==='active') status='pending_filing';
+  /* businesses.status 3종(active/closed/terminated) — 4탭 제거됨 */
+  let status=b.status||'active';
   return {
     id:b.id,
     name:b.company_name||'(상호 미기재)',
@@ -518,24 +491,24 @@ function mapBusinessToClient(b, roomMeta){
 }
 
 function buildRoomMeta(rooms){
-  /* business_id → 가장 우선순위 높은(priority 작은) room 의 메타 추출 */
+  /* business_id → 가장 우선순위 높은(priority/label_id 작은) room 메타.
+     staff = ROOM_LABELS.get(priority).name (사장님이 admin 에서 만든 라벨 이름) */
   const map=new Map();
   for(const r of (rooms||[])){
     if(!r.business_id) continue;
     const cur=map.get(r.business_id);
     const p=(r.priority==null?99:r.priority);
     if(!cur || p<cur._p){
+      const labelInfo=ROOM_LABELS.get(r.priority);
       map.set(r.business_id,{
         _p:p,
         priority:r.priority||null,
-        staff:r.first_member_name||null,
+        staff:(labelInfo&&labelInfo.name)||null, /* 첫 멤버 이름 X — admin 라벨 이름 O */
+        labelColor:(labelInfo&&labelInfo.color)||null,
         room_count:1
       });
-    }else{
-      cur.room_count+=1;
     }
   }
-  /* room_count 누적 보정: 위 로직이 첫 hit 만 1 로 시작하니 다시 한 번 — 간단히 별도 카운트 */
   const counts=new Map();
   for(const r of (rooms||[])){
     if(!r.business_id) continue;
@@ -662,6 +635,24 @@ async function fetchCurrentUser(){
     if(j && j.logged_in && j.user){ ME=j.user; }
   }catch(_){}
   return ME;
+}
+
+async function fetchRoomLabels(){
+  /* admin-room-labels — 사장님이 admin 에서 만든 담당자 라벨 (예슬/정은/민지/...).
+     이름은 유동적이라 항상 동적 fetch. chat_rooms.priority 가 이 label.id 를 가리킴. */
+  try{
+    const r=await fetch('/api/admin-room-labels'+authQS(),{credentials:'include'});
+    if(!r.ok) return;
+    const j=await r.json();
+    const labels=(j.labels||[]).filter(l=>l.active!==0);
+    ROOM_LABELS.clear();
+    const newCounts={};
+    for(const l of labels){
+      ROOM_LABELS.set(l.id,{ name:l.name, color:l.color });
+      newCounts[l.name]=0;
+    }
+    STAFF_COUNTS=newCounts;
+  }catch(_){}
 }
 
 async function fetchUserPanelData(userId){
@@ -863,11 +854,7 @@ function setCnt(id,n){
 }
 
 function renderKpi(){
-  /* CLIENTS 통계 → 4 KPI 셀. 0 이면 셀 hide */
-  setCnt('kpiProcessed',CLIENTS.filter(c=>c.status==='done').length);
-  setCnt('kpiWaiting',CLIENTS.filter(c=>c.status==='in_progress').length);
-  setCnt('kpiBlocked',CLIENTS.filter(c=>c.status==='blocked').length);
-  setCnt('kpiDelayed',CLIENTS.filter(c=>c.status==='pending_filing').length);
+  /* KPI 바 제거됨 — 사장님 명령 (의미 없는 분류). no-op */
 }
 
 async function fetchHeaderBadges(){
@@ -1013,25 +1000,28 @@ function sortRows(rows){
 
 /* 사이드바 직원 목록 */
 function renderSbStaff(){
-  const isStaffMode=document.body.dataset.role==='staff';
+  /* 사장님이 admin 에서 만든 라벨 (예슬/정은/민지/...) 동적 표시.
+     라벨 카운트 0 인 항목은 항목 자체 hide (사장님 명령: 가짜 0 안 보이게). */
   const list=$('sbStaffList');
-  if(isStaffMode){
-    list.innerHTML=`
-      <button class="of-sb-item on" data-filter="staff:예슬" type="button">
-        <span class="ic">⭐</span><span class="lb">예슬</span><span class="cnt">${STAFF_COUNTS.예슬}</span>
+  if(!list) return;
+  const entries=Object.entries(STAFF_COUNTS);
+  if(!entries.length){
+    list.innerHTML='<div style="padding:8px 16px;font-size:11px;color:var(--sb-text-mute,#8b95a1)">관리자에서 라벨을 만들면 표시됩니다.</div>';
+    $('sbAddStaff').style.display='none';
+    return;
+  }
+  list.innerHTML=entries.map(([name,cnt])=>{
+    const labelInfo=Array.from(ROOM_LABELS.values()).find(l=>l.name===name);
+    const color=labelInfo?.color||'#6b7280';
+    const cntHidden = cnt>0 ? '' : 'display:none';
+    return `
+      <button class="of-sb-item" data-filter="staff:${name}" type="button">
+        <span class="ic" style="color:${color}">●</span><span class="lb">${name}</span><span class="cnt" style="${cntHidden}">${cnt}</span>
       </button>
     `;
-    $('sbAddStaff').style.display='none';
-    $('sbSecStaff').firstChild.textContent='내 정보';
-  }else{
-    list.innerHTML=Object.entries(STAFF_COUNTS).map(([n,c],i)=>`
-      <button class="of-sb-item${i===0?' on':''}" data-filter="staff:${n}" type="button">
-        <span class="ic">${i===0?'⭐':'👤'}</span><span class="lb">${n}</span><span class="cnt">${c}</span>
-      </button>
-    `).join('');
-    $('sbAddStaff').style.display='flex';
-    $('sbSecStaff').firstChild.textContent='담당자별 ';
-  }
+  }).join('');
+  $('sbAddStaff').style.display='none'; /* 라벨 추가는 admin 에서 — 여기 버튼 hide */
+  $('sbSecStaff').firstChild.textContent='담당자별 ';
 }
 
 /* 그리드 */
@@ -1171,11 +1161,7 @@ function renderGrid(){
   }
 
   /* 4탭 카운트 */
-  setCnt('cntAll',CLIENTS.length);
-  setCnt('cntPF',CLIENTS.filter(r=>r.status==='pending_filing').length);
-  setCnt('cntIP',CLIENTS.filter(r=>r.status==='in_progress').length);
-  setCnt('cntBL',CLIENTS.filter(r=>r.status==='blocked').length);
-  setCnt('cntDN',CLIENTS.filter(r=>r.status==='done').length);
+  /* 4탭 카운트 제거됨 — 신고대기/진행/막힘/완료 분류 의미 없음 */
 
   $('mhdrSub').textContent=buildHdrSubLabel(rows.length);
   renderBulkBar();
@@ -1661,63 +1647,31 @@ function closePanel(){
   if(selectedRow){selectedRow.classList.remove('selected');selectedRow=null}
 }
 
-/* ============== 모드 토글 ============== */
-function setRole(role){
-  document.body.dataset.role=role;
-  $('btnStaff').classList.toggle('on',role==='staff');
-  $('btnBoss').classList.toggle('on',role==='boss');
-  /* 로그인된 본인 정보 우선 — ME 가 채워졌으면 그걸 표시.
-     아직 fetch 전이거나 로그인 안 됐으면 일시 폴백 (재호출 시 ME 적용됨) */
+/* ============== 사이드바 사용자 표시 (어드민 1인 모드) ============== */
+function setRole(_unused){
+  /* 직원/세무사 토글 제거됨 — 사장님 1인 운영. 항상 boss 모드 */
+  document.body.dataset.role='boss';
   if(ME){
     const name = ME.real_name || ME.name || '관리자';
     $('sbName').textContent = name;
     $('sbAvatar').textContent = name.charAt(0);
-    /* role 표시 — boss 모드는 사장님(id=1) 본인이면 '세무사 (사장님)', 아니면 '관리자(시뮬)'.
-       staff 모드는 '담당 직원' 통일. Stage C 에서 staff_role 컬럼으로 정밀화 예정. */
-    if(role==='staff'){
-      $('sbRole').textContent='담당 직원';
-    }else{
-      $('sbRole').textContent = (ME.id===1) ? '세무사 (사장님)' : '관리자';
-    }
+    $('sbRole').textContent = (ME.id===1) ? '세무사 (사장님)' : '관리자';
   }else{
-    /* fallback (로그인 안 됨 또는 ADMIN_KEY 만 있는 상태) — owner 가정 */
-    $('sbName').textContent=role==='staff'?'직원':'이재윤';
-    $('sbAvatar').textContent=role==='staff'?'직':'이';
-    $('sbRole').textContent=role==='staff'?'담당 직원':'세무사 (사장님)';
+    /* fallback */
+    $('sbName').textContent='이재윤';
+    $('sbAvatar').textContent='이';
+    $('sbRole').textContent='세무사 (사장님)';
   }
-  const u=new URL(location.href);
-  u.searchParams.set('role',role);
-  history.replaceState(null,'',u);
-  /* 돌아가기 링크 동기화 */
   const back=$('backToAdmin');
-  if(back){
-    back.href=role==='staff'?'/staff.html':'/admin.html';
-    back.title=role==='staff'?'직원 화면으로 돌아가기':'관리자 화면으로 돌아가기';
-  }
+  if(back){ back.href='/admin.html'; back.title='관리자 화면으로 돌아가기'; }
   renderSbStaff();
   renderSbCounts();
   renderGrid();
 }
 
 /* ============== 이벤트 ============== */
-$('btnStaff').addEventListener('click',()=>setRole('staff'));
-$('btnBoss').addEventListener('click',()=>setRole('boss'));
-
-function jumpToTab(status){
-  document.querySelectorAll('.of-tabs button[data-status]').forEach(x=>{
-    x.classList.toggle('on',x.dataset.status===status);
-  });
-  currentStatus=status;
-  renderGrid();
-}
-document.querySelectorAll('.of-tabs button[data-status]').forEach(b=>{
-  b.addEventListener('click',()=>jumpToTab(b.dataset.status));
-});
-
-/* KPI 셀 클릭 → 해당 4탭 자동 점프 */
-document.querySelectorAll('.of-kpi-cell[data-jump-status]').forEach(cell=>{
-  cell.addEventListener('click',()=>jumpToTab(cell.dataset.jumpStatus));
-});
+/* 4탭 / KPI 클릭 핸들러 제거됨 — 신고대기·지연 분류 의미 없음 */
+function jumpToTab(_status){ /* no-op */ }
 
 /* 휴지통 클릭 — 보기 화면은 후속 페이즈, 일단 안내만 */
 const trashBtn=document.getElementById('sbTrashBtn');
@@ -1950,36 +1904,22 @@ document.addEventListener('click',e=>{
   $('sidebar').classList.remove('open');
 });
 
-/* ============== 초기 ============== */
-const _qsRole=new URLSearchParams(location.search).get('role');
-const initRole = _qsRole==='boss'||_qsRole==='staff' ? _qsRole : 'staff'; /* 로그인 ME 받은 후 재결정 */
-setRole(initRole);
+/* ============== 초기 — 어드민(사장님) 1인 모드 ============== */
+setRole('boss'); /* 항상 boss */
 renderHeaderDate();
-renderGridHeader(); /* 초기 mode='business' 헤더 세팅 — 정렬 + 전체 선택 핸들러 attach */
+renderGridHeader();
 renderSortIndicators();
-setLiveBadge(ADMIN_KEY?'connecting':'offline');
+setLiveBadge(ADMIN_KEY?'connecting':'live'); /* 항상 live 시도 */
 
-/* 로그인된 본인 정보 fetch — 끝나면 사이드바 사용자 표시 갱신 */
-fetchCurrentUser().then(()=>{
-  if(!ME) return;
-  /* URL 에 role 명시 안 됐고 사장님(id=1) 본인이면 자동 boss 모드 */
-  if(!_qsRole && ME.id===1){
-    setRole('boss');
-    const u=new URL(location.href);
-    u.searchParams.set('role','boss');
-    history.replaceState(null,'',u);
-  }else{
-    /* 그대로 유지 — ME 정보로 sbName 등만 갱신 */
-    setRole(document.body.dataset.role);
-  }
+/* ME (auth/me) + 라벨 (room-labels) 병렬 fetch — 끝나면 사이드바 갱신 */
+Promise.all([fetchCurrentUser(), fetchRoomLabels()]).then(()=>{
+  setRole('boss');           /* ME 반영해서 다시 그림 */
+  renderSbStaff();           /* 라벨 동적 표시 */
 });
 
-if(ADMIN_KEY){
-  fetchClients();
-  fetchHeaderBadges();
-}else{
-  renderEmptyState('unauth');
-}
+/* 데이터 fetch — ADMIN_KEY 없어도 cookie 인증으로 통과 가능 */
+fetchClients();
+fetchHeaderBadges();
 </script>
 
 </body>
