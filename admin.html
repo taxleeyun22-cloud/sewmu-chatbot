@@ -237,8 +237,10 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
     </div>
   </div>
 </div>
-<!-- 수동 거래처 등록 모달 (위하고 수임처 신규생성 스타일) -->
-<div id="manualClientModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11200;align-items:center;justify-content:center;padding:20px">
+<!-- 수동 거래처 등록 모달 (위하고 수임처 신규생성 스타일)
+     z-index 11400 — custDashModal(11300) 안에서 호출되는 '+ 🏢 사업장 추가' 가
+     dashboard 위에 표시되어야 함 (사장님 보고: '사업장 추가 모달이 안 먹는다') -->
+<div id="manualClientModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:680px;max-height:92vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">➕ 수동 거래처 등록 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">로그인 없는 관리용</span></div>
@@ -956,7 +958,7 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
 #roomMessages > *:first-child{margin-top:auto}
 </style>
 <style>
-#imgViewer{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:10000;display:none;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain}
+#imgViewer{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:11500;display:none;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain}
 #imgViewer.open{display:flex}
 #ivImg{max-width:100vw;max-height:100vh;object-fit:contain;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;-webkit-touch-callout:none;touch-action:none;pointer-events:none;transition:transform .2s ease-out;will-change:transform}
 .iv-btn{position:absolute;background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:24px;cursor:pointer;font-family:inherit;z-index:2}
@@ -1087,7 +1089,7 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
   </div>
 </div>
 
-<div id="financeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11000;align-items:center;justify-content:center;padding:20px">
+<div id="financeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:1100px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div style="font-weight:700;font-size:1em">📊 재무 데이터 — <span id="finCustName">-</span></div>
@@ -1175,7 +1177,7 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
 }
 </style>
 <!-- 📢 단체발송 모달 -->
-<div id="bulkSendModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11200;align-items:center;justify-content:center;padding:20px">
+<div id="bulkSendModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:700px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">📢 단체발송 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">여러 상담방에 한 번에 메시지 전송 (고객에게 발송됨)</span></div>
@@ -1215,7 +1217,7 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
   </div>
 </div>
 <!-- 📋 내 할 일 대시보드 모달 (전체 방 + 개인 일정 통합 뷰) -->
-<div id="myTodosModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11200;align-items:center;justify-content:center;padding:20px">
+<div id="myTodosModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:720px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <div style="font-weight:700;font-size:1em">📋 내 할 일 <span id="mtMeta" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
@@ -1234,7 +1236,7 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
     <div id="myTodosList" style="flex:1;overflow-y:auto;padding:10px 16px 18px;background:#fff"></div>
   </div>
 </div>
-<div id="memoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11100;align-items:center;justify-content:center;padding:20px">
+<div id="memoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:center;justify-content:center;padding:20px">
   <div class="memo-panel" style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">📒 담당자 메모 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">내부 전용 · AI 요약에 반영</span></div>
@@ -1529,7 +1531,7 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
 </div>
 
 <!-- 📝 거래처 메모 추가 모달 (가벼운 버전 — business.html 과 통일) -->
-<div id="bdMemoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11200;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)_bdCloseMemoModal()">
+<div id="bdMemoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)_bdCloseMemoModal()">
   <div style="background:#fff;border-radius:12px;width:100%;max-width:480px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">📝 거래처 메모 추가</div>
