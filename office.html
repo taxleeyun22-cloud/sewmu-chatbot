@@ -769,16 +769,15 @@ async function addBusinessTodo(businessId,content){
 function setLiveBadge(state){
   const el=document.getElementById('liveBadge');
   if(!el) return;
-  const map={
-    connecting:{t:'CONNECTING',bg:'#e5e8eb',fg:'#4e5968'},
-    live:{t:'LIVE',bg:'#dcfce7',fg:'#166534'},
-    offline:{t:'OFFLINE',bg:'#e5e8eb',fg:'#8b95a1'},
-    error:{t:'ERROR',bg:'#fee2e2',fg:'#991b1b'}
-  };
-  const cfg=map[state]||map.offline;
-  el.textContent=cfg.t;
-  el.style.background=cfg.bg;
-  el.style.color=cfg.fg;
+  /* 'live' 상태(실제 연결됨)에서만 표시. 그 외는 숨김 — 가짜 OFFLINE 회색 안 보이게 */
+  if(state!=='live'){
+    el.style.display='none';
+    return;
+  }
+  el.style.display='';
+  el.textContent='LIVE';
+  el.style.background='#dcfce7';
+  el.style.color='#166534';
 }
 
 function recomputeStaffCounts(){
@@ -799,9 +798,9 @@ function renderSbCounts(){
   const mine=mineKey?CLIENTS.filter(c=>c.staff===mineKey).length:all;
   const unassigned=CLIENTS.filter(c=>!c.staff||c.staff==='—').length;
   const $=document.getElementById.bind(document);
-  if($('sbCntAll')) $('sbCntAll').textContent=all;
-  if($('sbCntMine')) $('sbCntMine').textContent=mine;
-  if($('sbCntUnassigned')) $('sbCntUnassigned').textContent=unassigned;
+  setCnt('sbCntAll',all);
+  setCnt('sbCntMine',mine);
+  setCnt('sbCntUnassigned',unassigned);
 }
 
 function renderBulkBar(){
@@ -852,14 +851,23 @@ function renderHeaderDate(){
   el.textContent=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} (${dn})`;
 }
 
+/* 글로벌 카운트 헬퍼 — 0 이면 부모(.of-pill / .cnt / .of-kpi-cell) 자체 hide
+   "카톡처럼 실제 알림 없으면 표시 X" 정책 */
+function setCnt(id,n){
+  const el=document.getElementById(id);
+  if(!el) return;
+  n=parseInt(n)||0;
+  el.textContent=n;
+  const target = el.closest('.of-pill') || el.closest('.of-kpi-cell') || el;
+  target.style.display = n>0 ? '' : 'none';
+}
+
 function renderKpi(){
-  /* CLIENTS 통계 → 4 KPI 셀.
-     처리=완료 / 대기=진행 중 / 막힘=blocked / 지연=신고대기(우선순위 1) */
-  const set=(id,n)=>{ const el=document.getElementById(id); if(el) el.textContent=n; };
-  set('kpiProcessed',CLIENTS.filter(c=>c.status==='done').length);
-  set('kpiWaiting',CLIENTS.filter(c=>c.status==='in_progress').length);
-  set('kpiBlocked',CLIENTS.filter(c=>c.status==='blocked').length);
-  set('kpiDelayed',CLIENTS.filter(c=>c.status==='pending_filing').length);
+  /* CLIENTS 통계 → 4 KPI 셀. 0 이면 셀 hide */
+  setCnt('kpiProcessed',CLIENTS.filter(c=>c.status==='done').length);
+  setCnt('kpiWaiting',CLIENTS.filter(c=>c.status==='in_progress').length);
+  setCnt('kpiBlocked',CLIENTS.filter(c=>c.status==='blocked').length);
+  setCnt('kpiDelayed',CLIENTS.filter(c=>c.status==='pending_filing').length);
 }
 
 async function fetchHeaderBadges(){
@@ -913,19 +921,18 @@ async function fetchHeaderBadges(){
         changed=true;
       }
     }
-    const set=(id,n)=>{ const el=document.getElementById(id); if(el) el.textContent=n; };
-    set('hdrTodoN',todoN);
-    set('hdrAlertN',pendingN);
-    set('sbCntTodo',todoN);
-    set('sbCntBlocked',CLIENTS.filter(c=>c.status==='blocked').length);
-    set('sbCntTrash',trashN);
-    /* 사이드바 사용자 카테고리 카운트 */
-    set('sbUserPending',userCounts.pending||0);
-    set('sbUserClient',userCounts.approved_client||0);
-    set('sbUserGuest',userCounts.approved_guest||0);
-    set('sbUserRejected',userCounts.rejected||0);
-    set('sbUserTerminated',userCounts.terminated||0);
-    set('sbUserAdmin',userCounts.admin||0);
+    setCnt('hdrTodoN',todoN);
+    setCnt('hdrAlertN',pendingN);
+    setCnt('sbCntTodo',todoN);
+    setCnt('sbCntBlocked',CLIENTS.filter(c=>c.status==='blocked').length);
+    setCnt('sbCntTrash',trashN);
+    /* 사이드바 사용자 카테고리 카운트 — 0 이면 .cnt 숨김 (항목은 그대로) */
+    setCnt('sbUserPending',userCounts.pending||0);
+    setCnt('sbUserClient',userCounts.approved_client||0);
+    setCnt('sbUserGuest',userCounts.approved_guest||0);
+    setCnt('sbUserRejected',userCounts.rejected||0);
+    setCnt('sbUserTerminated',userCounts.terminated||0);
+    setCnt('sbUserAdmin',userCounts.admin||0);
     if(changed){ renderGrid(); renderKpi(); }
   }catch(_){}
 }
@@ -1164,11 +1171,11 @@ function renderGrid(){
   }
 
   /* 4탭 카운트 */
-  $('cntAll').textContent=CLIENTS.length;
-  $('cntPF').textContent=CLIENTS.filter(r=>r.status==='pending_filing').length;
-  $('cntIP').textContent=CLIENTS.filter(r=>r.status==='in_progress').length;
-  $('cntBL').textContent=CLIENTS.filter(r=>r.status==='blocked').length;
-  $('cntDN').textContent=CLIENTS.filter(r=>r.status==='done').length;
+  setCnt('cntAll',CLIENTS.length);
+  setCnt('cntPF',CLIENTS.filter(r=>r.status==='pending_filing').length);
+  setCnt('cntIP',CLIENTS.filter(r=>r.status==='in_progress').length);
+  setCnt('cntBL',CLIENTS.filter(r=>r.status==='blocked').length);
+  setCnt('cntDN',CLIENTS.filter(r=>r.status==='done').length);
 
   $('mhdrSub').textContent=buildHdrSubLabel(rows.length);
   renderBulkBar();
