@@ -953,7 +953,8 @@ function renderEmptyState(reason){
       <div style="font-weight:700;color:var(--of-text-main);margin-bottom:4px">${msg.h}</div>
       ${msg.s?`<div style="font-size:12px">${msg.s}</div>`:''}
     </td></tr>`;
-  document.getElementById('cntAll').textContent='0';
+  /* cntAll 은 4탭 제거 후 null — null check */
+  const cntAll=document.getElementById('cntAll'); if(cntAll) cntAll.textContent='0';
 }
 
 /* ============== 렌더 ============== */
@@ -1905,21 +1906,19 @@ document.addEventListener('click',e=>{
 });
 
 /* ============== 초기 — 어드민(사장님) 1인 모드 ============== */
-setRole('boss'); /* 항상 boss */
+setRole('boss');
 renderHeaderDate();
 renderGridHeader();
 renderSortIndicators();
-setLiveBadge(ADMIN_KEY?'connecting':'live'); /* 항상 live 시도 */
+setLiveBadge('connecting');
 
-/* ME (auth/me) + 라벨 (room-labels) 병렬 fetch — 끝나면 사이드바 갱신 */
+/* ME + 라벨 먼저 fetch 끝난 뒤 → 데이터 fetch — STAFF_COUNTS 채워진 상태에서 그리드/사이드바 렌더 */
 Promise.all([fetchCurrentUser(), fetchRoomLabels()]).then(()=>{
   setRole('boss');           /* ME 반영해서 다시 그림 */
   renderSbStaff();           /* 라벨 동적 표시 */
+  fetchClients();             /* 거래처 fetch */
+  fetchHeaderBadges();        /* 헤더 사이드바 카운트 */
 });
-
-/* 데이터 fetch — ADMIN_KEY 없어도 cookie 인증으로 통과 가능 */
-fetchClients();
-fetchHeaderBadges();
 </script>
 
 </body>
