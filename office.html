@@ -217,9 +217,11 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
 .add-task button{background:var(--of-primary);color:#fff;border:0;padding:5px 12px;border-radius:5px;font-size:12px;font-weight:700;flex-shrink:0}
 
 /* 대화 요약 */
-.chat-row{padding:10px 12px;background:var(--of-bg);border-radius:var(--of-r-md);margin-bottom:6px;font-size:12.5px;border-left:3px solid var(--of-primary)}
+.chat-row{padding:10px 12px;background:var(--of-bg);border-radius:var(--of-r-md);margin-bottom:6px;font-size:12.5px;border-left:3px solid var(--of-primary);transition:background .12s, transform .08s, box-shadow .15s;cursor:pointer}
 .chat-row.kakao{border-left-color:var(--of-warn)}
 .chat-row.app{border-left-color:var(--of-primary)}
+.chat-row:hover{background:#fff;box-shadow:0 1px 6px rgba(49,130,246,.10);transform:translateY(-1px)}
+.chat-row.chat-row-active{background:#eaf3ff;box-shadow:0 0 0 2px var(--of-primary,#3182f6) inset}
 .chat-row .src{font-size:10.5px;color:var(--of-text-mute);font-weight:700;margin-bottom:3px;display:flex;justify-content:space-between}
 .chat-row .src .ch{color:var(--of-text-sub)}
 .chat-row .body{color:var(--of-text-main);line-height:1.45}
@@ -1578,21 +1580,25 @@ function renderPanelBody(payload){
   });
 
   /* 상담방 row 클릭 → 새 창 popup, AI 요약 버튼 클릭 → 인라인 요약 표시 */
+  /* 상담방 row — 단일클릭=강조만, 더블클릭=새 창 popup (사장님 명령) */
   document.querySelectorAll('#pBody .chat-row[data-room-id]').forEach(el=>{
     el.addEventListener('click',()=>{
+      /* 단일클릭 — 다른 row 강조 해제 + 본 row 강조 */
+      document.querySelectorAll('#pBody .chat-row[data-room-id]').forEach(x=>x.classList.remove('chat-row-active'));
+      el.classList.add('chat-row-active');
+    });
+    el.addEventListener('dblclick',()=>{
       const rid=el.dataset.roomId;
       if(!rid) return;
       const url='/admin.html?popup=1&room='+encodeURIComponent(rid);
       const w=window.open(url,'sewmuRoom_'+rid,'width=420,height=720,noopener');
       if(!w){
-        /* popup 차단 — a 태그 클릭 시뮬레이션으로 새 탭 강제 */
         const a=document.createElement('a');
         a.href=url; a.target='_blank'; a.rel='noopener';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+        document.body.appendChild(a); a.click(); a.remove();
       }
     });
+    el.title='더블클릭하면 새 창에서 상담방이 열립니다';
   });
 
   /* AI 요약 버튼 — 클릭 시 admin-rooms?action=summarize 호출, 캐시 hit 시 즉시 */
