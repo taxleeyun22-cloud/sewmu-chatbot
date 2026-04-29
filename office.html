@@ -535,7 +535,8 @@ $('sidebar')?.addEventListener('click',e=>{
     callAdmin('tab','users');
     setTimeout(()=>{
       callAdmin('setClientTabMode','user');
-      setTimeout(()=>callAdmin('loadUsers',st), 200);
+      /* userStatus 가 currentStatus 갱신 + 탭 활성 색 + loadUsers 자동 호출 */
+      setTimeout(()=>callAdmin('userStatus',st), 250);
     },300);
     return;
   }
