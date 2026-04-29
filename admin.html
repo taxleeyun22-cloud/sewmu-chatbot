@@ -10,10 +10,66 @@
 <!-- 사무실 OS 임베드 모드 — ?embedded=1 진입 시 헤더/wrap 패딩 hide, iframe 안에서 콘텐츠만 보임 -->
 <script>try{if(new URLSearchParams(location.search).get('embedded')==='1')document.documentElement.classList.add('embedded');}catch(_){}</script>
 <style>
-html.embedded body{background:transparent !important}
+/* === 사무실 OS 임베드 모드 — 위멤버스 톤 오버라이드 === */
+html.embedded body{background:#f5f6f8 !important}
 html.embedded .hdr{display:none !important}
 html.embedded .wrap{padding-top:0 !important;padding-bottom:0 !important;max-width:100% !important;margin:0 !important}
-html.embedded #mainView{padding-top:8px !important}
+html.embedded #mainView{padding:14px 18px !important}
+
+/* 사용자/업체 모드 토글 */
+html.embedded #modeBtnUser, html.embedded #modeBtnBiz{
+  border-radius:8px !important;
+  transition:all .12s !important;
+}
+
+/* 사용자 status 탭 (대기/기장/일반/거절/종료/관리자) — 위멤버스 핵심 톤 */
+html.embedded #userModeView .tabs button{
+  border-radius:99px !important;
+  padding:6px 14px !important;
+  font-size:12px !important;
+  font-weight:600 !important;
+  letter-spacing:.02em !important;
+  transition:all .12s !important;
+}
+html.embedded #userModeView .tabs button.on{
+  background:#3182f6 !important;
+  color:#fff !important;
+  box-shadow:0 1px 3px rgba(49,130,246,.25) !important;
+}
+html.embedded #userModeView .tabs button:not(.on){
+  background:#fff !important;
+  color:#4e5968 !important;
+  border:1px solid #e5e8eb !important;
+}
+html.embedded #userModeView .tabs button:not(.on):hover{
+  background:#eaf3ff !important;
+  color:#3182f6 !important;
+  border-color:#bbd6fe !important;
+}
+
+/* 사용자 카드 — 위멤버스 톤 */
+html.embedded #userList > div, html.embedded #bizModeView .biz-card{
+  background:#fff !important;
+  border:1px solid #e5e8eb !important;
+  border-radius:12px !important;
+  margin-bottom:10px !important;
+  padding:14px 16px !important;
+  box-shadow:0 1px 4px rgba(0,0,0,.04) !important;
+  transition:transform .12s, box-shadow .15s !important;
+}
+html.embedded #userList > div:hover, html.embedded #bizModeView .biz-card:hover{
+  transform:translateY(-1px) !important;
+  box-shadow:0 3px 10px rgba(49,130,246,.10) !important;
+  border-color:#bbd6fe !important;
+}
+
+/* 헤더 우측 검색·할일·단체발송·중복정리 등 액션 버튼 — 위멤버스 톤 (radius/shadow) */
+html.embedded #userModeView .tabs button[onclick*="openManualClient"],
+html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
+  border-radius:8px !important;
+  font-weight:600 !important;
+  box-shadow:0 1px 3px rgba(0,0,0,.06) !important;
+}
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/admin.css?v=22">
