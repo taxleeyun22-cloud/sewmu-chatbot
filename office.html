@@ -431,24 +431,56 @@ const BIZ_CACHE=new Map(); /* key=business_id -> { business, members, rooms, fin
 
 const escAttr=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-function mapBusinessToClient(b){
-  /* businesses.status 3종(active/closed/terminated) → 4-탭 임시 매핑.
-     'pending_filing' 은 본 stage 에선 안 채움 — B-3 에서 chat_rooms.priority 로 정확화 */
+function mapBusinessToClient(b, roomMeta){
+  /* businesses.status 3종(active/closed/terminated) + roomMeta(admin-rooms join) → 4-탭 매핑.
+     roomMeta = { priority(1|2|3|null), staff, room_count } */
   let status='in_progress';
   if(b.status==='closed') status='done';
   else if(b.status==='terminated') status='blocked';
+  /* 신고대기 = 우선순위 1 (사장님 라벨링 기준) — B-4 에서 정확화 */
+  if(roomMeta && roomMeta.priority===1 && b.status==='active') status='pending_filing';
   return {
     id:b.id,
     name:b.company_name||'(상호 미기재)',
     owner:b.ceo_name||'—',
-    staff:'—', /* B-3: business_members + room_labels */
+    staff:(roomMeta&&roomMeta.staff)||'—',
     status,
-    pri:3, /* B-3: room_labels.priority */
-    next:b.fiscal_year_end||'—', /* B-3: 정확한 다음 신고일 계산 */
+    pri:(roomMeta&&roomMeta.priority)||3,
+    next:b.fiscal_year_end||'—', /* 정확한 다음 신고일 계산은 후속 (filing schedule API) */
     dday:null,
     biz:b.industry||b.business_category||'—',
-    tax:b.tax_type||'—'
+    tax:b.tax_type||'—',
+    room_count:(roomMeta&&roomMeta.room_count)||(b.room_count||0),
+    member_count:b.member_count||0
   };
+}
+
+function buildRoomMeta(rooms){
+  /* business_id → 가장 우선순위 높은(priority 작은) room 의 메타 추출 */
+  const map=new Map();
+  for(const r of (rooms||[])){
+    if(!r.business_id) continue;
+    const cur=map.get(r.business_id);
+    const p=(r.priority==null?99:r.priority);
+    if(!cur || p<cur._p){
+      map.set(r.business_id,{
+        _p:p,
+        priority:r.priority||null,
+        staff:r.first_member_name||null,
+        room_count:1
+      });
+    }else{
+      cur.room_count+=1;
+    }
+  }
+  /* room_count 누적 보정: 위 로직이 첫 hit 만 1 로 시작하니 다시 한 번 — 간단히 별도 카운트 */
+  const counts=new Map();
+  for(const r of (rooms||[])){
+    if(!r.business_id) continue;
+    counts.set(r.business_id,(counts.get(r.business_id)||0)+1);
+  }
+  for(const [k,v] of map){ v.room_count=counts.get(k)||0; }
+  return map;
 }
 
 function pickPrimaryUser(members){
@@ -497,13 +529,25 @@ async function fetchClients(){
   if(!ADMIN_KEY){ renderEmptyState('unauth'); return; }
   setLiveBadge('connecting');
   renderEmptyState('loading');
+  const k=encodeURIComponent(ADMIN_KEY);
   try{
-    const r=await fetch('/api/admin-businesses?key='+encodeURIComponent(ADMIN_KEY),{credentials:'omit'});
-    if(r.status===401){ setLiveBadge('offline'); renderEmptyState('unauth'); return; }
-    if(!r.ok){ setLiveBadge('error'); renderEmptyState('error'); return; }
-    const data=await r.json();
-    if(!data||data.ok===false){ setLiveBadge('error'); renderEmptyState('error'); return; }
-    CLIENTS=(data.businesses||[]).map(mapBusinessToClient);
+    const [bizRes,roomsRes]=await Promise.all([
+      fetch('/api/admin-businesses?key='+k,{credentials:'omit'}),
+      fetch('/api/admin-rooms?key='+k,{credentials:'omit'})
+    ]);
+    if(bizRes.status===401){ setLiveBadge('offline'); renderEmptyState('unauth'); return; }
+    if(!bizRes.ok){ setLiveBadge('error'); renderEmptyState('error'); return; }
+    const bizData=await bizRes.json();
+    if(!bizData||bizData.ok===false){ setLiveBadge('error'); renderEmptyState('error'); return; }
+    /* admin-rooms 실패는 치명적 X — priority/staff 만 비고 그리드는 채움 */
+    let roomMetaMap=new Map();
+    if(roomsRes.ok){
+      try{
+        const roomsData=await roomsRes.json();
+        roomMetaMap=buildRoomMeta(roomsData.rooms||[]);
+      }catch(_){}
+    }
+    CLIENTS=(bizData.businesses||[]).map(b=>mapBusinessToClient(b,roomMetaMap.get(b.id)));
     setLiveBadge('live');
     renderSbStaff();
     renderGrid();
