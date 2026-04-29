@@ -5159,10 +5159,35 @@ async function openCustomerDashboard(userId){
     _loadCustomerInfo(userId);
     /* 신고 Case 리스트 */
     _loadCdFilings(userId);
+    /* 자동 요약 (캐시 우선 — GPT 비용 0) */
+    _loadCdAutoSummary(userId);
   }catch(err){
     $g('cdName').textContent='오류';
     $g('cdBasic').innerHTML='<div style="color:#f04452">로드 실패: '+e(err.message)+'</div>';
   }
+}
+
+/* 거래처 통합 자동 요약 — admin-customer-summary?cache_only=1 */
+async function _loadCdAutoSummary(userId){
+  if(!userId) return;
+  const box=$g('cdSummaries');
+  if(!box) return;
+  try{
+    const r=await fetch('/api/admin-customer-summary?user_id='+userId+'&range=recent&cache_only=1&key='+encodeURIComponent(KEY),{credentials:'include'});
+    if(!r.ok) return;
+    const j=await r.json();
+    if(!j || !j.summary) return; /* 캐시 없음 — 사장님이 ✨ 클릭하면 생성 */
+    const stamp=j.generated_at||'';
+    const html='<div style="background:#f0f9ff;border-left:3px solid #3182f6;padding:10px 12px;margin-bottom:10px;border-radius:6px;font-size:.85em;line-height:1.55;white-space:pre-wrap">'
+      +'<div style="font-weight:700;color:#1a56db;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">'
+      +  '<span>🤖 거래처 통합 자동 요약</span>'
+      +  '<button onclick="openCustomerSummary()" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:3px 9px;border-radius:5px;font-size:.7em;cursor:pointer;font-family:inherit">✨ 새로 생성</button>'
+      +'</div>'
+      +'<div style="color:#191f28">'+e(j.summary)+'</div>'
+      +'<div style="font-size:.7em;color:#8b95a1;margin-top:6px">생성: '+e(stamp)+' · 캐시</div>'
+      +'</div>';
+    box.innerHTML=html+box.innerHTML;
+  }catch(_){}
 }
 /* ===== 공통 유틸: 개업연도 기준 N기 자동 계산 =====
    올해 기준 (2026년 개업 → 1기 / 2025년 개업 → 2기 / 2024년 → 3기 ...) */
