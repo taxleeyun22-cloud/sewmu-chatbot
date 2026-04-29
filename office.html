@@ -583,13 +583,19 @@ async function addBusinessTodo(businessId,content){
     return { ok:false, error:'입력 또는 인증 누락' };
   }
   try{
+    /* memos?scope=business_due 가 due_date IS NOT NULL 항목만 반환하므로
+       due_date 미지정 시 오늘로 자동 부여 (사장님 추후 수정 가능, 빈 일정 표시 방지) */
+    const today=new Date();
+    const pad=n=>String(n).padStart(2,'0');
+    const dueToday=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
     const r=await fetch('/api/memos?key='+encodeURIComponent(ADMIN_KEY),{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         target_business_id:businessId,
         memo_type:'할 일',
-        content:content.trim()
+        content:content.trim(),
+        due_date:dueToday
       })
     });
     const txt=await r.text();
@@ -747,6 +753,22 @@ function renderSbStaff(){
 function applyFilter(){
   let rows=CLIENTS.slice();
   if(currentStatus!=='all') rows=rows.filter(r=>r.status===currentStatus);
+  /* 사이드바 거래처 메뉴 필터 동작
+     - mine: 본인 담당 (boss=전체, staff='예슬' staff 만)
+     - all: 전체 그대로
+     - unassigned: staff 미지정 (— 또는 빈값)
+     - staff:이름 — 그 직원 담당만 */
+  if(currentFilter && currentFilter!=='all'){
+    if(currentFilter==='mine'){
+      const me=document.body.dataset.role==='staff'?'예슬':null;
+      if(me) rows=rows.filter(r=>r.staff===me);
+    }else if(currentFilter==='unassigned'){
+      rows=rows.filter(r=>!r.staff||r.staff==='—');
+    }else if(currentFilter.startsWith('staff:')){
+      const sname=currentFilter.slice(6);
+      rows=rows.filter(r=>r.staff===sname);
+    }
+  }
   if(currentSearch.trim()){
     const q=currentSearch.trim().toLowerCase();
     rows=rows.filter(r=>r.name.toLowerCase().includes(q)||r.owner.toLowerCase().includes(q));
@@ -757,39 +779,65 @@ function applyFilter(){
 function renderGrid(){
   const rows=applyFilter();
   if(!rows.length){
+    /* 컨텍스트 별 안내 — Stage A 잔재 텍스트 제거 */
+    let ic='🏢', h, s='';
+    if(CLIENTS.length===0){
+      h='등록된 거래처가 없습니다';
+    }else if(currentSearch.trim()){
+      ic='🔍'; h='검색 결과 없음'; s=`"${currentSearch}" 와 일치하는 거래처가 없습니다.`;
+    }else{
+      ic='📭'; h='해당 조건의 거래처가 없습니다';
+      s='필터·탭을 바꾸거나 전체로 돌아가 주세요.';
+    }
     $('gridBody').innerHTML=`
       <tr><td colspan="9" style="padding:60px 20px;text-align:center;color:var(--of-text-mute)">
-        <div style="font-size:36px;margin-bottom:12px">🏢</div>
-        <div style="font-weight:700;color:var(--of-text-main);margin-bottom:4px">거래처 데이터 연결 준비 중</div>
-        <div style="font-size:12px">Stage B 에서 사장님 실제 거래처 (사용자·업체) 가 여기 표시됩니다.</div>
+        <div style="font-size:36px;margin-bottom:12px">${ic}</div>
+        <div style="font-weight:700;color:var(--of-text-main);margin-bottom:4px">${h}</div>
+        ${s?`<div style="font-size:12px">${s}</div>`:''}
       </td></tr>
     `;
   }else{
     $('gridBody').innerHTML=rows.map(r=>`
       <tr data-id="${r.id}">
         <td class="checkbox"><input type="checkbox" aria-label="선택"></td>
-        <td><span class="priority p${r.pri}">${r.pri}</span><span class="nm">${r.name}</span></td>
-        <td>${r.owner}</td>
-        <td>${r.staff}</td>
+        <td><span class="priority p${r.pri}">${r.pri}</span><span class="nm">${escAttr(r.name)}</span></td>
+        <td>${escAttr(r.owner)}</td>
+        <td>${escAttr(r.staff)}</td>
         <td><span class="chip ${r.status}">${STATUS_LABEL[r.status]}</span></td>
-        <td>${r.next}</td>
+        <td>${escAttr(r.next)}</td>
         <td>${r.dday?`<span class="dday ${r.dday}">${DDAY_LABEL[r.dday]}</span>`:`<span class="dday none">—</span>`}</td>
-        <td><span class="tag">${r.biz}</span></td>
-        <td>${r.tax}</td>
+        <td><span class="tag">${escAttr(r.biz)}</span></td>
+        <td>${escAttr(r.tax)}</td>
       </tr>
     `).join('');
   }
 
-  /* 카운트 */
+  /* 4탭 카운트 */
   $('cntAll').textContent=CLIENTS.length;
   $('cntPF').textContent=CLIENTS.filter(r=>r.status==='pending_filing').length;
   $('cntIP').textContent=CLIENTS.filter(r=>r.status==='in_progress').length;
   $('cntBL').textContent=CLIENTS.filter(r=>r.status==='blocked').length;
   $('cntDN').textContent=CLIENTS.filter(r=>r.status==='done').length;
 
-  /* 헤더 서브 텍스트 */
+  /* 헤더 서브 텍스트 — 현재 탭/필터/검색 컨텍스트 반영 */
+  $('mhdrSub').textContent=buildHdrSubLabel(rows.length);
+}
+
+function buildHdrSubLabel(n){
   const isStaff=document.body.dataset.role==='staff';
-  $('mhdrSub').textContent=isStaff?`예슬 담당 ${rows.length}개`:`전체 ${rows.length}개`;
+  const parts=[];
+  /* 검색 우선 */
+  if(currentSearch.trim()){
+    return `"${currentSearch}" 검색 ${n}건`;
+  }
+  /* 사이드바 필터 */
+  if(currentFilter==='unassigned'){ parts.push('미지정'); }
+  else if(currentFilter && currentFilter.startsWith('staff:')){ parts.push(currentFilter.slice(6)+' 담당'); }
+  else if(currentFilter==='mine'){ parts.push(isStaff?'예슬 담당':'내 거래처'); }
+  else { parts.push(isStaff?'예슬 담당':'전체'); }
+  /* 4탭 라벨 */
+  if(currentStatus!=='all'){ parts.push(STATUS_LABEL[currentStatus]||currentStatus); }
+  return `${parts.join(' · ')} ${n}개`;
 }
 
 /* 패널 (Stage B: PANEL_DATA[1] 재사용 버그 픽스, 진짜 fetch) */
