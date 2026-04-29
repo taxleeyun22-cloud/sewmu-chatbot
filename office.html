@@ -315,13 +315,13 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
 
       <div class="of-sb-divider"></div>
       <button class="of-sb-item alert" type="button">
-        <span class="ic">📋</span><span class="lb">내 일정</span><span class="cnt">5</span>
+        <span class="ic">📋</span><span class="lb">내 일정</span><span class="cnt" id="sbCntTodo">0</span>
       </button>
       <button class="of-sb-item alert" type="button">
-        <span class="ic">⚠️</span><span class="lb">막힌 일</span><span class="cnt">2</span>
+        <span class="ic">⚠️</span><span class="lb">막힌 일</span><span class="cnt" id="sbCntBlocked">0</span>
       </button>
       <button class="of-sb-item" type="button">
-        <span class="ic">🗑️</span><span class="lb">휴지통</span><span class="cnt">3</span>
+        <span class="ic">🗑️</span><span class="lb">휴지통</span><span class="cnt" id="sbCntTrash">0</span>
       </button>
 
       <div class="of-sb-divider"></div>
@@ -345,19 +345,19 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
         <span class="sub" id="mhdrSub">예슬 담당 12개</span>
       </div>
       <div class="of-mhdr-pills">
-        <span class="of-pill">📋 내 일정 <span class="n">5</span></span>
-        <span class="of-pill">🔔 <span class="n">3</span></span>
+        <span class="of-pill">📋 내 일정 <span class="n" id="hdrTodoN">0</span></span>
+        <span class="of-pill">🔔 <span class="n" id="hdrAlertN">0</span></span>
         <span id="liveBadge" class="of-pill" style="background:#e5e8eb;color:#8b95a1;font-size:11px;letter-spacing:.4px">OFFLINE</span>
       </div>
-      <div class="of-mhdr-date">2026-04-27 (월)</div>
+      <div class="of-mhdr-date" id="hdrDate"></div>
     </header>
 
     <!-- KPI (세무사 모드만) -->
     <div class="of-kpi-bar">
-      <div class="of-kpi-cell processed"><span class="l">처리</span><span class="n">47</span></div>
-      <div class="of-kpi-cell waiting"><span class="l">대기</span><span class="n">12</span></div>
-      <div class="of-kpi-cell blocked"><span class="l">막힘</span><span class="n">2</span></div>
-      <div class="of-kpi-cell delayed"><span class="l">지연</span><span class="n">1</span></div>
+      <div class="of-kpi-cell processed"><span class="l">처리</span><span class="n" id="kpiProcessed">0</span></div>
+      <div class="of-kpi-cell waiting"><span class="l">대기</span><span class="n" id="kpiWaiting">0</span></div>
+      <div class="of-kpi-cell blocked"><span class="l">막힘</span><span class="n" id="kpiBlocked">0</span></div>
+      <div class="of-kpi-cell delayed"><span class="l">지연</span><span class="n" id="kpiDelayed">0</span></div>
     </div>
 
     <!-- 필터 탭 -->
@@ -491,38 +491,7 @@ function pickPrimaryUser(members){
        ||members[0]||null;
 }
 
-const PANEL_DATA={
-  1:{
-    tasks:[
-      {id:101,title:'분납 1차 회신',dday:'today',done:false},
-      {id:102,title:'4월 매입 검토',dday:'week',done:false},
-      {id:103,title:'카톡 영수증 분류',dday:'tomorrow',done:true}
-    ],
-    chats:[
-      {ch:'카톡',cls:'kakao',when:'어제 16:08',body:'사장님: "분납 신청서 회신 부탁드립니다"'},
-      {ch:'챗봇어플',cls:'app',when:'오늘 09:42',body:'사업자등록 사본 업로드. AI 자동 분류: 사업자등록증'},
-      {ch:'카톡',cls:'kakao',when:'오늘 11:20',body:'사장님: "오늘 안에 회신 가능할까요?"'}
-    ],
-    files:[
-      {ic:'📄',name:'사업자등록증.pdf',meta:'412KB · 어제 14:20'},
-      {ic:'🗂️',name:'카톡_4-27_영수증12장.zip',meta:'8.4MB · 어제 16:08'},
-      {ic:'🖼️',name:'분납신청서_초안.jpg',meta:'1.2MB · 오늘 11:25'}
-    ],
-    biz:[
-      {k:'사업자번호',v:'651-09-03356'},
-      {k:'대표자',v:'김유남'},
-      {k:'업종',v:'휴대폰 도소매'},
-      {k:'과세유형',v:'개인 일반과세자'},
-      {k:'개업일',v:'2026-03-01'}
-    ],
-    finance:[
-      {k:'2026 1Q 매출',v:'45,800,000원'},
-      {k:'2026 1Q 매입',v:'31,200,000원'},
-      {k:'1Q 부가세',v:'1,460,000원'},
-      {k:'마지막 신고',v:'2026-04-25'}
-    ]
-  }
-};
+/* PANEL_DATA 더미 객체 — 제거됨. 진짜 데이터는 fetchPanelData(id) 가 BIZ_CACHE 에 채움 */
 
 /* ============== fetch (Stage B) ============== */
 async function fetchClients(){
@@ -553,6 +522,10 @@ async function fetchClients(){
     renderSbStaff();
     renderGrid();
     renderSbCounts();
+    renderKpi();
+    /* 사이드바 '막힌 일' 은 CLIENTS 통계 — fetchHeaderBadges 가 먼저 끝났을 수도 있어서 여기서 한 번 더 */
+    const sbBlocked=document.getElementById('sbCntBlocked');
+    if(sbBlocked) sbBlocked.textContent=CLIENTS.filter(c=>c.status==='blocked').length;
   }catch(_){
     setLiveBadge('error');
     renderEmptyState('error');
@@ -623,6 +596,56 @@ function renderSbCounts(){
   if($('sbCntAll')) $('sbCntAll').textContent=all;
   if($('sbCntMine')) $('sbCntMine').textContent=mine;
   if($('sbCntUnassigned')) $('sbCntUnassigned').textContent=unassigned;
+}
+
+function renderHeaderDate(){
+  const el=document.getElementById('hdrDate');
+  if(!el) return;
+  const d=new Date();
+  const dn=['일','월','화','수','목','금','토'][d.getDay()];
+  const pad=n=>String(n).padStart(2,'0');
+  el.textContent=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} (${dn})`;
+}
+
+function renderKpi(){
+  /* CLIENTS 통계 → 4 KPI 셀.
+     처리=완료 / 대기=진행 중 / 막힘=blocked / 지연=신고대기(우선순위 1) */
+  const set=(id,n)=>{ const el=document.getElementById(id); if(el) el.textContent=n; };
+  set('kpiProcessed',CLIENTS.filter(c=>c.status==='done').length);
+  set('kpiWaiting',CLIENTS.filter(c=>c.status==='in_progress').length);
+  set('kpiBlocked',CLIENTS.filter(c=>c.status==='blocked').length);
+  set('kpiDelayed',CLIENTS.filter(c=>c.status==='pending_filing').length);
+}
+
+async function fetchHeaderBadges(){
+  /* 헤더 📋 내 일정 N (내 미완료 할 일) + 🔔 N (승인 대기 사용자) + 사이드바 막힌 일 */
+  if(!ADMIN_KEY) return;
+  const k=encodeURIComponent(ADMIN_KEY);
+  try{
+    const [memoRes,apprRes]=await Promise.all([
+      fetch('/api/memos?scope=my&only_mine=1&key='+k,{credentials:'omit'}),
+      fetch('/api/admin-approve?status=pending&key='+k,{credentials:'omit'})
+    ]);
+    let todoN=0;
+    if(memoRes.ok){
+      try{
+        const j=await memoRes.json();
+        todoN=(j.memos||[]).length;
+      }catch(_){}
+    }
+    let pendingN=0;
+    if(apprRes.ok){
+      try{
+        const j=await apprRes.json();
+        pendingN=(j.counts&&j.counts.pending)||0;
+      }catch(_){}
+    }
+    const set=(id,n)=>{ const el=document.getElementById(id); if(el) el.textContent=n; };
+    set('hdrTodoN',todoN);
+    set('hdrAlertN',pendingN);
+    set('sbCntTodo',todoN);
+    set('sbCntBlocked',CLIENTS.filter(c=>c.status==='blocked').length);
+  }catch(_){}
 }
 
 function renderEmptyState(reason){
@@ -929,8 +952,14 @@ document.addEventListener('click',e=>{
 /* ============== 초기 ============== */
 const initRole=new URLSearchParams(location.search).get('role')==='boss'?'boss':'staff';
 setRole(initRole);
+renderHeaderDate();
 setLiveBadge(ADMIN_KEY?'connecting':'offline');
-if(ADMIN_KEY){ fetchClients(); } else { renderEmptyState('unauth'); }
+if(ADMIN_KEY){
+  fetchClients();
+  fetchHeaderBadges();
+}else{
+  renderEmptyState('unauth');
+}
 </script>
 
 </body>
