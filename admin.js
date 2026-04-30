@@ -5017,6 +5017,10 @@ async function openCustomerDashboard(userId){
   /* 통합 메모 영역 reset (메모 빡센 세팅) */
   _cdMemoCategory='all';
   _cdPendingAttachments=[];
+  /* commit 3 신규 — 태그 / 정렬 / 일괄 선택 reset */
+  if(typeof _cdActiveTag !== 'undefined') _cdActiveTag = null;
+  if(typeof _cdSortMode !== 'undefined') _cdSortMode = 'recent';
+  if(typeof _cdSelectedIds !== 'undefined') _cdSelectedIds = {};
   if($g('cdMemoNewContent'))$g('cdMemoNewContent').value='';
   if($g('cdMemoNewDue'))$g('cdMemoNewDue').value='';
   if($g('cdMemoNewFile'))$g('cdMemoNewFile').value='';

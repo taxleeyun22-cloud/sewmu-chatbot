@@ -22,6 +22,10 @@
 var _cdMemosCache = [];
 var _cdMemoCategory = 'all';  /* 'all' | '할 일' | '거래처 정보' | '완료' | '전화' | '문서' | '이슈' | '약속' */
 var _cdPendingAttachments = [];  /* 업로드 완료된 첨부 (POST 시 같이 보냄) */
+/* 메모 빡센 세팅 commit 3 — #태그 클릭 필터 + 정렬 + 일괄 액션 */
+var _cdActiveTag = null;       /* '부가세' 같은 단일 태그 필터 (chip 클릭 시 set) */
+var _cdSortMode = 'recent';    /* 'recent' (기본 시간순 desc) | 'due' (기한순 asc, 없는 거 끝) | 'type' (타입순) */
+var _cdSelectedIds = {};       /* { 12: true, 34: true } — 일괄 액션 대상 */
 
 async function _loadCustomerInfo(userId){
   /* 기존 호출 호환 — 통합 메모 로더로 위임 */
@@ -48,14 +52,44 @@ function _renderCdMemos(){
   const list=$g('cdMemoList'); if(!list) return;
   const cat=_cdMemoCategory;
   let arr=_cdMemosCache.slice();
+  /* 카테고리 / 타입 필터 */
   if(cat!=='all'){
     if(cat==='할 일') arr=arr.filter(m=>['할 일','확인필요','고객요청'].includes(m.memo_type));
     else if(cat==='거래처 정보') arr=arr.filter(m=>['거래처 정보','사실메모','담당자판단','주의사항','참고'].includes(m.memo_type));
     else if(cat==='완료') arr=arr.filter(m=>['완료','완료처리'].includes(m.memo_type));
     else arr=arr.filter(m=>m.category===cat);  /* 전화/문서/이슈/약속/일반 */
   }
+  /* 태그 필터 (chip 클릭 시 set) */
+  if(_cdActiveTag){
+    arr=arr.filter(m=>Array.isArray(m.tags)&&m.tags.indexOf(_cdActiveTag)>=0);
+  }
+  /* 정렬 */
+  const TYPE_ORDER={'할 일':0,'확인필요':0,'고객요청':0,'거래처 정보':1,'사실메모':1,'담당자판단':1,'주의사항':1,'참고':1,'완료':2,'완료처리':2};
+  if(_cdSortMode==='due'){
+    /* 기한순 asc — 없는 건 맨 뒤. 같은 날짜면 created_at desc */
+    arr.sort((a,b)=>{
+      const ad=a.due_date||'9999-99-99', bd=b.due_date||'9999-99-99';
+      if(ad!==bd) return ad.localeCompare(bd);
+      return String(b.created_at||'').localeCompare(String(a.created_at||''));
+    });
+  } else if(_cdSortMode==='type'){
+    arr.sort((a,b)=>{
+      const at=TYPE_ORDER[a.memo_type]??9, bt=TYPE_ORDER[b.memo_type]??9;
+      if(at!==bt) return at-bt;
+      return String(b.created_at||'').localeCompare(String(a.created_at||''));
+    });
+  } else {
+    /* recent (default) — 시간순 desc. 백엔드가 이미 desc 로 줘서 변경 X */
+  }
+
+  /* 헤더에 active tag pill + 일괄 액션 바 추가 */
+  _renderCdMemoHeader(arr.length);
+
   if(!arr.length){
-    list.innerHTML='<div style="color:#adb5bd;padding:14px 0;font-size:.84em;line-height:1.6;text-align:center">'+(cat==='all'?'아직 메모가 없습니다.<br>아래 입력 폼으로 첫 메모를 추가해보세요.':'이 카테고리 메모가 없습니다.')+'</div>';
+    let msg = '아직 메모가 없습니다.<br>아래 입력 폼으로 첫 메모를 추가해보세요.';
+    if(cat!=='all') msg = '이 카테고리 메모가 없습니다.';
+    if(_cdActiveTag) msg = '#'+_cdActiveTag+' 태그 메모가 없습니다.';
+    list.innerHTML='<div style="color:#adb5bd;padding:14px 0;font-size:.84em;line-height:1.6;text-align:center">'+msg+'</div>';
     return;
   }
   const TYPE_ICONS={'할 일':'📌','확인필요':'📌','고객요청':'📌','거래처 정보':'🏢','사실메모':'🏢','담당자판단':'🏢','주의사항':'🏢','참고':'🏢','완료':'✅','완료처리':'✅'};
@@ -67,16 +101,21 @@ function _renderCdMemos(){
     const created=(m.created_at||'').substring(0,16).replace('T',' ');
     const by=m.author_name||'';
     const due=m.due_date?_renderCdDDayBadge(m.due_date):'';
-    const cat=m.category?'<span style="background:#eff6ff;color:#1e40af;font-size:.7em;font-weight:600;padding:1px 7px;border-radius:99px;margin-right:4px">'+e(m.category)+'</span>':'';
-    const tags=Array.isArray(m.tags)&&m.tags.length?m.tags.map(t=>'<span style="background:#dbeafe;color:#1e40af;font-size:.7em;font-weight:600;padding:1px 7px;border-radius:99px;margin-right:3px">#'+e(t)+'</span>').join(''):'';
+    const catChip=m.category?'<span onclick="cdMemoFilter(\''+escAttr(m.category)+'\');event.stopPropagation()" style="background:#eff6ff;color:#1e40af;font-size:.7em;font-weight:600;padding:1px 7px;border-radius:99px;margin-right:4px;cursor:pointer" title="이 카테고리만 보기">'+e(m.category)+'</span>':'';
+    /* 태그 chip — 클릭 시 _cdActiveTag set + filter */
+    const tags=Array.isArray(m.tags)&&m.tags.length?m.tags.map(t=>'<span onclick="cdSetTagFilter(\''+escAttr(t)+'\');event.stopPropagation()" style="background:#dbeafe;color:#1e40af;font-size:.7em;font-weight:600;padding:1px 7px;border-radius:99px;margin-right:3px;cursor:pointer" title="이 태그만 보기">#'+e(t)+'</span>').join(''):'';
     const attach=Array.isArray(m.attachments)&&m.attachments.length?_renderCdAttachments(m.attachments):'';
     /* content 안 #태그 는 chip 으로 따로 표시했으니 본문에는 그대로 두되 시각 강조 */
     const contentHtml=e(m.content||'').replace(/#([\w가-힣]+)/g,'<span style="color:#1e40af;font-weight:600">#$1</span>');
-    return '<div data-memo-id="'+m.id+'" style="padding:10px 0;border-bottom:1px dashed #e5e8eb">'
+    /* 일괄 액션 체크박스 */
+    const checked = _cdSelectedIds[m.id] ? 'checked' : '';
+    const cardBg = _cdSelectedIds[m.id] ? '#fef3c7' : '';
+    return '<div data-memo-id="'+m.id+'" style="padding:10px 0;border-bottom:1px dashed #e5e8eb;background:'+cardBg+'">'
       +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">'
+        +'<input type="checkbox" '+checked+' onchange="cdToggleSelect('+m.id+',this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:#3182f6;flex-shrink:0" title="일괄 액션 선택">'
         +'<span style="font-size:1em;flex-shrink:0">'+ic+'</span>'
         +'<span style="color:'+tColor+';font-size:.74em;font-weight:700">'+e(m.memo_type_display||m.memo_type)+'</span>'
-        +cat
+        +catChip
         +(due?'<span style="margin-left:2px">'+due+'</span>':'')
         +'<span style="margin-left:auto;font-size:.7em;color:#8b95a1">'+e(by)+' · '+e(created)+(m.is_edited?' (수정됨)':'')+'</span>'
         +'<button onclick="deleteCdMemo('+m.id+')" style="background:none;border:none;color:#f04452;font-size:.78em;cursor:pointer;font-family:inherit;padding:0 4px" title="삭제">🗑️</button>'
@@ -86,6 +125,35 @@ function _renderCdMemos(){
       +(attach?'<div style="margin-top:6px">'+attach+'</div>':'')
     +'</div>';
   }).join('');
+}
+
+/* 헤더 영역 (카테고리 탭 위) — active tag pill + 정렬 select + 일괄 액션 바 */
+function _renderCdMemoHeader(filteredCount){
+  /* 헤더 plumbing — cdMemoTabs 위에 _cdMemoHeaderBar 추가 (없으면 생성). active tag / 정렬 / 일괄 표시 */
+  const tabs = $g('cdMemoTabs'); if(!tabs) return;
+  let bar = $g('cdMemoHeaderBar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'cdMemoHeaderBar';
+    bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px;font-size:.78em';
+    tabs.parentNode.insertBefore(bar, tabs);
+  }
+  const tagPill = _cdActiveTag
+    ? '<span style="background:#1e40af;color:#fff;padding:3px 9px;border-radius:99px;font-weight:600;cursor:pointer" onclick="cdClearTagFilter()" title="태그 필터 해제">#'+e(_cdActiveTag)+' ✕</span>'
+    : '';
+  const selCount = Object.keys(_cdSelectedIds).filter(id=>_cdSelectedIds[id]).length;
+  const bulkBar = selCount > 0
+    ? '<span style="background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:99px;font-weight:600;margin-left:auto">선택 '+selCount+'건</span>'
+      +'<button onclick="cdBulkComplete()" style="background:#10b981;color:#fff;border:none;padding:5px 11px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">✅ 일괄 완료</button>'
+      +'<button onclick="cdBulkDelete()" style="background:#dc2626;color:#fff;border:none;padding:5px 11px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">🗑️ 일괄 삭제</button>'
+      +'<button onclick="cdClearSelection()" style="background:#fff;color:#6b7280;border:1px solid #e5e8eb;padding:5px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">선택 해제</button>'
+    : '';
+  const sortSel = '<select onchange="cdSortChange(this.value)" style="background:#fff;border:1px solid #e5e8eb;border-radius:6px;padding:4px 8px;font-size:.74em;font-family:inherit;cursor:pointer'+(selCount>0?'':';margin-left:auto')+'" title="정렬 기준">'
+    +'<option value="recent"'+(_cdSortMode==='recent'?' selected':'')+'>🕒 최신순</option>'
+    +'<option value="due"'+(_cdSortMode==='due'?' selected':'')+'>📅 기한순</option>'
+    +'<option value="type"'+(_cdSortMode==='type'?' selected':'')+'>🗂️ 타입순</option>'
+    +'</select>';
+  bar.innerHTML = tagPill + bulkBar + sortSel;
 }
 
 function _renderCdDDayBadge(dueDate){
@@ -291,4 +359,64 @@ async function purgeMemo(id){
     if(!d.ok){ alert('삭제 실패: ' + (d.error || 'unknown')); return; }
     loadTrash();
   }catch(err){ alert('오류: ' + err.message); }
+}
+
+/* ===== 메모 빡센 세팅 commit 3 — 태그 chip 클릭 / 정렬 / 일괄 액션 ===== */
+
+/* #태그 chip 클릭 → 그 태그 필터 활성 */
+function cdSetTagFilter(tag){
+  _cdActiveTag = tag || null;
+  _renderCdMemos();
+}
+function cdClearTagFilter(){
+  _cdActiveTag = null;
+  _renderCdMemos();
+}
+
+/* 정렬 변경 */
+function cdSortChange(mode){
+  _cdSortMode = (mode === 'due' || mode === 'type') ? mode : 'recent';
+  _renderCdMemos();
+}
+
+/* 일괄 액션 — 체크박스 토글 */
+function cdToggleSelect(id, checked){
+  if(checked) _cdSelectedIds[id] = true;
+  else delete _cdSelectedIds[id];
+  /* 헤더만 갱신 (전체 재렌더는 무거움). 카드 배경색만 토글 */
+  const card = document.querySelector('#cdMemoList [data-memo-id="'+id+'"]');
+  if(card) card.style.background = checked ? '#fef3c7' : '';
+  _renderCdMemoHeader();
+}
+function cdClearSelection(){
+  _cdSelectedIds = {};
+  _renderCdMemos();
+}
+async function cdBulkDelete(){
+  const ids = Object.keys(_cdSelectedIds).filter(id=>_cdSelectedIds[id]).map(Number);
+  if(!ids.length){ alert('선택된 메모 없음'); return; }
+  if(!confirm(ids.length + '건 일괄 삭제? (휴지통으로 이동, 복원 가능)')) return;
+  try{
+    /* 병렬 DELETE 호출 — 각각 soft delete */
+    await Promise.all(ids.map(id =>
+      fetch('/api/memos?id=' + id + '&key=' + encodeURIComponent(KEY), { method: 'DELETE' })
+    ));
+    _cdSelectedIds = {};
+    if(_cdCurrentUserId) await _loadCdAllMemos(_cdCurrentUserId);
+  }catch(err){ alert('일괄 삭제 오류: ' + err.message); }
+}
+async function cdBulkComplete(){
+  const ids = Object.keys(_cdSelectedIds).filter(id=>_cdSelectedIds[id]).map(Number);
+  if(!ids.length){ alert('선택된 메모 없음'); return; }
+  if(!confirm(ids.length + '건 일괄 완료 처리?')) return;
+  try{
+    await Promise.all(ids.map(id =>
+      fetch('/api/memos?id=' + id + '&key=' + encodeURIComponent(KEY), {
+        method: 'PATCH', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ memo_type: '완료' })
+      })
+    ));
+    _cdSelectedIds = {};
+    if(_cdCurrentUserId) await _loadCdAllMemos(_cdCurrentUserId);
+  }catch(err){ alert('일괄 완료 오류: ' + err.message); }
 }
