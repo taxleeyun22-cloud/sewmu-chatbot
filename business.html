@@ -134,8 +134,8 @@
           <option value="일반">📝 일반</option>
         </select>
         <input id="memoNewDue" type="date" title="기한 (선택)">
-        <label for="memoNewFile" class="file-label">📎 첨부</label>
-        <input id="memoNewFile" type="file" multiple accept="image/*,.pdf,.hwp,.hwpx" style="display:none" onchange="onMemoFileSelect(event)">
+        <button type="button" class="file-label" onclick="document.getElementById('memoNewFile').click()">📎 첨부</button>
+        <input id="memoNewFile" type="file" multiple accept="image/*,.pdf,.hwp,.hwpx" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" onchange="onMemoFileSelect(event)">
         <span id="memoNewFileLabel" style="font-size:.74em;color:#8b95a1"></span>
       </div>
       <textarea id="memoNewContent" rows="2" placeholder="예) 사장님 종소세 분납 요청 #종소세&#10;예) 5/15 부가세 매입 영수증 12장 수령 #부가세 #영수증"></textarea>

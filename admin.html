@@ -1084,8 +1084,8 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
                 <option value="일반">📝 일반</option>
               </select>
               <input id="cdMemoNewDue" type="date" style="background:#fff;border:1px solid #e5e8eb;border-radius:6px;padding:6px 8px;font-size:.8em;font-family:inherit" title="기한 (선택)">
-              <label for="cdMemoNewFile" style="background:#fff;color:#3182f6;border:1px dashed #3182f6;padding:6px 10px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">📎 첨부</label>
-              <input id="cdMemoNewFile" type="file" multiple accept="image/*,.pdf,.hwp,.hwpx" style="display:none" onchange="onCdMemoFileSelect(event)">
+              <button type="button" onclick="document.getElementById('cdMemoNewFile').click()" style="background:#fff;color:#3182f6;border:1px dashed #3182f6;padding:6px 10px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">📎 첨부</button>
+              <input id="cdMemoNewFile" type="file" multiple accept="image/*,.pdf,.hwp,.hwpx" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" onchange="onCdMemoFileSelect(event)">
               <span id="cdMemoNewFileLabel" style="font-size:.74em;color:#8b95a1"></span>
             </div>
             <textarea id="cdMemoNewContent" rows="2" placeholder="예) 음식점 / 현금 매출 많음 #일반&#10;예) 5/15 부가세 매입 영수증 12장 수령 #부가세 #영수증" style="width:100%;padding:7px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;outline:none;resize:vertical;min-height:48px"></textarea>
