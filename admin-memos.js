@@ -153,7 +153,9 @@ function _renderCdMemoHeader(filteredCount){
     +'<option value="due"'+(_cdSortMode==='due'?' selected':'')+'>📅 기한순</option>'
     +'<option value="type"'+(_cdSortMode==='type'?' selected':'')+'>🗂️ 타입순</option>'
     +'</select>';
-  bar.innerHTML = tagPill + bulkBar + sortSel;
+  /* 메모 빡센 세팅 commit 4 — CSV 내보내기 버튼 (현재 필터된 메모) */
+  const exportBtn = '<button onclick="cdExportMemoCsv()" style="background:#fff;color:#374151;border:1px solid #e5e8eb;padding:4px 9px;border-radius:6px;font-size:.74em;cursor:pointer;font-family:inherit" title="현재 필터된 메모를 CSV (Excel) 로 내려받기">📥 CSV</button>';
+  bar.innerHTML = tagPill + bulkBar + sortSel + exportBtn;
 }
 
 function _renderCdDDayBadge(dueDate){
@@ -420,3 +422,95 @@ async function cdBulkComplete(){
     if(_cdCurrentUserId) await _loadCdAllMemos(_cdCurrentUserId);
   }catch(err){ alert('일괄 완료 오류: ' + err.message); }
 }
+
+/* ===== 메모 빡센 세팅 commit 4 — CSV export + Ctrl+M 단축키 ===== */
+
+/* 현재 거래처 메모를 CSV 로 내려받기 (필터된 결과 그대로 + 엑셀에서 한글 깨짐 방지 BOM)
+   주의: admin.js 에 cdExportCsv 다른 함수(위하고 export) 가 이미 있어서 cdExportMemoCsv 이름 사용 */
+function cdExportMemoCsv(){
+  if(!_cdCurrentUserId){ alert('거래처가 선택되지 않았습니다'); return; }
+  let arr = _cdMemosCache.slice();
+  /* 현재 필터 적용 */
+  const cat = _cdMemoCategory;
+  if(cat !== 'all'){
+    if(cat === '할 일') arr = arr.filter(m=>['할 일','확인필요','고객요청'].includes(m.memo_type));
+    else if(cat === '거래처 정보') arr = arr.filter(m=>['거래처 정보','사실메모','담당자판단','주의사항','참고'].includes(m.memo_type));
+    else if(cat === '완료') arr = arr.filter(m=>['완료','완료처리'].includes(m.memo_type));
+    else arr = arr.filter(m=>m.category === cat);
+  }
+  if(_cdActiveTag) arr = arr.filter(m=>Array.isArray(m.tags)&&m.tags.indexOf(_cdActiveTag)>=0);
+  if(!arr.length){ alert('내보낼 메모가 없습니다'); return; }
+
+  /* CSV 안전 escape — RFC4180 (큰따옴표는 두 번, 셀에 콤마/줄바꿈/큰따옴표 있으면 큰따옴표로 감쌈) */
+  const csvCell = v => {
+    const s = String(v == null ? '' : v);
+    if(s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('\r') >= 0){
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+
+  const headers = ['ID','생성','수정','타입','카테고리','내용','기한','#태그','첨부','작성자'];
+  const rows = arr.map(m => {
+    const tags = Array.isArray(m.tags) ? m.tags.map(t=>'#'+t).join(' ') : '';
+    const attach = Array.isArray(m.attachments)
+      ? m.attachments.map(a=>String(a.name||a.key||'')).join(' | ')
+      : '';
+    return [
+      m.id,
+      m.created_at || '',
+      m.updated_at || '',
+      m.memo_type_display || m.memo_type || '',
+      m.category || '',
+      m.content || '',
+      m.due_date || '',
+      tags,
+      attach,
+      m.author_name || '',
+    ].map(csvCell).join(',');
+  });
+  const csv = headers.map(csvCell).join(',') + '\n' + rows.join('\n');
+  /* UTF-8 BOM 포함 (엑셀에서 한글 깨짐 방지) */
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const cname = ($g('cdName')?.textContent || ('user'+_cdCurrentUserId)).trim().replace(/[\\\/:*?"<>|]/g,'_').slice(0,80);
+  const today = new Date(Date.now()+9*60*60*1000).toISOString().slice(0,10);
+  const filename = '거래처메모_' + cname + '_' + today + '.csv';
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  setTimeout(()=>URL.revokeObjectURL(link.href), 1000);
+}
+
+/* Ctrl+M (또는 Cmd+M) 단축키 — 거래처 dashboard 가 열려있으면 메모 입력칸 포커스
+   거래처 dashboard 가 안 열려있으면 통합 검색칸 포커스 (사용자 → 메모 흐름) */
+(function _bindMemoShortcut(){
+  if(window._cdMemoShortcutBound) return;
+  window._cdMemoShortcutBound = true;
+  document.addEventListener('keydown', function(e){
+    /* Ctrl+M / Cmd+M, 단 input/textarea/contenteditable 안에서는 무시 */
+    if(!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'm') return;
+    const ae = document.activeElement;
+    const tag = (ae && ae.tagName || '').toLowerCase();
+    if(tag === 'input' || tag === 'textarea' || (ae && ae.isContentEditable)) return;
+    e.preventDefault();
+    /* 1. dashboard 열렸나? 메모 입력칸 포커스 */
+    const dash = $g('custDashModal');
+    if(dash && dash.style.display !== 'none'){
+      const ta = $g('cdMemoNewContent');
+      if(ta){
+        try{ ta.focus(); ta.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){}
+        return;
+      }
+    }
+    /* 2. dashboard 안 열림 → 통합 검색칸 포커스 (거래처 찾기 → 클릭으로 dashboard 열기 흐름) */
+    const search = $g('clientSearchInput');
+    if(search){
+      try{ search.focus(); search.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){}
+      /* 사용자에게 안내 */
+      const placeholder = search.placeholder;
+      search.placeholder = '💡 거래처 이름·#태그 검색 후 클릭 → 메모 추가';
+      setTimeout(()=>{ if(search.placeholder !== placeholder) search.placeholder = placeholder; }, 3000);
+    }
+  });
+})();
