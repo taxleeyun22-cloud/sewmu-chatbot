@@ -204,6 +204,45 @@ export async function onRequestGet(context) {
     }
   }
 
+  /* === 업체 통합 메모 (한 업체의 모든 메모: 할 일+거래처 정보+완료) — 메모 빡센 세팅 ===
+     사장님 명령 (2026-04-30): business.html 메모 영역 빈약 → cdMemoTabs 와 동일 수준.
+     customer_all 의 business_id 버전. 카테고리·태그 필터 동일 지원. */
+  if (scope === 'business_all') {
+    const businessId = Number(url.searchParams.get('business_id') || 0);
+    if (!businessId) return Response.json({ error: "business_id required" }, { status: 400 });
+    const category = url.searchParams.get('category');
+    const tag = url.searchParams.get('tag');
+    try {
+      const where = [`target_business_id = ?`, `deleted_at IS NULL`];
+      const binds = [businessId];
+      if (category && ALLOWED_CATEGORIES.includes(category)) {
+        where.push(`category = ?`); binds.push(category);
+      }
+      if (tag) {
+        where.push(`(tags IS NOT NULL AND (tags LIKE ? OR tags LIKE ? OR tags LIKE ? OR tags = ?))`);
+        const tagStr = String(tag).slice(0, 50);
+        binds.push(`%"${tagStr}"%`, `%"${tagStr}",%`, `%,"${tagStr}"%`, `["${tagStr}"]`);
+      }
+      const sql = `SELECT id, target_user_id, target_business_id, room_id, author_user_id, author_name,
+                          assigned_to_user_id, memo_type, content, is_edited,
+                          due_date, linked_message_id, filing_type, filing_period,
+                          category, tags, attachments, created_at, updated_at
+                     FROM memos
+                    WHERE ${where.join(' AND ')}
+                    ORDER BY created_at DESC LIMIT 200`;
+      const { results } = await db.prepare(sql).bind(...binds).all();
+      const normalized = (results || []).map(r => ({
+        ...r,
+        memo_type_display: LEGACY_MAP[r.memo_type] || r.memo_type,
+        tags: r.tags ? safeParseJson(r.tags) : [],
+        attachments: r.attachments ? safeParseJson(r.attachments) : [],
+      }));
+      return Response.json({ ok: true, memos: normalized, types: NEW_TYPES, categories: ALLOWED_CATEGORIES.filter(Boolean) });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   /* === 거래처(업체) 단위 D-day 일정 (target_business_id + due_date 있는 미완료 메모) === */
   if (scope === 'business_due') {
     const businessId = Number(url.searchParams.get('business_id') || 0);
