@@ -8,3 +8,8 @@ dist/
 coverage/
 *.log
 .wrangler/
+
+# Playwright 검증 임시 스크린샷 (Claude 가 prod 검증 시 자동 생성)
+verify-*.png
+.playwright-mcp/
+.claude/scheduled_tasks.lock
