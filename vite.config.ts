@@ -64,7 +64,9 @@ export default defineConfig({
         { src: 'logo-vertical.png', dest: '.' },
         { src: 'logo-vertical.jpg', dest: '.' },
         // 외부참조 그대로 유지
+        // admin-*.js glob — 쪼개기 진행 시 (admin-memos.js, admin-customer-dash.js 등) 자동 포함
         { src: 'admin.js', dest: '.' },
+        { src: 'admin-*.js', dest: '.' },
         { src: 'admin.css', dest: '.' },
         // 검증 데이터 (자동 생성, GitHub 동기화)
         { src: 'flagged-items.json', dest: '.' },
