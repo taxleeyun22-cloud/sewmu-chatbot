@@ -208,3 +208,87 @@ async function addCustomerInfo(){
   }catch(err){alert('오류: '+err.message)}
 }
 async function deleteCustomerInfo(id, userId){ return deleteCdMemo(id); }
+
+/* ===== 🗑️ 휴지통 (메모 빡센 세팅 — 사장님 명령 2026-04-30) =====
+ * scope=trash_list 로 deleted_at IS NOT NULL 메모 200건 조회.
+ * 복원: POST ?action=restore&id=N (deleted_at=NULL)
+ * 영구 삭제: POST ?action=purge&id=N (DELETE row) */
+
+function openTrash(){
+  const m = $g('trashModal'); if(!m){ alert('휴지통 모달 element 없음'); return; }
+  m.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  loadTrash();
+}
+
+function closeTrash(){
+  const m = $g('trashModal'); if(m) m.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function loadTrash(){
+  const list = $g('trashList'); const meta = $g('trashMeta');
+  if(!list) return;
+  list.innerHTML = '<div style="text-align:center;color:#8b95a1;padding:30px 0;font-size:.88em">불러오는 중...</div>';
+  try{
+    const r = await fetch('/api/memos?scope=trash_list&key=' + encodeURIComponent(KEY));
+    const d = await r.json();
+    if(!d.ok){ list.innerHTML = '<div style="color:#f04452;padding:14px">' + e(d.error || '휴지통 로드 실패') + '</div>'; return; }
+    const memos = d.memos || [];
+    if(meta) meta.textContent = memos.length ? memos.length + '건' : '';
+    if(!memos.length){
+      list.innerHTML = '<div style="text-align:center;color:#9ca3af;padding:40px 0;font-size:.88em">휴지통이 비어 있습니다.</div>';
+      return;
+    }
+    const TYPE_ICONS = {'할 일':'📌','확인필요':'📌','고객요청':'📌','거래처 정보':'🏢','사실메모':'🏢','담당자판단':'🏢','주의사항':'🏢','참고':'🏢','완료':'✅','완료처리':'✅'};
+    const CAT_ICONS = {'전화':'📞','문서':'📁','이슈':'⚠️','약속':'📅','일반':'📝'};
+    list.innerHTML = memos.map(m => {
+      const ic = CAT_ICONS[m.category] || TYPE_ICONS[m.memo_type] || '📝';
+      const ctx = m.target_user_real_name || m.target_user_name || m.target_business_name || m.room_name || '';
+      const ctxHtml = ctx ? '<span style="background:#eff6ff;color:#1e40af;font-size:.7em;font-weight:600;padding:1px 7px;border-radius:99px;margin-right:4px">' + e(ctx) + '</span>' : '';
+      const cat = m.category ? '<span style="background:#fef3c7;color:#92400e;font-size:.7em;font-weight:600;padding:1px 7px;border-radius:99px;margin-right:4px">' + e(m.category) + '</span>' : '';
+      const tags = (Array.isArray(m.tags) && m.tags.length) ? m.tags.slice(0,4).map(t => '<span style="background:#dbeafe;color:#1e40af;font-size:.66em;font-weight:600;padding:1px 6px;border-radius:99px;margin-right:3px">#' + e(t) + '</span>').join('') : '';
+      const deletedAt = (m.deleted_at || '').substring(0, 16).replace('T', ' ');
+      const created = (m.created_at || '').substring(0, 10);
+      const content = e(m.content || '').replace(/#([\w가-힣]+)/g, '<span style="color:#1e40af;font-weight:600">#$1</span>');
+      return '<div style="padding:10px 0;border-bottom:1px dashed #e5e8eb">'
+        + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;font-size:.85em">'
+          + '<span style="font-size:1em">' + ic + '</span>'
+          + '<span style="color:#4e5968;font-size:.74em;font-weight:700">' + e(m.memo_type_display || m.memo_type) + '</span>'
+          + cat + ctxHtml
+          + '<span style="margin-left:auto;font-size:.7em;color:#dc2626">🗑️ ' + e(deletedAt) + '</span>'
+        + '</div>'
+        + '<div style="white-space:pre-wrap;word-break:break-word;color:#191f28;line-height:1.5;font-size:.85em">' + content + '</div>'
+        + (tags ? '<div style="margin-top:5px">' + tags + '</div>' : '')
+        + '<div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end">'
+          + '<button onclick="restoreMemo(' + m.id + ')" style="background:#10b981;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.76em;font-weight:600;cursor:pointer;font-family:inherit">↶ 복원</button>'
+          + '<button onclick="purgeMemo(' + m.id + ')" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:5px 12px;border-radius:6px;font-size:.76em;font-weight:600;cursor:pointer;font-family:inherit">✕ 영구 삭제</button>'
+        + '</div>'
+      + '</div>';
+    }).join('');
+  }catch(err){
+    list.innerHTML = '<div style="color:#f04452;padding:14px">오류: ' + e(err.message) + '</div>';
+  }
+}
+
+async function restoreMemo(id){
+  if(!confirm('이 메모를 복원할까요?')) return;
+  try{
+    const r = await fetch('/api/memos?action=restore&id=' + id + '&key=' + encodeURIComponent(KEY), { method: 'POST' });
+    const d = await r.json();
+    if(!d.ok){ alert('복원 실패: ' + (d.error || 'unknown')); return; }
+    loadTrash();
+    /* 만약 거래처 dashboard 가 열려있으면 그 메모 리스트도 갱신 */
+    if(typeof _cdCurrentUserId !== 'undefined' && _cdCurrentUserId && typeof _loadCdAllMemos === 'function') _loadCdAllMemos(_cdCurrentUserId);
+  }catch(err){ alert('오류: ' + err.message); }
+}
+
+async function purgeMemo(id){
+  if(!confirm('이 메모를 영구 삭제할까요?\n\n⚠️ 되돌릴 수 없습니다.')) return;
+  try{
+    const r = await fetch('/api/memos?action=purge&id=' + id + '&key=' + encodeURIComponent(KEY), { method: 'POST' });
+    const d = await r.json();
+    if(!d.ok){ alert('삭제 실패: ' + (d.error || 'unknown')); return; }
+    loadTrash();
+  }catch(err){ alert('오류: ' + err.message); }
+}

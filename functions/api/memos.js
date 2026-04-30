@@ -148,6 +148,38 @@ export async function onRequestGet(context) {
     }
   }
 
+  /* === 휴지통 목록 (메모 빡센 세팅 — 사장님 명령 2026-04-30: 보기·복원 기능) ===
+     deleted_at IS NOT NULL 메모를 최근 삭제순으로 200건 반환 */
+  if (scope === 'trash_list') {
+    try {
+      const { results } = await db.prepare(
+        `SELECT m.id, m.room_id, m.target_user_id, m.target_business_id,
+                m.author_user_id, m.author_name, m.assigned_to_user_id,
+                m.memo_type, m.content, m.is_edited, m.due_date, m.linked_message_id,
+                m.category, m.tags, m.attachments,
+                m.created_at, m.updated_at, m.deleted_at,
+                r.name AS room_name,
+                u.real_name AS target_user_real_name, u.name AS target_user_name,
+                b.company_name AS target_business_name
+           FROM memos m
+           LEFT JOIN chat_rooms r ON m.room_id = r.id AND m.room_id != '__none__'
+           LEFT JOIN users u ON m.target_user_id = u.id
+           LEFT JOIN businesses b ON m.target_business_id = b.id
+          WHERE m.deleted_at IS NOT NULL
+          ORDER BY m.deleted_at DESC LIMIT 200`
+      ).all();
+      const normalized = (results || []).map(r => ({
+        ...r,
+        memo_type_display: LEGACY_MAP[r.memo_type] || r.memo_type,
+        tags: r.tags ? safeParseJson(r.tags) : [],
+        attachments: r.attachments ? safeParseJson(r.attachments) : [],
+      }));
+      return Response.json({ ok: true, memos: normalized });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   /* === 거래처 정보 메모 (영구·user_id 기반) === */
   if (scope === 'customer_info') {
     if (!userIdParam) return Response.json({ error: "user_id required" }, { status: 400 });
@@ -359,6 +391,26 @@ export async function onRequestPost(context) {
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
   await ensureTable(db);
+
+  /* === 휴지통 액션 (메모 빡센 세팅 — 사장님 명령 2026-04-30) === */
+  const url = new URL(context.request.url);
+  const action = url.searchParams.get('action');
+  if (action === 'restore' || action === 'purge') {
+    const id = Number(url.searchParams.get('id') || 0);
+    if (!id) return Response.json({ error: "id required" }, { status: 400 });
+    try {
+      if (action === 'restore') {
+        /* 복원: deleted_at = NULL */
+        await db.prepare(`UPDATE memos SET deleted_at = NULL, updated_at = ? WHERE id = ?`).bind(kst(), id).run();
+      } else {
+        /* 영구 삭제: row 자체 제거 (이미 soft delete 된 것만 — 안전) */
+        await db.prepare(`DELETE FROM memos WHERE id = ? AND deleted_at IS NOT NULL`).bind(id).run();
+      }
+      return Response.json({ ok: true, action });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
 
   let body;
   try { body = await context.request.json(); } catch { return Response.json({ error: "invalid json" }, { status: 400 }); }

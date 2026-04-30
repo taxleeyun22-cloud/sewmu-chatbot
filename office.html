@@ -665,11 +665,10 @@ $('sbTermReqBtn')?.addEventListener('click',(e)=>{
   callAdmin('openTerminationRequests');
 });
 
-/* 휴지통 alert */
+/* 휴지통 — admin iframe 의 trashModal 열기 (메모 빡센 세팅 — 사장님 명령 2026-04-30) */
 $('sbTrashBtn')?.addEventListener('click',(e)=>{
   e.stopPropagation();
-  const cnt=$('sbCntTrash')?.textContent||'0';
-  alert(`휴지통 ${cnt}건. 보기·복원·영구삭제 화면은 후속 페이즈.`);
+  callAdmin('openTrash');
 });
 
 /* 모바일 햄버거 */
