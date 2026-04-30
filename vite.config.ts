@@ -52,6 +52,7 @@ export default defineConfig({
         { src: 'articles.html', dest: '.' },
         { src: 'office.html', dest: '.' },
         { src: 'business.html', dest: '.' },
+        { src: 'memo-window.html', dest: '.' },
         // Cloudflare Pages 헤더 규칙
         { src: '_headers', dest: '.' },
         // PWA 자산

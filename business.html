@@ -101,7 +101,8 @@
 
   <div class="section">
     <div class="sec-title">📒 거래처 메모 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">전화·문서·이슈·약속 + #태그 + 📎첨부</span>
-      <span style="margin-left:auto;font-size:.7em;color:#8b95a1">총 <span id="memoCount">0</span>건</span>
+      <button onclick="openMemoWindowBiz()" style="margin-left:auto;background:#fff;color:#3182f6;border:1px solid #3182f6;padding:4px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit" title="메모만 별창으로 — 카톡 보면서 동시에 메모">🪟 별창</button>
+      <span style="font-size:.7em;color:#8b95a1">총 <span id="memoCount">0</span>건</span>
     </div>
     <!-- 카테고리 탭 -->
     <div class="memo-tabs" id="memoTabs">
@@ -763,6 +764,12 @@
   };
 
   /* 메모 추가 — 모달 방식 */
+  /* 메모 별창 — 사장님 명령 2026-04-30 (A 방식): /memo-window.html?business_id=X 새 탭 */
+  window.openMemoWindowBiz = function() {
+    const url = '/memo-window.html?business_id=' + encodeURIComponent(bid) + '&key=' + encodeURIComponent(KEY || '');
+    window.open(url, '_blank', 'noopener');
+  };
+
   /* legacy 호환 — 인라인 폼 사용 후 모달 폐기. 호출되어도 안전하게 무시 또는 인라인으로 위임 */
   window.addMemo = function() {
     /* 인라인 폼 textarea 에 포커스 — 버튼 클릭 시 자연스럽게 이동 */

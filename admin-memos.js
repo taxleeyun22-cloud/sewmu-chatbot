@@ -484,6 +484,17 @@ function cdExportMemoCsv(){
   setTimeout(()=>URL.revokeObjectURL(link.href), 1000);
 }
 
+/* 메모 별창 띄우기 (사장님 명령 2026-04-30 — A 방식)
+   거래처 dashboard 가 열린 상태에서 "🪟 별창" 클릭 → /memo-window.html 새 탭.
+   사장님은 카톡 상담방 / 위하고 / admin 보면서 별창에 메모 동시 작성. */
+function cdOpenMemoWindow(){
+  if(!_cdCurrentUserId){ alert('거래처가 선택되지 않았습니다'); return; }
+  const url = '/memo-window.html?user_id=' + encodeURIComponent(_cdCurrentUserId)
+    + '&key=' + encodeURIComponent(KEY || '');
+  /* 새 탭 열기 (별도 윈도우 size 지정 시 사장님이 다른 탭 모니터에 옮겨놓고 사용 가능) */
+  window.open(url, '_blank', 'noopener');
+}
+
 /* Ctrl+M (또는 Cmd+M) 단축키 — 거래처 dashboard 가 열려있으면 메모 입력칸 포커스
    거래처 dashboard 가 안 열려있으면 통합 검색칸 포커스 (사용자 → 메모 흐름) */
 (function _bindMemoShortcut(){

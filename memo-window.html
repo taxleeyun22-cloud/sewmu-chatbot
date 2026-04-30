@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>거래처 메모 — 별창</title>
+<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #f3f4f6; color: #1f2937; line-height: 1.5; min-height: 100vh; }
+  .container { max-width: 880px; margin: 0 auto; padding: 14px; }
+  /* 헤더 */
+  .header { background: #fff; border-radius: 12px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.04); margin-bottom: 12px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .header h1 { font-size: 1.15em; margin: 0; font-weight: 800; word-break: keep-all; flex: 1; min-width: 0; }
+  .header .sub { color: #6b7280; font-size: .82em; }
+  .btn-back { color: #3182f6; text-decoration: none; font-size: .85em; padding: 5px 10px; background: #eff6ff; border-radius: 6px; border: 1px solid #dbeafe; }
+  .btn-close { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; padding: 5px 10px; border-radius: 6px; font-size: .82em; cursor: pointer; font-family: inherit; }
+  /* 메모 영역 — admin.html cdMemoTabs 와 같은 톤 */
+  .memo-section { background: #fff; border-radius: 12px; padding: 14px 16px; box-shadow: 0 1px 4px rgba(0,0,0,.03); }
+  .sec-title { font-weight: 700; font-size: .95em; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+  .sec-title .hint { font-size: .72em; color: #8b95a1; font-weight: 500; }
+  .sec-title .total { font-size: .7em; color: #8b95a1; }
+  /* 카테고리 탭 (cdMemoTabs 동일) */
+  #cdMemoTabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f1f3f5; }
+  #cdMemoTabs button { background: #fff; color: #4e5968; border: 1px solid #e5e8eb; padding: 5px 11px; border-radius: 99px; font-size: .74em; font-weight: 500; cursor: pointer; font-family: inherit; }
+  #cdMemoTabs button.on { background: #191f28; color: #fff; border: none; font-weight: 600; }
+  /* 메모 카드 영역 */
+  #cdMemoList { font-size: .85em; max-height: 60vh; overflow-y: auto; margin-bottom: 10px; }
+  /* 입력 폼 */
+  .memo-form { background: #f9fafb; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .memo-form-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .memo-form select, .memo-form input[type=date] { background: #fff; border: 1px solid #e5e8eb; border-radius: 6px; padding: 6px 8px; font-size: .8em; font-family: inherit; cursor: pointer; }
+  .memo-form .file-label { background: #fff; color: #3182f6; border: 1px dashed #3182f6; padding: 6px 10px; border-radius: 6px; font-size: .78em; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .memo-form textarea { width: 100%; padding: 7px 10px; border: 1px solid #e5e8eb; border-radius: 6px; font-size: .85em; font-family: inherit; outline: none; resize: vertical; min-height: 60px; box-sizing: border-box; }
+  .btn-primary { background: #3182f6; color: #fff; border: none; padding: 7px 18px; border-radius: 7px; font-size: .82em; font-weight: 700; cursor: pointer; font-family: inherit; }
+  /* 모바일 */
+  @media (max-width: 480px) {
+    .container { padding: 8px; }
+    .header { padding: 10px 12px; }
+    .header h1 { font-size: 1.05em; }
+    #cdMemoList { max-height: 50vh; }
+  }
+  /* 인증 안 된 경우 폼 hide */
+  body[data-auth="false"] .memo-section { display: none; }
+  body[data-auth="false"] .auth-error { display: block; }
+  .auth-error { display: none; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 14px 16px; border-radius: 10px; font-size: .9em; }
+  .auth-error code { background: #fff; padding: 1px 6px; border-radius: 4px; font-family: monospace; font-size: .9em; }
+</style>
+</head>
+<body data-auth="true">
+<div class="container">
+
+  <header class="header">
+    <a class="btn-back" href="javascript:window.close()">✕ 창 닫기</a>
+    <div style="flex:1;min-width:0">
+      <h1 id="targetName">불러오는 중...</h1>
+      <div class="sub" id="targetSub"></div>
+    </div>
+    <button class="btn-close" onclick="reloadMemos()">🔄 새로고침</button>
+  </header>
+
+  <div class="auth-error">
+    🔐 인증 필요. URL 에 <code>?key=ADMIN_KEY</code> 파라미터를 추가하거나, 메인 admin 화면에서 로그인 후 다시 띄워주세요.
+  </div>
+
+  <div class="memo-section">
+    <div class="sec-title">
+      <div>📒 거래처 메모 <span class="hint">전화·문서·이슈·약속 + #태그 + 📎첨부</span></div>
+      <div class="total">총 <span id="cdMemoCount">0</span>건</div>
+    </div>
+    <!-- 카테고리 탭 (cdMemoTabs) — admin.html cdMemoTabs 동일 markup -->
+    <div id="cdMemoTabs">
+      <button data-cdmcat="all" class="on" onclick="cdMemoFilter('all')">전체</button>
+      <button data-cdmcat="할 일" onclick="cdMemoFilter('할 일')">📌 할 일</button>
+      <button data-cdmcat="거래처 정보" onclick="cdMemoFilter('거래처 정보')">🏢 거래처 정보</button>
+      <button data-cdmcat="전화" onclick="cdMemoFilter('전화')">📞 전화</button>
+      <button data-cdmcat="문서" onclick="cdMemoFilter('문서')">📁 문서</button>
+      <button data-cdmcat="이슈" onclick="cdMemoFilter('이슈')">⚠️ 이슈</button>
+      <button data-cdmcat="약속" onclick="cdMemoFilter('약속')">📅 약속</button>
+      <button data-cdmcat="완료" onclick="cdMemoFilter('완료')">✅ 완료</button>
+    </div>
+    <!-- 메모 카드 리스트 -->
+    <div id="cdMemoList"></div>
+    <!-- 입력 폼 (admin.html 동일 ID) -->
+    <div class="memo-form">
+      <div class="memo-form-row">
+        <select id="cdMemoNewType">
+          <option value="할 일">📌 할 일</option>
+          <option value="거래처 정보" selected>🏢 거래처 정보</option>
+          <option value="완료">✅ 완료</option>
+        </select>
+        <select id="cdMemoNewCategory">
+          <option value="">카테고리</option>
+          <option value="전화">📞 전화</option>
+          <option value="문서">📁 문서</option>
+          <option value="이슈">⚠️ 이슈</option>
+          <option value="약속">📅 약속</option>
+          <option value="일반">📝 일반</option>
+        </select>
+        <input id="cdMemoNewDue" type="date" title="기한 (선택)">
+        <label for="cdMemoNewFile" class="file-label">📎 첨부</label>
+        <input id="cdMemoNewFile" type="file" multiple accept="image/*,.pdf,.hwp,.hwpx" style="display:none" onchange="onCdMemoFileSelect(event)">
+        <span id="cdMemoNewFileLabel" style="font-size:.74em;color:#8b95a1"></span>
+      </div>
+      <textarea id="cdMemoNewContent" rows="3" placeholder="예) 음식점 / 현금 매출 많음 #일반&#10;예) 5/15 부가세 매입 영수증 12장 수령 #부가세 #영수증"></textarea>
+      <div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">
+        <span style="font-size:.7em;color:#8b95a1;margin-right:auto">💡 #키워드 자동 태그</span>
+        <button class="btn-primary" onclick="addCdMemo()">＋ 추가</button>
+      </div>
+    </div>
+    <!-- legacy 호환 hidden -->
+    <div id="cdCustomerInfo" style="display:none"></div>
+    <input id="cdInfoNew" type="hidden">
+    <!-- 신호 element (다른 영역들 — admin.html 의 일부 함수가 참조) -->
+    <input id="cdName" type="hidden">
+    <span id="cdSummaries" style="display:none"></span>
+  </div>
+
+</div>
+
+<script>
+/* ===== memo-window.html — 거래처 메모 별창 (사장님 명령 2026-04-30: A 방식) =====
+ * 별창에서 메모 작성. 메인창 (admin/office/business) 와 동일 memos 테이블 → 자동 sync.
+ * URL: /memo-window.html?user_id=X&key=ADMIN_KEY
+ *      /memo-window.html?business_id=Y&key=ADMIN_KEY
+ *
+ * admin-memos.js 의 함수 재사용 (cdMemoFilter / addCdMemo / deleteCdMemo / onCdMemoFileSelect /
+ *   _loadCdAllMemos / _renderCdMemos / _renderCdMemoHeader / _renderCdDDayBadge / _renderCdAttachments
+ *   cdSetTagFilter / cdClearTagFilter / cdSortChange / cdToggleSelect / cdClearSelection
+ *   cdBulkDelete / cdBulkComplete / cdExportMemoCsv).
+ *
+ * admin-memos.js 가 의존하는 글로벌 (KEY / $g / e / escAttr / _cdCurrentUserId / _normType)
+ * 을 이 파일이 inline 으로 정의해서 stub 으로 제공. */
+
+const _params = new URLSearchParams(location.search);
+const KEY = _params.get('key') || (function(){
+  try { return sessionStorage.getItem('admin_key') || ''; } catch(_) { return ''; }
+})();
+const _TARGET_USER_ID = parseInt(_params.get('user_id'), 10) || null;
+const _TARGET_BUSINESS_ID = parseInt(_params.get('business_id'), 10) || null;
+
+/* admin.js 헬퍼 stub */
+function $g(id){ return document.getElementById(id) || _noop(); }
+function _noop(){ return null; }
+function e(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escAttr(s){ return e(s); }
+function _normType(t){
+  /* admin.js 의 _normType 와 동일 패턴 — 구 → 신 */
+  const map = {'사실메모':'거래처 정보','확인필요':'할 일','고객요청':'할 일','담당자판단':'거래처 정보','주의사항':'거래처 정보','완료처리':'완료','참고':'거래처 정보'};
+  return map[t] || t || '';
+}
+
+/* admin-memos.js 안 _cdCurrentUserId 가 deleteCdMemo / addCdMemo 에서 사용됨 (target 으로) */
+var _cdCurrentUserId = _TARGET_USER_ID;
+
+/* 사장님이 새로고침 버튼 누르거나 별창 처음 부팅될 때 */
+async function reloadMemos(){
+  if(!KEY){ document.body.dataset.auth = 'false'; return; }
+  document.body.dataset.auth = 'true';
+  if(_TARGET_USER_ID){
+    /* 사용자 이름 가져오기 */
+    try{
+      const r = await fetch('/api/admin-approve?status=all&key=' + encodeURIComponent(KEY));
+      const d = await r.json();
+      const u = (d.users || []).find(x => x.id === _TARGET_USER_ID);
+      if(u){
+        document.getElementById('targetName').textContent = '👤 ' + (u.real_name || u.name || ('user #' + _TARGET_USER_ID));
+        document.getElementById('targetSub').textContent = [u.phone || '', u.email || ''].filter(Boolean).join(' · ');
+        try { document.title = '거래처 메모 — ' + (u.real_name || u.name); } catch(_) {}
+      }
+    }catch(_){}
+    _cdCurrentUserId = _TARGET_USER_ID;
+    /* admin-memos.js 의 _loadCdAllMemos 호출 */
+    if(typeof _loadCdAllMemos === 'function') _loadCdAllMemos(_TARGET_USER_ID);
+  } else if(_TARGET_BUSINESS_ID){
+    /* 업체 메모 — admin-memos.js 의 _loadCdAllMemos 는 user_id 기반.
+       business 는 별도 fetch (scope=business_all) — 임시 inline 처리 */
+    try{
+      const r = await fetch('/api/admin-businesses?id=' + _TARGET_BUSINESS_ID + '&key=' + encodeURIComponent(KEY));
+      const d = await r.json();
+      const biz = d.business || {};
+      document.getElementById('targetName').textContent = '🏢 ' + (biz.company_name || ('업체 #' + _TARGET_BUSINESS_ID));
+      document.getElementById('targetSub').textContent = [biz.business_number ? '#' + biz.business_number : '', biz.ceo_name ? '대표 ' + biz.ceo_name : ''].filter(Boolean).join(' · ');
+      try { document.title = '업체 메모 — ' + (biz.company_name || ''); } catch(_) {}
+    }catch(_){}
+    /* business mode — _cdMemosCache 직접 채우기 */
+    try{
+      const rr = await fetch('/api/memos?scope=business_all&business_id=' + _TARGET_BUSINESS_ID + '&key=' + encodeURIComponent(KEY));
+      const dd = await rr.json();
+      if(dd.ok){
+        if(typeof _cdMemosCache !== 'undefined'){
+          /* admin-memos.js 의 글로벌 _cdMemosCache (var) 갱신 */
+          _cdMemosCache.length = 0;
+          (dd.memos || []).filter(m => !m.deleted_at).forEach(m => _cdMemosCache.push(m));
+        }
+        const cnt = document.getElementById('cdMemoCount'); if(cnt) cnt.textContent = String(((dd.memos)||[]).filter(m=>!m.deleted_at).length);
+        if(typeof _renderCdMemos === 'function') _renderCdMemos();
+      }
+    }catch(_){}
+    /* business mode 에서 addCdMemo 가 target_user_id 사용하지 않게 monkey-patch */
+    if(window._addCdMemo_orig === undefined) window._addCdMemo_orig = window.addCdMemo;
+    window.addCdMemo = async function(){
+      const userId = _TARGET_BUSINESS_ID;  /* 임시 — body 에 target_business_id 로 보냄 */
+      const content = (document.getElementById('cdMemoNewContent')?.value || '').trim();
+      if(!content){ alert('내용을 입력하세요'); return; }
+      const memoType = document.getElementById('cdMemoNewType')?.value || '거래처 정보';
+      const category = document.getElementById('cdMemoNewCategory')?.value || null;
+      const due = document.getElementById('cdMemoNewDue')?.value || null;
+      const attachments = (typeof _cdPendingAttachments !== 'undefined' && _cdPendingAttachments.length) ? _cdPendingAttachments : undefined;
+      try{
+        const r = await fetch('/api/memos?key=' + encodeURIComponent(KEY), {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            memo_type: memoType, content, target_business_id: _TARGET_BUSINESS_ID,
+            category: category || undefined,
+            due_date: due || undefined,
+            attachments
+          })
+        });
+        const d = await r.json();
+        if(!d.ok){ alert('저장 실패: ' + (d.error || 'unknown')); return; }
+        document.getElementById('cdMemoNewContent').value = '';
+        document.getElementById('cdMemoNewDue').value = '';
+        const f = document.getElementById('cdMemoNewFile'); if(f) f.value = '';
+        const lbl = document.getElementById('cdMemoNewFileLabel'); if(lbl) lbl.textContent = '';
+        if(typeof _cdPendingAttachments !== 'undefined') _cdPendingAttachments.length = 0;
+        reloadMemos();
+      }catch(err){ alert('오류: ' + err.message); }
+    };
+    /* deleteCdMemo 도 reload 후 business 메모 다시 가져오도록 */
+    if(window._deleteCdMemo_orig === undefined) window._deleteCdMemo_orig = window.deleteCdMemo;
+    window.deleteCdMemo = async function(id){
+      if(!confirm('이 메모를 삭제할까요?')) return;
+      try{
+        const r = await fetch('/api/memos?id=' + id + '&key=' + encodeURIComponent(KEY), { method: 'DELETE' });
+        const d = await r.json();
+        if(!d.ok){ alert('삭제 실패: ' + (d.error || 'unknown')); return; }
+        reloadMemos();
+      }catch(err){ alert('오류: ' + err.message); }
+    };
+  } else {
+    document.getElementById('targetName').textContent = '⚠️ user_id 또는 business_id 누락';
+    document.getElementById('targetSub').textContent = 'URL 예: /memo-window.html?user_id=64&key=...';
+  }
+}
+</script>
+<!-- admin-memos.js 로드 (cdMemoFilter, addCdMemo, deleteCdMemo, _loadCdAllMemos, _renderCdMemos 등 재사용) -->
+<script src="/admin-memos.js?v=5"></script>
+<script>
+/* admin-memos.js 로드 후 부팅 */
+reloadMemos();
+</script>
+</body>
+</html>
