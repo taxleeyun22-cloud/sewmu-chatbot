@@ -129,9 +129,11 @@ function _renderCdMemos(){
 
 /* 헤더 영역 (카테고리 탭 위) — active tag pill + 정렬 select + 일괄 액션 바 */
 function _renderCdMemoHeader(filteredCount){
-  /* 헤더 plumbing — cdMemoTabs 위에 _cdMemoHeaderBar 추가 (없으면 생성). active tag / 정렬 / 일괄 표시 */
-  const tabs = $g('cdMemoTabs'); if(!tabs) return;
-  let bar = $g('cdMemoHeaderBar');
+  /* 헤더 plumbing — cdMemoTabs 위에 _cdMemoHeaderBar 추가 (없으면 생성). active tag / 정렬 / 일괄 표시
+     주의: admin.js 의 $g 는 'getElementById(id) || _noop()' 라 element 없을 때 truthy 반환 →
+     null 체크 깨짐. 신규 element 생성 분기에서는 document.getElementById 직접 사용 필수. */
+  const tabs = document.getElementById('cdMemoTabs'); if(!tabs) return;
+  let bar = document.getElementById('cdMemoHeaderBar');
   if(!bar){
     bar = document.createElement('div');
     bar.id = 'cdMemoHeaderBar';
