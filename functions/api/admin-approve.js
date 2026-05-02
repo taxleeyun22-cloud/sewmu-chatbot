@@ -1,6 +1,11 @@
 // 관리자: 사용자 승인/거절/기장승인/거래종료 관리
 // - pending/approved_client/approved_guest/rejected : 초기 가입 상태 관리
 // - terminated : 기존 거래 관계를 중간에 해지 (상담방도 모두 closed, 접근 차단)
+//
+// ⚠️ approved_guest 는 DEPRECATED (사장님 명령 2026-05-02: "일반승인 지워버리자 승인대기때 일 5회로 늘리고")
+//    - 기존 사용자 호환을 위해 status 자체는 유지 (DB 변경 X)
+//    - 신규 승인 흐름에서 'approve_guest' action 호출 X (admin/staff/office UI 에서 버튼 제거됨)
+//    - chat.js getDailyLimit 에서 approved_guest 도 5건/일 (pending 동일) 으로 호환 유지
 const APPROVAL_STATUSES = ['pending', 'approved_client', 'approved_guest', 'rejected', 'terminated'];
 
 import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
