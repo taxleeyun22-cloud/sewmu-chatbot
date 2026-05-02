@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>광고 카드뉴스 시안 — 5월 종소세 (세무회계 이윤)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+/* ====== 시안 가이드 ======
+   인스타 권장: 1080×1080 px (정사각형). 본 페이지 화면에서 1080px 컨테이너로 표시.
+   캡처 방법:
+   1) PC 크롬 → 카드 위 우클릭 → "전체 페이지 스크린샷" (확장 사용 시) 또는
+   2) 모바일 → 화면 캡처 (인스타 업로드 시 정사각형 자르기) 또는
+   3) F12 개발자도구 → 디바이스 모드 1080×1080 → 캡처
+   *** 폰트 안 깨지게 캡처 직전 모든 카드 한 번 스크롤 (웹폰트 로드) ***
+*/
+
+:root{
+  --c-bg: #ffffff;
+  --c-text: #191f28;
+  --c-sub: #4b5563;
+  --c-mute: #6b7280;
+  --c-blue: #3182f6;
+  --c-blue-bg: #eff6ff;
+  --c-warn: #f59e0b;
+  --c-danger: #dc2626;
+  --c-success: #10b981;
+  --c-line: #e5e7eb;
+  --c-yellow: #fef3c7;
+  --c-yellow-strong: #fbbf24;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{font-family:-apple-system,BlinkMacSystemFont,'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:#f3f4f6;color:var(--c-text);line-height:1.45}
+
+.page{padding:30px 20px 80px;max-width:1140px;margin:0 auto}
+.guide{background:#fff;border:1px solid var(--c-line);border-radius:12px;padding:18px 22px;margin-bottom:26px}
+.guide h1{font-size:1.2em;margin-bottom:6px}
+.guide p{font-size:.92em;color:var(--c-sub)}
+.guide code{background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:.88em}
+
+.card-wrap{display:flex;flex-direction:column;gap:30px;align-items:center}
+.card{
+  width:1080px;
+  height:1080px;
+  background:var(--c-bg);
+  border:1px solid var(--c-line);
+  border-radius:18px;
+  position:relative;
+  overflow:hidden;
+  box-shadow:0 8px 22px rgba(0,0,0,.08);
+  font-feature-settings:'ss01','tnum';
+}
+
+/* 공통 — 좌상단 브랜드, 우상단 진행 */
+.card .brand{
+  position:absolute;
+  top:48px;left:60px;
+  display:flex;align-items:center;gap:10px;
+  font-size:24px;font-weight:700;color:var(--c-text);
+}
+.card .brand .dot{width:14px;height:14px;background:var(--c-blue);border-radius:50%}
+.card .progress{
+  position:absolute;
+  top:48px;right:60px;
+  display:flex;gap:7px
+}
+.card .progress span{
+  width:48px;height:5px;background:#e5e7eb;border-radius:99px
+}
+.card .progress span.on{background:var(--c-blue)}
+
+.card .footer{
+  position:absolute;
+  bottom:48px;left:60px;right:60px;
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:18px;color:var(--c-mute)
+}
+.card .footer .ph{color:var(--c-text);font-weight:700}
+
+/* ===== 카드 1 (커버) ===== */
+.card-1{background:linear-gradient(180deg,#fff 0%,#eff6ff 100%)}
+.card-1 .stamp{
+  position:absolute;top:240px;left:60px;
+  background:var(--c-yellow);border:3px solid var(--c-yellow-strong);
+  padding:14px 28px;border-radius:99px;
+  font-size:32px;font-weight:800;color:#92400e;
+  transform:rotate(-3deg)
+}
+.card-1 h1{
+  position:absolute;top:340px;left:60px;right:60px;
+  font-size:128px;font-weight:900;line-height:1.05;letter-spacing:-3px
+}
+.card-1 h1 b{color:var(--c-blue)}
+.card-1 .hi{
+  position:absolute;top:760px;left:60px;right:60px;
+  font-size:36px;font-weight:600;color:var(--c-sub);line-height:1.4
+}
+.card-1 .hi em{color:var(--c-danger);font-style:normal;font-weight:800}
+.card-1 .swipe{
+  position:absolute;bottom:120px;left:60px;
+  font-size:30px;color:var(--c-blue);font-weight:700
+}
+
+/* ===== 카드 2 (대상) ===== */
+.card-2 h2{
+  position:absolute;top:200px;left:60px;
+  font-size:80px;font-weight:900;line-height:1.05
+}
+.card-2 .sub{
+  position:absolute;top:330px;left:60px;
+  font-size:28px;color:var(--c-mute);font-weight:600
+}
+.card-2 .list{
+  position:absolute;top:430px;left:60px;right:60px;
+  display:flex;flex-direction:column;gap:24px
+}
+.card-2 .item{
+  display:flex;align-items:center;gap:24px;
+  background:#f9fafb;border:2px solid var(--c-line);
+  padding:22px 30px;border-radius:18px
+}
+.card-2 .item .ic{font-size:50px;width:80px;text-align:center}
+.card-2 .item .tx{font-size:36px;font-weight:700;color:var(--c-text)}
+.card-2 .item .tx small{display:block;font-size:24px;color:var(--c-mute);margin-top:4px;font-weight:500}
+.card-2 .ref{
+  position:absolute;bottom:140px;left:60px;
+  background:var(--c-yellow);
+  font-size:22px;color:#92400e;font-weight:700;
+  padding:8px 16px;border-radius:8px
+}
+
+/* ===== 카드 3 (기한+가산세) ===== */
+.card-3{background:linear-gradient(180deg,#fff 0%,#fef2f2 100%)}
+.card-3 .alarm{
+  position:absolute;top:200px;left:60px;
+  font-size:60px;font-weight:900;display:flex;align-items:center;gap:14px
+}
+.card-3 .alarm .ic{font-size:64px}
+.card-3 .deadline{
+  position:absolute;top:320px;left:60px;
+  font-size:120px;font-weight:900;color:var(--c-danger);
+  letter-spacing:-3px;line-height:1
+}
+.card-3 .deadline-sub{
+  position:absolute;top:480px;left:60px;
+  font-size:36px;color:var(--c-mute);font-weight:600
+}
+.card-3 .penalty-title{
+  position:absolute;top:600px;left:60px;
+  font-size:40px;font-weight:800
+}
+.card-3 .penalty{
+  position:absolute;top:680px;left:60px;right:60px;
+  display:flex;gap:24px
+}
+.card-3 .pn{
+  flex:1;
+  background:#fff;border:3px solid var(--c-danger);border-radius:18px;
+  padding:26px 24px;text-align:center
+}
+.card-3 .pn .lab{font-size:22px;color:var(--c-mute);margin-bottom:10px;font-weight:600}
+.card-3 .pn .num{font-size:72px;font-weight:900;color:var(--c-danger);line-height:1}
+.card-3 .pn .unit{font-size:22px;color:var(--c-sub);margin-top:8px;font-weight:600}
+.card-3 .ref{
+  position:absolute;bottom:140px;left:60px;
+  background:var(--c-yellow);
+  font-size:20px;color:#92400e;font-weight:700;
+  padding:8px 16px;border-radius:8px
+}
+
+/* ===== 카드 4 (셀프 vs 세무사) ===== */
+.card-4 h2{
+  position:absolute;top:200px;left:60px;
+  font-size:80px;font-weight:900;line-height:1.05
+}
+.card-4 h2 b{color:var(--c-blue)}
+.card-4 .vs{
+  position:absolute;top:380px;left:60px;right:60px;
+  display:grid;grid-template-columns:1fr 1fr;gap:28px
+}
+.card-4 .vs-col{
+  background:#f9fafb;border:3px solid var(--c-line);
+  border-radius:18px;padding:32px 28px
+}
+.card-4 .vs-col.bad{border-color:#fca5a5;background:#fef2f2}
+.card-4 .vs-col.good{border-color:#86efac;background:#f0fdf4}
+.card-4 .vs-col h3{font-size:32px;font-weight:900;margin-bottom:18px}
+.card-4 .vs-col.bad h3{color:var(--c-danger)}
+.card-4 .vs-col.good h3{color:var(--c-success)}
+.card-4 .vs-col ul{list-style:none}
+.card-4 .vs-col li{
+  font-size:24px;font-weight:700;color:var(--c-text);
+  padding:10px 0;display:flex;align-items:center;gap:10px
+}
+.card-4 .vs-col.bad li::before{content:'❌';font-size:22px}
+.card-4 .vs-col.good li::before{content:'✅';font-size:22px}
+.card-4 .note{
+  position:absolute;bottom:120px;left:60px;right:60px;
+  font-size:24px;color:var(--c-sub);text-align:center;font-weight:600
+}
+
+/* ===== 카드 5 (CTA) ===== */
+.card-5{background:linear-gradient(135deg,#3182f6 0%,#1d4ed8 100%);color:#fff}
+.card-5 .brand{color:#fff}
+.card-5 .brand .dot{background:#fbbf24}
+.card-5 h1{
+  position:absolute;top:240px;left:60px;right:60px;
+  font-size:88px;font-weight:900;line-height:1.05;letter-spacing:-2px
+}
+.card-5 h1 b{color:#fbbf24}
+.card-5 .points{
+  position:absolute;top:520px;left:60px;right:60px;
+  display:flex;flex-direction:column;gap:14px
+}
+.card-5 .points li{
+  list-style:none;
+  font-size:32px;font-weight:600;
+  display:flex;align-items:center;gap:16px
+}
+.card-5 .points li .ic{font-size:36px}
+.card-5 .url{
+  position:absolute;top:830px;left:60px;right:60px;
+  background:rgba(255,255,255,.18);
+  border:2px solid rgba(255,255,255,.4);
+  border-radius:16px;
+  padding:20px 30px;
+  font-size:36px;font-weight:800;color:#fff;
+  text-align:center;letter-spacing:-1px
+}
+.card-5 .footer{color:rgba(255,255,255,.7)}
+.card-5 .footer .ph{color:#fff}
+.card-5 .progress span{background:rgba(255,255,255,.3)}
+.card-5 .progress span.on{background:#fbbf24}
+
+/* 라벨 */
+.label{
+  text-align:center;font-size:14px;color:var(--c-mute);
+  font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  margin-top:-10px
+}
+
+/* PDF/스크린샷 모드 — ?print=1 */
+@media print{
+  body{background:#fff}
+  .guide{display:none}
+  .label{display:none}
+  .card{box-shadow:none;border:none;break-after:page}
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+<div class="guide">
+  <h1>📸 인스타 카드뉴스 5장 — 5월 종소세 시즌</h1>
+  <p style="margin-top:6px"><b>사이즈</b>: 1080×1080 px (인스타 정사각형). 모바일·PC 어디서든 같은 비율.</p>
+  <p style="margin-top:6px"><b>캡처 방법</b>: <code>F12</code> 개발자도구 → 우상단 ⋮ → "Capture node screenshot" (Chrome). 또는 <code>?print=1</code> 추가해서 PDF 출력.</p>
+  <p style="margin-top:6px"><b>편집</b>: 텍스트는 <code>ads-cards.html</code> 직접 수정. 디자인은 CSS 토큰 (<code>--c-blue</code> 등) 변경. 캔바·미리캔버스에 옮기고 싶으면 텍스트만 복사하고 본 시안 참고.</p>
+</div>
+
+<div class="card-wrap">
+
+<!-- ============ 카드 1: 커버 ============ -->
+<div class="card card-1">
+  <div class="brand"><span class="dot"></span>세무회계 이윤</div>
+  <div class="progress"><span class="on"></span><span></span><span></span><span></span><span></span></div>
+
+  <div class="stamp">5월 종소세</div>
+  <h1>누가 신고<br>해야 하나요<b>?</b></h1>
+  <div class="hi">📌 <em>지금 모르면 가산세 폭탄</em><br>👇 1분 안에 확인하세요</div>
+  <div class="swipe">→ 다음 카드로</div>
+
+  <div class="footer">
+    <div>대구 달서구 · 이재윤 세무사</div>
+    <div class="ph">053-269-1213</div>
+  </div>
+</div>
+<div class="label">CARD 1 / 5 — 커버</div>
+
+<!-- ============ 카드 2: 신고 대상 ============ -->
+<div class="card card-2">
+  <div class="brand"><span class="dot"></span>세무회계 이윤</div>
+  <div class="progress"><span></span><span class="on"></span><span></span><span></span><span></span></div>
+
+  <h2>신고 대상</h2>
+  <div class="sub">5월 안에 종소세 신고할 분</div>
+
+  <div class="list">
+    <div class="item">
+      <div class="ic">🏪</div>
+      <div class="tx">사업자<small>개인사업자 전부</small></div>
+    </div>
+    <div class="item">
+      <div class="ic">💼</div>
+      <div class="tx">프리랜서<small>3.3% 원천징수 받은 분</small></div>
+    </div>
+    <div class="item">
+      <div class="ic">🏠</div>
+      <div class="tx">임대 소득자<small>주택·상가 임대료 받은 분</small></div>
+    </div>
+    <div class="item">
+      <div class="ic">🔀</div>
+      <div class="tx">근로+사업<small>회사원 + 부수입 받은 분</small></div>
+    </div>
+  </div>
+
+  <div class="ref">근거: 소득세법 제70조</div>
+
+  <div class="footer">
+    <div>세무회계 이윤</div>
+    <div class="ph">053-269-1213</div>
+  </div>
+</div>
+<div class="label">CARD 2 / 5 — 신고 대상</div>
+
+<!-- ============ 카드 3: 기한 + 가산세 ============ -->
+<div class="card card-3">
+  <div class="brand"><span class="dot"></span>세무회계 이윤</div>
+  <div class="progress"><span></span><span></span><span class="on"></span><span></span><span></span></div>
+
+  <div class="alarm"><span class="ic">⏰</span><span>마감일</span></div>
+  <div class="deadline">5월 31일</div>
+  <div class="deadline-sub">2026년 5월 1일 ~ 5월 31일</div>
+
+  <div class="penalty-title">⚠️ 늦으면 가산세</div>
+  <div class="penalty">
+    <div class="pn">
+      <div class="lab">무신고</div>
+      <div class="num">20<span style="font-size:48px">%</span></div>
+      <div class="unit">산출세액의</div>
+    </div>
+    <div class="pn">
+      <div class="lab">납부지연</div>
+      <div class="num">8<span style="font-size:48px">%</span></div>
+      <div class="unit">연 환산 (일 0.022%)</div>
+    </div>
+  </div>
+
+  <div class="ref">근거: 국세기본법 제47조의2 · 제47조의4</div>
+
+  <div class="footer">
+    <div>대구 달서구 · 이재윤 세무사</div>
+    <div class="ph">053-269-1213</div>
+  </div>
+</div>
+<div class="label">CARD 3 / 5 — 기한 + 가산세</div>
+
+<!-- ============ 카드 4: 셀프 vs 세무사 ============ -->
+<div class="card card-4">
+  <div class="brand"><span class="dot"></span>세무회계 이윤</div>
+  <div class="progress"><span></span><span></span><span></span><span class="on"></span><span></span></div>
+
+  <h2>셀프 vs <b>세무사</b></h2>
+
+  <div class="vs">
+    <div class="vs-col bad">
+      <h3>😅 셀프 신고</h3>
+      <ul>
+        <li>환급 누락 위험</li>
+        <li>가산세 폭탄</li>
+        <li>시간 큰 비용</li>
+        <li>홈택스 헤맴</li>
+      </ul>
+    </div>
+    <div class="vs-col good">
+      <h3>✨ 세무사 신고</h3>
+      <ul>
+        <li>환급 최대화</li>
+        <li>합법 절세</li>
+        <li>가산세 0</li>
+        <li>맡기고 끝</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">⚡ 모르면 일단 무료 AI 챗봇으로 1분 확인</div>
+
+  <div class="footer">
+    <div>세무회계 이윤</div>
+    <div class="ph">053-269-1213</div>
+  </div>
+</div>
+<div class="label">CARD 4 / 5 — 셀프 vs 세무사</div>
+
+<!-- ============ 카드 5: CTA ============ -->
+<div class="card card-5">
+  <div class="brand"><span class="dot"></span>세무회계 이윤</div>
+  <div class="progress"><span></span><span></span><span></span><span></span><span class="on"></span></div>
+
+  <h1>무료 AI<br>세무 상담<b>.</b></h1>
+
+  <ul class="points">
+    <li><span class="ic">🤖</span>GPT-4 + 국가법령 검증</li>
+    <li><span class="ic">📊</span>답변마다 신뢰도 표시</li>
+    <li><span class="ic">⚡</span>1분 안에 답변</li>
+    <li><span class="ic">🎯</span>가입만 하면 5회/일</li>
+  </ul>
+
+  <div class="url">sewmu-chatbot.pages.dev</div>
+
+  <div class="footer">
+    <div>대구 달서구 · 이재윤 대표세무사</div>
+    <div class="ph">053-269-1213</div>
+  </div>
+</div>
+<div class="label">CARD 5 / 5 — CTA (행동 유도)</div>
+
+</div><!-- card-wrap -->
+
+<div class="guide" style="margin-top:40px">
+  <h1 style="margin-bottom:8px">🎨 디자인 요약</h1>
+  <p><b>색</b>: 메인 #3182f6 (블루) · 강조 #fbbf24 (노랑) · 위험 #dc2626 (빨강) · 성공 #10b981 (초록)</p>
+  <p style="margin-top:4px"><b>폰트</b>: Pretendard / Apple SD Gothic Neo / Malgun Gothic (시스템 폰트, 한글 깔끔)</p>
+  <p style="margin-top:4px"><b>구조</b>: 좌상단 브랜드 · 우상단 진행 (1/5 ~ 5/5) · 본문 중앙 · 하단 전화/주소</p>
+  <p style="margin-top:4px"><b>인스타 게시 시 캡션</b>: ads.md 의 <code>2. 인스타 카드뉴스</code> 텍스트 복사 → 캡션에 붙여넣기. #해시태그 추천: <code>#대구세무사 #달서구세무사 #종합소득세 #5월종소세 #프리랜서환급 #세무회계이윤</code></p>
+</div>
+
+</div>
+
+<script>
+/* ?print=1 옵션이면 화면 → PDF 친화적 모드. 자동 인쇄 다이얼로그는 안 띄움 (사용자 직접 Ctrl+P). */
+if(location.search.indexOf('print=1')>=0){
+  document.body.style.background='#fff';
+  /* 가이드 + 라벨 숨김 */
+  document.querySelectorAll('.guide, .label').forEach(el => el.style.display='none');
+}
+</script>
+
+</body>
+</html>
