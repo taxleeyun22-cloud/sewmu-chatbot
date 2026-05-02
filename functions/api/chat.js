@@ -153,12 +153,13 @@ function buildClientContext(businesses, userRealName) {
   return `\n\n===== 현재 상담 거래처 정보 (기장거래처 · ${businesses.length}개 사업장) =====\n${header}${blocks}\n\n[활용 지침]\n- 위 ${businesses.length}개 사업장을 운영 중이신 대표자입니다.\n- 질문이 특정 사업장에 해당하는지 맥락 파악 필요 (예: "우리 음식점"이라면 음식점 사업장 기준).\n- 사업장별 과세유형·업종이 다를 수 있으므로 구분해서 안내.\n- 사업자별 매출 합산·비교 등 질문 가능성도 고려.\n- 세무사 메모가 있으면 그 맥락 반영.\n- 민감정보(사업자번호·매출)는 직접 노출 자제.\n`;
 }
 
-// 승인상태별 일일 한도
+// 승인상태별 일일 한도 (사장님 명령 2026-05-02: 일반승인 폐지, pending 5회로 인상)
 function getDailyLimit(status) {
   if (status === 'approved_client') return 999999; // 기장거래처 무제한
-  if (status === 'approved_guest') return 5; // 무료 사용
   if (status === 'rejected') return 0;
-  return 3; // pending (승인 대기)
+  // approved_guest 는 deprecated 단계지만 기존 사용자 호환 위해 5회 유지
+  if (status === 'approved_guest') return 5;
+  return 5; // pending (승인 대기) — 기존 3 → 5 로 인상 (사장님 명령)
 }
 
 // 일일 사용량 체크 + 증가 (KST 기준)
