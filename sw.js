@@ -1,6 +1,5 @@
-/* v66: 핵심 사고 발견 — 이전 fetch handler 가 JS/CSS 까지 cache-first 로
-   처리해서 admin.js 신버전이 사용자한테 배포 안 됐음. 옛 cache 강제 무효화. */
-const CACHE_NAME = 'sewmu-v66';
+/* v67: 추천 질문 4개 5월 종소세 시즌으로 교체 (2026-05-02). 사용자 캐시 무효화. */
+const CACHE_NAME = 'sewmu-v67';
 const STATIC_ASSETS = ['/logo.png', '/logo-icon.png', '/logo-vertical.png'];
 
 self.addEventListener('install', e => {
