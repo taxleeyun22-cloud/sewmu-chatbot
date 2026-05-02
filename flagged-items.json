@@ -1,17 +1,6 @@
 {
-  "exported_at": "2026-04-23 22:03:11",
-  "total": 3,
-  "processed_at": "2026-04-23",
-  "processed": true,
-  "result_summary": {
-    "accepted": [347, 322],
-    "rejected_incorrect": [344],
-    "mapped_to_faq": {
-      "347": "Q90. 법인 매출을 개인 명의로 귀속 변경 시 세무 리스크 (실질과세 원칙)",
-      "344": "Q91. 권리금 세무처리 (부가세·소득세) — 기존 AI 답변 오류 정정",
-      "322": "Q92. 배달업 전기스쿠터·오토바이 부가세 매입세액 공제"
-    }
-  },
+  "exported_at": null,
+  "total": 0,
   "items": [],
-  "instructions": "처리 완료. /api/admin-review 에서 id 347, 344, 322 를 mark_reviewed 처리해주세요."
+  "note": "이 파일은 admin '검증' 탭의 '🚀 Claude 호출' 버튼이 자동 갱신합니다. 검증 대기 답변이 0건이면 items=[]. Claude 처리 후 admin-review API 로 mark_reviewed 마킹 완료."
 }

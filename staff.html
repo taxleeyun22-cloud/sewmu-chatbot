@@ -99,6 +99,8 @@
 <button id="uStTerminated" onclick="userStatus('terminated')" title="거래가 종료된 거래처 — 상담방 모두 closed, 접근 차단됨" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">🚫 종료 <span id="cTerminated">0</span></button>
 <button id="uStAdmin" onclick="userStatus('admin')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500" title="is_admin=1 관리자 사용자">👑 관리자 <span id="cAdmin">0</span></button>
 <button onclick="openManualClientModal()" style="margin-left:auto;background:#10b981;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="OAuth 없이 관리자가 직접 거래처 생성 — 오프라인 고객·기존 거래처 마이그레이션용">➕ 수동 거래처</button>
+<!-- 📥 owner 전용 전체 내보내기 (사장님 명령 2026-04-30: 나(세무사)만 할 수 있어야) -->
+<button id="ownerExportBtn" onclick="openOwnerExport()" style="display:none;background:#8b6914;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:600" title="owner(사장님) 전용 — 사용자/업체/메모 전체 CSV 내보내기">📥 전체 내보내기</button>
 <button onclick="cleanDupBiz()" title="같은 사용자에게 중복 저장된 사업장을 감지·정리 (먼저 미리보기 후 실행)" style="background:#f2f4f6;color:#4b5563;border:1px solid #e5e8eb;padding:6px 12px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">🧹 중복 사업장 정리</button>
 </div>
 <div id="userList"></div>
@@ -814,8 +816,8 @@
 </div>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=133"></script>
-<script src="/admin-memos.js?v=6"></script>
+<script src="/admin.js?v=134"></script>
+<script src="/admin-memos.js?v=7"></script>
 <script src="/admin-customer-dash.js?v=1"></script>
 <script>
 /* ===== staff.html 전용 진입 로직 =====

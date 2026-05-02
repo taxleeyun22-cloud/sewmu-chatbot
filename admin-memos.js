@@ -118,11 +118,13 @@ function _renderCdMemos(){
         +catChip
         +(due?'<span style="margin-left:2px">'+due+'</span>':'')
         +'<span style="margin-left:auto;font-size:.7em;color:#8b95a1">'+e(by)+' · '+e(created)+(m.is_edited?' (수정됨)':'')+'</span>'
+        +'<button onclick="cdToggleMemoComments('+m.id+')" style="background:none;border:none;color:#3182f6;font-size:.74em;cursor:pointer;font-family:inherit;padding:0 4px" title="댓글">💬 댓글</button>'
         +'<button onclick="deleteCdMemo('+m.id+')" style="background:none;border:none;color:#f04452;font-size:.78em;cursor:pointer;font-family:inherit;padding:0 4px" title="삭제">🗑️</button>'
       +'</div>'
       +'<div style="white-space:pre-wrap;word-break:break-word;color:#191f28;line-height:1.5">'+contentHtml+'</div>'
       +(tags?'<div style="margin-top:5px">'+tags+'</div>':'')
       +(attach?'<div style="margin-top:6px">'+attach+'</div>':'')
+      +'<div id="cdMemoComments_'+m.id+'" style="display:none;margin-top:8px;padding:8px 10px;background:#f9fafb;border-left:3px solid #c7d2fe;border-radius:4px"></div>'
     +'</div>';
   }).join('');
 }
@@ -482,6 +484,85 @@ function cdExportMemoCsv(){
   link.download = filename;
   document.body.appendChild(link); link.click(); document.body.removeChild(link);
   setTimeout(()=>URL.revokeObjectURL(link.href), 1000);
+}
+
+/* ===== 메모 댓글 (사장님 명령 2026-04-30 후속 — memo_comments 테이블) =====
+ * cdToggleMemoComments(memoId) — 메모 카드의 💬 댓글 버튼 클릭 시 영역 펼침/접힘 + 로드 */
+async function cdToggleMemoComments(memoId){
+  const box = document.getElementById('cdMemoComments_'+memoId);
+  if(!box) return;
+  if(box.style.display === 'none' || !box.style.display){
+    box.style.display = 'block';
+    box.innerHTML = '<div style="color:#8b95a1;font-size:.78em">불러오는 중...</div>';
+    try{
+      const r = await fetch('/api/memo-comments?memo_id='+memoId+'&key='+encodeURIComponent(KEY));
+      const d = await r.json();
+      if(!d.ok){ box.innerHTML = '<div style="color:#f04452">'+e(d.error||'오류')+'</div>'; return; }
+      _renderMemoComments(memoId, d.comments||[]);
+    }catch(err){ box.innerHTML = '<div style="color:#f04452">오류: '+e(err.message)+'</div>'; }
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+function _renderMemoComments(memoId, comments){
+  const box = document.getElementById('cdMemoComments_'+memoId);
+  if(!box) return;
+  let html = '';
+  if(comments.length){
+    html += comments.map(c => {
+      const t = (c.created_at||'').substring(0, 16).replace('T',' ');
+      const by = c.author_name || '';
+      const content = e(c.content||'').replace(/\n/g,'<br>');
+      return '<div style="padding:5px 0;border-bottom:1px dotted #e5e8eb;font-size:.82em">'
+        + '<div style="display:flex;justify-content:space-between;font-size:.86em;color:#6b7280;margin-bottom:2px">'
+        +   '<span><b>'+e(by)+'</b> · '+e(t)+'</span>'
+        +   '<button onclick="cdDeleteMemoComment('+c.id+','+memoId+')" style="background:none;border:none;color:#f04452;cursor:pointer;font-family:inherit;font-size:.86em;padding:0 4px">×</button>'
+        + '</div>'
+        + '<div style="color:#191f28">'+content+'</div>'
+      + '</div>';
+    }).join('');
+  } else {
+    html += '<div style="color:#9ca3af;font-size:.78em;padding:4px 0">아직 댓글 없음</div>';
+  }
+  /* 입력 폼 */
+  html += '<div style="display:flex;gap:5px;margin-top:6px">'
+    + '<input type="text" id="cdMemoCommentInput_'+memoId+'" placeholder="↳ 답글" style="flex:1;padding:5px 8px;border:1px solid #e5e8eb;border-radius:5px;font-size:.82em;font-family:inherit;outline:none" onkeydown="if(event.key===\'Enter\'){event.preventDefault();cdSubmitMemoComment('+memoId+')}">'
+    + '<button onclick="cdSubmitMemoComment('+memoId+')" style="background:#3182f6;color:#fff;border:none;padding:5px 11px;border-radius:5px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">↳</button>'
+  + '</div>';
+  box.innerHTML = html;
+}
+
+async function cdSubmitMemoComment(memoId){
+  const input = document.getElementById('cdMemoCommentInput_'+memoId);
+  if(!input) return;
+  const content = (input.value||'').trim();
+  if(!content){ input.focus(); return; }
+  try{
+    const r = await fetch('/api/memo-comments?key='+encodeURIComponent(KEY), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ memo_id: memoId, content })
+    });
+    const d = await r.json();
+    if(!d.ok){ alert('댓글 추가 실패: '+(d.error||'unknown')); return; }
+    /* reload comments only */
+    const r2 = await fetch('/api/memo-comments?memo_id='+memoId+'&key='+encodeURIComponent(KEY));
+    const d2 = await r2.json();
+    _renderMemoComments(memoId, d2.comments||[]);
+  }catch(err){ alert('오류: '+err.message); }
+}
+
+async function cdDeleteMemoComment(commentId, memoId){
+  if(!confirm('이 댓글을 삭제할까요?')) return;
+  try{
+    const r = await fetch('/api/memo-comments?id='+commentId+'&key='+encodeURIComponent(KEY), { method: 'DELETE' });
+    const d = await r.json();
+    if(!d.ok){ alert('삭제 실패: '+(d.error||'unknown')); return; }
+    /* reload */
+    const r2 = await fetch('/api/memo-comments?memo_id='+memoId+'&key='+encodeURIComponent(KEY));
+    const d2 = await r2.json();
+    _renderMemoComments(memoId, d2.comments||[]);
+  }catch(err){ alert('오류: '+err.message); }
 }
 
 /* 메모 별창 띄우기 (사장님 명령 2026-04-30 — A 방식)

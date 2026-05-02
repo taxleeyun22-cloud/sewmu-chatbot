@@ -4498,6 +4498,46 @@ async function submitBulkSend(){
   finally{if(btn){btn.disabled=false;btn.style.opacity='';btn.textContent='⚠️ 발송'}}
 }
 
+/* ===== 📥 owner 전용 전체 내보내기 (사장님 명령 2026-04-30) =====
+ * "관리자도 내보내기 기능 — 이거 나만 할 수 있어야 하고 세무사만"
+ * IS_OWNER 시에만 admin.html 거래처 탭 헤더의 #ownerExportBtn 표시.
+ * 클릭 → 3가지 CSV 선택 (사용자 / 업체 / 메모) confirm 후 download. */
+function _refreshOwnerExportBtn(){
+  const btn = document.getElementById('ownerExportBtn');
+  if(!btn) return;
+  /* IS_OWNER 는 admin.js 의 전역 변수 (true 면 ADMIN_KEY 사장님). */
+  btn.style.display = (typeof IS_OWNER !== 'undefined' && IS_OWNER) ? 'inline-block' : 'none';
+}
+/* IS_OWNER 변경 시점에 호출 — 부트 + login */
+(function(){
+  if(window._ownerExportBtnTimer) clearTimeout(window._ownerExportBtnTimer);
+  window._ownerExportBtnTimer = setInterval(_refreshOwnerExportBtn, 1500);
+})();
+
+function openOwnerExport(){
+  if(typeof IS_OWNER !== 'undefined' && !IS_OWNER){
+    alert('owner(사장님) 권한 필요');
+    return;
+  }
+  const choice = prompt(
+    '📥 전체 내보내기 — 무엇을 받으시겠습니까?\n\n' +
+    '1 = 거래처(사용자) CSV\n' +
+    '2 = 업체 CSV\n' +
+    '3 = 메모 전체 CSV\n\n' +
+    '번호 입력 (1/2/3):',
+    '1'
+  );
+  if(!choice) return;
+  let type = '';
+  if(choice === '1') type = 'users';
+  else if(choice === '2') type = 'businesses';
+  else if(choice === '3') type = 'memos';
+  else { alert('1, 2, 3 중 하나'); return; }
+  /* 새 탭으로 다운로드 (Content-Disposition: attachment 라 자동 다운) */
+  const url = '/api/admin-export?type=' + type + '&key=' + encodeURIComponent(KEY || '');
+  window.location.href = url;
+}
+
 /* ===== 📋 내 할 일 대시보드 — 전체 방 + 개인 일정 통합 뷰 =====
    Purpose: 방 150개 일일이 클릭 안 해도 오늘·내일·이번주 할 일 한 번에 파악
    Data source: /api/memos?scope=my (미완료 할 일만, 방 정보 JOIN) */
