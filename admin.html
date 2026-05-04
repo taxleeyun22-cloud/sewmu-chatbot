@@ -32,7 +32,7 @@
 </div>
 
 <!-- 메인 -->
-<div class="wrap" id="mainView" style="display:none">
+<div class="wrap" id="mainView" class="hidden">
 <div class="hdr">
 <h1>관리자</h1>
 <div class="tabs">
@@ -47,7 +47,7 @@
 <button id="tabFaq" onclick="tab('faq')">📚 FAQ</button>
 </div>
 <button id="myTodosBtn" class="logout" onclick="openMyTodos()" style="margin-left:auto" title="내 할 일 대시보드 — 전체 방·개인 일정 통합 보기">📋 할 일 <span id="myTodosBadge" style="display:none;background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:.72em;font-weight:800;margin-left:4px"></span></button>
-<button id="termReqBtn" class="logout" onclick="openTerminationRequests()" title="직원이 올린 거래 종료 요청 (대표 승인 대기)" style="display:none">🚫 종료 요청 <span id="termReqBadge" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:.72em;font-weight:800;margin-left:4px">0</span></button>
+<button id="termReqBtn" class="logout" onclick="openTerminationRequests()" title="직원이 올린 거래 종료 요청 (대표 승인 대기)" class="hidden">🚫 종료 요청 <span id="termReqBadge" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:.72em;font-weight:800;margin-left:4px">0</span></button>
 <button class="logout" onclick="openBulkSend()" title="단체발송 — 여러 거래처에 한 번에 메시지">📢 단체발송</button>
 <button class="logout" onclick="openSearch()" title="전역 검색">🔍 검색</button>
 <button id="pcNotifyBtn" class="logout" onclick="togglePcNotify()" title="PC 알림 (새 고객 메시지 알림)">🔕 알림</button>

@@ -48,7 +48,7 @@
 <div class="analytics" id="analView"></div>
 
 <!-- 사용자 승인 관리 / 업체 관리 -->
-<div id="usersView" style="display:none">
+<div id="usersView" class="hidden">
 <!-- 🏢 업체 / 👤 사용자 모드 토글 + 통합 검색 (사장님 명령: 사용자·업체·메모 통합) -->
 <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:relative">
   <div style="display:flex;gap:6px;padding:4px;background:#f2f4f6;border-radius:10px;width:fit-content">
@@ -69,7 +69,7 @@
 <button class="on" id="uStPending" onclick="userStatus('pending')" style="background:#f04452;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#fff;font-weight:500">대기 <span id="cPending">0</span></button>
 <button id="uStClient" onclick="userStatus('approved_client')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">기장거래처 <span id="cClient">0</span></button>
 <!-- 일반승인 카테고리 폐지 (사장님 명령 2026-05-02). 기존 approved_guest 사용자 호환 위해 hidden span 으로 카운트만 살아있게 (cGuest 가 admin.js 에서 setText) -->
-<span id="cGuest" style="display:none">0</span>
+<span id="cGuest" class="hidden">0</span>
 <button id="uStRejected" onclick="userStatus('rejected')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">거절 <span id="cRejected">0</span></button>
 <button id="uStTerminated" onclick="userStatus('terminated')" title="거래가 종료된 거래처 — 상담방 모두 closed, 접근 차단됨" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">🚫 종료 <span id="cTerminated">0</span></button>
 <button id="uStAdmin" onclick="userStatus('admin')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500" title="is_admin=1 관리자 사용자">👑 관리자 <span id="cAdmin">0</span></button>
@@ -81,7 +81,7 @@
 <div id="userList"></div>
 </div>
 <!-- 업체 모드 뷰 -->
-<div id="bizModeView" style="display:none">
+<div id="bizModeView" class="hidden">
   <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <input id="bizSearchInput" type="text" placeholder="🔍 업체명·사업자번호·대표자명 검색" oninput="onBizSearchInput()" style="flex:1;min-width:200px;padding:9px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;outline:none">
     <button onclick="openNewBusinessModal()" style="background:#10b981;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit">＋ 새 업체</button>
@@ -258,7 +258,7 @@
 </div>
 
 <!-- 편집 화면 (숨김) -->
-<div id="pmEditView" style="display:none">
+<div id="pmEditView" class="hidden">
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
 <div><label style="font-size:.75em;font-weight:600;color:#555">상호</label><input id="pmCompany" type="text" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
 <div><label style="font-size:.75em;font-weight:600;color:#555">사업자번호</label><input id="pmBizNo" type="text" placeholder="1234567890" style="width:100%;padding:9px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit"></div>
@@ -294,7 +294,7 @@
 </div>
 
 <!-- 세무 문서 관리 (영수증·임대차·세금계산서 등 통합) -->
-<div id="docsView" style="display:none">
+<div id="docsView" class="hidden">
   <!-- 다가오는 일정 (D-day 알림) -->
   <div id="docsAlertsBar" style="background:linear-gradient(135deg,#fff7ed,#fef3c7);border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;margin-bottom:14px;display:none">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -395,7 +395,7 @@
 </div>
 
 <!-- 상담방 (단톡방) -->
-<div id="roomsView" style="display:none">
+<div id="roomsView" class="hidden">
 <div id="roomsLayout" style="display:flex;gap:14px;height:calc(100vh - 180px);min-height:500px">
   <!-- 좌: 방 목록 + 생성 버튼 -->
   <div class="room-list-panel" style="width:300px;background:#fff;border-radius:12px;padding:10px;overflow-y:auto;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.03);display:flex;flex-direction:column">
@@ -450,15 +450,15 @@
       <label for="roomFileInput" class="room-attach-hide-mobile" title="사진첩에서 선택" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;line-height:0">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       </label>
-      <input id="roomFileInput" type="file" accept="image/*" onchange="sendRoomImage(this)" style="display:none">
+      <input id="roomFileInput" type="file" accept="image/*" onchange="sendRoomImage(this)" class="hidden">
       <label for="roomCamInput" class="room-attach-hide-mobile" title="카메라로 바로 찍기" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;line-height:0">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
       </label>
-      <input id="roomCamInput" type="file" accept="image/*" capture="environment" onchange="sendRoomImage(this)" style="display:none">
+      <input id="roomCamInput" type="file" accept="image/*" capture="environment" onchange="sendRoomImage(this)" class="hidden">
       <label for="roomDocInput" class="room-attach-hide-mobile" title="파일 첨부" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;line-height:0">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
       </label>
-      <input id="roomDocInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip,.mp4,.mov,.m4v,.webm,.mp3,.m4a,.wav" onchange="sendRoomFile(this)" style="display:none">
+      <input id="roomDocInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip,.mp4,.mov,.m4v,.webm,.mp3,.m4a,.wav" onchange="sendRoomFile(this)" class="hidden">
       <button id="roomQuickMemoBtn" class="room-attach-hide-mobile" onclick="toggleQuickMemoMode()" title="빠른 메모 (내부 전용 · 고객 안 보임)" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;font-family:inherit;font-size:1em;line-height:1">📒</button>
       <button id="roomScheduleBtn" class="room-attach-hide-mobile" onclick="openScheduleSend()" title="예약 발송 (지정한 시각에 자동 전송)" style="display:inline-flex;align-items:center;justify-content:center;background:#f2f4f6;border:1px solid #e5e8eb;color:#555;padding:9px;border-radius:10px;cursor:pointer;flex-shrink:0;font-family:inherit;font-size:1em;line-height:1">🕒</button>
       <textarea id="roomInput" rows="1" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();if(_quickMemoMode)submitQuickMemo();else sendRoomMessage()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'" style="flex:1;min-width:0;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.88em;outline:none;font-family:inherit;resize:none;max-height:120px;overflow-y:auto"></textarea>
@@ -557,14 +557,14 @@
         <div id="riFileList"></div>
       </div>
       <!-- 게시판 패널 -->
-      <div id="riNoticePanel" class="ri-panel" style="display:none">
+      <div id="riNoticePanel" class="ri-panel hidden">
         <div style="padding:10px 12px;background:#fff;border-bottom:1px solid #e5e8eb;display:flex;justify-content:flex-end">
           <button onclick="openNoticeForm(null)" style="background:#3182f6;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">＋ 공지 작성</button>
         </div>
         <div id="riNoticeList" style="padding:10px 12px"></div>
       </div>
       <!-- 북마크 패널 -->
-      <div id="riBookmarkPanel" class="ri-panel" style="display:none">
+      <div id="riBookmarkPanel" class="ri-panel hidden">
         <div id="riBookmarkList" style="padding:10px 12px">
           <div style="text-align:center;color:#8b95a1;font-size:.8em;padding:30px 0">불러오는 중...</div>
         </div>
@@ -618,7 +618,7 @@
 </div>
 
 <!-- 실시간 대화 개입 -->
-<div id="liveView" style="display:none">
+<div id="liveView" class="hidden">
 <div style="display:flex;gap:14px;height:calc(100vh - 180px);min-height:500px">
   <!-- 좌: 세션 목록 -->
   <div style="width:280px;background:#fff;border-radius:12px;padding:10px;overflow-y:auto;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.03)">
@@ -632,7 +632,7 @@
   <div style="flex:1;background:#fff;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.03)">
     <div id="liveChatHeader" style="padding:12px 16px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div id="liveChatTitle" style="font-size:.9em;color:#8b95a1">좌측 세션을 선택하세요</div>
-      <div id="liveAiToggle" style="display:none">
+      <div id="liveAiToggle" class="hidden">
         <label style="display:flex;align-items:center;gap:6px;font-size:.78em;cursor:pointer">
           <input type="checkbox" id="liveAiOn" onchange="toggleAiMode(this.checked)" checked>
           <span>🤖 AI 자동답변</span>
@@ -664,7 +664,7 @@
 </div>
 
 <!-- FAQ 관리 (RAG) -->
-<div id="faqView" style="display:none">
+<div id="faqView" class="hidden">
 <!-- 📖 FAQ 관리 사용 설명서 (접었다 폈다 가능) -->
 <details id="faqHelpCard" style="background:#fffbea;border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;margin-bottom:12px">
   <summary style="cursor:pointer;font-weight:700;color:#92400e;font-size:.92em;list-style:none;display:flex;align-items:center;gap:6px">
@@ -909,7 +909,7 @@
             </div>
           </div>
           <!-- 호환: 기존 cdCustomerInfo / cdInfoNew 가드 (혹시 다른 코드가 참조해도 안 깨지도록) -->
-          <div id="cdCustomerInfo" style="display:none"></div>
+          <div id="cdCustomerInfo" class="hidden"></div>
           <input id="cdInfoNew" type="hidden">
         </div>
         <!-- 📋 이 거래처 관련 할 일 -->
@@ -1036,9 +1036,9 @@
       <textarea id="bulkContent" placeholder="예) 2026년 2기 부가세 신고 기한이 1/25입니다. 매입 영수증 올려주세요." style="width:100%;min-height:80px;padding:10px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.9em;font-family:inherit;resize:vertical;box-sizing:border-box;outline:none"></textarea>
       <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
         <label for="bulkImgInput" style="background:#f2f4f6;border:1px solid #e5e8eb;color:#4b5563;padding:5px 10px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">📷 사진 첨부</label>
-        <input id="bulkImgInput" type="file" accept="image/*" multiple onchange="_bulkAddFiles(this.files,'image');this.value=''" style="display:none">
+        <input id="bulkImgInput" type="file" accept="image/*" multiple onchange="_bulkAddFiles(this.files,'image');this.value=''" class="hidden">
         <label for="bulkFileInput" style="background:#f2f4f6;border:1px solid #e5e8eb;color:#4b5563;padding:5px 10px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">📎 파일 첨부</label>
-        <input id="bulkFileInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip" multiple onchange="_bulkAddFiles(this.files,'file');this.value=''" style="display:none">
+        <input id="bulkFileInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip" multiple onchange="_bulkAddFiles(this.files,'file');this.value=''" class="hidden">
         <span style="font-size:.72em;color:#8b95a1">안내 자료 첨부 시 이용 (이미지+파일 합쳐 최대 10개)</span>
       </div>
       <div id="bulkAttachPreview" style="display:none;margin-top:8px;gap:8px;flex-wrap:wrap;padding:8px;background:#fff;border:1px solid #e5e8eb;border-radius:8px"></div>
