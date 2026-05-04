@@ -1,0 +1,3496 @@
+/* ========================================================
+ * index.js — 사용자 챗봇 메인 페이지 인라인 JS 외부화 (Phase H3, 2026-05-04)
+ *
+ * 사장님 명령 (2026-05-04): "어드민이나 이런거 html여러개로 쪼개기 다했음?"
+ * + "메타처럼 안전하고 화면 변화 없는 거"
+ *
+ * 분리 범위 (index.html 라인 957-4424, 3468줄):
+ *  - 인증 / 세션 / 채팅 메시지 송수신
+ *  - 카카오/네이버 로그인 흐름
+ *  - 마이페이지 / 본명 확인 모달
+ *  - 동의 / 설치 / 환급 안내
+ *  - 서비스 워커 (sw.js) 등록 + Web Push 구독
+ *  - 챗봇 답변 공유 / 상담방 진입 흐름
+ *  - 회사 요청 모달 (companyRequestModal)
+ *  - 정보 수정 모달 (editInfoModal)
+ *  - 급여 / 4대보험 모달 (payrollModal)
+ *  - 탈퇴 모달 (withdrawModal)
+ *  - 온보딩 모달 (onboardModal)
+ *  - iOS PWA 설치 모달 (iosInstallModal)
+ *
+ * 의존: index.html 안 모달 + 입력창 + 채팅 영역 마크업 (Phase H4 에서 외부화 예정)
+ *       /api/chat (chat.js) / /api/auth/* (kakao, naver) / /api/upload-* / sw.js
+ *
+ * 노출: classic script — top-level let/var/const + function 모두 window 자동 노출
+ *
+ * 로드: index.html 의 <script src="/index.js?v=1"></script> 단일 라인.
+ * ======================================================== */
+
+const S=`세무회계 이윤 AI`;
+let messages=[{role:"system",content:S}];
+let loading=false;
+const sid='s_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+let currentUser=null;
+
+async function checkAuth(){
+    try{
+        const r=await fetch('/api/auth/me');
+        const d=await r.json();
+        if(d.logged_in){
+            currentUser=d.user;
+            showChat();
+            setTimeout(function(){
+                if(!currentUser.consent_required_ok){showConsentModal()}
+                else if(!currentUser.name_confirmed){showNameModal(currentUser.name||'',currentUser.phone||'')}
+                else if(typeof showApprovalBanner==='function'){showApprovalBanner()}
+            },300);
+        }
+        else{showLogin()}
+    }catch{showLogin()}
+}
+
+function showLogin(){
+    document.getElementById('loginScreen').style.display='flex';
+    document.getElementById('chatArea').style.display='none';
+    document.getElementById('quickArea').style.display='none';
+    document.getElementById('ctaBar').style.display='none';
+    document.getElementById('inputBar').style.display='none';
+    document.getElementById('disclaimer').style.display='none';
+    const origin=location.origin;
+    document.getElementById('kakaoLoginBtn').onclick=function(){
+        /* 보안: 서버 /api/auth/start 가 state 발급·쿠키 세팅·공급자 리다이렉트 처리 */
+        location.href='/api/auth/start?provider=kakao';
+    };
+}
+
+function showChat(){
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('chatArea').style.display='flex';
+    document.getElementById('quickArea').style.display='flex';
+    document.getElementById('refundBar').style.display='block';
+    document.getElementById('disclaimer').style.display='block';
+    document.getElementById('ctaBar').style.display='block';
+    document.getElementById('inputBar').style.display='flex';
+    document.getElementById('resetBtn').style.display='inline-flex';
+    document.getElementById('navMypage').style.display='inline-flex';
+    /* 세무사 직접 답변 polling 시작 */
+    startAdvisorPolling();
+    /* 상담방 주기적 갱신 */
+    loadMyRooms();
+    setInterval(loadMyRooms,8000);
+    /* URL ?room=ID 로 들어오면 해당 방 자동 진입 (푸시/알림 클릭) */
+    try{
+      var qp=new URLSearchParams(location.search);
+      var rid=qp.get('room');
+      if(rid){
+        setTimeout(function(){openMyRoom(rid)},400);
+        history.replaceState(null,'',location.pathname+location.hash);
+      }
+    }catch{}
+    /* URL hash로 마지막 탭 복원 (새로고침해도 내정보 그대로) */
+    try{
+      if(location.hash==='#mypage'){
+        switchTab('mypage');
+      }
+    }catch{}
+    // 세금 기한 알림 (인라인)
+    try{
+      var ta=document.getElementById('taxAlertArea');
+      if(ta){
+        var n=new Date();
+        var offset=n.getTimezoneOffset()*60000;
+        var kst=new Date(n.getTime()+offset+32400000);
+        var ty=kst.getFullYear(),tm=kst.getMonth(),td=kst.getDate();
+        var todayMs=new Date(ty,tm,td).getTime();
+        var hw=localStorage.getItem('hideWoncheon')==='true';
+        var dis=JSON.parse(localStorage.getItem('taxDismissed')||'{}');
+        var raw=[
+          ['법인세 신고납부',3,31,'법인'],['법인 지방소득세',3,31,'법인'],['법인세 중간예납',8,31,'법인'],
+          ['종합소득세 확정신고',5,31,'소득'],['개인 지방소득세',5,31,'소득'],['종소세 성실신고대상',6,30,'소득'],
+          ['부가세 확정 2기',1,26,'부가'],['부가세 예정 1기',4,25,'부가'],['부가세 확정 1기',7,25,'부가'],['부가세 예정 2기',10,25,'부가'],
+          ['원천세 1월분',2,10,'원천'],['원천세 2월분',3,10,'원천'],['원천세 3월분',4,10,'원천'],
+          ['원천세 4월분',5,11,'원천'],['원천세 5월분',6,10,'원천'],['원천세 6월분',7,10,'원천'],
+          ['원천세 7월분',8,10,'원천'],['원천세 8월분',9,10,'원천'],['원천세 9월분',10,12,'원천'],
+          ['원천세 10월분',11,10,'원천'],['원천세 11월분',12,10,'원천']
+        ];
+        var h='';
+        for(var i=0;i<raw.length;i++){
+          var r=raw[i],nm=r[0],mo=r[1],dy=r[2],cat=r[3];
+          if(hw&&cat==='원천')continue;
+          var dt=new Date(ty,mo-1,dy);
+          var wd=dt.getDay();if(wd===0)dt.setDate(dt.getDate()+1);if(wd===6)dt.setDate(dt.getDate()+2);
+          var dlMs=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate()).getTime();
+          var diff=Math.round((dlMs-todayMs)/86400000);
+          var aid=nm.replace(/\s/g,'')+'_'+mo;
+          if(diff>=0&&diff<=2&&!dis[aid]){
+            var lb=diff===0?'오늘 마감':diff===1?'내일 마감':diff+'일 남음';
+            h+='<div class="tax-alert" data-aid="'+aid+'">';
+            h+='<span class="tax-alert-icon">\uD83D\uDCCC</span>';
+            h+='<span class="tax-alert-text">'+nm+' ('+(dt.getMonth()+1)+'/'+dt.getDate()+') - '+lb+'</span>';
+            h+='<button class="tax-alert-close" data-aid="'+aid+'">✕</button></div>';
+          }
+        }
+        if(h){
+          ta.style.display='block';
+          ta.innerHTML=h;
+          ta.onclick=function(e){
+            var btn=e.target.closest('[data-aid]');
+            if(btn&&btn.tagName==='BUTTON'){
+              var id=btn.getAttribute('data-aid');
+              var d2=JSON.parse(localStorage.getItem('taxDismissed')||'{}');
+              d2[id]=true;localStorage.setItem('taxDismissed',JSON.stringify(d2));
+              btn.closest('.tax-alert').remove();
+              if(!ta.querySelector('.tax-alert'))ta.style.display='none';
+            }
+          };
+        }
+      }
+    }catch(e){console.log('tax alert error',e);}
+    loadHistory();
+}
+
+async function loadHistory(){
+    try{
+        const r=await fetch('/api/auth/history');
+        const d=await r.json();
+        if(d.messages && d.messages.length>0){
+            const c=document.getElementById("chatArea");
+            const w=c.querySelector(".welcome");if(w)w.remove();
+            document.getElementById("quickArea").style.display="none";
+            for(const m of d.messages){
+                add(m.role,m.content);
+                messages.push({role:m.role,content:m.content});
+            }
+        }
+    }catch{}
+}
+
+checkAuth();
+
+function add(role,text){
+    const c=document.getElementById("chatArea");
+    const w=c.querySelector(".welcome");if(w)w.remove();
+    const d=document.createElement("div");
+    d.className=`msg msg-${role==="user"?"user":"ai"}`;
+    d.innerHTML=role==="user"
+        ?`<div class="msg-wrap"><div class="msg-bubble">${linkify(esc(text))}</div></div>`
+        :`<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble">${linkify(esc(text))}</div></div>`;
+    c.appendChild(d);c.scrollTop=c.scrollHeight;
+}
+
+function showDots(){
+    const c=document.getElementById("chatArea");const d=document.createElement("div");
+    d.className="msg msg-ai";d.id="dots";
+    d.innerHTML=`<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble"><div class="dots"><span></span><span></span><span></span></div></div></div>`;
+    c.appendChild(d);c.scrollTop=c.scrollHeight;
+}
+function hideDots(){const d=document.getElementById("dots");if(d)d.remove()}
+function esc(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")}
+function escAttr(t){return String(t==null?'':t).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/'/g,"&#39;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/[\r\n]+/g," ")}
+/* URL 자동링크: esc()된 문자열에만 적용(XSS 안전). <br>은 공백 문자 취급 안 되므로 URL 구분자로 사용됨 */
+function linkify(s){
+  if(!s)return s;
+  return String(s).replace(/\b((?:https?:\/\/|www\.)[^\s<>"'`]+)/gi,function(u){
+    var href=/^www\./i.test(u)?'http://'+u:u;
+    return '<a href="'+href.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener noreferrer" style="color:#3182f6;text-decoration:underline;word-break:break-all">'+u+'</a>';
+  });
+}
+
+async function sendMessage(){
+    if(loading)return;const i=document.getElementById("userInput");const t=i.value.trim();if(!t)return;
+    i.value="";add("user",t);messages.push({role:"user",content:t});
+    document.getElementById("quickArea").style.display="none";
+    loading=true;document.getElementById("sendBtn").disabled=true;showDots();
+    try{
+        const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages,sessionId:sid})});
+        if(r.status===401){hideDots();showLogin();return}
+        if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.error||`오류 (${r.status})`);}
+
+        // 스트리밍 응답 처리
+        const c=document.getElementById("chatArea");
+        const statusEl=document.getElementById("dots");
+
+        // 상태 표시 영역 (로딩 dots를 상태 메시지로 교체)
+        let streamStarted=false;
+        let msgDiv,bubble;
+        let fullText="";
+        const reader=r.body.getReader();
+        const decoder=new TextDecoder();
+        let buf="";
+
+        while(true){
+            const{done,value}=await reader.read();
+            if(done)break;
+            buf+=decoder.decode(value,{stream:true});
+            const lines=buf.split("\n");
+            buf=lines.pop()||"";
+            for(const line of lines){
+                if(line.startsWith("data: ")){
+                    const data=line.slice(6).trim();
+                    if(data==="[DONE]")break;
+                    try{
+                        const j=JSON.parse(data);
+                        // 상태 메시지 표시
+                        if(j.status){
+                            if(statusEl){
+                                const b=statusEl.querySelector(".msg-bubble");
+                                if(b) b.innerHTML='<div style="display:flex;align-items:center;gap:8px"><div class="dots"><span></span><span></span><span></span></div><span style="font-size:.82em;color:var(--text2)">'+esc(j.status)+'</span></div>';
+                                c.scrollTop=c.scrollHeight;
+                            }
+                        }
+                        // 실제 답변 컨텐츠
+                        if(j.content){
+                            if(!streamStarted){
+                                streamStarted=true;
+                                hideDots();
+                                msgDiv=document.createElement("div");
+                                msgDiv.className="msg msg-ai";
+                                msgDiv.innerHTML='<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble" id="streamBubble"></div></div>';
+                                c.appendChild(msgDiv);
+                                bubble=document.getElementById("streamBubble");
+                            }
+                            fullText+=j.content;
+                            bubble.innerHTML=linkify(esc(fullText));
+                            c.scrollTop=c.scrollHeight;
+                        }
+                    }catch{}
+                }
+            }
+        }
+        if(!streamStarted)hideDots();
+        if(bubble)bubble.removeAttribute("id");
+        messages.push({role:"assistant",content:fullText});
+        /* 📤 상담방 공유 버튼 — 마지막 user 질문 + 이번 AI 답변 묶어서 전송 */
+        if(msgDiv && fullText){
+          const lastUserMsg = [...messages].reverse().find((m,i)=>i>0 && m.role==='user');
+          const q = lastUserMsg ? lastUserMsg.content : t;
+          _attachChatbotShareBtn(msgDiv, q, fullText);
+        }
+    }catch(e){hideDots();add("ai","오류가 발생했습니다: "+e.message)}
+    finally{loading=false;document.getElementById("sendBtn").disabled=false;i.focus()}
+}
+
+function askQuick(b){document.getElementById("userInput").value=b.textContent;sendMessage()}
+
+/* ===== 📤 챗봇 Q&A → 내 상담방에 공유 =====
+   마지막 질문·답변을 사용자의 기장 상담방에 [CHATBOT_SHARE] 포맷으로 전송.
+   상담방 렌더에서 특수 카드로 표시. */
+function _attachChatbotShareBtn(msgDiv, question, answer){
+  try{
+    if(!msgDiv)return;
+    /* wrap 찾지 못하면 msgDiv 자체에 붙이는 fallback */
+    var wrap = msgDiv.querySelector('.msg-wrap') || msgDiv;
+    if(wrap.querySelector('.chatbot-share-btn'))return;
+    var btn = document.createElement('button');
+    btn.className = 'chatbot-share-btn';
+    btn.innerHTML = '📤 상담방에 공유';
+    /* display:block + 명시적 너비 지정으로 확실하게 렌더 */
+    btn.style.cssText = 'display:block;margin-top:8px;background:#eff6ff;border:1px dashed #3182f6;color:#3182f6;padding:6px 12px;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit;width:fit-content';
+    btn.onclick = function(){shareChatbotToRoom(question, answer, btn);};
+    wrap.appendChild(btn);
+  }catch(e){
+    console.error('[share-btn] attach failed:', e);
+  }
+}
+async function shareChatbotToRoom(question, answer, btn){
+  if(!question || !answer){alert('공유할 내용이 없습니다');return}
+  /* 상담방 목록 먼저 조회 */
+  try{
+    const r = await fetch('/api/my-rooms');
+    const d = await r.json();
+    const rooms = (d.rooms||[]).filter(rm=>rm.status==='active');
+    if(!rooms.length){
+      alert('현재 이용 가능한 상담방이 없습니다.\n기장거래처 승급 후 이용 가능합니다.');
+      return;
+    }
+    /* 여러 개면 첫 번째 (최근 활성 방) */
+    const roomId = rooms[0].id;
+    if(btn){btn.disabled=true;btn.style.opacity='.6';btn.textContent='📤 전송 중...'}
+    const marker = '[CHATBOT_SHARE]' + JSON.stringify({
+      q: String(question).slice(0, 1000),
+      a: String(answer).slice(0, 3000),
+      t: Date.now(),
+    });
+    const send = await fetch('/api/my-rooms?action=send', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ room_id: roomId, content: marker })
+    });
+    const sj = await send.json();
+    if(!sj.ok){
+      alert('공유 실패: ' + (sj.error||'unknown'));
+      if(btn){btn.disabled=false;btn.style.opacity='';btn.textContent='📤 상담방에 공유'}
+      return;
+    }
+    if(btn){btn.textContent='✅ 공유됨';btn.style.borderColor='#10b981';btn.style.color='#10b981';setTimeout(()=>{btn.textContent='📤 다시 공유';btn.disabled=false;btn.style.opacity='';btn.style.borderColor='#3182f6';btn.style.color='#3182f6'},2000)}
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('📤 상담방으로 공유됨');
+  }catch(err){
+    alert('오류: '+err.message);
+    if(btn){btn.disabled=false;btn.style.opacity='';btn.textContent='📤 상담방에 공유'}
+  }
+}
+
+async function resetChat(){
+    if(!confirm('대화창을 초기화합니다.\n(DB엔 보관되어 나중에 "대화 복구" 버튼으로 되돌릴 수 있어요)\n계속할까요?'))return;
+    await fetch('/api/auth/clear-history',{method:'POST'});
+    const c=document.getElementById("chatArea");
+    c.innerHTML=`<div class="welcome"><div class="welcome-logo"><img src="logo-icon.png" alt="세무회계 이윤"></div><h2>무엇이든 물어보세요</h2><p>종합소득세, 양도소득세, 상속세, 증여세<br>부가세, 법인세 등 세무 상담을 도와드립니다</p><p class="ai-notice">AI 기반 세무 상담 서비스</p></div>`;
+    messages=[{role:"system",content:S}];
+    document.getElementById("quickArea").style.display="flex";
+}
+
+async function restoreChat(){
+    if(!confirm('숨겨진 이전 대화를 모두 복구합니다.\n계속할까요?'))return;
+    try{
+        var r=await fetch('/api/auth/restore-history',{method:'POST'});
+        var d=await r.json();
+        if(d.ok){
+            alert('✅ 복구 완료\n\n대화 '+(d.restored_count||0)+'건이 복구됩니다. 잠시 후 대화 탭을 다시 열어보세요.');
+            /* 대화 재로드 */
+            if(typeof loadHistory==='function')loadHistory();
+            else location.reload();
+        } else {
+            alert('복구 실패: '+(d.error||'unknown'));
+        }
+    }catch(e){alert('오류: '+e.message)}
+}
+
+// 다크모드
+function toggleTheme(){
+  var d=document.body.classList.toggle('dark');
+  localStorage.setItem('theme',d?'dark':'light');
+  document.getElementById('themeBtn').textContent=d?'☀️':'🌙';
+  document.querySelector('meta[name="theme-color"]').content=d?'#232329':'#191f28';
+  var mi=document.getElementById('mpThemeIcon');if(mi)mi.textContent=d?'☀️':'🌙';
+  var mv=document.getElementById('mpThemeValue');if(mv)mv.textContent=d?'다크 모드':'라이트 모드';
+}
+(function(){
+  var t=localStorage.getItem('theme');
+  if(t==='dark'){document.body.classList.add('dark');document.getElementById('themeBtn').textContent='☀️';document.querySelector('meta[name="theme-color"]').content='#232329';}
+})();
+
+if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}
+
+/* ===== 세무사 직접 답변 polling ===== */
+var lastAdvisorTs=null;
+var advisorPollTimer=null;
+var currentAiMode='on';
+
+function addAdvisorMessage(content,ts){
+  var c=document.getElementById("chatArea");
+  var d=document.createElement("div");
+  d.className="msg msg-ai";
+  d.innerHTML='<div class="msg-avatar" style="background:transparent;padding:0"><img src="logo-icon.png" alt="세무회계 이윤" style="width:100%;height:100%;object-fit:contain"></div>'
+    +'<div class="msg-wrap">'
+    +'<div class="msg-name" style="color:#10b981;font-weight:600">세무회계 이윤 · 직접 답변</div>'
+    +'<div class="msg-bubble" style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;border-radius:4px 16px 16px 16px">'+esc(content)+'</div>'
+    +'</div>';
+  c.appendChild(d);
+  c.scrollTop=c.scrollHeight;
+  try{
+    /* 알림음 (Web Audio API) */
+    var ctx=new(window.AudioContext||window.webkitAudioContext)();
+    var osc=ctx.createOscillator();var gain=ctx.createGain();
+    osc.connect(gain);gain.connect(ctx.destination);
+    osc.frequency.value=880;gain.gain.setValueAtTime(0.1,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);
+    osc.start();osc.stop(ctx.currentTime+0.3);
+  }catch{}
+  if(navigator.vibrate)try{navigator.vibrate(100)}catch{}
+}
+
+async function pollAdvisorMessages(){
+  try{
+    var url='/api/live-poll?session='+encodeURIComponent(sid);
+    if(lastAdvisorTs)url+='&since='+encodeURIComponent(lastAdvisorTs);
+    var r=await fetch(url);
+    if(!r.ok)return;
+    var d=await r.json();
+    currentAiMode=d.ai_mode||'on';
+    if(d.messages&&d.messages.length>0){
+      d.messages.forEach(function(m){
+        addAdvisorMessage(m.content,m.created_at);
+        messages.push({role:"assistant",content:"[세무사 직접 답변] "+m.content});
+        lastAdvisorTs=m.created_at;
+      });
+    }
+  }catch{}
+}
+
+function startAdvisorPolling(){
+  if(advisorPollTimer)clearInterval(advisorPollTimer);
+  lastAdvisorTs=new Date(Date.now()+9*60*60*1000).toISOString().replace('T',' ').substring(0,19);
+  advisorPollTimer=setInterval(pollAdvisorMessages,5000);
+}
+function stopAdvisorPolling(){if(advisorPollTimer)clearInterval(advisorPollTimer)}
+
+/* ===== 탭 전환 & 마이페이지 ===== */
+function switchTab(tab){
+  var isMy=tab==='mypage';
+  document.getElementById('chatArea').style.display=isMy?'none':'flex';
+  document.getElementById('quickArea').style.display=isMy?'none':(document.querySelectorAll('.msg').length>0?'none':'flex');
+  document.getElementById('refundBar').style.display=isMy?'none':'block';
+  document.getElementById('disclaimer').style.display=isMy?'none':'block';
+  document.getElementById('ctaBar').style.display=isMy?'none':'block';
+  document.getElementById('inputBar').style.display=isMy?'none':'flex';
+  document.getElementById('myPageView').style.display=isMy?'flex':'none';
+  var approvalBar=document.getElementById('approvalBar');
+  if(approvalBar)approvalBar.style.display=isMy?'none':approvalBar.style.display;
+  var taxAlert=document.getElementById('taxAlertArea');
+  if(taxAlert&&!isMy&&taxAlert.querySelector('.tax-alert'))taxAlert.style.display='block';
+  else if(taxAlert&&isMy)taxAlert.style.display='none';
+  /* 헤더 상태 갱신: 마이페이지일 때 뒤로가기 표시, 일반일 때 숨김 */
+  var backBtn=document.getElementById('navChat');
+  if(backBtn)backBtn.style.display=isMy?'inline-flex':'none';
+  var myBtn=document.getElementById('navMypage');
+  if(myBtn){myBtn.classList.toggle('active',isMy);myBtn.style.display=isMy?'none':'inline-flex';}
+  /* 타이틀 바꾸기 */
+  var title=document.getElementById('headerTitle');
+  if(title)title.textContent=isMy?'내 정보':'세무회계 이윤';
+  /* 마이페이지에서는 로고 숨기기 */
+  var logo=document.querySelector('.header-logo');
+  if(logo)logo.style.display=isMy?'none':'inline-block';
+  if(isMy)loadMyPage();
+  /* 새로고침해도 현재 탭 유지 + 뒤로가기로 챗 복귀 가능 */
+  try{
+    var newHash=isMy?'#mypage':'';
+    if(location.hash!==newHash){
+      if(isMy){
+        /* 마이페이지 진입 — pushState로 history 추가 (뒤로가기 = 챗 복귀) */
+        history.pushState({mypage:1},'',location.pathname+location.search+newHash);
+      } else {
+        /* 챗 복귀 — hash 제거 (replaceState로 깔끔히, 백버튼 한 칸 안 잡아먹게) */
+        history.replaceState(null,'',location.pathname+location.search);
+      }
+    }
+  }catch{}
+}
+
+/* ===== 상담방 기능 ===== */
+var rcRoomId=null;
+/* 탭 숨김 시 polling 중지 · 보일 때 즉시 1회 + 재개 */
+(function _rcVisibilityPolling(){
+  if(window._rcVpBound)return;window._rcVpBound=true;
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden){
+      if(typeof rcMsgPollTimer!=='undefined' && rcMsgPollTimer){clearInterval(rcMsgPollTimer);rcMsgPollTimer=null}
+    } else {
+      if(rcRoomId && typeof loadRoomChat==='function'){
+        try{loadRoomChat()}catch(_){}
+        if(!rcMsgPollTimer)rcMsgPollTimer=setInterval(loadRoomChat,2000);
+      }
+    }
+  });
+})();
+var rcIsActive=false;
+var rcMsgPollTimer=null;
+var prevRoomUnread={};
+var roomsFirstLoad=true;
+var toastTimer=null;
+
+/* ===== 방별 음소거 (localStorage) ===== */
+var mutedRooms=new Set();
+try{
+  var _raw=localStorage.getItem('mutedRooms');
+  if(_raw)mutedRooms=new Set(JSON.parse(_raw));
+}catch{}
+function saveMutedRooms(){try{localStorage.setItem('mutedRooms',JSON.stringify([...mutedRooms]))}catch{}}
+function isRoomMuted(id){return mutedRooms.has(String(id))}
+function toggleRoomMute(id){
+  id=String(id);
+  if(mutedRooms.has(id))mutedRooms.delete(id);
+  else mutedRooms.add(id);
+  saveMutedRooms();
+}
+function toggleCurrentRoomMute(){
+  if(!rcRoomId)return;
+  toggleRoomMute(rcRoomId);
+  updateMuteBtn();
+  showInAppToastSilent(isRoomMuted(rcRoomId)?'🔕 알림 꺼짐':'🔔 알림 켜짐');
+  /* 리스트/뱃지 즉시 반영 */
+  loadMyRooms();
+}
+function updateMuteBtn(){
+  var btn=document.getElementById('rcMuteBtn');
+  if(!btn||!rcRoomId)return;
+  var muted=isRoomMuted(rcRoomId);
+  btn.textContent=muted?'🔕':'🔔';
+  btn.title=muted?'알림 꺼짐 (탭하여 켜기)':'알림 켜짐 (탭하여 끄기)';
+}
+/* 토스트 — 무음 짧은 알림 (소리·이동 없음) */
+function showInAppToastSilent(msg){
+  var t=document.getElementById('inAppToast');if(!t)return;
+  t.querySelector('.in-toast-title').textContent=msg;
+  t.querySelector('.in-toast-msg').textContent='';
+  t.onclick=function(){hideInAppToast()};
+  t.classList.add('show');
+  if(toastTimer)clearTimeout(toastTimer);
+  toastTimer=setTimeout(hideInAppToast,1800);
+}
+
+/* 앱아이콘 뱃지 (설치된 PWA 아이콘에 숫자) */
+async function updateAppBadge(count){
+  try{
+    if(!('setAppBadge' in navigator))return;
+    if(count>0)await navigator.setAppBadge(count);
+    else await navigator.clearAppBadge();
+  }catch{}
+}
+
+/* 인앱 토스트 (포그라운드 새 메시지) */
+function showInAppToast(roomName,lastMsg,roomId){
+  var t=document.getElementById('inAppToast');if(!t)return;
+  t.querySelector('.in-toast-title').textContent='💬 '+(roomName||'상담방');
+  t.querySelector('.in-toast-msg').textContent=(lastMsg||'새 메시지가 도착했습니다').slice(0,80);
+  t.onclick=function(){hideInAppToast();if(roomId)openMyRoom(roomId)};
+  t.classList.add('show');
+  if(toastTimer)clearTimeout(toastTimer);
+  toastTimer=setTimeout(hideInAppToast,4500);
+}
+function hideInAppToast(){
+  var t=document.getElementById('inAppToast');if(!t)return;
+  t.classList.remove('show');
+  if(toastTimer){clearTimeout(toastTimer);toastTimer=null}
+}
+function playChatPing(){
+  try{
+    var ctx=new(window.AudioContext||window.webkitAudioContext)();
+    var osc=ctx.createOscillator();var gain=ctx.createGain();
+    osc.connect(gain);gain.connect(ctx.destination);
+    osc.frequency.value=880;gain.gain.setValueAtTime(.0001,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.2,ctx.currentTime+.01);
+    gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.25);
+    osc.start();osc.stop(ctx.currentTime+.25);
+  }catch{}
+}
+
+function notifyRoomMessage(roomName,lastMsg,roomId){
+  try{
+    /* 현재 보고있는 방이면 표시 안 함 */
+    if(document.visibilityState==='visible'&&rcRoomId===roomId)return;
+    /* 음소거된 방: 토스트·소리·OS알림 모두 skip (미읽음 뱃지는 리스트에 유지) */
+    if(isRoomMuted(roomId))return;
+    var visible=document.visibilityState==='visible';
+    if(visible){
+      /* 포그라운드: 인앱 토스트 + 소리 */
+      showInAppToast(roomName,lastMsg,roomId);
+      playChatPing();
+    } else {
+      /* 백그라운드: OS Notification */
+      if('Notification' in window && Notification.permission==='granted'){
+        var n=new Notification('💬 '+(roomName||'상담방'),{
+          body:(lastMsg||'새 메시지가 도착했습니다').slice(0,80),
+          icon:'/icon-192.png',
+          badge:'/icon-192.png',
+          tag:'room-'+roomId,
+          data:{roomId:roomId}
+        });
+        n.onclick=function(){window.focus();openMyRoom(roomId);n.close()};
+      }
+    }
+  }catch{}
+}
+
+async function createMyRoom(){
+  var name=prompt('상담방 이름을 입력하세요.\n(예: 부가세 문의, 양도세 검토)','');
+  if(!name||!name.trim())return;
+  try{
+    var r=await fetch('/api/my-rooms?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim()})});
+    var d=await r.json();
+    if(d.ok){
+      alert('✅ 상담방 생성 완료\n\n방 ID: '+d.room_id+'\n\n세무사가 참여하여 답변드립니다.');
+      loadMyRooms();
+    } else {
+      alert('생성 실패: '+(d.error||'unknown'));
+    }
+  }catch(e){alert('오류: '+e.message)}
+}
+
+/* ===== 내 문서함 ===== */
+var docsFilter='all';
+var docsList=[];
+
+/* ===== 온보딩 서류 (신분증·사업자등록증·홈택스) ===== */
+var _obData=null;
+async function loadOnboardBanner(){
+  try{
+    var r=await fetch('/api/my-biz-docs');
+    if(!r.ok)return;
+    var d=await r.json();
+    _obData=d;
+    var banner=document.getElementById('onboardBanner');
+    if(!banner)return;
+    var businesses=(d.businesses||[]).filter(function(b){return b.required});
+    var missing=businesses.filter(function(b){return !b.complete});
+    if(!missing.length){banner.style.display='none';return}
+    banner.style.display='block';
+    var det='';
+    if(missing.length===1){
+      var b=missing[0];
+      var miss=[];
+      if(!b.docs.id_card.uploaded)miss.push('신분증');
+      if(!b.docs.biz_reg.uploaded)miss.push('사업자등록증');
+      if(!b.docs.hometax.saved)miss.push('홈택스 ID');
+      det=(b.company_name||'사업장')+' · 미등록: '+miss.join('·');
+    } else {
+      det=missing.length+'개 사업장 미등록';
+    }
+    document.getElementById('onboardBannerDetail').textContent=det;
+  }catch(e){/* 조용히 실패 */}
+}
+function openOnboardModal(){
+  if(!_obData){loadOnboardBanner().then(openOnboardModal);return}
+  var sel=document.getElementById('obBizSelect');
+  var bizs=(_obData.businesses||[]).filter(function(b){return b.required});
+  if(!bizs.length){alert('등록할 사업장이 없습니다. 먼저 사업장을 등록해주세요.');return}
+  sel.innerHTML=bizs.map(function(b){
+    var badge=b.complete?' ✅':'';
+    return '<option value="'+b.id+'">'+esc(b.company_name||('사업장 #'+b.id))+badge+'</option>';
+  }).join('');
+  renderOnboardForm();
+  document.getElementById('onboardModal').style.display='flex';
+  document.body.style.overflow='hidden';
+}
+function closeOnboardModal(){
+  document.getElementById('onboardModal').style.display='none';
+  document.body.style.overflow='';
+  loadOnboardBanner();
+}
+function renderOnboardForm(){
+  var bid=Number(document.getElementById('obBizSelect').value||0);
+  var biz=(_obData.businesses||[]).find(function(b){return b.id===bid});
+  var form=document.getElementById('obForm');
+  if(!biz){form.innerHTML='';return}
+  var row=function(label,ok,btn){
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--card)">'
+      +'<div style="width:24px;font-size:1.1em;text-align:center">'+(ok?'✅':'⚠️')+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.88em">'+label+'</div>'
+      +'<div style="font-size:.72em;color:var(--text2)">'+(ok?'등록됨':'미등록')+'</div></div>'
+      +btn
+      +'</div>';
+  };
+  form.innerHTML=''
+    +row('🪪 신분증 (운전면허증·주민증)', biz.docs.id_card.uploaded,
+       '<label class="ip-btn" style="cursor:pointer">📸 올리기<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadOnboardFile('+biz.id+',\'id_card\',this)"></label>')
+    +row('📋 사업자등록증', biz.docs.biz_reg.uploaded,
+       '<label class="ip-btn" style="cursor:pointer">📸 올리기<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadOnboardFile('+biz.id+',\'biz_reg\',this)"></label>')
+    +'<div style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--card)">'
+    +  '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+    +    '<div style="width:24px;font-size:1.1em;text-align:center">'+(biz.docs.hometax.saved?'✅':'⚠️')+'</div>'
+    +    '<div style="flex:1"><div style="font-weight:600;font-size:.88em">🏛️ 홈택스 ID</div>'
+    +    '<div style="font-size:.72em;color:var(--text2)">'+(biz.docs.hometax.saved?esc(biz.docs.hometax.hometax_id||''):'미등록')+'</div></div>'
+    +  '</div>'
+    +  '<input id="obHometaxId" type="text" placeholder="홈택스 ID" value="'+escAttr(biz.docs.hometax.hometax_id||'')+'" style="width:100%;padding:9px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box;margin-bottom:6px">'
+    +  '<button onclick="saveOnboardHometax('+biz.id+')" class="ip-btn" style="width:100%">저장 (ID만)</button>'
+    +'</div>';
+}
+async function uploadOnboardFile(bizId, kind, input){
+  var f=input.files[0];input.value='';
+  if(!f)return;
+  var fd=new FormData();
+  fd.append('file',f);
+  fd.append('business_id',String(bizId));
+  fd.append('kind',kind);
+  try{
+    var r=await fetch('/api/my-biz-docs?action=upload',{method:'POST',body:fd});
+    var d=await r.json();
+    if(!d.ok){alert('업로드 실패: '+(d.error||'unknown'));return}
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('✅ 등록됨');
+    await loadOnboardBanner();
+    renderOnboardForm();
+  }catch(e){alert('오류: '+e.message)}
+}
+async function saveOnboardHometax(bizId){
+  var id=document.getElementById('obHometaxId').value.trim();
+  if(!id){alert('홈택스 ID를 입력해주세요');return}
+  try{
+    var r=await fetch('/api/my-biz-docs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({business_id:bizId,hometax_id:id})});
+    var d=await r.json();
+    if(!d.ok){alert('저장 실패: '+(d.error||'unknown'));return}
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('✅ 홈택스 ID 저장됨');
+    await loadOnboardBanner();
+    renderOnboardForm();
+  }catch(e){alert('오류: '+e.message)}
+}
+
+async function loadMyDocs(){
+  if(!currentUser||currentUser.approval_status!=='approved_client'){
+    document.getElementById('mpDocsSection').style.display='none';
+    return;
+  }
+  try{
+    var r=await fetch('/api/documents');
+    if(!r.ok)return;
+    var d=await r.json();
+    docsList=d.documents||[];
+    var total=docsList.length;
+    var pending=docsList.filter(function(x){return x.status==='pending'}).length;
+    document.getElementById('mpDocsSection').style.display='block';
+    document.getElementById('mpDocsCount').textContent=pending>0?'('+pending+'건 검토 중)':'';
+    document.getElementById('mpDocsSubtitle').textContent='업로드 '+total+'건 · 대기 '+pending+'건';
+    document.getElementById('docsFiltPending').textContent=pending>0?'('+pending+')':'';
+  }catch(e){}
+}
+
+async function loadMyAlerts(){
+  try{
+    var r=await fetch('/api/documents?action=alerts&days=60');
+    if(!r.ok)return;
+    var d=await r.json();
+    var alerts=d.alerts||[];
+    var box=document.getElementById('myAlertsBox');
+    if(!alerts.length){box.style.display='none';return}
+    box.style.display='block';
+    var today=d.today;
+    document.getElementById('myAlertsList').innerHTML=alerts.map(function(a){
+      var dDiff=Math.round((new Date(a.trigger_date)-new Date(today))/86400000);
+      var dLabel=dDiff<0?'D+'+(-dDiff):(dDiff===0?'D-DAY':'D-'+dDiff);
+      var dColor=dDiff<0?'#dc2626':(dDiff<=3?'#f59e0b':'#10b981');
+      return '<div style="display:flex;gap:10px;padding:8px 10px;background:rgba(255,255,255,.7);border-radius:8px;margin-bottom:4px;align-items:center;font-size:.85em">'
+        +'<div style="font-weight:800;color:'+dColor+';min-width:52px;text-align:center">'+dLabel+'</div>'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-weight:700;color:#92400e">'+esc(a.title||'알림')+'</div>'
+        +'<div style="color:#78350f;font-size:.9em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(a.trigger_date)+(a.message?' · '+esc(a.message).slice(0,40):'')+'</div>'
+        +'</div></div>';
+    }).join('');
+  }catch(e){}
+}
+
+function openMyDocs(){
+  document.getElementById('docsView').style.display='flex';
+  document.body.style.overflow='hidden';
+  renderDocsList();
+  loadMyAlerts();
+  try{history.pushState({docs:1},'',location.href)}catch{}
+}
+function closeMyDocs(){
+  document.getElementById('docsView').style.display='none';
+  document.body.style.overflow='';
+  try{if(history.state&&history.state.docs)history.back()}catch{}
+}
+function switchDocsFilter(s){
+  docsFilter=s;
+  document.querySelectorAll('.docs-filter').forEach(function(b){b.classList.toggle('on',b.dataset.status===s)});
+  renderDocsList();
+}
+
+function docTypeLabel(t){
+  var map={
+    receipt:'🧾 영수증',
+    lease:'🏠 임대차',
+    payroll:'👥 근로(4대보험)',
+    freelancer_payment:'🧑‍💼 프리랜서(3.3%)',
+    tax_invoice:'📑 세금계산서',
+    insurance:'🛡️ 보험',
+    utility:'💧 공과금',
+    property_tax:'🚗 지방세',
+    bank_stmt:'🏦 은행내역',
+    business_reg:'📋 사업자등록',
+    identity:'🪪 신분증',
+    contract:'📝 계약서',
+    other:'📄 기타'
+  };
+  return map[t]||('📄 '+t);
+}
+
+function renderDocsList(){
+  var el=document.getElementById('docsList');
+  var list=docsFilter==='all'?docsList:docsList.filter(function(x){return x.status===docsFilter});
+  if(!list.length){
+    el.innerHTML='<div style="text-align:center;color:var(--text2);padding:60px 0;font-size:.88em">문서가 없습니다.<br><br>상담방 + 버튼에서 영수증·계약서 등을<br>올리시면 여기에 쌓입니다.</div>';
+    return;
+  }
+  el.innerHTML=list.map(function(d){
+    var imgUrl='/api/image?k='+encodeURIComponent(d.image_key||'');
+    var fmt=function(n){return n==null?'-':(Number(n)||0).toLocaleString('ko-KR')+'원'};
+    var stCls=d.status||'pending';
+    var stLabel={pending:'⏳ 검토 중',approved:'✅ 승인',rejected:'❌ 반려'}[stCls]||stCls;
+    return '<div class="docs-card" onclick="openDocDetail('+d.id+')">'
+      +'<div class="docs-card-img"><img src="'+imgUrl+'" alt="" loading="lazy" onerror="this.style.display=\'none\'"></div>'
+      +'<div class="docs-card-body">'
+      +  '<div class="docs-card-type">'+docTypeLabel(d.doc_type)+'</div>'
+      +  '<div class="docs-card-vendor">'+esc(d.vendor||'(미확인)')+'</div>'
+      +  '<div class="docs-card-amount">'+fmt(d.amount)+'</div>'
+      +  '<div class="docs-card-meta">'+esc(d.receipt_date||'-')+(d.category?' · '+esc(d.category):'')+'</div>'
+      +  '<div class="docs-card-status '+stCls+'">'+stLabel+'</div>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function openDocDetail(docId){
+  var d=docsList.find(function(x){return x.id===docId});
+  if(!d)return;
+  var imgUrl='/api/image?k='+encodeURIComponent(d.image_key||'');
+  /* 이미지 뷰어로 원본 보기 */
+  if(typeof openImgViewer==='function')openImgViewer(imgUrl,[imgUrl]);
+}
+
+async function loadMyRooms(){
+  try{
+    var r=await fetch('/api/my-rooms');
+    if(r.status===403){
+      /* 거래 종료 응답 처리 */
+      try{var ed=await r.json();if(ed&&ed.terminated){_showTerminatedNotice(ed.error||'');return}}catch(_){}
+    }
+    if(!r.ok)return;
+    var d=await r.json();
+    var sec=document.getElementById('mpRoomsSection');
+    var list=document.getElementById('mpRoomsList');
+    if(!d.rooms||d.rooms.length===0){sec.style.display='none';updateAppBadge(0);return}
+    sec.style.display='block';
+    var totalUnread=0;
+    var badgeUnread=0;
+    d.rooms.forEach(function(rm){
+      var u=rm.unread_count||0;
+      totalUnread+=u;
+      if(!isRoomMuted(rm.id))badgeUnread+=u;
+    });
+    var cntEl=document.getElementById('mpRoomsCount');
+    cntEl.textContent=totalUnread>0?'('+totalUnread+'개 새 메시지)':'';
+    updateAppBadge(badgeUnread);
+    /* 새 메시지 도착 감지 → 알림 (현재 보고있는 방 제외) */
+    if(!roomsFirstLoad){
+      d.rooms.forEach(function(rm){
+        var prev=prevRoomUnread[rm.id]||0;
+        var cur=rm.unread_count||0;
+        if(cur>prev&&rm.id!==rcRoomId){
+          notifyRoomMessage(rm.name,rm.last_msg,rm.id);
+        }
+      });
+    }
+    d.rooms.forEach(function(rm){prevRoomUnread[rm.id]=rm.unread_count||0});
+    roomsFirstLoad=false;
+    list.innerHTML=d.rooms.map(function(rm){
+      var last=rm.last_msg?esc(rm.last_msg).slice(0,40):'(메시지 없음)';
+      var hasUnread=rm.unread_count>0;
+      var muted=isRoomMuted(rm.id);
+      var newBadge=hasUnread?'<span style="background:#f04452;color:#fff;border-radius:4px;padding:1px 5px;font-size:.6em;font-weight:800;margin-left:6px;letter-spacing:.5px;vertical-align:middle">N</span>':'';
+      var urBg=muted?'#b0b8c1':'#f04452';
+      var urShadow=muted?'none':'0 1px 3px rgba(240,68,82,.4)';
+      var ur=hasUnread?'<span style="background:'+urBg+';color:#fff;border-radius:12px;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;padding:0 7px;font-size:.75em;font-weight:800;flex-shrink:0;box-shadow:'+urShadow+'">'+(rm.unread_count>99?'99+':rm.unread_count)+'</span>':'';
+      var muteIcon=muted?'<span style="font-size:.85em;margin-left:4px;opacity:.7" title="알림 꺼짐">🔕</span>':'';
+      var closed=rm.status==='closed'?'<span style="font-size:.65em;background:#e5e8eb;padding:1px 6px;border-radius:4px;color:#8b95a1;margin-left:4px">종료</span>':'';
+      var titleStyle=hasUnread?'font-weight:800':'';
+      var lastStyle=hasUnread?'font-weight:700;color:var(--text)':'';
+      return '<div class="mp-item" onclick="openMyRoom(\''+rm.id+'\')">'
+        +'<div class="mp-item-icon">💬</div>'
+        +'<div class="mp-item-main">'
+        +'<div class="mp-item-label" style="'+titleStyle+'">'+esc(rm.name||'상담방')+muteIcon+newBadge+closed+'</div>'
+        +'<div class="mp-item-value" style="'+lastStyle+'">'+last+'</div>'
+        +'</div>'
+        +ur
+        +'<div class="mp-item-arrow">›</div>'
+        +'</div>';
+    }).join('');
+  }catch{}
+}
+
+async function openMyRoom(roomId){
+  rcRoomId=roomId;
+  document.getElementById('roomChatView').classList.add('open');
+  document.body.style.overflow='hidden';
+  /* 영수증·프리랜서 업로드 메뉴는 approved_client(기장 거래처)에게만 노출 */
+  var isClient=currentUser&&currentUser.approval_status==='approved_client';
+  var receiptAttach=document.getElementById('rcReceiptAttach');
+  if(receiptAttach)receiptAttach.style.display=isClient?'':'none';
+  var freelancerAttach=document.getElementById('rcFreelancerAttach');
+  if(freelancerAttach)freelancerAttach.style.display=isClient?'':'none';
+  await loadRoomChat();
+  if(rcMsgPollTimer)clearInterval(rcMsgPollTimer);
+  rcMsgPollTimer=setInterval(loadRoomChat,2000);
+  /* 뒤로가기 = 상담방 닫기 (앱 종료 X) */
+  try{history.pushState({room:roomId},'',location.href)}catch{}
+}
+
+function closeRoomChat(){
+  rcRoomId=null;
+  document.getElementById('roomChatView').classList.remove('open');
+  document.body.style.overflow='';
+  if(rcMsgPollTimer)clearInterval(rcMsgPollTimer);
+  loadMyRooms();
+  /* 직접 닫을 때 history 정리 (popstate로 이미 닫혔으면 skip) */
+  try{if(history.state&&history.state.room)history.back()}catch{}
+}
+
+/* 거래 종료 고지 — 방 목록 숨기고 메시지만 표시 */
+function _showTerminatedNotice(msg){
+  var sec=document.getElementById('mpRoomsSection');if(sec)sec.style.display='none';
+  updateAppBadge(0);
+  if(document.getElementById('_termNotice'))return;
+  var div=document.createElement('div');
+  div.id='_termNotice';
+  div.style.cssText='margin:12px;padding:14px 16px;background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;color:#78350f;font-size:.88em;line-height:1.5;white-space:pre-wrap';
+  div.textContent='🚫 '+String(msg||'거래가 종료되어 상담방을 이용하실 수 없습니다.');
+  var mp=document.getElementById('mpRoomsSection');
+  if(mp&&mp.parentNode)mp.parentNode.insertBefore(div, mp);
+  else document.body.appendChild(div);
+}
+
+async function loadRoomChat(){
+  if(!rcRoomId)return;
+  try{
+    var r=await fetch('/api/my-rooms?room_id='+rcRoomId);
+    if(!r.ok){closeRoomChat();return}
+    var d=await r.json();
+    if(!d.room){closeRoomChat();return}
+    rcIsActive=d.room.status==='active';
+    document.getElementById('rcTitle').textContent=d.room.name||'상담방';
+    /* 전화걸기: 방별 설정번호(= 관리자가 지정한 전담 세무사 직통) / 없으면 대표번호 */
+    (function(){
+      var link=document.getElementById('rcCallLink');
+      if(!link)return;
+      var raw=(d.room.phone||'').replace(/[^\d+]/g,'');
+      var fallback='053-269-1213';
+      var target=raw||fallback.replace(/[^\d+]/g,'');
+      link.href='tel:'+target;
+      link.title=d.room.phone?('담당 세무사 '+d.room.phone):('세무회계 이윤 '+fallback);
+    })();
+    var mm=(d.members||[]).map(function(m){return m.real_name||m.name||'이름없음'});
+    document.getElementById('rcMembers').textContent='👥 '+mm.join(', ')+' + 🏢 세무회계 이윤';
+    updateMuteBtn();
+    var inputArea=document.getElementById('rcInputArea');
+    inputArea.style.display=rcIsActive?'flex':'none';
+    document.getElementById('rcClosedNotice').style.display=rcIsActive?'none':'block';
+    var container=document.getElementById('rcMessages');
+    var atBottom=container.scrollHeight-container.scrollTop-container.clientHeight<50;
+    /* 사진 모아보기: 연속된 [IMG] (같은 사용자·60초 이내) 최대 9장까지 하나로 */
+    var rawMsgs=d.messages||[];
+    var groupedMsgs=[];
+    for(var gi=0;gi<rawMsgs.length;gi++){
+      var gm=rawMsgs[gi];
+      var gp=parseMessageContent(gm.content);
+      /* 순수 사진 메시지만 (답장·텍스트·doc·file 없이) */
+      var isPurePhoto=gp.image&&!gp.reply&&!gp.doc_id&&!gp.file&&!gp.alert&&!gp.text&&!gm.deleted_at;
+      if(isPurePhoto&&groupedMsgs.length){
+        var prev=groupedMsgs[groupedMsgs.length-1];
+        if(prev._isPhotoGroup&&prev.user_id===gm.user_id&&prev.role===gm.role&&prev._photos.length<9){
+          var dt=new Date(gm.created_at)-new Date(prev._lastAt);
+          if(dt<=60*1000){
+            prev._photos.push({url:gp.image,msgId:gm.id,createdAt:gm.created_at});
+            prev._lastAt=gm.created_at;
+            continue;
+          }
+        }
+      }
+      if(isPurePhoto){
+        /* 새 사진 그룹 시작 */
+        groupedMsgs.push({
+          _isPhotoGroup:true,
+          id:gm.id, user_id:gm.user_id, role:gm.role,
+          real_name:gm.real_name, name:gm.name,
+          created_at:gm.created_at, _lastAt:gm.created_at,
+          _photos:[{url:gp.image,msgId:gm.id,createdAt:gm.created_at}]
+        });
+      } else {
+        groupedMsgs.push(gm);
+      }
+    }
+    /* 날짜 구분선 렌더 헬퍼 */
+    var lastDateLabel=null;
+    function dateLabelKST(iso){
+      if(!iso)return '';
+      var s=String(iso);
+      /* 서버가 KST '2026-04-20 14:33:00' 포맷으로 내려줌 */
+      var d=s.substring(0,10);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return '';
+      var dt=new Date(d+'T00:00:00');
+      var days=['일','월','화','수','목','금','토'];
+      return d.substring(0,4)+'년 '+parseInt(d.substring(5,7),10)+'월 '+parseInt(d.substring(8,10),10)+'일 '+days[dt.getDay()]+'요일';
+    }
+    function dateSeparator(m){
+      var dlab=dateLabelKST(m.created_at);
+      if(!dlab||dlab===lastDateLabel)return '';
+      lastDateLabel=dlab;
+      return '<div style="display:flex;align-items:center;gap:10px;margin:14px 0 10px"><div style="flex:1;height:1px;background:var(--border)"></div>'
+        +'<div style="font-size:.7em;color:var(--text2);background:var(--card);padding:4px 12px;border-radius:12px;border:1px solid var(--border)">📅 '+dlab+'</div>'
+        +'<div style="flex:1;height:1px;background:var(--border)"></div></div>';
+    }
+    container.innerHTML=groupedMsgs.map(function(m,idx){
+      var sepHtml=dateSeparator(m);
+      var nm=m.real_name||m.name||'';
+      var isMe=currentUser&&m.user_id===currentUser.id;
+      var ur=m.unread_count>0?'<span style="font-size:.65em;color:#f4c430;font-weight:700;margin:0 4px;align-self:flex-end;margin-bottom:4px">'+m.unread_count+'</span>':'';
+      /* 사진 모아보기 그룹 렌더링 */
+      if(m._isPhotoGroup){
+        return sepHtml+renderPhotoGroup(m, isMe, nm);
+      }
+      /* 삭제된 메시지 */
+      if(m.deleted_at){
+        return sepHtml+'<div style="margin-bottom:10px;text-align:center;opacity:.55"><span style="display:inline-block;background:var(--card);color:var(--text2);padding:6px 14px;border-radius:10px;font-size:.72em;font-style:italic;border:1px solid var(--border)">삭제된 메시지입니다</span></div>';
+      }
+      /* 컨텍스트 메뉴용 데이터 */
+      var parsed=parseMessageContent(m.content);
+      /* 영수증은 "🧾 가게 · 금액원 · 날짜", 사진은 "[사진]", 파일은 "[파일] 이름" 으로
+         답장 인용 프리뷰와 복사 내용이 의미있는 텍스트가 되게 함 */
+      var preview=parsed.text;
+      if(!preview){
+        if(parsed.doc_id && m.document){
+          var _d=m.document;
+          var _parts=[];
+          if(_d.vendor)_parts.push(_d.vendor);
+          if(_d.amount)_parts.push(Number(_d.amount).toLocaleString()+'원');
+          if(_d.receipt_date)_parts.push(_d.receipt_date);
+          preview='🧾 '+(_parts.length?_parts.join(' · '):'영수증');
+        } else if(parsed.image){
+          preview='[사진]';
+        } else if(parsed.file){
+          preview='[파일] '+(parsed.file.name||'');
+        }
+      }
+      var canDel=0;
+      if(m.role==='user'&&isMe){
+        var elapsed=Date.now()-new Date(m.created_at).getTime();
+        canDel=elapsed<5*60*1000?1:0;
+      }
+      /* 메시지 종류 (ctx 메뉴에서 '영수증으로 변환' 같은 항목 분기용) */
+      var kind = parsed.doc_id ? 'doc' : (parsed.image ? 'img' : (parsed.file ? 'file' : 'text'));
+      function dataAttrs(sender,mine){
+        return ' class="rc-msg-bubble" data-msg="'+m.id+'" data-sender="'+escAttr(sender)+'" data-text="'+escAttr(preview)+'" data-mine="'+(mine?1:0)+'" data-deletable="'+canDel+'" data-kind="'+kind+'"';
+      }
+      /* 카톡 스타일: 같은 발신자 연속 메시지(1분 내) → 이름·간격 축소 */
+      var prevMsg = idx>0 ? groupedMsgs[idx-1] : null;
+      var sameSender = prevMsg && prevMsg.role===m.role && prevMsg.user_id===m.user_id && !prevMsg._isPhotoGroup;
+      var within1min = prevMsg && (new Date(m.created_at)-new Date(prevMsg.created_at))<60*1000;
+      var compact = sameSender && within1min;
+      var rowGap = compact ? 2 : 10;
+      var time = esc(m.created_at||'').slice(11,16);
+      if(m.role==='user'){
+        if(isMe){
+          /* 내 말풍선: 카톡 노랑 + 시간 왼쪽·작게 */
+          return sepHtml+'<div style="margin-bottom:'+rowGap+'px;display:flex;justify-content:flex-end;align-items:flex-end;gap:4px">'
+            +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:.6em;color:var(--text2)">'
+            +  ur
+            +  '<span>'+time+'</span>'
+            +'</div>'
+            +'<div'+dataAttrs('나',1)+' style="background:#FEE500;color:#191f28;padding:10px 13px;border-radius:16px 4px 16px 16px;max-width:75%;font-size:.9em;line-height:1.45;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content, m.document)
+            +'</div></div>';
+        } else {
+          /* 상대방: 이름 굵게·진한 색 (연속 메시지면 이름 생략) */
+          var nameHtml = compact ? '' : '<div style="font-size:.78em;color:#191f28;font-weight:700;margin-bottom:3px;margin-left:4px">'+esc(nm)+'</div>';
+          return sepHtml+'<div style="margin-bottom:'+rowGap+'px;display:flex;align-items:flex-end;gap:4px">'
+            +'<div style="max-width:75%">'+nameHtml
+            +'<div'+dataAttrs(nm,0)+' style="background:var(--card);color:var(--text);padding:10px 13px;border-radius:'+(compact?'16px':'4px 16px 16px 16px')+';font-size:.9em;line-height:1.45;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+renderMessageBody(m.content, m.document)
+            +'</div></div>'
+            +'<div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-size:.6em;color:var(--text2)">'
+            +  ur
+            +  '<span>'+time+'</span>'
+            +'</div></div>';
+        }
+      } else if(m.role==='assistant'){
+        return sepHtml+'<div style="margin-bottom:10px;display:flex;align-items:flex-end;gap:4px">'
+          +'<div style="max-width:75%"><div style="font-size:.78em;color:#6b7280;font-weight:700;margin-bottom:3px;margin-left:4px">🤖 세무회계 이윤 AI</div>'
+          +'<div'+dataAttrs('세무회계 이윤 AI',0)+' style="background:var(--card);color:var(--text);padding:10px 13px;border-radius:4px 16px 16px 16px;font-size:.9em;line-height:1.5;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)">'+linkify(esc(m.content))
+          +'</div></div>'
+          +'<div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-size:.6em;color:var(--text2)">'+ur+'<span>'+time+'</span></div>'
+          +'</div>';
+      } else if(m.role==='human_advisor'){
+        return sepHtml+'<div style="margin-bottom:10px;display:flex;align-items:flex-end;gap:4px">'
+          +'<div style="max-width:75%"><div style="font-size:.78em;color:#10b981;font-weight:700;margin-bottom:3px;margin-left:4px"><img src="logo-icon.png" alt="" style="width:14px;height:14px;vertical-align:middle;object-fit:contain;margin-right:3px"> 세무회계 이윤</div>'
+          +'<div'+dataAttrs('세무회계 이윤',0)+' style="background:linear-gradient(135deg,#e0f5ec,#d1f7e0);color:#134e3a;border:1px solid #86efac;padding:10px 13px;border-radius:4px 16px 16px 16px;font-size:.9em;line-height:1.5;white-space:pre-wrap;word-break:break-word">'+renderMessageBody(m.content, m.document)
+          +'</div></div>'
+          +'<div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-size:.6em;color:#10b981">'+ur+'<span>'+time+'</span></div>'
+          +'</div>';
+      }
+      return '';
+    }).join('');
+    if(atBottom||rcForceScrollOnNext)container.scrollTop=container.scrollHeight;
+    rcForceScrollOnNext=false;
+  }catch(e){console.error(e)}
+}
+
+async function deleteMyMessage(messageId){
+  if(!rcRoomId||!messageId)return;
+  if(!confirm('이 메시지를 삭제하시겠어요?\n(전송 후 5분 이내만 삭제 가능)'))return;
+  try{
+    var r=await fetch('/api/my-rooms?action=delete_message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,message_id:messageId})});
+    var d=await r.json();
+    if(d.ok)loadRoomChat();
+    else alert('삭제 실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+
+/* ===== 메시지 컨텍스트 메뉴 (long-press/right-click) + 답장·복사 ===== */
+var rcReplyingTo=null; /* {mid, sender, text} */
+
+function showMsgCtxMenu(bubbleEl, x, y){
+  var m=document.getElementById('msgCtxMenu');if(!m)return;
+  var mid=bubbleEl.getAttribute('data-msg')||'';
+  var sender=bubbleEl.getAttribute('data-sender')||'';
+  var text=bubbleEl.getAttribute('data-text')||'';
+  var mine=bubbleEl.getAttribute('data-mine')==='1';
+  var deletable=bubbleEl.getAttribute('data-deletable')==='1';
+  var kind=bubbleEl.getAttribute('data-kind')||'text';
+  /* 데이터는 메뉴 dataset에 — 이스케이프 이슈 회피 */
+  var imgSrc=bubbleEl.getAttribute('data-img-src')||'';
+  m.dataset.msg=mid;m.dataset.sender=sender;m.dataset.text=text;m.dataset.kind=kind;m.dataset.imgSrc=imgSrc;
+  var items='';
+  /* 답장·복사는 텍스트가 있거나 (사진/영수증/파일처럼) 의미있는 preview 가 있으면 노출 */
+  var hasContent = !!text || kind!=='text';
+  if(hasContent)items+='<button class="msg-ctx-item" onclick="doReplyFromMenu()">↩︎ 답장</button>';
+  if(hasContent)items+='<button class="msg-ctx-item" onclick="doCopyFromMenu()">📋 복사</button>';
+  /* 사진↔영수증 분류 전환은 관리자 채널(admin/staff)에서만. 거래처 사장 화면에서는 메뉴 숨김 */
+  if(mine&&deletable)items+='<button class="msg-ctx-item danger" onclick="hideMsgCtxMenu();deleteMyMessage('+mid+')">🗑️ 삭제</button>';
+  if(!items)return;
+  m.innerHTML=items;
+  m.classList.add('show');
+  /* 뷰포트 클리핑 */
+  var rect=m.getBoundingClientRect();
+  var vw=window.innerWidth, vh=window.innerHeight;
+  var left=Math.max(8, Math.min(x-rect.width/2, vw-rect.width-8));
+  var top=Math.max(8, Math.min(y-rect.height-8, vh-rect.height-8));
+  if(y-rect.height-8<8)top=Math.min(y+8, vh-rect.height-8); /* 위쪽 공간 없으면 아래로 */
+  m.style.left=left+'px';
+  m.style.top=top+'px';
+  if(navigator.vibrate)try{navigator.vibrate(15)}catch(e){}
+}
+function hideMsgCtxMenu(){
+  var m=document.getElementById('msgCtxMenu');
+  if(m)m.classList.remove('show');
+}
+function doReplyFromMenu(){
+  var m=document.getElementById('msgCtxMenu');if(!m)return;
+  doReplyTo(parseInt(m.dataset.msg||'0',10), m.dataset.sender||'', m.dataset.text||'');
+}
+function doCopyFromMenu(){
+  var m=document.getElementById('msgCtxMenu');if(!m)return;
+  var kind=m.dataset.kind||'';
+  var imgSrc=m.dataset.imgSrc||'';
+  if(kind==='img' && imgSrc){
+    doCopyImage(imgSrc);
+    return;
+  }
+  doCopyMsg(m.dataset.text||'');
+}
+/* 사진 자체를 클립보드에 복사 — 카톡/메모 붙여넣기 시 실제 이미지로 전송됨.
+   1) navigator.clipboard.write(ClipboardItem) 시도 (Chrome/Edge/iOS16+/Android)
+   2) 실패 → Web Share API (모바일) 로 공유 시트
+   3) 둘 다 실패 → URL 텍스트 복사 (최종 fallback) */
+async function doCopyImage(url){
+  hideMsgCtxMenu();
+  if(typeof showInAppToastSilent==='function')showInAppToastSilent('🔄 사진 복사 중...');
+  try{
+    var resp=await fetch(url,{cache:'no-store',credentials:'same-origin'});
+    if(!resp.ok)throw new Error('fetch failed: '+resp.status);
+    var blob=await resp.blob();
+    if(!blob.type.startsWith('image/'))throw new Error('not an image');
+    if(blob.type!=='image/png'){
+      try{blob=await _rcConvertImageToPng(blob)}catch(_){}
+    }
+    if(navigator.clipboard && window.ClipboardItem){
+      await navigator.clipboard.write([new ClipboardItem({[blob.type]:blob})]);
+      if(typeof showInAppToastSilent==='function')showInAppToastSilent('📋 사진이 복사되었습니다');
+      return;
+    }
+    throw new Error('ClipboardItem not supported');
+  }catch(errClip){
+    /* 모바일 Web Share fallback */
+    try{
+      var resp2=await fetch(url,{cache:'no-store',credentials:'same-origin'});
+      var blob2=await resp2.blob();
+      var nm=(url.split('/').pop()||'photo').split('?')[0].slice(0,80)||'photo.jpg';
+      var file=new File([blob2],nm,{type:blob2.type||'image/jpeg'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file]});
+        return;
+      }
+    }catch(_){}
+    doCopyMsg(url);
+  }
+}
+function _rcConvertImageToPng(blob){
+  return new Promise(function(resolve,reject){
+    var objUrl=URL.createObjectURL(blob);
+    var img=new Image();
+    img.onload=function(){
+      var c=document.createElement('canvas');
+      c.width=img.naturalWidth||img.width;
+      c.height=img.naturalHeight||img.height;
+      try{c.getContext('2d').drawImage(img,0,0)}catch(e){URL.revokeObjectURL(objUrl);return reject(e)}
+      c.toBlob(function(b){URL.revokeObjectURL(objUrl);b?resolve(b):reject(new Error('toBlob'))},'image/png');
+    };
+    img.onerror=function(e){URL.revokeObjectURL(objUrl);reject(e)};
+    img.src=objUrl;
+  });
+}
+function doReplyTo(mid,sender,text){
+  if(_rcPendingAttachments && _rcPendingAttachments.length){
+    if(!confirm('첨부한 사진이 있습니다. 답장을 하려면 첨부를 취소해야 합니다. 계속할까요?')){hideMsgCtxMenu();return}
+    _rcPendingAttachments.forEach(function(p){try{URL.revokeObjectURL(p.previewUrl)}catch(_){}});
+    _rcPendingAttachments=[];_rcRenderPendingAttachments();
+  }
+  rcReplyingTo={mid:mid, sender:sender, text:String(text).slice(0,100)};
+  var bar=document.getElementById('rcReplyBar');
+  document.getElementById('rcReplyToName').textContent=sender;
+  document.getElementById('rcReplyPreview').textContent=rcReplyingTo.text;
+  bar.classList.add('show');
+  hideMsgCtxMenu();
+  var inp=document.getElementById('rcInput');if(inp)inp.focus();
+}
+function cancelReply(){
+  rcReplyingTo=null;
+  var bar=document.getElementById('rcReplyBar');
+  if(bar)bar.classList.remove('show');
+}
+async function doCopyMsg(text){
+  try{
+    await navigator.clipboard.writeText(text);
+  }catch(e){
+    /* iOS Safari 등 폴백 */
+    var ta=document.createElement('textarea');
+    ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy')}catch(_){}
+    ta.remove();
+  }
+  hideMsgCtxMenu();
+  if(typeof showInAppToastSilent==='function')showInAppToastSilent('📋 복사되었습니다');
+}
+/* 이벤트 위임: long-press(모바일) + contextmenu(데스크톱) + 바깥 클릭 닫기 */
+(function(){
+  function init(){
+    var root=document.getElementById('rcMessages');
+    if(!root)return false;
+    var lpTimer=null, lpX=0, lpY=0;
+    root.addEventListener('touchstart',function(e){
+      var b=e.target.closest('.rc-msg-bubble');if(!b)return;
+      var t=e.touches[0];lpX=t.clientX;lpY=t.clientY;
+      lpTimer=setTimeout(function(){
+        lpTimer=null;
+        /* 사진 타일 onclick(openImgViewer) 이 long-press 직후 같이 터지는 것 차단 */
+        window._lpJustFired=true;
+        setTimeout(function(){window._lpJustFired=false},600);
+        showMsgCtxMenu(b, lpX, lpY);
+      }, 450);
+    },{passive:true});
+    root.addEventListener('touchmove',function(e){
+      if(lpTimer){
+        var t=e.touches[0];
+        if(Math.abs(t.clientX-lpX)>8||Math.abs(t.clientY-lpY)>8){
+          clearTimeout(lpTimer);lpTimer=null;
+        }
+      }
+    },{passive:true});
+    root.addEventListener('touchend',function(){if(lpTimer){clearTimeout(lpTimer);lpTimer=null}});
+    root.addEventListener('touchcancel',function(){if(lpTimer){clearTimeout(lpTimer);lpTimer=null}});
+    root.addEventListener('contextmenu',function(e){
+      var b=e.target.closest('.rc-msg-bubble');if(!b)return;
+      e.preventDefault();
+      showMsgCtxMenu(b, e.clientX, e.clientY);
+    });
+    document.addEventListener('click',function(e){
+      if(e.target.closest('.msg-ctx-menu'))return;
+      hideMsgCtxMenu();
+    });
+    document.addEventListener('scroll',hideMsgCtxMenu,true);
+    return true;
+  }
+  if(!init())document.addEventListener('DOMContentLoaded',init);
+})();
+
+/* 메시지 입력칸 클립보드(Ctrl+V) + 드래그앤드롭 첨부
+   - 이미지: 사진/영수증 선택 (기존)
+   - 파일(PDF·엑셀 등): 일반 파일/영수증(OCR) 선택 — 영수증 PDF 케이스 지원 */
+(function(){
+  function isImage(f){return f&&f.type&&f.type.indexOf('image/')===0}
+  function isReceiptPdfCandidate(f){
+    if(!f)return false;
+    var t=f.type||'';
+    if(t==='application/pdf')return true;
+    var n=(f.name||'').toLowerCase();
+    return /\.(pdf)$/.test(n);
+  }
+  async function sendImages(arr){
+    if(arr.length>10){alert('한 번에 최대 10장까지 업로드 가능합니다');arr=arr.slice(0,10)}
+    /* 거래처 사장은 항상 일반 사진으로만 업로드.
+       영수증 분류는 관리자 채널에서만 (사장·관리자 권한 분리) */
+    for(var i=0;i<arr.length;i++){
+      var f=arr[i];
+      if(f.size>10*1024*1024){alert('['+(f.name||(i+1)+'번째')+'] 10MB 초과 — 건너뜁니다');continue}
+      if(arr.length>1&&typeof showInAppToastSilent==='function')showInAppToastSilent('📤 '+(i+1)+'/'+arr.length);
+      await sendOneLegacyImage(f);
+    }
+  }
+  async function sendOneDocFile(f){
+    /* 거래처 사장은 항상 일반 파일로만 업로드. PDF 영수증 분류도 관리자 채널에서 처리 */
+    var fakeInput={files:[f],value:''};
+    await sendRoomDoc(fakeInput);
+  }
+  async function sendFilesMixed(files){
+    if(!rcRoomId||!rcIsActive)return;
+    var imgs=[], docs=[];
+    Array.from(files).forEach(function(f){(isImage(f)?imgs:docs).push(f)});
+    /* 카톡식 UX: 이미지는 바로 전송하지 않고 첨부 프리뷰에 쌓아두기 */
+    if(imgs.length) _rcAddPendingAttachments(imgs);
+    /* 파일(PDF 등)은 기존대로 즉시 업로드 — 영수증 OCR 처리가 연결돼있어 흐름 유지 */
+    for(var i=0;i<docs.length;i++) await sendOneDocFile(docs[i]);
+  }
+  function init(){
+    var input=document.getElementById('rcInput');
+    var area=document.getElementById('rcInputArea');
+    if(!input||!area)return false;
+    /* 클립보드 붙여넣기 */
+    input.addEventListener('paste',function(e){
+      if(!rcRoomId||!rcIsActive)return;
+      var files=(e.clipboardData&&e.clipboardData.files)||[];
+      if(!files.length)return;
+      e.preventDefault();
+      sendFilesMixed(files);
+    });
+    /* 드래그앤드롭 (이미지+파일 모두) */
+    var overlay=null;
+    function showOverlay(){
+      if(overlay)return;
+      overlay=document.createElement('div');
+      overlay.id='rcDropOverlay';
+      overlay.style.cssText='position:fixed;inset:0;background:rgba(49,130,246,.18);border:3px dashed #3182f6;pointer-events:none;z-index:9999;display:flex;align-items:center;justify-content:center;color:#1e3a8a;font-size:1.4em;font-weight:800;text-shadow:0 1px 3px rgba(255,255,255,.6)';
+      overlay.textContent='📎 놓으면 첨부됩니다 (사진·파일 다 가능)';
+      document.body.appendChild(overlay);
+    }
+    function hideOverlay(){if(overlay){overlay.remove();overlay=null}}
+    var dragDepth=0;
+    document.addEventListener('dragenter',function(e){
+      if(!rcRoomId||!rcIsActive)return;
+      if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
+      dragDepth++;showOverlay();
+    });
+    document.addEventListener('dragover',function(e){
+      if(!rcRoomId||!rcIsActive)return;
+      if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
+      e.preventDefault();
+    });
+    document.addEventListener('dragleave',function(){dragDepth--;if(dragDepth<=0){dragDepth=0;hideOverlay()}});
+    document.addEventListener('drop',function(e){
+      if(!rcRoomId||!rcIsActive){dragDepth=0;hideOverlay();return}
+      var files=(e.dataTransfer&&e.dataTransfer.files)||[];
+      dragDepth=0;hideOverlay();
+      if(!files.length)return;
+      e.preventDefault();
+      sendFilesMixed(files);
+    });
+    return true;
+  }
+  if(!init())document.addEventListener('DOMContentLoaded',init);
+})();
+
+/* 내가 방금 보낸 메시지는 상단 보고 있어도 강제 스크롤 플래그 */
+var rcForceScrollOnNext=false;
+/* 첨부 대기열 — 붙여넣기/드래그 시 바로 전송하지 않고 여기 쌓았다가 전송 버튼 누를 때 일괄 발송 */
+var _rcPendingAttachments=[]; /* [{file, previewUrl}] */
+
+async function sendRoomMsg(){
+  if(!rcRoomId||!rcIsActive)return;
+  var input=document.getElementById('rcInput');
+  var content=input.value.trim();
+  var pending=_rcPendingAttachments.slice();
+  if(!content && !pending.length)return;
+  /* 답장 + 첨부 동시 금지 */
+  if(pending.length && rcReplyingTo){
+    alert('답장하면서 사진 첨부는 불가합니다.\n답장을 취소하거나 사진을 빼주세요.');
+    return;
+  }
+  var replyMeta = rcReplyingTo ? {t:rcReplyingTo.text, s:rcReplyingTo.sender, i:rcReplyingTo.mid} : null;
+  input.value='';input.style.height='auto';
+  _rcPendingAttachments=[];_rcRenderPendingAttachments();
+  cancelReply();
+  rcForceScrollOnNext=true;
+
+  try{
+    if(pending.length){
+      /* 이미지 순차 업로드·전송. 캡션은 마지막 1장에만 붙여 카톡처럼 표시 */
+      for(var i=0;i<pending.length;i++){
+        var fd=new FormData();fd.append('file',pending[i].file);
+        var upR=await fetch('/api/upload-image',{method:'POST',body:fd});
+        var upD=await upR.json();
+        if(!upD.ok){alert('사진 '+(i+1)+'장 업로드 실패: '+(upD.error||'unknown'));continue}
+        var body={room_id:rcRoomId,image_url:upD.url};
+        if(i===pending.length-1 && content)body.content=content;
+        var r2=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        var d2=await r2.json();
+        if(!d2.ok){alert('사진 '+(i+1)+'장 전송 실패: '+(d2.error||'unknown'))}
+      }
+      pending.forEach(function(p){try{URL.revokeObjectURL(p.previewUrl)}catch(_){}});
+      await loadRoomChat();
+      var _c=document.getElementById('rcMessages');
+      if(_c)_c.scrollTop=_c.scrollHeight;
+      setTimeout(function(){var c2=document.getElementById('rcMessages');if(c2)c2.scrollTop=c2.scrollHeight;},80);
+      return;
+    }
+
+    /* 텍스트만 — 낙관적 렌더링 */
+    var finalContent=content;
+    if(replyMeta)finalContent='[REPLY]'+JSON.stringify(replyMeta)+'\n'+finalContent;
+    var optId='rcopt-'+Date.now();
+    _rcInsertOptimisticBubble(optId, finalContent);
+    try{
+      var r=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,content:finalContent})});
+      var d=await r.json();
+      if(d.ok){
+        _rcRemoveOptimisticBubble(optId);
+        await loadRoomChat();
+        var _c2=document.getElementById('rcMessages');
+        if(_c2)_c2.scrollTop=_c2.scrollHeight;
+        setTimeout(function(){var c2=document.getElementById('rcMessages');if(c2)c2.scrollTop=c2.scrollHeight;},80);
+      } else {
+        _rcMarkOptimisticFailed(optId, d.error||'unknown');
+      }
+    }catch(e){
+      _rcMarkOptimisticFailed(optId, e.message);
+    }
+  }catch(e){alert('오류: '+e.message)}
+}
+
+/* ===== 첨부 대기열 프리뷰 (고객) ===== */
+function _rcRenderPendingAttachments(){
+  var bar=document.getElementById('rcAttachPreview');
+  if(_rcPendingAttachments.length===0){if(bar)bar.style.display='none';return}
+  if(!bar){
+    var area=document.getElementById('rcInputArea');if(!area)return;
+    bar=document.createElement('div');
+    bar.id='rcAttachPreview';
+    bar.style.cssText='padding:8px 12px;border-top:1px solid var(--border);background:var(--card);display:flex;gap:8px;overflow-x:auto';
+    area.parentNode.insertBefore(bar,area);
+  }
+  bar.style.display='flex';
+  bar.innerHTML=_rcPendingAttachments.map(function(a,i){
+    return '<div style="position:relative;flex-shrink:0">'
+      +'<img src="'+a.previewUrl+'" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--border);display:block">'
+      +'<button onclick="_rcRemovePendingAttach('+i+')" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;background:#000;color:#fff;border:none;border-radius:50%;font-size:.72em;cursor:pointer;line-height:1;padding:0;display:flex;align-items:center;justify-content:center" aria-label="제거">×</button>'
+      +'</div>';
+  }).join('');
+}
+function _rcRemovePendingAttach(i){
+  var a=_rcPendingAttachments[i];
+  if(a && a.previewUrl){try{URL.revokeObjectURL(a.previewUrl)}catch(_){}}
+  _rcPendingAttachments.splice(i,1);
+  _rcRenderPendingAttachments();
+}
+function _rcAddPendingAttachments(files){
+  var arr=Array.from(files||[]).filter(function(f){return f&&f.type&&f.type.indexOf('image/')===0});
+  if(!arr.length)return;
+  for(var i=0;i<arr.length;i++){
+    if(_rcPendingAttachments.length>=10){alert('한 번에 최대 10장까지');break}
+    _rcPendingAttachments.push({file:arr[i], previewUrl:URL.createObjectURL(arr[i])});
+  }
+  _rcRenderPendingAttachments();
+  var inp=document.getElementById('rcInput');if(inp)inp.focus();
+}
+function _rcInsertOptimisticBubble(optId, content){
+  var c=document.getElementById('rcMessages');if(!c)return;
+  var now=new Date(Date.now()+9*60*60*1000);
+  var hh=now.getHours(), mm=String(now.getMinutes()).padStart(2,'0');
+  var ap=hh<12?'오전':'오후'; var h12=hh%12||12;
+  var time=ap+' '+h12+':'+mm;
+  var div=document.createElement('div');
+  div.id=optId;
+  div.style.cssText='margin-bottom:10px;display:flex;justify-content:flex-end;align-items:flex-end;gap:4px';
+  var safeText=String(content).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  div.innerHTML='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:.6em;color:var(--text2)" data-opt-status><span>⏱ '+time+'</span></div>'
+    +'<div style="background:#FEE500;color:#191f28;padding:10px 13px;border-radius:16px 4px 16px 16px;max-width:75%;font-size:.9em;line-height:1.45;white-space:pre-wrap;word-break:break-word;opacity:.7">'+safeText+'</div>';
+  c.appendChild(div);
+  c.scrollTop=c.scrollHeight;
+}
+function _rcRemoveOptimisticBubble(optId){
+  var el=document.getElementById(optId);if(el)el.remove();
+}
+function _rcMarkOptimisticFailed(optId, reason){
+  var el=document.getElementById(optId);if(!el)return;
+  var status=el.querySelector('[data-opt-status]');
+  if(status){status.innerHTML='<span style="color:#dc2626;font-weight:700">🔴 실패</span>';status.title=reason||''}
+  var bubble=el.querySelector('[style*="FEE500"]');
+  if(bubble){bubble.style.opacity='1';bubble.style.border='1px solid #dc2626'}
+}
+
+function toggleAttachSheet(){
+  var sheet=document.getElementById('rcAttachSheet');
+  var btn=document.getElementById('rcAttachBtn');
+  if(sheet.classList.contains('open')){
+    closeAttachSheet();
+  } else {
+    sheet.classList.add('open');btn.classList.add('on');
+    try{history.pushState({ov:'sheet'},'')}catch{}
+  }
+}
+function closeAttachSheet(){
+  var sheet=document.getElementById('rcAttachSheet');
+  var btn=document.getElementById('rcAttachBtn');
+  var wasOpen=sheet.classList.contains('open');
+  sheet.classList.remove('open');btn.classList.remove('on');
+  /* pushState 했던 상태면 정리 (popstate 재발 시 cascade 스킵) */
+  if(wasOpen&&history.state&&history.state.ov==='sheet'){
+    _popCascade=true;try{history.back()}catch{}
+  }
+}
+function updateSendBtn(){/* 필요 시 input 상태별 버튼 변경 여지 */}
+
+/* 대용량 파일 청크 업로드. 300MB 상한.
+   50MB 청크 × 병렬 4개 — 대역폭 최대 활용. */
+async function uploadFileChunked(file, onProgress, opts){
+  opts=opts||{};
+  var CHUNK=50*1024*1024;
+  var PARALLEL=4;
+  var _t0=Date.now();
+  var _lastPct=-1;
+  /* 1. start */
+  var s=await fetch('/api/upload-multipart?action=start',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:file.name,size:file.size,type:file.type||'application/octet-stream'})
+  });
+  var sd=await s.json();
+  if(!sd.ok)throw new Error(sd.error||'업로드 시작 실패');
+  var key=sd.key, uploadId=sd.uploadId;
+  var totalParts=Math.ceil(file.size/CHUNK);
+  var parts=new Array(totalParts);
+  /* 개별 청크 진행률 추적 (각 청크의 loaded 바이트) */
+  var loadedPerPart=new Array(totalParts).fill(0);
+  function reportProgress(){
+    if(!onProgress)return;
+    var done=0;for(var j=0;j<totalParts;j++)done+=loadedPerPart[j];
+    var pct=Math.min(100,Math.round(done/file.size*100));
+    var finished=parts.filter(Boolean).length;
+    var elapsed=(Date.now()-_t0)/1000;
+    var mbps=elapsed>0.3?(done/1024/1024/elapsed):0;
+    var eta=mbps>0.1?Math.max(0,Math.round((file.size-done)/1024/1024/mbps)):null;
+    onProgress(pct, finished, totalParts, mbps, eta);
+  }
+  function uploadOnePart(i){
+    return new Promise(function(resolve,reject){
+      var start=i*CHUNK, end=Math.min(start+CHUNK,file.size);
+      var chunk=file.slice(start,end), partNumber=i+1;
+      var xhr=new XMLHttpRequest();
+      xhr.open('POST','/api/upload-multipart?action=part&k='+encodeURIComponent(key)+'&uploadId='+encodeURIComponent(uploadId)+'&partNumber='+partNumber);
+      xhr.upload.onprogress=function(ev){
+        if(!ev.lengthComputable)return;
+        loadedPerPart[i]=ev.loaded;
+        reportProgress();
+      };
+      xhr.onload=function(){
+        if(xhr.status>=200&&xhr.status<300){
+          try{
+            var j=JSON.parse(xhr.responseText);
+            if(!j.ok)return reject(new Error(j.error||'part 실패'));
+            parts[i]={partNumber:j.partNumber,etag:j.etag};
+            loadedPerPart[i]=end-start;
+            reportProgress();
+            resolve();
+          }catch(e){reject(new Error('응답 파싱 실패'))}
+        } else {
+          try{var err=JSON.parse(xhr.responseText);reject(new Error(err.error||('HTTP '+xhr.status)))}
+          catch(e){reject(new Error('HTTP '+xhr.status))}
+        }
+      };
+      xhr.onerror=function(){reject(new Error('네트워크 오류 (part '+partNumber+')'))};
+      xhr.send(chunk);
+    });
+  }
+  try{
+    /* 병렬 제한 워커풀 */
+    var nextIdx=0;
+    async function worker(){
+      while(true){
+        var i=nextIdx++;
+        if(i>=totalParts)break;
+        await uploadOnePart(i);
+      }
+    }
+    var workers=[];
+    for(var w=0;w<Math.min(PARALLEL,totalParts);w++)workers.push(worker());
+    await Promise.all(workers);
+    /* 3. complete */
+    var c=await fetch('/api/upload-multipart?action=complete',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({key:key,uploadId:uploadId,parts:parts,name:file.name,size:file.size,type:file.type,room_id:opts.room_id||null})
+    });
+    var cd=await c.json();
+    if(!cd.ok)throw new Error(cd.error||'업로드 완료 실패');
+    if(cd.msgError)console.warn('메시지 생성 실패(업로드는 성공):',cd.msgError);
+    return cd;
+  }catch(err){
+    try{
+      await fetch('/api/upload-multipart?action=abort',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,uploadId:uploadId})});
+    }catch(_){}
+    throw err;
+  }
+}
+
+async function sendRoomDoc(fileInput){
+  if(!rcRoomId||!rcIsActive)return;
+  var file=fileInput.files[0];
+  fileInput.value='';
+  if(!file)return;
+  if(file.size>300*1024*1024){alert('300MB 이하만 업로드 가능합니다');return}
+  var btn=document.querySelector('.rc-send-btn');
+  var origText=btn?btn.textContent:'';
+  if(btn){btn.textContent='업로드...';btn.disabled=true}
+  try{
+    /* 95MB 이하는 기존 단일 업로드, 초과는 청크 업로드 */
+    if(file.size<=95*1024*1024){
+      var fd=new FormData();fd.append('file',file);
+      var r=await fetch('/api/upload-file',{method:'POST',body:fd});
+      var d=await r.json();
+      if(!d.ok){alert('업로드 실패: '+(d.error||'unknown'));return}
+      var r2=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,file_url:d.url,file_name:d.name,file_size:d.size})});
+      var d2=await r2.json();
+      if(d2.ok)loadRoomChat();
+      else alert('전송 실패: '+(d2.error||'unknown'));
+    } else {
+      /* 대용량 — 청크 업로드. 화면 하단에 고정 진행 바 표시 */
+      var bar=document.getElementById('rcUploadBar');
+      if(!bar){
+        bar=document.createElement('div');
+        bar.id='rcUploadBar';
+        bar.style.cssText='position:fixed;left:12px;right:12px;bottom:72px;background:#fff;border:1px solid #e5e8eb;border-radius:12px;padding:10px 14px;z-index:10000;box-shadow:0 4px 14px rgba(0,0,0,.1);font-size:.82em;color:#191f28';
+        document.body.appendChild(bar);
+      }
+      bar.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px"><b>📤 '+esc(file.name)+'</b><span id="_rcuPct">0%</span></div>'
+        +'<div style="height:6px;background:#e5e8eb;border-radius:4px;overflow:hidden"><div id="_rcuBar" style="width:0%;height:100%;background:#3182f6;transition:width .2s"></div></div>'
+        +'<div id="_rcuMeta" style="margin-top:6px;color:#8b95a1;font-size:.9em">준비 중...</div>';
+      try{
+        var cd=await uploadFileChunked(file,function(pct,cur,total,mbps,eta){
+          if(btn)btn.textContent='업로드 '+pct+'%';
+          var pctEl=document.getElementById('_rcuPct');if(pctEl)pctEl.textContent=pct+'%';
+          var barEl=document.getElementById('_rcuBar');if(barEl)barEl.style.width=pct+'%';
+          var meta=document.getElementById('_rcuMeta');
+          if(meta){
+            var parts=[cur+'/'+total+' 청크'];
+            if(mbps>0.1)parts.push(mbps.toFixed(1)+' MB/s');
+            if(eta!=null&&eta>0)parts.push('약 '+(eta>=60?Math.round(eta/60)+'분':eta+'초')+' 남음');
+            meta.textContent=parts.join(' · ');
+          }
+        },{room_id:rcRoomId});
+        loadRoomChat();
+        if(typeof showInAppToastSilent==='function')showInAppToastSilent('✅ 업로드 완료');
+      }finally{
+        var bar2=document.getElementById('rcUploadBar');if(bar2)bar2.remove();
+      }
+    }
+  }catch(e){alert('오류: '+e.message)}
+  finally{if(btn){btn.textContent=origText;btn.disabled=false}}
+}
+
+/* 영수증/세무문서 업로드 — AI OCR 자동 분류 (File 객체 직접 받음) */
+async function sendRoomReceiptFromFile(file){
+  if(!rcRoomId||!rcIsActive||!file)return;
+  if(file.size>10*1024*1024){alert('10MB 이하만 업로드 가능합니다');return}
+  var btn=document.querySelector('.rc-send-btn');
+  var origText=btn?btn.textContent:'';
+  if(btn){btn.textContent='AI 인식중...';btn.disabled=true}
+  if(typeof showInAppToastSilent==='function')showInAppToastSilent('🤖 AI 문서 인식 중...');
+  try{
+    var fd=new FormData();
+    fd.append('file',file);
+    fd.append('room_id',rcRoomId);
+    fd.append('doc_type','receipt');
+    var r=await fetch('/api/documents',{method:'POST',body:fd});
+    var d=await r.json();
+    if(d.error){alert('업로드 실패: '+d.error);return}
+    if(typeof showInAppToastSilent==='function'){
+      var doc=d.document||{};
+      var typeMap={receipt:'🧾 영수증',lease:'🏠 임대차',tax_invoice:'📑 세금계산서',insurance:'🛡️ 보험',utility:'💧 공과금',property_tax:'🚗 지방세',payroll:'👥 근로',bank_stmt:'🏦 은행내역',business_reg:'📋 사업자등록',identity:'🪪 신분증',contract:'📝 계약',other:'📄 문서'};
+      var label=typeMap[doc.doc_type]||'📄 문서';
+      var name=doc.vendor?(' · '+doc.vendor):'';
+      showInAppToastSilent('✅ '+label+name+' 등록');
+    }
+    loadRoomChat();
+  }catch(e){alert('오류: '+e.message)}
+  finally{if(btn){btn.textContent=origText;btn.disabled=false}}
+}
+
+/* 기존 input[type=file] onchange에서 호출용 래퍼 */
+async function sendRoomReceipt(fileInput){
+  var f=fileInput.files[0];fileInput.value='';
+  if(f)return sendRoomReceiptFromFile(f);
+}
+
+/* ===== 급여·인건비 등록 모달 (프리랜서 3.3% / 정규직 4대보험) ===== */
+var plMode='3.3'; /* '3.3' | '4ins' */
+/* 기존 localStorage plPeople:* 키는 폐기(서버 저장으로 이전). 잔존 키 제거. */
+(function purgeLegacyPlPeople(){
+  try{
+    for(var i=localStorage.length-1;i>=0;i--){
+      var k=localStorage.key(i);
+      if(k&&k.indexOf('plPeople')===0)localStorage.removeItem(k);
+    }
+  }catch{}
+})();
+/* 방(사업장)별 저장된 직원 — 서버(/api/payroll-people) 기반 */
+var plPeopleCache=[]; /* 현재 방의 직원 목록 캐시 */
+async function plGetPeople(){
+  if(!rcRoomId){plPeopleCache=[];return [];}
+  try{
+    var r=await fetch('/api/payroll-people?room_id='+encodeURIComponent(rcRoomId));
+    if(!r.ok){plPeopleCache=[];return [];}
+    var d=await r.json();
+    plPeopleCache=d.people||[];
+    return plPeopleCache;
+  }catch{plPeopleCache=[];return [];}
+}
+async function plSavePerson(name, residFull, mode, amount){
+  if(!rcRoomId||!name)return;
+  var raw=String(residFull||'').replace(/[^0-9]/g,'');
+  var first6=raw.substring(0,6),last7=raw.substring(6,13);
+  try{
+    await fetch('/api/payroll-people',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({room_id:rcRoomId,name:name,resident_first6:first6,resident_last7:last7,mode:mode,amount:amount||0})
+    });
+  }catch{}
+}
+async function plRemovePerson(id){
+  if(!rcRoomId||!id)return;
+  if(!confirm('이 직원 저장 내역을 삭제할까요?'))return;
+  try{
+    await fetch('/api/payroll-people?id='+id+'&room_id='+encodeURIComponent(rcRoomId),{method:'DELETE'});
+    plPeopleCache=plPeopleCache.filter(function(p){return p.id!==id});
+    renderSavedPeople();
+  }catch(e){alert('삭제 실패: '+e.message)}
+}
+/* 직원 리스트: 토글 버튼 클릭 시 펼침 + 세로 스크롤 + 검색 */
+var plPeopleFilter='';
+function renderSavedPeople(){
+  var box=document.getElementById('plSavedPeople');
+  if(!box)return;
+  var toggleWrap=document.getElementById('plSavedToggleWrap');
+  var toggleCount=document.getElementById('plSavedToggleCount');
+  var toggleChev=document.getElementById('plSavedToggleChevron');
+  if(!plPeopleCache||!plPeopleCache.length){
+    box.style.display='none';box.innerHTML='';
+    if(toggleWrap)toggleWrap.style.display='none';
+    return;
+  }
+  /* 사원이 1명 이상이면 토글 버튼 보임 */
+  if(toggleWrap)toggleWrap.style.display='block';
+  if(toggleCount)toggleCount.textContent=plPeopleCache.length+'명';
+  if(toggleChev)toggleChev.textContent=plPeoplePopupOpen?'▲':'▼';
+  if(!plPeoplePopupOpen){
+    box.style.display='none';box.innerHTML='';
+    return;
+  }
+  var q=(plPeopleFilter||'').trim().toLowerCase();
+  var filtered=q
+    ?plPeopleCache.filter(function(p){
+       return (p.name||'').toLowerCase().indexOf(q)>=0
+           ||(p.resident_first6||'').indexOf(q)>=0;
+     })
+    :plPeopleCache;
+  var head='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
+    +  '<span style="font-size:.72em;color:var(--text2)">💾 저장된 직원 '+plPeopleCache.length+'명 (행 클릭 → 자동 입력)</span>'
+    +'</div>'
+    +'<input type="text" placeholder="이름·생년월일 검색" value="'+escAttr(plPeopleFilter||'')+'" oninput="plPeopleFilter=this.value;renderSavedPeople();setTimeout(function(){var x=document.getElementById(\'plSavedSearch\');if(x){x.focus();x.setSelectionRange(x.value.length,x.value.length)}},0)" id="plSavedSearch" style="width:100%;padding:6px 10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:6px;font-size:.82em;margin-bottom:6px;box-sizing:border-box;font-family:inherit">';
+  var rows='';
+  if(!filtered.length){
+    rows='<div style="padding:10px;font-size:.78em;color:var(--text2);text-align:center">검색 결과 없음</div>';
+  } else {
+    filtered.forEach(function(p){
+      var modeBadge=p.mode==='4ins'
+        ?'<span style="font-size:.68em;background:#e0f5ec;color:#065f46;padding:1px 6px;border-radius:4px">4대</span>'
+        :'<span style="font-size:.68em;background:#eff6ff;color:#1e40af;padding:1px 6px;border-radius:4px">3.3%</span>';
+      rows+='<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);cursor:pointer" onclick="plPickPerson('+p.id+')">'
+        +  '<div style="flex:1;min-width:0;overflow:hidden">'
+        +    '<div style="font-size:.86em;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(p.name||'')+'</div>'
+        +    '<div style="font-size:.7em;color:var(--text2)">'+esc(p.resident_first6||'')+'</div>'
+        +  '</div>'
+        +  modeBadge
+        +  '<button type="button" onclick="event.stopPropagation();plRemovePerson('+p.id+')" title="삭제" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:1em;padding:2px 6px;line-height:1">✕</button>'
+        +'</div>';
+    });
+  }
+  box.innerHTML=head
+    +'<div style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg)">'+rows+'</div>';
+  box.style.display='block';
+}
+function plPickPerson(id){
+  var p=(plPeopleCache||[]).find(function(x){return x.id===id});
+  if(!p)return;
+  var nameEl=document.getElementById('plName');
+  var residEl=document.getElementById('plResid');
+  if(nameEl)nameEl.value=p.name||'';
+  if(residEl){
+    var full=(p.resident_first6||'')+(p.resident_last7||'');
+    if(full.length===13){
+      residEl.value=full.substring(0,6)+'-'+full.substring(6);
+    } else if(p.resident_first6){
+      residEl.value=p.resident_first6+'-';
+      residEl.focus();
+    }
+  }
+  if(p.mode&&typeof setPayrollMode==='function')setPayrollMode(p.mode);
+  /* 선택 후 리스트 자동 접기 */
+  plPeoplePopupOpen=false;
+  renderSavedPeople();
+  /* 주민번호 뒷자리 없으면 거기 포커스, 있으면 금액으로 */
+  setTimeout(function(){
+    var residVal=residEl?residEl.value.replace(/[^0-9]/g,''):'';
+    if(residVal.length<13&&residEl){residEl.focus();}
+    else{var am=document.getElementById('plAmount');if(am)am.focus();}
+  },50);
+}
+function renderPlPeopleList(){renderSavedPeople()}
+function togglePlPeopleList(){/* 호환용 */}
+var plPeoplePopupOpen=false;
+function togglePeoplePopup(){
+  plPeoplePopupOpen=!plPeoplePopupOpen;
+  renderSavedPeople();
+  if(plPeoplePopupOpen){
+    setTimeout(function(){var x=document.getElementById('plSavedSearch');if(x)x.focus()},50);
+  }
+}
+async function openPayrollModal(){
+  if(!rcRoomId||!rcIsActive){alert('상담방을 먼저 여세요');return}
+  document.getElementById('plName').value='';
+  document.getElementById('plResid').value='';
+  document.getElementById('plAmount').value='';
+  /* KST 기준 오늘·전월 계산 */
+  var kstNow=new Date(Date.now()+9*60*60*1000);
+  var today=kstNow.toISOString().substring(0,10);
+  var prevMonth=new Date(Date.UTC(kstNow.getUTCFullYear(),kstNow.getUTCMonth()-1,1));
+  var accYM=prevMonth.toISOString().substring(0,7);
+  document.getElementById('plPayDate').value=today;
+  var accEl=document.getElementById('plAccrualMonth');
+  if(accEl)accEl.value=accYM;
+  document.getElementById('plNote').value='';
+  document.getElementById('plCalc').style.display='none';
+  setPayrollMode('3.3');
+  plPeoplePopupOpen=false;   /* 열 때마다 기본 접힘 */
+  plPeopleFilter='';
+  renderSavedPeople();
+  document.getElementById('payrollModal').style.display='flex';
+  try{history.pushState({ov:'pay'},'')}catch{}
+  setTimeout(function(){document.getElementById('plName').focus()},100);
+  /* 서버에서 저장된 직원 목록 로드 후 다시 렌더 */
+  try{await plGetPeople();renderSavedPeople()}catch{}
+}
+function closePayrollModal(){
+  var m=document.getElementById('payrollModal');
+  var wasOpen=m.style.display==='flex';
+  m.style.display='none';
+  if(wasOpen&&history.state&&history.state.ov==='pay'){
+    _popCascade=true;try{history.back()}catch{}
+  }
+}
+function setPayrollMode(m){
+  plMode=m;
+  var b3=document.getElementById('plMode3');
+  var b4=document.getElementById('plMode4');
+  var on='background:var(--blue);color:#fff';
+  var off='background:transparent;color:var(--text2)';
+  b3.setAttribute('style','flex:1;padding:9px;border:none;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit;'+(m==='3.3'?on:off));
+  b4.setAttribute('style','flex:1;padding:9px;border:none;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit;'+(m==='4ins'?on:off));
+  document.getElementById('plDesc').textContent=
+    m==='3.3'
+      ? '원천세 3.3% (소득세 3% + 지방세 0.3%) 자동 계산'
+      : '4대보험 (국민연금·건강보험·고용보험·산재) 근로자 부담 자동 계산';
+  onPayrollAmountInput();
+}
+function onPayrollAmountInput(){
+  var raw=document.getElementById('plAmount').value.replace(/[^0-9]/g,'');
+  var n=parseInt(raw,10)||0;
+  if(raw)document.getElementById('plAmount').value=n.toLocaleString('ko-KR');
+  if(n<=0){document.getElementById('plCalc').style.display='none';return}
+  var html='';
+  if(plMode==='3.3'){
+    var w=Math.floor(n*0.033);
+    var net=n-w;
+    html='<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>원천세 (3.3%)</span><b>'+w.toLocaleString('ko-KR')+'원</b></div>'
+        +'<div style="display:flex;justify-content:space-between;font-weight:700"><span>실수령액</span><b>'+net.toLocaleString('ko-KR')+'원</b></div>';
+  } else {
+    /* 4대보험 — 근로자 부담 (2025-2026 기준 추정) */
+    var pension=Math.floor(n*0.045);          /* 국민연금 4.5% */
+    var health=Math.floor(n*0.03545);          /* 건강보험 3.545% */
+    var ltc=Math.floor(health*0.1295);         /* 장기요양 (건보의 12.95%) */
+    var emp=Math.floor(n*0.009);               /* 고용보험 0.9% */
+    var totalIns=pension+health+ltc+emp;
+    var net=n-totalIns;
+    html='<div style="display:flex;justify-content:space-between;margin-bottom:2px"><span>국민연금 (4.5%)</span><b>'+pension.toLocaleString('ko-KR')+'</b></div>'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:2px"><span>건강보험 (3.545%)</span><b>'+health.toLocaleString('ko-KR')+'</b></div>'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:2px"><span>장기요양 (건보×12.95%)</span><b>'+ltc.toLocaleString('ko-KR')+'</b></div>'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:2px"><span>고용보험 (0.9%)</span><b>'+emp.toLocaleString('ko-KR')+'</b></div>'
+        +'<div style="display:flex;justify-content:space-between;border-top:1px solid currentColor;padding-top:4px;margin-top:4px"><span>4대보험 합계</span><b>'+totalIns.toLocaleString('ko-KR')+'원</b></div>'
+        +'<div style="display:flex;justify-content:space-between;font-weight:700;margin-top:3px"><span>실수령(소득세 별도)</span><b>'+net.toLocaleString('ko-KR')+'원</b></div>'
+        +'<div style="font-size:.78em;opacity:.8;margin-top:5px">※ 소득세는 간이세액표(가족 수·월급 따라) — 세무사가 별도 계산</div>';
+  }
+  document.getElementById('plCalcRows').innerHTML=html;
+  document.getElementById('plCalc').style.display='block';
+}
+async function submitPayroll(){
+  var name=document.getElementById('plName').value.trim();
+  var residRaw=document.getElementById('plResid').value.replace(/[^0-9]/g,'');
+  var amountRaw=document.getElementById('plAmount').value.replace(/[^0-9]/g,'');
+  var amount=parseInt(amountRaw,10)||0;
+  var payDate=document.getElementById('plPayDate').value;
+  var accEl=document.getElementById('plAccrualMonth');
+  var accrualMonth=accEl?accEl.value:''; /* YYYY-MM */
+  var note=document.getElementById('plNote').value.trim();
+  if(!name){alert('이름을 입력하세요');return}
+  if(residRaw.length!==13){alert('주민등록번호 13자리를 입력하세요');return}
+  if(amount<=0){alert('지급액을 입력하세요');return}
+  var residMasked=residRaw.substring(0,6)+'-*******';
+  var extra={employee_name:name,resident_no_masked:residMasked,gross_amount:amount,pay_date:payDate||null,accrual_month:accrualMonth||null,note:note||null,mode:plMode};
+  var docTypeKey='freelancer_payment';
+  if(plMode==='3.3'){
+    extra.withholding_tax=Math.floor(amount*0.033);
+    extra.net_amount=amount-extra.withholding_tax;
+  } else {
+    docTypeKey='payroll';
+    extra.pension=Math.floor(amount*0.045);
+    extra.health=Math.floor(amount*0.03545);
+    extra.ltc=Math.floor(extra.health*0.1295);
+    extra.emp_ins=Math.floor(amount*0.009);
+    extra.total_4ins=extra.pension+extra.health+extra.ltc+extra.emp_ins;
+    extra.net_amount=amount-extra.total_4ins;
+  }
+  try{
+    var fd=new FormData();
+    /* 1x1 png placeholder */
+    var blob=new Blob([Uint8Array.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,0,0,0,13,0x49,0x48,0x44,0x52,0,0,0,1,0,0,0,1,8,6,0,0,0,0x1F,0x15,0xC4,0x89,0,0,0,13,0x49,0x44,0x41,0x54,0x78,0xDA,0x63,0xF8,0xCF,0xC0,0,0,0,5,0,1,0xE2,0x26,0x05,0x5C,0,0,0,0,0x49,0x45,0x4E,0x44,0xAE,0x42,0x60,0x82])],{type:'image/png'});
+    fd.append('file',new File([blob],'payroll.png',{type:'image/png'}));
+    fd.append('room_id',rcRoomId);
+    fd.append('doc_type',docTypeKey);
+    fd.append('skip_ocr','1');
+    fd.append('extra_json',JSON.stringify(extra));
+    fd.append('vendor',name);
+    fd.append('amount',String(amount));
+    fd.append('receipt_date',payDate||'');
+    var r=await fetch('/api/documents',{method:'POST',body:fd});
+    var d=await r.json();
+    if(d.error){alert('등록 실패: '+d.error);return}
+    /* 성공 시 이름+주민번호+금액 서버 저장 (다음 등록 시 자동 입력용) */
+    plSavePerson(name, residRaw, plMode, amount);
+    closePayrollModal();
+    if(typeof showInAppToastSilent==='function'){
+      var label=plMode==='3.3'?'프리랜서 3.3%':'정규직 4대보험';
+      showInAppToastSilent('🧑‍💼 '+name+' '+label+' 등록 (실수령 '+extra.net_amount.toLocaleString('ko-KR')+'원)');
+    }
+    loadRoomChat();
+  }catch(e){alert('오류: '+e.message)}
+}
+
+async function sendRoomImage(fileInput){
+  /* legacy shim — 외부에서 sendRoomImage 호출하면 일반 사진으로 처리 */
+  return sendRoomPhoto(fileInput);
+}
+
+/* 사진(일반) 업로드 — OCR 안 함, 그냥 [IMG] 메시지 */
+async function sendRoomPhoto(fileInput){
+  if(!rcRoomId||!rcIsActive)return;
+  var all=Array.from(fileInput.files||[]);
+  fileInput.value='';
+  if(!all.length)return;
+  if(all.length>10){alert('한 번에 최대 10장까지 업로드 가능합니다');all=all.slice(0,10)}
+  for(var i=0;i<all.length;i++){
+    var f=all[i];
+    if(!f)continue;
+    if(f.size>10*1024*1024){alert('['+(f.name||(i+1)+'번째')+'] 10MB 초과 — 건너뜁니다');continue}
+    if(all.length>1&&typeof showInAppToastSilent==='function'){
+      showInAppToastSilent('📤 '+(i+1)+'/'+all.length+' 사진 업로드 중');
+    }
+    await sendOneLegacyImage(f);
+  }
+}
+
+/* 영수증(OCR) 업로드 — 여러 장 */
+async function sendRoomReceiptMulti(fileInput){
+  if(!rcRoomId||!rcIsActive)return;
+  var all=Array.from(fileInput.files||[]);
+  fileInput.value='';
+  if(!all.length)return;
+  if(all.length>10){alert('한 번에 최대 10장까지 업로드 가능합니다');all=all.slice(0,10)}
+  for(var i=0;i<all.length;i++){
+    var f=all[i];
+    if(!f)continue;
+    if(f.size>10*1024*1024){alert('['+(f.name||(i+1)+'번째')+'] 10MB 초과 — 건너뜁니다');continue}
+    if(all.length>1&&typeof showInAppToastSilent==='function'){
+      showInAppToastSilent('🤖 '+(i+1)+'/'+all.length+' AI 인식 중');
+    }
+    await sendRoomReceiptFromFile(f);
+  }
+}
+
+/* 일반 사용자(비기장거래처) 레거시 업로드 — 단일 이미지 */
+async function sendOneLegacyImage(file){
+  if(!file)return;
+  var btn=document.querySelector('.rc-send-btn');
+  var origText=btn?btn.textContent:'';
+  if(btn){btn.textContent='업로드...';btn.disabled=true}
+  try{
+    var fd=new FormData();fd.append('file',file);
+    var r=await fetch('/api/upload-image',{method:'POST',body:fd});
+    var d=await r.json();
+    if(!d.ok){alert('업로드 실패: '+(d.error||'unknown'));return}
+    var r2=await fetch('/api/my-rooms?action=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId,image_url:d.url})});
+    var d2=await r2.json();
+    if(d2.ok)loadRoomChat();
+    else alert('전송 실패: '+(d2.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+  finally{if(btn){btn.textContent=origText;btn.disabled=false}}
+}
+
+/* 레거시 코드 경로 (approved_client 아닌 경우 & 하단 코드는 unreachable로 처리됨) */
+/* (레거시 단일 이미지 업로드 로직은 sendOneLegacyImage + sendRoomImage(multi)로 통합됨) */
+
+/* content가 [IMG]url\n text 형식이면 분리해서 반환 */
+function parseMessageContent(content){
+  if(!content)return {reply:null,image:null,file:null,doc_id:null,alert:null,chatbot_share:null,text:''};
+  /* [REPLY]{json}\n... 접두사 먼저 제거 */
+  var reply=null;
+  var mr=/^\[REPLY\](\{[^\n]+\})\n([\s\S]*)$/.exec(content);
+  if(mr){
+    try{reply=JSON.parse(mr[1]);content=mr[2]}catch(e){}
+  }
+  var mc=/^\[CHATBOT_SHARE\](\{[\s\S]+\})$/.exec(content);
+  if(mc){
+    try{return {reply:reply,image:null,file:null,doc_id:null,alert:null,chatbot_share:JSON.parse(mc[1]),text:''}}catch(e){}
+  }
+  var ma=/^\[ALERT\](\{[\s\S]+\})$/.exec(content);
+  if(ma){
+    try{return {reply:reply,image:null,file:null,doc_id:null,alert:JSON.parse(ma[1]),chatbot_share:null,text:''}}catch(e){}
+  }
+  var md=/^\[DOC:(\d+)\](\n([\s\S]*))?$/.exec(content);
+  if(md)return {reply:reply,image:null,file:null,doc_id:parseInt(md[1],10),alert:null,chatbot_share:null,text:md[3]||''};
+  var mf=/^\[FILE\](\{[^\n]+\})(\n([\s\S]*))?$/.exec(content);
+  if(mf){
+    try{var obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,doc_id:null,alert:null,chatbot_share:null,text:mf[3]||''}}catch(e){}
+  }
+  var m=/^\[IMG\](\S+)(\n([\s\S]*))?$/.exec(content);
+  if(m)return {reply:reply,image:m[1],file:null,doc_id:null,alert:null,chatbot_share:null,text:m[3]||''};
+  return {reply:reply,image:null,file:null,doc_id:null,alert:null,chatbot_share:null,text:content};
+}
+
+/* 영수증 카드 렌더링 (msg.document 서버에서 JOIN해서 내려옴) */
+function renderReceiptCard(doc, mine){
+  if(!doc){return '<div style="padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.06);font-size:.82em">🧾 영수증 (삭제되었거나 읽을 수 없음)</div>';}
+  var statusMap={pending:{tx:'⏳ 검토 중',bg:'#fef3c7',fg:'#92400e'},approved:{tx:'✅ 승인',bg:'#d1fae5',fg:'#065f46'},rejected:{tx:'❌ 반려',bg:'#fee2e2',fg:'#991b1b'}};
+  var st=statusMap[doc.status]||statusMap.pending;
+  var fmt=function(n){return n==null?'-':(Number(n)||0).toLocaleString('ko-KR')+'원'};
+  var imgUrl='/api/image?k='+encodeURIComponent(doc.image_key);
+  var amb=doc.ocr_confidence!=null&&doc.ocr_confidence<0.7;
+  /* 수정 가능 여부: 세무사(approver_id>0)가 실제로 승인한 뒤엔 잠금. 자동 승인(approver_id=0)은 고객 수정 허용 */
+  var realApproved=Number(doc.approver_id||0)>0;
+  var canEdit=doc.status!=='rejected'&&!realApproved;
+  var docJs=JSON.stringify({id:doc.id,vendor:doc.vendor||'',amount:doc.amount||0,receipt_date:doc.receipt_date||'',category:doc.category||''}).replace(/"/g,'&quot;');
+  var editBtn=canEdit
+    ? '<button onclick="event.stopPropagation();openDocEditModal('+doc.id+',&quot;'+escAttr(doc.vendor||'')+'&quot;,'+(doc.amount||0)+',&quot;'+escAttr(doc.receipt_date||'')+'&quot;,&quot;'+escAttr(doc.category||'')+'&quot;)" style="background:var(--blue);color:#fff;border:none;padding:3px 10px;border-radius:6px;font-size:.7em;font-weight:700;cursor:pointer;font-family:inherit;margin-right:4px" title="금액·가맹점 등 수정">✏️ 수정</button>'
+    : '';
+  var revertBtn=(!realApproved)
+    ? '<button onclick="event.stopPropagation();revertDocToPhotoClient('+doc.id+')" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:6px;font-size:.7em;cursor:pointer;font-family:inherit;margin-right:3px" title="일반 사진으로 되돌립니다">📷 사진</button>'
+    : '';
+  var toFileBtn=(!realApproved)
+    ? '<button onclick="event.stopPropagation();convertDocToFileClient('+doc.id+')" style="background:none;border:1px solid var(--border);color:var(--text2);padding:3px 8px;border-radius:6px;font-size:.7em;cursor:pointer;font-family:inherit" title="일반 파일 메시지로 되돌립니다">📁 파일</button>'
+    : '';
+  var delBtn=(!realApproved)
+    ? '<button onclick="event.stopPropagation();deleteDocClient('+doc.id+')" style="background:none;border:1px solid #f04452;color:#f04452;padding:3px 8px;border-radius:6px;font-size:.7em;cursor:pointer;font-family:inherit" title="영수증과 원본 사진을 완전 삭제">🗑️ 삭제</button>'
+    : '';
+  var actionRow=(editBtn||revertBtn||toFileBtn||delBtn)?'<div style="margin-top:6px;display:flex;gap:3px;flex-wrap:wrap">'+editBtn+revertBtn+toFileBtn+delBtn+'</div>':'';
+  return ''
+    +'<div style="display:flex;align-items:stretch;gap:0;min-width:240px;max-width:300px;border-radius:12px;overflow:hidden;background:var(--card);border:1px solid var(--border)">'
+    + '<div style="flex-shrink:0;width:86px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;cursor:zoom-in" onclick="openImgViewer(\''+imgUrl+'\',[\''+imgUrl+'\'])">'
+    +   '<img src="'+imgUrl+'" alt="영수증" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy" onerror="this.style.display=\'none\'">'
+    + '</div>'
+    + '<div style="flex:1;padding:10px 12px;min-width:0">'
+    +   '<div style="font-size:.72em;color:var(--text2);margin-bottom:3px">🧾 영수증'+(amb?' · <span style="color:#d97706">인식 낮음</span>':'')+'</div>'
+    +   '<div style="font-weight:700;font-size:.92em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(doc.vendor||'(가맹점 미확인)')+'</div>'
+    +   '<div style="font-size:1em;font-weight:800;margin:2px 0;color:var(--text)">'+fmt(doc.amount)+'</div>'
+    +   '<div style="font-size:.72em;color:var(--text2)">'+esc(doc.receipt_date||'-')+(doc.category?' · '+esc(doc.category):'')+'</div>'
+    +   '<div style="margin-top:6px"><span style="display:inline-block;font-size:.68em;padding:2px 8px;border-radius:8px;background:'+st.bg+';color:'+st.fg+';font-weight:700">'+st.tx+'</span></div>'
+    +   (doc.reject_reason?'<div style="margin-top:4px;font-size:.72em;color:#991b1b">반려: '+esc(doc.reject_reason)+'</div>':'')
+    +   actionRow
+    + '</div>'
+    +'</div>';
+}
+/* 영수증 수정 모달 */
+var _docEditId=null;
+function openDocEditModal(id, vendor, amount, date, category){
+  _docEditId=id;
+  var m=document.getElementById('docEditModal');
+  if(!m){
+    m=document.createElement('div');
+    m.id='docEditModal';
+    m.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10050;align-items:center;justify-content:center;padding:20px';
+    m.innerHTML='<div style="background:var(--bg);color:var(--text);border-radius:14px;padding:20px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.25)">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><h3 style="font-size:1em;margin:0">✏️ 영수증 수정</h3><button onclick="closeDocEditModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--text2);font-family:inherit">✕</button></div>'
+      +'<label style="font-size:.76em;font-weight:600;display:block;margin-bottom:4px">가맹점</label>'
+      +'<input id="deVendor" type="text" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">'
+      +'<label style="font-size:.76em;font-weight:600;display:block;margin-bottom:4px">금액(원)</label>'
+      +'<input id="deAmount" type="text" inputmode="numeric" oninput="onDeAmountInput()" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:1em;font-weight:700;font-family:inherit;margin-bottom:10px;box-sizing:border-box">'
+      +'<label style="font-size:.76em;font-weight:600;display:block;margin-bottom:4px">날짜 (YYYY-MM-DD)</label>'
+      +'<input id="deDate" type="date" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">'
+      +'<label style="font-size:.76em;font-weight:600;display:block;margin-bottom:4px">카테고리</label>'
+      +'<select id="deCategory" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.88em;font-family:inherit;margin-bottom:14px;box-sizing:border-box">'
+      +  '<option value="">(선택 안 함)</option>'
+      +  ['식비','교통비','숙박비','소모품비','접대비','통신비','공과금','임대료','인건비','기타'].map(function(c){return '<option value="'+c+'">'+c+'</option>'}).join('')
+      +'</select>'
+      +'<div style="display:flex;gap:8px"><button onclick="submitDocEdit()" style="flex:1;background:var(--blue);color:#fff;border:none;padding:11px;border-radius:8px;font-size:.9em;font-weight:700;cursor:pointer;font-family:inherit">저장</button>'
+      +'<button onclick="closeDocEditModal()" style="background:var(--border);color:var(--text);border:none;padding:11px 18px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button></div>'
+      +'</div>';
+    document.body.appendChild(m);
+  }
+  document.getElementById('deVendor').value=vendor||'';
+  document.getElementById('deAmount').value=amount?Number(amount).toLocaleString('ko-KR'):'';
+  document.getElementById('deDate').value=date||'';
+  document.getElementById('deCategory').value=category||'';
+  m.style.display='flex';
+}
+function closeDocEditModal(){
+  var m=document.getElementById('docEditModal');if(m)m.style.display='none';
+  _docEditId=null;
+}
+function onDeAmountInput(){
+  var el=document.getElementById('deAmount');
+  var raw=el.value.replace(/[^0-9]/g,'');
+  var n=parseInt(raw,10)||0;
+  el.value=raw?n.toLocaleString('ko-KR'):'';
+}
+async function submitDocEdit(){
+  if(!_docEditId)return;
+  var vendor=document.getElementById('deVendor').value.trim()||null;
+  var amountRaw=document.getElementById('deAmount').value.replace(/[^0-9]/g,'');
+  var amount=amountRaw?parseInt(amountRaw,10):null;
+  var date=document.getElementById('deDate').value||null;
+  var category=document.getElementById('deCategory').value||null;
+  try{
+    var r=await fetch('/api/documents',{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:_docEditId,vendor:vendor,amount:amount,receipt_date:date,category:category})
+    });
+    var d=await r.json();
+    if(!d.ok){alert('수정 실패: '+(d.error||'unknown'));return}
+    closeDocEditModal();
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('✅ 수정 완료');
+    loadRoomChat();
+  }catch(e){alert('오류: '+e.message)}
+}
+/* 문서 분류 취소 → 일반 사진으로 (본인만, pending/rejected에서) */
+async function revertDocToPhotoClient(docId){
+  if(!docId)return;
+  if(!confirm('이 영수증 분류를 취소하고 일반 사진으로 되돌릴까요?'))return;
+  try{
+    var r=await fetch('/api/documents?action=revert_to_photo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:docId})});
+    var d=await r.json();
+    if(d.ok){
+      if(typeof showInAppToastSilent==='function')showInAppToastSilent('📷 사진으로 되돌렸어요');
+      if(typeof loadRoomChat==='function')loadRoomChat();
+    } else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+/* 영수증 완전 삭제 (본인·미승인만) */
+async function deleteDocClient(docId){
+  if(!docId)return;
+  if(!confirm('이 영수증을 완전히 삭제할까요?\n\n원본 사진 + 기록 모두 사라집니다. 되돌릴 수 없어요.'))return;
+  try{
+    var r=await fetch('/api/documents?id='+docId,{method:'DELETE'});
+    var d=await r.json();
+    if(d.ok){
+      if(typeof showInAppToastSilent==='function')showInAppToastSilent('🗑️ 삭제되었습니다');
+      if(typeof loadRoomChat==='function')loadRoomChat();
+    } else alert('삭제 실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+/* 영수증 → 파일로 변환 */
+async function convertDocToFileClient(docId){
+  if(!docId)return;
+  if(!confirm('이 영수증을 일반 파일 메시지로 바꿀까요?'))return;
+  try{
+    var r=await fetch('/api/documents?action=convert_to_file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:docId})});
+    var d=await r.json();
+    if(d.ok){
+      if(typeof showInAppToastSilent==='function')showInAppToastSilent('📁 파일로 변환됨');
+      if(typeof loadRoomChat==='function')loadRoomChat();
+    } else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+/* 사진·파일 메시지 → 영수증으로 변환 (OCR) */
+async function convertMsgToReceipt(messageId){
+  hideMsgCtxMenu();
+  if(!messageId||!rcRoomId)return;
+  if(!confirm('이 메시지를 영수증으로 변환할까요?\n(사진은 AI가 자동 인식, 파일은 수동 편집)'))return;
+  if(typeof showInAppToastSilent==='function')showInAppToastSilent('🤖 변환 중...');
+  try{
+    var r=await fetch('/api/documents?action=convert_to_receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message_id:messageId, room_id:rcRoomId})});
+    var d=await r.json();
+    if(d.ok){
+      if(typeof showInAppToastSilent==='function')showInAppToastSilent('🧾 영수증으로 변환됨');
+      if(typeof loadRoomChat==='function')loadRoomChat();
+    } else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+function fileIconFor(name){
+  var ext=(name||'').split('.').pop().toLowerCase();
+  if(['pdf'].indexOf(ext)>=0)return '📕';
+  if(['xls','xlsx','csv'].indexOf(ext)>=0)return '📊';
+  if(['doc','docx'].indexOf(ext)>=0)return '📘';
+  if(['ppt','pptx'].indexOf(ext)>=0)return '📽️';
+  if(['hwp','hwpx'].indexOf(ext)>=0)return '📄';
+  if(['zip'].indexOf(ext)>=0)return '🗜️';
+  if(['txt'].indexOf(ext)>=0)return '📝';
+  return '📎';
+}
+function fmtFileSize(n){
+  if(!n)return '';
+  if(n<1024)return n+'B';
+  if(n<1024*1024)return (n/1024).toFixed(1)+'KB';
+  return (n/1024/1024).toFixed(1)+'MB';
+}
+
+/* 사진 모아보기 — 최대 9장, 카톡 스타일 그리드 */
+function renderPhotoGroup(m, isMe, nm){
+  var photos=m._photos||[];
+  var n=photos.length;
+  if(!n)return '';
+  /* 그리드: 1장 → 1열, 2장 → 2열, 3-4장 → 2×2, 5-9장 → 3×3 */
+  var cols=n===1?1:(n<=4?2:3);
+  var allUrlsJs=JSON.stringify(photos.map(function(p){return p.url}));
+  /* 꾹 누름(long-press)용 데이터: 각 타일이 독립 메시지라 자기 msgId 사용 */
+  var isAdvisor=m.role==='human_advisor';
+  var senderName=isAdvisor?'세무사':(isMe?'나':(nm||''));
+  var tiles='';
+  var showMax=n;
+  for(var i=0;i<showMax;i++){
+    var p=photos[i];
+    var overlay='';
+    if(n>9&&i===8){
+      overlay='<div style="position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4em;font-weight:800">+'+(n-9)+'</div>';
+    }
+    /* 내 사진은 5분 내만 삭제 가능 — 타일 단위로 계산 */
+    var _canDel=0;
+    if(isMe && p.createdAt){
+      var _elapsed=Date.now()-new Date(p.createdAt).getTime();
+      _canDel=_elapsed<5*60*1000?1:0;
+    }
+    tiles+='<div class="rc-msg-bubble" data-msg="'+p.msgId+'" data-sender="'+escAttr(senderName)+'" data-text="[사진]" data-mine="'+(isMe?1:0)+'" data-deletable="'+_canDel+'" data-kind="img" data-img-src="'+escAttr(p.url)+'" style="position:relative;aspect-ratio:1/1;overflow:hidden;background:#f3f4f6;cursor:zoom-in" '
+      +'onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer(\''+p.url+'\','+allUrlsJs.replace(/"/g,'&quot;')+')">'
+      +'<img src="'+p.url+'" alt="사진" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">'
+      +overlay+'</div>';
+  }
+  var grid='<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:2px;width:'+(cols===1?'60vw':'240px')+';max-width:75vw;border-radius:12px;overflow:hidden;background:var(--border)">'+tiles+'</div>';
+  var timeStr=esc(m.created_at||'').slice(11,16);
+  var senderLabel=m.role==='user'&&!isMe?'<div style="font-size:.68em;color:var(--text2);margin-bottom:2px;margin-left:4px">'+esc(nm)+'</div>':'';
+  var senderLabelAdv=m.role==='human_advisor'?'<div style="font-size:.68em;color:#10b981;margin-bottom:2px;margin-left:4px;font-weight:600"><img src="logo-icon.png" alt="" style="width:12px;height:12px;vertical-align:middle;object-fit:contain;margin-right:3px"> 세무회계 이윤</div>':'';
+  var countBadge=n>1?'<div style="font-size:.68em;color:var(--text2);margin-top:4px;text-align:'+(isMe?'right':'left')+'">🖼️ '+n+'장</div>':'';
+  if(isMe){
+    return '<div style="margin-bottom:10px;display:flex;justify-content:flex-end">'
+      +'<div style="max-width:75%">'+grid
+      +countBadge
+      +'<div style="font-size:.62em;color:var(--text2);margin-top:3px;text-align:right">'+timeStr+'</div></div></div>';
+  }
+  return '<div style="margin-bottom:10px;display:flex;align-items:flex-end">'
+    +'<div style="max-width:75%">'+senderLabel+senderLabelAdv+grid
+    +countBadge
+    +'<div style="font-size:.62em;color:var(--text2);margin-top:3px">'+timeStr+'</div></div></div>';
+}
+
+/* 답장 인용 클릭 → 원본 메시지로 스크롤 + 잠깐 하이라이트 */
+function jumpToOriginalMsg(mid){
+  if(!mid)return;
+  var bubble=document.querySelector('.rc-msg-bubble[data-msg="'+mid+'"]');
+  if(!bubble){
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('원본 메시지를 찾을 수 없습니다');
+    return;
+  }
+  bubble.scrollIntoView({behavior:'smooth',block:'center'});
+  var orig=bubble.style.boxShadow;
+  bubble.style.transition='box-shadow .35s ease, background .35s ease';
+  bubble.style.boxShadow='0 0 0 3px rgba(244,196,48,.85)';
+  setTimeout(function(){bubble.style.boxShadow=orig||''},1400);
+}
+function renderMessageBody(content, attachedDoc){
+  var parsed=parseMessageContent(content);
+  var html='';
+  if(parsed.reply){
+    var s=parsed.reply.s||'', t=(parsed.reply.t||'').slice(0,100), ji=parsed.reply.i||'';
+    html+='<div class="rc-quote" data-jump-mid="'+escAttr(String(ji))+'" onclick="jumpToOriginalMsg(\''+escAttr(String(ji))+'\')" style="cursor:pointer"><div class="rc-quote-sender">↩︎ '+esc(s)+'</div><div class="rc-quote-text">'+esc(t)+'</div></div>';
+  }
+  if(parsed.alert){
+    var a=parsed.alert;
+    html+='<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:12px;background:linear-gradient(135deg,#fff7ed,#fef3c7);border:1px solid #fcd34d">'
+      +'<div style="font-size:1.6em;line-height:1">🔔</div>'
+      +'<div style="flex:1;min-width:0">'
+      +  '<div style="font-weight:700;font-size:.92em;color:#92400e;margin-bottom:3px">'+esc(a.t||'알림')+'</div>'
+      +  '<div style="font-size:.82em;color:#78350f;line-height:1.4">'+esc(a.m||'')+'</div>'
+      +  (a.d?'<div style="font-size:.72em;color:#a16207;margin-top:4px">📅 '+esc(a.d)+'</div>':'')
+      +'</div></div>';
+    return html;
+  }
+  if(parsed.chatbot_share){
+    var cs=parsed.chatbot_share;
+    html+='<div style="border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;overflow:hidden;min-width:240px;max-width:360px">'
+      +'<div style="padding:6px 10px;background:#dbeafe;color:#1e40af;font-size:.72em;font-weight:700;display:flex;align-items:center;gap:4px">🤖 챗봇 Q&A 공유</div>'
+      +'<div style="padding:8px 10px;border-bottom:1px dashed #bfdbfe">'
+      +'<div style="font-size:.7em;color:#3b82f6;font-weight:700;margin-bottom:2px">Q</div>'
+      +'<div style="font-size:.85em;color:#1e3a8a;line-height:1.45;white-space:pre-wrap;word-break:break-word">'+esc(String(cs.q||'').slice(0,400))+'</div>'
+      +'</div>'
+      +'<div style="padding:8px 10px">'
+      +'<div style="font-size:.7em;color:#3b82f6;font-weight:700;margin-bottom:2px">A</div>'
+      +'<div style="font-size:.85em;color:#1e293b;line-height:1.5;white-space:pre-wrap;word-break:break-word">'+esc(String(cs.a||'').slice(0,1200))+'</div>'
+      +'</div>'
+      +'</div>';
+    return html;
+  }
+  if(parsed.doc_id){
+    html+=renderReceiptCard(attachedDoc||null,false);
+    if(parsed.text)html+='<div style="margin-top:6px">'+linkify(esc(parsed.text))+'</div>';
+    return html;
+  }
+  if(parsed.image){
+    html+='<img class="rc-img-msg" src="'+parsed.image+'" alt="이미지" loading="lazy" onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">';
+  }
+  if(parsed.file){
+    var nm=parsed.file.name||'파일';
+    var sz=fmtFileSize(parsed.file.size);
+    /* 카톡 스타일: 파일명 2줄 + 용량 + 다운로드 아이콘 */
+    html+='<a href="'+esc(parsed.file.url||'#')+'" download="'+esc(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border:1px solid #e5e8eb;border-radius:12px;text-decoration:none;color:inherit;min-width:220px;max-width:280px">'
+      +'<div style="flex:1;min-width:0">'
+      +  '<div style="font-weight:600;font-size:.95em;color:#191f28;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all">'+esc(nm)+'</div>'
+      +  '<div style="font-size:.72em;color:#8b95a1;margin-top:6px">용량 '+sz+'</div>'
+      +'</div>'
+      +'<div style="flex-shrink:0;width:42px;height:42px;background:#f2f4f6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#555">'
+      +  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'
+      +'</div>'
+      +'</a>';
+  }
+  if(parsed.text)html+=((parsed.image||parsed.file)?'<div style="margin-top:6px">':'')+linkify(esc(parsed.text))+((parsed.image||parsed.file)?'</div>':'');
+  return html;
+}
+
+/* ===== 사용자 상담방 정보 모달 ===== */
+var uriSearchTimer=null;
+function openRoomSearch(){
+  if(!rcRoomId){return}
+  openRoomInfo();
+  /* 정보 모달은 이미 검색 탭이 기본. focus만 이어붙임 */
+  setTimeout(function(){
+    if(typeof uriSwitch==='function')uriSwitch('search');
+    var i=document.getElementById('uriSearchInput');
+    if(i){i.value='';i.focus()}
+  },80);
+}
+function openRoomInfo(){
+  if(!rcRoomId){return}
+  document.getElementById('uriSearchInput').value='';
+  document.getElementById('uriSearchList').innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">검색어를 입력하세요</div>';
+  document.getElementById('uriPhotoGrid').innerHTML='';
+  document.getElementById('uriFileList').innerHTML='';
+  document.getElementById('uriLinkList').innerHTML='';
+  document.getElementById('uriNoticeList').innerHTML='';
+  uriSwitch('search');
+  document.getElementById('roomInfoModal').style.display='flex';
+  try{history.pushState({ov:'info'},'')}catch{}
+  loadUriMedia();
+}
+function closeRoomInfo(){
+  var m=document.getElementById('roomInfoModal');
+  var wasOpen=m.style.display==='flex';
+  m.style.display='none';
+  if(wasOpen&&history.state&&history.state.ov==='info'){
+    _popCascade=true;try{history.back()}catch{}
+  }
+}
+function uriSwitch(t){
+  document.querySelectorAll('#roomInfoModal .uri-tab').forEach(function(b){b.classList.toggle('on',b.dataset.tab===t)});
+  document.getElementById('uriSearchPanel').style.display=t==='search'?'block':'none';
+  document.getElementById('uriPhotoPanel').style.display=t==='photo'?'block':'none';
+  document.getElementById('uriFilePanel').style.display=t==='file'?'block':'none';
+  document.getElementById('uriLinkPanel').style.display=t==='link'?'block':'none';
+  document.getElementById('uriNoticePanel').style.display=t==='notice'?'block':'none';
+  if(t==='search')setTimeout(function(){document.getElementById('uriSearchInput').focus()},100);
+  if(t==='file')loadUriFiles();
+  if(t==='notice')loadUriNotices();
+}
+function onUriSearchInput(){
+  if(uriSearchTimer)clearTimeout(uriSearchTimer);
+  uriSearchTimer=setTimeout(doUriSearch,250);
+}
+async function doUriSearch(){
+  var q=document.getElementById('uriSearchInput').value.trim();
+  var el=document.getElementById('uriSearchList');
+  if(q.length<2){el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">2자 이상 입력하세요</div>';return}
+  el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">검색 중...</div>';
+  try{
+    var r=await fetch('/api/my-rooms?room_id='+encodeURIComponent(rcRoomId)+'&search='+encodeURIComponent(q));
+    var d=await r.json();
+    if(!d.matches||d.matches.length===0){el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">결과 없음</div>';return}
+    var qRe=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+    var header='<div style="padding:6px 4px 10px;font-size:.78em;color:var(--text2);font-weight:600">총 '+d.matches.length+'건 매칭 — 결과를 누르면 해당 메시지로 이동</div>';
+    el.innerHTML=header+d.matches.map(function(m){
+      var who=m.role==='human_advisor'?'👨‍💼 세무사':m.role==='assistant'?'🤖 AI':'👤 '+(m.real_name||m.name||'나');
+      var content=String(m.content||'');
+      var imgM=content.match(/^\[IMG\]\S+\n?([\s\S]*)$/);
+      if(imgM)content='[사진] '+imgM[1];
+      var fileM=content.match(/^\[FILE\](\{[^\n]+\})\n?([\s\S]*)$/);
+      if(fileM){try{var o=JSON.parse(fileM[1]);content='[파일] '+(o.name||'')+' '+(fileM[2]||'')}catch(e){}}
+      var escaped=esc(content).slice(0,200);
+      var hi=escaped.replace(qRe,'<mark>$1</mark>');
+      return '<div class="uri-item" onclick="jumpFromUriSearch('+m.id+')" style="cursor:pointer" title="클릭하면 원본 메시지로 이동"><div class="uri-meta">'+who+' · '+esc(m.created_at||'')+' · <span style="color:#3182f6">↗ 이동</span></div>'+hi+'</div>';
+    }).join('');
+  }catch(err){el.innerHTML='<div style="color:#f04452;font-size:.8em;padding:20px">오류: '+esc(err.message)+'</div>'}
+}
+/* 검색 결과 클릭 → 정보 모달 닫고 원본 메시지로 스크롤·하이라이트 */
+function jumpFromUriSearch(mid){
+  closeRoomInfo();
+  setTimeout(function(){
+    if(typeof jumpToOriginalMsg==='function')jumpToOriginalMsg(String(mid));
+  },120);
+}
+async function loadUriMedia(){
+  try{
+    var r=await fetch('/api/my-rooms?room_id='+encodeURIComponent(rcRoomId)+'&view=media');
+    var d=await r.json();
+    var photoEl=document.getElementById('uriPhotoGrid');
+    var linkEl=document.getElementById('uriLinkList');
+    if(!d.photos||d.photos.length===0)photoEl.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">사진 없음</div>';
+    else photoEl.innerHTML=d.photos.map(function(m){
+      var mm=String(m.content||'').match(/^\[IMG\](\S+)/);
+      var u=mm?mm[1]:'';if(!u)return '';
+      return '<div class="uri-photo"><img src="'+esc(u)+'" loading="lazy" alt="" class="uri-photo" onclick="openImgViewer(this.src,collectImagesNear(this))" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in"></div>';
+    }).join('');
+    if(!d.links||d.links.length===0)linkEl.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">링크 없음</div>';
+    else linkEl.innerHTML=d.links.map(function(l){
+      var who=l.role==='human_advisor'?'세무사':l.role==='assistant'?'AI':(l.user_name||'사용자');
+      return '<div class="uri-item"><a href="'+esc(l.url)+'" target="_blank" rel="noopener">'+esc(l.url)+'</a><div class="uri-meta">'+who+' · '+esc(l.created_at||'')+'</div></div>';
+    }).join('');
+  }catch(err){console.error(err)}
+}
+async function loadUriFiles(){
+  var el=document.getElementById('uriFileList');
+  el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">불러오는 중...</div>';
+  try{
+    var r=await fetch('/api/my-rooms?room_id='+encodeURIComponent(rcRoomId)+'&view=files');
+    var d=await r.json();
+    if(!d.files||d.files.length===0){el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">파일 없음</div>';return}
+    el.innerHTML=d.files.map(function(m){
+      var obj=null;try{var mm=String(m.content||'').match(/^\[FILE\](\{[^\n]+\})/);if(mm)obj=JSON.parse(mm[1])}catch(e){}
+      if(!obj)return '';
+      var who=m.role==='human_advisor'?'세무사':m.role==='assistant'?'AI':(m.real_name||m.name||'사용자');
+      var nm=obj.name||'파일';
+      return '<a href="'+esc(obj.url||'#')+'" download="'+esc(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" class="uri-item" style="display:flex;gap:10px;text-decoration:none;color:inherit;align-items:center">'
+        +'<div style="font-size:1.7em;line-height:1">'+fileIconFor(nm)+'</div>'
+        +'<div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(nm)+'</div>'
+        +'<div class="uri-meta">'+fmtFileSize(obj.size)+' · '+who+' · '+esc(m.created_at||'')+'</div></div></a>';
+    }).join('');
+  }catch(err){el.innerHTML='<div style="color:#f04452;font-size:.8em;padding:20px">오류: '+esc(err.message)+'</div>'}
+}
+async function loadUriNotices(){
+  var el=document.getElementById('uriNoticeList');
+  el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">불러오는 중...</div>';
+  try{
+    var r=await fetch('/api/my-rooms?room_id='+encodeURIComponent(rcRoomId)+'&view=notices');
+    var d=await r.json();
+    if(!d.notices||d.notices.length===0){el.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">등록된 공지 없음</div>';return}
+    el.innerHTML=d.notices.map(function(n){
+      var pinMark=n.pinned?'<span style="background:#fef3c7;color:#8b6914;font-size:.68em;padding:2px 7px;border-radius:4px;font-weight:700;margin-right:6px">📌 고정</span>':'';
+      var contentEsc=esc(n.content||'').replace(/\n/g,'<br>');
+      return '<div class="uri-item"><div style="font-weight:700;font-size:.88em;margin-bottom:4px">'+pinMark+esc(n.title)+'</div>'
+        +'<div style="font-size:.82em;line-height:1.55">'+contentEsc+'</div>'
+        +'<div class="uri-meta" style="margin-top:6px">'+esc(n.created_at||'')+'</div></div>';
+    }).join('');
+  }catch(err){el.innerHTML='<div style="color:#f04452;font-size:.8em;padding:20px">오류: '+esc(err.message)+'</div>'}
+}
+
+async function leaveRoom(){
+  if(!rcRoomId)return;
+  if(!confirm('이 상담방에서 나가시겠어요?\n(대화 기록은 유지됩니다)'))return;
+  try{
+    var r=await fetch('/api/my-rooms?action=leave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:rcRoomId})});
+    var d=await r.json();
+    if(d.ok)closeRoomChat();
+    else alert('실패: '+(d.error||'unknown'));
+  }catch(e){alert('오류: '+e.message)}
+}
+
+/* ===== Web Push 알림 ===== */
+function urlBase64ToUint8Array(base64String){
+  const padding='='.repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
+  const raw=window.atob(base64);
+  const output=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)output[i]=raw.charCodeAt(i);
+  return output;
+}
+
+async function togglePushNotification(){
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)){
+    alert('이 브라우저는 웹 푸시를 지원하지 않습니다.\niPhone은 Safari 16.4+ & 홈화면에 추가 후 사용 가능합니다.');
+    return;
+  }
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const existing=await reg.pushManager.getSubscription();
+    if(existing){
+      // 이미 구독 중 → 해제
+      if(!confirm('알림을 끄시겠어요?'))return;
+      await existing.unsubscribe();
+      await fetch('/api/push-subscribe?endpoint='+encodeURIComponent(existing.endpoint),{method:'DELETE'});
+      updatePushUI(false);
+      alert('알림이 꺼졌습니다');
+      return;
+    }
+    // 권한 요청
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){
+      alert('알림 권한이 거부되었습니다. 브라우저 설정에서 다시 허용해 주세요.');
+      return;
+    }
+    // VAPID 공개키 가져오기
+    const cfg=await fetch('/api/push-subscribe').then(r=>r.json());
+    if(!cfg.vapid_public_key){
+      alert('서버에 VAPID 키가 설정되지 않았습니다. 세무사에게 문의해 주세요.');
+      return;
+    }
+    // 구독
+    const sub=await reg.pushManager.subscribe({
+      userVisibleOnly:true,
+      applicationServerKey:urlBase64ToUint8Array(cfg.vapid_public_key)
+    });
+    // 서버 저장
+    const body=sub.toJSON();
+    await fetch('/api/push-subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    updatePushUI(true);
+    alert('✅ 알림이 켜졌습니다\n세무사 답변 시 "띵" 알림이 옵니다');
+  }catch(e){
+    alert('오류: '+e.message);
+  }
+}
+
+async function updatePushUI(subscribed){
+  const icon=document.getElementById('mpPushIcon');
+  const val=document.getElementById('mpPushValue');
+  if(subscribed==null){
+    // 자동 체크
+    try{
+      const reg=await navigator.serviceWorker.ready;
+      const s=await reg.pushManager.getSubscription();
+      subscribed=!!s;
+    }catch{subscribed=false}
+  }
+  if(subscribed){icon.textContent='🔔';val.textContent='켜짐 (탭하여 끄기)'}
+  else{icon.textContent='🔕';val.textContent='허용하면 세무사 답변 시 "띵"'}
+}
+
+async function reapplyAccount(){
+  if(!confirm('재신청하시겠어요?\n세무사 검토 후 연락드리며, 하루 1회만 가능합니다.'))return;
+  try{
+    var r=await fetch('/api/auth/reapply',{method:'POST'});
+    var d=await r.json();
+    if(d.ok){
+      alert('✅ '+(d.message||'재신청 완료'));
+      location.reload();
+    } else {
+      alert('실패: '+(d.error||'unknown'));
+    }
+  }catch(e){alert('오류: '+e.message)}
+}
+
+async function loadMyPage(){
+  if(!currentUser)return;
+  loadMyRooms();
+  loadMyDocs();
+  updatePushUI(null);
+  loadOnboardBanner();
+  var nm=currentUser.real_name||currentUser.name||'사용자';
+  document.getElementById('mpName').textContent=nm;
+  document.getElementById('mpPhone').textContent=currentUser.phone||'연락처 미등록';
+  var av=document.getElementById('mpAvatar');
+  if(currentUser.profile_image){av.innerHTML='<img src="'+currentUser.profile_image+'" alt="">'}
+  else{av.textContent=nm[0]||'?'}
+  /* 상태 배너 */
+  var st=currentUser.approval_status||'pending';
+  var used=currentUser.daily_used||0;
+  var lim=currentUser.daily_limit||3;
+  var pct=lim>0?Math.min(100,(used/lim)*100):0;
+  var statusEl=document.getElementById('mpStatus');
+  var statusHtml='';
+  if(currentUser.is_admin){
+    statusHtml='<div style="font-weight:700;margin-bottom:4px">👑 관리자 · 무제한 이용</div>';
+    statusHtml+='<div class="mp-profile-usage"><span>오늘</span><div style="font-weight:700">'+used+'건 이용</div></div>';
+  } else if(st==='approved_client'){
+    statusHtml='<div style="font-weight:700;margin-bottom:4px">✓ 기장거래처 · 무제한 이용</div>';
+    statusHtml+='<div class="mp-profile-usage"><span>오늘</span><div style="font-weight:700">'+used+'건 이용</div></div>';
+  } else if(st==='approved_guest'){
+    statusHtml='<div style="font-weight:700;margin-bottom:4px">✨ 무료 이용</div>';
+    statusHtml+='<div class="mp-profile-usage"><span>오늘</span><div class="mp-profile-usage-bar"><div style="width:'+pct+'%"></div></div><span>'+used+'/'+lim+'건</span></div>';
+  } else if(st==='pending'){
+    statusHtml='<div style="font-weight:700;margin-bottom:4px">⏳ 승인 대기 중</div>';
+    statusHtml+='<div class="mp-profile-usage"><span>오늘</span><div class="mp-profile-usage-bar"><div style="width:'+pct+'%"></div></div><span>'+used+'/'+lim+'건</span></div>';
+    statusHtml+='<div style="margin-top:8px;font-size:.75em;opacity:.9">기장거래처이시면 카톡으로 문의해 주세요 ↓</div>';
+  } else if(st==='rejected'){
+    statusHtml='<div style="font-weight:700;color:#ffcdd2">✕ 이용 제한된 계정</div>';
+    statusHtml+='<div style="font-size:.75em;margin-top:4px;opacity:.9">재신청 또는 세무사에게 문의해 주세요</div>';
+    statusHtml+='<button onclick="reapplyAccount()" style="margin-top:10px;background:#fff;color:#c62828;border:none;padding:8px 14px;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">📨 재신청 요청</button>';
+  }
+  statusEl.innerHTML=statusHtml;
+
+  /* 내 정보 요약 */
+  document.getElementById('mpInfoValue').textContent=nm+(currentUser.phone?(' · '+currentUser.phone):'');
+  /* 업체 등록 요청 상태 불러오기 */
+  try{loadMyCompanyRequest()}catch(_){}
+
+  /* 관리자 권한이 있으면 관리자 페이지 버튼 노출 */
+  var adminBtn=document.getElementById('mpAdminBtn');
+  if(adminBtn)adminBtn.style.display=currentUser.is_admin?'flex':'none';
+
+  /* 테마 값 */
+  var isDark=document.body.classList.contains('dark');
+  document.getElementById('mpThemeIcon').textContent=isDark?'☀️':'🌙';
+  document.getElementById('mpThemeValue').textContent=isDark?'다크 모드':'라이트 모드';
+
+  /* 기장거래처 프로필 카드 + 복수 사업장 목록 */
+  var card=document.getElementById('mpClientCard');
+  var bizSection=document.getElementById('mpBusinessesSection');
+  if(st==='approved_client'){
+    try{
+      var r=await fetch('/api/auth/my-profile');
+      var d=await r.json();
+      var businesses=d.businesses||[];
+      var primary=businesses.find(function(b){return b.is_primary})||businesses[0];
+
+      /* 주 사업장 카드 */
+      if(primary){
+        card.style.display='block';
+        document.getElementById('mpClientName').textContent=primary.company_name||'(상호 미등록)';
+        var meta=[];
+        if(primary.business_type)meta.push(primary.business_type);
+        if(primary.tax_type)meta.push(primary.tax_type);
+        if(primary.industry)meta.push(primary.industry);
+        if(primary.business_number_masked)meta.push('사업자번호: '+primary.business_number_masked);
+        document.getElementById('mpClientMeta').innerHTML=meta.join(' · ')||'세부 정보 없음';
+        if(primary.notes){
+          var notesEl=document.getElementById('mpClientNotes');
+          notesEl.textContent='📝 담당 세무사 메모:\n'+primary.notes;
+          notesEl.style.display='block';
+        } else {
+          document.getElementById('mpClientNotes').style.display='none';
+        }
+      } else {
+        card.style.display='none';
+      }
+
+      /* 복수 사업장이 있을 때만 사업장 목록 섹션 표시 */
+      if(businesses.length>1){
+        bizSection.style.display='block';
+        document.getElementById('mpBizCount').textContent='('+businesses.length+'개)';
+        document.getElementById('mpBusinessesList').innerHTML=businesses.map(function(b,i){
+          var badge=b.is_primary?'<span style="font-size:.65em;background:#e0f5ec;color:#10b981;padding:1px 6px;border-radius:6px;margin-left:4px;font-weight:600">주</span>':'';
+          var lines=[];
+          if(b.business_type||b.tax_type)lines.push([b.business_type,b.tax_type].filter(Boolean).join(' · '));
+          if(b.industry)lines.push(b.industry);
+          if(b.business_number_masked)lines.push(b.business_number_masked);
+          return '<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 18px;'+(i>0?'border-top:1px solid var(--border);':'')+'">'
+            +'<div style="width:28px;text-align:center;font-size:1.1em;flex-shrink:0;color:var(--blue)">🏢</div>'
+            +'<div style="flex:1;min-width:0">'
+            +'<div style="font-size:.88em;font-weight:600;color:var(--text)">'+esc(b.company_name||'상호 미등록')+badge+'</div>'
+            +'<div style="font-size:.72em;color:var(--text2);margin-top:3px;line-height:1.5">'+lines.map(esc).join('<br>')+'</div>'
+            +'</div></div>';
+        }).join('');
+      } else {
+        bizSection.style.display='none';
+      }
+    }catch{card.style.display='none';bizSection.style.display='none';}
+  } else {
+    card.style.display='none';
+    bizSection.style.display='none';
+  }
+}
+
+/* 📝 업체 등록 요청 — 마이페이지에서 자기 업체 정보·역할을 세무사에게 미리 요청 */
+async function loadMyCompanyRequest(){
+  var el=document.getElementById('mpCompanyReqValue');
+  if(!el)return;
+  try{
+    var r=await fetch('/api/my-company-request');
+    if(!r.ok){el.textContent='아직 등록 요청 안 함';return}
+    var d=await r.json();
+    var req=d.request;
+    if(req && req.requested_company_name){
+      var role=req.requested_role||'담당자';
+      el.textContent='✅ '+req.requested_company_name+' · '+role+(req.requested_business_number?' ('+req.requested_business_number+')':'');
+      el.style.color='#10b981';
+    } else {
+      el.textContent='아직 등록 요청 안 함';
+      el.style.color='';
+    }
+  }catch(_){}
+}
+async function openCompanyRequestModal(){
+  var m=document.getElementById('companyRequestModal');if(!m)return;
+  /* 기존 요청 값 미리 채움 (수정 지원) */
+  try{
+    var r=await fetch('/api/my-company-request');
+    var d=r.ok?await r.json():{};
+    var req=(d&&d.request)||{};
+    document.getElementById('cprName').value=req.requested_company_name||'';
+    document.getElementById('cprBiz').value=req.requested_business_number||'';
+    var role=req.requested_role||'담당자';
+    var rr=document.querySelector('input[name=cprRole][value='+role+']');
+    if(rr)rr.checked=true;
+  }catch(_){}
+  /* 실명 prefill: currentUser.real_name (없으면 빈칸) */
+  var rn=document.getElementById('cprRealName');
+  if(rn)rn.value=(currentUser&&currentUser.real_name)||'';
+  m.style.display='flex';
+}
+function closeCompanyRequestModal(){
+  var m=document.getElementById('companyRequestModal');if(m)m.style.display='none';
+}
+async function submitCompanyRequest(){
+  var name=(document.getElementById('cprName').value||'').trim();
+  var realName=(document.getElementById('cprRealName').value||'').trim();
+  var bn=(document.getElementById('cprBiz').value||'').trim();
+  var role=(document.querySelector('input[name=cprRole]:checked')||{}).value||'담당자';
+  if(!name){alert('상호를 입력해주세요');return}
+  if(!realName||realName.length<2){alert('본인 실명을 2자 이상 입력해주세요');return}
+  var btn=document.getElementById('cprSubmitBtn');
+  if(btn){btn.disabled=true;btn.textContent='전송 중...';btn.style.opacity='.6'}
+  try{
+    var r=await fetch('/api/my-company-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:name,real_name:realName,business_number:bn,role:role})});
+    var d=await r.json();
+    if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
+    alert('✅ 업체 등록 요청이 세무사님께 전달됐습니다.\n승인되면 알림이 갑니다.');
+    closeCompanyRequestModal();
+    loadMyCompanyRequest();
+  }catch(err){alert('오류: '+err.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent='📤 요청 보내기';btn.style.opacity=''}}
+}
+
+function editMyInfo(){
+  if(!currentUser)return;
+  document.getElementById('editName').value=currentUser.real_name||'';
+  document.getElementById('editPhone').value=currentUser.phone||'';
+  document.getElementById('editErr').style.display='none';
+  document.getElementById('editInfoModal').style.display='flex';
+}
+
+async function saveMyInfo(){
+  var name=document.getElementById('editName').value.trim();
+  var phone=document.getElementById('editPhone').value.trim();
+  var err=document.getElementById('editErr');
+  err.style.display='none';
+  if(name.length<2||name.length>20){err.textContent='이름을 2~20자로 입력해 주세요.';err.style.display='block';return}
+  if(!/^[가-힣a-zA-Z\s]+$/.test(name)){err.textContent='한글 또는 영문 이름만 입력 가능합니다.';err.style.display='block';return}
+  var digits=phone.replace(/\D/g,'');
+  if(digits.length!==10&&digits.length!==11){err.textContent='올바른 휴대폰 번호를 입력해 주세요.';err.style.display='block';return}
+  try{
+    var r=await fetch('/api/auth/update-profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({real_name:name,phone:phone})});
+    var d=await r.json();
+    if(d.ok){
+      currentUser.real_name=d.real_name;
+      currentUser.phone=d.phone;
+      document.getElementById('editInfoModal').style.display='none';
+      loadMyPage();
+    } else {
+      err.textContent=d.error||'오류';err.style.display='block';
+    }
+  }catch(e){err.textContent='네트워크 오류';err.style.display='block'}
+}
+
+/* ===== 가입 정보 모달 ===== */
+function showNameModal(defaultName,defaultPhone){
+  var m=document.getElementById('nameModal');
+  document.getElementById('nameInput').value=defaultName||'';
+  var pi=document.getElementById('phoneInput');
+  if(pi)pi.value=defaultPhone||'';
+  document.getElementById('nameKakao').textContent='카카오 프로필명: '+(defaultName||'(없음)');
+  m.style.display='flex';
+  setTimeout(function(){document.getElementById('nameInput').focus()},100);
+}
+function formatPhone(el){
+  var d=el.value.replace(/\D/g,'').slice(0,11);
+  if(d.length<4)el.value=d;
+  else if(d.length<8)el.value=d.slice(0,3)+'-'+d.slice(3);
+  else el.value=d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);
+}
+async function submitName(){
+  var v=document.getElementById('nameInput').value.trim();
+  var p=document.getElementById('phoneInput').value.trim();
+  var typeEl=document.querySelector('input[name="userType"]:checked');
+  var userType=typeEl?typeEl.value:'guest';
+  var err=document.getElementById('nameErr');err.style.display='none';
+  if(v.length<2||v.length>20){err.textContent='이름을 2~20자로 입력해 주세요.';err.style.display='block';return}
+  if(!/^[가-힣a-zA-Z\s]+$/.test(v)){err.textContent='한글 또는 영문 이름만 입력 가능합니다.';err.style.display='block';return}
+  var digits=p.replace(/\D/g,'');
+  if(digits.length!==10&&digits.length!==11){err.textContent='올바른 휴대폰 번호를 입력해 주세요.';err.style.display='block';return}
+  try{
+    var r=await fetch('/api/auth/confirm-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({real_name:v,phone:p,user_type:userType})});
+    var d=await r.json();
+    if(d.ok){
+      document.getElementById('nameModal').style.display='none';
+      if(currentUser){
+        currentUser.real_name=v;
+        currentUser.phone=p;
+        currentUser.name_confirmed=true;
+        currentUser.approval_status=d.approval_status||currentUser.approval_status;
+        if(userType==='guest'){currentUser.daily_limit=10}
+      }
+      showApprovalBanner();
+    } else {err.textContent=d.error||'오류';err.style.display='block'}
+  }catch(e){err.textContent='네트워크 오류';err.style.display='block'}
+}
+
+/* ===== 한도 초과 시 카톡/전화 유도 카드 ===== */
+function showLimitExceeded(err){
+  var c=document.getElementById("chatArea");
+  var st=(err&&err.approval_status)||'pending';
+  var headline=st==='pending'
+    ? '오늘 무료 상담 '+(err.limit||3)+'건을 모두 이용하셨습니다'
+    : '오늘 상담 한도('+(err.limit||5)+'건)를 모두 이용하셨습니다';
+  var subline=st==='pending'
+    ? '기장거래처이시면 담당 세무사에게 말씀하시면 무제한 이용이 가능합니다. 내일 다시 이용하시거나, 마이페이지 > 상담방 만들기로 세무사에게 직접 문의해 주세요.'
+    : '내일 다시 이용하시거나, 마이페이지 > 상담방 만들기로 세무사에게 직접 문의해 주세요.';
+  var html=''
+    +'<div class="msg msg-ai"><div class="msg-avatar"><img src="logo-icon.png" alt=""></div>'
+    +'<div class="msg-wrap"><div class="msg-name">세무회계 이윤</div>'
+    +'<div class="msg-bubble" style="background:linear-gradient(135deg,#fff8e1,#fff3d1);border:1px solid #f0d47a">'
+    +  '<div style="font-weight:700;font-size:.95em;margin-bottom:6px;color:#8b6914">🔔 '+esc(headline)+'</div>'
+    +  '<div style="font-size:.85em;line-height:1.55;color:#5a4510;margin-bottom:10px">'+esc(subline)+'</div>'
+    +  '<button onclick="switchTab(\'mypage\')" style="width:100%;padding:11px 14px;background:#8b6914;color:#fff;border:none;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit">👤 내정보에서 상담 문의</button>'
+    +'</div></div></div>';
+  c.insertAdjacentHTML('beforeend',html);
+  c.scrollTop=c.scrollHeight;
+}
+
+/* ===== 승인 상태 배너 ===== */
+function showApprovalBanner(){
+  if(!currentUser)return;
+  var bar=document.getElementById('approvalBar');
+  var st=currentUser.approval_status||'pending';
+  var used=currentUser.daily_used||0;
+  var lim=currentUser.daily_limit||3;
+  if(currentUser.is_admin){
+    bar.style.display='block';bar.style.background='#fef3c7';bar.style.color='#92400e';
+    bar.innerHTML='👑 관리자 · 무제한 이용 (오늘 '+used+'건)';
+  } else if(st==='pending'){
+    bar.style.display='block';
+    bar.style.background='#fff8e1';bar.style.color='#8b6914';
+    bar.innerHTML='⏳ 승인 대기 중 · 오늘 '+used+'/'+lim+'건 이용 · 기장거래처 승인 시 무제한 이용 가능';
+  } else if(st==='approved_client'){
+    bar.style.display='block';bar.style.background='#e8f5e9';bar.style.color='#1b5e20';
+    bar.innerHTML='✓ 기장거래처 · 무제한 이용 (오늘 '+used+'건)';
+  } else if(st==='approved_guest'){
+    bar.style.display='block';bar.style.background='#e3f2fd';bar.style.color='#0d47a1';
+    bar.innerHTML='✓ 일반 승인 · 오늘 '+used+'/'+lim+'건 이용';
+  } else if(st==='rejected'){
+    bar.style.display='block';bar.style.background='#ffebee';bar.style.color='#c62828';
+    bar.innerHTML='✕ 이용이 제한된 계정입니다. 세무회계 이윤에 문의해 주세요';
+  }
+}
+
+/* ===== PWA 설치 가이드 ===== */
+function detectPlatform(){
+  var ua=navigator.userAgent;
+  var isIOS=/iPad|iPhone|iPod/.test(ua);
+  var isAndroid=/Android/.test(ua);
+  var isSafari=/^((?!chrome|android|crios|fxios).)*safari/i.test(ua);
+  var isStandalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+  if(isStandalone)return 'installed';
+  if(isIOS&&isSafari)return 'ios_safari';
+  if(isIOS)return 'ios_other';
+  if(isAndroid)return 'android';
+  return 'desktop';
+}
+/* 친구에게 알리기 — 카톡·메시지 등 공유시트 */
+async function shareToFriend(){
+  var url='https://sewmu-chatbot.pages.dev/';
+  var msg='📂 서랍에 쌓이는 영수증,\n'
+    +'이제 사진 한 장이면 끝! 📸\n\n'
+    +'🧾 영수증 → AI 자동 분류\n'
+    +'💬 세무 질문 → 24시간 답변\n'
+    +'🔔 신고 기한 → 자동 알림\n\n'
+    +'세무가 이렇게 간단해집니다 ✨\n\n'
+    +'🏢 세무회계 이윤\n'+url;
+  /* Web Share API — 공유시트. msg 안에 url이 이미 있으므로 url 필드는 생략 (중복 방지) */
+  if(navigator.share){
+    try{
+      await navigator.share({title:'세무회계 이윤 · AI 세무상담',text:msg});
+      return;
+    }catch(e){if(e&&e.name==='AbortError')return;}
+  }
+  /* 폴백: 클립보드 복사 */
+  try{
+    await navigator.clipboard.writeText(msg);
+    alert('🎁 추천 메시지를 복사했어요!\n카톡·문자·인스타 DM에 붙여넣으세요.');
+  }catch(e){
+    window.prompt('아래 내용을 복사해서 친구에게 보내주세요.',msg);
+  }
+}
+
+function showInstallGuide(){
+  var p=detectPlatform();
+  if(p==='installed'){alert('이미 앱으로 설치되어 있습니다 ✓');return}
+  var m=document.getElementById('installModal');
+  var body=document.getElementById('installBody');
+  var html='';
+  if(p==='ios_safari'){
+    html='<div style="font-size:.85em;color:var(--text2);margin-bottom:14px">아이폰 Safari 기준</div>'
+    +'<div class="ig-step"><div class="ig-num">1</div><div>하단 <svg width="18" height="22" viewBox="0 0 18 22" fill="none" stroke="#3182f6" stroke-width="2" style="vertical-align:-5px"><path d="M9 1v15M4 6l5-5 5 5M2 13v7h14v-7"/></svg> <b>공유 버튼</b> 누르기</div></div>'
+    +'<div class="ig-step"><div class="ig-num">2</div><div>메뉴에서 <b>"홈 화면에 추가"</b> 선택</div></div>'
+    +'<div class="ig-step"><div class="ig-num">3</div><div>우측 상단 <b>"추가"</b> 누르면 완료!</div></div>';
+  } else if(p==='ios_other'){
+    html='<div style="background:#fff3cd;padding:12px;border-radius:8px;margin-bottom:14px;font-size:.85em">⚠️ 아이폰은 <b>Safari 브라우저</b>에서만 설치할 수 있어요.</div>'
+    +'<div class="ig-step"><div class="ig-num">1</div><div>현재 페이지 주소 복사</div></div>'
+    +'<div class="ig-step"><div class="ig-num">2</div><div><b>Safari 앱</b> 열고 주소 붙여넣기</div></div>'
+    +'<div class="ig-step"><div class="ig-num">3</div><div>하단 <b>공유 → 홈 화면에 추가</b></div></div>';
+  } else if(p==='android'){
+    html='<div style="font-size:.85em;color:var(--text2);margin-bottom:14px">안드로이드 기준</div>'
+    +'<div class="ig-step"><div class="ig-num">1</div><div>우측 상단 <b>⋮ 메뉴</b> 누르기</div></div>'
+    +'<div class="ig-step"><div class="ig-num">2</div><div><b>"홈 화면에 추가"</b> 또는 <b>"앱 설치"</b> 선택</div></div>'
+    +'<div class="ig-step"><div class="ig-num">3</div><div><b>"추가"</b> 누르면 완료!</div></div>'
+    +'<button onclick="triggerInstallPrompt()" style="margin-top:14px;width:100%;padding:12px;background:#3182f6;color:#fff;border:none;border-radius:10px;font-size:.9em;font-weight:600;font-family:inherit;cursor:pointer">📱 바로 설치하기</button>';
+  } else {
+    html='<div style="font-size:.85em;color:var(--text2);margin-bottom:14px">PC 크롬/엣지 기준</div>'
+    +'<div class="ig-step"><div class="ig-num">1</div><div>주소창 우측 <b>⊕ 설치 아이콘</b> 클릭</div></div>'
+    +'<div class="ig-step"><div class="ig-num">2</div><div>또는 <b>⋮ 메뉴 → "앱 설치"</b></div></div>'
+    +'<div class="ig-step"><div class="ig-num">3</div><div><b>"설치"</b> 누르면 바탕화면에 추가</div></div>';
+  }
+  body.innerHTML=html;
+  m.style.display='flex';
+}
+var deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferredPrompt=e});
+async function triggerInstallPrompt(){
+  if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;document.getElementById('installModal').style.display='none'}
+  else alert('메뉴에서 수동으로 설치해 주세요');
+}
+
+/* ===== 코드 보호 ===== */
+(function(){
+  // 우클릭 차단
+  document.addEventListener('contextmenu',function(e){
+    // 입력창/답변 영역은 허용 (사장님이 답변 복사 필요)
+    var t=e.target;
+    if(t.closest('.msg-bubble')||t.tagName==='INPUT'||t.tagName==='TEXTAREA')return;
+    e.preventDefault();
+  });
+  // 주요 단축키 차단 (F12, Ctrl+U, Ctrl+Shift+I/J/C)
+  document.addEventListener('keydown',function(e){
+    var k=e.key;
+    if(k==='F12'){e.preventDefault();return}
+    if((e.ctrlKey||e.metaKey)&&k==='u'){e.preventDefault();return}
+    if((e.ctrlKey||e.metaKey)&&e.shiftKey&&(k==='I'||k==='i'||k==='J'||k==='j'||k==='C'||k==='c')){e.preventDefault();return}
+  });
+  // 드래그 선택 제한 (답변은 허용)
+  document.addEventListener('selectstart',function(e){
+    var t=e.target;
+    if(t.closest('.msg-bubble')||t.tagName==='INPUT'||t.tagName==='TEXTAREA')return;
+    e.preventDefault();
+  });
+  // DevTools 열림 감지 (간접)
+  var devtoolsOpen=false;
+  setInterval(function(){
+    var threshold=160;
+    var open=(window.outerWidth-window.innerWidth>threshold)||(window.outerHeight-window.innerHeight>threshold);
+    if(open&&!devtoolsOpen){
+      devtoolsOpen=true;
+      console.clear();
+      console.log('%c⚠️ 경고','color:#f04452;font-size:28px;font-weight:bold');
+      console.log('%c세무회계 이윤 AI 세무상담 - 무단 복제 및 역공학 금지','color:#333;font-size:14px');
+    }
+  },2000);
+  // 콘솔 경고
+  setTimeout(function(){
+    console.log('%c잠깐!','color:#f04452;font-size:40px;font-weight:bold');
+    console.log('%c이 화면은 개발자 도구입니다. 본 서비스의 코드는 저작권 보호를 받으며 무단 복제 시 법적 책임이 따를 수 있습니다.','color:#333;font-size:14px');
+  },1000);
+})();
+
+function showConsentModal(){
+  var m=document.getElementById('consentModal');
+  document.getElementById('csAll').checked=false;
+  document.querySelectorAll('#consentModal .cs-req').forEach(function(c){c.checked=false});
+  var mk=document.getElementById('csMarketing');if(mk)mk.checked=false;
+  document.querySelectorAll('#consentModal .cs-detail').forEach(function(d){d.style.display='none'});
+  document.querySelectorAll('#consentModal [onclick^="toggleCsDetail"]').forEach(function(b){b.textContent='자세히 ▼'});
+  document.getElementById('consentErr').style.display='none';
+  updateConsentState();
+  m.style.display='flex';
+}
+function toggleCsDetail(btn){
+  var item=btn.closest('.cs-item');
+  if(!item)return;
+  var d=item.querySelector('.cs-detail');
+  if(!d)return;
+  var open=d.style.display==='block';
+  d.style.display=open?'none':'block';
+  btn.textContent=open?'자세히 ▼':'접기 ▲';
+}
+function toggleAllConsent(cb){
+  var v=cb.checked;
+  document.querySelectorAll('#consentModal .cs-req').forEach(function(c){c.checked=v});
+  var mk=document.getElementById('csMarketing');if(mk)mk.checked=v;
+  updateConsentState();
+}
+function updateConsentState(){
+  var reqs=document.querySelectorAll('#consentModal .cs-req');
+  var allReq=true;reqs.forEach(function(c){if(!c.checked)allReq=false});
+  var mk=document.getElementById('csMarketing');
+  var allAll=allReq&&mk&&mk.checked;
+  document.getElementById('csAll').checked=!!allAll;
+  var btn=document.getElementById('consentBtn');
+  btn.disabled=!allReq;
+  btn.style.opacity=allReq?'1':'.4';
+}
+async function submitConsent(){
+  var err=document.getElementById('consentErr');
+  var payload={};
+  document.querySelectorAll('#consentModal .cs-req').forEach(function(c){payload[c.dataset.key]=c.checked});
+  var mk=document.getElementById('csMarketing');
+  payload.marketing=mk?mk.checked:false;
+  if(!payload.age_14||!payload.tos||!payload.privacy||!payload.overseas){
+    err.textContent='필수 항목 4가지에 모두 동의해 주세요';err.style.display='block';return;
+  }
+  err.style.display='none';
+  try{
+    var r=await fetch('/api/auth/consent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    var d=await r.json();
+    if(d.ok){
+      document.getElementById('consentModal').style.display='none';
+      if(currentUser){
+        currentUser.consent_age_14=true;
+        currentUser.consent_tos=true;
+        currentUser.consent_privacy=true;
+        currentUser.consent_overseas=true;
+        currentUser.consent_marketing=!!payload.marketing;
+        currentUser.consent_required_ok=true;
+        currentUser.consent_all_at=d.consent_all_at;
+      }
+      if(currentUser&&!currentUser.name_confirmed){
+        showNameModal(currentUser.name||'',currentUser.phone||'');
+      } else if(typeof showApprovalBanner==='function'){
+        showApprovalBanner();
+      }
+    } else {
+      err.textContent='오류: '+(d.error||'unknown');err.style.display='block';
+    }
+  }catch(e){err.textContent='오류: '+e.message;err.style.display='block'}
+}
+function rejectConsent(){
+  if(!confirm('동의하지 않으면 서비스를 이용하실 수 없습니다.\n로그아웃하시겠습니까?'))return;
+  fetch('/api/auth/logout',{method:'POST'}).finally(function(){location.reload()});
+}
+
+/* sendMessage 에러 처리 확장 */
+(function(){
+  var orig=sendMessage;
+  sendMessage=async function(){
+    if(loading)return;
+    var i=document.getElementById("userInput");var t=i.value.trim();if(!t)return;
+    i.value="";add("user",t);messages.push({role:"user",content:t});
+    document.getElementById("quickArea").style.display="none";
+    loading=true;document.getElementById("sendBtn").disabled=true;showDots();
+    try{
+      var r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages,sessionId:sid})});
+      if(r.status===401){hideDots();showLogin();return}
+      if(r.status===400){
+        var err=await r.json().catch(function(){return{}});
+        hideDots();
+        if(err.code==='name_required'){showNameModal(currentUser?currentUser.name:'');return}
+        if(err.code==='consent_required'){showConsentModal();return}
+        add("ai","오류: "+(err.error||'400'));return;
+      }
+      if(r.status===429){
+        var err2=await r.json().catch(function(){return{}});
+        hideDots();
+        if(err2.code==='daily_limit_exceeded'){
+          showLimitExceeded(err2);
+          if(currentUser){currentUser.daily_used=err2.used||currentUser.daily_limit;showApprovalBanner()}
+          return;
+        }
+        add("ai",err2.error||'요청 제한');return;
+      }
+      if(r.status===403){var e3=await r.json().catch(function(){return{}});hideDots();add("ai",e3.error||'이용 제한');return}
+      if(!r.ok){var e4=await r.json().catch(function(){return{}});throw new Error(e4.error||'오류('+r.status+')')}
+      // 세무사 직접답변 모드 감지 (streaming 아님)
+      var ctype=r.headers.get('content-type')||'';
+      if(ctype.indexOf('application/json')>=0){
+        var dj=await r.json().catch(function(){return{}});
+        if(dj.mode==='direct'){
+          hideDots();
+          var c2=document.getElementById("chatArea");
+          var nd=document.createElement("div");nd.className="msg msg-ai";
+          nd.innerHTML='<div class="msg-avatar" style="background:#fef3c7;color:#8b6914"><span style="font-size:1.2em">⏳</span></div>'
+            +'<div class="msg-wrap"><div class="msg-name" style="color:#8b6914">세무사 직접 답변 모드</div>'
+            +'<div class="msg-bubble" style="background:#fef3c7;color:#8b6914;border-radius:4px 16px 16px 16px">'+esc(dj.status||'세무사가 직접 답변 드립니다.')+'</div></div>';
+          c2.appendChild(nd);c2.scrollTop=c2.scrollHeight;
+          /* polling은 이미 돌고 있음 — 세무사 답변 오면 자동 표시 */
+          return;
+        }
+      }
+      var c=document.getElementById("chatArea");
+      var statusEl=document.getElementById("dots");
+      var streamStarted=false,msgDiv,bubble,fullText="";
+      var reader=r.body.getReader();var decoder=new TextDecoder();var buf="";
+      while(true){
+        var chunk=await reader.read();
+        if(chunk.done)break;
+        buf+=decoder.decode(chunk.value,{stream:true});
+        var lines=buf.split("\n");buf=lines.pop()||"";
+        for(var L=0;L<lines.length;L++){
+          var line=lines[L];
+          if(line.indexOf("data: ")===0){
+            var data=line.slice(6).trim();
+            if(data==="[DONE]")break;
+            try{
+              var j=JSON.parse(data);
+              if(j.status&&statusEl){
+                var b=statusEl.querySelector(".msg-bubble");
+                if(b)b.innerHTML='<div style="display:flex;align-items:center;gap:8px"><div class="dots"><span></span><span></span><span></span></div><span style="font-size:.82em;color:var(--text2)">'+esc(j.status)+'</span></div>';
+                c.scrollTop=c.scrollHeight;
+              }
+              if(j.content){
+                if(!streamStarted){
+                  streamStarted=true;hideDots();
+                  msgDiv=document.createElement("div");msgDiv.className="msg msg-ai";
+                  msgDiv.innerHTML='<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble" id="streamBubble"></div></div>';
+                  c.appendChild(msgDiv);bubble=document.getElementById("streamBubble");
+                }
+                fullText+=j.content;bubble.innerHTML=linkify(esc(fullText));c.scrollTop=c.scrollHeight;
+              }
+            }catch{}
+          }
+        }
+      }
+      if(!streamStarted)hideDots();
+      if(bubble)bubble.removeAttribute("id");
+      messages.push({role:"assistant",content:fullText});
+      /* 📤 상담방 공유 버튼 붙이기 (오버라이드 sendMessage 에서 누락된 것 복구) */
+      if(msgDiv && fullText){
+        var lastUserMsg=[...messages].reverse().find(function(m,i){return i>0 && m.role==='user'});
+        var q=lastUserMsg?lastUserMsg.content:t;
+        if(typeof _attachChatbotShareBtn==='function')_attachChatbotShareBtn(msgDiv,q,fullText);
+      }
+      // 사용량 갱신
+      if(currentUser){currentUser.daily_used=(currentUser.daily_used||0)+1;showApprovalBanner()}
+    }catch(e){hideDots();add("ai","오류: "+e.message)}
+    finally{loading=false;document.getElementById("sendBtn").disabled=false;i.focus()}
+  };
+})();
+
+function openWithdrawModal(){
+  var r=document.getElementById('withdrawReason');if(r)r.value='';
+  var a=document.getElementById('withdrawAgree');if(a)a.checked=false;
+  document.getElementById('withdrawModal').style.display='flex';
+}
+function closeWithdrawModal(){
+  document.getElementById('withdrawModal').style.display='none';
+}
+async function submitWithdraw(){
+  var agree=document.getElementById('withdrawAgree');
+  if(!agree||!agree.checked){alert('탈퇴 동의 체크박스를 선택해주세요.');return;}
+  var reason=(document.getElementById('withdrawReason').value||'').trim();
+  try{
+    var res=await fetch('/api/auth/withdraw',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:reason})});
+    var data=await res.json().catch(function(){return{};});
+    if(!res.ok||!data.ok){alert('탈퇴 처리 실패. 잠시 후 다시 시도해주세요.');return;}
+    alert('탈퇴 처리됐습니다. 로그인 화면으로 이동합니다.');
+    location.href='/';
+  }catch(e){
+    alert('네트워크 오류. 잠시 후 다시 시도해주세요.');
+  }
+}
+/* ===== 뒤로가기 (Android/브라우저) — 한 단계만 뒤로 ===== */
+/* 오버레이(모달·시트) close가 history.back()을 호출하면 popstate cascade 방지용 플래그 */
+var _popCascade=false;
+window.addEventListener('popstate',function(e){
+  /* 0순위: JS가 방금 뷰어 닫으며 history.back() 호출한 cascade면 무시 */
+  if(_popCascade){_popCascade=false;return}
+  if(ivState&&ivState.closedByJs){
+    ivState.closedByJs=false;
+    return;
+  }
+  /* 최상위 오버레이부터 닫기 — 모달 > 시트 > 뷰어 > 상담방 */
+  var payModal=document.getElementById('payrollModal');
+  if(payModal&&payModal.style.display==='flex'){
+    payModal.style.display='none';document.body.style.overflow='';
+    return;
+  }
+  var sumModal=document.getElementById('roomSummaryModal');
+  if(sumModal&&sumModal.style.display==='flex'){
+    sumModal.style.display='none';document.body.style.overflow='';
+    return;
+  }
+  var infoModal=document.getElementById('roomInfoModal');
+  if(infoModal&&infoModal.style.display==='flex'){
+    infoModal.style.display='none';
+    return;
+  }
+  var attachSheet=document.getElementById('rcAttachSheet');
+  if(attachSheet&&attachSheet.classList.contains('open')){
+    attachSheet.classList.remove('open');
+    var ab=document.getElementById('rcAttachBtn');if(ab)ab.classList.remove('on');
+    return;
+  }
+  /* 1순위: 이미지 뷰어 열려있으면 닫기 (시스템 뒤로가기) */
+  var v=document.getElementById('imgViewer');
+  if(v&&v.classList.contains('open')){
+    v.classList.remove('open');document.body.style.overflow='';
+    return;
+  }
+  /* 1.5순위: 문서함 뷰 열려있으면 닫기 */
+  var dv=document.getElementById('docsView');
+  if(dv&&dv.style.display==='flex'){
+    dv.style.display='none';document.body.style.overflow='';
+    return;
+  }
+  /* 2순위: 상담방 열려있으면 닫기 */
+  var rc=document.getElementById('roomChatView');
+  if(rc&&rc.classList.contains('open')){
+    rc.classList.remove('open');document.body.style.overflow='';
+    rcRoomId=null;
+    if(rcMsgPollTimer)clearInterval(rcMsgPollTimer);
+    loadMyRooms();
+    return;
+  }
+  /* 3순위: hash 변화에 따라 마이페이지/챗 동기화 */
+  var my=document.getElementById('myPageView');
+  if(!my)return;
+  var wantMy=location.hash==='#mypage';
+  var isMy=my.style.display==='flex';
+  if(wantMy&&!isMy)switchTab('mypage');
+  else if(!wantMy&&isMy)switchTab('chat');
+});
+
+/* ===== 풀스크린 이미지 뷰어 (카톡 스타일) ===== */
+var ivState={srcs:[],idx:0,startX:0,startY:0,dx:0,dy:0,touching:false,swiped:false,axis:null,closedByJs:false};
+function collectImagesNear(el){
+  var c=el.closest('#rcMessages')||el.closest('#uriPhotoGrid')||el.closest('#chatArea')||document.body;
+  var nodes=c.querySelectorAll('img.rc-img-msg, img.uri-photo');
+  var arr=[];nodes.forEach(function(n){if(n.src)arr.push(n.src)});
+  return arr.length?arr:[el.src];
+}
+function openImgViewer(src,srcs){
+  if(!Array.isArray(srcs)||srcs.length===0)srcs=[src];
+  var i=srcs.indexOf(src);if(i<0)i=0;
+  ivState.srcs=srcs;ivState.idx=i;
+  var v=document.getElementById('imgViewer');
+  v.classList.add('open');
+  v.classList.toggle('has-multiple',srcs.length>1);
+  document.body.style.overflow='hidden';
+  renderIvImg();
+  try{history.pushState({iv:1},'',location.href)}catch{}
+}
+function closeImgViewer(){
+  var v=document.getElementById('imgViewer');
+  if(!v||!v.classList.contains('open'))return;
+  v.classList.remove('open');
+  document.body.style.overflow='';
+  try{
+    if(history.state&&history.state.iv){
+      ivState.closedByJs=true;
+      history.back();
+    }
+  }catch{}
+}
+function renderIvImg(){
+  var img=document.getElementById('ivImg');
+  if(!img)return;
+  img.src=ivState.srcs[ivState.idx]||'';
+  var c=document.getElementById('ivCounter');
+  if(c)c.textContent=(ivState.idx+1)+' / '+ivState.srcs.length;
+}
+function imgViewerNav(d){
+  if(ivState.srcs.length<2)return;
+  var next=ivState.idx+d;
+  if(next<0||next>=ivState.srcs.length)return;
+  ivState.idx=next;
+  renderIvImg();
+}
+/* 이미지 fetch + 파일명/MIME 정리 (save/share 공용) */
+async function _ivFetchFile(){
+  var src=ivState.srcs[ivState.idx];if(!src)throw new Error('no src');
+  var r=await fetch(src);if(!r.ok)throw new Error('fetch');
+  var b=await r.blob();
+  var nm=(src.split('/').pop()||'image').split('?')[0]||'image';
+  var mime=b.type;
+  if(!mime||mime==='application/octet-stream'){
+    var urlExt=((nm.match(/\.(\w+)$/)||[,''])[1]||'').toLowerCase();
+    mime=urlExt==='png'?'image/png':urlExt==='webp'?'image/webp':urlExt==='gif'?'image/gif':urlExt==='heic'?'image/heic':'image/jpeg';
+    b=b.slice(0,b.size,mime);
+  }
+  var ext=(mime.split('/')[1]||'jpg').replace('jpeg','jpg');
+  if(!/\.\w+$/.test(nm))nm+='.'+ext;
+  return {blob:b,name:nm,mime:mime,src:src};
+}
+function _ivDownload(blob,name){
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;a.download=name;
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);a.remove()},150);
+}
+/* 저장 — 한 방에 다운로드 + 즉시 토스트 피드백
+   Android: 다운로드 폴더 → 갤러리 앱 자동 인덱싱
+   iOS: 파일 앱(Downloads)으로 저장 (Photos 직접저장은 웹 보안 한계로 불가 — 공유 버튼 사용) */
+async function saveImgViewer(){
+  if(!confirm('사진을 저장하시겠습니까?'))return;
+  try{
+    var f=await _ivFetchFile();
+    _ivDownload(f.blob,f.name);
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('💾 저장 완료');
+  }catch{
+    if(typeof showInAppToastSilent==='function')showInAppToastSilent('저장 실패');
+    var s=ivState.srcs[ivState.idx];if(s)window.open(s,'_blank');
+  }
+}
+/* 공유 — 공유시트 (카톡/메시지 등) */
+async function shareImgViewer(){
+  try{
+    var f=await _ivFetchFile();
+    if(typeof File==='function'&&navigator.canShare){
+      try{
+        var file=new File([f.blob],f.name,{type:f.mime});
+        if(navigator.canShare({files:[file]})){
+          await navigator.share({files:[file]});
+          return;
+        }
+      }catch(se){
+        if(se&&se.name==='AbortError')return;
+      }
+    }
+    /* Web Share 미지원 — URL 복사 후 안내 */
+    try{
+      await navigator.clipboard.writeText(f.src);
+      alert('링크가 복사되었습니다.\n붙여넣기해서 공유하세요.');
+    }catch{
+      window.prompt('공유할 이미지 링크 (복사해서 보내세요)',f.src);
+    }
+  }catch{
+    var s=ivState.srcs[ivState.idx];if(s)window.open(s,'_blank');
+  }
+}
+(function(){
+  function init(){
+    var v=document.getElementById('imgViewer');if(!v)return false;
+    function img(){return document.getElementById('ivImg')}
+    function resetTransform(animate){
+      var i=img();if(!i)return;
+      i.style.transition=animate?'transform .2s ease-out':'none';
+      i.style.transform='';
+    }
+    v.addEventListener('click',function(e){
+      if(ivState.swiped){ivState.swiped=false;return}
+      if(e.target===v)closeImgViewer();
+    });
+    v.addEventListener('touchstart',function(e){
+      if(e.touches.length!==1)return;
+      ivState.startX=e.touches[0].clientX;ivState.startY=e.touches[0].clientY;
+      ivState.dx=0;ivState.dy=0;ivState.touching=true;ivState.axis=null;
+      var i=img();if(i)i.style.transition='none';
+    },{passive:true});
+    v.addEventListener('touchmove',function(e){
+      if(!ivState.touching||e.touches.length!==1)return;
+      var dx=e.touches[0].clientX-ivState.startX;
+      var dy=e.touches[0].clientY-ivState.startY;
+      if(!ivState.axis){
+        if(Math.abs(dx)<8&&Math.abs(dy)<8)return;
+        ivState.axis=Math.abs(dx)>=Math.abs(dy)?'x':'y';
+      }
+      ivState.dx=dx;ivState.dy=dy;
+      if(e.cancelable)e.preventDefault();
+      var i=img();if(!i)return;
+      if(ivState.axis==='x'){
+        var edge=(ivState.idx===0&&dx>0)||(ivState.idx===ivState.srcs.length-1&&dx<0);
+        var d=edge?dx*0.35:dx;
+        i.style.transform='translateX('+d+'px)';
+      } else if(dy>0){
+        i.style.transform='translateY('+dy+'px)';
+      }
+    },{passive:false});
+    v.addEventListener('touchend',function(e){
+      if(!ivState.touching)return;ivState.touching=false;
+      var dx=ivState.dx,dy=ivState.dy,axis=ivState.axis;
+      ivState.dx=0;ivState.dy=0;ivState.axis=null;
+      if(axis==='x'&&Math.abs(dx)>50){
+        imgViewerNav(dx>0?-1:1);
+        ivState.swiped=true;
+        setTimeout(function(){ivState.swiped=false},400);
+        resetTransform(false);
+      } else if(axis==='y'&&dy>120){
+        closeImgViewer();
+        resetTransform(false);
+      } else {
+        resetTransform(true);
+      }
+    },{passive:true});
+    v.addEventListener('touchcancel',function(){
+      if(!ivState.touching)return;
+      ivState.touching=false;ivState.dx=0;ivState.dy=0;ivState.axis=null;
+      resetTransform(true);
+    });
+    document.addEventListener('keydown',function(e){
+      if(!v.classList.contains('open'))return;
+      if(e.key==='Escape')closeImgViewer();
+      else if(e.key==='ArrowLeft')imgViewerNav(-1);
+      else if(e.key==='ArrowRight')imgViewerNav(1);
+    });
+    return true;
+  }
+  if(!init())document.addEventListener('DOMContentLoaded',init);
+})();
+
+/* ===== PWA 홈화면 설치 유도 배너 ===== */
+function closeIosInstall(){
+  var m=document.getElementById('iosInstallModal');
+  if(m)m.classList.remove('show');
+}
+(function(){
+  var DISMISS_KEY='installPromptDismissedUntil';
+  var ua=navigator.userAgent||'';
+  var isIOS=/iPad|iPhone|iPod/.test(ua)&&!window.MSStream;
+  var isSafari=isIOS&&/Safari/.test(ua)&&!/CriOS|FxiOS|OPiOS|mercury|EdgiOS/.test(ua);
+  var isStandalone=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
+  /* 이미 설치돼있으면 노출 금지 */
+  if(isStandalone)return;
+  /* 최근 7일 내에 닫았으면 노출 금지 */
+  try{
+    var until=parseInt(localStorage.getItem(DISMISS_KEY)||'0',10);
+    if(until>Date.now())return;
+  }catch{}
+  function init(){
+    var banner=document.getElementById('installPrompt');
+    var btn=document.getElementById('ipBtn');
+    var closeBtn=document.getElementById('ipClose');
+    if(!banner||!btn||!closeBtn)return false;
+    var deferredPrompt=null;
+    function show(){banner.classList.add('show')}
+    function hide(){banner.classList.remove('show')}
+    function dismissFor(days){
+      try{localStorage.setItem(DISMISS_KEY,String(Date.now()+days*24*60*60*1000))}catch{}
+      hide();
+    }
+    /* Android Chrome 등: beforeinstallprompt */
+    window.addEventListener('beforeinstallprompt',function(e){
+      e.preventDefault();
+      deferredPrompt=e;
+      setTimeout(show,3000);
+    });
+    /* iOS Safari: 자체 이벤트 없음 → 휴리스틱 */
+    if(isIOS&&isSafari){
+      setTimeout(show,5000);
+    }
+    btn.onclick=async function(){
+      if(deferredPrompt){
+        try{
+          deferredPrompt.prompt();
+          var res=await deferredPrompt.userChoice;
+          if(res&&res.outcome==='accepted')hide();
+          else dismissFor(7);
+        }catch{dismissFor(3)}
+        deferredPrompt=null;
+      } else if(isIOS){
+        var m=document.getElementById('iosInstallModal');
+        if(m)m.classList.add('show');
+        hide();
+      } else {
+        dismissFor(7);
+      }
+    };
+    closeBtn.onclick=function(){dismissFor(7)};
+    /* 설치 완료 이벤트 — 즉시 숨김 */
+    window.addEventListener('appinstalled',function(){
+      hide();
+      try{localStorage.setItem(DISMISS_KEY,String(Date.now()+365*24*60*60*1000))}catch{}
+    });
+    return true;
+  }
+  if(!init())document.addEventListener('DOMContentLoaded',init);
+})();

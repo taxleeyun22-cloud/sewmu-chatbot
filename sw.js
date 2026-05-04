@@ -1,5 +1,5 @@
-/* v67: 추천 질문 4개 5월 종소세 시즌으로 교체 (2026-05-02). 사용자 캐시 무효화. */
-const CACHE_NAME = 'sewmu-v67';
+/* v68: index.html 인라인 JS 3468줄 → index.js 외부화 (Phase H3, 2026-05-04). 사용자 캐시 무효화. */
+const CACHE_NAME = 'sewmu-v68';
 const STATIC_ASSETS = ['/logo.png', '/logo-icon.png', '/logo-vertical.png'];
 
 self.addEventListener('install', e => {

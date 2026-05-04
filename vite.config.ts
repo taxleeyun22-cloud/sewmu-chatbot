@@ -55,6 +55,8 @@ export default defineConfig({
         { src: 'memo-window.html', dest: '.' },
         // Phase H2 (2026-05-04): admin/staff/office 모달 통합 묶음 (fetch + insertAdjacentHTML 패턴)
         { src: 'admin-modals.html', dest: '.' },
+        // Phase H3 (2026-05-04): index.html 인라인 JS 3468줄 외부화
+        { src: 'index.js', dest: '.' },
         // Cloudflare Pages 헤더 규칙
         { src: '_headers', dest: '.' },
         // PWA 자산
