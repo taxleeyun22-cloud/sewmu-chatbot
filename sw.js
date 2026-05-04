@@ -1,5 +1,5 @@
-/* v68: index.html 인라인 JS 3468줄 → index.js 외부화 (Phase H3, 2026-05-04). 사용자 캐시 무효화. */
-const CACHE_NAME = 'sewmu-v68';
+/* v69: index.html <style> 4개 블록 → index.css 외부화 (Phase H4, 2026-05-04). 사용자 캐시 무효화. */
+const CACHE_NAME = 'sewmu-v69';
 const STATIC_ASSETS = ['/logo.png', '/logo-icon.png', '/logo-vertical.png'];
 
 self.addEventListener('install', e => {
