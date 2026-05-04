@@ -64,6 +64,9 @@ export default defineConfig({
         // Phase H6a (2026-05-04): business.html 인라인 CSS/JS 외부화
         { src: 'business.css', dest: '.' },
         { src: 'business.js', dest: '.' },
+        // Phase H6b (2026-05-04): office.html 인라인 CSS/JS 외부화
+        { src: 'office.css', dest: '.' },
+        { src: 'office.js', dest: '.' },
         // Cloudflare Pages 헤더 규칙
         { src: '_headers', dest: '.' },
         // PWA 자산
