@@ -14,8 +14,6 @@
 
 
 /* === [블록 1] 메인 스타일 (CSS 변수 + 다크모드 + 헤더 + 메시지 + 입력) === */
-:root{--bg:#f2f4f6;--card:#fff;--navy:#191f28;--blue:#3182f6;--blue-light:#e8f3ff;--text:#191f28;--text2:#8b95a1;--text3:#b0b8c1;--border:#e5e8eb;--success:#00c471;--shadow:0 2px 8px rgba(0,0,0,.04)}
-body.dark{--bg:#17171c;--card:#232329;--navy:#0d0d11;--blue:#4a9eff;--blue-light:#1a2a3f;--text:#e4e4e8;--text2:#8e8e96;--text3:#55555e;--border:#333339;--shadow:0 2px 8px rgba(0,0,0,.2)}
 body.dark .header{background:var(--card);border-bottom-color:var(--border)}
 body.dark .msg-ai .msg-bubble{background:var(--card);color:var(--text)}
 body.dark .msg-user .msg-bubble{background:var(--blue)}

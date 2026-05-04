@@ -150,3 +150,38 @@
     border-radius: var(--radius-sm);
   }
 }
+
+/* ============================================================
+ * Phase T2b (2026-05-04): index.css 의 :root + body.dark 토큰 통합
+ * 사용자 챗봇 (index.html) 전용 — admin/office 와 namespace 분리.
+ * 다크모드 (body.dark) 는 index.html 에서만 toggle (index.js).
+ * ============================================================ */
+
+:root {
+  /* === [index] 사용자 챗봇 — light mode === */
+  --bg: #f2f4f6;
+  --card: #fff;
+  --navy: #191f28;
+  --blue: #3182f6;
+  --blue-light: #e8f3ff;
+  --text: #191f28;
+  --text2: #8b95a1;
+  --text3: #b0b8c1;
+  --border: #e5e8eb;
+  --success: #00c471;
+  --shadow: 0 2px 8px rgba(0, 0, 0, .04);
+}
+
+body.dark {
+  /* === [index] 사용자 챗봇 — dark mode 오버라이드 === */
+  --bg: #17171c;
+  --card: #232329;
+  --navy: #0d0d11;
+  --blue: #4a9eff;
+  --blue-light: #1a2a3f;
+  --text: #e4e4e8;
+  --text2: #8e8e96;
+  --text3: #55555e;
+  --border: #333339;
+  --shadow: 0 2px 8px rgba(0, 0, 0, .2);
+}
