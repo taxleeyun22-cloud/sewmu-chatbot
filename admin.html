@@ -9,70 +9,8 @@
 <meta http-equiv="Expires" content="0">
 <!-- 사무실 OS 임베드 모드 — ?embedded=1 진입 시 헤더/wrap 패딩 hide, iframe 안에서 콘텐츠만 보임 -->
 <script>try{if(new URLSearchParams(location.search).get('embedded')==='1')document.documentElement.classList.add('embedded');}catch(_){}</script>
-<style>
-/* === 사무실 OS 임베드 모드 — 위멤버스 톤 오버라이드 === */
-html.embedded body{background:#f5f6f8 !important}
-html.embedded .hdr{display:none !important}
-html.embedded .wrap{padding-top:0 !important;padding-bottom:0 !important;max-width:100% !important;margin:0 !important}
-html.embedded #mainView{padding:14px 18px !important}
-
-/* 사용자/업체 모드 토글 */
-html.embedded #modeBtnUser, html.embedded #modeBtnBiz{
-  border-radius:8px !important;
-  transition:all .12s !important;
-}
-
-/* 사용자 status 탭 (대기/기장/일반/거절/종료/관리자) — 위멤버스 핵심 톤 */
-html.embedded #userModeView .tabs button{
-  border-radius:99px !important;
-  padding:6px 14px !important;
-  font-size:12px !important;
-  font-weight:600 !important;
-  letter-spacing:.02em !important;
-  transition:all .12s !important;
-}
-html.embedded #userModeView .tabs button.on{
-  background:#3182f6 !important;
-  color:#fff !important;
-  box-shadow:0 1px 3px rgba(49,130,246,.25) !important;
-}
-html.embedded #userModeView .tabs button:not(.on){
-  background:#fff !important;
-  color:#4e5968 !important;
-  border:1px solid #e5e8eb !important;
-}
-html.embedded #userModeView .tabs button:not(.on):hover{
-  background:#eaf3ff !important;
-  color:#3182f6 !important;
-  border-color:#bbd6fe !important;
-}
-
-/* 사용자 카드 — 위멤버스 톤 */
-html.embedded #userList > div, html.embedded #bizModeView .biz-card{
-  background:#fff !important;
-  border:1px solid #e5e8eb !important;
-  border-radius:12px !important;
-  margin-bottom:10px !important;
-  padding:14px 16px !important;
-  box-shadow:0 1px 4px rgba(0,0,0,.04) !important;
-  transition:transform .12s, box-shadow .15s !important;
-}
-html.embedded #userList > div:hover, html.embedded #bizModeView .biz-card:hover{
-  transform:translateY(-1px) !important;
-  box-shadow:0 3px 10px rgba(49,130,246,.10) !important;
-  border-color:#bbd6fe !important;
-}
-
-/* 헤더 우측 검색·할일·단체발송·중복정리 등 액션 버튼 — 위멤버스 톤 (radius/shadow) */
-html.embedded #userModeView .tabs button[onclick*="openManualClient"],
-html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
-  border-radius:8px !important;
-  font-weight:600 !important;
-  box-shadow:0 1px 3px rgba(0,0,0,.06) !important;
-}
-</style>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/admin.css?v=22">
+<link rel="stylesheet" href="/admin.css?v=23">
 <!-- AG-Grid Community (엑셀 스타일 그리드) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-quartz.css">
@@ -897,96 +835,6 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
 <script src="/admin-users-tab.js?v=1"></script>
 <script src="/admin-docs.js?v=1"></script>
 <script src="/admin-anal-review-faq.js?v=1"></script>
-<style>
-/* === 디자인 토큰 (A안) — 시각적 변화 0, 신규 코드가 점진 적용용 ===
-   기존 inline style 은 그대로 둔 채 새로 작성하는 CSS·JS 에서 이 변수를 쓰면
-   자연스럽게 톤이 모임. 과거 코드는 수동으로 교체. */
-:root{
-  /* 모달 오버레이 (기본 .5) */
-  --overlay-bg: rgba(0,0,0,.5);
-
-  /* Radius 스케일 (4단계만) */
-  --radius-sm: 6px;    /* pill/칩 */
-  --radius-md: 8px;    /* 버튼·카드 */
-  --radius-lg: 12px;   /* 섹션 카드 */
-  --radius-xl: 16px;   /* 모달 외곽 */
-
-  /* 브랜드 색 — 버튼 의미 규칙 (C안에서 강제될 예정) */
-  --brand-primary: #3182f6;   /* 일반 액션·확인·저장 */
-  --brand-primary-fg: #fff;
-  --brand-danger:  #dc2626;   /* 삭제·위험·취소 */
-  --brand-danger-fg: #fff;
-  --brand-warn:    #fbbf24;   /* 경고·게시(고객노출) */
-  --brand-warn-fg: #78350f;
-  --brand-success: #10b981;   /* 완료·성공 */
-  --brand-success-fg: #fff;
-  --brand-kakao:   #FEE500;   /* 카톡 노랑 (내 말풍선) */
-  --brand-kakao-fg: #191f28;
-
-  /* 중성 톤 */
-  --neutral-bg: #f9fafb;
-  --neutral-border: #e5e8eb;
-  --neutral-card: #fff;
-  --text-main: #191f28;
-  --text-sub: #4b5563;
-  --text-mute: #8b95a1;
-
-  /* 글자 스케일 */
-  --font-xs: .72em;
-  --font-sm: .82em;
-  --font-md: .88em;
-  --font-lg: 1em;
-
-  /* 상태 색 (할 일 · D-day) */
-  --status-overdue: #dc2626;
-  --status-today:   #ea580c;
-  --status-tomorrow:#ca8a04;
-  --status-week:    #059669;
-  --status-later:   #2563eb;
-  --status-none:    #6b7280;
-}
-
-/* === 버튼 유틸리티 (B+C안, 신규 코드가 점진 적용) ===
-   버튼 의미 규칙:
-   .btn-primary = 저장·확인·일반 액션 (파랑)
-   .btn-danger  = 삭제·위험·로그아웃 (빨강)
-   .btn-warn    = 경고·고객 공개 게시 (노랑)
-   .btn-success = 완료·성공 (초록)
-   .btn-ghost   = 취소·보조 (회색 외곽선)
-   기존 inline style 은 유지. 새 버튼 작성 시 class 를 쓴다. */
-.btn-primary, .btn-danger, .btn-warn, .btn-success, .btn-ghost{
-  border:none; padding:8px 16px; border-radius:var(--radius-md);
-  font-size:.85em; font-weight:600; cursor:pointer; font-family:inherit;
-  transition:opacity .15s; display:inline-flex; align-items:center; gap:6px; line-height:1.2;
-}
-.btn-primary{background:var(--brand-primary); color:var(--brand-primary-fg)}
-.btn-danger{background:var(--brand-danger); color:var(--brand-danger-fg)}
-.btn-warn{background:var(--brand-warn); color:var(--brand-warn-fg)}
-.btn-success{background:var(--brand-success); color:var(--brand-success-fg)}
-.btn-ghost{background:var(--neutral-bg); color:var(--text-sub); border:1px solid var(--neutral-border)}
-.btn-primary:hover, .btn-danger:hover, .btn-warn:hover, .btn-success:hover{opacity:.9}
-.btn-ghost:hover{background:var(--neutral-border)}
-.btn-primary:disabled, .btn-danger:disabled, .btn-warn:disabled, .btn-success:disabled{opacity:.55; cursor:not-allowed}
-.btn-sm{padding:5px 11px; font-size:.76em; border-radius:var(--radius-sm)}
-
-/* === 상담방 메시지: 카톡처럼 바닥 앵커 ===
-   메시지가 적을 때 위쪽이 비고 바닥에 달라붙음. 많아지면 정상 스크롤. */
-#roomMessages{display:flex;flex-direction:column}
-#roomMessages > *:first-child{margin-top:auto}
-</style>
-<style>
-#imgViewer{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:11500;display:none;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain}
-#imgViewer.open{display:flex}
-#ivImg{max-width:100vw;max-height:100vh;object-fit:contain;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;-webkit-touch-callout:none;touch-action:none;pointer-events:none;transition:transform .2s ease-out;will-change:transform}
-.iv-btn{position:absolute;background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:24px;cursor:pointer;font-family:inherit;z-index:2}
-.iv-close{top:14px;right:14px;width:42px;height:42px;font-size:1.2em;display:flex;align-items:center;justify-content:center;padding:0}
-.iv-save{top:14px;left:14px;padding:9px 16px;font-size:.88em;font-weight:600;display:flex;align-items:center;gap:6px}
-.iv-counter{position:absolute;top:20px;left:50%;transform:translateX(-50%);color:#fff;font-size:.85em;background:rgba(0,0,0,.55);padding:7px 14px;border-radius:12px;z-index:2;display:none}
-#imgViewer.has-multiple .iv-counter{display:block}
-.iv-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.4);color:#fff;border:none;width:46px;height:64px;font-size:2.2em;cursor:pointer;z-index:2;display:none;font-family:inherit;padding:0}
-.iv-prev{left:0;border-radius:0 8px 8px 0}.iv-next{right:0;border-radius:8px 0 0 8px}
-@media(min-width:601px){#imgViewer.has-multiple .iv-arrow{display:flex;align-items:center;justify-content:center}}
-</style>
 <div id="imgViewer">
   <button onclick="closeImgViewer()" class="iv-btn iv-close">✕</button>
   <button onclick="saveImgViewer()" class="iv-btn iv-save">💾 저장</button>
@@ -1221,20 +1069,6 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
 </div>
 <!-- 📒 담당자 메모 모달 (내부 전용 · 할 일 체크리스트) -->
 <!-- 📒 담당자 메모 사이드 패널 CSS (PC: 우측 도킹 / 모바일: 바텀 시트 모달) -->
-<style>
-#memoModal,#custSidePanel{transition:all .18s ease-out}
-#memoModal .memo-panel,#custSidePanel .memo-panel{transition:transform .18s ease-out}
-@media(min-width:1024px){
-  #memoModal.side-dock,#custSidePanel.side-dock{background:transparent !important;pointer-events:none;align-items:stretch !important;justify-content:flex-end !important;padding:0 !important}
-  #memoModal.side-dock .memo-panel,#custSidePanel.side-dock .memo-panel{pointer-events:auto;width:420px !important;max-width:420px !important;height:100vh !important;max-height:100vh !important;border-radius:0 !important;border-left:2px solid #e5e8eb;box-shadow:-6px 0 18px rgba(0,0,0,.08);margin:0 !important}
-  body.memo-side-open .wrap,body.cust-side-open .wrap{padding-right:420px !important;transition:padding-right .18s}
-  body.memo-side-open .room-chat-panel,body.cust-side-open .room-chat-panel{min-width:0}
-}
-@media(max-width:1023px){
-  #memoModal.side-dock,#custSidePanel.side-dock{background:rgba(0,0,0,.3) !important;pointer-events:auto;align-items:flex-end !important;justify-content:center !important;padding:0 !important}
-  #memoModal.side-dock .memo-panel,#custSidePanel.side-dock .memo-panel{pointer-events:auto;width:100% !important;max-width:100% !important;height:78vh !important;max-height:78vh !important;border-radius:16px 16px 0 0 !important;box-shadow:0 -8px 22px rgba(0,0,0,.18);margin:0 !important}
-}
-</style>
 <!-- 📢 단체발송 모달 -->
 <div id="bulkSendModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:700px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
