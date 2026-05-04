@@ -59,6 +59,8 @@ export default defineConfig({
         { src: 'index.js', dest: '.' },
         // Phase H4 (2026-05-04): index.html <style> 4개 블록 → index.css 외부화
         { src: 'index.css', dest: '.' },
+        // Phase H5 (2026-05-04): index.html 모달 11개 → index-modals.html 묶음 (admin-modals 패턴)
+        { src: 'index-modals.html', dest: '.' },
         // Cloudflare Pages 헤더 규칙
         { src: '_headers', dest: '.' },
         // PWA 자산
