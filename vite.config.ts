@@ -53,6 +53,8 @@ export default defineConfig({
         { src: 'office.html', dest: '.' },
         { src: 'business.html', dest: '.' },
         { src: 'memo-window.html', dest: '.' },
+        // Phase H2 (2026-05-04): admin/staff/office 모달 통합 묶음 (fetch + insertAdjacentHTML 패턴)
+        { src: 'admin-modals.html', dest: '.' },
         // Cloudflare Pages 헤더 규칙
         { src: '_headers', dest: '.' },
         // PWA 자산
