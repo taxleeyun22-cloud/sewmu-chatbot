@@ -61,6 +61,9 @@ export default defineConfig({
         { src: 'index.css', dest: '.' },
         // Phase H5 (2026-05-04): index.html 모달 11개 → index-modals.html 묶음 (admin-modals 패턴)
         { src: 'index-modals.html', dest: '.' },
+        // Phase H6a (2026-05-04): business.html 인라인 CSS/JS 외부화
+        { src: 'business.css', dest: '.' },
+        { src: 'business.js', dest: '.' },
         // Cloudflare Pages 헤더 규칙
         { src: '_headers', dest: '.' },
         // PWA 자산

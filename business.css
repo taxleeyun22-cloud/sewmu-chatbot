@@ -1,0 +1,73 @@
+/* business.css — business.html 인라인 CSS 외부화 (Phase H6a, 2026-05-04) */
+
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', sans-serif; margin: 0; background: #f3f4f6; padding: 16px; line-height: 1.5; color: #1f2937; }
+  .container { max-width: 800px; margin: 0 auto; }
+  .topbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .topbar a { color: #3182f6; text-decoration: none; font-size: .9em; padding: 6px 10px; background: #fff; border-radius: 6px; border: 1px solid #e5e8eb; }
+  .header { background: #fff; border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,.04); margin-bottom: 12px; }
+  h1 { font-size: 1.3em; margin: 0 0 4px; word-break: keep-all; }
+  .sub { color: #6b7280; font-size: .85em; }
+  .section { background: #fff; border: 1px solid #e5e8eb; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+  .sec-title { font-weight: 700; font-size: .95em; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px 14px; font-size: .85em; color: #374151; }
+  .kv b { color: #6b7280; margin-right: 6px; font-weight: 600; }
+  .err { color: #b91c1c; padding: 12px 14px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: .88em; white-space: pre-wrap; }
+  .loading { text-align: center; padding: 24px 0; color: #8b95a1; font-size: .88em; }
+  .empty { color: #9ca3af; font-size: .85em; padding: 8px 0; }
+  button { font-family: inherit; font-size: .82em; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; }
+  .btn-primary { background: #3182f6; color: #fff; font-weight: 600; }
+  .btn-success { background: #10b981; color: #fff; font-weight: 600; }
+  .btn-ghost { background: #f3f4f6; color: #374151; border: 1px solid #e5e8eb; }
+  /* 메모 빡센 세팅 — admin.html cdMemoTabs 와 동일 수준 */
+  .memo-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid #f1f3f5; margin-bottom: 8px; }
+  .memo-tabs button { background: #fff; color: #4e5968; border: 1px solid #e5e8eb; padding: 5px 11px; border-radius: 99px; font-size: .74em; font-weight: 500; cursor: pointer; font-family: inherit; }
+  .memo-tabs button.on { background: #191f28; color: #fff; border: none; font-weight: 600; }
+  .memo-card { padding: 10px 0; border-bottom: 1px dashed #e5e8eb; }
+  .memo-card-h { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; font-size: .85em; }
+  .memo-type-label { font-size: .74em; font-weight: 700; }
+  .memo-cat-chip { background: #eff6ff; color: #1e40af; font-size: .7em; font-weight: 600; padding: 1px 7px; border-radius: 99px; }
+  .memo-tag-chip { background: #dbeafe; color: #1e40af; font-size: .7em; font-weight: 600; padding: 1px 7px; border-radius: 99px; margin-right: 3px; }
+  .memo-card-meta { margin-left: auto; font-size: .7em; color: #8b95a1; }
+  .memo-card-del { background: none; border: none; color: #f04452; font-size: .78em; cursor: pointer; font-family: inherit; padding: 0 4px; }
+  .memo-content { white-space: pre-wrap; word-break: break-word; color: #191f28; line-height: 1.5; font-size: .85em; }
+  .memo-content .htag { color: #1e40af; font-weight: 600; }
+  .dday-badge { font-size: .68em; font-weight: 700; padding: 1px 7px; border-radius: 99px; color: #fff; }
+  .memo-attach { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .memo-attach a { display: inline-flex; align-items: center; gap: 5px; background: #f9fafb; border: 1px solid #e5e8eb; border-radius: 6px; padding: 5px 10px; font-size: .8em; color: #374151; text-decoration: none; font-family: inherit; }
+  .memo-attach a.img { padding: 0; width: 80px; height: 80px; overflow: hidden; }
+  .memo-attach a.img img { width: 100%; height: 100%; object-fit: cover; }
+  .memo-form { background: #f9fafb; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .memo-form-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .memo-form select, .memo-form input[type=date] { background: #fff; border: 1px solid #e5e8eb; border-radius: 6px; padding: 6px 8px; font-size: .8em; font-family: inherit; cursor: pointer; }
+  .memo-form .file-label { background: #fff; color: #3182f6; border: 1px dashed #3182f6; padding: 6px 10px; border-radius: 6px; font-size: .78em; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .memo-form textarea { width: 100%; padding: 7px 10px; border: 1px solid #e5e8eb; border-radius: 6px; font-size: .85em; font-family: inherit; outline: none; resize: vertical; min-height: 48px; box-sizing: border-box; }
+  .member-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f2f4f6; font-size: .88em; }
+  .badge { display: inline-block; font-size: .7em; padding: 1px 7px; border-radius: 4px; margin-left: 4px; font-weight: 600; }
+  .badge-rep { background: #fef3c7; color: #92400e; }
+  .badge-staff { background: #e0f2fe; color: #075985; }
+  .badge-primary { background: #fee2e2; color: #991b1b; }
+  .room-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #f2f4f6; cursor: pointer; font-size: .88em; }
+  .room-row:hover { background: #f9fafb; }
+  #diag { position: fixed; top: 0; left: 0; background: #10b981; color: #fff; font-size: 10px; padding: 2px 6px; z-index: 99999; font-family: monospace; border-bottom-right-radius: 4px; }
+  /* 모달 (메모/일정/요약 공용) */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
+  .modal-overlay.open { display: flex; }
+  .modal-card { background: #fff; border-radius: 12px; width: 100%; max-width: 480px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
+  .modal-head { padding: 14px 18px; border-bottom: 1px solid #e5e8eb; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .modal-title { font-weight: 700; font-size: 1em; color: #1f2937; }
+  .modal-close { background: none; border: none; font-size: 1.2em; cursor: pointer; color: #8b95a1; padding: 0 6px; line-height: 1; font-family: inherit; }
+  .modal-body { padding: 14px 16px; overflow-y: auto; }
+  .modal-foot { padding: 10px 16px; border-top: 1px solid #f2f4f6; display: flex; gap: 8px; justify-content: flex-end; background: #fafbfc; }
+  .modal-input { width: 100%; padding: 8px 10px; border: 1px solid #e5e8eb; border-radius: 8px; font-size: .9em; font-family: inherit; box-sizing: border-box; outline: none; line-height: 1.4; }
+  .modal-input:focus { border-color: #3182f6; }
+  textarea.modal-input { min-height: 96px; resize: vertical; }
+  .modal-label { font-size: .78em; color: #6b7280; margin-bottom: 4px; display: block; font-weight: 600; }
+  @media (max-width: 480px) {
+    body { padding: 8px; }
+    .header, .section { padding: 12px 14px; }
+    h1 { font-size: 1.15em; }
+    .grid { grid-template-columns: 1fr; }
+    .modal-overlay { padding: 8px; align-items: flex-end; }
+    .modal-card { max-width: 100%; max-height: 85vh; border-radius: 14px 14px 0 0; }
+  }
