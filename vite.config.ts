@@ -38,7 +38,8 @@ export default defineConfig({
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash][extname]',
+        // Phase T1 (2026-05-04): Tailwind output (main.css) 파일명 고정 → HTML 에서 ?v=N 으로 cache bust
+        assetFileNames: 'assets/[name][extname]',
       },
     },
   },

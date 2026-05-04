@@ -14,8 +14,11 @@ import type { Config } from 'tailwindcss';
  */
 export default {
   content: [
-    './office.html',
+    // Phase T1 (2026-05-04): 모든 HTML 추가 — Tailwind 가 사용된 utility 만 빌드 (purge)
+    './*.html',
     './src/**/*.{ts,tsx,html}',
+    './admin-modals.html',
+    './index-modals.html',
   ],
   theme: {
     extend: {

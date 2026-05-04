@@ -208,8 +208,24 @@ Cloudflare Pages + D1 DB + OpenAI GPT-4.1-mini + 국가법령정보센터 API.
 - 헤더 타이틀 말줄임 정상 동작인지 (좁은 폭에서 "세무회계 이윤 이재윤대표" 같은 긴 이름)
 - 기존 기능 회귀 없는지 (보낸 메시지 렌더·스크롤·탭 전환)
 
-### 🎨 디자인 토큰 (A안 적용됨 · 2026-04-22)
-`admin.html` / `staff.html` 최상단 `<style>` 블록에 `:root` CSS 변수로 토큰 정의됨. **신규 코드 작성 시 이 변수를 우선 사용**할 것. 기존 inline style 은 그대로 둠 (UI 박살 방지).
+### 🎨 Tailwind 활성화 (Phase T1 · 2026-05-04)
+
+**메타 12종 #5 디자인 시스템 — Tailwind 인프라 prod 활성화 완료.**
+
+- 모든 HTML (`admin.html` / `index.html` / `business.html` / `office.html` / `staff.html` / `memo-window.html` / `articles.html`) 에 `<link rel="stylesheet" href="/assets/main.css?v=N">` 추가됨
+- `tailwind.config.ts` 의 30개 토큰 (`--of-primary`, `--sb-bg`, `--brand-primary` 등) → utility class 자동 생성 (`bg-of-primary`, `text-sb-text` 등)
+- vite build 시 `dist/assets/main.css` 자동 생성 (purge 적용 — 사용된 utility 만)
+- `src/styles/globals.css` = 토큰 단일 진실 (`@tailwind base/components/utilities` + `:root`)
+
+**신규 코드 작성 시 룰:**
+- ✅ Tailwind utility class 우선: `class="bg-of-primary text-white p-4 rounded-of-md"`
+- ✅ 색은 토큰 utility: `bg-of-primary` (NOT `bg-blue-500`)
+- ⚠️ 인라인 `style="..."` 지양 (Phase T3 에서 모두 변환 예정)
+- ⚠️ raw CSS (admin.css 등) 도 점진 마이그레이션 (Phase T2)
+
+### 🎨 디자인 토큰 (A안 적용됨 · 2026-04-22, Phase T1 후 단계 통합 중)
+`admin.html` / `staff.html` 최상단 `<style>` 블록에 `:root` CSS 변수로 토큰 정의됨 → admin.css 외부화 (Phase H1) → src/styles/globals.css 통합 (Phase T2 예정).
+**신규 코드 작성 시 Tailwind utility 우선 (위 룰)**, 또는 CSS 변수 직접 사용. 기존 inline style 은 그대로 둠 (UI 박살 방지).
 
 **사용 가능한 토큰:**
 - 모달 overlay: `var(--overlay-bg)` = `rgba(0,0,0,.5)`
