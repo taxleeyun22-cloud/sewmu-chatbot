@@ -36,8 +36,9 @@ export default defineConfig({
         main: resolve(__dirname, 'src/main.ts'),
       },
       output: {
-        entryFileNames: 'assets/[name]-[hash].js',
-        chunkFileNames: 'assets/[name]-[hash].js',
+        // Phase S3a (2026-05-04): main.js 파일명 고정 (hash 제거) → HTML 에서 ?v=N 으로 cache bust
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name].js',
         // Phase T1 (2026-05-04): Tailwind output (main.css) 파일명 고정 → HTML 에서 ?v=N 으로 cache bust
         assetFileNames: 'assets/[name][extname]',
       },
@@ -70,6 +71,8 @@ export default defineConfig({
         { src: 'office.js', dest: '.' },
         // Cloudflare Pages 헤더 규칙
         { src: '_headers', dest: '.' },
+        // Phase S3a (2026-05-04): Cloudflare Pages SPA fallback (모든 path → /index.html 200)
+        { src: '_redirects', dest: '.' },
         // PWA 자산
         { src: 'manifest.json', dest: '.' },
         { src: 'sw.js', dest: '.' },

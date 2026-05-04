@@ -1,10 +1,38 @@
 /**
- * Phase 0 — Vite entry placeholder
+ * src/main.ts — Vite entry (Phase S3a, 2026-05-04)
  *
- * Phase 1 에서 Tailwind 토큰을 import 하고, Phase 2 부터 office.html 의
- * 모듈 진입점으로 확장. 현재는 빌드 파이프라인 검증용 빈 모듈.
+ * 메타 12종 #7 SPA 라우팅 — 자체 Router boot.
+ *
+ * 단계:
+ * - Phase S3a (현재): Router 인프라 등록 (window.__router 노출). 기존 multi-page 그대로 작동.
+ * - Phase S3b: '/' → Chat, '/mypage' → MyPage, '/onboard' → Onboarding
+ * - Phase S3c: '/admin/*' → AdminApp
+ * - Phase S3d: '/office', '/business', '/memo-window', '/articles' → 각 view
  */
-import './styles/globals.css';
 
-// Phase 1+ 에서 채움
+import './styles/globals.css';
+import { defineRoute, navigate, start, back, onNavigate, getCurrent } from './router';
+
+/* 글로벌 노출 — classic script 환경에서 다른 .js 파일이 사용 가능하게.
+   Phase S3b 부터 admin.js / index.js 등이 window.__router 통해 navigate 호출. */
+declare global {
+  interface Window {
+    __router?: {
+      defineRoute: typeof defineRoute;
+      navigate: typeof navigate;
+      start: typeof start;
+      back: typeof back;
+      onNavigate: typeof onNavigate;
+      getCurrent: typeof getCurrent;
+    };
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.__router = { defineRoute, navigate, start, back, onNavigate, getCurrent };
+}
+
+/* Phase S3a: router 인스턴스만 노출. start() 는 Phase S3b 에서 route 정의 후.
+   현재는 multi-page 그대로 작동 (classic script 가 각 HTML 의 logic 처리). */
+
 export {};
