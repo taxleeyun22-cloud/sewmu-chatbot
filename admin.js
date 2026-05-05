@@ -938,7 +938,34 @@ async function openRoomMemos(){
   _renderMemoTypeTabs();
   _updateMemoEditBanner();
   _renderMemoFilterTabs();
+  /* Phase R2-8 (M18-c 2026-05-05): 메모 대상 select 채우기 */
+  await _populateMemoTargetSelect(currentRoomId);
   await loadRoomMemos();
+}
+
+async function _populateMemoTargetSelect(roomId){
+  const sel = $g('memoTargetSelect'); if(!sel) return;
+  sel.innerHTML = '<option value="room" selected>📒 담당자 내부 (이 방)</option>';
+  try{
+    const r1 = await fetch('/api/admin-room-businesses?room_id=' + encodeURIComponent(roomId) + '&key=' + encodeURIComponent(KEY));
+    const d1 = await r1.json();
+    (d1.businesses || []).forEach(function(b){
+      const opt = document.createElement('option');
+      opt.value = 'business:' + b.id;
+      opt.textContent = '🏢 ' + (b.company_name || '#'+b.id) + (b.is_primary ? ' (주)' : '');
+      sel.appendChild(opt);
+    });
+    const r2 = await fetch('/api/admin-rooms?key=' + encodeURIComponent(KEY) + '&room_id=' + encodeURIComponent(roomId));
+    const d2 = await r2.json();
+    (d2.members || []).filter(function(m){
+      return !m.left_at && m.user_id && m.role !== 'admin' && Number(m.is_admin) !== 1;
+    }).forEach(function(c){
+      const opt = document.createElement('option');
+      opt.value = 'user:' + c.user_id;
+      opt.textContent = '👤 ' + (c.real_name || c.name || '#'+c.user_id);
+      sel.appendChild(opt);
+    });
+  }catch(_){}
 }
 function closeMemoModal(){
   const m=$g('memoModal');if(m)m.style.display='none';
@@ -1159,9 +1186,19 @@ async function submitMemo(){
         method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
       });
     } else {
+      /* Phase R2-8 (M18-c 2026-05-05): 대상 select 분기 — 담당자 / 업체 / 거래처 */
+      const targetVal = ($g('memoTargetSelect')?.value || 'room');
+      const postBody = { ...payload };
+      if(targetVal.startsWith('business:')){
+        postBody.target_business_id = parseInt(targetVal.split(':')[1], 10);
+      } else if(targetVal.startsWith('user:')){
+        postBody.target_user_id = parseInt(targetVal.split(':')[1], 10);
+      } else {
+        postBody.room_id = currentRoomId;
+      }
       r=await fetch('/api/memos?key='+encodeURIComponent(KEY),{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({...payload, room_id:currentRoomId})
+        body:JSON.stringify(postBody)
       });
     }
     const d=await r.json();
@@ -1305,6 +1342,12 @@ async function openManualClientModal(){
 function closeManualClientModal(){
   const m=$g('manualClientModal');if(m)m.style.display='none';
   document.body.style.overflow='';
+  /* Phase R2-8 (M19 2026-05-05): mcModeTabs / mcExistArea reset */
+  const tabs = $g('mcModeTabs'); if(tabs) tabs.style.display = 'none';
+  const existArea = $g('mcExistArea'); if(existArea) existArea.style.display = 'none';
+  const existInp = $g('mcExistSearch'); if(existInp) existInp.value = '';
+  const existRes = $g('mcExistResults'); if(existRes) existRes.innerHTML = '';
+  const subBtn = $g('mcSubmitBtn'); if(subBtn) subBtn.style.display = '';
   /* addBiz 모드 정리 — 다음 신규 거래처 등록 시 readonly·hidden 잔존 방지 */
   if(_mcMode==='addBiz'){
     _mcMode='newClient'; _mcAddBizUserId=null;
@@ -1337,7 +1380,83 @@ async function openAddBizForUser(userId, userName, userPhone){
   if(titleEl)titleEl.innerHTML='🏢 사업장 추가 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">['+e(userName||'#'+userId)+'] 매핑</span>';
   const btn=$g('mcSubmitBtn');
   if(btn)btn.textContent='🏢 사업장 추가';
+  /* Phase R2-8 (M19 2026-05-05): mcModeTabs 활성화 — addBiz 흐름에서만 표시 */
+  const tabs = $g('mcModeTabs'); if(tabs) tabs.style.display = 'flex';
+  _mcSwitchMode('new');
   setTimeout(()=>$g('mcCompany')?.focus(),60);
+}
+
+/* Phase R2-8 (M19 2026-05-05): 신규/기존 모드 전환 + 검색 */
+function _mcSwitchMode(mode){
+  const newBtn = $g('mcModeNewBtn'); const existBtn = $g('mcModeExistBtn');
+  const existArea = $g('mcExistArea');
+  const submitBtn = $g('mcSubmitBtn');
+  if(mode === 'exist'){
+    if(newBtn){ newBtn.style.background='#fff'; newBtn.style.color='#4b5563'; newBtn.style.border='1px solid #e5e8eb'; }
+    if(existBtn){ existBtn.style.background='#191f28'; existBtn.style.color='#fff'; existBtn.style.border='none'; }
+    if(existArea) existArea.style.display = 'block';
+    if(submitBtn) submitBtn.style.display = 'none';
+    setTimeout(()=>$g('mcExistSearch')?.focus(),60);
+  } else {
+    if(newBtn){ newBtn.style.background='#191f28'; newBtn.style.color='#fff'; newBtn.style.border='none'; }
+    if(existBtn){ existBtn.style.background='#fff'; existBtn.style.color='#4b5563'; existBtn.style.border='1px solid #e5e8eb'; }
+    if(existArea) existArea.style.display = 'none';
+    if(submitBtn) submitBtn.style.display = '';
+  }
+}
+
+var _mcExistSearchTimer = null;
+function _mcExistSearchInput(){
+  if(_mcExistSearchTimer) clearTimeout(_mcExistSearchTimer);
+  _mcExistSearchTimer = setTimeout(_mcExistSearch, 250);
+}
+async function _mcExistSearch(){
+  const q = ($g('mcExistSearch')?.value || '').trim();
+  const res = $g('mcExistResults');
+  if(!res) return;
+  if(q.length < 2){ res.innerHTML = ''; return; }
+  res.innerHTML = '<div style="color:#9ca3af;padding:10px;font-size:.82em;text-align:center">검색 중...</div>';
+  try{
+    const r = await fetch('/api/admin-businesses?search=' + encodeURIComponent(q) + '&key=' + encodeURIComponent(KEY));
+    const d = await r.json();
+    const list = d.businesses || [];
+    if(!list.length){ res.innerHTML = '<div style="color:#9ca3af;padding:10px;font-size:.82em;text-align:center">결과 없음</div>'; return; }
+    res.innerHTML = list.slice(0, 15).map(b =>
+      '<div style="padding:10px 12px;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:6px;background:#fff;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="_mcLinkExisting('+b.id+',\''+escAttr(b.company_name||'#'+b.id)+'\')" onmouseenter="this.style.background=\'#f0f9ff\'" onmouseleave="this.style.background=\'#fff\'">'
+        + '<span style="font-size:1.2em">🏢</span>'
+        + '<div style="flex:1;min-width:0">'
+          + '<div style="font-weight:600;font-size:.88em">'+e(b.company_name||'#'+b.id)+'</div>'
+          + '<div style="font-size:.74em;color:#6b7280">'
+            + (b.business_number ? e(b.business_number) : '')
+            + (b.ceo_name ? ' · '+e(b.ceo_name) : '')
+            + (b.industry ? ' · '+e(b.industry) : '')
+          + '</div>'
+        + '</div>'
+        + '<span style="font-size:.78em;color:#3182f6;font-weight:600">+ 매핑</span>'
+      + '</div>'
+    ).join('');
+  }catch(err){
+    res.innerHTML = '<div style="color:#f04452;padding:10px;font-size:.82em">오류: '+e(err.message)+'</div>';
+  }
+}
+async function _mcLinkExisting(bizId, bizName){
+  if(!_mcAddBizUserId){ alert('user_id 누락'); return; }
+  if(!confirm('"'+bizName+'" 업체를 이 거래처에 매핑할까요?')) return;
+  try{
+    const r = await fetch('/api/admin-businesses?action=add_to_user&key='+encodeURIComponent(KEY), {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ user_id: _mcAddBizUserId, business_id: bizId })
+    });
+    const d = await r.json();
+    if(!d.ok){ alert('매핑 실패: '+(d.error||'unknown')); return; }
+    alert('✅ "'+bizName+'" 매핑 완료');
+    closeManualClientModal();
+    if(typeof _cdCurrentUserId !== 'undefined' && _cdCurrentUserId === _mcAddBizUserId && typeof openCustomerDashboard === 'function'){
+      openCustomerDashboard(_mcAddBizUserId);
+    }
+  }catch(err){
+    alert('오류: '+err.message);
+  }
 }
 async function submitAddBizForUser(userId){
   const company=($g('mcCompany')?.value||'').trim();
