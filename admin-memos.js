@@ -182,8 +182,12 @@ function _renderCdDDayBadge(dueDate){
 }
 
 function _renderCdAttachments(arr){
+  /* Phase M16 (2026-05-05 사장님 보고: "메모 pdf·사진 누르면 Unauthorized"):
+   * URL 에 ADMIN_KEY 항상 부착 — 새 탭 진입 시 cookie 없거나 ADMIN_KEY 인증 통과되도록.
+   * thumbnail img src 도 동일 (이전엔 401 받아서 깨진 표시). */
+  const k = (typeof KEY !== 'undefined' && KEY) ? '&key=' + encodeURIComponent(KEY) : '';
   return '<div style="display:flex;flex-wrap:wrap;gap:6px">'+arr.map(a=>{
-    const url='/api/'+(String(a.mime||'').startsWith('image/')?'image':'file')+'?k='+encodeURIComponent(a.key)+(a.name?'&name='+encodeURIComponent(a.name):'');
+    const url='/api/'+(String(a.mime||'').startsWith('image/')?'image':'file')+'?k='+encodeURIComponent(a.key)+(a.name?'&name='+encodeURIComponent(a.name):'')+k;
     if(String(a.mime||'').startsWith('image/')){
       return '<a href="'+escAttr(url)+'" target="_blank" rel="noopener" style="display:block;border:1px solid #e5e8eb;border-radius:6px;overflow:hidden;width:80px;height:80px"><img src="'+escAttr(url)+'" alt="'+escAttr(a.name||'')+'" style="width:100%;height:100%;object-fit:cover" loading="lazy"></a>';
     }
@@ -305,6 +309,148 @@ function closeTrash(){
   /* Phase M3: 닫을 때 선택 상태 리셋 */
   _trashSelectedIds = {};
   const all = $g('trashSelectAll'); if(all && all.checked !== undefined) all.checked = false;
+}
+
+/* ============================================================
+ * Phase M15 (2026-05-05 사장님 명령): 빠른 메모 — 사이드바 📒 클릭 → 거래처/업체 검색 → 메모 작성
+ * 사장님 직접 인용:
+ * > "메모 누르면 거래처나 사람이름 검색 하는거 나오고 거기서 메모입력도 가능하게 하자"
+ * ============================================================ */
+var _quickMemoTarget = null;  /* { type: 'user'|'business', id, name } */
+var _quickMemoSearchTimer = null;
+
+function openQuickMemoModal(){
+  const m = $g('quickMemoModal'); if(!m){ alert('quickMemoModal element 없음'); return; }
+  /* 상태 리셋 */
+  _quickMemoTarget = null;
+  const inp = $g('quickMemoSearch'); if(inp) inp.value = '';
+  const res = $g('quickMemoSearchResults'); if(res) res.innerHTML = '';
+  const form = $g('quickMemoForm'); if(form) form.style.display = 'none';
+  const search = $g('quickMemoSearchArea'); if(search) search.style.display = 'block';
+  const content = $g('quickMemoContent'); if(content) content.value = '';
+  const due = $g('quickMemoDue'); if(due) due.value = '';
+  m.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  setTimeout(function(){ if(inp) inp.focus(); }, 100);
+}
+
+function closeQuickMemoModal(){
+  const m = $g('quickMemoModal'); if(m) m.style.display = 'none';
+  document.body.style.overflow = '';
+  _quickMemoTarget = null;
+}
+
+function onQuickMemoSearchInput(){
+  if(_quickMemoSearchTimer) clearTimeout(_quickMemoSearchTimer);
+  _quickMemoSearchTimer = setTimeout(_quickMemoDoSearch, 200);
+}
+
+async function _quickMemoDoSearch(){
+  const q = ($g('quickMemoSearch').value || '').trim();
+  const res = $g('quickMemoSearchResults');
+  if(!res) return;
+  if(q.length < 2){
+    res.innerHTML = '<div style="color:#9ca3af;padding:10px;font-size:.82em;text-align:center">2자 이상 입력</div>';
+    return;
+  }
+  res.innerHTML = '<div style="color:#9ca3af;padding:10px;font-size:.82em;text-align:center">검색 중...</div>';
+  try{
+    const r = await fetch('/api/admin-search?q=' + encodeURIComponent(q) + '&key=' + encodeURIComponent(KEY));
+    const d = await r.json();
+    if(!d.ok){ res.innerHTML = '<div style="color:#f04452;padding:10px;font-size:.82em">' + e(d.error || '검색 실패') + '</div>'; return; }
+    _renderQuickMemoResults(d.users || [], d.businesses || []);
+  }catch(err){
+    res.innerHTML = '<div style="color:#f04452;padding:10px;font-size:.82em">오류: ' + e(err.message) + '</div>';
+  }
+}
+
+function _renderQuickMemoResults(users, businesses){
+  const res = $g('quickMemoSearchResults');
+  if(!res) return;
+  if(!users.length && !businesses.length){
+    res.innerHTML = '<div style="color:#9ca3af;padding:10px;font-size:.82em;text-align:center">검색 결과 없음</div>';
+    return;
+  }
+  let html = '';
+  if(users.length){
+    html += '<div style="font-size:.72em;color:#8b95a1;font-weight:600;margin:6px 0 4px">👤 거래처 ('+users.length+')</div>';
+    html += users.slice(0, 8).map(u =>
+      '<div onclick="_quickMemoSelect(\'user\','+u.id+',\''+escAttr(u.real_name||u.name||'#'+u.id)+'\')" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:4px;cursor:pointer;background:#fff;display:flex;align-items:center;gap:8px;transition:background .12s" onmouseenter="this.style.background=\'#f0f9ff\'" onmouseleave="this.style.background=\'#fff\'">'
+        + '<span style="font-size:1.1em">👤</span>'
+        + '<div style="flex:1;min-width:0">'
+          + '<div style="font-weight:600;font-size:.85em">' + e(u.real_name || u.name || '#'+u.id) + '</div>'
+          + '<div style="font-size:.72em;color:#6b7280">' + e(u.phone || u.email || '') + '</div>'
+        + '</div>'
+      + '</div>'
+    ).join('');
+  }
+  if(businesses.length){
+    html += '<div style="font-size:.72em;color:#8b95a1;font-weight:600;margin:8px 0 4px">🏢 업체 ('+businesses.length+')</div>';
+    html += businesses.slice(0, 8).map(b =>
+      '<div onclick="_quickMemoSelect(\'business\','+b.id+',\''+escAttr(b.company_name||'#'+b.id)+'\')" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:4px;cursor:pointer;background:#fff;display:flex;align-items:center;gap:8px;transition:background .12s" onmouseenter="this.style.background=\'#f0fdf4\'" onmouseleave="this.style.background=\'#fff\'">'
+        + '<span style="font-size:1.1em">🏢</span>'
+        + '<div style="flex:1;min-width:0">'
+          + '<div style="font-weight:600;font-size:.85em">' + e(b.company_name || '#'+b.id) + '</div>'
+          + '<div style="font-size:.72em;color:#6b7280">' + e(b.business_number || '') + (b.ceo_name ? ' · ' + e(b.ceo_name) : '') + '</div>'
+        + '</div>'
+      + '</div>'
+    ).join('');
+  }
+  res.innerHTML = html;
+}
+
+function _quickMemoSelect(type, id, name){
+  _quickMemoTarget = { type: type, id: Number(id), name: String(name||'') };
+  const tgt = $g('quickMemoTarget');
+  if(tgt){
+    const icon = type === 'business' ? '🏢' : '👤';
+    tgt.innerHTML = icon + ' <span style="color:#1e40af">' + e(name) + '</span> 메모 추가';
+  }
+  $g('quickMemoSearchArea').style.display = 'none';
+  $g('quickMemoForm').style.display = 'block';
+  setTimeout(function(){ const c = $g('quickMemoContent'); if(c) c.focus(); }, 100);
+}
+
+function _quickMemoBackToSearch(){
+  _quickMemoTarget = null;
+  $g('quickMemoSearchArea').style.display = 'block';
+  $g('quickMemoForm').style.display = 'none';
+  setTimeout(function(){ const inp = $g('quickMemoSearch'); if(inp) inp.focus(); }, 100);
+}
+
+async function submitQuickMemo(){
+  if(!_quickMemoTarget){ alert('대상이 선택되지 않았습니다'); return; }
+  const content = ($g('quickMemoContent').value || '').trim();
+  if(!content){ alert('메모 내용을 입력하세요'); return; }
+  const memoType = $g('quickMemoType').value || '거래처 정보';
+  const category = $g('quickMemoCategory').value || '';
+  const due = $g('quickMemoDue').value || '';
+  const btn = $g('quickMemoSubmitBtn');
+  if(btn){ btn.disabled = true; btn.textContent = '저장 중...'; }
+  try{
+    const body = { memo_type: memoType, content: content };
+    if(category) body.category = category;
+    if(due) body.due_date = due;
+    if(_quickMemoTarget.type === 'business') body.target_business_id = _quickMemoTarget.id;
+    else body.target_user_id = _quickMemoTarget.id;
+    const r = await fetch('/api/memos?key=' + encodeURIComponent(KEY), {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if(btn){ btn.disabled = false; btn.textContent = '＋ 메모 추가'; }
+    if(!d.ok){ alert('저장 실패: ' + (d.error || 'unknown')); return; }
+    /* toast + 모달 닫기 */
+    if(typeof showAdminToast === 'function') showAdminToast('✅ ' + _quickMemoTarget.name + ' 메모 추가됨');
+    else alert('✅ 메모 추가됨');
+    closeQuickMemoModal();
+    /* 거래처 dashboard 가 같은 user_id 면 reload */
+    if(_quickMemoTarget.type === 'user' && typeof _cdCurrentUserId !== 'undefined' && _cdCurrentUserId === _quickMemoTarget.id && typeof _loadCdAllMemos === 'function'){
+      _loadCdAllMemos(_quickMemoTarget.id);
+    }
+  }catch(err){
+    if(btn){ btn.disabled = false; btn.textContent = '＋ 메모 추가'; }
+    alert('오류: ' + err.message);
+  }
 }
 
 /* Phase M3 (2026-05-05 사장님 명령): 휴지통 일괄 액션 — 체크박스 + 전체 선택 + 일괄 복원·삭제 */

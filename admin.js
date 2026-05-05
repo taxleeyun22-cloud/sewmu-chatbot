@@ -3237,6 +3237,14 @@ function _adminSidebarClick(e){
     return;
   }
 
+  /* Phase M15 (2026-05-05): 빠른 메모 — 사이드바 📒 메모 클릭 → 거래처/업체 검색 모달 */
+  if(it.id === 'sbQuickMemoBtn'){
+    document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
+    it.classList.add('on');
+    if(typeof openQuickMemoModal === 'function') openQuickMemoModal();
+    return;
+  }
+
   /* admin 탭 (data-admin-tab) */
   if(it.dataset.adminTab){
     var tabName = it.dataset.adminTab;

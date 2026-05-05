@@ -96,6 +96,19 @@
 
     <div class="of-sb-divider"></div>
 
+    <!-- ===== 문서·메모 (Phase M15 2026-05-05 사장님 명령: "관리에서 문서 따로 분리 + 메모 추가") ===== -->
+    <div class="of-sb-section" data-section-key="docsmemo">문서·메모 <span class="arrow">▾</span></div>
+    <div class="sb-grp" data-grp="docsmemo">
+      <button class="of-sb-item" data-admin-tab="docs" type="button">
+        <span class="ic">📄</span><span class="lb">문서</span><span class="cnt" id="sbCntDocs">0</span>
+      </button>
+      <button class="of-sb-item" type="button" id="sbQuickMemoBtn" title="빠른 메모 — 거래처/업체 검색 후 즉시 메모 작성">
+        <span class="ic">📒</span><span class="lb">메모</span>
+      </button>
+    </div>
+
+    <div class="of-sb-divider"></div>
+
     <!-- ===== 관리 ===== -->
     <div class="of-sb-section" data-section-key="admin">관리 <span class="arrow">▾</span></div>
     <div class="sb-grp" data-grp="admin">
@@ -104,9 +117,6 @@
       </button>
       <button class="of-sb-item" data-admin-tab="live" type="button">
         <span class="ic">📡</span><span class="lb">실시간</span><span class="cnt" id="sbCntLive">0</span>
-      </button>
-      <button class="of-sb-item" data-admin-tab="docs" type="button">
-        <span class="ic">📄</span><span class="lb">문서</span><span class="cnt" id="sbCntDocs">0</span>
       </button>
       <button class="of-sb-item" data-admin-tab="anal" type="button">
         <span class="ic">📊</span><span class="lb">분석</span>
@@ -199,7 +209,7 @@
 <script>
 (function loadAdminModals(){
   function inject(){
-    fetch('/admin-modals.html?v=5', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=6', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -214,8 +224,8 @@
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=152"></script>
-<script src="/admin-memos.js?v=9"></script>
+<script src="/admin.js?v=153"></script>
+<script src="/admin-memos.js?v=10"></script>
 <script src="/admin-customer-dash.js?v=3"></script>
 <script src="/admin-business-tab.js?v=2"></script>
 <script src="/admin-search-bulk.js?v=1"></script>
