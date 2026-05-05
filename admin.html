@@ -70,6 +70,19 @@
 
     <div class="of-sb-divider"></div>
 
+    <!-- ===== 문서·메모 (Phase M18 2026-05-05 사장님 명령: "문서·메모 위로 올리자" — 방 위로 이동) ===== -->
+    <div class="of-sb-section" data-section-key="docsmemo">문서·메모 <span class="arrow">▾</span></div>
+    <div class="sb-grp" data-grp="docsmemo">
+      <button class="of-sb-item" data-admin-tab="docs" type="button">
+        <span class="ic">📄</span><span class="lb">문서</span><span class="cnt" id="sbCntDocs">0</span>
+      </button>
+      <button class="of-sb-item" type="button" id="sbQuickMemoBtn" title="빠른 메모 — 거래처/업체 검색 후 즉시 메모 작성">
+        <span class="ic">📒</span><span class="lb">메모</span>
+      </button>
+    </div>
+
+    <div class="of-sb-divider"></div>
+
     <!-- ===== 방 ===== -->
     <div class="of-sb-section" data-section-key="rooms">방 <span class="arrow">▾</span></div>
     <div class="sb-grp" data-grp="rooms">
@@ -92,19 +105,6 @@
       </button>
       <!-- 호환: 기존 sbUserGuest hidden 유지 (admin.js setText 호출 안 깨지게) -->
       <span id="sbUserGuest" class="hidden">0</span>
-    </div>
-
-    <div class="of-sb-divider"></div>
-
-    <!-- ===== 문서·메모 (Phase M15 2026-05-05 사장님 명령: "관리에서 문서 따로 분리 + 메모 추가") ===== -->
-    <div class="of-sb-section" data-section-key="docsmemo">문서·메모 <span class="arrow">▾</span></div>
-    <div class="sb-grp" data-grp="docsmemo">
-      <button class="of-sb-item" data-admin-tab="docs" type="button">
-        <span class="ic">📄</span><span class="lb">문서</span><span class="cnt" id="sbCntDocs">0</span>
-      </button>
-      <button class="of-sb-item" type="button" id="sbQuickMemoBtn" title="빠른 메모 — 거래처/업체 검색 후 즉시 메모 작성">
-        <span class="ic">📒</span><span class="lb">메모</span>
-      </button>
     </div>
 
     <div class="of-sb-divider"></div>
@@ -209,7 +209,7 @@
 <script>
 (function loadAdminModals(){
   function inject(){
-    fetch('/admin-modals.html?v=6', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=7', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -224,9 +224,9 @@
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=154"></script>
+<script src="/admin.js?v=155"></script>
 <script src="/admin-memos.js?v=10"></script>
-<script src="/admin-customer-dash.js?v=3"></script>
+<script src="/admin-customer-dash.js?v=4"></script>
 <script src="/admin-business-tab.js?v=2"></script>
 <script src="/admin-search-bulk.js?v=1"></script>
 <script src="/admin-rooms-list.js?v=2"></script>

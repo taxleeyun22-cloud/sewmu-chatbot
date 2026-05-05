@@ -136,6 +136,61 @@ export async function onRequestGet(context) {
   const roomId = url.searchParams.get("room_id");
   const userIdParam = Number(url.searchParams.get("user_id") || 0);
 
+  /* === Phase M18-a (2026-05-05 사장님 명령: "상담방 메모 모달에 거래처 메모도 같이 보이게") ===
+   * scope=room_full — 1 상담방 의 모든 관련 메모 통합:
+   *   1. m.room_id = X            (담당자 내부 메모)
+   *   2. m.target_business_id ∈ room_businesses (이 방에 매핑된 업체 메모)
+   *   3. m.target_user_id ∈ room_members (이 방 멤버 거래처 메모)
+   * 응답에 source ('room' / 'business' / 'user') + business_name + user_real_name 포함. */
+  if (scope === 'room_full') {
+    if (!roomId) return Response.json({ error: 'room_id required' }, { status: 400 });
+    try {
+      /* lazy: room_businesses 테이블 보장 (M11 도 체크) */
+      try { await db.prepare(`CREATE TABLE IF NOT EXISTS room_businesses (
+        room_id TEXT NOT NULL, business_id INTEGER NOT NULL, is_primary INTEGER DEFAULT 0,
+        linked_at TEXT, linked_by_user_id INTEGER, removed_at TEXT,
+        PRIMARY KEY (room_id, business_id))`).run(); } catch (_) {}
+
+      const { results } = await db.prepare(`
+        SELECT m.id, m.room_id, m.target_user_id, m.target_business_id,
+               m.author_user_id, m.author_name, m.assigned_to_user_id,
+               m.memo_type, m.content, m.is_edited, m.due_date, m.linked_message_id,
+               m.filing_type, m.filing_period,
+               m.category, m.tags, m.attachments,
+               m.created_at, m.updated_at,
+               b.company_name AS business_name,
+               COALESCE(u.real_name, u.name) AS user_name
+          FROM memos m
+          LEFT JOIN businesses b ON m.target_business_id = b.id
+          LEFT JOIN users u ON m.target_user_id = u.id
+         WHERE m.deleted_at IS NULL
+           AND (
+             m.room_id = ?
+             OR m.target_business_id IN (
+               SELECT business_id FROM room_businesses
+               WHERE room_id = ? AND (removed_at IS NULL OR removed_at = '')
+             )
+             OR m.target_user_id IN (
+               SELECT user_id FROM room_members
+               WHERE room_id = ? AND left_at IS NULL AND user_id IS NOT NULL
+             )
+           )
+         ORDER BY m.created_at DESC LIMIT 200
+      `).bind(roomId, roomId, roomId).all();
+
+      const normalized = (results || []).map(r => ({
+        ...r,
+        memo_type_display: LEGACY_MAP[r.memo_type] || r.memo_type,
+        tags: r.tags ? safeParseJson(r.tags) : [],
+        attachments: r.attachments ? safeParseJson(r.attachments) : [],
+        source: r.target_business_id ? 'business' : (r.target_user_id ? 'user' : 'room'),
+      }));
+      return Response.json({ ok: true, memos: normalized, types: NEW_TYPES });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   /* === 휴지통 카운트 (deleted_at IS NOT NULL) === */
   if (scope === 'trash_count') {
     try {
