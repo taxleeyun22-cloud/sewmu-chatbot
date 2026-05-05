@@ -3215,6 +3215,26 @@ function _adminSidebarClick(e){
     document.body.classList.remove('internal-room-mode');
   }
 
+  /* Phase M17 (2026-05-05 사장님 보고: "관리자방 → 상담방 들어가면 자동으로 관리자방 카톡이 남아있음.. 처음 상담방 들어가면 목록만 뜨도록"):
+   * data-admin-tab="rooms" 클릭 시 detail view 강제 reset (currentRoomId / roomMessages / show-chat / polling). */
+  if(it.dataset.adminTab === 'rooms'){
+    try{
+      window.currentRoomId = null;
+      var rl = document.getElementById('roomsLayout'); if(rl) rl.classList.remove('show-chat');
+      var rm = document.getElementById('roomMessages'); if(rm) rm.innerHTML = '';
+      var rt = document.getElementById('roomChatTitle'); if(rt) rt.textContent = '좌측 상담방을 선택하세요';
+      var ra = document.getElementById('roomActions'); if(ra) ra.style.display = 'none';
+      var rmm = document.getElementById('roomMembers'); if(rmm) rmm.style.display = 'none';
+      var ria = document.getElementById('roomInputArea'); if(ria) ria.style.display = 'none';
+      var rmb = document.getElementById('roomMenuBtn'); if(rmb) rmb.style.display = 'none';
+      var rpb = document.getElementById('roomPopoutBtn'); if(rpb) rpb.style.display = 'none';
+      /* 폴링 멈춤 — admin-rooms-list.js 의 roomMsgPollTimer */
+      if(typeof roomMsgPollTimer !== 'undefined' && roomMsgPollTimer){
+        clearInterval(roomMsgPollTimer); window.roomMsgPollTimer = null;
+      }
+    }catch(_){}
+  }
+
   /* Phase M9 (2026-05-05): users-user / users-biz 토글 — users 탭 + mode 전환 */
   if(it.dataset.adminTab === 'users-user'){
     if(typeof tab === 'function') tab('users');
