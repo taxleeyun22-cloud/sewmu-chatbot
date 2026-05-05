@@ -352,41 +352,187 @@ function cdExportCsv(){
 }
 
 /* 상담방 헤더 "🏢 거래처" 버튼 →
-   1순위: 방에 연결된 업체(chat_rooms.business_id) 가 있으면 그 업체 대시보드 직행
-   2순위: 업체 연결 없는 방은 user 기반 거래처 사이드 패널 (3중 가드) */
+   Phase M11 (2026-05-05 사장님 명령): N:N 매핑 (1방 = N업체).
+   - 방의 연결된 업체 list (room_businesses) 조회
+   - 1개 → 직행
+   - 2개+ → 선택 모달 (selectRoomBizModal)
+   - 0개 → 자동 추론 (멤버의 매핑 사업장)
+       · 1개 → 자동 연결 + dashboard
+       · 2개+ → linkBizModal
+       · 0개 → 안내 alert */
 async function openCustomerDashboardFromRoom(){
   if(!currentRoomId){alert('상담방을 먼저 열어주세요');return}
   try{
-    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
-    const d=await r.json();
-    /* 1순위 — 업체 직행 */
-    const bizId=d.room&&d.room.business_id;
-    if(bizId){
-      openBusinessDashboard(bizId);
+    /* 1. 방의 연결된 업체 list */
+    const r = await fetch('/api/admin-room-businesses?room_id=' + encodeURIComponent(currentRoomId) + '&key=' + encodeURIComponent(KEY));
+    const d = await r.json();
+    const bizList = d.businesses || [];
+
+    if(bizList.length === 1){
+      /* 단일 업체 → 직행 */
+      openBusinessDashboard(bizList[0].id);
       return;
     }
-    /* 2순위 — user 기반 fallback */
-    const customers=(d.members||[]).filter(m=>
-      !m.left_at &&
-      m.user_id &&
-      m.role!=='admin' &&
-      Number(m.is_admin)!==1 &&
-      m.approval_status!=='rejected'
+
+    if(bizList.length >= 2){
+      /* 다수 업체 → 선택 모달 */
+      openSelectRoomBizModal(currentRoomId, bizList);
+      return;
+    }
+
+    /* 0개 — 자동 추론 (방 멤버의 매핑 사업장) */
+    const m = await fetch('/api/admin-rooms?key=' + encodeURIComponent(KEY) + '&room_id=' + encodeURIComponent(currentRoomId));
+    const md = await m.json();
+    const customers = (md.members||[]).filter(c =>
+      !c.left_at && c.user_id && c.role !== 'admin' &&
+      Number(c.is_admin) !== 1 && c.approval_status !== 'rejected'
     );
-    if(!customers.length){
-      alert('이 방에 연결된 거래처(업체)가 없습니다.\n💡 헤더 🔗 버튼으로 업체를 연결하거나,\n또는 거래처(고객) 사용자를 방에 초대하세요.');
+
+    /* 매핑 사업장 모음 (중복 제거) */
+    const candidatesById = {};
+    for (const c of customers) {
+      try {
+        const br = await fetch('/api/admin-businesses?user_id=' + c.user_id + '&key=' + encodeURIComponent(KEY));
+        const bd = await br.json();
+        for (const b of (bd.businesses || [])) {
+          if (!b.deleted_at && !candidatesById[b.id]) candidatesById[b.id] = b;
+        }
+      } catch (_) {}
+    }
+    const candidates = Object.values(candidatesById);
+
+    if(candidates.length === 0){
+      alert('이 방에 연결된 업체가 없습니다.\n\n💡 헤더 🔗 버튼으로 업체를 연결하거나,\n방 멤버의 사업장을 먼저 등록해주세요.');
       return;
     }
-    if(customers.length===1){
-      openCustSidePanel(customers[0].user_id);
+    if(candidates.length === 1){
+      /* 1개 자동 연결 + 직행 */
+      const ok = await _linkRoomBiz(currentRoomId, candidates[0].id, true);
+      if(!ok) return;
+      openBusinessDashboard(candidates[0].id);
       return;
     }
-    const options=customers.map((c,i)=>(i+1)+'. '+(c.real_name||c.name||('user#'+c.user_id))).join('\n');
-    const pick=prompt('거래처가 '+customers.length+'명입니다. 번호 선택:\n\n'+options,'1');
-    const idx=parseInt(pick,10)-1;
-    if(!Number.isFinite(idx)||idx<0||idx>=customers.length)return;
-    openCustSidePanel(customers[idx].user_id);
-  }catch(e){alert('오류: '+e.message)}
+    /* 2개+ 후보 → 선택 모달 (linkBizModal) */
+    openLinkBizModal(currentRoomId, candidates);
+  }catch(e){
+    alert('오류: '+e.message);
+  }
+}
+
+/* 방-업체 연결 helper */
+async function _linkRoomBiz(roomId, bizId, isPrimary){
+  try{
+    const r = await fetch('/api/admin-room-businesses?key=' + encodeURIComponent(KEY), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ room_id: roomId, business_id: bizId, is_primary: !!isPrimary }),
+    });
+    const d = await r.json();
+    if(!d.ok){ alert('연결 실패: ' + (d.error || 'unknown')); return false; }
+    return true;
+  }catch(err){
+    alert('오류: '+err.message);
+    return false;
+  }
+}
+
+/* 방-업체 매핑 해제 */
+async function _unlinkRoomBiz(roomId, bizId){
+  if(!confirm('이 방에서 업체 매핑을 해제할까요?\n(업체·메모 자체는 유지됩니다)')) return false;
+  try{
+    const r = await fetch('/api/admin-room-businesses?room_id=' + encodeURIComponent(roomId) + '&business_id=' + bizId + '&key=' + encodeURIComponent(KEY), { method: 'DELETE' });
+    const d = await r.json();
+    if(!d.ok){ alert('해제 실패: ' + (d.error || 'unknown')); return false; }
+    return true;
+  }catch(err){
+    alert('오류: '+err.message);
+    return false;
+  }
+}
+
+/* linkBizModal — 0개 매핑 + 후보 list 에서 사장님이 1개 선택해서 연결 */
+function openLinkBizModal(roomId, candidates){
+  const m = $g('linkBizModal'); if(!m){ alert('linkBizModal element 없음'); return; }
+  const list = $g('linkBizList');
+  if(list){
+    list.innerHTML = candidates.map(b =>
+      '<div style="padding:12px 14px;border:1px solid #e5e8eb;border-radius:10px;margin-bottom:8px;background:#fff">'
+        + '<div style="font-weight:700;font-size:.95em;margin-bottom:4px">'+e(b.company_name||'사업장 #'+b.id)+'</div>'
+        + '<div style="font-size:.78em;color:#6b7280;line-height:1.5">'
+          + (b.business_number ? '사업자 ' + e(b.business_number) + ' · ' : '')
+          + (b.ceo_name ? '대표 ' + e(b.ceo_name) + ' · ' : '')
+          + (b.industry || '')
+        + '</div>'
+        + '<div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">'
+          + '<button onclick="_linkBizConfirm(\''+escAttr(roomId)+'\','+b.id+',true)" style="background:#10b981;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">✅ 이 업체 연결 (주)</button>'
+          + '<button onclick="_linkBizConfirm(\''+escAttr(roomId)+'\','+b.id+',false)" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 14px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">+ 추가 연결 (보조)</button>'
+        + '</div>'
+      + '</div>'
+    ).join('');
+  }
+  m.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLinkBizModal(){
+  const m = $g('linkBizModal'); if(m) m.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function _linkBizConfirm(roomId, bizId, isPrimary){
+  const ok = await _linkRoomBiz(roomId, bizId, isPrimary);
+  if(!ok) return;
+  closeLinkBizModal();
+  openBusinessDashboard(bizId);
+}
+
+/* selectRoomBizModal — 2개+ 매핑된 업체 중 사장님이 어느 dashboard 볼지 선택 */
+function openSelectRoomBizModal(roomId, bizList){
+  const m = $g('selectRoomBizModal'); if(!m){ alert('selectRoomBizModal element 없음'); return; }
+  const list = $g('selectRoomBizList');
+  if(list){
+    list.innerHTML = bizList.map(b =>
+      '<div style="padding:12px 14px;border:1px solid '+(b.is_primary?'#10b981':'#e5e8eb')+';border-radius:10px;margin-bottom:8px;background:'+(b.is_primary?'#f0fdf4':'#fff')+'">'
+        + '<div style="font-weight:700;font-size:.95em;margin-bottom:4px">'
+          + (b.is_primary?'<span style="color:#10b981;margin-right:4px">★</span>':'')
+          + e(b.company_name||'사업장 #'+b.id)
+          + (b.is_primary?' <span style="font-size:.7em;color:#10b981;font-weight:600;margin-left:4px">주 업체</span>':'')
+        + '</div>'
+        + '<div style="font-size:.78em;color:#6b7280;line-height:1.5">'
+          + (b.business_number ? '사업자 ' + e(b.business_number) + ' · ' : '')
+          + (b.ceo_name ? '대표 ' + e(b.ceo_name) + ' · ' : '')
+          + (b.industry || '')
+        + '</div>'
+        + '<div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">'
+          + '<button onclick="closeSelectRoomBizModal();openBusinessDashboard('+b.id+')" style="background:#3182f6;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">📊 dashboard 열기</button>'
+          + (b.is_primary?'':'<button onclick="_setPrimaryAndReopen(\''+escAttr(roomId)+'\','+b.id+')" style="background:#fff;color:#10b981;border:1px solid #10b981;padding:6px 12px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">★ 주 업체로</button>')
+          + '<button onclick="_unlinkAndReopen(\''+escAttr(roomId)+'\','+b.id+')" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:6px 12px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">🗑️ 해제</button>'
+        + '</div>'
+      + '</div>'
+    ).join('');
+  }
+  m.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeSelectRoomBizModal(){
+  const m = $g('selectRoomBizModal'); if(m) m.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function _setPrimaryAndReopen(roomId, bizId){
+  const ok = await _linkRoomBiz(roomId, bizId, true);
+  if(!ok) return;
+  closeSelectRoomBizModal();
+  /* 다시 거래처 버튼 흐름으로 — 이번엔 primary 가 set 되어 있으니 reload */
+  setTimeout(openCustomerDashboardFromRoom, 100);
+}
+
+async function _unlinkAndReopen(roomId, bizId){
+  const ok = await _unlinkRoomBiz(roomId, bizId);
+  if(!ok) return;
+  closeSelectRoomBizModal();
+  setTimeout(openCustomerDashboardFromRoom, 100);
 }
 
 /* ===== 📝 거래처 단위 AI 요약 — user_id 기반 통합 (모든 방 대화 + 메모) =====
