@@ -200,7 +200,7 @@
 <script>
 (function loadAdminModals(){
   function inject(){
-    fetch('/admin-modals.html?v=1', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=2', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');

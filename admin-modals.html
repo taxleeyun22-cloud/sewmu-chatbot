@@ -90,6 +90,12 @@
   <div id="bizList"></div>
 </div>
 
+</div>
+
+<!-- Phase D3-fix (2026-05-05 사장님 보고): 4개 모달 (labelManage / custSidePanel / newFiling / manualClient) 을
+     usersView 밖으로 이동. 사용자가 다른 탭(상담방 등) 진입 시 usersView display:none 으로
+     인해 모달이 hidden subtree 안에 갇히던 버그 fix. labelManageModal ⚙ 톱니바퀴 안 뜨는 문제. -->
+
 <!-- ⚙️ 담당자 라벨 관리 모달 -->
 <div id="labelManageModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11300;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
@@ -239,7 +245,6 @@
       <button onclick="submitManualClient()" id="mcSubmitBtn" style="background:#10b981;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">➕ 등록</button>
     </div>
   </div>
-</div>
 </div>
 
 <!-- 거래처 사업장 관리 모달 (복수 지원) -->
