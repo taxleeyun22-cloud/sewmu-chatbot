@@ -353,13 +353,50 @@ export async function onRequestDelete(context) {
   if (!db) return Response.json({ ok: false, error: 'DB error' }, { status: 500 });
   await ensureTables(db);
   const url = new URL(context.request.url);
-  const id = url.searchParams.get('id');
+  const id = Number(url.searchParams.get('id') || 0);
   if (!id) return Response.json({ ok: false, error: 'id 필요' }, { status: 400 });
   try {
-    /* 연결 해제 + 소프트 삭제 대신 status='closed' 로만 */
-    await db.prepare(`UPDATE businesses SET status = 'closed', updated_at = ? WHERE id = ?`).bind(kst(), id).run();
-    /* 멤버는 유지 (소속 기록), 상담방 연결도 유지 — 필요 시 수동 해제 */
-    return Response.json({ ok: true, note: '실제 삭제는 하지 않음. status=closed 로만 변경.' });
+    /* Phase M6 (2026-05-05 사장님 명령: "신중히 삭제 + 메모도 다같이 날라가는걸로"):
+     * cascade soft delete — businesses + business_members + memos */
+
+    /* lazy migration — businesses.deleted_at */
+    try { await db.prepare(`ALTER TABLE businesses ADD COLUMN deleted_at TEXT`).run(); } catch (_) {}
+
+    /* 1. 업체 정보 조회 (이름 응답용 + 존재 확인) */
+    const biz = await db.prepare(
+      `SELECT id, company_name FROM businesses WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '')`
+    ).bind(id).first();
+    if (!biz) {
+      return Response.json({ ok: false, error: '이미 삭제됐거나 존재하지 않는 업체' }, { status: 404 });
+    }
+
+    const now = kst();
+
+    /* 2. business_members soft delete (removed_at) — 매핑 끊기 */
+    const memberR = await db.prepare(
+      `UPDATE business_members SET removed_at = ? WHERE business_id = ? AND (removed_at IS NULL OR removed_at = '')`
+    ).bind(now, id).run().catch(() => null);
+
+    /* 3. memos cascade — target_business_id = N AND 살아있는 메모 → 휴지통 */
+    const memoR = await db.prepare(
+      `UPDATE memos SET deleted_at = ? WHERE target_business_id = ? AND deleted_at IS NULL`
+    ).bind(now, id).run().catch(() => null);
+
+    /* 4. chat_rooms 의 business_id 매핑 해제 (방 자체는 유지) */
+    try { await db.prepare(`UPDATE chat_rooms SET business_id = NULL WHERE business_id = ?`).bind(id).run(); } catch (_) {}
+
+    /* 5. businesses 본체 — soft delete (deleted_at) + status='closed' (호환) */
+    await db.prepare(
+      `UPDATE businesses SET deleted_at = ?, status = 'closed', updated_at = ? WHERE id = ?`
+    ).bind(now, now, id).run();
+
+    return Response.json({
+      ok: true,
+      deleted_business: biz.company_name,
+      cascaded_memos: memoR && memoR.meta ? (memoR.meta.changes || 0) : 0,
+      removed_members: memberR && memberR.meta ? (memberR.meta.changes || 0) : 0,
+      note: 'Soft delete — 메모는 휴지통에서 복원 가능 (업체 자체는 복원 X)',
+    });
   } catch (e) {
     return Response.json({ ok: false, error: e.message }, { status: 500 });
   }

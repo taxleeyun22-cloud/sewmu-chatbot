@@ -61,6 +61,15 @@
 
   <div class="of-sb-scroll">
 
+    <!-- Phase M4 (2026-05-05 사장님 명령): 전역검색 사이드바 최상단 단독 항목 -->
+    <div class="sb-grp" data-grp="quick" style="padding-top:6px;padding-bottom:6px">
+      <button class="of-sb-item" type="button" id="sbSearchBtn" style="font-weight:700">
+        <span class="ic">🔍</span><span class="lb">전역 검색</span>
+      </button>
+    </div>
+
+    <div class="of-sb-divider"></div>
+
     <!-- ===== 방 ===== -->
     <div class="of-sb-section" data-section-key="rooms">방 <span class="arrow">▾</span></div>
     <div class="sb-grp" data-grp="rooms">
@@ -72,25 +81,17 @@
       </button>
     </div>
 
-    <!-- ===== 사용자 (거래처) ===== -->
-    <div class="of-sb-section" data-section-key="users">사용자 <span class="arrow">▾</span></div>
+    <!-- ===== 사용자/업체 (Phase M9 2026-05-05 사장님 명령: 5개 status → 2개 토글로 단순화) ===== -->
+    <div class="of-sb-section" data-section-key="users">사용자/업체 <span class="arrow">▾</span></div>
     <div class="sb-grp" data-grp="users">
-      <button class="of-sb-item" data-mode="user" data-status="pending" type="button">
-        <span class="ic">⏳</span><span class="lb">대기</span><span class="cnt" id="sbUserPending">0</span>
+      <button class="of-sb-item" data-admin-tab="users-user" type="button">
+        <span class="ic">👤</span><span class="lb">사용자</span><span class="cnt" id="sbUserTotal">0</span>
       </button>
-      <button class="of-sb-item" data-mode="user" data-status="approved_client" type="button">
-        <span class="ic">⭐</span><span class="lb">기장거래처</span><span class="cnt" id="sbUserClient">0</span>
+      <button class="of-sb-item" data-admin-tab="users-biz" type="button">
+        <span class="ic">🏢</span><span class="lb">업체</span><span class="cnt" id="sbBizTotal">0</span>
       </button>
+      <!-- 호환: 기존 sbUserGuest hidden 유지 (admin.js setText 호출 안 깨지게) -->
       <span id="sbUserGuest" class="hidden">0</span>
-      <button class="of-sb-item" data-mode="user" data-status="rejected" type="button">
-        <span class="ic">✕</span><span class="lb">거절</span><span class="cnt" id="sbUserRejected">0</span>
-      </button>
-      <button class="of-sb-item" data-mode="user" data-status="terminated" type="button">
-        <span class="ic">⛔</span><span class="lb">종료</span><span class="cnt" id="sbUserTerminated">0</span>
-      </button>
-      <button class="of-sb-item" data-mode="user" data-status="admin" type="button">
-        <span class="ic">👑</span><span class="lb">관리자</span><span class="cnt" id="sbUserAdmin">0</span>
-      </button>
     </div>
 
     <div class="of-sb-divider"></div>
@@ -132,9 +133,7 @@
       <button class="of-sb-item" type="button" id="sbBulkSendBtn" onclick="openBulkSend()">
         <span class="ic">📢</span><span class="lb">단체발송</span>
       </button>
-      <button class="of-sb-item" type="button" id="sbSearchBtn" onclick="openSearch()">
-        <span class="ic">🔍</span><span class="lb">전역 검색</span>
-      </button>
+      <!-- Phase M4 (2026-05-05): 전역검색 → 사이드바 최상단으로 이동 -->
       <button class="of-sb-item" type="button" id="sbTrashBtn">
         <span class="ic">🗑️</span><span class="lb">휴지통</span><span class="cnt" id="sbCntTrash">0</span>
       </button>
@@ -145,7 +144,7 @@
     <!-- ===== 외부 (챗봇 / PC 알림) — Phase S3c-2-fix ===== -->
     <div class="of-sb-section" data-section-key="ext">외부 <span class="arrow">▾</span></div>
     <div class="sb-grp" data-grp="ext">
-      <button class="of-sb-item" type="button" id="sbPcNotifyBtn" onclick="togglePcNotify()" title="PC 알림 (새 고객 메시지 알림)">
+      <button class="of-sb-item" type="button" id="sbPcNotifyBtn" title="PC 알림 (새 고객 메시지 알림)">
         <span class="ic">🔕</span><span class="lb">PC 알림</span>
       </button>
       <a class="of-sb-item" href="javascript:void(0)" onclick="goToChatbotAsAdmin()" title="카톡 세션 로그아웃 후 챗봇 페이지로" data-spa-skip="1">
@@ -200,7 +199,7 @@
 <script>
 (function loadAdminModals(){
   function inject(){
-    fetch('/admin-modals.html?v=3', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=4', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -215,8 +214,8 @@
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=148"></script>
-<script src="/admin-memos.js?v=8"></script>
+<script src="/admin.js?v=149"></script>
+<script src="/admin-memos.js?v=9"></script>
 <script src="/admin-customer-dash.js?v=1"></script>
 <script src="/admin-business-tab.js?v=2"></script>
 <script src="/admin-search-bulk.js?v=1"></script>

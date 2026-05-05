@@ -302,6 +302,80 @@ function openTrash(){
 function closeTrash(){
   const m = $g('trashModal'); if(m) m.style.display = 'none';
   document.body.style.overflow = '';
+  /* Phase M3: 닫을 때 선택 상태 리셋 */
+  _trashSelectedIds = {};
+  const all = $g('trashSelectAll'); if(all && all.checked !== undefined) all.checked = false;
+}
+
+/* Phase M3 (2026-05-05 사장님 명령): 휴지통 일괄 액션 — 체크박스 + 전체 선택 + 일괄 복원·삭제 */
+var _trashSelectedIds = {};
+
+function trashToggleSelect(id, checked){
+  if(checked) _trashSelectedIds[id] = true;
+  else delete _trashSelectedIds[id];
+  _renderTrashSelectionUI();
+  const card = document.querySelector('[data-trash-id="' + id + '"]');
+  if(card) card.style.background = checked ? '#fef3c7' : '';
+}
+
+function trashToggleAll(checked){
+  const cards = document.querySelectorAll('[data-trash-id]');
+  cards.forEach(function(c){
+    const id = parseInt(c.dataset.trashId);
+    if(!id) return;
+    if(checked) _trashSelectedIds[id] = true;
+    else delete _trashSelectedIds[id];
+    const chk = c.querySelector('input[type="checkbox"]');
+    if(chk) chk.checked = checked;
+    c.style.background = checked ? '#fef3c7' : '';
+  });
+  _renderTrashSelectionUI();
+}
+
+function _renderTrashSelectionUI(){
+  const ids = Object.keys(_trashSelectedIds);
+  const n = ids.length;
+  const cnt = $g('trashSelectedCount'); if(cnt) cnt.textContent = '선택 ' + n + '건';
+  const restoreBtn = $g('trashBulkRestoreBtn');
+  const purgeBtn = $g('trashBulkPurgeBtn');
+  if(restoreBtn){ restoreBtn.disabled = n===0; restoreBtn.style.opacity = n===0 ? '0.5' : '1'; }
+  if(purgeBtn){ purgeBtn.disabled = n===0; purgeBtn.style.opacity = n===0 ? '0.5' : '1'; }
+  const total = document.querySelectorAll('[data-trash-id]').length;
+  const all = $g('trashSelectAll');
+  if(all && all.checked !== undefined) all.checked = (n > 0 && n === total);
+}
+
+async function bulkRestoreTrash(){
+  const ids = Object.keys(_trashSelectedIds).map(Number).filter(Boolean);
+  if(!ids.length){ alert('선택된 항목이 없습니다.'); return; }
+  if(!confirm(ids.length + '건 일괄 복원할까요?')) return;
+  const results = await Promise.all(ids.map(function(id){
+    return fetch('/api/memos?action=restore&id=' + id + '&key=' + encodeURIComponent(KEY), { method:'POST' })
+      .then(function(r){ return r.json(); })
+      .catch(function(e){ return { ok:false, error: e && e.message }; });
+  }));
+  const ok = results.filter(function(r){ return r && r.ok; }).length;
+  const fail = results.length - ok;
+  alert('복원 완료: ' + ok + '건' + (fail ? ' (실패 ' + fail + '건)' : ''));
+  _trashSelectedIds = {};
+  loadTrash();
+  if(typeof _cdCurrentUserId !== 'undefined' && _cdCurrentUserId && typeof _loadCdAllMemos === 'function') _loadCdAllMemos(_cdCurrentUserId);
+}
+
+async function bulkPurgeTrash(){
+  const ids = Object.keys(_trashSelectedIds).map(Number).filter(Boolean);
+  if(!ids.length){ alert('선택된 항목이 없습니다.'); return; }
+  if(!confirm(ids.length + '건 영구 삭제할까요?\n\n⚠️ 되돌릴 수 없습니다.')) return;
+  const results = await Promise.all(ids.map(function(id){
+    return fetch('/api/memos?action=purge&id=' + id + '&key=' + encodeURIComponent(KEY), { method:'POST' })
+      .then(function(r){ return r.json(); })
+      .catch(function(e){ return { ok:false, error: e && e.message }; });
+  }));
+  const ok = results.filter(function(r){ return r && r.ok; }).length;
+  const fail = results.length - ok;
+  alert('영구 삭제: ' + ok + '건' + (fail ? ' (실패 ' + fail + '건)' : ''));
+  _trashSelectedIds = {};
+  loadTrash();
 }
 
 async function loadTrash(){
@@ -329,8 +403,12 @@ async function loadTrash(){
       const deletedAt = (m.deleted_at || '').substring(0, 16).replace('T', ' ');
       const created = (m.created_at || '').substring(0, 10);
       const content = e(m.content || '').replace(/#([\w가-힣]+)/g, '<span style="color:#1e40af;font-weight:600">#$1</span>');
-      return '<div style="padding:10px 0;border-bottom:1px dashed #e5e8eb">'
+      /* Phase M3 (2026-05-05 사장님 명령): 카드별 체크박스 추가 */
+      const checked = _trashSelectedIds[m.id] ? 'checked' : '';
+      const cardBg = _trashSelectedIds[m.id] ? '#fef3c7' : '';
+      return '<div data-trash-id="' + m.id + '" style="padding:10px 0;border-bottom:1px dashed #e5e8eb;background:' + cardBg + '">'
         + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;font-size:.85em">'
+          + '<input type="checkbox" ' + checked + ' onchange="trashToggleSelect(' + m.id + ',this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:#3182f6;flex-shrink:0">'
           + '<span style="font-size:1em">' + ic + '</span>'
           + '<span style="color:#4e5968;font-size:.74em;font-weight:700">' + e(m.memo_type_display || m.memo_type) + '</span>'
           + cat + ctxHtml
@@ -344,6 +422,8 @@ async function loadTrash(){
         + '</div>'
       + '</div>';
     }).join('');
+    /* Phase M3: 일괄 선택 UI 초기화 (카드 새로 그렸으니 카운트·버튼·전체체크 동기화) */
+    _renderTrashSelectionUI();
   }catch(err){
     list.innerHTML = '<div style="color:#f04452;padding:14px">오류: ' + e(err.message) + '</div>';
   }

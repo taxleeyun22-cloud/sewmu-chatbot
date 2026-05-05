@@ -489,21 +489,48 @@ function _pcNotifySet(on){
   try{localStorage.setItem('pcNotifyOn', on?'1':'0')}catch(_){}
 }
 function _updatePcNotifyBtn(){
-  const b=document.getElementById('pcNotifyBtn');if(!b)return;
   const on=_pcNotifyEnabled();
   const perm=(typeof Notification!=='undefined')?Notification.permission:'denied';
-  if(on && perm==='granted'){
-    b.innerHTML='🔔 알림';
-    b.style.background='#10b981';b.style.color='#fff';
-    b.title='PC 알림 켜짐 — 클릭해서 끄기';
-  } else if(on && perm!=='granted'){
-    b.innerHTML='🔕 알림 (차단)';
-    b.style.background='#fef3c7';b.style.color='#92400e';
-    b.title='브라우저 알림 권한 거부됨 — 주소창 왼쪽 자물쇠 아이콘에서 허용 필요';
-  } else {
-    b.innerHTML='🔕 알림';
-    b.style.background='';b.style.color='';
-    b.title='PC 알림 꺼짐 — 클릭해서 켜기';
+  /* 헤더 버튼 (있으면) */
+  const b=document.getElementById('pcNotifyBtn');
+  if(b){
+    if(on && perm==='granted'){
+      b.innerHTML='🔔 알림';
+      b.style.background='#10b981';b.style.color='#fff';
+      b.title='PC 알림 켜짐 — 클릭해서 끄기';
+    } else if(on && perm!=='granted'){
+      b.innerHTML='🔕 알림 (차단)';
+      b.style.background='#fef3c7';b.style.color='#92400e';
+      b.title='브라우저 알림 권한 거부됨 — 주소창 왼쪽 자물쇠 아이콘에서 허용 필요';
+    } else {
+      b.innerHTML='🔕 알림';
+      b.style.background='';b.style.color='';
+      b.title='PC 알림 꺼짐 — 클릭해서 켜기';
+    }
+  }
+  /* Phase M7 (2026-05-05 사장님 명령): 사이드바 sbPcNotifyBtn 도 시각 토글 */
+  const sb=document.getElementById('sbPcNotifyBtn');
+  if(sb){
+    const ic=sb.querySelector('.ic'); const lb=sb.querySelector('.lb');
+    if(on && perm==='granted'){
+      if(ic) ic.textContent='🔔';
+      if(lb) lb.textContent='PC 알림 ON';
+      sb.style.color='var(--sb-active-text, #3182f6)';
+      sb.style.fontWeight='700';
+      sb.title='PC 알림 켜짐 — 클릭해서 끄기';
+    } else if(on && perm!=='granted'){
+      if(ic) ic.textContent='🔕';
+      if(lb) lb.textContent='PC 알림 (차단)';
+      sb.style.color='#92400e';
+      sb.style.fontWeight='';
+      sb.title='브라우저 알림 권한 거부됨 — 주소창 왼쪽 자물쇠 아이콘에서 허용 필요';
+    } else {
+      if(ic) ic.textContent='🔕';
+      if(lb) lb.textContent='PC 알림';
+      sb.style.color='';
+      sb.style.fontWeight='';
+      sb.title='PC 알림 꺼짐 — 클릭해서 켜기';
+    }
   }
 }
 async function togglePcNotify(){
@@ -3153,6 +3180,45 @@ function _adminSidebarClick(e){
     return;
   }
 
+  /* Phase M8 (2026-05-05 사장님 명령): 관리자방 — internal 방 자동 진입 */
+  if(it.dataset.adminTab === 'internal'){
+    document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
+    it.classList.add('on');
+    fetch('/api/admin-internal-room?key=' + encodeURIComponent(KEY))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d.ok){ alert('관리자방 진입 실패: ' + (d.error || 'unknown')); return; }
+        if(typeof tab === 'function') tab('rooms');
+        setTimeout(function(){
+          if(typeof loadRoomDetail === 'function') loadRoomDetail(d.room_id);
+        }, 250);
+      })
+      .catch(function(e){ alert('오류: ' + e.message); });
+    return;
+  }
+
+  /* Phase M9 (2026-05-05): users-user / users-biz 토글 — users 탭 + mode 전환 */
+  if(it.dataset.adminTab === 'users-user'){
+    if(typeof tab === 'function') tab('users');
+    if(typeof setClientTabMode === 'function') setClientTabMode('user');
+    document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
+    it.classList.add('on');
+    return;
+  }
+  if(it.dataset.adminTab === 'users-biz'){
+    if(typeof tab === 'function') tab('users');
+    if(typeof setClientTabMode === 'function') setClientTabMode('business');
+    document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
+    it.classList.add('on');
+    return;
+  }
+
+  /* Phase M4 (2026-05-05): 전역검색 — onclick attribute 가 없어졌으니 여기서 핸들 */
+  if(it.id === 'sbSearchBtn'){
+    if(typeof openSearch === 'function') openSearch();
+    return;
+  }
+
   /* admin 탭 (data-admin-tab) */
   if(it.dataset.adminTab){
     var tabName = it.dataset.adminTab;
@@ -3238,21 +3304,22 @@ function _adminSidebarClick(e){
 /* 사이드바 카운트 갱신 (대기/기장/거절/종료/관리자 + 휴지통 + 종료 요청) */
 function refreshSidebarCounts(){
   if(!KEY) return;
-  /* 사용자 카운트 (admin-approve 한 번에 모든 status) */
+  /* 사용자 카운트 (admin-approve 한 번에 모든 status)
+   * Phase M9 (2026-05-05): 5개 status 카운트 → 사용자 총합·업체 총합 2개 표시.
+   * 메인 영역 탭바에서 status 별 필터 가능. */
   fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=pending').then(function(r){return r.json()}).then(function(d){
     var c = d.counts || {};
-    function setCnt(id, n){
-      var el = document.getElementById(id); if(!el) return;
-      n = parseInt(n) || 0;
-      el.textContent = n;
-      var btn = el.closest('.of-sb-item');
-      if(btn) btn.style.display = n > 0 ? '' : 'none';
-    }
-    setCnt('sbUserPending', c.pending || 0);
-    setCnt('sbUserClient', c.approved_client || 0);
-    setCnt('sbUserRejected', c.rejected || 0);
-    setCnt('sbUserTerminated', c.terminated || 0);
-    setCnt('sbUserAdmin', c.admin || 0);
+    /* 사용자 총합 = pending + approved_client + approved_guest + rejected + terminated + admin */
+    var userTotal = (c.pending||0) + (c.approved_client||0) + (c.approved_guest||0) + (c.rejected||0) + (c.terminated||0) + (c.admin||0);
+    var elU = document.getElementById('sbUserTotal');
+    if(elU) elU.textContent = userTotal;
+  }).catch(function(_){});
+
+  /* 업체 총합 — admin-businesses?count_only=1 (없으면 list length) */
+  fetch('/api/admin-businesses?key='+encodeURIComponent(KEY)).then(function(r){return r.json()}).then(function(d){
+    var bizTotal = Array.isArray(d.businesses) ? d.businesses.length : (d.total || 0);
+    var elB = document.getElementById('sbBizTotal');
+    if(elB) elB.textContent = bizTotal;
   }).catch(function(_){});
 
   /* 휴지통 */

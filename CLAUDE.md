@@ -23,18 +23,15 @@ Cloudflare Pages + D1 DB + OpenAI GPT-4.1-mini + 국가법령정보센터 API.
 3. **신규 기능 제안 전 main 중복 확인**: 테이블명·엔드포인트명·키워드로 `grep` 3~4회. 이미 있으면 "중복 구현 금지" — 재사용·확장만 제안
 4. **사용자가 실행 요청하기 전** 반드시 3줄 요약 보고: ① 현재 branch 상태 ② 이미 있는 인접 기능 ③ 이번에 손댈 파일 목록
 
-### 🔗 관리자 ↔ 스태프 동기화 절대 규칙 (2026-04-24 추가)
-**과거 사고**: admin.html 에 승인 모달 추가했는데 staff.html 동기화 누락. 스태프 직원이 "✓ 기장거래처 승인" 눌러도 모달 안 뜨는 버그 발생.
+### 🔗 관리자 ↔ 스태프 동기화 (Phase M5 2026-05-05 폐지)
+**Phase M5 (2026-05-05 사장님 명령: "스태프 html 지우기로 한거 아님?")**: staff.html → admin.html redirect 으로 폐기.
+- staff.html 은 단순 redirect 페이지 (~30줄)
+- admin.js / admin-modals.html / 등 cache bump 시 staff.html bump **불필요**
+- 별도 staff 권한 분기 필요 시 admin.html 안에서 IS_OWNER / auth.role 체크 (이미 구현)
 
-**기본 원칙**: 모든 신규 기능은 `admin.html` 과 `staff.html` 양쪽에 동시 반영. 예외(owner 전용 액션 등) 만 명시적으로 제외.
-
-**admin.html 손댈 때마다 체크**:
-1. 신규 모달 DOM → `staff.html` 에도 복사 (z-index 동일 유지)
-2. `admin.js?v=N` bump → `staff.html` 의 버전도 같이 올림
-3. 신규 액션이 owner 전용이면 `IS_OWNER` 또는 `auth.owner` 로 명시 가드
-4. 파괴적 액션(삭제·반려 등)은 staff 에서 명시적 차단 필요
-
-세무사님 지시 (2026-04-24): **"앞으로 내가 시키면 모든 건 관리자 + 스태프 같이 간다. 제외할 건 제외하면 된다."**
+**과거 룰 (참고만 — 더 이상 적용 X)**:
+> "앞으로 내가 시키면 모든 건 관리자 + 스태프 같이 간다." (2026-04-24)
+> admin.html 손댈 때마다 staff.html 도 동시 반영 — 2026-05-05 폐지
 
 ### FAQ/지식 추가는 Claude가 주도
 1. Claude가 추가할 FAQ 항목 **먼저 제안**

@@ -622,4 +622,48 @@
       .catch(function(err){ $('summaryBody').innerHTML = '<div class="err">오류: ' + e(err.message) + '</div>'; });
   };
 
+  /* Phase M6 (2026-05-05 사장님 명령): 업체 삭제 + 메모 cascade
+   * "신중히 삭제하시겠습니까?" 1단계 confirm + 업체명 직접 입력 2단계 → DELETE API */
+  window.deleteBusinessFromPage = async function(){
+    if(!bid){ alert('업체 ID 누락'); return; }
+    const bizName = ($('bizName')?.textContent || '').trim() || '업체';
+
+    /* 1단계: 일반 confirm */
+    const ok1 = confirm(
+      '⚠️ 신중히 삭제하시겠습니까?\n\n' +
+      '업체: ' + bizName + '\n\n' +
+      '이 업체와 관련된 모든 메모도 함께 휴지통으로 이동합니다.\n' +
+      '메모는 휴지통에서 복원 가능 / 업체 자체는 복원 불가.'
+    );
+    if(!ok1) return;
+
+    /* 2단계: 업체명 직접 입력 (가장 신중) */
+    const typed = prompt(
+      '확실하면 업체명을 정확히 입력하세요 (대소문자·띄어쓰기 동일):\n\n"' + bizName + '"'
+    );
+    if(typed === null) return;
+    if(typed.trim() !== bizName.trim()){
+      alert('업체명이 일치하지 않습니다. 삭제 취소.');
+      return;
+    }
+
+    /* 3. API 호출 */
+    const btn = $('bizDeleteBtn');
+    if(btn){ btn.disabled = true; btn.textContent = '삭제 중...'; }
+    try{
+      const r = await fetch('/api/admin-businesses?id=' + bid + '&key=' + encodeURIComponent(KEY), { method: 'DELETE' });
+      const d = await r.json();
+      if(!d.ok){
+        alert('삭제 실패: ' + (d.error || 'unknown'));
+        if(btn){ btn.disabled = false; btn.textContent = '🗑️ 업체 삭제'; }
+        return;
+      }
+      alert('삭제 완료\n\n업체: ' + (d.deleted_business || bizName) + '\n휴지통으로 이동된 메모: ' + (d.cascaded_memos || 0) + '건');
+      try { history.back(); } catch(_) { location.href = '/admin.html'; }
+    }catch(err){
+      alert('오류: ' + err.message);
+      if(btn){ btn.disabled = false; btn.textContent = '🗑️ 업체 삭제'; }
+    }
+  };
+
 })();

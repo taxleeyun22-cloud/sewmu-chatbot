@@ -17,6 +17,8 @@
   <div class="topbar">
     <a href="javascript:history.back()">← 뒤로</a>
     <span style="color:#9ca3af;font-size:.78em;margin-left:auto" id="topMeta"></span>
+    <!-- Phase M6 (2026-05-05 사장님 명령: 업체 삭제 + 메모 cascade) -->
+    <button id="bizDeleteBtn" onclick="deleteBusinessFromPage()" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:6px 14px;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit;margin-left:10px" title="이 업체 + 모든 메모를 휴지통으로 (되돌릴 수 없음)">🗑️ 업체 삭제</button>
   </div>
 
   <div class="header">
@@ -118,6 +120,6 @@
 <input id="memoInput" type="hidden">
 <div id="memoModal" class="hidden"><div id="memoSaveBtn" class="hidden"></div></div>
 
-<script src="/business.js?v=1"></script>
+<script src="/business.js?v=2"></script>
 </body>
 </html>
