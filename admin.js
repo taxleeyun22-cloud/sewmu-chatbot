@@ -344,6 +344,9 @@ try{sessionStorage.setItem('admin_key',k)}catch{}
 try{localStorage.removeItem('admin_key')}catch{}
 $g('loginView').style.display='none';
 $g('mainView').style.display='block';
+/* Phase S3c-1: of-app flex layout 활성화 (사이드바 + mainView 함께 표시) */
+var _mainAppView = document.getElementById('mainAppView');
+if(_mainAppView){ _mainAppView.classList.remove('hidden'); _mainAppView.style.display='flex'; }
 loadList();
 refreshPendingBadge();
 refreshLiveBadge();
@@ -370,6 +373,8 @@ try{sessionStorage.removeItem('admin_key')}catch{}
 try{localStorage.removeItem('admin_key')}catch{}
 $g('loginView').style.display='flex';
 $g('mainView').style.display='none';
+var _mainAppView = document.getElementById('mainAppView');
+if(_mainAppView){ _mainAppView.style.display='none'; }
 }
 
 /* 세션 기반 사용자가 is_admin=1이면 staff.html로 리다이렉트 (owner 전용 페이지) */
@@ -3098,6 +3103,140 @@ window.addEventListener('popstate', function(e){
     }
   }catch(err){console.warn('[popstate]', err)}
 });
+
+/* ===== Phase S3c-1 (2026-05-04): 좌측 사이드바 클릭 핸들러 + 카운트 갱신 =====
+ *  사장님 명령: office 폐기 + admin 단일화. office 의 사이드바 디자인을 admin 으로 흡수.
+ *  callAdmin / callAdminSeq (iframe 통신) 폐기 — admin 안에서 직접 함수 호출. */
+function _adminSidebarClick(e){
+  var it = e.target.closest('.of-sb-item');
+  if(!it) return;
+
+  /* 사용자 카테고리 (data-mode + data-status) */
+  if(it.dataset.mode === 'user' && it.dataset.status){
+    var status = it.dataset.status;
+    if(typeof currentStatus !== 'undefined') currentStatus = status;
+    if(typeof tab === 'function') tab('users');
+    if(typeof setClientTabMode === 'function') setClientTabMode('user');
+    if(typeof loadUsers === 'function') loadUsers(status);
+    /* 사이드바 active state */
+    document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
+    it.classList.add('on');
+    return;
+  }
+
+  /* admin 탭 (data-admin-tab) */
+  if(it.dataset.adminTab){
+    var tabName = it.dataset.adminTab;
+    if(typeof tab === 'function') tab(tabName);
+    document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
+    it.classList.add('on');
+    return;
+  }
+}
+
+/* 사이드바 click listener — DOMContentLoaded 후 등록 */
+(function(){
+  function _bindSidebar(){
+    var sb = document.getElementById('adminSidebar');
+    if(sb && !sb.dataset.bound){
+      sb.dataset.bound = '1';
+      sb.addEventListener('click', _adminSidebarClick);
+    }
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _bindSidebar);
+  else _bindSidebar();
+})();
+
+/* 사이드바 collapsible 섹션 토글 (의존: localStorage) */
+(function(){
+  var KEY = 'admin_sb_collapsed_v1';
+  function load(){ try{ return new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); }catch(_){ return new Set(); } }
+  function save(s){ try{ localStorage.setItem(KEY, JSON.stringify(Array.from(s))); }catch(_){} }
+  function apply(){
+    var s = load();
+    document.querySelectorAll('.of-sb-section[data-section-key]').forEach(function(sec){
+      var k = sec.dataset.sectionKey;
+      if(s.has(k)) sec.classList.add('collapsed');
+      else sec.classList.remove('collapsed');
+    });
+  }
+  function bind(){
+    document.querySelectorAll('.of-sb-section[data-section-key]').forEach(function(sec){
+      if(sec.dataset.bound) return;
+      sec.dataset.bound = '1';
+      sec.addEventListener('click', function(){
+        var k = sec.dataset.sectionKey;
+        var s = load();
+        if(s.has(k)){ s.delete(k); sec.classList.remove('collapsed'); }
+        else{ s.add(k); sec.classList.add('collapsed'); }
+        save(s);
+      });
+    });
+    apply();
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
+
+/* 사이드바 카운트 갱신 (대기/기장/거절/종료/관리자 + 휴지통 + 종료 요청) */
+function refreshSidebarCounts(){
+  if(!KEY) return;
+  /* 사용자 카운트 (admin-approve 한 번에 모든 status) */
+  fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=pending').then(function(r){return r.json()}).then(function(d){
+    var c = d.counts || {};
+    function setCnt(id, n){
+      var el = document.getElementById(id); if(!el) return;
+      n = parseInt(n) || 0;
+      el.textContent = n;
+      var btn = el.closest('.of-sb-item');
+      if(btn) btn.style.display = n > 0 ? '' : 'none';
+    }
+    setCnt('sbUserPending', c.pending || 0);
+    setCnt('sbUserClient', c.approved_client || 0);
+    setCnt('sbUserRejected', c.rejected || 0);
+    setCnt('sbUserTerminated', c.terminated || 0);
+    setCnt('sbUserAdmin', c.admin || 0);
+  }).catch(function(_){});
+
+  /* 휴지통 */
+  fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=trash_count').then(function(r){return r.json()}).then(function(d){
+    var el = document.getElementById('sbCntTrash'); if(el) el.textContent = d.count || 0;
+  }).catch(function(_){});
+
+  /* 내 일정 (오늘 + 오버듀 + 3일 이내) */
+  fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my&only_mine=1').then(function(r){return r.json()}).then(function(d){
+    var arr = (d.memos || []).filter(function(m){
+      if(!m.due_date) return false;
+      var today = new Date(Date.now() + 9*60*60*1000); today.setHours(0,0,0,0);
+      var limit = new Date(today.getTime() + 3*86400000);
+      var dt = new Date(m.due_date + 'T00:00:00+09:00');
+      return dt <= limit;
+    });
+    var el = document.getElementById('sbCntTodo'); if(el) el.textContent = arr.length;
+  }).catch(function(_){});
+
+  /* 종료 요청 */
+  fetch('/api/admin-termination-requests?key='+encodeURIComponent(KEY)+'&status=pending').then(function(r){return r.json()}).then(function(d){
+    var el = document.getElementById('sbCntTermReq'); if(el) el.textContent = (d.requests || []).length || 0;
+  }).catch(function(_){});
+}
+/* login 후 + 30초 마다 카운트 갱신 (refreshPendingBadge 시점에 같이) */
+(function(){
+  var iv = null;
+  /* 사용자 KEY 변경 감지 — 로그인 후 자동 시작 */
+  var prevKey = '';
+  setInterval(function(){
+    if(KEY && KEY !== prevKey){
+      prevKey = KEY;
+      refreshSidebarCounts();
+      if(iv) clearInterval(iv);
+      iv = setInterval(refreshSidebarCounts, 30000);
+    } else if(!KEY && prevKey){
+      prevKey = '';
+      if(iv){ clearInterval(iv); iv = null; }
+    }
+  }, 1000);
+})();
 
 /* 페이지 첫 진입 시 hash 가 #tab=X 면 자동 tab 전환 */
 (function(){

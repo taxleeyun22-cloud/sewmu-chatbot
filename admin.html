@@ -11,9 +11,11 @@
 <script>try{if(new URLSearchParams(location.search).get('embedded')==='1')document.documentElement.classList.add('embedded');}catch(_){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/admin.css?v=24">
+<!-- Phase S3c-1 (2026-05-04): office 사이드바 흡수 — office.css 사이드바 스타일 사용 -->
+<link rel="stylesheet" href="/office.css?v=2">
 <!-- Phase T1+T2a (2026-05-04): Tailwind utility + 토큰 통합 -->
-<link rel="stylesheet" href="/assets/main.css?v=3">
-<script type="module" src="/assets/main.js?v=1"></script>
+<link rel="stylesheet" href="/assets/main.css?v=4">
+<script type="module" src="/assets/main.js?v=2"></script>
 <!-- AG-Grid Community (엑셀 스타일 그리드) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-quartz.css">
@@ -32,8 +34,113 @@
 </div>
 </div>
 
-<!-- 메인 -->
-<div class="wrap" id="mainView" class="hidden">
+<!-- 메인 (Phase S3c-1, 2026-05-04): office 사이드바 흡수 — of-app flex layout (좌 사이드바 + 우 mainView) -->
+<div class="of-app hidden" id="mainAppView">
+
+<!-- 좌측 사이드바 (office 의 위멤버스 톤 사이드바를 admin 으로 이전) -->
+<aside class="of-sb" id="adminSidebar">
+
+  <div class="of-sb-brand">
+    <div class="logo">🌿</div>
+    <div class="name">세무회계 이윤</div>
+  </div>
+
+  <div class="of-sb-user">
+    <div class="avatar" id="sbAvatar">이</div>
+    <div class="who">
+      <div class="nm" id="sbName">이재윤</div>
+      <div class="role" id="sbRole">세무사</div>
+    </div>
+    <button class="gear" type="button" title="로그아웃" onclick="logout()">⏻</button>
+  </div>
+
+  <div class="of-sb-scroll">
+
+    <!-- ===== 방 ===== -->
+    <div class="of-sb-section" data-section-key="rooms">방 <span class="arrow">▾</span></div>
+    <div class="sb-grp" data-grp="rooms">
+      <button class="of-sb-item" data-admin-tab="rooms" type="button">
+        <span class="ic">💬</span><span class="lb">상담방</span>
+      </button>
+      <button class="of-sb-item" data-admin-tab="internal" type="button">
+        <span class="ic">🔐</span><span class="lb">관리자방</span>
+      </button>
+    </div>
+
+    <!-- ===== 사용자 (거래처) ===== -->
+    <div class="of-sb-section" data-section-key="users">사용자 <span class="arrow">▾</span></div>
+    <div class="sb-grp" data-grp="users">
+      <button class="of-sb-item" data-mode="user" data-status="pending" type="button">
+        <span class="ic">⏳</span><span class="lb">대기</span><span class="cnt" id="sbUserPending">0</span>
+      </button>
+      <button class="of-sb-item" data-mode="user" data-status="approved_client" type="button">
+        <span class="ic">⭐</span><span class="lb">기장거래처</span><span class="cnt" id="sbUserClient">0</span>
+      </button>
+      <span id="sbUserGuest" class="hidden">0</span>
+      <button class="of-sb-item" data-mode="user" data-status="rejected" type="button">
+        <span class="ic">✕</span><span class="lb">거절</span><span class="cnt" id="sbUserRejected">0</span>
+      </button>
+      <button class="of-sb-item" data-mode="user" data-status="terminated" type="button">
+        <span class="ic">⛔</span><span class="lb">종료</span><span class="cnt" id="sbUserTerminated">0</span>
+      </button>
+      <button class="of-sb-item" data-mode="user" data-status="admin" type="button">
+        <span class="ic">👑</span><span class="lb">관리자</span><span class="cnt" id="sbUserAdmin">0</span>
+      </button>
+    </div>
+
+    <div class="of-sb-divider"></div>
+
+    <!-- ===== 관리 ===== -->
+    <div class="of-sb-section" data-section-key="admin">관리 <span class="arrow">▾</span></div>
+    <div class="sb-grp" data-grp="admin">
+      <button class="of-sb-item" data-admin-tab="chat" type="button">
+        <span class="ic">💭</span><span class="lb">대화</span>
+      </button>
+      <button class="of-sb-item" data-admin-tab="live" type="button">
+        <span class="ic">📡</span><span class="lb">실시간</span><span class="cnt" id="sbCntLive">0</span>
+      </button>
+      <button class="of-sb-item" data-admin-tab="docs" type="button">
+        <span class="ic">📄</span><span class="lb">문서</span><span class="cnt" id="sbCntDocs">0</span>
+      </button>
+      <button class="of-sb-item" data-admin-tab="anal" type="button">
+        <span class="ic">📊</span><span class="lb">분석</span>
+      </button>
+      <button class="of-sb-item" data-admin-tab="review" type="button">
+        <span class="ic">✓</span><span class="lb">검증</span><span class="cnt" id="sbCntReview">0</span>
+      </button>
+      <button class="of-sb-item" data-admin-tab="faq" type="button">
+        <span class="ic">📚</span><span class="lb">FAQ</span>
+      </button>
+    </div>
+
+    <div class="of-sb-divider"></div>
+
+    <!-- ===== 알림 ===== -->
+    <div class="of-sb-section" data-section-key="alerts">알림 <span class="arrow">▾</span></div>
+    <div class="sb-grp" data-grp="alerts">
+      <button class="of-sb-item alert" type="button" id="sbMyTodosBtn" onclick="openMyTodos()">
+        <span class="ic">📋</span><span class="lb">내 일정</span><span class="cnt" id="sbCntTodo">0</span>
+      </button>
+      <button class="of-sb-item alert" type="button" id="sbTermReqBtn" onclick="openTerminationRequests()">
+        <span class="ic">⚠️</span><span class="lb">종료 요청</span><span class="cnt" id="sbCntTermReq">0</span>
+      </button>
+      <button class="of-sb-item" type="button" id="sbBulkSendBtn" onclick="openBulkSend()">
+        <span class="ic">📢</span><span class="lb">단체발송</span>
+      </button>
+      <button class="of-sb-item" type="button" id="sbSearchBtn" onclick="openSearch()">
+        <span class="ic">🔍</span><span class="lb">전역 검색</span>
+      </button>
+      <button class="of-sb-item" type="button" id="sbTrashBtn">
+        <span class="ic">🗑️</span><span class="lb">휴지통</span><span class="cnt" id="sbCntTrash">0</span>
+      </button>
+    </div>
+
+  </div>
+</aside>
+
+<!-- 메인 view (기존 admin mainView 그대로, of-main 안으로 이동) -->
+<main class="of-main">
+<div class="wrap" id="mainView">
 <div class="hdr">
 <h1>관리자</h1>
 <div class="tabs">
@@ -58,6 +165,8 @@
 </div>
 
 </div>
+</main>
+</div><!-- /of-app -->
 
 <!-- 모달 슬롯 (Phase H2 2026-05-04): admin-modals.html 26개 모달 + #imgViewer + #msgCtxMenu 가 fetch 후 여기 삽입됨 -->
 <div id="adminModalsSlot"></div>
@@ -82,7 +191,7 @@
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=144"></script>
+<script src="/admin.js?v=145"></script>
 <script src="/admin-memos.js?v=7"></script>
 <script src="/admin-customer-dash.js?v=1"></script>
 <script src="/admin-business-tab.js?v=1"></script>
