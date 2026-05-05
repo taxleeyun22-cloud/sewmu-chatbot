@@ -7,6 +7,21 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<!-- Phase R7 (2026-05-05 사장님 명령: "어드민도 PWA 되게"): 홈화면 추가 + 앱 모드 -->
+<meta name="theme-color" content="#3182f6">
+<link rel="manifest" href="/admin-manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="이윤 관리자">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<!-- Service Worker 등록 — PWA 캐시 + 오프라인 fallback (sw.js 재사용) -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').catch(function(e){ console.warn('sw register fail:', e); });
+  });
+}
+</script>
 <!-- 사무실 OS 임베드 모드 — ?embedded=1 진입 시 헤더/wrap 패딩 hide, iframe 안에서 콘텐츠만 보임 -->
 <script>try{if(new URLSearchParams(location.search).get('embedded')==='1')document.documentElement.classList.add('embedded');}catch(_){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">

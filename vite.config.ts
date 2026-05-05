@@ -75,6 +75,7 @@ export default defineConfig({
         { src: '_redirects', dest: '.' },
         // PWA 자산
         { src: 'manifest.json', dest: '.' },
+        { src: 'admin-manifest.json', dest: '.' },  // R7 (2026-05-05): admin PWA
         { src: 'sw.js', dest: '.' },
         { src: 'icon-*.png', dest: '.' },
         // 로고
