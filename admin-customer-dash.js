@@ -558,10 +558,46 @@ function closeLinkBizModal(){
 }
 
 async function _linkBizConfirm(roomId, bizId, isPrimary){
+  /* Phase R8 (2026-05-05 사장님 보고: "연결이 안되노 누르면 그냥 저 업체로 들어가짐"):
+   * dashboard 자동 진입 X. 매핑만 + toast + 헤더 매핑 list 갱신. */
   const ok = await _linkRoomBiz(roomId, bizId, isPrimary);
   if(!ok) return;
   closeLinkBizModal();
-  openBusinessDashboard(bizId);
+  if(typeof showAdminToast==='function') showAdminToast('✅ 업체 연결 완료');
+  else alert('✅ 업체 연결 완료');
+  /* 상담방 헤더 매핑 표시 갱신 (R8 신규 함수) */
+  if(typeof _refreshRoomBizChips==='function') _refreshRoomBizChips(roomId);
+}
+
+/* Phase R8 (2026-05-05 사장님 명령: "이 상담방에 참여자처럼 연결된 업체도 보이게"):
+ * roomMembers 영역 (또는 그 옆) 에 매핑 업체 칩 표시. */
+async function _refreshRoomBizChips(roomId){
+  if(!roomId) roomId = currentRoomId;
+  if(!roomId) return;
+  const target = $g('roomBizChips');
+  /* 영역 없으면 roomMembers 옆에 동적 생성 */
+  let chips = target;
+  if(!chips){
+    const mem = $g('roomMembers');
+    if(!mem) return;
+    chips = document.createElement('div');
+    chips.id = 'roomBizChips';
+    chips.style.cssText = 'padding:4px 14px;border-bottom:1px solid #e5e8eb;background:#f0fdf4;font-size:.74em;color:#065f46;display:flex;flex-wrap:wrap;gap:4px;align-items:center';
+    mem.parentNode.insertBefore(chips, mem.nextSibling);
+  }
+  try{
+    const r = await fetch('/api/admin-room-businesses?room_id=' + encodeURIComponent(roomId) + '&key=' + encodeURIComponent(KEY));
+    const d = await r.json();
+    const list = d.businesses || [];
+    if(!list.length){ chips.innerHTML = '<span style="color:#9ca3af">🏢 연결된 업체 없음 — 헤더 ＋ 업체 버튼으로 연결</span>'; return; }
+    chips.innerHTML = '<span style="font-weight:700;color:#065f46">🏢 연결 업체 ('+list.length+'):</span> '
+      + list.map(b =>
+        '<span onclick="openBusinessDashboard('+b.id+')" style="background:'+(b.is_primary?'#10b981':'#fff')+';color:'+(b.is_primary?'#fff':'#065f46')+';border:1px solid #10b981;padding:2px 8px;border-radius:99px;cursor:pointer;font-weight:600" title="클릭 시 dashboard 열기">'
+        + (b.is_primary?'★ ':'')
+        + e(b.company_name||'#'+b.id)
+        + '</span>'
+      ).join(' ');
+  }catch(_){ chips.innerHTML = '<span style="color:#9ca3af">로드 실패</span>'; }
 }
 
 /* selectRoomBizModal — 2개+ 매핑된 업체 중 사장님이 어느 dashboard 볼지 선택 */

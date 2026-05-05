@@ -273,6 +273,8 @@ async function openRoom(roomId){
   /* 햄버거·팝아웃 버튼 노출 */
   const mb=$g('roomMenuBtn');if(mb)mb.style.display='inline-block';
   const pb=$g('roomPopoutBtn');if(pb)pb.style.display='inline-block';
+  /* Phase R8 (2026-05-05): 상담방 헤더 매핑 업체 표시 */
+  if(typeof _refreshRoomBizChips==='function') setTimeout(()=>_refreshRoomBizChips(roomId), 200);
   /* roomActions: 기본 펼침 (모바일·PC 통일). ☰ 버튼으로 접기/펼치기 토글 가능 */
   $g('roomActions').style.display='flex';
   $g('roomInputArea').style.display='flex';
