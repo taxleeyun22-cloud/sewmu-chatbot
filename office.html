@@ -5,127 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>🏢 사무실 OS — 세무회계 이윤</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<!-- Phase H6b (2026-05-04): 인라인 CSS/JS 외부화 -->
-<link rel="stylesheet" href="/office.css?v=2">
-<!-- Phase T1+T2a: Tailwind + 토큰 통합 -->
-<link rel="stylesheet" href="/assets/main.css?v=3">
-<script type="module" src="/assets/main.js?v=1"></script>
+<!--
+  Phase S3c-3 (2026-05-05): office.html 폐기 → admin.html 자동 redirect
+  사장님 명령 (2026-05-04): "ㅇㅇ3-a 로가자 큰작업하자"
+  = office 사이드바 디자인 admin 으로 흡수 완료 (S3c-1) + 상단 탭 hide (S3c-2) + redirect (이번)
+
+  redirect 흐름 (3중 안전망):
+  1) JS location.replace — 가장 빠름 (history 안 쌓임)
+  2) <meta http-equiv="refresh"> — JS 막힌 경우 fallback
+  3) 본문 link — meta 막힌 경우 사용자 직접 클릭
+
+  query string + hash 보존 — /office?key=ABC#tab=users → /admin?key=ABC#tab=users
+-->
+<meta http-equiv="refresh" content="0;url=/admin.html">
+<script>
+try {
+  var q = location.search || '';
+  var h = location.hash || '';
+  location.replace('/admin.html' + q + h);
+} catch(_) {}
+</script>
+<style>body{font-family:'Noto Sans KR',sans-serif;text-align:center;padding:60px 20px;color:#666;background:#f3f4f6}a{color:#3182f6;text-decoration:none;font-weight:600}</style>
 </head>
-<body data-role="staff">
-
-<div class="of-app">
-
-  <!-- ======= 사이드바 ======= -->
-  <aside class="of-sb" id="sidebar">
-
-    <div class="of-sb-brand">
-      <a id="backToAdmin" class="back" href="/admin.html" title="관리자 화면으로 돌아가기" aria-label="돌아가기">←</a>
-      <div class="logo">🏢</div>
-      <div class="name">사무실 OS</div>
-    </div>
-
-    <!-- 직원/세무사 토글 제거 — 어드민(사장님) 1인 운영. 나중에 스태프 권한 추가 시 복원 예정 -->
-
-    <div class="of-sb-user">
-      <div class="avatar" id="sbAvatar">예</div>
-      <div class="who">
-        <div class="nm" id="sbName">예슬</div>
-        <div class="role" id="sbRole">담당 직원</div>
-      </div>
-      <button class="gear" type="button" title="설정">⚙</button>
-    </div>
-
-    <div class="of-sb-scroll">
-
-      <!-- ===== 방 (상담방 + 관리자방) — 사장님 명령: 사용자 위로 ===== -->
-      <div class="of-sb-section" data-section-key="rooms">방 <span class="arrow">▾</span></div>
-      <div class="sb-grp" data-grp="rooms">
-        <button class="of-sb-item" data-admin-tab="rooms" type="button">
-          <span class="ic">💬</span><span class="lb">상담방</span>
-        </button>
-        <button class="of-sb-item" data-admin-tab="internal" type="button">
-          <span class="ic">🔐</span><span class="lb">관리자방</span>
-        </button>
-      </div>
-
-      <!-- ===== 사용자 (거래처 사장) ===== -->
-      <div class="of-sb-section" data-section-key="users">사용자 <span class="arrow">▾</span></div>
-      <div class="sb-grp" data-grp="users">
-        <!-- 검색은 admin iframe 안 거래처 탭 헤더로 이동 (사장님 명령: 통합 검색) -->
-        <button class="of-sb-item" data-mode="user" data-status="pending" type="button">
-          <span class="ic">⏳</span><span class="lb">대기</span><span class="cnt" id="sbUserPending">0</span>
-        </button>
-        <button class="of-sb-item" data-mode="user" data-status="approved_client" type="button">
-          <span class="ic">⭐</span><span class="lb">기장거래처</span><span class="cnt" id="sbUserClient">0</span>
-        </button>
-        <!-- 일반승인 카테고리 폐지 (사장님 명령 2026-05-02). 기존 approved_guest 사용자 호환 위해 hidden span 으로 카운트만 살아있게 -->
-        <span id="sbUserGuest" class="hidden">0</span>
-        <button class="of-sb-item" data-mode="user" data-status="rejected" type="button">
-          <span class="ic">✕</span><span class="lb">거절</span><span class="cnt" id="sbUserRejected">0</span>
-        </button>
-        <button class="of-sb-item" data-mode="user" data-status="terminated" type="button">
-          <span class="ic">⛔</span><span class="lb">종료</span><span class="cnt" id="sbUserTerminated">0</span>
-        </button>
-        <button class="of-sb-item" data-mode="user" data-status="admin" type="button">
-          <span class="ic">👑</span><span class="lb">관리자</span><span class="cnt" id="sbUserAdmin">0</span>
-        </button>
-      </div>
-
-      <!-- 담당자별 섹션 폐기 (사장님 명령 2026-04-29: '저거 빼버려도 된다') -->
-
-      <div class="of-sb-divider"></div>
-
-      <!-- ===== 관리 (실시간/문서/분석/검증/FAQ) — 상담방·관리자방 은 위 '방' 섹션으로 이동 ===== -->
-      <div class="of-sb-section" data-section-key="admin">관리 <span class="arrow">▾</span></div>
-      <div class="sb-grp" data-grp="admin">
-        <button class="of-sb-item" data-admin-tab="live" type="button">
-          <span class="ic">📡</span><span class="lb">실시간</span>
-        </button>
-        <button class="of-sb-item" data-admin-tab="docs" type="button">
-          <span class="ic">📄</span><span class="lb">문서</span>
-        </button>
-        <button class="of-sb-item" data-admin-tab="anal" type="button">
-          <span class="ic">📊</span><span class="lb">분석</span>
-        </button>
-        <button class="of-sb-item" data-admin-tab="review" type="button">
-          <span class="ic">✓</span><span class="lb">검증</span>
-        </button>
-        <button class="of-sb-item" data-admin-tab="faq" type="button">
-          <span class="ic">📚</span><span class="lb">FAQ</span>
-        </button>
-      </div>
-
-      <div class="of-sb-divider"></div>
-
-      <!-- ===== 알림 ===== -->
-      <div class="of-sb-section" data-section-key="alerts">알림 <span class="arrow">▾</span></div>
-      <div class="sb-grp" data-grp="alerts">
-        <button class="of-sb-item alert" type="button" id="sbMyTodosBtn">
-          <span class="ic">📋</span><span class="lb">내 일정</span><span class="cnt" id="sbCntTodo">0</span>
-        </button>
-        <button class="of-sb-item alert" type="button" id="sbTermReqBtn">
-          <span class="ic">⚠️</span><span class="lb">종료 요청</span><span class="cnt" id="sbCntTermReq">0</span>
-        </button>
-        <button class="of-sb-item" type="button" id="sbTrashBtn">
-          <span class="ic">🗑️</span><span class="lb">휴지통</span><span class="cnt" id="sbCntTrash">0</span>
-        </button>
-      </div>
-
-    </div>
-  </aside>
-
-  <!-- ======= 메인 = admin iframe 통째 (사장님 명령: admin 1:1 통일) ======= -->
-  <main class="of-main">
-    <iframe id="adminFrame" src="/admin.html?embedded=1" style="flex:1;width:100%;border:0;background:var(--of-bg);min-height:0"></iframe>
-  </main>
-
-  <!-- 우측 검색 패널 폐기 (사장님 명령: 사용자 섹션 안 검색칸으로 대체) -->
-
-</div>
-
-<!-- 우측 슬라이드 패널 — 자체 패널 폐기 (admin iframe 안 모달이 그 역할) -->
-
-<script src="/office.js?v=1"></script>
+<body>
+<p>관리자 페이지로 이동합니다... <a href="/admin.html">바로가기</a></p>
 </body>
 </html>
