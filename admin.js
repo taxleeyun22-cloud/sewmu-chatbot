@@ -426,6 +426,15 @@ if(!_tabBypassPushState){
   }catch(_){}
 }
 _tabBypassPushState = false;
+/* Phase S3c-2: 사이드바 active state 동기화 (data-admin-tab 매칭) */
+try{
+  document.querySelectorAll('.of-sb-item').forEach(function(b){
+    if(b.dataset.adminTab === t) b.classList.add('on');
+    else if(b.dataset.adminTab) b.classList.remove('on');
+    /* data-mode='user' 항목은 tab='users' 일 때만 active 후보 (status 별 active 는 _adminSidebarClick 에서) */
+    if(t !== 'users' && b.dataset.mode === 'user') b.classList.remove('on');
+  });
+}catch(_){}
 try{localStorage.setItem('admin_last_tab',t)}catch{}
 $g('tabChat').className=t==='chat'?'on':'';
 $g('tabLive').className=t==='live'?'on':'';
