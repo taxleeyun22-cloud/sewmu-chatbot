@@ -357,7 +357,10 @@ async function _quickMemoDoSearch(){
   try{
     const r = await fetch('/api/admin-search?q=' + encodeURIComponent(q) + '&key=' + encodeURIComponent(KEY));
     const d = await r.json();
-    if(!d.ok){ res.innerHTML = '<div style="color:#f04452;padding:10px;font-size:.82em">' + e(d.error || '검색 실패') + '</div>'; return; }
+    /* Phase R4 (2026-05-05 사장님 보고: 검색 실패 fix):
+     * admin-search API 는 'ok' 필드 없이 직접 {users, businesses, ...} 반환.
+     * 'd.error' 만 체크. */
+    if(d.error){ res.innerHTML = '<div style="color:#f04452;padding:10px;font-size:.82em">' + e(d.error) + '</div>'; return; }
     _renderQuickMemoResults(d.users || [], d.businesses || []);
   }catch(err){
     res.innerHTML = '<div style="color:#f04452;padding:10px;font-size:.82em">오류: ' + e(err.message) + '</div>';

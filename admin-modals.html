@@ -434,7 +434,9 @@
     </div>
     <!-- 접히는 메뉴 (☰ 눌러야 열림) -->
     <div id="roomActions" style="display:none;padding:10px 14px;border-bottom:1px solid #e5e8eb;background:#f9fafb;gap:6px;flex-wrap:wrap">
-      <button onclick="openCustomerDashboardFromRoom()" style="background:#dbeafe;color:#1e40af;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:700" title="거래처 대시보드">🏢 거래처</button>
+      <button onclick="openCustomerDashboardFromRoom()" style="background:#dbeafe;color:#1e40af;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:700" title="이 방 매핑 업체 dashboard">🏢 거래처</button>
+      <!-- Phase R5 (2026-05-05 사장님 명령: "상담방쪽에 거래처 + 가있어야지"): 업체 추가 매핑 버튼 -->
+      <button onclick="if(typeof _addAnotherBizToRoom==='function')_addAnotherBizToRoom(currentRoomId);else alert('함수 미정의')" style="background:#10b981;color:#fff;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:700" title="이 상담방에 업체 매핑 추가">＋ 업체</button>
       <button onclick="openRoomSummary()" style="background:#e0f5ec;color:#065f46;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:700" title="AI 대화 요약">📝 요약</button>
       <button onclick="openRoomMemos()" style="background:#fef3c7;color:#92400e;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:700" title="담당자 내부 메모 (고객 비공개) — 요약에 반영됨">📒 메모</button>
       <button onclick="callRoom()" style="background:#fef3c7;color:#92400e;border:none;padding:6px 11px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:700" title="거래처 사장에게 전화 (users.phone)">📞 전화</button>
@@ -1138,7 +1140,7 @@
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
         <label style="font-size:.74em;color:#6b7280;font-weight:600">대상:</label>
         <select id="memoTargetSelect" style="padding:5px 8px;border:1px solid #e5e8eb;border-radius:6px;font-size:.8em;font-family:inherit;background:#fff">
-          <option value="room" selected>📒 담당자 내부 (이 방)</option>
+          <option value="room" selected>📒 이 상담방 (직원 전용)</option>
         </select>
       </div>
       <textarea id="memoInput" placeholder="예) 배당금 지급 시점 고객 재확인 / D-3 부가세 신고 준비" style="width:100%;min-height:56px;padding:8px 10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;resize:vertical;box-sizing:border-box;outline:none"></textarea>

@@ -945,14 +945,17 @@ async function openRoomMemos(){
 
 async function _populateMemoTargetSelect(roomId){
   const sel = $g('memoTargetSelect'); if(!sel) return;
-  sel.innerHTML = '<option value="room" selected>📒 담당자 내부 (이 방)</option>';
+  /* Phase R3 (2026-05-05 사장님 보고): "담당자 내부" / "(주)" 라벨 헷갈림 → 명확화
+   * "담당자 내부 (이 방)" → "이 상담방 (직원 전용)"
+   * "(주)" → "★주업체" */
+  sel.innerHTML = '<option value="room" selected>📒 이 상담방 (직원 전용)</option>';
   try{
     const r1 = await fetch('/api/admin-room-businesses?room_id=' + encodeURIComponent(roomId) + '&key=' + encodeURIComponent(KEY));
     const d1 = await r1.json();
     (d1.businesses || []).forEach(function(b){
       const opt = document.createElement('option');
       opt.value = 'business:' + b.id;
-      opt.textContent = '🏢 ' + (b.company_name || '#'+b.id) + (b.is_primary ? ' (주)' : '');
+      opt.textContent = '🏢 ' + (b.company_name || '#'+b.id) + (b.is_primary ? ' ★주업체' : '');
       sel.appendChild(opt);
     });
     const r2 = await fetch('/api/admin-rooms?key=' + encodeURIComponent(KEY) + '&room_id=' + encodeURIComponent(roomId));
@@ -1099,7 +1102,7 @@ function _renderMemoList(){
       if(m.source==='user' && m.user_name){
         return '<span style="background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:10px;font-weight:700">👤 '+e(m.user_name)+'</span>';
       }
-      return '<span style="background:#f3e8ff;color:#6b21a8;padding:1px 7px;border-radius:10px;font-weight:700">📒 담당자</span>';
+      return '<span style="background:#f3e8ff;color:#6b21a8;padding:1px 7px;border-radius:10px;font-weight:700">📒 이 방</span>';
     })();
     return '<div style="display:flex;gap:10px;padding:9px 11px;border:1px solid '+borderColor+';border-radius:8px;margin-bottom:6px;background:'+bg+';align-items:flex-start">'
       +checkbox
