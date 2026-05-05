@@ -355,9 +355,12 @@ export async function onRequestPost(context) {
       if (content.length > 3000) return Response.json({ error: "메시지가 너무 깁니다" }, { status: 400 });
 
       /* 보안: image_url / file_url은 우리 R2 프록시 경로만 허용.
-         javascript:, data:, 외부 도메인 주입 차단. */
-      const isSafeImageUrl = (u) => /^\/api\/image\?k=[A-Za-z0-9%._\-\/]+$/.test(u);
-      const isSafeFileUrl  = (u) => /^\/api\/file\?k=[A-Za-z0-9%._\-\/]+(&name=[A-Za-z0-9%._\-]*)?$/.test(u);
+         javascript:, data:, 외부 도메인 주입 차단.
+         Phase R6 (2026-05-05 사장님 보고: "허용되지 않은 file_url"):
+         name 파라미터는 한글·공백 등 다양 → URL encoded form 까지 허용.
+         핵심은 path 가 /api/(image|file)?k=... 인지. */
+      const isSafeImageUrl = (u) => /^\/api\/image\?k=[A-Za-z0-9%._\-\/]+(&[A-Za-z_]+=[^&"<>]*)*$/.test(u);
+      const isSafeFileUrl  = (u) => /^\/api\/file\?k=[A-Za-z0-9%._\-\/]+(&[A-Za-z_]+=[^&"<>]*)*$/.test(u);
       if (imageUrl && !isSafeImageUrl(imageUrl)) {
         return Response.json({ error: '허용되지 않은 image_url' }, { status: 400 });
       }

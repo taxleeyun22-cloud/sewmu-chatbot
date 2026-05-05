@@ -667,11 +667,12 @@ export async function onRequestPost(context) {
       const fileSize = Number(body.file_size || 0);
       if (!content && !imageUrl && !fileUrl) return Response.json({ error: "content or image_url or file_url required" }, { status: 400 });
       if (content.length > 5000) return Response.json({ error: "메시지가 너무 깁니다" }, { status: 400 });
-      /* 보안: image_url / file_url은 내부 프록시 경로만. 외부 URL·javascript:·data: 차단 */
-      if (imageUrl && !/^\/api\/image\?k=[A-Za-z0-9%._\-\/]+$/.test(imageUrl)) {
+      /* 보안: image_url / file_url은 내부 프록시 경로만. 외부 URL·javascript:·data: 차단.
+       * Phase R6 (2026-05-05): name 파라미터 한글·공백 등 URL encoded 허용. */
+      if (imageUrl && !/^\/api\/image\?k=[A-Za-z0-9%._\-\/]+(&[A-Za-z_]+=[^&"<>]*)*$/.test(imageUrl)) {
         return Response.json({ error: '허용되지 않은 image_url' }, { status: 400 });
       }
-      if (fileUrl && !/^\/api\/file\?k=[A-Za-z0-9%._\-\/]+(&name=[A-Za-z0-9%._\-]*)?$/.test(fileUrl)) {
+      if (fileUrl && !/^\/api\/file\?k=[A-Za-z0-9%._\-\/]+(&[A-Za-z_]+=[^&"<>]*)*$/.test(fileUrl)) {
         return Response.json({ error: '허용되지 않은 file_url' }, { status: 400 });
       }
       if (fileName && /[\r\n\t\\\/\x00-\x1f]/.test(fileName)) {

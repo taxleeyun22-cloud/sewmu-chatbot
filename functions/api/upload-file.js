@@ -5,7 +5,9 @@
 import { rateLimit, getClientIP } from "./_ratelimit.js";
 
 const MAX_SIZE = 20 * 1024 * 1024; // 20MB
+/* Phase R6 (2026-05-05 사장님 명령: "걍 다 올릴수있게"): 화이트리스트 대폭 확장 */
 const ALLOWED_TYPES = [
+  /* 문서 */
   'application/pdf',
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -18,13 +20,46 @@ const ALLOWED_TYPES = [
   'application/vnd.hancom.hwp',
   'application/x-hwpml',
   'application/haansofthwpx',
+  'application/rtf',
+  'application/vnd.oasis.opendocument.text',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'application/vnd.oasis.opendocument.presentation',
   'text/plain',
   'text/csv',
-  'application/zip',
-  'application/octet-stream',  // HWP 등 브라우저가 타입 모르는 경우 fallback
+  'text/markdown',
+  /* 이미지 — 영수증·사진 핵심 */
+  'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+  'image/heic', 'image/heif', 'image/bmp', 'image/svg+xml', 'image/tiff',
+  /* 영상 — 화면 녹화 등 */
+  'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm', 'video/x-matroska',
+  /* 음성 */
+  'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-m4a', 'audio/mp4',
+  'audio/ogg', 'audio/webm',
+  /* 압축 */
+  'application/zip', 'application/x-zip-compressed',
+  'application/x-rar-compressed', 'application/vnd.rar',
+  'application/x-7z-compressed',
+  /* 기타 자주 쓰이는 */
+  'application/json', 'application/xml', 'text/xml',
+  'application/octet-stream',  // 브라우저가 타입 모르는 경우 fallback (확장자로 판단)
 ];
 
-const EXT_WHITELIST = ['pdf','xls','xlsx','doc','docx','ppt','pptx','hwp','hwpx','txt','csv','zip'];
+const EXT_WHITELIST = [
+  /* 문서 */
+  'pdf','xls','xlsx','doc','docx','ppt','pptx','hwp','hwpx',
+  'rtf','odt','ods','odp',
+  'txt','csv','md',
+  /* 이미지 */
+  'jpg','jpeg','png','gif','webp','heic','heif','bmp','svg','tif','tiff',
+  /* 영상 */
+  'mp4','mov','avi','webm','mkv',
+  /* 음성 */
+  'mp3','wav','m4a','ogg','aac','flac',
+  /* 압축 */
+  'zip','rar','7z',
+  /* 기타 */
+  'json','xml',
+];
 
 export async function onRequestPost(context) {
   const db = context.env.DB;
@@ -75,7 +110,7 @@ export async function onRequestPost(context) {
     const type = file.type || 'application/octet-stream';
     const mimeOk = ALLOWED_TYPES.includes(type);
     if (!ext || (!mimeOk && type !== 'application/octet-stream')) {
-      return Response.json({ error: "허용되지 않은 파일 형식입니다 (PDF/엑셀/워드/한글/PPT/TXT/CSV/ZIP)" }, { status: 400 });
+      return Response.json({ error: "이 파일 형식은 지원 안 됨 (지원: PDF·엑셀·워드·한글·PPT·이미지·영상·음성·압축 등 — 자세한 건 사장님께 문의)" }, { status: 400 });
     }
 
     const prefix = isAdmin ? 'admin/files' : `u${userId}/files`;
