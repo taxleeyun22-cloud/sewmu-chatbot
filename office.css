@@ -214,14 +214,21 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
 .of-panel-actions .ghost{background:var(--of-card);color:var(--of-text-sub);border:1px solid var(--of-border)}
 .of-panel-actions .ghost:hover{background:var(--of-bg)}
 
-/* ============== 반응형 ============== */
+/* ============== 반응형 ==============
+ * Phase F1 (2026-05-05, 사장님 명령): 사이드바 임계값 1023 → 767 분리
+ *  · 사장님 보고 (viewport ~770px): '휴대폰처럼' 사이드바 사라짐
+ *  · admin 단일화 (S3c) 후 .of-mhdr-burger X (admin.html 에 mhdr 자체 없음)
+ *  · 768px 이상 (PC/노트북/태블릿) 항상 사이드바 표시
+ *  · 진짜 모바일 (<768px) 만 hidden + slide-in (Phase F2 햄버거 토글)
+ *  · 그 외 panel/mhdr 등은 1023 그대로 (office.html 시절 패턴 유지) */
 @media(max-width:1023px){
-  .of-sb{position:fixed;top:0;left:0;bottom:0;z-index:60;transform:translateX(-100%);transition:transform .25s}
-  .of-sb.open{transform:translateX(0);box-shadow:var(--of-shadow-lg)}
   .of-mhdr-burger{display:inline-block}
   .of-panel{width:420px}
 }
 @media(max-width:767px){
+  /* 사이드바 — 진짜 모바일 (<768) 만 fixed slide-in */
+  .of-sb{position:fixed;top:0;left:0;bottom:0;z-index:60;transform:translateX(-100%);transition:transform .25s}
+  .of-sb.open{transform:translateX(0);box-shadow:var(--of-shadow-lg)}
   body{font-size:12.5px}
   .of-mhdr{padding:10px 12px;gap:8px}
   .of-mhdr-title h1{font-size:15px}
