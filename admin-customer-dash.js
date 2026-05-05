@@ -476,27 +476,80 @@ async function _unlinkRoomBiz(roomId, bizId){
 }
 
 /* linkBizModal — 0개 매핑 + 후보 list 에서 사장님이 1개 선택해서 연결 */
+/* Phase R2-6 (M18-e 2026-05-05): 검색 모드 + 신규 생성 link */
+var _linkBizCurrentRoomId = null;
+var _linkBizSearchTimer = null;
+
 function openLinkBizModal(roomId, candidates){
   const m = $g('linkBizModal'); if(!m){ alert('linkBizModal element 없음'); return; }
-  const list = $g('linkBizList');
-  if(list){
-    list.innerHTML = candidates.map(b =>
-      '<div style="padding:12px 14px;border:1px solid #e5e8eb;border-radius:10px;margin-bottom:8px;background:#fff">'
-        + '<div style="font-weight:700;font-size:.95em;margin-bottom:4px">'+e(b.company_name||'사업장 #'+b.id)+'</div>'
-        + '<div style="font-size:.78em;color:#6b7280;line-height:1.5">'
-          + (b.business_number ? '사업자 ' + e(b.business_number) + ' · ' : '')
-          + (b.ceo_name ? '대표 ' + e(b.ceo_name) + ' · ' : '')
-          + (b.industry || '')
-        + '</div>'
-        + '<div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">'
-          + '<button onclick="_linkBizConfirm(\''+escAttr(roomId)+'\','+b.id+',true)" style="background:#10b981;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">✅ 이 업체 연결 (주)</button>'
-          + '<button onclick="_linkBizConfirm(\''+escAttr(roomId)+'\','+b.id+',false)" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 14px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">+ 추가 연결 (보조)</button>'
-        + '</div>'
-      + '</div>'
-    ).join('');
-  }
+  _linkBizCurrentRoomId = roomId;
+  const sInp = $g('linkBizSearch'); if(sInp) sInp.value = '';
+  const sRes = $g('linkBizSearchResults'); if(sRes) sRes.innerHTML = '';
+  _renderLinkBizCandidates(roomId, candidates || []);
   m.style.display = 'flex';
   document.body.style.overflow = 'hidden';
+  setTimeout(function(){ if(sInp) sInp.focus(); }, 100);
+}
+
+function _renderLinkBizCandidates(roomId, candidates){
+  const list = $g('linkBizList');
+  if(!list) return;
+  if(!candidates.length){
+    list.innerHTML = '<div style="color:#9ca3af;padding:14px;font-size:.82em;text-align:center">후보 사업장 없음 — 위 검색으로 찾으세요</div>';
+    return;
+  }
+  list.innerHTML = candidates.map(b =>
+    '<div style="padding:12px 14px;border:1px solid #e5e8eb;border-radius:10px;margin-bottom:8px;background:#fff">'
+      + '<div style="font-weight:700;font-size:.95em;margin-bottom:4px">'+e(b.company_name||'사업장 #'+b.id)+'</div>'
+      + '<div style="font-size:.78em;color:#6b7280;line-height:1.5">'
+        + (b.business_number ? '사업자 ' + e(b.business_number) + ' · ' : '')
+        + (b.ceo_name ? '대표 ' + e(b.ceo_name) + ' · ' : '')
+        + (b.industry || '')
+      + '</div>'
+      + '<div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">'
+        + '<button onclick="_linkBizConfirm(\''+escAttr(roomId)+'\','+b.id+',true)" style="background:#10b981;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">✅ 이 업체 연결 (주)</button>'
+        + '<button onclick="_linkBizConfirm(\''+escAttr(roomId)+'\','+b.id+',false)" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 14px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">+ 추가 연결 (보조)</button>'
+      + '</div>'
+    + '</div>'
+  ).join('');
+}
+
+function onLinkBizSearchInput(){
+  if(_linkBizSearchTimer) clearTimeout(_linkBizSearchTimer);
+  _linkBizSearchTimer = setTimeout(_doLinkBizSearch, 250);
+}
+
+async function _doLinkBizSearch(){
+  const q = ($g('linkBizSearch')?.value || '').trim();
+  const res = $g('linkBizSearchResults');
+  if(!res) return;
+  if(q.length < 2){ res.innerHTML = ''; return; }
+  res.innerHTML = '<div style="color:#9ca3af;padding:8px;font-size:.78em">검색 중...</div>';
+  try{
+    const r = await fetch('/api/admin-businesses?search=' + encodeURIComponent(q) + '&key=' + encodeURIComponent(KEY));
+    const d = await r.json();
+    const list = d.businesses || [];
+    if(!list.length){ res.innerHTML = '<div style="color:#9ca3af;padding:8px;font-size:.78em">결과 없음. <a href="javascript:void(0)" onclick="_linkBizOpenNew()" style="color:#3182f6;font-weight:600">+ 신규 업체 생성</a></div>'; return; }
+    res.innerHTML = '<div style="font-size:.72em;color:#8b95a1;font-weight:600;margin:6px 0 4px">🔍 검색 결과 ('+list.length+')</div>'
+      + list.slice(0, 10).map(b =>
+        '<div style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:4px;background:#fff;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="_linkBizConfirm(\''+escAttr(_linkBizCurrentRoomId)+'\','+b.id+',false)" onmouseenter="this.style.background=\'#f0f9ff\'" onmouseleave="this.style.background=\'#fff\'">'
+          + '<span style="font-size:1em">🏢</span>'
+          + '<div style="flex:1;min-width:0">'
+            + '<div style="font-weight:600;font-size:.85em">'+e(b.company_name||'#'+b.id)+'</div>'
+            + '<div style="font-size:.7em;color:#6b7280">'+(b.business_number ? e(b.business_number) : '')+(b.ceo_name?' · '+e(b.ceo_name):'')+'</div>'
+          + '</div>'
+          + '<span style="font-size:.74em;color:#3182f6;font-weight:600">+ 연결</span>'
+        + '</div>'
+      ).join('');
+  }catch(err){
+    res.innerHTML = '<div style="color:#f04452;padding:8px;font-size:.78em">오류: '+e(err.message)+'</div>';
+  }
+}
+
+function _linkBizOpenNew(){
+  closeLinkBizModal();
+  if(typeof openNewBusinessModal === 'function') openNewBusinessModal();
+  else alert('새 업체 생성 모달 함수 없음');
 }
 
 function closeLinkBizModal(){
