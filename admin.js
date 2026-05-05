@@ -402,7 +402,25 @@ let IS_OWNER=true;
 })();
 
 /* 🔐 상담방 목록 모드: 'external'(기본) | 'internal'(관리자방) */
+/* SPA 뒤로가기 지원 — 메타 12종 #7 Phase S3b (2026-05-04, 사장님 명령)
+ *  - tab 클릭 시 history.pushState — 뒤로가기 시 이전 탭 복원
+ *  - popstate (브라우저 뒤로가기/앞으로가기) → 자동 tab 호출
+ *  - hash 기반 (admin#tab=users) — query string 충돌 없음, ?embedded=1 와 공존
+ *  - _tabBypassPushState 로 무한 루프 방지 */
+var _tabBypassPushState = false;
 function tab(t){
+/* SPA history push — popstate 호출 시 skip */
+if(!_tabBypassPushState){
+  try{
+    if(typeof t === 'string' && t){
+      var newHash = '#tab=' + t;
+      if(location.hash !== newHash){
+        history.pushState({adminTab: t}, '', location.pathname + location.search + newHash);
+      }
+    }
+  }catch(_){}
+}
+_tabBypassPushState = false;
 try{localStorage.setItem('admin_last_tab',t)}catch{}
 $g('tabChat').className=t==='chat'?'on':'';
 $g('tabLive').className=t==='live'?'on':'';
@@ -3058,3 +3076,47 @@ function closeRoomAttachSheet(){
   if(sheet)sheet.classList.remove('open');
   if(btn)btn.classList.remove('on');
 }
+
+/* ===== SPA 뒤로가기 지원 — 메타 12종 #7 Phase S3b (2026-05-04, 사장님 명령) =====
+ *  popstate 핸들러: 브라우저 뒤로가기/앞으로가기 시 history.state.adminTab 보고 tab 재호출.
+ *  _tabBypassPushState=true 로 setting → 무한 루프 방지 (다시 history.pushState 안 함).
+ *
+ *  사용 방법: 자동. admin.html 진입 → tab('chat') 자동 호출 → history 첫 entry 등록.
+ *  사용자가 '거래처' 탭 클릭 → tab('users') → history push → URL #tab=users
+ *  뒤로가기 → popstate → adminTab='chat' → tab('chat') 재호출 → 이전 탭 복원. */
+window.addEventListener('popstate', function(e){
+  try{
+    var t = (e.state && e.state.adminTab) || null;
+    /* state 없으면 hash 보고 결정 (페이지 새로고침 시) */
+    if(!t){
+      var m = location.hash.match(/^#tab=(\w+)$/);
+      if(m) t = m[1];
+    }
+    if(t && typeof tab === 'function'){
+      _tabBypassPushState = true;
+      tab(t);
+    }
+  }catch(err){console.warn('[popstate]', err)}
+});
+
+/* 페이지 첫 진입 시 hash 가 #tab=X 면 자동 tab 전환 */
+(function(){
+  try{
+    var m = location.hash.match(/^#tab=(\w+)$/);
+    if(m && typeof tab === 'function'){
+      /* DOMContentLoaded 후에 호출 — login 끝나고 mainView 표시되면 */
+      var attempt = 0;
+      var iv = setInterval(function(){
+        attempt++;
+        var mainView = document.getElementById('mainView');
+        if(mainView && mainView.style.display !== 'none'){
+          clearInterval(iv);
+          _tabBypassPushState = true;  /* 첫 진입 — pushState 안 함 (replace 대신 그냥 skip) */
+          tab(m[1]);
+        } else if(attempt > 50){
+          clearInterval(iv);  /* 10초 후 포기 (login 안 됨) */
+        }
+      }, 200);
+    }
+  }catch(_){}
+})();
