@@ -1,6 +1,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Noto Sans KR',sans-serif;background:#f7f8fa;color:#191f28;min-height:100vh;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1400px;margin:0 auto;padding:18px 20px 40px}
+/* Phase D3 (2026-05-05 사장님 명령): max-width 1400 → none, 1920+ 모니터 풀 너비 활용 */
+.wrap{max-width:none;margin:0 auto;padding:18px 20px 40px}
 /* 문서 탭은 더 넓게 — 엑셀 그리드 공간 확보 */
 body.docs-wide .wrap{max-width:none;padding-left:16px;padding-right:16px}
 
