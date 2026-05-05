@@ -20,9 +20,9 @@ const INTERNAL_ROOM_NAME = '🔐 관리자방';
 
 export async function onRequestGet(context) {
   const auth = await checkAdmin(context);
-  if (!auth.ok) return Response.json({ error: 'unauth' }, { status: 401 });
+  if (!auth || !auth.ok) return Response.json({ error: 'unauth' }, { status: 401 });
 
-  const { db } = context.env;
+  const db = context.env.DB || context.env.db;
   if (!db) return Response.json({ error: 'DB binding missing' }, { status: 500 });
 
   try {
