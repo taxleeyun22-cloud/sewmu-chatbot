@@ -410,6 +410,40 @@ export async function onRequestDelete(context) {
 async function addBusinessToUser(db, body) {
   const userId = Number(body.user_id);
   if (!userId) return Response.json({ ok: false, error: 'user_id 필요' }, { status: 400 });
+
+  /* Phase R2-2 (M19, 2026-05-05 사장님 명령: "기존사업장 선택하는거도 만들고"):
+   * body.business_id 있으면 기존 업체 직접 매핑 (company_name 검증 skip) */
+  const directBizId = Number(body.business_id || 0);
+  if (directBizId) {
+    const u = await db.prepare(`SELECT id FROM users WHERE id = ?`).bind(userId).first();
+    if (!u) return Response.json({ ok: false, error: 'user 없음' }, { status: 404 });
+    const b = await db.prepare(`SELECT id, company_name FROM businesses WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '')`).bind(directBizId).first();
+    if (!b) return Response.json({ ok: false, error: 'business 없음' }, { status: 404 });
+    const now = kst();
+    const role = ['대표자', '담당자'].includes(String(body.role || '')) ? String(body.role) : '대표자';
+    const isPrimary = body.is_primary ? 1 : 0;
+    const existing = await db.prepare(
+      `SELECT id, removed_at FROM business_members WHERE business_id = ? AND user_id = ?`
+    ).bind(directBizId, userId).first();
+    if (existing) {
+      await db.prepare(
+        `UPDATE business_members SET removed_at = NULL, role = ?, is_primary = ? WHERE id = ?`
+      ).bind(role, isPrimary, existing.id).run();
+    } else {
+      await db.prepare(
+        `INSERT INTO business_members (business_id, user_id, role, is_primary, added_at)
+         VALUES (?, ?, ?, ?, ?)`
+      ).bind(directBizId, userId, role, isPrimary, now).run();
+    }
+    if (isPrimary) {
+      await db.prepare(
+        `UPDATE business_members SET is_primary = 0
+         WHERE user_id = ? AND business_id != ? AND (removed_at IS NULL OR removed_at = '')`
+      ).bind(userId, directBizId).run();
+    }
+    return Response.json({ ok: true, business_id: directBizId, company_name: b.company_name, mode: 'link_existing' });
+  }
+
   const companyName = String(body.company_name || '').trim().slice(0, 120);
   if (!companyName) return Response.json({ ok: false, error: 'company_name 필요' }, { status: 400 });
   const role = ['대표자', '담당자'].includes(String(body.role || '')) ? String(body.role) : '대표자';
