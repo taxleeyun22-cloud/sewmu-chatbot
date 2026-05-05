@@ -79,6 +79,16 @@ export async function onRequestGet(context) {
       WHERE room_id = ? AND user_id IN (SELECT id FROM users WHERE is_admin = 1) AND left_at IS NOT NULL
     `).bind(room.id).run();
 
+    /* Phase M13 (2026-05-05 사장님 명령: "내가 관리자 해지하면 없어져야됨"):
+     * unsync 된 강등 멤버 정리 — is_admin=0 인데 internal 방에 left_at IS NULL 인 사람 강제 left.
+     * 보안: 매번 GET 호출 시마다 동기화 → is_admin 변동 즉시 반영. */
+    await db.prepare(`
+      UPDATE room_members SET left_at = ?
+      WHERE room_id = ?
+        AND user_id IN (SELECT id FROM users WHERE is_admin = 0 OR is_admin IS NULL)
+        AND left_at IS NULL
+    `).bind(now, room.id).run();
+
     /* 5. 멤버 수 조회 (응답용) */
     const memberRow = await db.prepare(
       `SELECT COUNT(*) AS cnt FROM room_members WHERE room_id = ? AND left_at IS NULL`

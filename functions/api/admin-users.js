@@ -109,6 +109,18 @@ export async function onRequestPost(context) {
           ).bind(userId).run();
           demotedMemberships = r?.meta?.changes || 0;
         } catch {}
+        /* Phase M13 (2026-05-05 사장님 명령: "자동참여인데 내가 관리자 해지하면 없어져야됨"):
+         * is_admin=0 강등 시 internal 방 (is_internal=1) 에서는 강제 퇴장 (left_at = now).
+         * 보안 — 강등된 직원이 관리자방 메시지 계속 보면 안 됨. */
+        try {
+          const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+          await db.prepare(`
+            UPDATE room_members SET left_at = ?
+            WHERE user_id = ?
+              AND room_id IN (SELECT id FROM chat_rooms WHERE is_internal = 1)
+              AND left_at IS NULL
+          `).bind(now, userId).run();
+        } catch {}
       }
       if (isAdmin === 1) {
         try {
