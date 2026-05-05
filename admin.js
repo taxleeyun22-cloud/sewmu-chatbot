@@ -3180,7 +3180,9 @@ function _adminSidebarClick(e){
     return;
   }
 
-  /* Phase M8 (2026-05-05 사장님 명령): 관리자방 — internal 방 자동 진입 */
+  /* Phase M8 (2026-05-05 사장님 명령): 관리자방 — internal 방 자동 진입
+   * Phase M8-fix (2026-05-05 사장님 보고: "관리자방은 안눌러짐"): loadRoomDetail() args 무시 →
+   * openRoom(roomId) 사용 (내부에서 currentRoomId 설정 + loadRoomDetail). */
   if(it.dataset.adminTab === 'internal'){
     document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
     it.classList.add('on');
@@ -3190,7 +3192,8 @@ function _adminSidebarClick(e){
         if(!d.ok){ alert('관리자방 진입 실패: ' + (d.error || 'unknown')); return; }
         if(typeof tab === 'function') tab('rooms');
         setTimeout(function(){
-          if(typeof loadRoomDetail === 'function') loadRoomDetail(d.room_id);
+          if(typeof openRoom === 'function') openRoom(d.room_id);
+          else if(typeof loadRoomDetail === 'function'){ window.currentRoomId = d.room_id; loadRoomDetail(); }
         }, 250);
       })
       .catch(function(e){ alert('오류: ' + e.message); });
