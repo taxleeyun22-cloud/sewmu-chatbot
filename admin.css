@@ -1,8 +1,10 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Noto Sans KR',sans-serif;background:#f7f8fa;color:#191f28;min-height:100vh;-webkit-font-smoothing:antialiased}
 /* Phase D3 (2026-05-05 사장님 명령): max-width 1400 → none, 1920+ 모니터 풀 너비 활용
- * margin:0 auto 제거 — flex column 부모(.of-main) 안에서 stretch 차단되던 버그 fix */
-.wrap{max-width:none;margin:0;padding:18px 20px 40px}
+ * margin:0 auto 제거 — flex column 부모(.of-main) 안에서 stretch 차단되던 버그 fix
+ * Phase D3-fix2 (2026-05-05 사장님 보고: 밑으로 스크롤 안 됨): of-main overflow:hidden 안에서
+ * mainView 자체가 overflow-y:auto + min-height:0 + flex:1 이어야 콘텐츠 스크롤 가능. */
+.wrap{max-width:none;margin:0;padding:18px 20px 40px;flex:1;min-height:0;overflow-y:auto}
 /* 문서 탭은 더 넓게 — 엑셀 그리드 공간 확보 */
 body.docs-wide .wrap{max-width:none;padding-left:16px;padding-right:16px}
 
