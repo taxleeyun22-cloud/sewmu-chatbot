@@ -996,7 +996,8 @@ async function loadRoomMemos(){
   if(!list||!currentRoomId)return;
   list.innerHTML='<div style="text-align:center;color:#8b95a1;padding:30px 0;font-size:.85em">불러오는 중...</div>';
   try{
-    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
+    /* Phase R2-4 (M18-a 2026-05-05): scope=room_full — 담당자+거래처+업체 메모 통합 */
+    const r=await fetch('/api/memos?scope=room_full&key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId));
     const d=await r.json();
     if(d.error){list.innerHTML='<div style="color:#f04452;padding:20px 0">불러오기 실패: '+e(d.error)+'</div>';return}
     _memoCache=(d.memos||[]).map(m=>({...m, _t:_normType(m.memo_type_display||m.memo_type)}));
@@ -1063,10 +1064,21 @@ function _renderMemoList(){
       : '<span style="width:18px;display:inline-block;flex-shrink:0;text-align:center;color:'+c+'">'+icon+'</span>';
     const bg=isDone?'#fafbfc':(typ==='할 일'?'#fffef5':'#fff');
     const borderColor=isDone?'#e5e8eb':(typ==='할 일'?'#fde68a':'#e5e8eb');
+    /* Phase R2-4 (M18-b 2026-05-05): source 칩 — 담당자/거래처/업체 메모 구분 */
+    const srcChip = (function(){
+      if(m.source==='business' && m.business_name){
+        return '<span style="background:#e0f5ec;color:#0f766e;padding:1px 7px;border-radius:10px;font-weight:700">🏢 '+e(m.business_name)+'</span>';
+      }
+      if(m.source==='user' && m.user_name){
+        return '<span style="background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:10px;font-weight:700">👤 '+e(m.user_name)+'</span>';
+      }
+      return '<span style="background:#f3e8ff;color:#6b21a8;padding:1px 7px;border-radius:10px;font-weight:700">📒 담당자</span>';
+    })();
     return '<div style="display:flex;gap:10px;padding:9px 11px;border:1px solid '+borderColor+';border-radius:8px;margin-bottom:6px;background:'+bg+';align-items:flex-start">'
       +checkbox
       +'<div style="flex:1;min-width:0">'
       +'<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;font-size:.7em;color:#6b7280;flex-wrap:wrap">'
+      +  srcChip
       +  (typ!=='할 일' && typ!=='완료' ? '<span style="background:'+c+';color:#fff;padding:1px 7px;border-radius:10px;font-weight:700">'+icon+' '+e(typ)+'</span>' : '')
       +  '<span>'+e(m.author_name||'담당자')+'</span>'
       +  '<span>·</span>'
