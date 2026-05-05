@@ -380,7 +380,8 @@ async function openCustomerDashboardFromRoom(){
       return;
     }
 
-    /* 0개 — 자동 추론 (방 멤버의 매핑 사업장) */
+    /* 0개 — 자동 매핑 X (사장님 명령 2026-05-05: "거래처 누르면 왜 온나플러스 눌리노"
+     * 사장님이 명시 선택해야 매핑 — linkBizModal 띄우되 사용자 명시 클릭 필요. */
     const m = await fetch('/api/admin-rooms?key=' + encodeURIComponent(KEY) + '&room_id=' + encodeURIComponent(currentRoomId));
     const md = await m.json();
     const customers = (md.members||[]).filter(c =>
@@ -388,7 +389,7 @@ async function openCustomerDashboardFromRoom(){
       Number(c.is_admin) !== 1 && c.approval_status !== 'rejected'
     );
 
-    /* 매핑 사업장 모음 (중복 제거) */
+    /* 매핑 사업장 모음 (중복 제거) — 후보 표시용만, 자동 연결 X */
     const candidatesById = {};
     for (const c of customers) {
       try {
@@ -402,17 +403,10 @@ async function openCustomerDashboardFromRoom(){
     const candidates = Object.values(candidatesById);
 
     if(candidates.length === 0){
-      alert('이 방에 연결된 업체가 없습니다.\n\n💡 헤더 🔗 버튼으로 업체를 연결하거나,\n방 멤버의 사업장을 먼저 등록해주세요.');
+      alert('이 방에 연결된 업체가 없습니다.\n\n💡 방 멤버의 사업장을 먼저 등록하거나,\n수동으로 업체를 등록한 후 연결해주세요.');
       return;
     }
-    if(candidates.length === 1){
-      /* 1개 자동 연결 + 직행 */
-      const ok = await _linkRoomBiz(currentRoomId, candidates[0].id, true);
-      if(!ok) return;
-      openBusinessDashboard(candidates[0].id);
-      return;
-    }
-    /* 2개+ 후보 → 선택 모달 (linkBizModal) */
+    /* 자동 연결 X — 항상 모달로 사장님이 직접 선택 (1개여도 명시 선택) */
     openLinkBizModal(currentRoomId, candidates);
   }catch(e){
     alert('오류: '+e.message);
