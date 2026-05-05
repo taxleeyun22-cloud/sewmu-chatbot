@@ -182,12 +182,13 @@
 <button class="logout" onclick="logout()">로그아웃</button>
 </div>
 
+<!-- 모달 슬롯 (Phase S3c-2-fix-2 2026-05-05): mainView 안으로 이동 — admin-modals.html 의 view 8개 (chatView/usersView/roomsView/docsView/liveView/analView/reviewView/faqView) 가 of-main 영역에 정상 삽입되도록.
+     모달 26개 + #imgViewer 등은 position:fixed 라 위치 무관 — 같이 들어가도 OK. -->
+<div id="adminModalsSlot"></div>
+
 </div>
 </main>
 </div><!-- /of-app -->
-
-<!-- 모달 슬롯 (Phase H2 2026-05-04): admin-modals.html 26개 모달 + #imgViewer + #msgCtxMenu 가 fetch 후 여기 삽입됨 -->
-<div id="adminModalsSlot"></div>
 
 <!-- 모달 fetch — DOMContentLoaded 즉시 실행. fetch 비동기이지만 사용자 클릭 시점에는 거의 끝남 (~50ms).
      함수 (window.openCustomerDashboard 등) 가 호출 시점 document.getElementById(...) 로 접근하므로 OK. -->
