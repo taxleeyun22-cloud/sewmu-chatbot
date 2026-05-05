@@ -166,6 +166,16 @@
       <div style="font-weight:700;font-size:1em">➕ 수동 거래처 등록 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">로그인 없는 관리용</span></div>
       <button onclick="closeManualClientModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
     </div>
+    <!-- Phase R2-7 (M19 2026-05-05): 신규/기존 모드 토글 — 사업장 추가 시 (default hidden, addBiz 흐름에서만 표시) -->
+    <div id="mcModeTabs" style="display:none;padding:10px 18px;border-bottom:1px solid #f2f4f6;background:#fafbfc;gap:6px">
+      <button id="mcModeNewBtn" type="button" onclick="_mcSwitchMode('new')" style="background:#191f28;color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit">➕ 신규 업체 생성</button>
+      <button id="mcModeExistBtn" type="button" onclick="_mcSwitchMode('exist')" style="background:#fff;color:#4b5563;border:1px solid #e5e8eb;padding:7px 14px;border-radius:6px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit">🔍 기존 업체 선택</button>
+    </div>
+    <!-- 기존 업체 검색 모드 (default hidden) -->
+    <div id="mcExistArea" style="display:none;padding:14px 18px;border-bottom:1px solid #f2f4f6;background:#f9fafb">
+      <input id="mcExistSearch" type="text" placeholder="🔍 회사명·사업자번호·대표자 검색 (2자 이상)" oninput="_mcExistSearchInput()" autocomplete="off" style="width:100%;padding:9px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.85em;font-family:inherit;outline:none;box-sizing:border-box">
+      <div id="mcExistResults" style="margin-top:10px;max-height:340px;overflow-y:auto"></div>
+    </div>
     <div style="padding:14px 18px">
       <div style="font-size:.76em;color:#6b7280;margin-bottom:10px;line-height:1.5;padding:8px 10px;background:#fef3c7;border-radius:6px">
         ⚠️ 로그인 불가 · 관리자 화면에서 관리·문서·메모·요약만 사용. 가입 고객과 합치려면 승인 탭에서 대체.
@@ -1124,6 +1134,13 @@
     <!-- 작성·수정 폼 -->
     <div style="padding:12px 16px;border-bottom:1px solid #f2f4f6;background:#fffbeb">
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center" id="memoTypeTabs"></div>
+      <!-- Phase R2-7 (M18-c 2026-05-05): 메모 어디에 저장할지 선택 -->
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+        <label style="font-size:.74em;color:#6b7280;font-weight:600">대상:</label>
+        <select id="memoTargetSelect" style="padding:5px 8px;border:1px solid #e5e8eb;border-radius:6px;font-size:.8em;font-family:inherit;background:#fff">
+          <option value="room" selected>📒 담당자 내부 (이 방)</option>
+        </select>
+      </div>
       <textarea id="memoInput" placeholder="예) 배당금 지급 시점 고객 재확인 / D-3 부가세 신고 준비" style="width:100%;min-height:56px;padding:8px 10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;resize:vertical;box-sizing:border-box;outline:none"></textarea>
       <div style="display:flex;gap:8px;margin-top:6px;align-items:center;flex-wrap:wrap">
         <label style="font-size:.72em;color:#6b7280;display:flex;align-items:center;gap:4px">📅 기한<input type="date" id="memoDueDate" style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:5px;font-size:.78em;font-family:inherit;margin-left:2px"></label>
