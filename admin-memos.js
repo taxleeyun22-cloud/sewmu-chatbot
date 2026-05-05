@@ -102,6 +102,9 @@ function _renderCdMemos(){
     const by=m.author_name||'';
     const due=m.due_date?_renderCdDDayBadge(m.due_date):'';
     const catChip=m.category?'<span onclick="cdMemoFilter(\''+escAttr(m.category)+'\');event.stopPropagation()" style="background:#eff6ff;color:#1e40af;font-size:.7em;font-weight:600;padding:1px 7px;border-radius:99px;margin-right:4px;cursor:pointer" title="이 카테고리만 보기">'+e(m.category)+'</span>':'';
+    /* Phase M2-b (2026-05-05): 업체 메모 prefix — 거래처 dashboard 에 "🏢 [업체명]" 칩으로 표시.
+     * source=='business' 이면 그 메모는 업체에서 작성된 것 (target_business_id != null). */
+    const bizChip=(m.source==='business'&&m.business_name)?'<span style="background:#e0f5ec;color:#0f766e;font-size:.7em;font-weight:700;padding:1px 7px;border-radius:99px;margin-right:4px" title="이 메모는 업체 페이지에서 작성됨">🏢 '+e(m.business_name)+'</span>':'';
     /* 태그 chip — 클릭 시 _cdActiveTag set + filter */
     const tags=Array.isArray(m.tags)&&m.tags.length?m.tags.map(t=>'<span onclick="cdSetTagFilter(\''+escAttr(t)+'\');event.stopPropagation()" style="background:#dbeafe;color:#1e40af;font-size:.7em;font-weight:600;padding:1px 7px;border-radius:99px;margin-right:3px;cursor:pointer" title="이 태그만 보기">#'+e(t)+'</span>').join(''):'';
     const attach=Array.isArray(m.attachments)&&m.attachments.length?_renderCdAttachments(m.attachments):'';
@@ -115,6 +118,7 @@ function _renderCdMemos(){
         +'<input type="checkbox" '+checked+' onchange="cdToggleSelect('+m.id+',this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:#3182f6;flex-shrink:0" title="일괄 액션 선택">'
         +'<span style="font-size:1em;flex-shrink:0">'+ic+'</span>'
         +'<span style="color:'+tColor+';font-size:.74em;font-weight:700">'+e(m.memo_type_display||m.memo_type)+'</span>'
+        +bizChip
         +catChip
         +(due?'<span style="margin-left:2px">'+due+'</span>':'')
         +'<span style="margin-left:auto;font-size:.7em;color:#8b95a1">'+e(by)+' · '+e(created)+(m.is_edited?' (수정됨)':'')+'</span>'

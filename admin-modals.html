@@ -867,7 +867,7 @@
         <!-- 🏢 거래처 통합 메모 (영구·인수인계용 + 카테고리·태그·첨부 — 메모 빡센 세팅) -->
         <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
-            <div style="font-weight:700;font-size:.92em">📒 거래처 메모 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:4px">전화·문서·이슈·약속·일반 + #태그 + 📎첨부 — AI 요약 자동 반영</span></div>
+            <div style="font-weight:700;font-size:.92em">📒 통합 메모 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:4px">이 거래처(👤) + 매핑된 업체(🏢) 메모 모두 표시 · 전화·문서·이슈·약속 + #태그 + 📎첨부</span></div>
             <div style="display:flex;align-items:center;gap:8px">
               <button onclick="cdOpenMemoWindow()" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:4px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit" title="메모만 별창으로 띄우기 — 카톡 상담방 보면서 동시에 메모">🪟 별창</button>
               <span style="font-size:.7em;color:#8b95a1">총 <span id="cdMemoCount">0</span>건</span>
@@ -1399,11 +1399,11 @@
   </div>
 </div>
 
-<!-- 📝 거래처 메모 추가 모달 (가벼운 버전 — business.html 과 통일) -->
+<!-- 🏢 업체 메모 추가 모달 (Phase M2-c: "거래처" 라벨 → "업체" 로 정리. business.html 과 통일) -->
 <div id="bdMemoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)_bdCloseMemoModal()">
   <div style="background:#fff;border-radius:12px;width:100%;max-width:480px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
-      <div style="font-weight:700;font-size:1em">📝 거래처 메모 추가</div>
+      <div style="font-weight:700;font-size:1em">🏢 <span id="bdMemoModalBizName">업체</span> 메모 추가</div>
       <button onclick="_bdCloseMemoModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px" aria-label="닫기">✕</button>
     </div>
     <div style="padding:14px 16px">

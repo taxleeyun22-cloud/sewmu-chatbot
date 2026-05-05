@@ -200,7 +200,7 @@
 <script>
 (function loadAdminModals(){
   function inject(){
-    fetch('/admin-modals.html?v=2', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=3', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -216,9 +216,9 @@
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script src="/admin.js?v=148"></script>
-<script src="/admin-memos.js?v=7"></script>
+<script src="/admin-memos.js?v=8"></script>
 <script src="/admin-customer-dash.js?v=1"></script>
-<script src="/admin-business-tab.js?v=1"></script>
+<script src="/admin-business-tab.js?v=2"></script>
 <script src="/admin-search-bulk.js?v=1"></script>
 <script src="/admin-rooms-list.js?v=1"></script>
 <script src="/admin-rooms-msg.js?v=1"></script>

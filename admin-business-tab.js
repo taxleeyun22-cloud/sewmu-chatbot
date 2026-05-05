@@ -343,12 +343,19 @@ async function _bdLoadMemos(bid){
     box.innerHTML='<span style="color:#f04452">오류: '+e(err.message)+'</span>';
   }
 }
-/* 거래처 메모 추가 — 모달 방식 (business.html / staff.html 과 통일). DOM: #bdMemoModal */
+/* 업체 메모 추가 — 모달 방식 (business.html / staff.html 과 통일). DOM: #bdMemoModal
+ * Phase M2-c (2026-05-05): 모달 제목에 업체명 동적 표시 ("🏢 ABC상회 메모 추가"). */
 function _bdAddMemo(bid){
   const m=$g('bdMemoModal');const input=$g('bdMemoInput');
   if(!m||!m.style||!input)return;
   input.value='';
   m.dataset.bid=String(Number(bid)||0);
+  /* 업체명 슬롯 채우기 — _bdCurrent.biz.company_name 사용 */
+  const nameSlot=$g('bdMemoModalBizName');
+  if(nameSlot){
+    const bname = (typeof _bdCurrent!=='undefined' && _bdCurrent && _bdCurrent.biz && _bdCurrent.biz.company_name) || '업체';
+    nameSlot.textContent = bname;
+  }
   m.style.display='flex';
   setTimeout(function(){try{input.focus()}catch(_){}}, 50);
 }

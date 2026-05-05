@@ -199,36 +199,48 @@ export async function onRequestGet(context) {
   }
 
   /* === 거래처 통합 메모 (한 거래처의 모든 메모: 할 일+거래처 정보+완료) — 메모 빡센 세팅 ===
-     사장님 명령: cdCustomerInfo 영역 통합 메모로. 카테고리·태그 필터 지원. */
+     사장님 명령: cdCustomerInfo 영역 통합 메모로. 카테고리·태그 필터 지원.
+     Phase M2-a (2026-05-05 사장님 명령): "업체메모에서 하면 대시보드에 xxx업체 메모 이렇게 뜨게"
+     = 거래처(user) 메모 + 그 거래처가 매핑된 모든 업체(business) 의 메모 통합 반환.
+     LEFT JOIN businesses → company_name 동봉 (업체명 prefix 표시용). */
   if (scope === 'customer_all') {
     if (!userIdParam) return Response.json({ error: "user_id required" }, { status: 400 });
     const category = url.searchParams.get('category');
     const tag = url.searchParams.get('tag');
     try {
-      const where = [`target_user_id = ?`, `deleted_at IS NULL`];
-      const binds = [userIdParam];
+      /* 거래처(user) 직접 메모 OR 그 거래처가 매핑된 업체들의 메모.
+       * business_members.removed_at IS NULL 인 매핑만 (삭제된 매핑 제외). */
+      const where = [
+        `(m.target_user_id = ? OR m.target_business_id IN (SELECT business_id FROM business_members WHERE user_id = ? AND removed_at IS NULL))`,
+        `m.deleted_at IS NULL`,
+      ];
+      const binds = [userIdParam, userIdParam];
       if (category && ALLOWED_CATEGORIES.includes(category)) {
-        where.push(`category = ?`); binds.push(category);
+        where.push(`m.category = ?`); binds.push(category);
       }
       if (tag) {
         /* JSON LIKE — exact key match in array */
-        where.push(`(tags IS NOT NULL AND (tags LIKE ? OR tags LIKE ? OR tags LIKE ? OR tags = ?))`);
+        where.push(`(m.tags IS NOT NULL AND (m.tags LIKE ? OR m.tags LIKE ? OR m.tags LIKE ? OR m.tags = ?))`);
         const tagStr = String(tag).slice(0, 50);
         binds.push(`%"${tagStr}"%`, `%"${tagStr}",%`, `%,"${tagStr}"%`, `["${tagStr}"]`);
       }
-      const sql = `SELECT id, target_user_id, target_business_id, room_id, author_user_id, author_name,
-                          assigned_to_user_id, memo_type, content, is_edited,
-                          due_date, linked_message_id, filing_type, filing_period,
-                          category, tags, attachments, created_at, updated_at
-                     FROM memos
+      const sql = `SELECT m.id, m.target_user_id, m.target_business_id, m.room_id, m.author_user_id, m.author_name,
+                          m.assigned_to_user_id, m.memo_type, m.content, m.is_edited,
+                          m.due_date, m.linked_message_id, m.filing_type, m.filing_period,
+                          m.category, m.tags, m.attachments, m.created_at, m.updated_at,
+                          b.company_name AS business_name
+                     FROM memos m
+                     LEFT JOIN businesses b ON m.target_business_id = b.id
                     WHERE ${where.join(' AND ')}
-                    ORDER BY created_at DESC LIMIT 200`;
+                    ORDER BY m.created_at DESC LIMIT 200`;
       const { results } = await db.prepare(sql).bind(...binds).all();
       const normalized = (results || []).map(r => ({
         ...r,
         memo_type_display: LEGACY_MAP[r.memo_type] || r.memo_type,
         tags: r.tags ? safeParseJson(r.tags) : [],
         attachments: r.attachments ? safeParseJson(r.attachments) : [],
+        /* source: 메모 출처 — 'business' (업체에서 작성) / 'user' (거래처 직접) */
+        source: r.target_business_id ? 'business' : 'user',
       }));
       return Response.json({ ok: true, memos: normalized, types: NEW_TYPES, categories: ALLOWED_CATEGORIES.filter(Boolean) });
     } catch (e) {
