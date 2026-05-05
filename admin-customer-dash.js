@@ -413,6 +413,37 @@ async function openCustomerDashboardFromRoom(){
   }
 }
 
+/* Phase R2-5 (M18-d 2026-05-05): 추가 매핑 — selectRoomBizModal 닫고 linkBizModal 검색·후보 모드 */
+async function _addAnotherBizToRoom(roomId){
+  closeSelectRoomBizModal();
+  try{
+    const m = await fetch('/api/admin-rooms?key=' + encodeURIComponent(KEY) + '&room_id=' + encodeURIComponent(roomId));
+    const md = await m.json();
+    const customers = (md.members||[]).filter(c =>
+      !c.left_at && c.user_id && c.role !== 'admin' &&
+      Number(c.is_admin) !== 1 && c.approval_status !== 'rejected'
+    );
+    const candidatesById = {};
+    for (const c of customers) {
+      try {
+        const br = await fetch('/api/admin-businesses?user_id=' + c.user_id + '&key=' + encodeURIComponent(KEY));
+        const bd = await br.json();
+        for (const b of (bd.businesses || [])) {
+          if (!b.deleted_at && !candidatesById[b.id]) candidatesById[b.id] = b;
+        }
+      } catch (_) {}
+    }
+    /* 이미 매핑된 업체 제외 */
+    const r = await fetch('/api/admin-room-businesses?room_id=' + encodeURIComponent(roomId) + '&key=' + encodeURIComponent(KEY));
+    const d = await r.json();
+    const existingIds = (d.businesses || []).map(b => b.id);
+    const candidates = Object.values(candidatesById).filter(b => !existingIds.includes(b.id));
+    openLinkBizModal(roomId, candidates);
+  }catch(err){
+    alert('오류: '+err.message);
+  }
+}
+
 /* 방-업체 연결 helper */
 async function _linkRoomBiz(roomId, bizId, isPrimary){
   try{
@@ -485,7 +516,11 @@ function openSelectRoomBizModal(roomId, bizList){
   const m = $g('selectRoomBizModal'); if(!m){ alert('selectRoomBizModal element 없음'); return; }
   const list = $g('selectRoomBizList');
   if(list){
-    list.innerHTML = bizList.map(b =>
+    /* Phase R2-5 (M18-d 2026-05-05): "+ 업체 추가 연결" 버튼 헤더에 추가 */
+    const addBtnHtml = '<div style="padding:8px 0 12px;display:flex;justify-content:flex-end">'
+      + '<button onclick="_addAnotherBizToRoom(\''+escAttr(roomId)+'\')" style="background:#3182f6;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit">🔗 + 업체 추가 연결</button>'
+    + '</div>';
+    list.innerHTML = addBtnHtml + bizList.map(b =>
       '<div style="padding:12px 14px;border:1px solid '+(b.is_primary?'#10b981':'#e5e8eb')+';border-radius:10px;margin-bottom:8px;background:'+(b.is_primary?'#f0fdf4':'#fff')+'">'
         + '<div style="font-weight:700;font-size:.95em;margin-bottom:4px">'
           + (b.is_primary?'<span style="color:#10b981;margin-right:4px">★</span>':'')
