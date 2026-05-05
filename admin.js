@@ -3181,8 +3181,10 @@ function _adminSidebarClick(e){
   }
 
   /* Phase M8 (2026-05-05 사장님 명령): 관리자방 — internal 방 자동 진입
-   * Phase M8-fix (2026-05-05 사장님 보고: "관리자방은 안눌러짐"): loadRoomDetail() args 무시 →
-   * openRoom(roomId) 사용 (내부에서 currentRoomId 설정 + loadRoomDetail). */
+   * Phase M8-fix (loadRoomDetail args 무시): openRoom(roomId) 사용
+   * Phase M12 (2026-05-05 사장님 보고: "사이드바 색깔 안 칠해지고 + 관리자방이다 딱 알수있도록"):
+   *   - tab('rooms') 후 active 유지 (tab 함수가 data-admin-tab='rooms' 로 set 해버려서 다시 fix)
+   *   - body.internal-room-mode 추가 — UI 단순화 (상담방개설·액션·라벨탭 hide) */
   if(it.dataset.adminTab === 'internal'){
     document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
     it.classList.add('on');
@@ -3190,14 +3192,27 @@ function _adminSidebarClick(e){
       .then(function(r){ return r.json(); })
       .then(function(d){
         if(!d.ok){ alert('관리자방 진입 실패: ' + (d.error || 'unknown')); return; }
+        document.body.classList.add('internal-room-mode');
         if(typeof tab === 'function') tab('rooms');
         setTimeout(function(){
           if(typeof openRoom === 'function') openRoom(d.room_id);
           else if(typeof loadRoomDetail === 'function'){ window.currentRoomId = d.room_id; loadRoomDetail(); }
-        }, 250);
+          /* M12 fix: tab() 가 active 를 'rooms' 로 set 했으니 internal 로 재조정 */
+          document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
+          var internalBtn = document.querySelector('.of-sb-item[data-admin-tab="internal"]');
+          if(internalBtn) internalBtn.classList.add('on');
+        }, 300);
       })
       .catch(function(e){ alert('오류: ' + e.message); });
     return;
+  }
+
+  /* Phase M12: internal 모드에서 다른 사이드바 항목 클릭 시 internal-room-mode 해제 */
+  if(it.dataset.adminTab && it.dataset.adminTab !== 'internal'){
+    document.body.classList.remove('internal-room-mode');
+  }
+  if(it.dataset.mode || it.id === 'sbSearchBtn' || it.id === 'sbTrashBtn' || it.id === 'sbMyTodosBtn' || it.id === 'sbBulkSendBtn'){
+    document.body.classList.remove('internal-room-mode');
   }
 
   /* Phase M9 (2026-05-05): users-user / users-biz 토글 — users 탭 + mode 전환 */

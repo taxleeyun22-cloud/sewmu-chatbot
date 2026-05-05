@@ -1,5 +1,63 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Noto Sans KR',sans-serif;background:#f7f8fa;color:#191f28;min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* ============================================================
+ * Phase M12 (2026-05-05 사장님 명령): 관리자방 모드 — UI 단순화
+ *
+ * 사장님 직접 인용:
+ * > "상담방개설 이런거 다 없애고 관리자방이다 딱 알수있도록 해야된다.
+ *    거래처고 뭐고 다없애고 우리끼리 직원들끼리 소통하려고 만든거임"
+ *
+ * body.internal-room-mode 클래스 진입 시:
+ *  - 좌측: 라벨 탭(예슬·정은·민지·영철·미분류·종료) hide
+ *  - 좌측: 상담방 개설 버튼 + ⚙ 버튼 hide
+ *  - 좌측: 검색박스 hide
+ *  - 좌측: 상담방 list 일반 카드 hide (해당 internal 방만 보임)
+ *  - 우측: 헤더 액션 버튼 (거래처·메모·전화·번호·검색·정보·이름·참여자·종료·거래종료·삭제) hide
+ *  - 우측: 햄버거(☰) 메뉴 hide (액션이 없으니 무의미)
+ *  - 헤더 색상: 약간 진한 회색 (관리자방 인식 강조)
+ * ============================================================ */
+body.internal-room-mode .room-create-btn,
+body.internal-room-mode button[onclick="openCreateRoom()"],
+body.internal-room-mode button[onclick="openLabelManageModal()"],
+body.internal-room-mode #roomListSearch,
+body.internal-room-mode #roomMenuBtn,
+body.internal-room-mode #roomActions{
+  display: none !important;
+}
+/* 좌측 list 의 라벨 필터 탭 (예슬·정은·미분류·종료 등) — sticky 헤더 hide */
+body.internal-room-mode #roomList > div[style*="position:sticky"]{
+  display: none !important;
+}
+/* 좌측 검색박스 wrapper */
+body.internal-room-mode .room-list-panel > div[style*="border-bottom"]:not(#roomList > *){
+  display: none !important;
+}
+/* 헤더 색상 — 관리자방 인식 강조 (연한 보라 톤) */
+body.internal-room-mode #roomChatHeader{
+  background: linear-gradient(180deg, #faf5ff 0%, #f3e8ff 100%);
+  border-bottom-color: #d8b4fe;
+}
+body.internal-room-mode #roomChatTitle::before{
+  content: '🔐 ';
+}
+/* 좌측 list 자체를 더 좁게 (또는 hide) — 단일 internal 방이므로 list 의미 ↓ */
+body.internal-room-mode .room-list-panel{
+  max-width: 220px;
+  background: #faf5ff;
+}
+body.internal-room-mode .room-list-panel::before{
+  content: '🔐 관리자방';
+  display: block;
+  padding: 12px 14px;
+  font-weight: 800;
+  color: #6b21a8;
+  font-size: .95em;
+  border-bottom: 1px solid #e9d5ff;
+  margin: -10px -10px 8px;
+  background: #ede9fe;
+}
+
 /* Phase D3 (2026-05-05 사장님 명령): max-width 1400 → none, 1920+ 모니터 풀 너비 활용
  * margin:0 auto 제거 — flex column 부모(.of-main) 안에서 stretch 차단되던 버그 fix
  * Phase D3-fix2 (2026-05-05 사장님 보고: 밑으로 스크롤 안 됨): of-main overflow:hidden 안에서
