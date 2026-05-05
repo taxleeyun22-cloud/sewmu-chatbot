@@ -229,6 +229,9 @@ body[data-role="boss"] .of-kpi-bar{display:flex;gap:10px}
   /* 사이드바 — 진짜 모바일 (<768) 만 fixed slide-in */
   .of-sb{position:fixed;top:0;left:0;bottom:0;z-index:60;transform:translateX(-100%);transition:transform .25s}
   .of-sb.open{transform:translateX(0);box-shadow:var(--of-shadow-lg)}
+  /* Phase F2 (2026-05-05): 모바일 햄버거 버튼 + backdrop 표시 */
+  #adminSidebarToggle{display:flex !important;align-items:center;justify-content:center}
+  #adminSidebarBackdrop.open{display:block !important}
   body{font-size:12.5px}
   .of-mhdr{padding:10px 12px;gap:8px}
   .of-mhdr-title h1{font-size:15px}

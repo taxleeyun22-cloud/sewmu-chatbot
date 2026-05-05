@@ -3113,12 +3113,32 @@ window.addEventListener('popstate', function(e){
   }catch(err){console.warn('[popstate]', err)}
 });
 
+/* ===== Phase F2 (2026-05-05): 모바일 햄버거 토글 — viewport <768 에서 슬라이드 in/out ===== */
+function toggleAdminSidebar(forceState){
+  var sb = document.getElementById('adminSidebar');
+  var bd = document.getElementById('adminSidebarBackdrop');
+  if(!sb) return;
+  var willOpen = forceState !== undefined ? !!forceState : !sb.classList.contains('open');
+  if(willOpen){
+    sb.classList.add('open');
+    if(bd) bd.classList.add('open');
+  } else {
+    sb.classList.remove('open');
+    if(bd) bd.classList.remove('open');
+  }
+}
+
 /* ===== Phase S3c-1 (2026-05-04): 좌측 사이드바 클릭 핸들러 + 카운트 갱신 =====
  *  사장님 명령: office 폐기 + admin 단일화. office 의 사이드바 디자인을 admin 으로 흡수.
- *  callAdmin / callAdminSeq (iframe 통신) 폐기 — admin 안에서 직접 함수 호출. */
+ *  callAdmin / callAdminSeq (iframe 통신) 폐기 — admin 안에서 직접 함수 호출.
+ *  Phase F2: 모바일에서 사이드바 항목 클릭 시 자동 close (slide out). */
 function _adminSidebarClick(e){
   var it = e.target.closest('.of-sb-item');
   if(!it) return;
+  /* Phase F2: 모바일 (sb 가 open 상태) 에서 항목 클릭 시 자동 close */
+  if(window.innerWidth < 768){
+    setTimeout(function(){ toggleAdminSidebar(false); }, 100);
+  }
 
   /* 사용자 카테고리 (data-mode + data-status) */
   if(it.dataset.mode === 'user' && it.dataset.status){

@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/admin.css?v=24">
 <!-- Phase S3c-1 (2026-05-04): office 사이드바 흡수 — office.css 사이드바 스타일 사용 -->
-<link rel="stylesheet" href="/office.css?v=3">
+<link rel="stylesheet" href="/office.css?v=4">
 <!-- Phase T1+T2a (2026-05-04): Tailwind utility + 토큰 통합 -->
 <link rel="stylesheet" href="/assets/main.css?v=4">
 <script type="module" src="/assets/main.js?v=2"></script>
@@ -36,6 +36,11 @@
 
 <!-- 메인 (Phase S3c-1, 2026-05-04): office 사이드바 흡수 — of-app flex layout (좌 사이드바 + 우 mainView) -->
 <div class="of-app hidden" id="mainAppView">
+
+<!-- Phase F2 (2026-05-05): 모바일 햄버거 토글 — viewport <768 에서 사이드바 슬라이드 in/out -->
+<button id="adminSidebarToggle" type="button" onclick="toggleAdminSidebar()" title="메뉴" style="display:none;position:fixed;top:12px;left:12px;z-index:70;background:#191f28;color:#fff;border:0;width:40px;height:40px;border-radius:8px;font-size:18px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);font-family:inherit">☰</button>
+<!-- 사이드바 backdrop — 모바일에서 사이드바 open 시 배경 어둡게, 클릭 시 닫기 -->
+<div id="adminSidebarBackdrop" onclick="toggleAdminSidebar(false)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:55"></div>
 
 <!-- 좌측 사이드바 (office 의 위멤버스 톤 사이드바를 admin 으로 이전) -->
 <aside class="of-sb" id="adminSidebar">
@@ -210,7 +215,7 @@
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=146"></script>
+<script src="/admin.js?v=147"></script>
 <script src="/admin-memos.js?v=7"></script>
 <script src="/admin-customer-dash.js?v=1"></script>
 <script src="/admin-business-tab.js?v=1"></script>
