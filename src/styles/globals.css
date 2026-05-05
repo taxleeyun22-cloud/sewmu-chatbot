@@ -28,18 +28,20 @@
   --of-primary-soft: #e8f3ff;
   --of-primary-dark: #1f6fdb;
 
-  /* === 사이드바 (위멤버스 톤 다크 네이비) === */
-  --sb-bg: #2b3345;
-  --sb-bg-deep: #252b3b;
-  --sb-text: #c8d0db;
-  --sb-text-mute: #7d8aa0;
-  --sb-hover: #36405a;
-  --sb-active-bg: #3d4b69;
-  --sb-active-text: #ffffff;
-  --sb-section: #909bb0;
-  --sb-divider: #3a4358;
-  --sb-cnt-bg: #1f2535;
-  --sb-cnt-text: #9ca7bc;
+  /* === 사이드바 (Phase D1 2026-05-05 사장님 명령: 위하고/WEHAGO 밝은 회색 톤)
+   * 기존 다크 네이비 (#2b3345) → 밝은 회색.
+   * Active 항목: 연한 파랑 배경 + 파란 텍스트 (위하고 패턴). */
+  --sb-bg: #f5f6f8;            /* 밝은 회색 */
+  --sb-bg-deep: #ebedf0;       /* brand·user 영역 (좀 더 진한 회색) */
+  --sb-text: #4e5968;          /* 진한 회색 텍스트 */
+  --sb-text-mute: #8b95a1;     /* 회색 mute */
+  --sb-hover: #e7eaf0;         /* hover 시 약간 진한 회색 */
+  --sb-active-bg: #e8f3ff;     /* 연한 파랑 (active 배경) */
+  --sb-active-text: #3182f6;   /* 파란색 active 텍스트 */
+  --sb-section: #8b95a1;       /* 섹션 라벨 회색 */
+  --sb-divider: #e5e8eb;       /* 회색 디바이더 */
+  --sb-cnt-bg: #dee2e6;        /* 카운트 배지 배경 (회색) */
+  --sb-cnt-text: #495057;      /* 카운트 진한 회색 */
 
   /* === 상태·D-day === */
   --of-overdue: #dc2626;
