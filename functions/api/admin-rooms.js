@@ -268,15 +268,18 @@ export async function onRequestGet(context) {
         `SELECT * FROM chat_rooms WHERE id = ?`
       ).bind(roomId).first();
       if (!room) return Response.json({ error: "방을 찾을 수 없습니다" }, { status: 404 });
-      /* 관리자(직원 세션) 본인이 열었으니 last_read_at 갱신 → 카톡 "1" 시스템 동기화 */
-      if (auth && auth.userId) {
-        try {
-          const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
-          await db.prepare(
-            `UPDATE room_members SET last_read_at = ? WHERE room_id = ? AND user_id = ?`
-          ).bind(now, roomId, auth.userId).run();
-        } catch {}
-      }
+      /* 관리자(직원 세션) 본인이 열었으니 last_read_at 갱신 → 카톡 "1" 시스템 동기화
+       * Phase M10 (2026-05-05): ADMIN_KEY 인 경우 사장님 user_id=1 fallback.
+       * 멤버 아닐 수도 있어 INSERT OR IGNORE → UPDATE 패턴. */
+      try {
+        const adminUid = (auth && auth.userId) ? Number(auth.userId) : 1;
+        const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+        await db.prepare(
+          `INSERT INTO room_members (room_id, user_id, role, joined_at, last_read_at)
+           VALUES (?, ?, 'admin', ?, ?)
+           ON CONFLICT(room_id, user_id) DO UPDATE SET last_read_at = excluded.last_read_at`
+        ).bind(roomId, adminUid, now, now).run();
+      } catch {}
 
       const { results: members } = await db.prepare(`
         SELECT rm.user_id, rm.role, rm.joined_at, rm.left_at,
@@ -340,6 +343,10 @@ export async function onRequestGet(context) {
     try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN is_internal INTEGER DEFAULT 0`).run(); } catch {}
     /* 🔐 internal=1 이면 관리자방만, 기본은 외부 상담방만 */
     const internalMode = url.searchParams.get('internal') === '1';
+    /* unread badge 사장님 보고 (2026-05-05): "안 읽은거 숫자가 안 뜨네"
+     * 기존 client 의 localStorage seen 기반 → server last_read_at 기반으로 정확화.
+     * 현재 admin 의 user_id 추출: cookie 세션이면 auth.userId, ADMIN_KEY 면 사장님 user_id=1 fallback. */
+    const adminUid = (auth && auth.userId) ? Number(auth.userId) : 1;
     // 목록 — priority 먼저, 최근순. 카톡 스타일 미리보기·아바타·업체명 포함
     const { results } = await db.prepare(`
       SELECT r.*,
@@ -351,7 +358,18 @@ export async function onRequestGet(context) {
              (SELECT MAX(created_at) FROM conversations WHERE room_id = r.id AND role = 'user') as last_user_msg_at,
              (SELECT MAX(created_at) FROM conversations WHERE room_id = r.id) as last_msg_at,
              (SELECT content FROM conversations WHERE room_id = r.id AND (deleted_at IS NULL) ORDER BY created_at DESC LIMIT 1) as last_msg_content,
-             (SELECT role    FROM conversations WHERE room_id = r.id AND (deleted_at IS NULL) ORDER BY created_at DESC LIMIT 1) as last_msg_role
+             (SELECT role    FROM conversations WHERE room_id = r.id AND (deleted_at IS NULL) ORDER BY created_at DESC LIMIT 1) as last_msg_role,
+             /* admin_unread_count (Phase M10): 현재 admin 의 last_read_at 이후 도착한 비-advisor 메시지 수 */
+             (SELECT COUNT(*) FROM conversations c2
+              WHERE c2.room_id = r.id
+                AND c2.role != 'human_advisor'
+                AND (c2.deleted_at IS NULL)
+                AND c2.created_at > COALESCE(
+                  (SELECT last_read_at FROM room_members
+                   WHERE room_id = r.id AND user_id = ? LIMIT 1),
+                  '1970-01-01'
+                )
+             ) as admin_unread_count
       FROM chat_rooms r
       LEFT JOIN businesses b ON r.business_id = b.id
       WHERE COALESCE(r.is_internal, 0) = ?
@@ -360,7 +378,7 @@ export async function onRequestGet(context) {
                last_msg_at DESC NULLS LAST,
                r.created_at DESC
       LIMIT 200
-    `).bind(internalMode ? 1 : 0).all();
+    `).bind(adminUid, internalMode ? 1 : 0).all();
 
     /* 각 방의 첫 멤버 정보 (아바타용) 일괄 조회 */
     const roomIds = (results || []).map(r => r.id);

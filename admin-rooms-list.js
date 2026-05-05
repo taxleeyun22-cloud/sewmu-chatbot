@@ -155,17 +155,24 @@ async function loadRoomList(){
       if(rm.status==='closed')cls.push('closed');
       const aiIcon=rm.ai_mode==='off'?'🙅':'🤖';
       /* 미읽음 기준: 세무사(human_advisor) 가 보낸 것 외 전부 (고객 + AI).
-         사용자 피드백: user 메시지만 세면 AI 답변만 있는 방은 뱃지가 안 떠서 놓침 */
+         사용자 피드백: user 메시지만 세면 AI 답변만 있는 방은 뱃지가 안 떠서 놓침
+         Phase M10 (2026-05-05 사장님 보고: "안 읽은거 숫자 안 뜨네"):
+         server 의 admin_unread_count (last_read_at 기반) 우선 사용.
+         legacy localStorage 기반은 fallback. */
       const userCount=Number(rm.non_advisor_msg_count||rm.user_msg_count||0);
-      const seen=_adminRoomReadCount(rm.id);
-      /* 첫 접속(seen=null) 시 과거 전부를 미읽음으로 보지 않도록 — 그 시점 기준값을 자동 저장
-         = "앱 처음 연 시점까지는 본 것으로 간주" */
-      if(_adminRoomSeenRaw(rm.id)===null){
-        _adminRoomMarkRead(rm.id, userCount);
+      let unread;
+      if(typeof rm.admin_unread_count==='number'){
+        /* server 정확 값 사용 */
+        unread = rm.admin_unread_count;
+      } else {
+        /* legacy fallback */
+        const seen=_adminRoomReadCount(rm.id);
+        if(_adminRoomSeenRaw(rm.id)===null){
+          _adminRoomMarkRead(rm.id, userCount);
+        }
+        unread = Math.max(0, userCount - (seen||0));
+        if(_adminRoomSeenRaw(rm.id)===null) unread=0;
       }
-      let unread=Math.max(0, userCount - (seen||0));
-      /* 세션 첫 로드 때 바로 세팅된 방은 unread=0 이어야 함 */
-      if(_adminRoomSeenRaw(rm.id)===null) unread=0;
       if(currentRoomId===rm.id) unread=0;
       totalUnread+=unread;
       const badge=unread>0?'<span class="ri-unread" style="background:#f04452;color:#fff;border-radius:11px;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;font-size:.7em;font-weight:800;flex-shrink:0">'+(unread>99?'99+':unread)+'</span>':'';
