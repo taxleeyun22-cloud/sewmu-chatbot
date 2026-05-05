@@ -3207,6 +3207,34 @@ function _adminSidebarClick(e){
   else bind();
 })();
 
+/* Phase M1 (2026-05-05 사장님 보고: 휴지통 안 눌러짐): 사이드바 액션 버튼 6개 click 핸들러
+ * 이전엔 office.js 라인 265-278 에 있었지만 admin 단일화 (S3c) 후 office.js 미로드 → 무반응.
+ * callAdmin('openX') 도 더 이상 필요 없음 (admin.js 에서 직접 호출). */
+(function(){
+  function _bindSbActionBtns(){
+    var pairs = [
+      ['sbTrashBtn',     function(){ if(typeof openTrash==='function') openTrash(); else alert('휴지통 — 함수 미정의'); }],
+      ['sbMyTodosBtn',   function(){ if(typeof openMyTodos==='function') openMyTodos(); else alert('내 일정 — 함수 미정의'); }],
+      ['sbTermReqBtn',   function(){ if(typeof openTerminationRequests==='function') openTerminationRequests(); else alert('종료 요청 — 함수 미정의'); }],
+      ['sbBulkSendBtn',  function(){ if(typeof openBulkSend==='function') openBulkSend(); else alert('단체발송 — 함수 미정의'); }],
+      ['sbSearchBtn',    function(){ if(typeof openSearch==='function') openSearch(); else alert('전역 검색 — 함수 미정의'); }],
+      ['sbPcNotifyBtn',  function(){ if(typeof togglePcNotify==='function') togglePcNotify(); else alert('PC 알림 토글 — 준비중'); }],
+    ];
+    pairs.forEach(function(p){
+      var el = document.getElementById(p[0]);
+      if(el && !el.dataset.sbBound){
+        el.dataset.sbBound = '1';
+        el.addEventListener('click', function(e){ e.stopPropagation(); p[1](); });
+      }
+    });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _bindSbActionBtns);
+  else _bindSbActionBtns();
+  /* 로그인 직후에도 한 번 더 (사이드바 DOM 이 동적 표시되는 경우 대비) */
+  setTimeout(_bindSbActionBtns, 500);
+  setTimeout(_bindSbActionBtns, 1500);
+})();
+
 /* 사이드바 카운트 갱신 (대기/기장/거절/종료/관리자 + 휴지통 + 종료 요청) */
 function refreshSidebarCounts(){
   if(!KEY) return;
