@@ -135,13 +135,28 @@
       </button>
     </div>
 
+    <div class="of-sb-divider"></div>
+
+    <!-- ===== 외부 (챗봇 / PC 알림) — Phase S3c-2-fix ===== -->
+    <div class="of-sb-section" data-section-key="ext">외부 <span class="arrow">▾</span></div>
+    <div class="sb-grp" data-grp="ext">
+      <button class="of-sb-item" type="button" id="sbPcNotifyBtn" onclick="togglePcNotify()" title="PC 알림 (새 고객 메시지 알림)">
+        <span class="ic">🔕</span><span class="lb">PC 알림</span>
+      </button>
+      <a class="of-sb-item" href="javascript:void(0)" onclick="goToChatbotAsAdmin()" title="카톡 세션 로그아웃 후 챗봇 페이지로" data-spa-skip="1">
+        <span class="ic">🏠</span><span class="lb">챗봇</span>
+      </a>
+    </div>
+
   </div>
 </aside>
 
 <!-- 메인 view (기존 admin mainView 그대로, of-main 안으로 이동) -->
 <main class="of-main">
 <div class="wrap" id="mainView">
-<div class="hdr">
+<!-- Phase S3c-2-fix (2026-05-05): hdr 통째 inline display:none — 사장님 명령 "위에꺼 날리라니까 사이드바만 있으면됨".
+     자식 elements (h1, tabs, action 버튼) 모두 자동 hide. tab() className 토글은 hide 된 채로 무관. -->
+<div class="hdr" style="display:none">
 <!-- Phase S3c-2 (2026-05-04): h1 관리자 + 상단 탭 hide — 사이드바로 통합. h1 은 hidden 으로 SR 만 노출. -->
 <h1 class="hidden">관리자</h1>
 <!-- 상단 탭 9개 — 좌측 사이드바로 통합됨. 호환을 위해 hidden 으로 유지 (admin.js tab() 함수가 className 토글) -->
