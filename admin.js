@@ -375,6 +375,8 @@ KEY=k;
 /* 보안: ADMIN_KEY는 세션 단위(탭 닫히면 삭제)로만 보관. localStorage 영구 저장 금지 */
 try{sessionStorage.setItem('admin_key',k)}catch{}
 try{localStorage.removeItem('admin_key')}catch{}
+/* Phase #10 메타: 로그인 성공 후 role 정보 fetch (IS_MANAGER 등 결정) */
+try{ _refreshAdminRole(); }catch(_){}
 $g('loginView').style.display='none';
 $g('mainView').style.display='block';
 /* Phase S3c-1: of-app flex layout 활성화 (사이드바 + mainView 함께 표시) */
@@ -429,6 +431,28 @@ async function tryAdminBySession(){
    이 경우 사장님 본인이 카톡 로그인 상태면 staff로 튕겨서 ADMIN_KEY 입력 기회가 없었음.
    해결: admin.html은 항상 ADMIN_KEY 입력을 기다린다. 직원은 /staff.html 직접 방문 또는 마이페이지 버튼 사용. */
 let IS_OWNER=true;
+/* Phase #10 메타 (2026-05-06): RBAC 3-tier role 변수.
+ *   IS_OWNER  : 사장님 (ADMIN_KEY 또는 user_id=1 + is_admin=1)
+ *   IS_MANAGER: 사업장 관리자 (is_admin=1 + staff_role='manager')
+ *   IS_STAFF  : 일반 admin (is_admin=1, default)
+ * UI 가드 (삭제 버튼·권한 변경 버튼 등) — 후속 phase 에서 점진 적용. */
+let IS_MANAGER=false;
+let IS_STAFF=false;
+async function _refreshAdminRole(){
+  try{
+    const url = '/api/admin-whoami' + (KEY ? ('?key=' + encodeURIComponent(KEY)) : '');
+    const r = await fetch(url);
+    if(!r.ok) return;
+    const d = await r.json();
+    if(d && d.ok){
+      IS_OWNER = !!d.owner;
+      IS_MANAGER = !!d.manager;
+      IS_STAFF = (d.role === 'staff' || d.role === 'manager' || d.role === 'owner');
+      /* IS_OWNER 변동 시 UI 갱신 (오너만 표시되는 버튼들) */
+      try{ if(typeof _refreshOwnerUI === 'function') _refreshOwnerUI(); }catch(_){}
+    }
+  }catch(_){}
+}
 (async function(){
   if(location.pathname.endsWith('/staff.html'))return;
   /* 보안: 세션 스토리지(탭 수명)만 조회. 과거 localStorage 잔존 키는 정리 */
