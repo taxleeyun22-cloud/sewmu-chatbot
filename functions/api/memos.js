@@ -8,6 +8,7 @@
 // visibility: 'internal' 고정 (고객 공개 금지)
 
 import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkRole, roleForbidden } from "./_authz.js";
 
 /* 현재 공식 3종 + 구 6종 하위호환 모두 허용 */
 const NEW_TYPES = ['할 일', '완료', '거래처 정보'];
@@ -460,6 +461,12 @@ export async function onRequestPost(context) {
   if (action === 'restore' || action === 'purge') {
     const id = Number(url.searchParams.get('id') || 0);
     if (!id) return Response.json({ error: "id required" }, { status: 400 });
+    /* Phase #10 적용 (2026-05-06): purge (영구 삭제) 는 manager+ 만.
+     * restore (복원) 는 staff (모든 admin) 가능. */
+    if (action === 'purge') {
+      const authz = await checkRole(context, 'manager');
+      if (!authz.ok) return roleForbidden(authz);
+    }
     try {
       if (action === 'restore') {
         /* 복원: deleted_at = NULL */

@@ -16,6 +16,7 @@
  */
 
 import { checkAdmin } from './_adminAuth.js';
+import { checkRole, roleForbidden } from './_authz.js';
 
 async function ensureTable(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS room_businesses (
@@ -154,8 +155,10 @@ export async function onRequestPost(context) {
 }
 
 export async function onRequestDelete(context) {
-  const auth = await checkAdmin(context);
-  if (!auth || !auth.ok) return Response.json({ error: 'unauth' }, { status: 401 });
+  /* Phase #10 적용 (2026-05-06): 상담방-업체 매핑 해제 = manager+ 전용.
+   * 매핑 추가(POST) 는 staff (admin 누구나) 가능. 해제는 위험 액션이라 강화. */
+  const authz = await checkRole(context, 'manager');
+  if (!authz.ok) return roleForbidden(authz);
 
   const db = context.env.DB || context.env.db;
   if (!db) return Response.json({ error: 'DB binding missing' }, { status: 500 });

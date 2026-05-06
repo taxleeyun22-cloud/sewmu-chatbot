@@ -8,6 +8,7 @@
 // DELETE /api/admin-businesses?key=&id=            → 삭제 (owner 전용, 연결된 구성원·상담방 해제)
 
 import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
+import { checkRole, roleForbidden } from "./_authz.js";
 
 function kst() {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
@@ -346,9 +347,10 @@ export async function onRequestPut(context) {
 }
 
 export async function onRequestDelete(context) {
-  const auth = await checkAdmin(context);
-  if (!auth) return adminUnauthorized();
-  if (!auth.owner) return ownerOnly();
+  /* Phase #10 적용 (2026-05-06): 업체 삭제 = owner 전용 (cascade 메모 휴지통).
+   * RBAC checkRole 사용 — 일관된 401/403 응답. */
+  const authz = await checkRole(context, 'owner');
+  if (!authz.ok) return roleForbidden(authz);
   const db = context.env.DB;
   if (!db) return Response.json({ ok: false, error: 'DB error' }, { status: 500 });
   await ensureTables(db);
