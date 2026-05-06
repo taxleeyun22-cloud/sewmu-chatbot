@@ -41,6 +41,14 @@ import {
   trashCount,
   isMemoError,
 } from './lib/memo-actions';
+import {
+  normalizeMemoType,
+  matchCdCategory,
+  matchTag,
+  sortMemos,
+  filterMemos,
+  ALLOWED_MEMO_TYPES,
+} from './lib/memo-filter';
 
 /* 글로벌 노출 — classic script 환경에서 다른 .js 파일이 사용 가능하게.
    Phase S3b 부터 admin.js / index.js 등이 window.__router 통해 navigate 호출.
@@ -87,6 +95,15 @@ declare global {
       $currentRoomStatus: typeof $currentRoomStatus;
       $userStatusFilter: typeof $userStatusFilter;
     };
+    /* Phase #3 적용 확장 (2-2, 2026-05-06): 메모 필터·정렬 helpers */
+    __memoFilter?: {
+      normalizeMemoType: typeof normalizeMemoType;
+      matchCdCategory: typeof matchCdCategory;
+      matchTag: typeof matchTag;
+      sortMemos: typeof sortMemos;
+      filterMemos: typeof filterMemos;
+      ALLOWED_MEMO_TYPES: typeof ALLOWED_MEMO_TYPES;
+    };
     /* Phase #3 적용 확장 (2026-05-06): type-safe 메모 CRUD wrapper */
     __memoActions?: {
       listMemos: typeof listMemos;
@@ -131,6 +148,14 @@ if (typeof window !== 'undefined') {
     purgeMemo,
     trashCount,
     isMemoError,
+  };
+  window.__memoFilter = {
+    normalizeMemoType,
+    matchCdCategory,
+    matchTag,
+    sortMemos,
+    filterMemos,
+    ALLOWED_MEMO_TYPES,
   };
 }
 
