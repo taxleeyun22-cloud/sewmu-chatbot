@@ -1127,21 +1127,23 @@
     <div id="trashList" style="flex:1;overflow-y:auto;padding:10px 16px 18px;background:#fff"></div>
   </div>
 </div>
-<!-- Phase #11 적용 (2026-05-06): 에러 로그 모달 — 자체 수집 JS 에러 200건 조회 -->
-<div id="errorLogModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:840px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
-    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-      <div style="font-weight:700;font-size:1em">🐞 에러 로그 <span id="errorLogMeta" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <button onclick="loadErrorLog()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">🔄</button>
-        <button onclick="purgeOldErrorLogs()" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:5px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit" title="7일 지난 에러 자동 삭제">🗑️ 7일 지난 거 정리</button>
-        <button onclick="closeErrorLog()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+<!-- Phase #11 + #5 적용 (2026-05-06): 에러 로그 모달 — Tailwind utility class 사용
+     이전 inline style 27개 → Tailwind utility + .modal-overlay / .modal-card / .modal-header / .modal-close
+     z-index 11400 만 inline (다른 모달 stack 순서 유지) -->
+<div id="errorLogModal" class="modal-overlay" style="z-index:11400;display:none">
+  <div class="modal-card" style="max-width:840px">
+    <div class="modal-header">
+      <div class="font-bold">🐞 에러 로그 <span id="errorLogMeta" class="ml-1.5 text-xs font-medium text-of-text-mute"></span></div>
+      <div class="flex items-center gap-1.5">
+        <button onclick="loadErrorLog()" class="btn-ghost btn-sm">🔄</button>
+        <button onclick="purgeOldErrorLogs()" class="btn-sm" style="background:#fff;color:#dc2626;border:1px solid #dc2626;font-weight:600;cursor:pointer" title="7일 지난 에러 자동 삭제">🗑️ 7일 지난 거 정리</button>
+        <button onclick="closeErrorLog()" class="modal-close">✕</button>
       </div>
     </div>
-    <div style="padding:10px 16px;border-bottom:1px solid #f2f4f6;background:#fef2f2;font-size:.78em;color:#991b1b">
+    <div class="px-4 py-2.5 border-b border-of-border bg-of-danger-soft text-xs" style="color:#991b1b">
       ⚠️ 거래처/사장님 admin 화면에서 발생한 JavaScript 에러 200건 (최근순). 7일 보관 후 자동 정리.
     </div>
-    <div id="errorLogList" style="flex:1;overflow-y:auto;padding:10px 16px 18px;background:#fff;font-size:.82em"></div>
+    <div id="errorLogList" class="modal-body bg-white text-sm"></div>
   </div>
 </div>
 <div id="memoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11400;align-items:center;justify-content:center;padding:20px">
