@@ -470,9 +470,50 @@ async function sendRoomImageFile(file){
   }catch(err){alert('오류: '+err.message)}
 }
 /* 메시지 입력칸 클립보드(Ctrl+V) + 드래그앤드롭 첨부 — 관리자
-   카톡식 UX: 바로 전송하지 않고 _pendingAttachments 에 쌓아 프리뷰 표시. 전송 버튼으로 일괄 발송 */
+   카톡식 UX: 바로 전송하지 않고 _pendingAttachments 에 쌓아 프리뷰 표시. 전송 버튼으로 일괄 발송
+   Phase R10-fix (2026-05-05 사장님 보고: '또 복사라고 뜨잖아'):
+   drop/dragover document-level listener 는 init() 밖으로 빼서 즉시 등록 — admin-modals.html fetch 전에도 등록되도록. */
 (function(){
   function isImage(f){return f&&f.type&&f.type.indexOf('image/')===0}
+  /* === document-level drag&drop (즉시 등록 — init 무관) === */
+  let _dropOverlay=null, _dropDepth=0;
+  function _showDropOverlay(){
+    if(_dropOverlay)return;
+    _dropOverlay=document.createElement('div');
+    _dropOverlay.id='admDropOverlay';
+    _dropOverlay.style.cssText='position:fixed;inset:0;background:rgba(49,130,246,.18);border:3px dashed #3182f6;pointer-events:none;z-index:99999;display:flex;align-items:center;justify-content:center;color:#1e3a8a;font-size:1.4em;font-weight:800';
+    _dropOverlay.textContent='📎 놓으면 첨부됩니다 (사진·파일 다 가능)';
+    document.body.appendChild(_dropOverlay);
+  }
+  function _hideDropOverlay(){if(_dropOverlay){_dropOverlay.remove();_dropOverlay=null}}
+  document.addEventListener('dragenter',function(e){
+    if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
+    e.preventDefault();
+    if(typeof currentRoomId==='undefined'||!currentRoomId)return;
+    _dropDepth++;_showDropOverlay();
+  });
+  document.addEventListener('dragover',function(e){
+    /* Files 가 있을 때만 preventDefault — text drag 등은 영향 X */
+    if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
+    e.preventDefault();  /* 항상 — 브라우저 default '복사' 표시 차단 */
+  });
+  document.addEventListener('dragleave',function(){_dropDepth--;if(_dropDepth<=0){_dropDepth=0;_hideDropOverlay()}});
+  document.addEventListener('drop',function(e){
+    if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
+    e.preventDefault();  /* 항상 — 다운로드·복사 차단 */
+    _dropDepth=0;_hideDropOverlay();
+    if(typeof currentRoomId==='undefined'||!currentRoomId){
+      alert('상담방을 먼저 선택하세요\n(좌측 list 에서 클릭)');
+      return;
+    }
+    const files=e.dataTransfer.files||[];
+    if(!files.length)return;
+    const imgs=Array.from(files).filter(isImage);
+    const docs=Array.from(files).filter(f=>!isImage(f));
+    if(imgs.length && typeof _addPendingAttachments==='function') _addPendingAttachments(imgs);
+    if(docs.length) docs.forEach(function(f){ if(typeof sendRoomFileDirect==='function') sendRoomFileDirect(f); });
+  });
+
   function init(){
     const input=document.getElementById('roomInput');
     const area=document.getElementById('roomInputArea');
@@ -485,46 +526,7 @@ async function sendRoomImageFile(file){
       e.preventDefault();
       _addPendingAttachments(imgs);
     });
-    let overlay=null,depth=0;
-    function showOverlay(){
-      if(overlay)return;
-      overlay=document.createElement('div');
-      overlay.style.cssText='position:fixed;inset:0;background:rgba(49,130,246,.18);border:3px dashed #3182f6;pointer-events:none;z-index:99999;display:flex;align-items:center;justify-content:center;color:#1e3a8a;font-size:1.4em;font-weight:800';
-      overlay.textContent='📎 놓으면 첨부됩니다 (사진·파일 다 가능)';
-      document.body.appendChild(overlay);
-    }
-    function hideOverlay(){if(overlay){overlay.remove();overlay=null}}
-    /* Phase R10 (2026-05-05 사장님 보고: "또 복사라고 뜨잖아"):
-     * preventDefault 를 currentRoomId 무관 항상 적용 — 브라우저 default 복사 표시 차단.
-     * currentRoomId 없으면 안내 alert. */
-    document.addEventListener('dragenter',function(e){
-      if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
-      e.preventDefault();
-      if(!currentRoomId)return;
-      depth++;showOverlay();
-    });
-    document.addEventListener('dragover',function(e){
-      if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
-      e.preventDefault();  /* 항상 — 복사 표시 차단 */
-    });
-    document.addEventListener('dragleave',function(){depth--;if(depth<=0){depth=0;hideOverlay()}});
-    document.addEventListener('drop',function(e){
-      const hasFiles = e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files');
-      if(!hasFiles)return;
-      e.preventDefault();  /* 항상 — 브라우저 default (다운로드·복사) 차단 */
-      depth=0;hideOverlay();
-      if(!currentRoomId){
-        alert('상담방을 먼저 선택하세요\n(좌측 list 에서 클릭)');
-        return;
-      }
-      const files = e.dataTransfer.files || [];
-      if(!files.length)return;
-      /* 이미지 → 첨부 대기열 / 일반 파일 → 즉시 sendRoomFileDirect (PDF/HWP/zip 등) */
-      const imgs = Array.from(files).filter(isImage);
-      const docs = Array.from(files).filter(f => !isImage(f));
-      if(imgs.length) _addPendingAttachments(imgs);
-      if(docs.length) docs.forEach(function(f){ if(typeof sendRoomFileDirect==='function') sendRoomFileDirect(f); });
-    });
+    /* drag&drop listener 는 IIFE 시작 시 document-level 로 이미 등록됨 (R10-fix). */
     return true;
   }
   if(!init())document.addEventListener('DOMContentLoaded',init);
