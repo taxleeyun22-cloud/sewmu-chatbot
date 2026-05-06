@@ -25,7 +25,7 @@
 
 <!-- 전역 검색 모달 -->
 <div id="searchModal" class="modal-overlay" style="z-index:9999;display:none;align-items:flex-start;padding:40px 20px">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">
+  <div class="modal-card" style="max-width:640px;max-height:80vh">
     <div style="padding:14px 16px;border-bottom:1px solid #e5e8eb;display:flex;gap:8px;align-items:center">
       <input id="searchInput" type="text" placeholder="사용자·대화·상담방·메모·사업장·문서 전체 검색 (2자 이상)..." oninput="onSearchInput()" style="flex:1;padding:10px 14px;border:1px solid #e5e8eb;border-radius:10px;font-size:.9em;font-family:inherit;outline:none">
       <button onclick="document.getElementById('searchModal').style.display='none'" style="background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:10px;font-size:.85em;cursor:pointer;font-family:inherit">✕</button>
@@ -98,7 +98,7 @@
 
 <!-- ⚙️ 담당자 라벨 관리 모달 -->
 <div id="labelManageModal" class="modal-overlay" style="z-index:11300;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+  <div class="modal-card" style="max-width:520px;max-height:88vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">⚙️ 담당자 라벨 관리 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">우선순위·담당자 이름·색 편집</span></div>
       <button onclick="closeLabelManageModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
@@ -117,7 +117,7 @@
 </div>
 <!-- 🏢 거래처 간략 사이드 패널 (메모 패널과 동일 도킹 방식) -->
 <div id="custSidePanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11150;align-items:center;justify-content:center;padding:20px">
-  <div class="memo-panel" style="background:#fff;border-radius:16px;width:100%;max-width:560px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+  <div class="memo-panel modal-card" style="max-width:560px;max-height:88vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">🏢 <span id="csName">거래처</span> <span id="csSub" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
       <div style="display:flex;gap:6px">
@@ -969,7 +969,7 @@
 </div>
 
 <div id="financeModal" class="modal-overlay" style="z-index:11400;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:1100px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+  <div class="modal-card" style="max-width:1100px;max-height:90vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div style="font-weight:700;font-size:1em">📊 재무 데이터 — <span id="finCustName">-</span></div>
       <div style="display:flex;gap:6px">
@@ -1011,7 +1011,7 @@
 </div>
 <!-- 상담방 AI 요약 모달 -->
 <div id="roomSummaryModal" class="modal-overlay" style="z-index:11600;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:700px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+  <div class="modal-card" style="max-width:700px;max-height:88vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">📝 AI 대화 요약 <span id="rsMeta" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
       <button onclick="closeRoomSummary()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
@@ -1043,7 +1043,7 @@
 <!-- 📒 담당자 메모 사이드 패널 CSS (PC: 우측 도킹 / 모바일: 바텀 시트 모달) -->
 <!-- 📢 단체발송 모달 -->
 <div id="bulkSendModal" class="modal-overlay" style="z-index:11400;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:700px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+  <div class="modal-card" style="max-width:700px;max-height:92vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">📢 단체발송 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">여러 상담방에 한 번에 메시지 전송 (고객에게 발송됨)</span></div>
       <button onclick="closeBulkSend()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
@@ -1083,7 +1083,7 @@
 </div>
 <!-- 📋 내 할 일 대시보드 모달 (전체 방 + 개인 일정 통합 뷰) -->
 <div id="myTodosModal" class="modal-overlay" style="z-index:11400;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:720px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+  <div class="modal-card" style="max-width:720px;max-height:92vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <div style="font-weight:700;font-size:1em">📋 내 할 일 <span id="mtMeta" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
       <div style="display:flex;gap:6px;align-items:center">
@@ -1151,7 +1151,7 @@
   </div>
 </div>
 <div id="memoModal" class="modal-overlay" style="z-index:11400;display:none">
-  <div class="memo-panel" style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+  <div class="memo-panel modal-card" style="max-width:640px;max-height:88vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">📒 담당자 메모 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">내부 전용 · AI 요약에 반영</span></div>
       <button onclick="closeMemoModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
@@ -1190,7 +1190,7 @@
 
 <!-- 🕒 예약 발송 모달 -->
 <div id="scheduleSendModal" class="modal-overlay" style="z-index:11500;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:460px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+  <div class="modal-card" style="max-width:460px;max-height:90vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;gap:8px">
       <div style="font-weight:700;font-size:1em">🕒 예약 발송</div>
       <div style="flex:1"></div>
@@ -1229,7 +1229,7 @@
 
 <!-- 👥 상담방 참여자 관리 모달 -->
 <div id="roomMembersModal" class="modal-overlay" style="z-index:11700;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+  <div class="modal-card" style="max-width:520px;max-height:88vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">👥 참여자 관리 <span id="rmmRoomName" style="font-size:.78em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
       <button onclick="closeRoomMembersModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
@@ -1246,7 +1246,7 @@
 
 <!-- ✅ 승인 + 🏢 업체·👥 역할 연결 모달 (위하고 수임처 신규생성 스타일) -->
 <div id="approveBizModal" class="modal-overlay" style="z-index:11900;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
+  <div class="modal-card" style="max-width:640px;max-height:92vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">✅ 승인 + 🏢 업체 연결</div>
       <button onclick="closeApproveBizModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
@@ -1349,7 +1349,7 @@
 
 <!-- 🚫 거래 종료 요청 관리 모달 (owner 전용) -->
 <div id="termReqModal" class="modal-overlay" style="z-index:11950;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+  <div class="modal-card" style="max-width:640px;max-height:88vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">🚫 거래 종료 요청 <span id="termReqCount" style="color:#8b95a1;font-size:.85em;margin-left:6px"></span></div>
       <button onclick="closeTerminationRequests()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
@@ -1365,7 +1365,7 @@
 
 <!-- 🏢 업체 대시보드 모달 -->
 <div id="businessDashboardModal" class="modal-overlay" style="z-index:11900;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:760px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
+  <div class="modal-card" style="max-width:760px;max-height:92vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1.02em">🏢 <span id="bdName">업체</span> <span id="bdSub" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
       <button onclick="closeBusinessDashboard()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
@@ -1378,7 +1378,7 @@
 
 <!-- ＋ 새 업체 생성 모달 (위하고 수임처 신규생성 스타일) -->
 <div id="newBusinessModal" class="modal-overlay" style="z-index:11950;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
+  <div class="modal-card" style="max-width:640px;max-height:92vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">＋ 새 업체 생성 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">위하고 스타일</span></div>
       <button onclick="closeNewBusinessModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
@@ -1453,7 +1453,7 @@
 
 <!-- 📒 quickMemoModal (Phase M15 2026-05-05 사장님 명령): 사이드바 메모 클릭 → 거래처/사람 검색 → 메모 작성 -->
 <div id="quickMemoModal" class="modal-overlay" style="z-index:11500;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:600px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+  <div class="modal-card" style="max-width:600px;max-height:88vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">📒 빠른 메모 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">거래처/업체 검색 후 즉시 메모 작성</span></div>
       <button onclick="closeQuickMemoModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
@@ -1493,7 +1493,7 @@
 
 <!-- 🔗 linkBizModal (Phase M11 2026-05-05): 0개 매핑 + 후보 list — 사장님이 1개 선택해서 연결 -->
 <div id="linkBizModal" class="modal-overlay" style="z-index:11500;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:600px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+  <div class="modal-card" style="max-width:600px;max-height:88vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">🔗 이 상담방에 연결할 업체 선택</div>
       <button onclick="closeLinkBizModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
@@ -1514,7 +1514,7 @@
 
 <!-- 📊 selectRoomBizModal (Phase M11 2026-05-05): 2개+ 매핑된 업체 중 어느 dashboard 볼지 선택 -->
 <div id="selectRoomBizModal" class="modal-overlay" style="z-index:11500;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:560px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+  <div class="modal-card" style="max-width:560px;max-height:88vh">
     <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">📊 이 상담방의 연결된 업체</div>
       <button onclick="closeSelectRoomBizModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
