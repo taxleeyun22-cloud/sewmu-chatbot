@@ -289,8 +289,14 @@ async function addCdMemo(){
 async function deleteCdMemo(id){
   if(!confirm('이 메모를 삭제할까요?'))return;
   try{
-    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&id='+id,{method:'DELETE'});
-    const d=await r.json();
+    /* Phase #3 적용 (2026-05-06): type-safe wrapper 사용 (fallback to fetch) */
+    let d;
+    if(window.__memoActions && window.__memoActions.deleteMemo){
+      d = await window.__memoActions.deleteMemo(id);
+    } else {
+      const r = await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&id='+id,{method:'DELETE'});
+      d = await r.json();
+    }
     if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
     if(_cdCurrentUserId) await _loadCdAllMemos(_cdCurrentUserId);
   }catch(err){alert('오류: '+err.message)}
@@ -609,21 +615,39 @@ async function loadTrash(){
 async function restoreMemo(id){
   if(!confirm('이 메모를 복원할까요?')) return;
   try{
-    const r = await fetch('/api/memos?action=restore&id=' + id + '&key=' + encodeURIComponent(KEY), { method: 'POST' });
-    const d = await r.json();
+    /* Phase #3 적용 (2026-05-06): type-safe wrapper 사용 */
+    let d;
+    if(window.__memoActions && window.__memoActions.restoreMemo){
+      d = await window.__memoActions.restoreMemo(id);
+    } else {
+      const r = await fetch('/api/memos?action=restore&id=' + id + '&key=' + encodeURIComponent(KEY), { method: 'POST' });
+      d = await r.json();
+    }
     if(!d.ok){ alert('복원 실패: ' + (d.error || 'unknown')); return; }
     loadTrash();
-    /* 만약 거래처 dashboard 가 열려있으면 그 메모 리스트도 갱신 */
     if(typeof _cdCurrentUserId !== 'undefined' && _cdCurrentUserId && typeof _loadCdAllMemos === 'function') _loadCdAllMemos(_cdCurrentUserId);
   }catch(err){ alert('오류: ' + err.message); }
 }
 
 async function purgeMemo(id){
-  if(!confirm('이 메모를 영구 삭제할까요?\n\n⚠️ 되돌릴 수 없습니다.')) return;
+  if(!confirm('이 메모를 영구 삭제할까요?\n\n⚠️ 되돌릴 수 없습니다.\n(manager+ 권한 필요)')) return;
   try{
-    const r = await fetch('/api/memos?action=purge&id=' + id + '&key=' + encodeURIComponent(KEY), { method: 'POST' });
-    const d = await r.json();
-    if(!d.ok){ alert('삭제 실패: ' + (d.error || 'unknown')); return; }
+    /* Phase #3 + #10 적용 (2026-05-06): type-safe wrapper + RBAC manager 가드 */
+    let d;
+    if(window.__memoActions && window.__memoActions.purgeMemo){
+      d = await window.__memoActions.purgeMemo(id);
+    } else {
+      const r = await fetch('/api/memos?action=purge&id=' + id + '&key=' + encodeURIComponent(KEY), { method: 'POST' });
+      d = await r.json();
+    }
+    if(!d.ok){
+      if(d.error && d.error.indexOf('권한') >= 0){
+        alert('manager 권한이 필요합니다. 사장님께 권한 부여 요청하세요.');
+      } else {
+        alert('삭제 실패: ' + (d.error || 'unknown'));
+      }
+      return;
+    }
     loadTrash();
   }catch(err){ alert('오류: ' + err.message); }
 }
