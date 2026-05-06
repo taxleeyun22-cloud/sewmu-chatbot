@@ -18,6 +18,7 @@
 // - 각 방 insert 실패 시 나머지는 계속 진행, 실패 목록 반환
 
 import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkRole, roleForbidden } from "./_authz.js";
 import { notifyUser } from "./_webpush.js";
 
 function kst() {
@@ -54,8 +55,10 @@ function validAtt(att) {
 }
 
 export async function onRequestPost(context) {
-  const auth = await checkAdmin(context);
-  if (!auth) return adminUnauthorized();
+  /* Phase #10 적용 (2026-05-06): 단체발송 = manager+ 전용.
+   * 도배·정보 노출 위험. staff 직원은 단일 방 메시지만, 단체는 manager 권한 직원만. */
+  const authz = await checkRole(context, 'manager');
+  if (!authz.ok) return roleForbidden(authz);
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
 

@@ -7,6 +7,7 @@
 // - POST /api/admin-faq?action=reembed_all : 전체 재임베딩 (모델 변경 시)
 
 import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
+import { checkRole, roleForbidden } from "./_authz.js";
 import { ensureFaqsTable, embed } from "./_rag.js";
 
 function kst() {
@@ -194,6 +195,9 @@ export async function onRequestPost(context) {
     }
 
     if (action === "delete") {
+      /* Phase #10 적용 (2026-05-06): FAQ 삭제 = manager+ 전용 (영구 삭제, 위험). */
+      const authz = await checkRole(context, 'manager');
+      if (!authz.ok) return roleForbidden(authz);
       const id = Number(body.id);
       if (!id) return Response.json({ error: "id 필수" }, { status: 400 });
       await db.prepare(`DELETE FROM faqs WHERE id = ?`).bind(id).run();
