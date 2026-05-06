@@ -6,12 +6,14 @@
   "description": "세무회계 이윤 AI 세무 챗봇 + 사무실 OS",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc --noEmit && vite build",
+    "build:fast": "vite build",
     "preview": "vite preview --port 4173",
     "pages:dev": "wrangler pages dev dist --compatibility-date=2025-01-01",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
-    "test": "vitest run"
+    "test": "vitest run",
+    "ci": "npm run typecheck && npm run test && npm run build:fast"
   },
   "engines": {
     "node": ">=20"
