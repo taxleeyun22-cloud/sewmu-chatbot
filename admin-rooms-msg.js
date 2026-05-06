@@ -490,7 +490,7 @@ async function sendRoomImageFile(file){
       if(overlay)return;
       overlay=document.createElement('div');
       overlay.style.cssText='position:fixed;inset:0;background:rgba(49,130,246,.18);border:3px dashed #3182f6;pointer-events:none;z-index:99999;display:flex;align-items:center;justify-content:center;color:#1e3a8a;font-size:1.4em;font-weight:800';
-      overlay.textContent='📎 사진을 놓으면 첨부됩니다';
+      overlay.textContent='📎 놓으면 첨부됩니다 (사진·파일 다 가능)';
       document.body.appendChild(overlay);
     }
     function hideOverlay(){if(overlay){overlay.remove();overlay=null}}
@@ -508,11 +508,15 @@ async function sendRoomImageFile(file){
     document.addEventListener('drop',function(e){
       if(!currentRoomId){depth=0;hideOverlay();return}
       const files=(e.dataTransfer&&e.dataTransfer.files)||[];
-      const imgs=Array.from(files).filter(isImage);
       depth=0;hideOverlay();
-      if(!imgs.length)return;
+      if(!files.length)return;
       e.preventDefault();
-      _addPendingAttachments(imgs);
+      /* Phase R9 (2026-05-05 사장님 명령: "거래처처럼 사진+파일 다 드래그 전송"):
+       * 이미지 → 첨부 대기열 / 일반 파일 → 즉시 sendRoomFileDirect (PDF/HWP/zip 등) */
+      const imgs = Array.from(files).filter(isImage);
+      const docs = Array.from(files).filter(f => !isImage(f));
+      if(imgs.length) _addPendingAttachments(imgs);
+      if(docs.length) docs.forEach(function(f){ if(typeof sendRoomFileDirect==='function') sendRoomFileDirect(f); });
     });
     return true;
   }
@@ -596,6 +600,14 @@ async function uploadFileChunkedAdmin(file, onProgress){
     try{await fetch('/api/upload-multipart?action=abort&key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,uploadId})})}catch{}
     throw err;
   }
+}
+
+/* Phase R9 (2026-05-05 사장님 명령): drag&drop 으로 받은 File 직접 전송 helper */
+async function sendRoomFileDirect(file){
+  if(!currentRoomId||!file)return;
+  /* fileInput 호환 — 기존 sendRoomFile 흐름 재사용 위해 가짜 input 만듦 */
+  const fakeInput = { files: [file], value: '' };
+  return sendRoomFile(fakeInput);
 }
 
 async function sendRoomFile(fileInput){
