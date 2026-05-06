@@ -1069,6 +1069,8 @@ function setMemoFilter(f){
   _memoFilter=f;
   _renderMemoFilterTabs();
   _renderMemoList();
+  /* Phase #6 적용 (2026-05-06): store sync */
+  try{ if(window.__memoStore){ window.__memoStore.$memoFilter.set(f); } }catch(_){}
 }
 function _renderMemoFilterTabs(){
   document.querySelectorAll('.memo-filter').forEach(b=>{
@@ -1092,6 +1094,8 @@ async function loadRoomMemos(){
     _renderMemoList();
     /* 📒 메뉴 버튼에 할 일 건수 뱃지 (존재하면) */
     _updateRoomMemoBadge();
+    /* Phase #6 적용 (2026-05-06): nanostores sync — 다른 모듈이 subscribe 가능 */
+    try{ if(window.__memoStore){ window.__memoStore.$roomMemoCache.set(_memoCache); } }catch(_){}
   }catch(err){list.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>'}
 }
 function _updateMemoCounts(){
@@ -3595,6 +3599,29 @@ function refreshSidebarCounts(){
     }
   }).catch(function(_){});
 }
+
+/* Phase #6 적용 확장 (2026-05-06): store 변경 시 사이드바 카운트 자동 갱신.
+ * 거래처 dashboard 에서 메모 추가·삭제·복원 → store 자동 broadcast → 사이드바 휴지통/메모 카운트 즉시 갱신.
+ * 30초 polling 보다 즉각적. */
+(function bindMemoStoreToSidebar(){
+  function bind(){
+    var s = window.__memoStore;
+    if(!s){ setTimeout(bind, 200); return; }
+    var lastTs = 0;
+    /* 메모 cache 변경 시 (debounce 500ms) refreshSidebarCounts 호출 */
+    function onChange(){
+      var now = Date.now();
+      if(now - lastTs < 500) return;
+      lastTs = now;
+      try{ if(typeof refreshSidebarCounts === 'function') refreshSidebarCounts(); }catch(_){}
+    }
+    s.$cdMemoCache.subscribe(onChange);
+    s.$roomMemoCache.subscribe(onChange);
+    s.$cdSelectedMemoIds.subscribe(onChange);
+    s.$trashSelectedIds.subscribe(onChange);
+  }
+  bind();
+})();
 
 /* ============================================================
  * Phase #11 적용 (2026-05-06): 에러 로그 모달 함수들
