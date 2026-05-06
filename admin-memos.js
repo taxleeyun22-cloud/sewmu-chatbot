@@ -16,7 +16,7 @@
  *  - UI:   cdMemoFilter, onCdMemoFileSelect, addCdMemo, deleteCdMemo
  *  - 호환: addCustomerInfo, deleteCustomerInfo
  *
- * 로드 순서: admin.html / staff.html 에서 admin.js 다음에 로드. */
+ * 로드 순서: admin.html 에서 admin.js 다음에 로드 (staff.html 은 redirect 페이지). */
 
 /* var 사용 — 클래식 스크립트 top-level 에서 window.* 자동 attach (cross-script 안전) */
 var _cdMemosCache = [];

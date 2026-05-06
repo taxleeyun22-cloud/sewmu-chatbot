@@ -13,7 +13,7 @@
  *
  * 노출 (window 자동 — function 선언 + var 사용)
  *
- * 로드 순서 (admin.html / staff.html):
+ * 로드 순서 (admin.html — staff.html 은 redirect):
  *   admin.js → admin-memos.js → admin-customer-dash.js → admin-business-tab.js → admin-search-bulk.js
  *   → admin-rooms-list.js → admin-rooms-msg.js → admin-rooms-misc.js → admin-users-tab.js */
 

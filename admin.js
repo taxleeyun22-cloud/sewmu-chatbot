@@ -45,7 +45,7 @@ try{
   },300);
 }catch(_){}
 let KEY='';
-/* null-safe getElementById: 없으면 no-op 객체 반환 (admin.html/staff.html 공유용) */
+/* null-safe getElementById: 없으면 no-op 객체 반환 (admin.html 진입점 — staff.html 은 redirect 페이지) */
 function _noop(){return {style:{},classList:{add:function(){},remove:function(){},toggle:function(){},contains:function(){return false}},dataset:{},children:[],value:'',innerHTML:'',textContent:'',checked:false,disabled:false,className:'',addEventListener:function(){},removeEventListener:function(){},focus:function(){},click:function(){},blur:function(){},scrollIntoView:function(){},closest:function(){return null},querySelector:function(){return null},querySelectorAll:function(){return []},appendChild:function(a){return a},removeChild:function(a){return a},setAttribute:function(){},getAttribute:function(){return null},removeAttribute:function(){},insertAdjacentHTML:function(){}}}
 function $g(id){return document.getElementById(id)||_noop()}
 function e(t){return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
@@ -419,24 +419,13 @@ var _mainAppView = document.getElementById('mainAppView');
 if(_mainAppView){ _mainAppView.style.display='none'; }
 }
 
-/* 세션 기반 사용자가 is_admin=1이면 staff.html로 리다이렉트 (owner 전용 페이지) */
-async function tryAdminBySession(){
-  try{
-    const r=await fetch('/api/auth/me');
-    const d=await r.json();
-    if(d.logged_in&&d.user&&d.user.is_admin){
-      location.replace('/staff.html');
-      return true;
-    }
-  }catch{}
-  return false;
-}
+/* Phase M5 (2026-05-05) staff.html 폐기 후속 정리 (2026-05-06):
+   - tryAdminBySession() 함수 제거 — staff.html 으로 redirect 했지만 호출처 0 (죽은 코드)
+   - staff.html 은 admin.html 로 자동 redirect 하는 33줄 페이지로 축소
+   - 권한 분기는 IS_OWNER / IS_MANAGER / IS_STAFF (RBAC) 로 admin.html 안에서 처리 */
 
 /* 페이지 로드: 저장된 ADMIN_KEY가 있으면 자동 로그인. 없으면 로그인 폼 표시.
-   (staff.html은 자체 staffBoot() 사용하므로 이 IIFE 스킵)
-   이전: 저장된 키 없으면 /staff.html 로 자동 리다이렉트했는데,
-   이 경우 사장님 본인이 카톡 로그인 상태면 staff로 튕겨서 ADMIN_KEY 입력 기회가 없었음.
-   해결: admin.html은 항상 ADMIN_KEY 입력을 기다린다. 직원은 /staff.html 직접 방문 또는 마이페이지 버튼 사용. */
+   admin.html은 항상 ADMIN_KEY 입력을 기다린다. 직원도 admin.html 진입 (staff.html 은 redirect). */
 let IS_OWNER=true;
 /* Phase #10 메타 (2026-05-06): RBAC 3-tier role 변수.
  *   IS_OWNER  : 사장님 (ADMIN_KEY 또는 user_id=1 + is_admin=1)
@@ -463,7 +452,7 @@ async function _refreshAdminRole(){
   }catch(_){}
 }
 (async function(){
-  if(location.pathname.endsWith('/staff.html'))return;
+  /* staff.html 은 redirect 페이지이므로 진입 즉시 admin.html 로 이동. 이 IIFE 는 admin.html 에서만 작동 */
   /* 보안: 세션 스토리지(탭 수명)만 조회. 과거 localStorage 잔존 키는 정리 */
   try{localStorage.removeItem('admin_key')}catch{}
   try{

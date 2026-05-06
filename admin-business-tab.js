@@ -22,7 +22,7 @@
  *
  * 노출 (window 자동 — function 선언 + var 사용)
  *
- * 로드 순서 (admin.html / staff.html):
+ * 로드 순서 (admin.html — staff.html 은 redirect):
  *   admin.js → admin-memos.js → admin-customer-dash.js → admin-business-tab.js */
 
 var _clientTabMode = 'user';  /* 'user' | 'business' */
@@ -343,7 +343,7 @@ async function _bdLoadMemos(bid){
     box.innerHTML='<span style="color:#f04452">오류: '+e(err.message)+'</span>';
   }
 }
-/* 업체 메모 추가 — 모달 방식 (business.html / staff.html 과 통일). DOM: #bdMemoModal
+/* 업체 메모 추가 — 모달 방식 (business.html 과 통일). DOM: #bdMemoModal
  * Phase M2-c (2026-05-05): 모달 제목에 업체명 동적 표시 ("🏢 ABC상회 메모 추가"). */
 function _bdAddMemo(bid){
   const m=$g('bdMemoModal');const input=$g('bdMemoInput');
@@ -385,7 +385,7 @@ async function _bdSubmitMemo(){
     alert('오류: '+err.message);
   }
 }
-/* ESC 로 #bdMemoModal 닫기 (admin/staff 공유) */
+/* ESC 로 #bdMemoModal 닫기 (admin 단독 진입점 (staff redirect)) */
 document.addEventListener('keydown',function(e){
   if(e.key!=='Escape')return;
   const m=$g('bdMemoModal');

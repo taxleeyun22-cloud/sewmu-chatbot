@@ -28,7 +28,7 @@
  *  - var: _cdCurrentUserId, _cdUserCache, _summaryMode, _customerSummaryUserId,
  *         _customerSummaryBusinessId
  *
- * 로드 순서: admin.html / staff.html 에서 admin.js → admin-memos.js → 본 파일 */
+ * 로드 순서: admin.html 에서 admin.js → admin-memos.js → 본 파일 */
 
 var _cdCurrentUserId = null;
 var _cdUserCache = {};
