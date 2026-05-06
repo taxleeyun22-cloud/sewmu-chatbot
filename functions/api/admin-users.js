@@ -1,5 +1,6 @@
 // 관리자 사용자 리스트
 import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkRole, roleForbidden } from "./_authz.js";
 
 export async function onRequestGet(context) {
   const auth = await checkAdmin(context);
@@ -9,8 +10,9 @@ export async function onRequestGet(context) {
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB not configured" }, { status: 500 });
 
-  // is_admin 컬럼 보장
+  // is_admin / staff_role 컬럼 보장
   try { await db.prepare(`ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE users ADD COLUMN staff_role TEXT`).run(); } catch {}
 
   /* @멘션용 간이 스태프 리스트 — is_admin=1 만 반환 (id, name) */
   const action = url.searchParams.get("action");
@@ -47,7 +49,7 @@ export async function onRequestGet(context) {
 
     const query = `
       SELECT
-        u.id, u.provider, u.name, u.email, u.phone, u.profile_image, u.is_admin,
+        u.id, u.provider, u.name, u.email, u.phone, u.profile_image, u.is_admin, u.staff_role,
         u.created_at, u.last_login_at,
         (SELECT COUNT(*) FROM conversations c WHERE c.user_id = u.id) as message_count,
         (SELECT MAX(created_at) FROM conversations c WHERE c.user_id = u.id) as last_message_at
@@ -74,11 +76,12 @@ export async function onRequestGet(context) {
 }
 
 // POST /api/admin-users?action=set_admin { user_id, is_admin: 0|1 }
-// 사장님(owner)만 다른 사용자의 is_admin 플래그를 변경할 수 있음
+//      /api/admin-users?action=set_staff_role { user_id, staff_role: 'manager'|'staff'|null }
+// 사장님(owner)만 다른 사용자의 is_admin / staff_role 플래그 변경 가능.
+// Phase #10 적용 (2026-05-06): _authz.js checkRole('owner') 사용 — 통일된 에러 응답.
 export async function onRequestPost(context) {
-  const auth = await checkAdmin(context);
-  if (!auth) return adminUnauthorized();
-  if (!auth.owner) return Response.json({ error: "owner 권한 필요 (직원 관리자는 다른 관리자를 승인할 수 없습니다)" }, { status: 403 });
+  const authz = await checkRole(context, 'owner');
+  if (!authz.ok) return roleForbidden(authz);
 
   const url = new URL(context.request.url);
   const action = url.searchParams.get("action");
@@ -156,6 +159,35 @@ export async function onRequestPost(context) {
         } catch {}
       }
       return Response.json({ ok: true, user_id: userId, is_admin: isAdmin, added_rooms: addedRooms, demoted_memberships: demotedMemberships });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
+  /* Phase #10 적용 (2026-05-06): RBAC manager / staff 등급 부여.
+   * action=set_staff_role { user_id, staff_role: 'manager' | 'staff' | null }
+   * - owner only (사장님만 직원 등급 변경 가능)
+   * - is_admin=1 사용자만 대상 (일반 거래처는 admin 권한 0 이라 manager 부여 무의미)
+   * - manager 부여 시 _authz.js checkRole('manager') 통과
+   * - staff (default) — 단순 admin 권한만
+   */
+  if (action === "set_staff_role") {
+    const userId = Number(body.user_id);
+    let role = body.staff_role;
+    if (role !== 'manager' && role !== 'staff' && role !== null) {
+      return Response.json({ error: "staff_role must be 'manager' | 'staff' | null" }, { status: 400 });
+    }
+    if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
+    try {
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN staff_role TEXT`).run(); } catch {}
+      /* is_admin=1 인 사용자만 — manager 부여는 admin 권한 위 단계 */
+      const u = await db.prepare(`SELECT id, is_admin FROM users WHERE id = ?`).bind(userId).first();
+      if (!u) return Response.json({ error: "user not found" }, { status: 404 });
+      if (!u.is_admin && role) {
+        return Response.json({ error: "admin 권한이 없는 사용자에게는 staff_role 부여 불가 (먼저 set_admin)" }, { status: 400 });
+      }
+      await db.prepare(`UPDATE users SET staff_role = ? WHERE id = ?`).bind(role, userId).run();
+      return Response.json({ ok: true, user_id: userId, staff_role: role });
     } catch (e) {
       return Response.json({ error: e.message }, { status: 500 });
     }

@@ -65,6 +65,8 @@ const pv=u.provider||'';
 const phone=u.phone?' · '+e(u.phone):'';
 const nameConf=u.name_confirmed?'':'<span style="color:#f04452;font-size:.72em">⚠️본명미확인</span> ';
 const adminMark=u.is_admin?' <span style="color:#fff;background:#8b6914;font-size:.65em;padding:2px 6px;border-radius:4px;font-weight:700">👑 관리자</span>':'';
+/* Phase #10 적용 (2026-05-06): RBAC staff_role 배지 — manager / staff 표시 */
+const roleMark=u.is_admin&&u.staff_role==='manager'?' <span style="color:#fff;background:#3182f6;font-size:.65em;padding:2px 6px;border-radius:4px;font-weight:700" title="사업장 관리·메모 작성 권한 강화">🛡️ Manager</span>':(u.is_admin&&u.staff_role==='staff'?' <span style="color:#475569;background:#f1f5f9;font-size:.65em;padding:2px 6px;border-radius:4px;font-weight:600">Staff</span>':'');
 const todayCnt=u.today_count||0;
 /* 🏢 고객이 직접 요청한 업체 등록 정보 — 대기 탭에서 승인 판단에 활용 */
 const reqInfo=(u.requested_company_name||u.requested_business_number||u.requested_role)
@@ -86,9 +88,15 @@ const adminBtn=IS_OWNER?(u.is_admin
   :'<button onclick="setAdminFlag('+u.id+',1)" style="background:#fff;color:#8b6914;border:1px dashed #8b6914;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">👑 관리자 승급</button>'
 ):'';
 if(status==='admin'){
-/* 👑 관리자 탭 — 관리자 해제만 노출. 관리자가 관리자 거절·종료는 의미 없음 */
+/* 👑 관리자 탭 — 관리자 해제 + Manager 등급 부여/해제 */
+const isManager = u.staff_role === 'manager';
+const managerBtn = IS_OWNER ? (isManager
+  ? '<button onclick="setStaffRole('+u.id+',null)" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600" title="Manager 권한 해제 (Staff 등급으로)">🛡️ Manager 해제</button>'
+  : '<button onclick="setStaffRole('+u.id+',\'manager\')" style="background:#fff;color:#3182f6;border:1px dashed #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600" title="Manager 권한 부여 (사업장 관리·메모 권한 강화)">🛡️ Manager 부여</button>'
+) : '';
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +(IS_OWNER?'<button onclick="setAdminFlag('+u.id+',0)" style="background:#fff;color:#8b6914;border:1px solid #8b6914;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">👑 관리자 해제</button>':'<span style="font-size:.72em;color:#8b95a1">(owner 만 관리 가능)</span>')
++managerBtn
 +'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +'</div>';
 } else if(status==='pending'){
@@ -123,8 +131,8 @@ const roleBadge=ceoName
   : '';
 const kakaoAlias=(u.name&&u.real_name&&u.name!==u.real_name?' <span style="font-size:.72em;color:#8b95a1">(카톡: '+e(u.name)+')</span>':'');
 const nameLine=company
-  ? '<div class="name">🏢 '+e(company)+' <span style="font-weight:500;color:#8b95a1;font-size:.88em">· '+e(nm)+'</span>'+roleBadge+kakaoAlias+adminMark+'</div>'
-  : '<div class="name">'+e(nm)+roleBadge+kakaoAlias+adminMark+'</div>';
+  ? '<div class="name">🏢 '+e(company)+' <span style="font-weight:500;color:#8b95a1;font-size:.88em">· '+e(nm)+'</span>'+roleBadge+kakaoAlias+adminMark+roleMark+'</div>'
+  : '<div class="name">'+e(nm)+roleBadge+kakaoAlias+adminMark+roleMark+'</div>';
 return '<div data-user-id="'+u.id+'" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.03)">'
 +'<div style="display:flex;align-items:center;gap:14px">'
 +'<div class="avatar">'+av+'</div>'
@@ -400,6 +408,31 @@ async function setAdminFlag(id,flag){
     if(d.ok){loadUsers(currentStatus);alert(flag?'✅ 관리자로 승급되었습니다':'✅ 관리자 권한이 해제되었습니다')}
     else alert('실패: '+(d.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
+}
+
+/* Phase #10 적용 (2026-05-06): RBAC staff_role 부여/해제.
+ * role: 'manager' | 'staff' | null (= 등급 해제, 단순 admin)
+ * Manager 부여 시 _authz.checkRole('manager') 통과 → 사업장 매핑·메모 작성 등 권한 확장.
+ * 일단은 owner UI 만 노출. 실제 endpoint 권한 분기는 후속 phase. */
+async function setStaffRole(id, role){
+  if(!IS_OWNER){alert('owner 권한이 필요합니다');return}
+  const labels = { manager: '🛡️ Manager (사업장 관리)', staff: 'Staff (일반 admin)' };
+  const target = role === null ? '권한 해제 (단순 admin)' : (labels[role] || role);
+  if(!confirm('이 직원의 등급을 변경합니다.\n\n새 등급: ' + target + '\n\n진행할까요?')) return;
+  try{
+    const r = await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=set_staff_role', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ user_id: id, staff_role: role })
+    });
+    const d = await r.json();
+    if(d.ok){
+      loadUsers(currentStatus);
+      alert('✅ 등급 변경 완료\n새 등급: ' + (d.staff_role || '단순 admin'));
+    } else {
+      alert('실패: ' + (d.error || 'unknown'));
+    }
+  }catch(err){ alert('오류: ' + err.message); }
 }
 
 async function rejectUser(id){
