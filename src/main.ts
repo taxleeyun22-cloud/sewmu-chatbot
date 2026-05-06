@@ -12,9 +12,19 @@
 
 import './styles/globals.css';
 import { defineRoute, navigate, start, back, onNavigate, getCurrent } from './router';
+import {
+  $roomMemoCache,
+  $memoFilter,
+  $cdMemoCache,
+  $cdMemoCategory,
+  $cdSelectedMemoIds,
+  $trashSelectedIds,
+} from './features/memos/state';
+import type { Memo } from './features/memos/state';
 
 /* 글로벌 노출 — classic script 환경에서 다른 .js 파일이 사용 가능하게.
-   Phase S3b 부터 admin.js / index.js 등이 window.__router 통해 navigate 호출. */
+   Phase S3b 부터 admin.js / index.js 등이 window.__router 통해 navigate 호출.
+   Phase #6 적용 (2026-05-06): admin-memos.js 등이 window.__memoStore 사용. */
 declare global {
   interface Window {
     __router?: {
@@ -25,11 +35,28 @@ declare global {
       onNavigate: typeof onNavigate;
       getCurrent: typeof getCurrent;
     };
+    __memoStore?: {
+      $roomMemoCache: typeof $roomMemoCache;
+      $memoFilter: typeof $memoFilter;
+      $cdMemoCache: typeof $cdMemoCache;
+      $cdMemoCategory: typeof $cdMemoCategory;
+      $cdSelectedMemoIds: typeof $cdSelectedMemoIds;
+      $trashSelectedIds: typeof $trashSelectedIds;
+    };
+    Memo?: Memo;  /* 타입 hint (실제 사용 X) */
   }
 }
 
 if (typeof window !== 'undefined') {
   window.__router = { defineRoute, navigate, start, back, onNavigate, getCurrent };
+  window.__memoStore = {
+    $roomMemoCache,
+    $memoFilter,
+    $cdMemoCache,
+    $cdMemoCategory,
+    $cdSelectedMemoIds,
+    $trashSelectedIds,
+  };
 }
 
 /* Phase S3a: router 인스턴스만 노출. start() 는 Phase S3b 에서 route 정의 후.

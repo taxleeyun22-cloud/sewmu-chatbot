@@ -22,6 +22,32 @@
 var _cdMemosCache = [];
 var _cdMemoCategory = 'all';  /* 'all' | '할 일' | '거래처 정보' | '완료' | '전화' | '문서' | '이슈' | '약속' */
 var _cdPendingAttachments = [];  /* 업로드 완료된 첨부 (POST 시 같이 보냄) */
+
+/* Phase #6 적용 (2026-05-06): nanostores sync helper.
+ * window.__memoStore 가 main.ts (vite ES module entry) 에서 노출됨.
+ * admin-memos.js 의 var 캐시 변경 시 store 도 같이 업데이트 → 다른 화면 자동 sync.
+ * 양방향: store 변경 시 var 도 업데이트 (다른 모듈이 store 변경하면 여기 반영). */
+function _syncMemoStore(){
+  try{
+    var s = window.__memoStore;
+    if(!s) return;
+    s.$cdMemoCache.set(_cdMemosCache);
+    s.$cdMemoCategory.set(_cdMemoCategory);
+    s.$cdSelectedMemoIds.set(_cdSelectedIds || {});
+  }catch(_){}
+}
+/* main.ts ES module 로드 후 store subscribe — store 변경 시 var 갱신 */
+(function(){
+  function bind(){
+    var s = window.__memoStore;
+    if(!s){ setTimeout(bind, 200); return; }
+    /* store → var (다른 모듈이 store.set 하면 여기서 반영) */
+    s.$cdMemoCategory.subscribe(function(v){
+      if(v !== _cdMemoCategory){ _cdMemoCategory = v; if(typeof _renderCdMemos === 'function') _renderCdMemos(); }
+    });
+  }
+  bind();
+})();
 /* 메모 빡센 세팅 commit 3 — #태그 클릭 필터 + 정렬 + 일괄 액션 */
 var _cdActiveTag = null;       /* '부가세' 같은 단일 태그 필터 (chip 클릭 시 set) */
 var _cdSortMode = 'recent';    /* 'recent' (기본 시간순 desc) | 'due' (기한순 asc, 없는 거 끝) | 'type' (타입순) */
@@ -43,6 +69,7 @@ async function _loadCdAllMemos(userId){
     _cdMemosCache=(d.memos||[]).filter(m=>!m.deleted_at);
     if(cnt) cnt.textContent=String(_cdMemosCache.length);
     _renderCdMemos();
+    _syncMemoStore();  /* Phase #6 적용: nanostores sync */
   }catch(err){
     list.innerHTML='<div style="color:#f04452">오류: '+e(err.message)+'</div>';
   }
@@ -205,6 +232,7 @@ function cdMemoFilter(cat){
     else{ b.classList.remove('on'); b.style.background='#fff'; b.style.color='#4e5968'; b.style.border='1px solid #e5e8eb'; b.style.fontWeight='500'; }
   });
   _renderCdMemos();
+  _syncMemoStore();  /* Phase #6 적용 */
 }
 
 function onCdMemoFileSelect(ev){
