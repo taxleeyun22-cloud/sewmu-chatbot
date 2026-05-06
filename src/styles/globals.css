@@ -154,6 +154,77 @@
 }
 
 /* ============================================================
+ * Phase T2c (2026-05-06): 재사용 component 클래스 — 모달 / 칩 / 카드
+ * admin-modals.html / index-modals.html 안 inline style 패턴을 component
+ * class 로 묶음. 점진 마이그레이션 시 inline style 제거하고 class 만 부여.
+ *
+ * 사용법:
+ *   <div class="modal-overlay">  → fixed inset-0 z-modal flex items-center
+ *   <div class="modal-card">      → bg-white rounded-2xl max-w-md ...
+ *   <button class="modal-close">  → 우상단 ✕ 표준 스타일
+ *   <span class="chip-tag">        → #해시태그 chip
+ *
+ * 회귀 0 — 추가만, 기존 inline style 변경 X.
+ * ============================================================ */
+@layer components {
+  .modal-overlay {
+    @apply fixed inset-0 flex items-center justify-center;
+    background: var(--overlay-bg);
+    z-index: 11000;
+    padding: 16px;
+  }
+  .modal-card {
+    @apply bg-white flex flex-col overflow-hidden;
+    border-radius: var(--radius-xl);
+    width: 100%;
+    max-width: 560px;
+    max-height: 88vh;
+    box-shadow: var(--of-shadow-lg);
+  }
+  .modal-card-sm { max-width: 420px; }
+  .modal-card-lg { max-width: 720px; }
+  .modal-card-xl { max-width: 960px; }
+
+  .modal-header {
+    @apply flex items-center justify-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--neutral-border);
+    font-weight: 700;
+  }
+  .modal-body {
+    @apply overflow-y-auto;
+    padding: 14px 18px;
+    flex: 1;
+  }
+  .modal-footer {
+    @apply flex items-center justify-end gap-2;
+    padding: 12px 18px;
+    border-top: 1px solid var(--neutral-border);
+  }
+  .modal-close {
+    @apply bg-transparent border-0 cursor-pointer;
+    font-size: 1.2em;
+    color: var(--text-mute);
+    padding: 4px 8px;
+    line-height: 1;
+  }
+  .modal-close:hover { color: var(--text-main); }
+
+  .chip-tag {
+    @apply inline-block;
+    padding: 1px 7px;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-xs);
+    font-weight: 600;
+    background: var(--of-primary-soft);
+    color: var(--of-primary);
+  }
+  .chip-tag-warn    { background: var(--of-warn-soft);    color: #92400e; }
+  .chip-tag-success { background: var(--of-success-soft); color: #065f46; }
+  .chip-tag-danger  { background: var(--of-danger-soft);  color: #991b1b; }
+}
+
+/* ============================================================
  * Phase T2b (2026-05-04): index.css 의 :root + body.dark 토큰 통합
  * 사용자 챗봇 (index.html) 전용 — admin/office 와 namespace 분리.
  * 다크모드 (body.dark) 는 index.html 에서만 toggle (index.js).
