@@ -24,6 +24,16 @@ import type { Memo } from './features/memos/state';
 import { extractTags, normalizeTags, kst, timingSafeEqual } from './lib/memo-utils';
 import { ddayBadge, formatBytes, memoIcon, MEMO_CATEGORY_ICONS } from './lib/memo-render';
 import type { DDayBadge } from './lib/memo-render';
+import {
+  listMemos,
+  addMemo,
+  updateMemo,
+  deleteMemo,
+  restoreMemo,
+  purgeMemo,
+  trashCount,
+  isMemoError,
+} from './lib/memo-actions';
 
 /* 글로벌 노출 — classic script 환경에서 다른 .js 파일이 사용 가능하게.
    Phase S3b 부터 admin.js / index.js 등이 window.__router 통해 navigate 호출.
@@ -62,6 +72,17 @@ declare global {
       memoIcon: typeof memoIcon;
       MEMO_CATEGORY_ICONS: typeof MEMO_CATEGORY_ICONS;
     };
+    /* Phase #3 적용 확장 (2026-05-06): type-safe 메모 CRUD wrapper */
+    __memoActions?: {
+      listMemos: typeof listMemos;
+      addMemo: typeof addMemo;
+      updateMemo: typeof updateMemo;
+      deleteMemo: typeof deleteMemo;
+      restoreMemo: typeof restoreMemo;
+      purgeMemo: typeof purgeMemo;
+      trashCount: typeof trashCount;
+      isMemoError: typeof isMemoError;
+    };
     Memo?: Memo;  /* 타입 hint (실제 사용 X) */
     DDayBadge?: DDayBadge;  /* 타입 hint */
   }
@@ -79,6 +100,16 @@ if (typeof window !== 'undefined') {
   };
   window.__memoUtils = { extractTags, normalizeTags, kst, timingSafeEqual };
   window.__memoRender = { ddayBadge, formatBytes, memoIcon, MEMO_CATEGORY_ICONS };
+  window.__memoActions = {
+    listMemos,
+    addMemo,
+    updateMemo,
+    deleteMemo,
+    restoreMemo,
+    purgeMemo,
+    trashCount,
+    isMemoError,
+  };
 }
 
 /* Phase S3a: router 인스턴스만 노출. start() 는 Phase S3b 에서 route 정의 후.
