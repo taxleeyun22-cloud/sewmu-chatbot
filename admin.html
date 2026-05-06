@@ -223,11 +223,15 @@ if ('serviceWorker' in navigator) {
 </main>
 </div><!-- /of-app -->
 
-<!-- 모달 fetch — DOMContentLoaded 즉시 실행. fetch 비동기이지만 사용자 클릭 시점에는 거의 끝남 (~50ms).
-     함수 (window.openCustomerDashboard 등) 가 호출 시점 document.getElementById(...) 로 접근하므로 OK. -->
+<!-- 모달 lazy load — Phase #1 적용 (2-3 ES module, 2026-05-06):
+     이전 인라인 <script> → src/admin/modal-loader.ts 로 옮김.
+     main.ts 가 startModalLoader() 자동 호출.
+     fallback: window.__loadAdminModals 미존재 시 인라인 fetch 사용. -->
 <script>
-(function loadAdminModals(){
-  function inject(){
+/* Fallback — main.js (ES module) 로딩 실패 시 즉시 fetch */
+setTimeout(function(){
+  if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
+    console.warn('[admin-modals] ES module fallback');
     fetch('/admin-modals.html?v=15', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
@@ -236,10 +240,7 @@ if ('serviceWorker' in navigator) {
       })
       .catch(err => console.error('[admin-modals] fetch fail:', err));
   }
-  if(document.readyState === 'loading')
-    document.addEventListener('DOMContentLoaded', inject);
-  else inject();
-})();
+}, 800);
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>

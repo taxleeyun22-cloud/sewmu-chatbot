@@ -49,6 +49,7 @@ import {
   filterMemos,
   ALLOWED_MEMO_TYPES,
 } from './lib/memo-filter';
+import { loadAdminModals, startModalLoader } from './admin/modal-loader';
 
 /* 글로벌 노출 — classic script 환경에서 다른 .js 파일이 사용 가능하게.
    Phase S3b 부터 admin.js / index.js 등이 window.__router 통해 navigate 호출.
@@ -115,6 +116,9 @@ declare global {
       trashCount: typeof trashCount;
       isMemoError: typeof isMemoError;
     };
+    /* Phase #1 적용 (2-3, 2026-05-06): ES module 로 작성된 modal-loader 노출.
+     * admin.html 의 inline <script> 가 호출 가능. */
+    __loadAdminModals?: typeof loadAdminModals;
     Memo?: Memo;  /* 타입 hint (실제 사용 X) */
     DDayBadge?: DDayBadge;  /* 타입 hint */
   }
@@ -157,6 +161,11 @@ if (typeof window !== 'undefined') {
     filterMemos,
     ALLOWED_MEMO_TYPES,
   };
+  window.__loadAdminModals = loadAdminModals;
+  /* Phase #1 적용 (2-3): admin.html 의 인라인 modal loader → ES module 로 자동 시작 */
+  if (location.pathname.endsWith('/admin.html') || location.pathname === '/admin') {
+    startModalLoader();
+  }
 }
 
 /* Phase S3a: router 인스턴스만 노출. start() 는 Phase S3b 에서 route 정의 후.
