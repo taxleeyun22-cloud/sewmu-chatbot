@@ -494,25 +494,32 @@ async function sendRoomImageFile(file){
       document.body.appendChild(overlay);
     }
     function hideOverlay(){if(overlay){overlay.remove();overlay=null}}
+    /* Phase R10 (2026-05-05 사장님 보고: "또 복사라고 뜨잖아"):
+     * preventDefault 를 currentRoomId 무관 항상 적용 — 브라우저 default 복사 표시 차단.
+     * currentRoomId 없으면 안내 alert. */
     document.addEventListener('dragenter',function(e){
-      if(!currentRoomId)return;
       if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
+      e.preventDefault();
+      if(!currentRoomId)return;
       depth++;showOverlay();
     });
     document.addEventListener('dragover',function(e){
-      if(!currentRoomId)return;
       if(!e.dataTransfer||!Array.from(e.dataTransfer.types||[]).includes('Files'))return;
-      e.preventDefault();
+      e.preventDefault();  /* 항상 — 복사 표시 차단 */
     });
     document.addEventListener('dragleave',function(){depth--;if(depth<=0){depth=0;hideOverlay()}});
     document.addEventListener('drop',function(e){
-      if(!currentRoomId){depth=0;hideOverlay();return}
-      const files=(e.dataTransfer&&e.dataTransfer.files)||[];
+      const hasFiles = e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files');
+      if(!hasFiles)return;
+      e.preventDefault();  /* 항상 — 브라우저 default (다운로드·복사) 차단 */
       depth=0;hideOverlay();
+      if(!currentRoomId){
+        alert('상담방을 먼저 선택하세요\n(좌측 list 에서 클릭)');
+        return;
+      }
+      const files = e.dataTransfer.files || [];
       if(!files.length)return;
-      e.preventDefault();
-      /* Phase R9 (2026-05-05 사장님 명령: "거래처처럼 사진+파일 다 드래그 전송"):
-       * 이미지 → 첨부 대기열 / 일반 파일 → 즉시 sendRoomFileDirect (PDF/HWP/zip 등) */
+      /* 이미지 → 첨부 대기열 / 일반 파일 → 즉시 sendRoomFileDirect (PDF/HWP/zip 등) */
       const imgs = Array.from(files).filter(isImage);
       const docs = Array.from(files).filter(f => !isImage(f));
       if(imgs.length) _addPendingAttachments(imgs);
