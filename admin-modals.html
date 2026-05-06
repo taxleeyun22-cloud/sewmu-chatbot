@@ -1102,13 +1102,16 @@
   </div>
 </div>
 <!-- 🗑️ 휴지통 (메모 빡센 세팅 — 사장님 명령 2026-04-30) -->
+<!-- Phase #5 적용 확장 (A1, 2026-05-06): trashModal inner card / header utility 변환.
+     overlay (.modal-overlay) + card (.modal-card) + header (.modal-header) + close (.modal-close).
+     inner content / 일괄 액션 바 / list 는 그대로 유지 (위험 ↓). -->
 <div id="trashModal" class="modal-overlay" style="z-index:11400;display:none">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:720px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)">
-    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-      <div style="font-weight:700;font-size:1em">🗑️ 휴지통 <span id="trashMeta" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <button onclick="loadTrash()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">🔄</button>
-        <button onclick="closeTrash()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+  <div class="modal-card" style="max-width:720px">
+    <div class="modal-header flex-wrap gap-2">
+      <div class="font-bold">🗑️ 휴지통 <span id="trashMeta" class="ml-1.5 text-xs font-medium text-of-text-mute"></span></div>
+      <div class="flex items-center gap-1.5">
+        <button onclick="loadTrash()" class="btn-ghost btn-sm">🔄</button>
+        <button onclick="closeTrash()" class="modal-close">✕</button>
       </div>
     </div>
     <div style="padding:10px 16px;border-bottom:1px solid #f2f4f6;background:#fffbeb;font-size:.78em;color:#92400e">

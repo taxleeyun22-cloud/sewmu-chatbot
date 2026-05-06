@@ -228,7 +228,7 @@ if ('serviceWorker' in navigator) {
 <script>
 (function loadAdminModals(){
   function inject(){
-    fetch('/admin-modals.html?v=13', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=14', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
