@@ -377,6 +377,13 @@ try{sessionStorage.setItem('admin_key',k)}catch{}
 try{localStorage.removeItem('admin_key')}catch{}
 /* Phase #10 메타: 로그인 성공 후 role 정보 fetch (IS_MANAGER 등 결정) */
 try{ _refreshAdminRole(); }catch(_){}
+/* Phase #6 적용 (2026-05-06): shared store sync — 다른 모듈이 KEY/IS_OWNER subscribe */
+try{
+  if(window.__sharedStore){
+    window.__sharedStore.$key.set(k);
+    window.__sharedStore.$isOwner.set(!!IS_OWNER);
+  }
+}catch(_){}
 $g('loginView').style.display='none';
 $g('mainView').style.display='block';
 /* Phase S3c-1: of-app flex layout 활성화 (사이드바 + mainView 함께 표시) */
@@ -450,6 +457,8 @@ async function _refreshAdminRole(){
       IS_STAFF = (d.role === 'staff' || d.role === 'manager' || d.role === 'owner');
       /* IS_OWNER 변동 시 UI 갱신 (오너만 표시되는 버튼들) */
       try{ if(typeof _refreshOwnerUI === 'function') _refreshOwnerUI(); }catch(_){}
+      /* Phase #6 적용: shared store sync */
+      try{ if(window.__sharedStore){ window.__sharedStore.$isOwner.set(IS_OWNER); } }catch(_){}
     }
   }catch(_){}
 }

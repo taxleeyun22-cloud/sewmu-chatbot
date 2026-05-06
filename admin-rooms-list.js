@@ -270,6 +270,8 @@ async function loadRoomList(){
 
 async function openRoom(roomId){
   currentRoomId=roomId;
+  /* Phase #6 적용 (2026-05-06): shared store sync — 다른 모듈이 subscribe 가능 */
+  try{ if(window.__sharedStore){ window.__sharedStore.$currentRoomId.set(roomId); } }catch(_){}
   /* 햄버거·팝아웃 버튼 노출 */
   const mb=$g('roomMenuBtn');if(mb)mb.style.display='inline-block';
   const pb=$g('roomPopoutBtn');if(pb)pb.style.display='inline-block';

@@ -21,6 +21,13 @@ import {
   $trashSelectedIds,
 } from './features/memos/state';
 import type { Memo } from './features/memos/state';
+import {
+  $key,
+  $isOwner,
+  $currentRoomId,
+  $currentRoomStatus,
+  $userStatusFilter,
+} from './features/shared/state';
 import { extractTags, normalizeTags, kst, timingSafeEqual } from './lib/memo-utils';
 import { ddayBadge, formatBytes, memoIcon, MEMO_CATEGORY_ICONS } from './lib/memo-render';
 import type { DDayBadge } from './lib/memo-render';
@@ -72,6 +79,14 @@ declare global {
       memoIcon: typeof memoIcon;
       MEMO_CATEGORY_ICONS: typeof MEMO_CATEGORY_ICONS;
     };
+    /* Phase #6 적용 확장 (2026-05-06): 공유 상태 store — admin.js KEY / currentRoomId 등 */
+    __sharedStore?: {
+      $key: typeof $key;
+      $isOwner: typeof $isOwner;
+      $currentRoomId: typeof $currentRoomId;
+      $currentRoomStatus: typeof $currentRoomStatus;
+      $userStatusFilter: typeof $userStatusFilter;
+    };
     /* Phase #3 적용 확장 (2026-05-06): type-safe 메모 CRUD wrapper */
     __memoActions?: {
       listMemos: typeof listMemos;
@@ -97,6 +112,13 @@ if (typeof window !== 'undefined') {
     $cdMemoCategory,
     $cdSelectedMemoIds,
     $trashSelectedIds,
+  };
+  window.__sharedStore = {
+    $key,
+    $isOwner,
+    $currentRoomId,
+    $currentRoomStatus,
+    $userStatusFilter,
   };
   window.__memoUtils = { extractTags, normalizeTags, kst, timingSafeEqual };
   window.__memoRender = { ddayBadge, formatBytes, memoIcon, MEMO_CATEGORY_ICONS };
