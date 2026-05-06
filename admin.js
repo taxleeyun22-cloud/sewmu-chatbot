@@ -1,5 +1,38 @@
 /* ⛳ 디버깅 — 캐시 적용 여부 즉시 확인. 화면 좌상단에 5초간 작은 라벨 표시. */
 window.__ADMIN_VERSION='v=127';
+/* Phase #11 (2026-05-06): 자체 에러 로거 — window.onerror + unhandledrejection → /api/admin-error-log */
+(function(){
+  let _errorReportCount = 0;
+  const _MAX_REPORTS = 20;  /* 한 세션에 최대 20건 — 무한 루프 방지 */
+  function reportError(source, message, stack){
+    if(_errorReportCount >= _MAX_REPORTS) return;
+    _errorReportCount++;
+    try{
+      fetch('/api/admin-error-log', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          source: source || 'admin',
+          message: String(message || '').slice(0, 1000),
+          stack: String(stack || '').slice(0, 5000),
+          url: location.href.slice(0, 500),
+          ua: navigator.userAgent.slice(0, 300),
+        }),
+        keepalive: true,  /* 페이지 unload 중에도 전송 */
+      }).catch(function(){});
+    }catch(_){}
+  }
+  window.addEventListener('error', function(e){
+    if(!e.message) return;
+    reportError('admin', e.message, e.error && e.error.stack);
+  });
+  window.addEventListener('unhandledrejection', function(e){
+    const r = e.reason;
+    const msg = (r && (r.message || r.toString())) || 'unhandled rejection';
+    reportError('admin', msg, r && r.stack);
+  });
+  window.__reportError = reportError;  /* 전역 노출 — 다른 곳에서 명시 호출 가능 */
+})();
 try{
   setTimeout(function(){
     try{
