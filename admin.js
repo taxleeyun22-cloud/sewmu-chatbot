@@ -3730,6 +3730,82 @@ function _refreshErrorLogOwnerUI(){
 }
 /* DOMContentLoaded + login 후 + IS_OWNER 변경 시 호출 */
 setTimeout(_refreshErrorLogOwnerUI, 1500);
+
+/* Phase B4 적용 (2026-05-06): admin 진입 시 임박 메모 (D-3 이하, 미완료) 자동 알림.
+ * 1세션 1회만 — sessionStorage 로 중복 방지. 사장님이 오늘 처리할 거 즉시 봄.
+ * 단, IS_OWNER 만 노출 (사장님 본인 일정 — 직원에겐 노이즈).
+ * 메모 모달 자동 띄움 X — toast 알림만 (사장님 흐름 방해 ↓). */
+(function _bindUrgentMemoAlert(){
+  var checked = false;
+  setInterval(function(){
+    if(checked || !KEY || typeof IS_OWNER === 'undefined' || !IS_OWNER) return;
+    /* 세션 1회 — 같은 탭 새로고침 시 다시 안 뜸 */
+    try{ if(sessionStorage.getItem('urgent_memo_alerted_today')) { checked = true; return; } }catch(_){}
+    checked = true;
+    setTimeout(function(){
+      try{
+        fetch('/api/memos?scope=my&only_mine=1&key=' + encodeURIComponent(KEY))
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            if(!d || !d.memos) return;
+            /* D-3 이하 + 미완료 */
+            var today = new Date(Date.now() + 9*60*60*1000); today.setHours(0,0,0,0);
+            var limit3 = new Date(today.getTime() + 3*86400000);
+            var urgent = d.memos.filter(function(m){
+              if(!m.due_date || m.deleted_at) return false;
+              if(/완료/.test(String(m.memo_type||''))) return false;
+              try{
+                var dt = new Date(m.due_date + 'T00:00:00+09:00');
+                return dt <= limit3;
+              }catch(_){ return false; }
+            });
+            if(urgent.length === 0) return;
+            /* 알림 — toast 패턴 (alert 보다 부드러움) */
+            var msg = '⏰ 임박 일정 ' + urgent.length + '건\n\n';
+            urgent.slice(0, 5).forEach(function(m){
+              var dueLabel = '';
+              try{
+                var dt = new Date(m.due_date + 'T00:00:00+09:00');
+                var diff = Math.round((dt - today) / 86400000);
+                dueLabel = diff < 0 ? '🚨 D+' + Math.abs(diff) :
+                           diff === 0 ? '🔥 D-Day' :
+                           diff === 1 ? '⏰ D-1' : '📅 D-' + diff;
+              }catch(_){}
+              msg += dueLabel + ' · ' + (m.content||'').substring(0, 40) + '\n';
+            });
+            if(urgent.length > 5) msg += '\n... 외 ' + (urgent.length - 5) + '건';
+            msg += '\n\n📋 사이드바 "내 일정" 클릭 시 전체 보기.';
+            try{ sessionStorage.setItem('urgent_memo_alerted_today', '1'); }catch(_){}
+            alert(msg);
+          })
+          .catch(function(_){});
+      }catch(_){}
+    }, 3000);  /* 로그인 3초 뒤 (mainView 안정화 대기) */
+  }, 2000);
+})();
+
+/* Phase #11 적용 확장 (2026-05-06): admin 로그인 후 60초 뒤 7일 지난 에러 로그 자동 정리.
+ * Cloudflare Cron 대신 client-side cron 흉내. 사장님 손 댈 일 0. */
+(function _bindAutoPurgeOldErrors(){
+  var done = false;  /* 한 세션에 1번만 */
+  setInterval(function(){
+    if(done || !KEY) return;
+    done = true;
+    setTimeout(function(){
+      try{
+        fetch('/api/admin-error-log?key=' + encodeURIComponent(KEY), { method: 'DELETE' })
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            if(d && d.ok && (d.removed||0) > 0){
+              if(console.debug) console.debug('[error-log] auto-purged ' + d.removed + ' old (>7d) entries');
+              try{ refreshSidebarCounts(); }catch(_){}
+            }
+          })
+          .catch(function(_){});
+      }catch(_){}
+    }, 60000);  /* 로그인 60초 뒤 */
+  }, 2000);
+})();
 /* login 후 + 30초 마다 카운트 갱신 (refreshPendingBadge 시점에 같이) */
 (function(){
   var iv = null;
