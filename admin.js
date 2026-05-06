@@ -3580,6 +3580,95 @@ function refreshSidebarCounts(){
   fetch('/api/admin-termination-requests?key='+encodeURIComponent(KEY)+'&status=pending').then(function(r){return r.json()}).then(function(d){
     var el = document.getElementById('sbCntTermReq'); if(el) el.textContent = (d.requests || []).length || 0;
   }).catch(function(_){});
+
+  /* Phase #11 적용 (2026-05-06): 에러 로그 카운트 — 7일 이내 미해결 N건
+   * 빨간 점 = 0 초과면 사이드바 visible. */
+  fetch('/api/admin-error-log?key='+encodeURIComponent(KEY)+'&limit=200').then(function(r){return r.json()}).then(function(d){
+    var n = Array.isArray(d.errors) ? d.errors.length : 0;
+    var el = document.getElementById('sbCntErrorLog');
+    if(el){ el.textContent = n; el.style.background = n > 0 ? '#dc2626' : ''; el.style.color = n > 0 ? '#fff' : ''; }
+    /* 사이드바 항목 자체도 알림 톤 */
+    var btn = document.getElementById('sbErrorLogBtn');
+    if(btn){
+      if(n > 0) btn.classList.add('alert');
+      else btn.classList.remove('alert');
+    }
+  }).catch(function(_){});
+}
+
+/* ============================================================
+ * Phase #11 적용 (2026-05-06): 에러 로그 모달 함수들
+ * ============================================================ */
+function openErrorLog(){
+  var m = document.getElementById('errorLogModal');
+  if(!m){ alert('에러 로그 모달 미로딩 — 새로고침'); return; }
+  m.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  loadErrorLog();
+}
+function closeErrorLog(){
+  var m = document.getElementById('errorLogModal');
+  if(m) m.style.display = 'none';
+  document.body.style.overflow = '';
+}
+async function loadErrorLog(){
+  var list = document.getElementById('errorLogList');
+  var meta = document.getElementById('errorLogMeta');
+  if(!list) return;
+  list.innerHTML = '<div style="padding:30px;text-align:center;color:#8b95a1">불러오는 중...</div>';
+  try{
+    var r = await fetch('/api/admin-error-log?key='+encodeURIComponent(KEY)+'&limit=200');
+    var d = await r.json();
+    if(!d.ok){
+      list.innerHTML = '<div style="padding:30px;text-align:center;color:#dc2626">불러오기 실패: ' + e(d.error || 'unknown') + '</div>';
+      return;
+    }
+    var errors = d.errors || [];
+    if(meta) meta.textContent = errors.length + '건';
+    if(errors.length === 0){
+      list.innerHTML = '<div style="padding:50px;text-align:center;color:#10b981">✅ 최근 7일 에러 0건 — 깔끔합니다!</div>';
+      return;
+    }
+    list.innerHTML = errors.map(function(er){
+      var ago = _errLogAgo(er.created_at);
+      return '<div style="padding:12px 0;border-bottom:1px dashed #e5e8eb">'
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
+        + '<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:5px;font-size:.72em;font-weight:600">' + e(er.source || 'unknown') + '</span>'
+        + '<span style="font-size:.72em;color:#6b7280">' + ago + '</span>'
+        + (er.user_id ? '<span style="font-size:.72em;color:#6b7280">user_id=' + er.user_id + '</span>' : '')
+        + (er.ip ? '<span style="font-size:.7em;color:#9ca3af">' + e(er.ip) + '</span>' : '')
+        + '</div>'
+        + '<div style="font-weight:600;color:#111827;margin-bottom:4px;word-break:break-word">' + e(er.message || '') + '</div>'
+        + (er.url ? '<div style="font-size:.74em;color:#6b7280;margin-bottom:4px;word-break:break-all">📍 ' + e(er.url) + '</div>' : '')
+        + (er.stack ? '<details style="margin-top:4px"><summary style="cursor:pointer;font-size:.74em;color:#3182f6">stack trace</summary><pre style="font-size:.7em;background:#f9fafb;padding:8px;border-radius:6px;margin-top:4px;overflow-x:auto;white-space:pre-wrap;word-break:break-all">' + e(er.stack) + '</pre></details>' : '')
+        + '</div>';
+    }).join('');
+  }catch(err){
+    list.innerHTML = '<div style="padding:30px;text-align:center;color:#dc2626">오류: ' + e(err.message) + '</div>';
+  }
+}
+function _errLogAgo(ts){
+  if(!ts) return '';
+  try{
+    var dt = new Date(ts);
+    var diff = (Date.now() - dt.getTime()) / 1000;
+    if(diff < 60) return '방금';
+    if(diff < 3600) return Math.floor(diff/60) + '분 전';
+    if(diff < 86400) return Math.floor(diff/3600) + '시간 전';
+    if(diff < 86400*7) return Math.floor(diff/86400) + '일 전';
+    return ts.substring(0, 10);
+  }catch(_){ return ts || ''; }
+}
+async function purgeOldErrorLogs(){
+  if(!confirm('7일 지난 에러 로그를 삭제할까요?')) return;
+  try{
+    var r = await fetch('/api/admin-error-log?key='+encodeURIComponent(KEY), { method: 'DELETE' });
+    var d = await r.json();
+    if(!d.ok){ alert('삭제 실패: ' + (d.error || 'unknown')); return; }
+    alert('삭제 완료: ' + (d.removed || 0) + '건');
+    loadErrorLog();
+    refreshSidebarCounts();
+  }catch(err){ alert('오류: ' + err.message); }
 }
 /* login 후 + 30초 마다 카운트 갱신 (refreshPendingBadge 시점에 같이) */
 (function(){
