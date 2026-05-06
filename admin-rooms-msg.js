@@ -176,46 +176,43 @@ async function doCopyMsg(text){
     setTimeout(()=>{t.style.opacity='0'},1500);
   }catch(_){}
 }
-/* 이벤트 위임: long-press(모바일) + contextmenu(데스크톱) */
+/* 이벤트 위임: long-press(모바일) + contextmenu(데스크톱)
+ * Phase R11 (2026-05-06 사장님 보고: "PWA에서는 되는데 인터넷 브라우저에서는 안된다"):
+ * 이전엔 #roomMessages 에 listener 등록 → admin-modals.html fetch 늦으면 init() fail.
+ * Fix: document-level 위임 — IIFE 시작 즉시 등록, .rc-msg-bubble 동적 매칭. */
 (function(){
-  function init(){
-    const root=document.getElementById('roomMessages');
-    if(!root)return false;
-    if(root.dataset.ctxInit)return true;
-    root.dataset.ctxInit='1';
-    let lpTimer=null, lpX=0, lpY=0;
-    root.addEventListener('touchstart',function(e){
-      const b=e.target.closest('.rc-msg-bubble');if(!b)return;
-      const t=e.touches[0];lpX=t.clientX;lpY=t.clientY;
-      lpTimer=setTimeout(()=>{
-        lpTimer=null;
-        /* 사진 타일 onclick(openImgViewer) 이 long-press 직후 같이 터지는 것 차단 */
-        window._lpJustFired=true;
-        setTimeout(function(){window._lpJustFired=false},600);
-        showMsgCtxMenu(b, lpX, lpY);
-      }, 450);
-    },{passive:true});
-    root.addEventListener('touchmove',function(e){
-      if(lpTimer){
-        const t=e.touches[0];
-        if(Math.abs(t.clientX-lpX)>8||Math.abs(t.clientY-lpY)>8){clearTimeout(lpTimer);lpTimer=null}
-      }
-    },{passive:true});
-    root.addEventListener('touchend',()=>{if(lpTimer){clearTimeout(lpTimer);lpTimer=null}});
-    root.addEventListener('touchcancel',()=>{if(lpTimer){clearTimeout(lpTimer);lpTimer=null}});
-    root.addEventListener('contextmenu',function(e){
-      const b=e.target.closest('.rc-msg-bubble');if(!b)return;
-      e.preventDefault();
-      showMsgCtxMenu(b, e.clientX, e.clientY);
-    });
-    document.addEventListener('click',function(e){
-      if(e.target.closest('.msg-ctx-menu'))return;
-      hideMsgCtxMenu();
-    });
-    document.addEventListener('scroll',hideMsgCtxMenu,true);
-    return true;
-  }
-  if(!init())document.addEventListener('DOMContentLoaded',init);
+  let lpTimer=null, lpX=0, lpY=0;
+  document.addEventListener('touchstart',function(e){
+    const b=e.target.closest('.rc-msg-bubble');if(!b)return;
+    const t=e.touches[0];lpX=t.clientX;lpY=t.clientY;
+    lpTimer=setTimeout(()=>{
+      lpTimer=null;
+      /* 사진 타일 onclick(openImgViewer) 이 long-press 직후 같이 터지는 것 차단 */
+      window._lpJustFired=true;
+      setTimeout(function(){window._lpJustFired=false},600);
+      if(typeof showMsgCtxMenu==='function') showMsgCtxMenu(b, lpX, lpY);
+    }, 450);
+  },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    if(lpTimer){
+      const t=e.touches[0];
+      if(Math.abs(t.clientX-lpX)>8||Math.abs(t.clientY-lpY)>8){clearTimeout(lpTimer);lpTimer=null}
+    }
+  },{passive:true});
+  document.addEventListener('touchend',()=>{if(lpTimer){clearTimeout(lpTimer);lpTimer=null}});
+  document.addEventListener('touchcancel',()=>{if(lpTimer){clearTimeout(lpTimer);lpTimer=null}});
+  document.addEventListener('contextmenu',function(e){
+    const b=e.target.closest('.rc-msg-bubble');if(!b)return;
+    e.preventDefault();
+    if(typeof showMsgCtxMenu==='function') showMsgCtxMenu(b, e.clientX, e.clientY);
+  });
+  document.addEventListener('click',function(e){
+    if(e.target.closest('.msg-ctx-menu'))return;
+    if(typeof hideMsgCtxMenu==='function') hideMsgCtxMenu();
+  });
+  document.addEventListener('scroll', function(){
+    if(typeof hideMsgCtxMenu==='function') hideMsgCtxMenu();
+  }, true);
 })();
 
 /* ===== 영수증 승인·반려 ===== */
