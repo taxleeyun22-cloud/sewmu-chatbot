@@ -21,6 +21,9 @@ import {
   $trashSelectedIds,
 } from './features/memos/state';
 import type { Memo } from './features/memos/state';
+import { extractTags, normalizeTags, kst, timingSafeEqual } from './lib/memo-utils';
+import { ddayBadge, formatBytes, memoIcon, MEMO_CATEGORY_ICONS } from './lib/memo-render';
+import type { DDayBadge } from './lib/memo-render';
 
 /* 글로벌 노출 — classic script 환경에서 다른 .js 파일이 사용 가능하게.
    Phase S3b 부터 admin.js / index.js 등이 window.__router 통해 navigate 호출.
@@ -43,7 +46,24 @@ declare global {
       $cdSelectedMemoIds: typeof $cdSelectedMemoIds;
       $trashSelectedIds: typeof $trashSelectedIds;
     };
+    /* Phase #3 적용 (2026-05-06): TypeScript 검증 끝난 메모 utility 를 classic
+       script (admin-memos.js / functions/api 가 아닌 곳) 가 호출 가능하게 노출.
+       Vitest 단위 테스트 통과 검증. */
+    __memoUtils?: {
+      extractTags: typeof extractTags;
+      normalizeTags: typeof normalizeTags;
+      kst: typeof kst;
+      timingSafeEqual: typeof timingSafeEqual;
+    };
+    /* Phase #3 적용: 메모 렌더 helpers (D-day / 사이즈 / 아이콘) */
+    __memoRender?: {
+      ddayBadge: typeof ddayBadge;
+      formatBytes: typeof formatBytes;
+      memoIcon: typeof memoIcon;
+      MEMO_CATEGORY_ICONS: typeof MEMO_CATEGORY_ICONS;
+    };
     Memo?: Memo;  /* 타입 hint (실제 사용 X) */
+    DDayBadge?: DDayBadge;  /* 타입 hint */
   }
 }
 
@@ -57,6 +77,8 @@ if (typeof window !== 'undefined') {
     $cdSelectedMemoIds,
     $trashSelectedIds,
   };
+  window.__memoUtils = { extractTags, normalizeTags, kst, timingSafeEqual };
+  window.__memoRender = { ddayBadge, formatBytes, memoIcon, MEMO_CATEGORY_ICONS };
 }
 
 /* Phase S3a: router 인스턴스만 노출. start() 는 Phase S3b 에서 route 정의 후.
