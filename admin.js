@@ -3697,6 +3697,30 @@ async function purgeOldErrorLogs(){
     refreshSidebarCounts();
   }catch(err){ alert('오류: ' + err.message); }
 }
+
+/* Phase #11 적용 확장 (2026-05-06): 전체 비우기 — owner only.
+ * 사장님이 직접 결정 시만. 테스트 데이터 / 누적 에러 일괄 정리. */
+async function purgeAllErrorLogs(){
+  if(!IS_OWNER){ alert('owner 권한이 필요합니다'); return; }
+  if(!confirm('⚠️ 모든 에러 로그를 영구 삭제합니다.\n\n되돌릴 수 없음. 진행할까요?')) return;
+  if(!confirm('정말 전체 비울까요? (마지막 확인)')) return;
+  try{
+    var r = await fetch('/api/admin-error-log?all=1&key='+encodeURIComponent(KEY), { method: 'DELETE' });
+    var d = await r.json();
+    if(!d.ok){ alert('삭제 실패: ' + (d.error || 'unknown')); return; }
+    alert('전체 삭제 완료: ' + (d.removed || 0) + '건');
+    loadErrorLog();
+    refreshSidebarCounts();
+  }catch(err){ alert('오류: ' + err.message); }
+}
+
+/* IS_OWNER 일 때 errorLogPurgeAllBtn 표시 */
+function _refreshErrorLogOwnerUI(){
+  var btn = document.getElementById('errorLogPurgeAllBtn');
+  if(btn) btn.style.display = (typeof IS_OWNER !== 'undefined' && IS_OWNER) ? 'inline-block' : 'none';
+}
+/* DOMContentLoaded + login 후 + IS_OWNER 변경 시 호출 */
+setTimeout(_refreshErrorLogOwnerUI, 1500);
 /* login 후 + 30초 마다 카운트 갱신 (refreshPendingBadge 시점에 같이) */
 (function(){
   var iv = null;

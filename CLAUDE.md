@@ -92,6 +92,21 @@ Cloudflare Pages + D1 DB + OpenAI GPT-4.1-mini + 국가법령정보센터 API.
 
 **처리 후**: `/api/admin-review` 엔드포인트로 각 id를 `mark_reviewed` 또는 `report_and_review` 처리.
 
+## 🐞 에러 로그 — 옵션 A 룰 (2026-05-06 사장님 결정)
+
+자체 에러 로거 (`/api/admin-error-log` + admin 사이드바 🐞 무당벌레) 는 자동 작동:
+- 거래처 사장 챗봇 / 사장님 admin 화면에서 JS 에러 발생 시 자동 D1 저장
+- 사이드바 빨간 배지 = 7일 이내 N건
+
+**룰**:
+- Claude (나) 는 **자동 분석 X**. 사장님 명령 받을 때만 분석.
+- 사장님이 "**에러 봐봐**" / "**무당벌레 분석**" / "**거래처 사고 봐봐**" 류 명령 시:
+  1. ADMIN_KEY 또는 모달 캡처·텍스트 받기
+  2. D1 error_logs 패턴 분석
+  3. 원인 + 고침 commit
+- 평소 = 사장님 무시 가능. 빨간 배지 거슬리면 모달의 "🗑️ 7일 지난 거" 또는 "🗑️ 전체 비우기 (owner)" 클릭.
+- **prod 검증 시 절대 source = 'verify' / 'verification' / 'test' 등으로 POST 금지** (사장님 사이드바에 가짜 빨간 점 발생). Playwright/curl 검증 시 GET 만 사용 또는 source = '__test__' 같이 명시 + 자동 정리.
+
 ## 🚨 자동 검증 시스템 (세션 바뀌어도 절대 까먹지 말 것)
 
 이 프로젝트는 **AI 답변 자동 검증 파이프라인**이 구축되어 있음. 흐름:

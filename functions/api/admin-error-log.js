@@ -130,11 +130,26 @@ export async function onRequestDelete(context) {
   if (!db) return Response.json({ error: 'DB error' }, { status: 500 });
   await ensureTable(db);
 
+  const url = new URL(context.request.url);
+  const all = url.searchParams.get('all') === '1';
+  const source = url.searchParams.get('source');
+
   try {
-    /* 7일 이전 정리 */
-    const r = await db.prepare(
-      `DELETE FROM error_logs WHERE created_at < datetime('now', '-7 days', '+9 hours')`
-    ).run();
+    let r;
+    if (all) {
+      /* 전체 비우기 — owner only (사장님 직접 결정) */
+      if (!auth.owner) return Response.json({ error: 'owner only' }, { status: 403 });
+      r = await db.prepare(`DELETE FROM error_logs`).run();
+    } else if (source) {
+      /* 특정 source 만 삭제 — owner only (예: 테스트 데이터 정리) */
+      if (!auth.owner) return Response.json({ error: 'owner only' }, { status: 403 });
+      r = await db.prepare(`DELETE FROM error_logs WHERE source = ?`).bind(source).run();
+    } else {
+      /* default: 7일 이전 정리 */
+      r = await db.prepare(
+        `DELETE FROM error_logs WHERE created_at < datetime('now', '-7 days', '+9 hours')`
+      ).run();
+    }
     return Response.json({ ok: true, removed: r?.meta?.changes || 0 });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });

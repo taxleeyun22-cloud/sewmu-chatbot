@@ -228,7 +228,7 @@ if ('serviceWorker' in navigator) {
 <script>
 (function loadAdminModals(){
   function inject(){
-    fetch('/admin-modals.html?v=12', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=13', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -243,7 +243,7 @@ if ('serviceWorker' in navigator) {
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=161"></script>
+<script src="/admin.js?v=162"></script>
 <script src="/admin-memos.js?v=12"></script>
 <script src="/admin-customer-dash.js?v=6"></script>
 <script src="/admin-business-tab.js?v=2"></script>

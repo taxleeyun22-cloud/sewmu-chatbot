@@ -1136,7 +1136,8 @@
       <div class="font-bold">🐞 에러 로그 <span id="errorLogMeta" class="ml-1.5 text-xs font-medium text-of-text-mute"></span></div>
       <div class="flex items-center gap-1.5">
         <button onclick="loadErrorLog()" class="btn-ghost btn-sm">🔄</button>
-        <button onclick="purgeOldErrorLogs()" class="btn-sm" style="background:#fff;color:#dc2626;border:1px solid #dc2626;font-weight:600;cursor:pointer" title="7일 지난 에러 자동 삭제">🗑️ 7일 지난 거 정리</button>
+        <button onclick="purgeOldErrorLogs()" class="btn-sm" style="background:#fff;color:#dc2626;border:1px solid #dc2626;font-weight:600;cursor:pointer" title="7일 지난 에러 자동 삭제">🗑️ 7일 지난 거</button>
+        <button id="errorLogPurgeAllBtn" onclick="purgeAllErrorLogs()" class="btn-sm" style="background:#dc2626;color:#fff;border:none;font-weight:600;cursor:pointer;display:none" title="모든 에러 로그 전체 삭제 (owner only)">🗑️ 전체 비우기</button>
         <button onclick="closeErrorLog()" class="modal-close">✕</button>
       </div>
     </div>
