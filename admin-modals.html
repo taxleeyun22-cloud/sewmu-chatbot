@@ -1629,6 +1629,17 @@
         <div id="filingTitle" style="font-weight:800;font-size:1.1em;color:#191f28;margin-top:2px">신고검토표</div>
         <div id="filingOwnerInfo" style="font-size:.78em;color:#6b7280;margin-top:3px"></div>
       </div>
+      <!-- 도장 4개 (인쇄 시만 표시 — 우측 상단) -->
+      <div class="print-only" style="display:none">
+        <table style="border-collapse:collapse;font-size:7pt;font-weight:700">
+          <tr>
+            <td style="border:1px solid #191f28;width:18mm;height:14mm;text-align:center;padding:1mm;color:#6b7280">담당자</td>
+            <td style="border:1px solid #191f28;width:18mm;height:14mm;text-align:center;padding:1mm;color:#6b7280">사무장</td>
+            <td style="border:1px solid #191f28;width:18mm;height:14mm;text-align:center;padding:1mm;color:#6b7280">세무사</td>
+            <td style="border:1px solid #191f28;width:18mm;height:14mm;text-align:center;padding:1mm;color:#6b7280">대표</td>
+          </tr>
+        </table>
+      </div>
       <div style="display:flex;align-items:center;gap:10px" class="no-print">
         <span id="filingStatusBadge" style="font-size:.74em;padding:4px 10px;border-radius:99px;font-weight:700">작성중</span>
         <button onclick="filingPrint()" style="background:#191f28;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit" title="A4 가로 인쇄 (PDF 저장 가능)">🖨️ 인쇄/PDF</button>
@@ -1643,29 +1654,8 @@
   </div>
 </div>
 
-<!-- 사장님 명령 (2026-05-07): 신고 검토표 인쇄 스타일 (A4 가로) -->
+<!-- 사장님 명세 7.5 (2026-05-07): 신고 검토표 스타일 (화면 + A4 가로 인쇄) -->
 <style>
-@media print {
-  @page { size: A4 landscape; margin: 12mm; }
-  body * { visibility: hidden !important; }
-  #filingDetailModal, #filingDetailModal * { visibility: visible !important; }
-  #filingDetailModal {
-    position: absolute !important; left: 0 !important; top: 0 !important;
-    width: 100% !important; max-width: none !important;
-    background: #fff !important; padding: 0 !important; inset: auto !important;
-    overflow: visible !important;
-  }
-  #filingDetailRoot {
-    box-shadow: none !important; max-width: none !important; max-height: none !important;
-    overflow: visible !important; border-radius: 0 !important;
-  }
-  .no-print { display: none !important; }
-  /* 페이지 분할 방지 (사장님 명세 7.2) */
-  table { page-break-inside: auto !important; }
-  table tr { page-break-inside: avoid !important; page-break-after: auto; }
-  .keep-together { page-break-inside: avoid !important; }
-  h2, h3, .filing-section-header { page-break-after: avoid !important; }
-}
 .filing-section-header {
   font-size: .68em; color: #8b95a1; letter-spacing: .8px; font-weight: 700;
   text-transform: uppercase; margin: 18px 0 4px;
@@ -1682,6 +1672,73 @@
 .filing-text-input {
   width: 100%; padding: 6px 8px; border: 1px solid #e5e8eb; border-radius: 6px;
   font-size: .85em; font-family: inherit; box-sizing: border-box;
+}
+.filing-2col {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+}
+.print-only { display: none; }
+
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+
+  /* 모든 다른 element 제거 — 모달만 보이게 */
+  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+  body > *:not(#filingDetailModal) { display: none !important; }
+  body * { visibility: visible !important; }
+
+  /* 모달 컨테이너 — 풀스크린 */
+  #filingDetailModal {
+    position: static !important; display: block !important;
+    background: #fff !important; padding: 0 !important; margin: 0 !important;
+    width: 100% !important; max-width: none !important; height: auto !important;
+    overflow: visible !important;
+  }
+  #filingDetailRoot {
+    box-shadow: none !important; max-width: none !important; max-height: none !important;
+    width: 100% !important; height: auto !important; overflow: visible !important;
+    border-radius: 0 !important; border: none !important;
+  }
+  #filingBody { padding: 0 !important; }
+
+  /* 인쇄 시 hide */
+  .no-print { display: none !important; }
+  /* 인쇄 시 show */
+  .print-only { display: block !important; }
+  .print-only.filing-stamp-area, table.filing-stamp-area { display: block !important; }
+
+  /* 페이지 분할 방지 (사장님 명세 7.2) */
+  table { page-break-inside: auto !important; }
+  table tr { page-break-inside: avoid !important; page-break-after: auto; }
+  thead { display: table-header-group !important; }
+  .keep-together { page-break-inside: avoid !important; }
+  h2, h3, .filing-section-header { page-break-after: avoid !important; }
+
+  /* 좌우 2단 인쇄 시 그대로 유지 */
+  .filing-2col {
+    display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 14mm !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* 별첨 = 강제 새 페이지 */
+  .filing-attachment {
+    page-break-before: always !important;
+    display: block !important;
+  }
+
+  /* SECTION 헤더 인쇄 작게 */
+  .filing-section-header { font-size: 7pt !important; margin: 8px 0 3px !important; }
+  .filing-section-title { font-size: 11pt !important; margin-bottom: 6px !important; padding-bottom: 3px !important; }
+
+  /* 폰트 크기 인쇄 최적 */
+  #filingDetailModal { font-size: 9.5pt !important; }
+  table { font-size: 9pt !important; }
+
+  /* 헤더 인쇄 */
+  .filing-print-header {
+    display: flex !important; align-items: flex-start !important; justify-content: space-between !important;
+    border-bottom: 2px solid #191f28 !important; padding: 0 0 8px !important; margin-bottom: 8px !important;
+    background: #fff !important; position: static !important;
+  }
 }
 </style>
 

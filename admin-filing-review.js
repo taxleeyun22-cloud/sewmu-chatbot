@@ -38,6 +38,12 @@ function _filEffRate(decisive, revenue) {
   if (!revenue || revenue === 0) return '0.00%';
   return ((Number(decisive || 0) / Number(revenue)) * 100).toFixed(2) + '%';
 }
+function _filTrimLines(s, n) {
+  if (!s) return '';
+  const lines = String(s).split('\n');
+  if (lines.length <= n) return s;
+  return lines.slice(0, n).join('\n') + '\n... (별첨 P.2 참조)';
+}
 
 /* ==================== 새 Case 모달 ==================== */
 var _filNewOwnerType = null;
@@ -205,6 +211,10 @@ function _filRender() {
     el.addEventListener('input', _filOnFieldChange);
     el.addEventListener('blur', _filSaveNow);
   });
+  document.querySelectorAll('[data-fil-text-field]').forEach(el => {
+    el.addEventListener('input', _filOnFieldChange);
+    el.addEventListener('blur', _filSaveNow);
+  });
 }
 
 function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
@@ -233,6 +243,15 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
         { key: 'prepaid_tax', label: '기납부세액 (중간예납 등)' },
         { key: 'payable_tax', label: '납부할세액' },
       ];
+
+  /* Phase Fix (사장님 보고 2026-05-07): 도장 4개 영역 — Page 1 헤더 옆에 + 인쇄 시 표시 */
+  const stamp4 = '<div class="filing-stamp-area print-only" style="display:none;border:1px solid #191f28;font-size:.62em;font-weight:700;color:#191f28">'
+    + '<table style="border-collapse:collapse;width:100%"><tr>'
+    + '<td style="border:1px solid #191f28;width:25%;height:60px;text-align:center;padding:2px">담당자</td>'
+    + '<td style="border:1px solid #191f28;width:25%;height:60px;text-align:center;padding:2px">사무장</td>'
+    + '<td style="border:1px solid #191f28;width:25%;height:60px;text-align:center;padding:2px">세무사</td>'
+    + '<td style="border:1px solid #191f28;width:25%;height:60px;text-align:center;padding:2px">대표</td>'
+    + '</tr></table></div>';
 
   /* SECTION 01: 기본 정보 */
   let html = '<div class="keep-together" style="margin-bottom:18px">';
@@ -281,21 +300,33 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
        + '</tr>';
   html += '</tbody></table></div>';
 
+  /* 공제감면 비교 (작년 vs 올해 매칭 — 신규/유지/삭제 자동) */
+  const prevDeductions = pf.공제감면 || pf.deductions || [];
+  const currDeductions = af.공제감면 || af.deductions || [];
+  const prevDedNames = new Set(prevDeductions.map(d => (d.name || d.종류 || '').trim()).filter(Boolean));
+  const currDedNames = new Set(currDeductions.map(d => (d.name || d.종류 || '').trim()).filter(Boolean));
+  const dedNew = [...currDedNames].filter(n => !prevDedNames.has(n));     /* 올해 신규 */
+  const dedKept = [...currDedNames].filter(n => prevDedNames.has(n));      /* 유지 */
+  const dedRemoved = [...prevDedNames].filter(n => !currDedNames.has(n));  /* 작년 only — 삭제됨 */
+
   /* SECTION 03/04: 작년 / 올해 리뷰 (좌우 2단) */
-  html += '<div class="keep-together" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px">';
+  html += '<div class="keep-together filing-2col" style="margin-bottom:18px">';
   /* 작년 */
   html += '<div>';
   html += '<div class="filing-section-header">SECTION 03 · LAST YEAR</div>';
   html += '<div class="filing-section-title">작년 리뷰' + (prev ? (' (' + prev.fiscal_year + ')') : '') + '</div>';
   if (prev) {
-    const prevDeductions = pf.공제감면 || pf.deductions || [];
     html += '<div style="font-size:.84em;color:#374151;margin-bottom:10px"><b>○ 적용 공제감면</b><ul style="margin:4px 0 0 16px;padding:0">';
     if (!prevDeductions.length) html += '<li style="color:#9ca3af">없음</li>';
     else prevDeductions.forEach(d => {
-      html += '<li>' + e(d.name || d.종류 || '') + ' ' + _filFormatNum(d.amount || d.금액 || 0) + '원</li>';
+      const nm = (d.name || d.종류 || '').trim();
+      const removed = dedRemoved.indexOf(nm) >= 0;
+      html += '<li>' + e(nm) + ' ' + _filFormatNum(d.amount || d.금액 || 0) + '원'
+        + (removed ? ' <span style="color:#dc2626;font-size:.85em;font-weight:700">[올해 삭제됨]</span>' : '')
+        + '</li>';
     });
     html += '</ul></div>';
-    html += '<div style="font-size:.84em;color:#374151;margin-bottom:10px"><b>○ 작년 결재 코멘트</b><div style="background:#f9fafb;padding:8px 10px;border-radius:6px;margin-top:4px;white-space:pre-wrap;line-height:1.5">' + e(prev.reviewer_comment || '(없음)') + '</div></div>';
+    html += '<div style="font-size:.84em;color:#374151;margin-bottom:10px"><b>○ 작년 결재 코멘트</b><div style="background:#f9fafb;padding:8px 10px;border-radius:6px;margin-top:4px;white-space:pre-wrap;line-height:1.5;font-size:.92em">' + e(prev.reviewer_comment || '(없음)') + '</div></div>';
   } else {
     html += '<div style="color:#9ca3af;font-size:.84em">첫 도입 신고건</div>';
   }
@@ -304,30 +335,86 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   html += '<div>';
   html += '<div class="filing-section-header">SECTION 04 · THIS YEAR</div>';
   html += '<div class="filing-section-title">올해 리뷰 (' + f.fiscal_year + ')</div>';
-  /* 공제감면 입력 (반복 행) */
-  const currDeductions = af.공제감면 || af.deductions || [];
+
+  /* 공제감면 — 인쇄 시 list (신규/유지) + 편집 시 입력 */
   html += '<div style="font-size:.84em;margin-bottom:10px"><b>○ 적용 공제감면</b>';
-  html += '<div id="filDeductionRows" style="margin-top:6px">';
+  /* 인쇄용 list */
+  html += '<ul class="print-only" style="display:none;margin:4px 0 0 16px;padding:0">';
+  if (!currDeductions.length) html += '<li style="color:#9ca3af">없음</li>';
+  else currDeductions.forEach(d => {
+    const nm = (d.name || d.종류 || '').trim();
+    const isNew = dedNew.indexOf(nm) >= 0;
+    const tag = isNew ? ' <span style="color:#dc2626;font-weight:700">[신규]</span>' : ' <span style="color:#10b981;font-weight:700">[유지]</span>';
+    html += '<li>' + e(nm) + ' ' + _filFormatNum(d.amount || d.금액 || 0) + '원' + (prev ? tag : '') + '</li>';
+  });
+  html += '</ul>';
+  /* 편집용 입력 행 */
+  html += '<div id="filDeductionRows" class="no-print" style="margin-top:6px">';
   if (currDeductions.length === 0) html += _filRenderDeductionRow({ name: '', amount: '' }, 0, readonly);
   else currDeductions.forEach((d, i) => { html += _filRenderDeductionRow(d, i, readonly); });
   html += '</div>';
-  if (!readonly) html += '<button onclick="_filAddDeductionRow()" style="background:#fff;color:#3182f6;border:1px dashed #3182f6;padding:4px 10px;border-radius:6px;font-size:.74em;cursor:pointer;font-family:inherit;margin-top:6px">+ 공제감면 추가</button>';
+  if (!readonly) html += '<button onclick="_filAddDeductionRow()" class="no-print" style="background:#fff;color:#3182f6;border:1px dashed #3182f6;padding:4px 10px;border-radius:6px;font-size:.74em;cursor:pointer;font-family:inherit;margin-top:6px">+ 공제감면 추가</button>';
   html += '</div>';
-  /* 가산세 입력 (반복 행) */
+
+  /* 가산세 — 인쇄 시 list + 편집 시 입력 */
   const currPenalties = af.가산세 || af.penalties || [];
   html += '<div style="font-size:.84em;margin-bottom:10px"><b>○ 가산세</b>';
-  html += '<div id="filPenaltyRows" style="margin-top:6px">';
+  html += '<ul class="print-only" style="display:none;margin:4px 0 0 16px;padding:0">';
+  if (!currPenalties.length) html += '<li style="color:#9ca3af">없음</li>';
+  else currPenalties.forEach(p => {
+    html += '<li>' + e(p.name || p.종류 || '') + ' ' + _filFormatNum(p.amount || p.금액 || 0) + '원</li>';
+  });
+  html += '</ul>';
+  html += '<div id="filPenaltyRows" class="no-print" style="margin-top:6px">';
   if (currPenalties.length === 0) html += _filRenderPenaltyRow({ name: '', amount: '' }, 0, readonly);
   else currPenalties.forEach((p, i) => { html += _filRenderPenaltyRow(p, i, readonly); });
   html += '</div>';
-  if (!readonly) html += '<button onclick="_filAddPenaltyRow()" style="background:#fff;color:#dc2626;border:1px dashed #dc2626;padding:4px 10px;border-radius:6px;font-size:.74em;cursor:pointer;font-family:inherit;margin-top:6px">+ 가산세 추가</button>';
+  if (!readonly) html += '<button onclick="_filAddPenaltyRow()" class="no-print" style="background:#fff;color:#dc2626;border:1px dashed #dc2626;padding:4px 10px;border-radius:6px;font-size:.74em;cursor:pointer;font-family:inherit;margin-top:6px">+ 가산세 추가</button>';
   html += '</div>';
-  /* 결재자 코멘트 */
+
+  /* 결재자 코멘트 (Page 1 요약 5줄, 별첨 전체) */
   html += '<div style="font-size:.84em;margin-bottom:10px"><b>○ 결재자 코멘트</b>';
-  html += '<textarea data-fil-field="reviewer_comment" rows="3" ' + ro + ' placeholder="다음 해 작년 리뷰에 검색 가능 (선택입력)" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.86em;font-family:inherit;margin-top:4px;box-sizing:border-box;resize:vertical">' + e(f.reviewer_comment || '') + '</textarea>';
+  /* 인쇄: 빈 줄 5줄 (손글씨 자리) — 코멘트 있으면 처음 5줄만 */
+  html += '<div class="print-only" style="display:none;border:1px dashed #d1d5db;border-radius:4px;padding:6px 10px;margin-top:4px;min-height:75px;font-size:.92em;line-height:1.6;white-space:pre-wrap">';
+  html += e(_filTrimLines(f.reviewer_comment || '', 5));
+  html += '</div>';
+  html += '<textarea class="no-print" data-fil-field="reviewer_comment" rows="3" ' + ro + ' placeholder="다음 해 작년 리뷰에 검색 가능 (선택입력)" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.86em;font-family:inherit;margin-top:4px;box-sizing:border-box;resize:vertical">' + e(f.reviewer_comment || '') + '</textarea>';
   html += '</div>';
   html += '</div>';
   html += '</div>'; /* end 좌우 2단 */
+
+  /* SECTION 05 (인쇄 전용): 필수 검토 체크박스 + 도장 4개 — Page 1 하단 */
+  html += '<div class="print-only keep-together" style="display:none;margin-top:12px;border-top:1px solid #191f28;padding-top:10px">';
+  html += '<div class="filing-section-header">SECTION 05 · CHECKLIST</div>';
+  html += '<div style="display:flex;gap:14px;font-size:.86em;font-weight:600;flex-wrap:wrap">';
+  html += '<span>☐ 수입금액 누락 점검</span>';
+  html += '<span>☐ 가산세 점검</span>';
+  html += '<span>☐ 사업용계좌 사용</span>';
+  html += '<span>☐ 적격증빙</span>';
+  html += '</div>';
+  html += '<div style="margin-top:10px">' + stamp4 + '</div>';
+  html += '</div>';
+
+  /* SECTION 06 (인쇄 전용 별첨, Page 2): 상세 코멘트 — 5줄 초과 시만 자동 break */
+  const reviewerLong = (f.reviewer_comment || '').split('\n').length > 5;
+  const employeeNote = af.employee_note || '';
+  const issueNote = af.issue_note || '';
+  const hasAttachment = reviewerLong || (employeeNote.trim().length > 0) || (issueNote.trim().length > 0);
+  if (hasAttachment) {
+    html += '<div class="print-only filing-attachment" style="display:none">';
+    html += '<div class="filing-section-header">APPENDIX · 별첨</div>';
+    html += '<div class="filing-section-title">상세 리뷰 메모</div>';
+    if (reviewerLong) {
+      html += '<div style="font-size:.88em;margin-bottom:12px"><b>○ 결재자 코멘트 (전체)</b><div style="background:#f9fafb;padding:10px 14px;border-radius:6px;margin-top:4px;white-space:pre-wrap;line-height:1.7">' + e(f.reviewer_comment) + '</div></div>';
+    }
+    if (employeeNote) {
+      html += '<div style="font-size:.88em;margin-bottom:12px"><b>○ 직원 코멘트</b><div style="background:#f9fafb;padding:10px 14px;border-radius:6px;margin-top:4px;white-space:pre-wrap;line-height:1.7">' + e(employeeNote) + '</div></div>';
+    }
+    if (issueNote) {
+      html += '<div style="font-size:.88em;margin-bottom:12px"><b>○ 특이사항·이슈</b><div style="background:#fff7ed;padding:10px 14px;border-radius:6px;margin-top:4px;white-space:pre-wrap;line-height:1.7;border-left:3px solid #f59e0b">' + e(issueNote) + '</div></div>';
+    }
+    html += '</div>';
+  }
 
   /* SECTION 05: 입력 폼 (직원 작성용) */
   html += '<div class="keep-together no-print" style="margin-bottom:18px;padding:14px 16px;background:#f9fafb;border-radius:10px;border:1px solid #e5e8eb">';
@@ -344,6 +431,15 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   /* 실효세율 자동 계산 표시 */
   html += '<div><label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:3px">실효세율 <span style="color:#9ca3af">(자동)</span></label>';
   html += '<input type="text" id="filingEffRate" readonly value="' + (currEff || '0.00%') + '" class="filing-num-input" style="background:#fef3c7;color:#92400e;font-weight:600">';
+  html += '</div>';
+  html += '</div>';
+  /* 직원 코멘트 + 특이사항 (별첨 페이지에 표시) */
+  html += '<div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+  html += '<div><label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:3px">📝 직원 코멘트 <span style="color:#9ca3af">(별첨에 표시)</span></label>';
+  html += '<textarea data-fil-text-field="employee_note" rows="3" ' + ro + ' placeholder="직원 작성 메모 — 별첨 페이지에 표시" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.86em;font-family:inherit;box-sizing:border-box;resize:vertical">' + e(af.employee_note || '') + '</textarea>';
+  html += '</div>';
+  html += '<div><label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:3px">⚠️ 특이사항·이슈 <span style="color:#9ca3af">(별첨에 표시)</span></label>';
+  html += '<textarea data-fil-text-field="issue_note" rows="3" ' + ro + ' placeholder="이슈 / 주의사항 — 별첨 페이지에 표시" style="width:100%;padding:8px 10px;border:1px solid #f59e0b;border-radius:6px;font-size:.86em;font-family:inherit;box-sizing:border-box;resize:vertical;background:#fff7ed">' + e(af.issue_note || '') + '</textarea>';
   html += '</div>';
   html += '</div>';
   html += '<div id="filSaveStatus" style="font-size:.74em;color:#9ca3af;margin-top:10px">자동 저장됨</div>';
@@ -485,13 +581,18 @@ async function _filSaveNow() {
   if (!_filCurrent) return;
   if (_filSaveTimer) { clearTimeout(_filSaveTimer); _filSaveTimer = null; }
   const af = (function () { try { return JSON.parse(_filCurrent.auto_fields || '{}'); } catch { return {}; } })();
-  /* 모든 data-fil-field 모음 */
+  /* 모든 data-fil-field 모음 (숫자 필드) */
   document.querySelectorAll('[data-fil-field]').forEach(el => {
     const k = el.dataset.filField;
     if (k === 'reviewer_comment') return; /* reviewer_comment 는 별도 컬럼 */
     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
       af[k] = el.value === '' ? null : _filParseNum(el.value);
     }
+  });
+  /* text field (employee_note, issue_note) */
+  document.querySelectorAll('[data-fil-text-field]').forEach(el => {
+    const k = el.dataset.filTextField;
+    af[k] = el.value || null;
   });
   /* 공제감면 */
   af.공제감면 = [];
