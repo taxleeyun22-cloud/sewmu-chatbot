@@ -1629,11 +1629,17 @@ async function submitManualClient(){
     return submitAddBizForUser(_mcAddBizUserId);
   }
   const realName=($g('mcRealName')?.value||'').trim();
-  if(!realName){alert('이름(실명)은 필수입니다');return}
-  const phone=($g('mcPhone')?.value||'').trim();
+  /* fix Q2 (2026-05-07 사장님 명령): 필수 4종 검증 — 이름·회사명·대표자·사업자번호. 생년월일 선택. */
+  if(!realName){alert('* 이름(실명)은 필수입니다');return}
   const company=($g('mcCompany')?.value||'').trim();
+  if(!company){alert('* 회사명(수임처명)은 필수입니다');return}
   const ceo=($g('mcCeo')?.value||'').trim()||realName;
+  if(!ceo){alert('* 대표자명은 필수입니다');return}
   const bizNo=($g('mcBizNo')?.value||'').trim();
+  if(!bizNo){alert('* 사업자등록번호는 필수입니다');return}
+  const phone=($g('mcPhone')?.value||'').trim();
+  /* Q4: 생년월일 (선택) */
+  const birthDate=($g('mcBirthDate')?.value||'').trim()||null;
   const notes=($g('mcNotes')?.value||'').trim();
   const autoRoom=$g('mcAutoRoom')?.checked?true:false;
   const priorityRaw=$g('mcPriority')?.value||'';
@@ -1642,7 +1648,7 @@ async function submitManualClient(){
   const addr1=($g('mcAddr1')?.value||'').trim();
   const addr2=($g('mcAddr2')?.value||'').trim();
   const body={
-    name:realName, real_name:realName, phone,
+    name:realName, real_name:realName, phone, birth_date:birthDate,
     company_name:company, ceo_name:ceo, business_number:bizNo, notes,
     auto_create_room: autoRoom, priority: priority,
     company_form:$g('mcForm')?.value||null,

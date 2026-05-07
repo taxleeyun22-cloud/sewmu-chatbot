@@ -43,6 +43,10 @@ export async function onRequestPost(context) {
   const realName = sanitizeName(body.real_name || body.name || '');
   const displayName = sanitizeName(body.name || body.real_name || '');
   const phone = sanitizePhone(body.phone);
+  /* Phase Q4 (2026-05-07): 생년월일 — YYYY-MM-DD 형식, 10자 검증 */
+  const birthDate = String(body.birth_date || '').trim().match(/^\d{4}-\d{2}-\d{2}$/)
+    ? String(body.birth_date).trim().slice(0, 10)
+    : null;
   const businessNumber = sanitizeBiz(body.business_number);
   const companyName = sanitizeName(body.company_name);
   const ceoName = sanitizeName(body.ceo_name || body.real_name);
@@ -66,22 +70,31 @@ export async function onRequestPost(context) {
 
   const now = kst();
 
-  /* users 컬럼 보장 — 기존 admin-approve.js 가 만들지만 여기서 안전하게 */
+  /* users 컬럼 보장 — 기존 admin-approve.js 가 만들지만 여기서 안전하게.
+   * fix (2026-05-07 사장님 보고): D1_ERROR provider_user_id 누락 → lazy migration 추가 */
+  try { await db.prepare(`ALTER TABLE users ADD COLUMN provider TEXT`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE users ADD COLUMN provider_user_id TEXT`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE users ADD COLUMN name TEXT`).run(); } catch {}
   try { await db.prepare(`ALTER TABLE users ADD COLUMN real_name TEXT`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE users ADD COLUMN phone TEXT`).run(); } catch {}
   try { await db.prepare(`ALTER TABLE users ADD COLUMN approval_status TEXT DEFAULT 'pending'`).run(); } catch {}
   try { await db.prepare(`ALTER TABLE users ADD COLUMN approved_at TEXT`).run(); } catch {}
   try { await db.prepare(`ALTER TABLE users ADD COLUMN approved_by TEXT`).run(); } catch {}
   try { await db.prepare(`ALTER TABLE users ADD COLUMN name_confirmed INTEGER DEFAULT 0`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE users ADD COLUMN created_at TEXT`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE users ADD COLUMN last_login_at TEXT`).run(); } catch {}
+  /* Phase Q4 (2026-05-07 사장님 명령): 대표자 생년월일 — 주민번호 대신 */
+  try { await db.prepare(`ALTER TABLE users ADD COLUMN birth_date TEXT`).run(); } catch {}
 
   try {
     /* users insert — provider_user_id 는 고유해야 하므로 timestamp 로 생성 */
     const pseudoExternalId = 'admin_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
     const r = await db.prepare(
-      `INSERT INTO users (provider, provider_user_id, name, real_name, phone,
+      `INSERT INTO users (provider, provider_user_id, name, real_name, phone, birth_date,
                           approval_status, approved_at, approved_by, name_confirmed,
                           created_at, last_login_at)
-       VALUES ('admin_created', ?, ?, ?, ?, 'approved_client', ?, 'admin', 1, ?, NULL)`
-    ).bind(pseudoExternalId, displayName || realName, realName, phone || null, now, now).run();
+       VALUES ('admin_created', ?, ?, ?, ?, ?, 'approved_client', ?, 'admin', 1, ?, NULL)`
+    ).bind(pseudoExternalId, displayName || realName, realName, phone || null, birthDate, now, now).run();
     const userId = r.meta?.last_row_id;
     if (!userId) return Response.json({ error: "user insert failed" }, { status: 500 });
 
@@ -165,6 +178,53 @@ export async function onRequestPost(context) {
           ).run();
         }
       } catch {}
+
+      /* Q3 (2026-05-07 사장님 명령): 새 N:N 매핑 (businesses + business_members) 도 자동 생성.
+       * 옛 client_businesses 는 호환 유지. 새 흐름 = 양방향 자동 생성.
+       * - 사업자번호 또는 회사명 있는 사람 → businesses INSERT (없으면) + business_members 매핑 */
+      try {
+        const normBiz = String(businessNumber || '').replace(/\D/g, '');
+        let bizId = null;
+        if (normBiz) {
+          /* 같은 사업자번호 기존 업체 있으면 재사용 */
+          const dup = await db.prepare(`SELECT id FROM businesses WHERE business_number = ? LIMIT 1`).bind(normBiz).first();
+          if (dup) bizId = dup.id;
+        }
+        if (!bizId && (normBiz || companyName)) {
+          /* 신규 INSERT */
+          const r2 = await db.prepare(
+            `INSERT INTO businesses (company_name, business_number, ceo_name, address, phone,
+                                     establishment_date, sub_business_number, corporate_number,
+                                     business_category, industry_code, industry, company_form,
+                                     fiscal_year_start, fiscal_year_end, fiscal_term, hr_year,
+                                     status, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
+          ).bind(
+            companyName || ceoName || '(이름없음)',
+            normBiz || null, ceoName || null, address, bizPhone || null,
+            estDate, subBizNo || null, corpNo || null,
+            bizCategory, industryCode, industry, companyForm,
+            fiscalStart, fiscalEnd, fiscalTerm, hrYear,
+            now, now
+          ).run();
+          bizId = r2.meta?.last_row_id || null;
+        }
+        if (bizId) {
+          /* business_members 매핑 — 기존 매핑 있으면 skip */
+          try { await db.prepare(`CREATE TABLE IF NOT EXISTS business_members (id INTEGER PRIMARY KEY AUTOINCREMENT, business_id INTEGER, user_id INTEGER, role TEXT, is_primary INTEGER DEFAULT 0, added_at TEXT, removed_at TEXT)`).run(); } catch {}
+          const existingMap = await db.prepare(
+            `SELECT id FROM business_members WHERE business_id = ? AND user_id = ? AND (removed_at IS NULL OR removed_at = '') LIMIT 1`
+          ).bind(bizId, userId).first();
+          if (!existingMap) {
+            await db.prepare(
+              `INSERT INTO business_members (business_id, user_id, role, is_primary, added_at) VALUES (?, ?, '대표자', 1, ?)`
+            ).bind(bizId, userId, now).run();
+          }
+        }
+      } catch (e) {
+        /* 매핑 실패해도 사용자 생성은 성공 */
+        console.warn('[admin-clients] business mapping failed:', e.message);
+      }
     }
 
     /* 옵션: 담당자 라벨 + 자동 상담방 생성 */

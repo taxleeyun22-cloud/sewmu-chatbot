@@ -126,6 +126,57 @@ function _nbUpdateFiscalTerm(){
   var t=_calcFiscalTerm($g('nbEstDate')?.value);
   var el=$g('nbFiscalTerm');if(el)el.value=t;
 }
+/* Phase Q3 (2026-05-07 사장님 명령): 신규 입력 / 기존 선택 모드 토글 */
+var _nbRepMode = 'new';
+function _nbSwitchRepMode(mode){
+  _nbRepMode = mode;
+  const newArea=$g('nbRepNewArea'), existArea=$g('nbRepExistArea');
+  const newBtn=$g('nbRepModeNewBtn'), existBtn=$g('nbRepModeExistBtn');
+  if(mode==='new'){
+    if(newArea) newArea.style.display='grid';
+    if(existArea) existArea.style.display='none';
+    if(newBtn){ newBtn.style.background='#191f28'; newBtn.style.color='#fff'; newBtn.style.border='none'; }
+    if(existBtn){ existBtn.style.background='#fff'; existBtn.style.color='#4b5563'; existBtn.style.border='1px solid #e5e8eb'; }
+  } else {
+    if(newArea) newArea.style.display='none';
+    if(existArea) existArea.style.display='block';
+    if(existBtn){ existBtn.style.background='#191f28'; existBtn.style.color='#fff'; existBtn.style.border='none'; }
+    if(newBtn){ newBtn.style.background='#fff'; newBtn.style.color='#4b5563'; newBtn.style.border='1px solid #e5e8eb'; }
+  }
+}
+
+/* 사용자 검색 (debounce 250ms) */
+var _nbRepSearchTimer=null;
+function _nbRepSearchInput(){
+  if(_nbRepSearchTimer) clearTimeout(_nbRepSearchTimer);
+  _nbRepSearchTimer = setTimeout(_nbRepDoSearch, 250);
+}
+async function _nbRepDoSearch(){
+  const q=($g('nbRepSearch')?.value||'').trim();
+  const res=$g('nbRepSearchResults'); if(!res) return;
+  if(q.length<2){ res.innerHTML=''; return; }
+  res.innerHTML='<div style="padding:8px;color:#8b95a1;font-size:.78em">검색 중...</div>';
+  try{
+    const r=await fetch('/api/admin-search?key='+encodeURIComponent(KEY)+'&q='+encodeURIComponent(q));
+    const d=await r.json();
+    const users=(d.users||[]).slice(0,8);
+    if(!users.length){ res.innerHTML='<div style="padding:8px;color:#8b95a1;font-size:.78em">결과 없음</div>'; return; }
+    res.innerHTML=users.map(u=>{
+      const nm=u.real_name||u.name||'#'+u.id;
+      const sub=[u.phone||'',u.email||''].filter(Boolean).join(' · ');
+      return '<div onclick="_nbRepPickUser('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="padding:7px 10px;border-bottom:1px solid #f3f4f6;cursor:pointer;background:#fff" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'#fff\'"><div style="font-weight:600;font-size:.82em">'+e(nm)+'</div><div style="font-size:.72em;color:#8b95a1">'+e(sub)+'</div></div>';
+    }).join('');
+  }catch(err){
+    res.innerHTML='<div style="padding:8px;color:#dc2626;font-size:.78em">오류: '+e(err.message)+'</div>';
+  }
+}
+function _nbRepPickUser(uid, name){
+  const hidden=$g('nbRepSelectedUserId'); if(hidden) hidden.value=uid;
+  const sel=$g('nbRepSelected'); if(sel) sel.textContent='✅ 선택됨: '+name+' (#'+uid+')';
+  const res=$g('nbRepSearchResults'); if(res) res.innerHTML='';
+  const inp=$g('nbRepSearch'); if(inp) inp.value='';
+}
+
 async function submitNewBusiness(){
   const name=$g('nbName').value.trim();
   const ceo=$g('nbCeo').value.trim();
@@ -133,11 +184,25 @@ async function submitNewBusiness(){
   const fy1=$g('nbFiscalStart').value;
   const fy2=$g('nbFiscalEnd').value;
   const hy=$g('nbHrYear').value;
-  if(!name){alert('회사명을 입력하세요');return}
-  if(!ceo){alert('대표자명을 입력하세요');return}
-  if(!biz){alert('사업자등록번호를 입력하세요');return}
-  if(!fy1||!fy2){alert('기수 회계기간(시작/종료)을 입력하세요');return}
-  if(!hy){alert('인사연도를 입력하세요');return}
+  if(!name){alert('* 회사명을 입력하세요');return}
+  if(!ceo){alert('* 대표자명을 입력하세요');return}
+  if(!biz){alert('* 사업자등록번호를 입력하세요');return}
+  /* Phase Q3 (2026-05-07): 대표자 검증 */
+  let representative=null, existingUserId=null;
+  if(_nbRepMode==='new'){
+    const repName=($g('nbRepName')?.value||'').trim();
+    if(!repName){alert('* 대표자 실명을 입력하세요 (또는 기존 사용자 선택)');return}
+    representative={
+      real_name: repName,
+      birth_date: $g('nbRepBirth')?.value||null,
+      phone: ($g('nbRepPhone')?.value||'').trim()||null,
+    };
+  } else {
+    existingUserId=Number($g('nbRepSelectedUserId')?.value||0)||null;
+    if(!existingUserId){alert('* 기존 사용자를 선택하세요');return}
+  }
+  if(!fy1||!fy2){alert('* 기수 회계기간(시작/종료)을 입력하세요');return}
+  if(!hy){alert('* 인사연도를 입력하세요');return}
   const btn=$g('nbSubmitBtn');if(btn){btn.disabled=true;btn.textContent='생성 중...'}
   try{
     const addr1=$g('nbAddress').value.trim();
@@ -163,11 +228,18 @@ async function submitNewBusiness(){
       contract_date:new Date().toISOString().slice(0,10),
       auto_create_room: $g('nbAutoRoom').checked,
       priority: $g('nbPriority')?.value?Number($g('nbPriority').value):null,
+      /* Q3 (2026-05-07): 대표자 자동 매핑 */
+      representative: representative,  /* {real_name, birth_date, phone} or null */
+      user_id: existingUserId,  /* 기존 사용자 매핑 시 */
     };
     const r=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json();
     if(!d.ok && !d.id){alert('실패: '+(d.error||'unknown'));return}
-    alert('✅ 업체 생성 완료'+(d.room_id?'\n📢 기본 상담방도 개설됨: '+d.room_id:''));
+    let msg='✅ 업체 생성 완료';
+    if(d.room_id) msg+='\n📢 기본 상담방 개설: '+d.room_id;
+    if(d.created_user_id) msg+='\n👤 사용자 자동 생성: #'+d.created_user_id+' (사용자 탭에 표시)';
+    else if(d.mapped_user_id) msg+='\n🔗 기존 사용자 매핑: #'+d.mapped_user_id;
+    alert(msg);
     closeNewBusinessModal();
     loadBusinessList();
     if(d.id)openBusinessDashboard(d.id);

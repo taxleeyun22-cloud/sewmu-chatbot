@@ -182,16 +182,17 @@
       </div>
 
       <!-- 👤 사람 정보 (수동 특유) -->
-      <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:6px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">👤 사람 정보</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
-        <input id="mcRealName" type="text" placeholder="이름 (실명) *" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+      <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:6px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">👤 사람 정보 <span style="color:#dc2626;font-size:.95em">*</span> = 필수</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
+        <input id="mcRealName" type="text" placeholder="이름 (실명)" required style="padding:8px 10px;border:1px solid #dc2626;border-radius:6px;font-size:.85em;font-family:inherit" title="필수">
+        <input id="mcBirthDate" type="date" placeholder="생년월일" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;color:#6b7280" title="대표자 생년월일 (Q4)">
         <input id="mcPhone" type="tel" placeholder="010-1234-5678" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
       </div>
 
       <!-- 📋 수임처 정보 -->
       <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:10px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">📋 수임처 정보</div>
       <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-bottom:6px">
-        <input id="mcCompany" type="text" placeholder="회사명 (수임처명)" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="mcCompany" type="text" placeholder="회사명 (수임처명) *" required style="padding:8px 10px;border:1px solid #dc2626;border-radius:6px;font-size:.85em;font-family:inherit" title="필수">
         <select id="mcForm" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
           <option value="0.법인사업자" selected>0.법인사업자</option>
           <option value="1.개인사업자">1.개인사업자</option>
@@ -200,8 +201,8 @@
         </select>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-        <input id="mcCeo" type="text" placeholder="대표자명" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
-        <input id="mcBizNo" type="text" placeholder="사업자등록번호" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="mcCeo" type="text" placeholder="대표자명 *" required style="padding:8px 10px;border:1px solid #dc2626;border-radius:6px;font-size:.85em;font-family:inherit" title="필수">
+        <input id="mcBizNo" type="text" placeholder="사업자등록번호 *" maxlength="14" required style="padding:8px 10px;border:1px solid #dc2626;border-radius:6px;font-size:.85em;font-family:inherit" title="필수">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
         <input id="mcSubBiz" type="text" placeholder="종사업자번호" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
@@ -1389,10 +1390,32 @@
       <button onclick="closeNewBusinessModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
     </div>
     <div style="padding:14px 18px;overflow-y:auto">
+      <!-- 👤 대표자 (사람) 정보 — Phase Q3 (2026-05-07 사장님 명령): 업체에서 사람 자동 생성 -->
+      <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:2px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">
+        👤 대표자 정보 <span style="color:#dc2626">*</span> = 필수 (저장 시 사용자 자동 생성)
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <button id="nbRepModeNewBtn" type="button" onclick="_nbSwitchRepMode('new')" style="background:#191f28;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit;flex:1">➕ 신규 입력</button>
+        <button id="nbRepModeExistBtn" type="button" onclick="_nbSwitchRepMode('exist')" style="background:#fff;color:#4b5563;border:1px solid #e5e8eb;padding:6px 12px;border-radius:6px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit;flex:1">🔍 기존 사용자 선택</button>
+      </div>
+      <!-- 신규 입력 모드 (default) -->
+      <div id="nbRepNewArea" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="nbRepName" type="text" placeholder="대표자 실명 *" style="padding:8px 10px;border:1px solid #dc2626;border-radius:6px;font-size:.85em;font-family:inherit" title="필수">
+        <input id="nbRepBirth" type="date" placeholder="생년월일" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;color:#6b7280" title="대표자 생년월일">
+        <input id="nbRepPhone" type="tel" placeholder="010-1234-5678" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+      </div>
+      <!-- 기존 사용자 선택 모드 (default hidden) -->
+      <div id="nbRepExistArea" style="display:none;margin-bottom:6px">
+        <input id="nbRepSearch" type="text" placeholder="🔍 이름·전화 검색 (2자 이상)" oninput="_nbRepSearchInput()" autocomplete="off" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;outline:none;box-sizing:border-box">
+        <div id="nbRepSearchResults" style="margin-top:6px;max-height:200px;overflow-y:auto"></div>
+        <input id="nbRepSelectedUserId" type="hidden">
+        <div id="nbRepSelected" style="margin-top:6px;font-size:.78em;color:#10b981;font-weight:600"></div>
+      </div>
+
       <!-- 📋 수임처 정보 -->
-      <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:2px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">📋 수임처 정보</div>
+      <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:10px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">📋 수임처 정보 <span style="color:#dc2626">*</span> = 필수</div>
       <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-bottom:6px">
-        <input id="nbName" type="text" placeholder="회사명 (수임처명) *" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="nbName" type="text" placeholder="회사명 (수임처명) *" required style="padding:8px 10px;border:1px solid #dc2626;border-radius:6px;font-size:.85em;font-family:inherit">
         <select id="nbForm" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
           <option value="0.법인사업자" selected>0.법인사업자</option>
           <option value="1.개인사업자">1.개인사업자</option>
@@ -1401,8 +1424,8 @@
         </select>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-        <input id="nbCeo" type="text" placeholder="대표자명 *" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
-        <input id="nbBiz" type="text" placeholder="사업자등록번호 *" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="nbCeo" type="text" placeholder="대표자명 *" required style="padding:8px 10px;border:1px solid #dc2626;border-radius:6px;font-size:.85em;font-family:inherit">
+        <input id="nbBiz" type="text" placeholder="사업자등록번호 *" maxlength="14" required style="padding:8px 10px;border:1px solid #dc2626;border-radius:6px;font-size:.85em;font-family:inherit">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
         <input id="nbSubBiz" type="text" placeholder="종사업자번호" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">

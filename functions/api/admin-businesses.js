@@ -297,7 +297,73 @@ export async function onRequestPost(context) {
       } catch {}
     }
 
-    return Response.json({ ok: true, id: bid, room_id: createdRoomId });
+    /* Q3 (2026-05-07 사장님 명령): 업체 생성 시 대표자 자동 매핑.
+     * 옵션 A — body.user_id 있음 → 기존 사용자 매핑
+     * 옵션 B — body.representative {real_name, birth_date?, phone?} → 신규 user 자동 INSERT + 매핑
+     * 양쪽 다 business_members INSERT (is_primary=1, role='대표자') */
+    let createdUserId = null;
+    let mappedExistingUserId = null;
+    if (bid) {
+      try {
+        /* users 컬럼 보장 */
+        try { await db.prepare(`ALTER TABLE users ADD COLUMN provider TEXT`).run(); } catch {}
+        try { await db.prepare(`ALTER TABLE users ADD COLUMN provider_user_id TEXT`).run(); } catch {}
+        try { await db.prepare(`ALTER TABLE users ADD COLUMN real_name TEXT`).run(); } catch {}
+        try { await db.prepare(`ALTER TABLE users ADD COLUMN phone TEXT`).run(); } catch {}
+        try { await db.prepare(`ALTER TABLE users ADD COLUMN birth_date TEXT`).run(); } catch {}
+        try { await db.prepare(`ALTER TABLE users ADD COLUMN approval_status TEXT DEFAULT 'pending'`).run(); } catch {}
+        /* business_members 테이블 보장 */
+        try { await db.prepare(`CREATE TABLE IF NOT EXISTS business_members (id INTEGER PRIMARY KEY AUTOINCREMENT, business_id INTEGER, user_id INTEGER, role TEXT, is_primary INTEGER DEFAULT 0, added_at TEXT, removed_at TEXT)`).run(); } catch {}
+
+        if (body.user_id) {
+          /* 옵션 A — 기존 사용자 매핑 */
+          const existingUid = Number(body.user_id);
+          if (Number.isInteger(existingUid) && existingUid > 0) {
+            const u = await db.prepare(`SELECT id FROM users WHERE id = ?`).bind(existingUid).first();
+            if (u) {
+              await db.prepare(
+                `INSERT INTO business_members (business_id, user_id, role, is_primary, added_at) VALUES (?, ?, '대표자', 1, ?)`
+              ).bind(bid, existingUid, now).run();
+              mappedExistingUserId = existingUid;
+            }
+          }
+        } else if (body.representative && typeof body.representative === 'object') {
+          /* 옵션 B — 신규 사용자 자동 INSERT + 매핑 */
+          const repName = String(body.representative.real_name || body.ceo_name || '').trim().slice(0, 50);
+          const repPhone = String(body.representative.phone || '').trim().slice(0, 20);
+          const repBirth = String(body.representative.birth_date || '').match(/^\d{4}-\d{2}-\d{2}$/)
+            ? String(body.representative.birth_date).slice(0, 10)
+            : null;
+          if (repName) {
+            const pseudoExt = 'admin_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+            const userR = await db.prepare(
+              `INSERT INTO users (provider, provider_user_id, name, real_name, phone, birth_date,
+                                  approval_status, approved_at, approved_by, name_confirmed,
+                                  created_at, last_login_at)
+               VALUES ('admin_created', ?, ?, ?, ?, ?, 'approved_client', ?, 'admin', 1, ?, NULL)`
+            ).bind(pseudoExt, repName, repName, repPhone || null, repBirth, now, now).run();
+            const newUid = userR.meta?.last_row_id;
+            if (newUid) {
+              await db.prepare(
+                `INSERT INTO business_members (business_id, user_id, role, is_primary, added_at) VALUES (?, ?, '대표자', 1, ?)`
+              ).bind(bid, newUid, now).run();
+              createdUserId = newUid;
+            }
+          }
+        }
+      } catch (e) {
+        /* 사용자 매핑 실패해도 업체 생성은 성공 — silent */
+        console.warn('[admin-businesses POST] representative mapping failed:', e.message);
+      }
+    }
+
+    return Response.json({
+      ok: true,
+      id: bid,
+      room_id: createdRoomId,
+      created_user_id: createdUserId,
+      mapped_user_id: mappedExistingUserId,
+    });
   } catch (e) {
     return Response.json({ ok: false, error: e.message }, { status: 500 });
   }
