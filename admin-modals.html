@@ -1608,6 +1608,108 @@
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════
+     Phase 2 (사장님 명세 2026-05-07): 신고 검토표 상세 모달
+     종소세 / 법인세 결재 검토표. 작년 vs 올해 비교 + 입력 폼 + 결재 + PDF 인쇄.
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="filingDetailModal" class="modal-overlay" style="display:none;z-index:11400">
+  <div id="filingDetailRoot" style="background:#fff;border-radius:12px;width:100%;max-width:1100px;max-height:94vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2);position:relative">
+
+    <!-- 헤더 (인쇄 시 보임) -->
+    <div class="filing-print-header" style="padding:14px 22px;border-bottom:1px solid #e5e8eb;background:#fafbfc;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1">
+      <div>
+        <div style="font-size:.7em;color:#8b95a1;letter-spacing:.5px;font-weight:600">SECTION 00 · REVIEW SHEET</div>
+        <div id="filingTitle" style="font-weight:800;font-size:1.1em;color:#191f28;margin-top:2px">신고검토표</div>
+        <div id="filingOwnerInfo" style="font-size:.78em;color:#6b7280;margin-top:3px"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px" class="no-print">
+        <span id="filingStatusBadge" style="font-size:.74em;padding:4px 10px;border-radius:99px;font-weight:700">작성중</span>
+        <button onclick="filingPrint()" style="background:#191f28;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit" title="A4 가로 인쇄 (PDF 저장 가능)">🖨️ 인쇄/PDF</button>
+        <button onclick="closeFilingDetail()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#8b95a1">✕</button>
+      </div>
+    </div>
+
+    <!-- 본문 -->
+    <div id="filingBody" style="padding:18px 22px">
+      <div style="text-align:center;color:#8b95a1;padding:40px 0">불러오는 중...</div>
+    </div>
+  </div>
+</div>
+
+<!-- 사장님 명령 (2026-05-07): 신고 검토표 인쇄 스타일 (A4 가로) -->
+<style>
+@media print {
+  @page { size: A4 landscape; margin: 12mm; }
+  body * { visibility: hidden !important; }
+  #filingDetailModal, #filingDetailModal * { visibility: visible !important; }
+  #filingDetailModal {
+    position: absolute !important; left: 0 !important; top: 0 !important;
+    width: 100% !important; max-width: none !important;
+    background: #fff !important; padding: 0 !important; inset: auto !important;
+    overflow: visible !important;
+  }
+  #filingDetailRoot {
+    box-shadow: none !important; max-width: none !important; max-height: none !important;
+    overflow: visible !important; border-radius: 0 !important;
+  }
+  .no-print { display: none !important; }
+  /* 페이지 분할 방지 (사장님 명세 7.2) */
+  table { page-break-inside: auto !important; }
+  table tr { page-break-inside: avoid !important; page-break-after: auto; }
+  .keep-together { page-break-inside: avoid !important; }
+  h2, h3, .filing-section-header { page-break-after: avoid !important; }
+}
+.filing-section-header {
+  font-size: .68em; color: #8b95a1; letter-spacing: .8px; font-weight: 700;
+  text-transform: uppercase; margin: 18px 0 4px;
+}
+.filing-section-title {
+  font-size: 1em; font-weight: 800; color: #191f28; margin-bottom: 12px;
+  padding-bottom: 6px; border-bottom: 2px solid #191f28;
+}
+.filing-num-input {
+  width: 100%; padding: 6px 8px; border: 1px solid #e5e8eb; border-radius: 6px;
+  font-size: .9em; font-family: inherit; text-align: right; box-sizing: border-box;
+}
+.filing-num-input:focus { outline: none; border-color: #3182f6; }
+.filing-text-input {
+  width: 100%; padding: 6px 8px; border: 1px solid #e5e8eb; border-radius: 6px;
+  font-size: .85em; font-family: inherit; box-sizing: border-box;
+}
+</style>
+
+<!-- 사장님 명령 (2026-05-07): 새 신고 Case 생성 모달 -->
+<div id="filingNewModal" class="modal-overlay" style="display:none;z-index:11500">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:480px;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;background:#fafbfc">
+      <div style="font-weight:700;font-size:1em">🧾 새 신고 Case</div>
+      <button onclick="closeFilingNew()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1">✕</button>
+    </div>
+    <div style="padding:14px 18px">
+      <div id="filingNewOwnerInfo" style="font-size:.86em;background:#dbeafe;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:6px;margin-bottom:12px;color:#1e3a8a"></div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:4px">신고 종류</label>
+        <select id="filingNewType" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box">
+          <option value="종소세">종소세 (사람 단위)</option>
+          <option value="법인세">법인세 (업체 단위)</option>
+        </select>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:4px">귀속연도</label>
+        <input id="filingNewYear" type="number" min="2000" max="2100" placeholder="예: 2024" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box">
+      </div>
+      <div id="filingNewBizArea" style="display:none;margin-bottom:10px">
+        <label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:4px">포함 사업체 (다중 선택, 종소세만)</label>
+        <div id="filingNewBizList" style="max-height:160px;overflow-y:auto;border:1px solid #e5e8eb;border-radius:6px;padding:6px"></div>
+      </div>
+    </div>
+    <div style="padding:10px 18px;border-top:1px solid #f2f4f6;display:flex;gap:8px;justify-content:flex-end;background:#fafbfc">
+      <button onclick="closeFilingNew()" style="background:#e5e8eb;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
+      <button id="filingNewSubmitBtn" onclick="submitFilingNew()" style="background:#3182f6;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">+ 생성</button>
+    </div>
+  </div>
+</div>
+
 <!-- 사장님 명령 (2026-05-07): 거절 사유 모달 — 미리 옵션 + 직접 입력 -->
 <div id="rejectReasonModal" class="modal-overlay" style="display:none;z-index:11600">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:480px;box-shadow:0 10px 40px rgba(0,0,0,.2);overflow:hidden">
