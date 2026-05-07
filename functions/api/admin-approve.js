@@ -91,11 +91,15 @@ export async function onRequestGet(context) {
       unmerged_at TEXT,
       unmerged_by_admin TEXT
     )`).run(); } catch {}
+    /* 사장님 명령 (2026-05-07): 탈퇴자 재가입 알림 — previous_withdrawn_user_id JOIN */
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN previous_withdrawn_user_id INTEGER`).run(); } catch {}
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN withdrawn_provider_id TEXT`).run(); } catch {}
     let query = `
       SELECT u.id, u.provider, u.name, u.real_name, u.email, u.phone, u.profile_image,
              u.approval_status, u.approved_at, u.created_at, u.last_login_at, u.name_confirmed, u.is_admin,
              u.birth_date,
              u.requested_company_name, u.requested_business_number, u.requested_role, u.requested_at,
+             u.previous_withdrawn_user_id,
              (SELECT company_name FROM client_businesses
               WHERE user_id = u.id
               ORDER BY is_primary DESC, id ASC LIMIT 1) AS company_name,
@@ -111,7 +115,11 @@ export async function onRequestGet(context) {
              CASE WHEN u.provider = 'kakao' AND u.real_name IS NOT NULL
                        AND TRIM(COALESCE(u.real_name, '')) != TRIM(COALESCE(u.name, ''))
                        AND u.name_confirmed = 1
-                  THEN 1 ELSE 0 END AS is_likely_merged
+                  THEN 1 ELSE 0 END AS is_likely_merged,
+             /* 사장님 명령 (2026-05-07): 탈퇴자 정보 JOIN — admin 화면에 '이전 탈퇴자' 배지 */
+             (SELECT real_name FROM users WHERE id = u.previous_withdrawn_user_id) AS prev_withdrawn_real_name,
+             (SELECT name FROM users WHERE id = u.previous_withdrawn_user_id) AS prev_withdrawn_name,
+             (SELECT deleted_at FROM users WHERE id = u.previous_withdrawn_user_id) AS prev_withdrawn_at
       FROM users u
     `;
     const binds = [];

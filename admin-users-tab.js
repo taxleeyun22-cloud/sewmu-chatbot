@@ -146,6 +146,8 @@ return '<div data-user-id="'+u.id+'" style="background:#fff;border-radius:12px;p
 +'<div class="info">'+nameLine
 +'<div class="meta">'+nameConf+(pv?'<span class="badge">'+pv+'</span> ':'')+e(u.email||'')+phone+'</div>'
 +'<div class="meta" style="margin-top:3px">가입 '+e(u.created_at||'')+' · 오늘 '+todayCnt+'건</div>'
+/* 사장님 명령 (2026-05-07): 옛 탈퇴자 재가입 알림 배지 */
++(u.previous_withdrawn_user_id?'<div style="margin-top:6px;padding:6px 10px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:6px;font-size:.78em;color:#92400e"><b>🔄 이전 탈퇴자 재가입</b>: '+e(u.prev_withdrawn_real_name||u.prev_withdrawn_name||'#'+u.previous_withdrawn_user_id)+' (#'+u.previous_withdrawn_user_id+(u.prev_withdrawn_at?', 탈퇴 '+e(String(u.prev_withdrawn_at).slice(0,10)):'')+') — 같은 사람이면 합치기 권장</div>':'')
 +'</div></div>'
 +reqInfo
 +actions

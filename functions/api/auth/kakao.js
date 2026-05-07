@@ -113,24 +113,41 @@ export async function onRequestGet(context) {
 
     await initTables(db);
 
-    // UPSERT: 이미 있으면 업데이트, 없으면 삽입
-    await db.prepare(`
-      INSERT INTO users (provider, provider_id, name, email, phone, profile_image, last_login_at)
-      VALUES ('kakao', ?, ?, ?, ?, ?, datetime('now', '+9 hours'))
-      ON CONFLICT(provider, provider_id) DO UPDATE SET
-        name = excluded.name,
-        email = excluded.email,
-        phone = excluded.phone,
-        profile_image = excluded.profile_image,
-        last_login_at = datetime('now', '+9 hours'),
-        deleted_at = NULL,
-        withdrawal_reason = NULL
-    `).bind(kakaoId, name, email, phone, profileImage).run();
+    /* 사장님 명령 (2026-05-07): 자동 복구 폐지.
+     * - 활성 user 매칭 → 정상 로그인 (last_login_at 갱신만)
+     * - 매칭 없음 → 새 user (pending). withdrawn_provider_id 매칭 → 옛 탈퇴자 발견 시 previous_withdrawn_user_id 저장 */
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN withdrawn_provider_id TEXT`).run(); } catch {}
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN previous_withdrawn_user_id INTEGER`).run(); } catch {}
 
-    // 사용자 ID 조회
-    const user = await db.prepare(
-      `SELECT id FROM users WHERE provider = 'kakao' AND provider_id = ?`
+    /* 1. 활성 user 매칭 (deleted_at IS NULL) */
+    let user = await db.prepare(
+      `SELECT id FROM users WHERE provider = 'kakao' AND provider_id = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
     ).bind(kakaoId).first();
+
+    if (user) {
+      /* 활성 user 있으면 → 정상 로그인 (정보 갱신) */
+      await db.prepare(
+        `UPDATE users SET name = ?, email = ?, phone = ?, profile_image = ?, last_login_at = datetime('now', '+9 hours') WHERE id = ?`
+      ).bind(name, email, phone, profileImage, user.id).run();
+    } else {
+      /* 2. 옛 탈퇴자 (withdrawn_provider_id 매칭) 검색 */
+      const prevWithdrawn = await db.prepare(
+        `SELECT id, real_name, deleted_at FROM users
+         WHERE provider = 'kakao' AND withdrawn_provider_id = ? AND deleted_at IS NOT NULL
+         ORDER BY deleted_at DESC LIMIT 1`
+      ).bind(kakaoId).first();
+      const prevId = prevWithdrawn?.id || null;
+
+      /* 3. 새 user INSERT (pending). previous_withdrawn_user_id 저장 (있으면) */
+      const r = await db.prepare(
+        `INSERT INTO users (provider, provider_id, name, email, phone, profile_image,
+                            approval_status, name_confirmed,
+                            previous_withdrawn_user_id,
+                            created_at, last_login_at)
+         VALUES ('kakao', ?, ?, ?, ?, ?, 'pending', 0, ?, datetime('now', '+9 hours'), datetime('now', '+9 hours'))`
+      ).bind(kakaoId, name, email, phone, profileImage, prevId).run();
+      user = { id: r.meta?.last_row_id };
+    }
 
     // 4. 세션 생성
     const sessionToken = crypto.randomUUID();
