@@ -51,6 +51,25 @@ import {
 } from './lib/memo-filter';
 import { loadAdminModals, startModalLoader } from './admin/modal-loader';
 
+/* Phase #7 적용 확장 (B, 2026-05-06): tab 변경 broadcast — admin.js tab() 호출 시
+ * 다른 모듈 (admin-memos / admin-rooms / 등) 이 자동 알림 받기. */
+type TabChangeListener = (tab: string) => void;
+const _tabListeners: TabChangeListener[] = [];
+
+function onTabChange(cb: TabChangeListener): () => void {
+  _tabListeners.push(cb);
+  return () => {
+    const i = _tabListeners.indexOf(cb);
+    if (i >= 0) _tabListeners.splice(i, 1);
+  };
+}
+
+function broadcastTabChange(tab: string): void {
+  for (const cb of _tabListeners) {
+    try { cb(tab); } catch (e) { console.warn('[tabChange] listener error:', e); }
+  }
+}
+
 /* 글로벌 노출 — classic script 환경에서 다른 .js 파일이 사용 가능하게.
    Phase S3b 부터 admin.js / index.js 등이 window.__router 통해 navigate 호출.
    Phase #6 적용 (2026-05-06): admin-memos.js 등이 window.__memoStore 사용. */
@@ -119,6 +138,9 @@ declare global {
     /* Phase #1 적용 (2-3, 2026-05-06): ES module 로 작성된 modal-loader 노출.
      * admin.html 의 inline <script> 가 호출 가능. */
     __loadAdminModals?: typeof loadAdminModals;
+    /* Phase #7 적용 확장 (B): tab 변경 broadcast / listen. */
+    __onTabChange?: typeof onTabChange;
+    __broadcastTabChange?: typeof broadcastTabChange;
     Memo?: Memo;  /* 타입 hint (실제 사용 X) */
     DDayBadge?: DDayBadge;  /* 타입 hint */
   }
@@ -162,6 +184,8 @@ if (typeof window !== 'undefined') {
     ALLOWED_MEMO_TYPES,
   };
   window.__loadAdminModals = loadAdminModals;
+  window.__onTabChange = onTabChange;
+  window.__broadcastTabChange = broadcastTabChange;
   /* Phase #1 적용 (2-3): admin.html 의 인라인 modal loader → ES module 로 자동 시작 */
   if (location.pathname.endsWith('/admin.html') || location.pathname === '/admin') {
     startModalLoader();

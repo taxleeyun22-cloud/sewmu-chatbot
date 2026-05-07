@@ -491,6 +491,8 @@ try{
   });
 }catch(_){}
 try{localStorage.setItem('admin_last_tab',t)}catch{}
+/* Phase #7 적용 확장 (B 2026-05-06): tab 변경 broadcast — 다른 모듈이 onTabChange listen 가능 */
+try{ if(window.__broadcastTabChange) window.__broadcastTabChange(t); }catch(_){}
 $g('tabChat').className=t==='chat'?'on':'';
 $g('tabLive').className=t==='live'?'on':'';
 $g('tabRooms').className=t==='rooms'?'on':'';
