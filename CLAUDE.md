@@ -220,6 +220,26 @@ Cloudflare Pages + D1 DB + OpenAI GPT-4.1-mini + 국가법령정보센터 API.
 - 헤더 타이틀 말줄임 정상 동작인지 (좁은 폭에서 "세무회계 이윤 이재윤대표" 같은 긴 이름)
 - 기존 기능 회귀 없는지 (보낸 메시지 렌더·스크롤·탭 전환)
 
+### 📦 #3 TypeScript 5단계 변환 완료 (2026-05-06)
+
+**메타 12종 #3 — admin.js 점진 .ts 변환. admin.js 본체 plain JS 유지 + src/admin/*.ts 9개 모듈 + 197 tests.**
+
+- **Phase 1**: admin.js 상단 // @ts-check + admin-globals.d.ts reference + JSDoc 6개 함수
+- **Phase 2**: error-log.ts (12 tests) + sidebar-counts.ts (10 tests) + tabs.ts (19 tests)
+- **Phase 3**: memos-room.ts (17 tests) + auth.ts (11 tests) + role-ui.ts (13 tests)
+- **Phase 4**: router-hooks.ts (19 tests) + lazy-loaders.ts (8 tests)
+
+**룰** (신규 admin 코드 작성 시):
+- ✅ **신규 헬퍼 함수는 src/admin/*.ts** 로 작성 (TypeScript strict + 단위 테스트 가능)
+- ✅ **타입 정의는 src/types/admin-globals.d.ts** 추가 (cross-script global 인식)
+- ✅ admin.js 안 직접 함수 추가 시 JSDoc + // @ts-check 호환 작성
+- ⚠️ admin.js 본체 통째 .ts 변환은 **별도 phase** (4500줄, 1-2주 작업) — 현재 점진
+
+**사장님 효과**:
+- src/admin/*.ts 함수는 컴파일 단계 type 검증 → 회귀 자동 차단
+- IDE 자동 완성 + JSDoc 도움
+- 새 기능 작성 빠름
+
 ### 🎨 Tailwind 활성화 (Phase T1 · 2026-05-04)
 
 **메타 12종 #5 디자인 시스템 — Tailwind 인프라 prod 활성화 완료.**
