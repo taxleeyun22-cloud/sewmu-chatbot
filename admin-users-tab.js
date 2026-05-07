@@ -109,8 +109,7 @@ actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✕ 거절</button>'
 +adminBtn
-/* 사장님 명령 (2026-05-07): pending 탭에도 합치기 + 삭제 */
-+(IS_OWNER?'<button onclick="_openMergePicker('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px dashed #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="다른 사용자와 합치기 (이 user 가 살아남음)">🔗 합치기</button>':'')
+/* 사장님 명령 (2026-05-07): row 합치기 폐지 — 대기 승인 모달 안 합치기 흐름만 유지. */
 +(IS_OWNER?'<button onclick="_hardDeleteUser('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#9ca3af;border:1px solid #d1d5db;padding:8px 12px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit" title="영구 삭제 (owner only)">🗑️</button>':'')
 +'</div>';
 }else{
@@ -124,11 +123,8 @@ actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +(IS_OWNER && (status==='approved_client'||status==='approved_guest')?'<button onclick="terminateUser('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" title="거래 종료(기장이관) — 상담방 모두 closed, 고객 접근 차단" style="background:#fff;color:#6b7280;border:1px solid #6b7280;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🚫 거래 종료</button>':'')
 +(IS_OWNER && status==='terminated'?'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🔄 거래 재개(기장)</button>':'')
 +adminBtn
-/* 사장님 명령 (2026-05-07): 모든 row 에 '🔗 합치기' 버튼 (owner only).
- * 클릭 시 사용자 선택 모달 → merge_users API.
- * 사장님이 같은 사람 여러 user 정리 가능. */
-+(IS_OWNER?'<button onclick="_openMergePicker('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px dashed #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600" title="다른 사용자와 합치기 (이 user 가 살아남음)">🔗 합치기</button>':'')
-/* 사장님 명령 (2026-05-07 최종): 카카오 + 수동 합친 user 만 분리 버튼 표시. */
+/* 사장님 명령 (2026-05-07): row 합치기 폐지 — 대기 승인 모달 안 합치기 흐름만 유지.
+ * 분리 / 영구 삭제 만 row 에 남김. */
 +(IS_OWNER && (u.active_merge_id || u.is_likely_merged)?'<button onclick="_splitMerge('+(u.active_merge_id||0)+','+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#dc2626;border:1px dashed #dc2626;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600" title="합치기 분리 — 카카오 user 대기로, 수동 user 그대로">🔀 분리</button>':'')
 /* 사장님 명령 (2026-05-07): 영구 삭제 (owner only, 신중) */
 +(IS_OWNER?'<button onclick="_hardDeleteUser('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#9ca3af;border:1px solid #d1d5db;padding:6px 10px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="영구 삭제 (사용자 list 에서 사라짐, owner only)">🗑️</button>':'')
