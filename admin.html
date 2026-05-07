@@ -232,7 +232,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=28', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=29', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -246,7 +246,7 @@ setTimeout(function(){
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script src="/admin.js?v=175"></script>
 <script src="/admin-memos.js?v=13"></script>
-<script src="/admin-customer-dash.js?v=9"></script>
+<script src="/admin-customer-dash.js?v=10"></script>
 <script src="/admin-business-tab.js?v=5"></script>
 <script src="/admin-search-bulk.js?v=3"></script>
 <script src="/admin-rooms-list.js?v=6"></script>

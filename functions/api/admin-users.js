@@ -287,12 +287,47 @@ export async function onRequestPost(context) {
       try { await db.prepare(`ALTER TABLE users ADD COLUMN profile_image TEXT`).run(); } catch {}
       try { await db.prepare(`ALTER TABLE users ADD COLUMN deleted_at TEXT`).run(); } catch {}
 
-      const kakao = await db.prepare(`SELECT id, provider, provider_user_id, name, profile_image, email, phone FROM users WHERE id = ?`).bind(kakaoUid).first();
-      const manual = await db.prepare(`SELECT id, real_name FROM users WHERE id = ?`).bind(manualUid).first();
+      /* 사장님 명령 (2026-05-07): user_merges audit log — 분리 시 원상복구 위해.
+       * snapshot 만 저장. 데이터는 admin user 에 그대로 (사장님 워크플로). */
+      try { await db.prepare(`CREATE TABLE IF NOT EXISTS user_merges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        manual_user_id INTEGER NOT NULL,
+        kakao_user_id INTEGER NOT NULL,
+        kakao_snapshot TEXT,
+        manual_snapshot TEXT,
+        merged_at TEXT,
+        merged_by_admin TEXT,
+        unmerged_at TEXT,
+        unmerged_by_admin TEXT
+      )`).run(); } catch {}
+
+      const kakao = await db.prepare(`SELECT id, provider, provider_user_id, name, profile_image, email, phone, approval_status FROM users WHERE id = ?`).bind(kakaoUid).first();
+      const manual = await db.prepare(`SELECT id, real_name, provider, provider_user_id, profile_image, email, approval_status FROM users WHERE id = ?`).bind(manualUid).first();
       if (!kakao || !manual) return Response.json({ error: "user not found" }, { status: 404 });
 
       const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
       const stats = { mappings: 0, memos: 0, conversations: 0, room_members: 0, documents: 0 };
+
+      /* 0. snapshot 저장 — 분리 시 원상복구용 */
+      const kakaoSnapshot = JSON.stringify({
+        provider: kakao.provider, provider_user_id: kakao.provider_user_id,
+        name: kakao.name, profile_image: kakao.profile_image,
+        email: kakao.email, phone: kakao.phone,
+        approval_status: kakao.approval_status,
+      });
+      const manualSnapshot = JSON.stringify({
+        provider: manual.provider, provider_user_id: manual.provider_user_id,
+        approval_status: manual.approval_status,
+        profile_image: manual.profile_image, email: manual.email,
+      });
+      let mergeAuditId = null;
+      try {
+        const mr = await db.prepare(`INSERT INTO user_merges (manual_user_id, kakao_user_id, kakao_snapshot, manual_snapshot, merged_at, merged_by_admin) VALUES (?, ?, ?, ?, ?, ?)`)
+          .bind(manualUid, kakaoUid, kakaoSnapshot, manualSnapshot, now, (auth && auth.role) || 'admin').run();
+        mergeAuditId = mr.meta?.last_row_id || null;
+      } catch (e) {
+        /* audit 실패해도 합치기는 진행 — silent */
+      }
 
       /* 1. 카카오 정보 → manual user 흡수 */
       await db.prepare(`
@@ -353,7 +388,115 @@ export async function onRequestPost(context) {
         archived_user_id: kakaoUid,
         survived_real_name: manual.real_name,
         moved: stats,
+        merge_id: mergeAuditId,
       });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
+  /* 사장님 명령 (2026-05-07): 합치기 분리 (merge undo).
+   * action=split_users { merge_id }
+   * - user_merges row 의 snapshot 으로 카카오 user 복원 (대기 상태) + admin user 복원 (기장거래처)
+   * - 데이터는 admin user 에 그대로 남음 (사장님 워크플로 — admin 이 진짜 데이터 보유자)
+   * - owner only */
+  if (action === "split_users") {
+    const mergeId = Number(body.merge_id);
+    if (!mergeId) return Response.json({ error: "merge_id required" }, { status: 400 });
+    try {
+      const merge = await db.prepare(`SELECT * FROM user_merges WHERE id = ? AND (unmerged_at IS NULL OR unmerged_at = '')`).bind(mergeId).first();
+      if (!merge) return Response.json({ error: "merge not found or already split" }, { status: 404 });
+
+      const kakaoSnap = JSON.parse(merge.kakao_snapshot || '{}');
+      const manualSnap = JSON.parse(merge.manual_snapshot || '{}');
+      const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+
+      /* 1. 카카오 user 복원 — 대기 상태 (OAuth 정보 그대로) */
+      await db.prepare(`UPDATE users SET
+        deleted_at = NULL,
+        provider = ?,
+        provider_user_id = ?,
+        name = ?,
+        profile_image = ?,
+        email = ?,
+        phone = ?,
+        approval_status = ?,
+        name_confirmed = 0
+        WHERE id = ?`).bind(
+        kakaoSnap.provider || 'kakao',
+        kakaoSnap.provider_user_id || null,
+        kakaoSnap.name || null,
+        kakaoSnap.profile_image || null,
+        kakaoSnap.email || null,
+        kakaoSnap.phone || null,
+        kakaoSnap.approval_status || 'pending',
+        merge.kakao_user_id
+      ).run();
+
+      /* 2. admin user 복원 — 카카오 정보 떼어내고 원래 provider 로 */
+      await db.prepare(`UPDATE users SET
+        provider = ?,
+        provider_user_id = ?,
+        approval_status = ?,
+        profile_image = ?,
+        email = ?
+        WHERE id = ?`).bind(
+        manualSnap.provider || 'admin_created',
+        manualSnap.provider_user_id || null,
+        manualSnap.approval_status || 'approved_client',
+        manualSnap.profile_image || null,
+        manualSnap.email || null,
+        merge.manual_user_id
+      ).run();
+
+      /* 3. user_merges.unmerged_at = now */
+      await db.prepare(`UPDATE user_merges SET unmerged_at = ?, unmerged_by_admin = ? WHERE id = ?`)
+        .bind(now, (auth && auth.role) || 'admin', mergeId).run();
+
+      return Response.json({
+        ok: true,
+        kakao_user_id: merge.kakao_user_id,
+        manual_user_id: merge.manual_user_id,
+      });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
+  /* 사장님 명령 (2026-05-07): 합치기 이력 조회 (UI 배너용).
+   * action=get_merges { user_id }
+   * - 살아남은 user (manual_user_id) 가 user_id 인 활성 merge list */
+  if (action === "get_merges") {
+    const userId = Number(body.user_id);
+    if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
+    try {
+      try { await db.prepare(`CREATE TABLE IF NOT EXISTS user_merges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        manual_user_id INTEGER NOT NULL,
+        kakao_user_id INTEGER NOT NULL,
+        kakao_snapshot TEXT,
+        manual_snapshot TEXT,
+        merged_at TEXT,
+        merged_by_admin TEXT,
+        unmerged_at TEXT,
+        unmerged_by_admin TEXT
+      )`).run(); } catch {}
+      const { results } = await db.prepare(`
+        SELECT um.id, um.manual_user_id, um.kakao_user_id, um.merged_at, um.kakao_snapshot
+        FROM user_merges um
+        WHERE um.manual_user_id = ? AND (um.unmerged_at IS NULL OR um.unmerged_at = '')
+        ORDER BY um.merged_at DESC
+      `).bind(userId).all();
+      /* snapshot 에서 카카오 닉네임 추출 */
+      const merges = (results || []).map(m => {
+        let kakaoName = '';
+        try {
+          const snap = JSON.parse(m.kakao_snapshot || '{}');
+          kakaoName = snap.name || '';
+        } catch {}
+        return { id: m.id, manual_user_id: m.manual_user_id, kakao_user_id: m.kakao_user_id, merged_at: m.merged_at, kakao_name: kakaoName };
+      });
+      return Response.json({ ok: true, merges });
     } catch (e) {
       return Response.json({ error: e.message }, { status: 500 });
     }
