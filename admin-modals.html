@@ -181,15 +181,13 @@
         ⚠️ 로그인 불가 · 관리자 화면에서 관리·문서·메모·요약만 사용. 가입 고객과 합치려면 승인 탭에서 대체.
       </div>
 
-      <!-- 👤 사람 정보 (수동 특유) — 신규 모드에서만 표시 (사장님 명령 2026-05-07: 기존 모드에선 사업장 선택만 하면 끝) -->
-      <div id="mcPersonInfoArea">
+      <!-- 👤 사람 정보 (수동 특유) -->
       <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:6px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">👤 사람 정보 <span style="color:#dc2626;font-size:.95em">*</span> = 필수</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
         <input id="mcRealName" type="text" placeholder="이름 (실명)" required style="padding:8px 10px;border:1px solid #dc2626;border-radius:6px;font-size:.85em;font-family:inherit" title="필수">
         <input id="mcBirthDate" type="date" placeholder="생년월일" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;color:#6b7280" title="대표자 생년월일 (Q4)">
         <input id="mcPhone" type="tel" placeholder="010-1234-5678" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
       </div>
-      </div><!-- /mcPersonInfoArea -->
 
       <!-- Phase (2026-05-07 사장님 명령): 기존 업체 선택 시 표시되는 선택 list. 복수 사업장 가능. -->
       <div id="mcSelectedBizListWrap" style="display:none;margin:10px 0;padding:10px 12px;background:#e0f5ec;border-left:3px solid #10b981;border-radius:6px">
@@ -248,8 +246,7 @@
       </div>
       </div><!-- /mcCompanyInfoArea -->
 
-      <!-- 🏢 운영 (신규 모드에서만 표시 — 사장님 명령 2026-05-07) -->
-      <div id="mcOperationArea">
+      <!-- 🏢 운영 -->
       <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:10px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">🏢 운영</div>
       <textarea id="mcNotes" placeholder="거래처 노트 · AI 요약에 자동 반영 (예: 음식점 / 현금 매출 많음)" rows="2" style="width:100%;padding:9px 11px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;margin-bottom:8px;box-sizing:border-box;outline:none;resize:vertical"></textarea>
       <label style="font-size:.82em;font-weight:600;color:#374151;display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px">
@@ -262,7 +259,6 @@
           <option value="">— 미지정</option>
         </select>
       </div>
-      </div><!-- /mcOperationArea -->
     </div>
     <div style="padding:12px 18px;border-top:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:8px;justify-content:flex-end">
       <button onclick="closeManualClientModal()" style="background:#e5e8eb;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
