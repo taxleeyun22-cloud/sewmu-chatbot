@@ -1715,14 +1715,17 @@
   .print-only { display: block !important; }
   .print-only.filing-stamp-area, table.filing-stamp-area { display: block !important; }
 
-  /* 페이지 분할 방지 — 사장님 명령 (2026-05-07): "두장에 다담아야한다".
-   * keep-together 강제 X — 페이지 fit 우선. */
+  /* 페이지 분할 방지 — 사장님 명령 (2026-05-07):
+   * "코멘트나 이런거 잘리잖아 길어져도 저거 잘리진 않게 해야된다".
+   * 코멘트 박스는 한 페이지에 통째 keep — 비교표만 자동 분할 허용. */
   table { page-break-inside: auto !important; }
   table tr { page-break-inside: avoid !important; page-break-after: auto; }
   thead { display: table-header-group !important; }
   h2, h3, .filing-section-header { page-break-after: avoid !important; }
-  /* keep-together 는 작은 섹션만 — 큰 비교표는 자동 분할 허용 */
-  .keep-together { page-break-inside: auto !important; }
+  /* keep-together: 코멘트·작년리뷰·체크박스 등 — 한 페이지에 통째 강제 */
+  .keep-together { page-break-inside: avoid !important; break-inside: avoid !important; }
+  /* 단 SECTION 02 (비교표) 는 길어서 자동 분할 허용 */
+  .filing-comparison-section { page-break-inside: auto !important; break-inside: auto !important; }
 
   /* SECTION 헤더 인쇄 — 사장님 명령 (2026-05-07): 컴팩트 (2장 fit) */
   .filing-section-header { font-size: 6.5pt !important; margin: 5px 0 1px !important; }

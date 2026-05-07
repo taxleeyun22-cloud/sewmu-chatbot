@@ -261,14 +261,12 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   const ro = readonly ? 'readonly disabled' : '';
   const revenueLabel = isJongSo ? '총수입금액' : '매출액';
 
-  /* 사장님 명령 (2026-05-07): 비교표 항목 정리.
-   * - vat_tax_base (부가세과세표준) → 결산서상 당기순이익 (net_income) 으로 변경
-   * - 위에 매출액 (sales) + 전체매출액 (sales_total) 신규 추가
-   * 종소세 / 법인세 둘 다 동일 패턴. */
+  /* 사장님 명령 (2026-05-07):
+   * - 매출액 + 전체매출액 → "매출액 (복수사업장포함)" 1행 통합
+   * - 세율 (%) 행 제거 — 코멘트 박스 안 잘리게 행 줄임 */
   const fields = isJongSo
     ? [
-        { key: 'sales', label: '매출액' },
-        { key: 'sales_total', label: '전체매출액' },
+        { key: 'sales', label: '매출액 (복수사업장포함)' },
         { key: 'net_income', label: '결산서상 당기순이익' },
         { key: 'adj_inclusion', label: '세무조정 익금산입 (+)' },
         { key: 'adj_exclusion', label: '세무조정 손금산입 (−)' },
@@ -276,7 +274,6 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
         { key: 'income', label: '소득금액', showRate: 'revenue' },
         { key: 'comprehensive_deduction', label: '소득공제' },
         { key: 'tax_base', label: '과세표준' },
-        { key: 'tax_rate', label: '세율 (%)', percent: true },
         { key: 'calculated_tax', label: '산출세액' },
         { key: 'deduction_total', label: '공제·감면 (합계)', autoSum: 'deductions' },
         { key: 'decisive_tax', label: '결정세액', bold: true },
@@ -287,15 +284,13 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
         { key: 'payable_tax', label: '납부할세액', bold: true, highlight: true },
       ]
     : [
-        { key: 'sales', label: '매출액' },
-        { key: 'sales_total', label: '전체매출액' },
+        { key: 'sales', label: '매출액 (복수사업장포함)' },
         { key: 'net_income', label: '결산서상 당기순이익' },
         { key: 'adj_inclusion', label: '세무조정 익금산입 (+)' },
         { key: 'adj_exclusion', label: '세무조정 손금산입 (−)' },
         { key: 'revenue', label: '매출액 (영업수익)', bold: true },
         { key: 'business_income', label: '각사업연도소득금액', showRate: 'revenue' },
         { key: 'tax_base', label: '과세표준' },
-        { key: 'tax_rate', label: '세율 (%)', percent: true },
         { key: 'calculated_tax', label: '산출세액' },
         { key: 'deduction_total', label: '공제·감면 (합계)', autoSum: 'deductions' },
         { key: 'decisive_tax', label: '결정세액', bold: true },
@@ -318,8 +313,8 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   html += '<div id="filingOwnerInfoBody" style="font-size:.88em;color:#374151;line-height:1.6">' + _filRenderOwnerInfoSync(f) + '</div>';
   html += '</div>';
 
-  /* SECTION 02: 작년 vs 올해 비교표 */
-  html += '<div class="keep-together" style="margin-bottom:18px">';
+  /* SECTION 02: 작년 vs 올해 비교표 — 길어서 자동 분할 허용 (코멘트 박스 보호 위해 keep-together 빼고 별도 클래스) */
+  html += '<div class="filing-comparison-section" style="margin-bottom:14px">';
   html += '<div class="filing-section-header">SECTION 02 · COMPARISON</div>';
   html += '<div class="filing-section-title">작년 vs 올해 비교</div>';
   if (!prev) {
@@ -391,24 +386,35 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
        + '</tr>';
   html += '</tbody></table></div>';
 
-  /* 공제감면 (현재 입력만 — 사장님 명령 2026-05-07: 빨간 줄 / [신규] / [유지] / [작년 → 올해 삭제]
-   * 표시 모두 폐기. 단순 list. 작년 vs 올해 비교는 위 비교표 합계 행으로 충분. */
+  /* 공제감면 — 사장님 명령 (2026-05-07): "작년도 있긴해야되 빨간줄만없애라고".
+   * 작년 항목 표시 살리되 빨간 줄 (line-through) + [작년 → 올해 삭제] 태그만 제거.
+   * 회색 + (작년) 표시. */
   const prevDeductions = pf.공제감면 || pf.deductions || [];
   const currDeductions = af.공제감면 || af.deductions || [];
+  const currDedNamesSet = new Set(currDeductions.map(d => (d.name || d.종류 || '').trim()).filter(Boolean));
 
   /* SECTION 03: 공제감면 / 가산세 — 단일 컬럼 */
   html += '<div class="keep-together" style="margin-bottom:18px">';
   html += '<div class="filing-section-header">SECTION 03 · DEDUCTIONS &amp; PENALTIES</div>';
   html += '<div class="filing-section-title">공제·감면 / 가산세 명세</div>';
 
-  /* 공제감면 — 올해 입력만 단순 표시 */
+  /* 공제감면 — 올해 입력 + 작년 only 항목 (회색·작년 라벨, 빨간 줄 X) */
   html += '<div style="font-size:.86em;margin-bottom:10px"><b>○ 적용 공제·감면</b>';
   html += '<ul class="print-only" style="display:none;margin:4px 0 0 18px;padding:0">';
-  if (!currDeductions.length) html += '<li style="color:#9ca3af">없음</li>';
-  else currDeductions.forEach(d => {
+  const dedListEmpty = !currDeductions.length && !prevDeductions.length;
+  if (dedListEmpty) html += '<li style="color:#9ca3af">없음</li>';
+  currDeductions.forEach(d => {
     const nm = (d.name || d.종류 || '').trim();
     html += '<li>' + e(nm) + ' ' + _filFormatNum(d.amount || d.금액 || 0) + '원</li>';
   });
+  /* 작년 only — 회색, 빨간 줄 X */
+  if (prev) {
+    prevDeductions.forEach(d => {
+      const nm = (d.name || d.종류 || '').trim();
+      if (!nm || currDedNamesSet.has(nm)) return;
+      html += '<li style="color:#9ca3af">' + e(nm) + ' ' + _filFormatNum(d.amount || d.금액 || 0) + '원 <span style="font-size:.86em">(' + prev.fiscal_year + '년)</span></li>';
+    });
+  }
   html += '</ul>';
   html += '<div id="filDeductionRows" class="no-print" style="margin-top:6px">';
   if (currDeductions.length === 0) html += _filRenderDeductionRow({ name: '', amount: '' }, 0, readonly);
@@ -417,14 +423,24 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   if (!readonly) html += '<button onclick="_filAddDeductionRow()" class="no-print" style="background:#fff;color:#3182f6;border:1px dashed #3182f6;padding:4px 10px;border-radius:6px;font-size:.74em;cursor:pointer;font-family:inherit;margin-top:6px">+ 공제감면 추가</button>';
   html += '</div>';
 
-  /* 가산세 */
+  /* 가산세 — 동일 패턴 (작년 데이터 회색 표시, 빨간 줄 X) */
   const currPenalties_2 = af.가산세 || af.penalties || [];
+  const prevPenalties = pf.가산세 || pf.penalties || [];
+  const currPenNamesSet = new Set(currPenalties_2.map(p => (p.name || p.종류 || '').trim()).filter(Boolean));
   html += '<div style="font-size:.86em;margin-bottom:10px"><b>○ 가산세</b>';
   html += '<ul class="print-only" style="display:none;margin:4px 0 0 18px;padding:0">';
-  if (!currPenalties_2.length) html += '<li style="color:#9ca3af">없음</li>';
-  else currPenalties_2.forEach(p => {
+  const penListEmpty = !currPenalties_2.length && !prevPenalties.length;
+  if (penListEmpty) html += '<li style="color:#9ca3af">없음</li>';
+  currPenalties_2.forEach(p => {
     html += '<li>' + e(p.name || p.종류 || '') + ' ' + _filFormatNum(p.amount || p.금액 || 0) + '원</li>';
   });
+  if (prev) {
+    prevPenalties.forEach(p => {
+      const nm = (p.name || p.종류 || '').trim();
+      if (!nm || currPenNamesSet.has(nm)) return;
+      html += '<li style="color:#9ca3af">' + e(nm) + ' ' + _filFormatNum(p.amount || p.금액 || 0) + '원 <span style="font-size:.86em">(' + prev.fiscal_year + '년)</span></li>';
+    });
+  }
   html += '</ul>';
   html += '<div id="filPenaltyRows" class="no-print" style="margin-top:6px">';
   if (currPenalties_2.length === 0) html += _filRenderPenaltyRow({ name: '', amount: '' }, 0, readonly);
