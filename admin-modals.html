@@ -1679,7 +1679,7 @@
 .print-only { display: none; }
 
 @media print {
-  @page { size: A4 landscape; margin: 10mm; }
+  @page { size: A4 portrait; margin: 12mm; }
 
   /* filingDetailModal 만 보이게 — JS 가 인쇄 시 body 직속으로 이동.
    * 사장님 보고 fix: 부모 chain 의 mainAppView display:none 우회 */
@@ -1715,11 +1715,11 @@
   .keep-together { page-break-inside: avoid !important; }
   h2, h3, .filing-section-header { page-break-after: avoid !important; }
 
-  /* 좌우 2단 인쇄 시 그대로 유지 */
+  /* 사장님 명령 (2026-05-07): A4 세로 → 좌우 2단 폐기, 단일 컬럼 */
   .filing-2col {
-    display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 14mm !important;
-    page-break-inside: avoid !important;
+    display: block !important;
   }
+  .filing-2col > div { margin-bottom: 8px !important; }
 
   /* 별첨 = 강제 새 페이지 */
   .filing-attachment {
