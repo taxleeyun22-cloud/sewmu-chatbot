@@ -2234,20 +2234,27 @@ function renderBizDocCard(b){
   const idCard=b.docs.id_card;
   const bizReg=b.docs.biz_reg;
   const hometax=b.docs.hometax;
+  /* 사장님 명령 (2026-05-07): 각 서류에 '🔄 다시 요청' 버튼.
+   * 거래처 상담방에 자동 메시지 → 거래처가 카톡 알림 받고 마이페이지에서 다시 업로드. */
+  function reqBtn(docLabel){
+    return `<button onclick="_requestDocAgain('${e(docLabel)}')" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;padding:3px 8px;border-radius:6px;font-size:.7em;font-weight:600;cursor:pointer;font-family:inherit;margin-top:4px" title="거래처에게 다시 업로드 요청">🔄 다시 요청</button>`;
+  }
   function imgCell(label, info, url){
     if(info.uploaded){
       const fullUrl=url+keyq;
       return `<div style="flex:1;min-width:150px">
-        <div style="font-size:.78em;font-weight:700;color:#065f46;margin-bottom:4px">✅ ${label}</div>
+        <div style="font-size:.78em;font-weight:700;color:#065f46;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;gap:6px"><span>✅ ${label}</span></div>
         <div style="position:relative;aspect-ratio:1/1;max-width:160px;background:#f3f4f6;border-radius:8px;overflow:hidden;cursor:zoom-in" onclick="openImgViewer('${fullUrl}',['${fullUrl}'])">
           <img src="${fullUrl}" alt="${label}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.display='none';this.parentNode.innerHTML+='<div style=&quot;padding:20px;text-align:center;color:#8b95a1;font-size:.8em&quot;>PDF 또는 미리보기 불가<br><a href=&quot;${fullUrl}&quot; target=_blank style=&quot;color:#3182f6&quot;>열기</a></div>'">
         </div>
         <div style="font-size:.7em;color:#8b95a1;margin-top:3px">업로드: ${e(info.at||'-')}</div>
+        ${reqBtn(label)}
       </div>`;
     }
     return `<div style="flex:1;min-width:150px">
       <div style="font-size:.78em;font-weight:700;color:#991b1b;margin-bottom:4px">⚠️ ${label}</div>
       <div style="aspect-ratio:1/1;max-width:160px;background:#fef2f2;border:1px dashed #fca5a5;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#991b1b;font-size:.8em">미등록</div>
+      ${reqBtn(label)}
     </div>`;
   }
   return `<div style="border:1px solid #e5e8eb;border-radius:12px;padding:14px;margin-bottom:14px;background:#fafafa">
@@ -2258,12 +2265,35 @@ function renderBizDocCard(b){
       ${imgCell('📋 사업자등록증', bizReg, bizReg.image_url||'')}
     </div>
     <div style="padding:10px 12px;background:#fff;border:1px solid #e5e8eb;border-radius:8px">
-      <div style="font-size:.78em;color:#8b95a1;margin-bottom:3px">🏛️ 홈택스 ID</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:6px">
+        <div style="font-size:.78em;color:#8b95a1">🏛️ 홈택스 ID</div>
+        ${reqBtn('🏛️ 홈택스 ID')}
+      </div>
       <div style="font-weight:600;font-size:.92em">${hometax.saved?e(hometax.hometax_id):'<span style="color:#991b1b">미등록</span>'}</div>
       ${hometax.saved&&hometax.at?'<div style="font-size:.7em;color:#8b95a1;margin-top:2px">업데이트: '+e(hometax.at)+'</div>':''}
       <div style="font-size:.7em;color:#8b95a1;margin-top:6px">※ 비밀번호는 앱에 저장되지 않습니다. 거래처에게 별도 전달 요청.</div>
     </div>
   </div>`;
+}
+
+/* 사장님 명령 (2026-05-07): 거래처에게 서류 다시 업로드 요청.
+ * - bizDocsModal 의 docsSelectedUserId 사용
+ * - /api/admin-doc-request → 그 거래처 상담방에 관리자 메시지 자동 전송 */
+async function _requestDocAgain(docLabel){
+  if(typeof docsSelectedUserId==='undefined' || !docsSelectedUserId){alert('거래처 ID 없음');return}
+  const note=prompt('['+docLabel+'] 다시 업로드 요청 메시지 (선택사항 — 추가 코멘트):', '');
+  if(note===null) return;  /* 취소 */
+  try{
+    const r=await fetch('/api/admin-doc-request?key='+encodeURIComponent(KEY),{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:docsSelectedUserId, doc_label:docLabel, note:note}),
+    });
+    const d=await r.json();
+    if(!d.ok){alert('요청 실패: '+(d.error||'unknown'));return}
+    if(typeof showAdminToast==='function') showAdminToast('✅ 요청 메시지 전송됨 — 상담방 ' + (d.room_name||d.room_id));
+    else alert('✅ 요청 메시지 전송됨\n상담방: '+(d.room_name||d.room_id));
+  }catch(err){alert('오류: '+err.message)}
 }
 
 /* ===== 거래처 재무 데이터 (매출/매입/세금) ===== */
