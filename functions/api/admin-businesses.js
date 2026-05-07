@@ -209,6 +209,31 @@ export async function onRequestPost(context) {
     return await addBusinessToUser(db, body);
   }
 
+  /* 사장님 명령 (2026-05-07): 거래처 ↔ 사업장 매핑 해제.
+   * "연결된사업장 해제도 있어야될거같은데. 폐업했다던지 사유 발생 가능".
+   * - business_members.removed_at 처리만 (사업장 자체는 유지)
+   * - 사업장 폐업·삭제는 별도 액션 (action=delete) */
+  if (action === 'unlink_user') {
+    const userId = Number(body.user_id || 0);
+    const bizId = Number(body.business_id || 0);
+    if (!userId || !bizId) {
+      return Response.json({ ok: false, error: 'user_id / business_id 필요' }, { status: 400 });
+    }
+    try {
+      const now = kst();
+      const r = await db.prepare(
+        `UPDATE business_members SET removed_at = ? WHERE user_id = ? AND business_id = ? AND (removed_at IS NULL OR removed_at = '')`
+      ).bind(now, userId, bizId).run();
+      const changes = r?.meta?.changes || 0;
+      if (!changes) {
+        return Response.json({ ok: false, error: '활성 매핑이 없습니다 (이미 해제됨)' }, { status: 404 });
+      }
+      return Response.json({ ok: true, unlinked: changes, user_id: userId, business_id: bizId });
+    } catch (e) {
+      return Response.json({ ok: false, error: e.message }, { status: 500 });
+    }
+  }
+
 
 
   const name = String(body.company_name || '').trim().slice(0, 120);

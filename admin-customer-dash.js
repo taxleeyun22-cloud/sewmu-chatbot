@@ -187,6 +187,8 @@ async function openCustomerDashboard(userId, opts){
             +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:4px 12px;color:#374151">'+kvs+'</div>'
             +'<div style="display:flex;align-items:center;gap:6px;margin-top:9px;padding-top:8px;border-top:1px dashed #e5e8eb">'
               +'<div style="flex:1;font-size:.74em;color:#555">📑 신분증 '+idC+' · 사등 '+bz+' · 홈택스 '+ht+'</div>'
+              /* 사장님 명령 (2026-05-07): "연결된사업장 해제도 있어야될거같은데. 폐업했다던지 사유 발생 가능". */
+              +'<button onclick="unlinkCustomerBusiness('+_cdCurrentUserId+','+b.id+',\''+escAttr(b.company_name||'사업장 #'+b.id)+'\')" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit;font-weight:600;margin-right:4px" title="이 거래처와 사업장 매핑만 해제 (사업장 자체는 유지)">🔗 매핑 해제</button>'
               +'<button onclick="closeCustomerDashboard&&closeCustomerDashboard();setTimeout(function(){openBusinessDashboard('+b.id+')},150)" style="background:#eef2ff;color:#3730a3;border:none;padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit;font-weight:600">🏢 업체로 →</button>'
             +'</div>'
           +'</div>';
@@ -231,6 +233,27 @@ async function openCustomerDashboard(userId, opts){
     $g('cdName').textContent='오류';
     $g('cdBasic').innerHTML='<div style="color:#f04452">로드 실패: '+e(err.message)+'</div>';
   }
+}
+
+/* 사장님 명령 (2026-05-07): 거래처 ↔ 사업장 매핑 해제.
+ * 폐업 / 거래처가 그 사업장 떠나는 경우 등.
+ * - business_members.removed_at 처리 (사업장 자체는 유지 — 다른 매핑 가능)
+ * - 사업장 자체 폐업은 사업장 dashboard 의 별도 액션 (status=closed) */
+async function unlinkCustomerBusiness(userId, bizId, bizName){
+  if(!userId || !bizId){ alert('잘못된 호출'); return; }
+  const ok = confirm('🔗 매핑 해제\n\n거래처와 사업장 [' + bizName + '] 의 연결을 해제할까요?\n\n• 사업장 자체는 유지됩니다 (다른 거래처 매핑 가능).\n• 사업장 폐업 처리는 사업장 dashboard 에서 별도 가능.\n\n해제하시겠습니까?');
+  if(!ok) return;
+  try{
+    const r = await fetch('/api/admin-businesses?action=unlink_user&key=' + encodeURIComponent(KEY), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, business_id: bizId }),
+    });
+    const d = await r.json();
+    if(!d.ok){ alert('해제 실패: ' + (d.error || 'unknown')); return; }
+    /* dashboard 새로고침 */
+    if(typeof openCustomerDashboard === 'function') openCustomerDashboard(userId);
+  }catch(err){ alert('오류: ' + err.message); }
 }
 
 /* 거래처 통합 자동 요약 — admin-customer-summary?cache_only=1 */
