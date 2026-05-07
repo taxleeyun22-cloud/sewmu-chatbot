@@ -965,6 +965,8 @@ function _updateMyTodosBadge(){
 }
 /* 초기 로드 — 헤더 뱃지 표시용 조용히 한 번 조회 */
 async function _silentLoadMyTodos(){
+  /* fix (2026-05-07): KEY race condition — 로그인 전 호출 시 401 콘솔 에러. */
+  if(!KEY) return;
   try{
     const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my');
     const d=await r.json();
@@ -3078,6 +3080,8 @@ async function cancelScheduled(id){
 /* 예약 발송 트리거: 주기적으로 서버에 '만료된 것 실행' 요청.
    Cloudflare Pages 자체 cron 미지원 이슈 회피 — 관리자가 열어둔 동안 클라이언트가 cron 역할 */
 async function runDueSchedules(){
+  /* fix (2026-05-07): KEY 설정 전 호출 → 401 race condition. KEY 없으면 skip. */
+  if(!KEY) return;
   try{
     const r=await fetch('/api/admin-schedule?key='+encodeURIComponent(KEY)+'&action=run_due',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
     const d=await r.json();
@@ -3168,6 +3172,8 @@ async function _legacyBusinessTabRemoved(){
 
 /* ===== 🚫 거래 종료 요청 큐 (owner 전용 승인 플로우) ===== */
 async function _refreshTermReqBadge(){
+  /* fix (2026-05-07): KEY race condition — 로그인 전 호출 시 401 콘솔 에러. */
+  if(!KEY) return;
   try{
     const r=await fetch('/api/admin-termination-requests?key='+encodeURIComponent(KEY)+'&status=pending');
     const d=await r.json();
