@@ -220,16 +220,13 @@ async function _filFetchOwnerData(f) {
     try {
       const bizR = await fetch('/api/admin-businesses?key=' + encodeURIComponent(_filGetKey()) + '&user_id=' + f.owner_id);
       const bizD = await bizR.json();
-      let allBiz = (bizD.businesses || []).filter(b => b.status !== 'closed');
-      let includedIds = [];
-      if (f.included_business_ids) {
-        try { includedIds = JSON.parse(f.included_business_ids) || []; } catch {}
-      }
-      if (includedIds.length) {
-        const inSet = new Set(includedIds);
-        allBiz = allBiz.filter(b => inSet.has(b.id));
-      }
+      const allBiz = (bizD.businesses || []).filter(b => b.status !== 'closed' && (!b.deleted_at || b.deleted_at === ''));
+      /* 사장님 보고 fix (2026-05-07): "사업체 3개 연결했는데 1개만 뜬다".
+       * 원인: 새 Case 만들 때 일부 체크 → included_business_ids 에 [1] 만 저장 → filter 1개만 보임.
+       * 해결: filter 폐기 — 종소세는 사람 단위 신고 → 모든 매핑 사업체 표시. */
       f._businesses = allBiz;
+      /* 참고용 — 어느 사업체가 included_business_ids 에 있는지 (★ 표시 등 활용 가능) */
+      try { f._includedBizIds = JSON.parse(f.included_business_ids || '[]'); } catch { f._includedBizIds = []; }
     } catch {}
   } else if (f.owner_type === 'Business') {
     try {
