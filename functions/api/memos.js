@@ -535,7 +535,7 @@ export async function onRequestPost(context) {
    * target_user_id / target_business_id / room_id 와 별개로 관계 인덱스 자동 set. */
   let attachedToType = body.attached_to_type || null;
   let attachedToId = Number(body.attached_to_id || 0) || null;
-  /* 추론: body 안 attached_to 명시 X 면 target_*/room 으로 추론 */
+  /* 추론: body 안 attached_to 명시 X 면 target / room 으로 추론 */
   if (!attachedToType) {
     if (filingType === 'Filing' && filingPeriod) {
       /* 호환: filing_type='Filing' + filing_period=Filing.id */
