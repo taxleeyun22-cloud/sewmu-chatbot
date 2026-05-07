@@ -30,10 +30,11 @@ if(n>0){b.textContent=n;b.style.display='inline-block'}else{b.style.display='non
 
 function userStatus(s){
 currentStatus=s;
-['Pending','Client','Guest','Rejected','Terminated','Admin'].forEach(k=>{
+/* 사장님 명령 (2026-05-07): Withdrawn 탭 추가 */
+['Pending','Client','Guest','Rejected','Terminated','Withdrawn','Admin'].forEach(k=>{
 const el=$g('uSt'+k);if(!el)return;
 const active=('uSt'+k).toLowerCase().indexOf(s.replace('approved_','').toLowerCase())>=0;
-el.style.background=active?(s==='rejected'?'#8b95a1':s==='terminated'?'#6b7280':s==='pending'?'#f04452':s==='admin'?'#b45309':'#3182f6'):'#e5e8eb';
+el.style.background=active?(s==='rejected'?'#8b95a1':s==='terminated'?'#6b7280':s==='withdrawn'?'#7c3aed':s==='pending'?'#f04452':s==='admin'?'#b45309':'#3182f6'):'#e5e8eb';
 el.style.color=active?'#fff':'#8b95a1';
 /* .on 클래스 동기화 — admin.html 의 html.embedded CSS 가 .on 으로 색상 결정 (!important).
    inline style 만 바꾸면 embedded 모드에서 색깔 안 바뀌는 버그 — 사장님 보고 (2026-04-29).
@@ -55,6 +56,7 @@ $g('cClient').textContent=d.counts.approved_client||0;
 $g('cGuest').textContent=d.counts.approved_guest||0;
 $g('cRejected').textContent=d.counts.rejected||0;
 if($g('cTerminated'))$g('cTerminated').textContent=d.counts.terminated||0;
+if($g('cWithdrawn'))$g('cWithdrawn').textContent=d.counts.withdrawn||0;
 if($g('cAdmin'))$g('cAdmin').textContent=d.counts.admin||0;
 }
 if(!d.users||d.users.length===0){el.innerHTML='<div class="empty">해당 상태의 사용자가 없습니다</div>';return}

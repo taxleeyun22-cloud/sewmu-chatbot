@@ -6,7 +6,7 @@
 //    - 기존 사용자 호환을 위해 status 자체는 유지 (DB 변경 X)
 //    - 신규 승인 흐름에서 'approve_guest' action 호출 X (admin/staff/office UI 에서 버튼 제거됨)
 //    - chat.js getDailyLimit 에서 approved_guest 도 5건/일 (pending 동일) 으로 호환 유지
-const APPROVAL_STATUSES = ['pending', 'approved_client', 'approved_guest', 'rejected', 'terminated'];
+const APPROVAL_STATUSES = ['pending', 'approved_client', 'approved_guest', 'rejected', 'terminated', 'withdrawn'];
 
 import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
 
