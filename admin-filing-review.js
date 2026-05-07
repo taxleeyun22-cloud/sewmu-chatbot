@@ -631,19 +631,15 @@ function _filRenderOwnerInfoSync(f) {
     const formShort = /법인/.test(form) ? '법인' : (/개인/.test(form) ? '개인' : (/간이/.test(form) ? '간이' : ''));
     const bn = b.business_number || '';
     const bnFmt = bn && bn.length === 10 ? bn.slice(0,3)+'-'+bn.slice(3,5)+'-'+bn.slice(5) : bn;
-    /* 사장님 명령 (2026-05-07): closed 사업체도 표시 + 폐업 라벨 (이재윤 case) */
-    const isClosed = b.status === 'closed';
-    const closedBadge = isClosed ? ' <span style="color:#dc2626;font-size:.86em;font-weight:700">(폐업)</span>' : '';
-    const rowStyle = isClosed ? 'color:#9ca3af;' : '';
-    return '<span style="' + rowStyle + '">'
-      + (isPrimary ? '★ ' : '  ') + '🏢 <b>' + _filEsc(b.company_name || '#' + b.id) + '</b>'
-      + closedBadge
+    /* 사장님 지적 (2026-05-07): "폐업한지 안한지 니가 어떻게 아는데?".
+     * status='closed' 만 보고 "폐업" 단정 X — 거래 종료 / 매핑 해제 등 다른 사유 가능.
+     * 모든 사업체 동일 표시 (회색·(폐업) 라벨 폐기). */
+    return (isPrimary ? '★ ' : '  ') + '🏢 <b>' + _filEsc(b.company_name || '#' + b.id) + '</b>'
       + (formShort ? ' <span style="color:#6b7280">(' + formShort + ')</span>' : '')
       + (bnFmt ? ' · 사업자 ' + _filEsc(bnFmt) : '')
       + (b.ceo_name ? ' · 대표 ' + _filEsc(b.ceo_name) : '')
       + (b.establishment_date ? ' · 개업 ' + _filEsc(b.establishment_date.slice(0, 10)) : '')
-      + (b.address ? '<div style="margin-left:18px;color:#6b7280;font-size:.92em">' + _filEsc(b.address) + '</div>' : '')
-      + '</span>';
+      + (b.address ? '<div style="margin-left:18px;color:#6b7280;font-size:.92em">' + _filEsc(b.address) + '</div>' : '');
   };
   let html = '';
   if (f.owner_type === 'Person' && f._ownerName) {
