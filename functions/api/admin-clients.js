@@ -87,14 +87,32 @@ export async function onRequestPost(context) {
   try { await db.prepare(`ALTER TABLE users ADD COLUMN birth_date TEXT`).run(); } catch {}
 
   try {
-    /* users insert — provider_user_id 는 고유해야 하므로 timestamp 로 생성 */
+    /* users insert — provider_user_id 는 고유해야 하므로 timestamp 로 생성.
+     * fix (2026-05-07 사장님 보고): D1_ERROR NOT NULL constraint users.provider_id —
+     * legacy 스키마의 provider_id 컬럼 NOT NULL → provider_user_id 와 같은 값 INSERT */
     const pseudoExternalId = 'admin_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-    const r = await db.prepare(
-      `INSERT INTO users (provider, provider_user_id, name, real_name, phone, birth_date,
-                          approval_status, approved_at, approved_by, name_confirmed,
-                          created_at, last_login_at)
-       VALUES ('admin_created', ?, ?, ?, ?, ?, 'approved_client', ?, 'admin', 1, ?, NULL)`
-    ).bind(pseudoExternalId, displayName || realName, realName, phone || null, birthDate, now, now).run();
+    /* legacy provider_id 컬럼 존재 여부 확인 (NOT NULL constraint 회피) */
+    let hasProviderIdCol = false;
+    try {
+      const info = await db.prepare(`PRAGMA table_info(users)`).all();
+      hasProviderIdCol = (info?.results || []).some(c => c.name === 'provider_id');
+    } catch {}
+    let r;
+    if (hasProviderIdCol) {
+      r = await db.prepare(
+        `INSERT INTO users (provider, provider_id, provider_user_id, name, real_name, phone, birth_date,
+                            approval_status, approved_at, approved_by, name_confirmed,
+                            created_at, last_login_at)
+         VALUES ('admin_created', ?, ?, ?, ?, ?, ?, 'approved_client', ?, 'admin', 1, ?, NULL)`
+      ).bind(pseudoExternalId, pseudoExternalId, displayName || realName, realName, phone || null, birthDate, now, now).run();
+    } else {
+      r = await db.prepare(
+        `INSERT INTO users (provider, provider_user_id, name, real_name, phone, birth_date,
+                            approval_status, approved_at, approved_by, name_confirmed,
+                            created_at, last_login_at)
+         VALUES ('admin_created', ?, ?, ?, ?, ?, 'approved_client', ?, 'admin', 1, ?, NULL)`
+      ).bind(pseudoExternalId, displayName || realName, realName, phone || null, birthDate, now, now).run();
+    }
     const userId = r.meta?.last_row_id;
     if (!userId) return Response.json({ error: "user insert failed" }, { status: 500 });
 

@@ -338,12 +338,25 @@ export async function onRequestPost(context) {
             : null;
           if (repName) {
             const pseudoExt = 'admin_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-            const userR = await db.prepare(
-              `INSERT INTO users (provider, provider_user_id, name, real_name, phone, birth_date,
-                                  approval_status, approved_at, approved_by, name_confirmed,
-                                  created_at, last_login_at)
-               VALUES ('admin_created', ?, ?, ?, ?, ?, 'approved_client', ?, 'admin', 1, ?, NULL)`
-            ).bind(pseudoExt, repName, repName, repPhone || null, repBirth, now, now).run();
+            /* fix (2026-05-07 사장님 보고): legacy 스키마의 provider_id 컬럼 NOT NULL 회피 */
+            let hasProviderIdCol = false;
+            try {
+              const info = await db.prepare(`PRAGMA table_info(users)`).all();
+              hasProviderIdCol = (info?.results || []).some(c => c.name === 'provider_id');
+            } catch {}
+            const userR = hasProviderIdCol
+              ? await db.prepare(
+                  `INSERT INTO users (provider, provider_id, provider_user_id, name, real_name, phone, birth_date,
+                                      approval_status, approved_at, approved_by, name_confirmed,
+                                      created_at, last_login_at)
+                   VALUES ('admin_created', ?, ?, ?, ?, ?, ?, 'approved_client', ?, 'admin', 1, ?, NULL)`
+                ).bind(pseudoExt, pseudoExt, repName, repName, repPhone || null, repBirth, now, now).run()
+              : await db.prepare(
+                  `INSERT INTO users (provider, provider_user_id, name, real_name, phone, birth_date,
+                                      approval_status, approved_at, approved_by, name_confirmed,
+                                      created_at, last_login_at)
+                   VALUES ('admin_created', ?, ?, ?, ?, ?, 'approved_client', ?, 'admin', 1, ?, NULL)`
+                ).bind(pseudoExt, repName, repName, repPhone || null, repBirth, now, now).run();
             const newUid = userR.meta?.last_row_id;
             if (newUid) {
               await db.prepare(
