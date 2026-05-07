@@ -69,7 +69,7 @@ if ('serviceWorker' in navigator) {
     <div class="avatar" id="sbAvatar">이</div>
     <div class="who">
       <div class="nm" id="sbName">이재윤</div>
-      <div class="role" id="sbRole">세무사</div>
+      <div class="role" id="sbRole">세무사 <span id="admin-role-badge-inline" style="margin-left:4px"></span></div>
     </div>
     <button class="gear" type="button" title="로그아웃" onclick="logout()">⏻</button>
   </div>
@@ -304,6 +304,10 @@ setTimeout(function(){
   tryHook();
 })();
 </script>
+
+<!-- Phase #2 적용 (2026-05-07): React entry — admin-role-badge-inline 등 mount points 자동 처리.
+     classic script 끝난 후 로드 (defer 효과). 사장님 admin.html 전체 로드 후 React 컴포넌트 렌더. -->
+<script type="module" src="/assets/react.js?v=1"></script>
 
 </body>
 </html>

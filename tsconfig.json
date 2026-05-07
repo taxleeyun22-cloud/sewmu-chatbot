@@ -19,6 +19,7 @@
     "verbatimModuleSyntax": false,
     "allowJs": false,
     "noEmit": true,
+    "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
