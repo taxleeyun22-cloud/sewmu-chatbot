@@ -78,6 +78,19 @@ export async function onRequestGet(context) {
     try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_at TEXT`).run(); } catch {}
     /* 사장님 명령 (2026-05-07): birth_date 컬럼 보장 + 응답 포함 */
     try { await db.prepare(`ALTER TABLE users ADD COLUMN birth_date TEXT`).run(); } catch {}
+    /* 사장님 명령 (2026-05-07): user_merges 테이블 보장 + active_merge_id JOIN
+     * → row 별 '🔀 분리' 버튼 조건부 표시 */
+    try { await db.prepare(`CREATE TABLE IF NOT EXISTS user_merges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      manual_user_id INTEGER NOT NULL,
+      kakao_user_id INTEGER NOT NULL,
+      kakao_snapshot TEXT,
+      manual_snapshot TEXT,
+      merged_at TEXT,
+      merged_by_admin TEXT,
+      unmerged_at TEXT,
+      unmerged_by_admin TEXT
+    )`).run(); } catch {}
     let query = `
       SELECT u.id, u.provider, u.name, u.real_name, u.email, u.phone, u.profile_image,
              u.approval_status, u.approved_at, u.created_at, u.last_login_at, u.name_confirmed, u.is_admin,
@@ -88,7 +101,10 @@ export async function onRequestGet(context) {
               ORDER BY is_primary DESC, id ASC LIMIT 1) AS company_name,
              (SELECT ceo_name FROM client_businesses
               WHERE user_id = u.id
-              ORDER BY is_primary DESC, id ASC LIMIT 1) AS ceo_name
+              ORDER BY is_primary DESC, id ASC LIMIT 1) AS ceo_name,
+             (SELECT id FROM user_merges
+              WHERE manual_user_id = u.id AND (unmerged_at IS NULL OR unmerged_at = '')
+              ORDER BY merged_at DESC LIMIT 1) AS active_merge_id
       FROM users u
     `;
     const binds = [];
