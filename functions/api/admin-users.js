@@ -270,5 +270,94 @@ export async function onRequestPost(context) {
     }
   }
 
+  /* Phase (2026-05-07 사장님 명령 정정): 진짜 merge — 카카오 가입자와 수동 user 합치기.
+   * action=merge_users { kakao_user_id, manual_user_id }
+   * 결과: manual_user 가 살아남음. kakao_user 의 카카오 정보 (provider/provider_user_id/profile_image)
+   * 를 manual_user 에 흡수 + kakao_user 는 deleted_at = now (archive).
+   * 모든 매핑·메모·메시지·등 → manual_user 로 이전.
+   * - admin-users.js onRequestPost owner 가드 통과 후 (전체 함수 owner only) */
+  if (action === "merge_users") {
+    const kakaoUid = Number(body.kakao_user_id);
+    const manualUid = Number(body.manual_user_id);
+    if (!kakaoUid || !manualUid) return Response.json({ error: "kakao_user_id/manual_user_id required" }, { status: 400 });
+    if (kakaoUid === manualUid) return Response.json({ error: "same user" }, { status: 400 });
+    try {
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN provider TEXT`).run(); } catch {}
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN provider_user_id TEXT`).run(); } catch {}
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN profile_image TEXT`).run(); } catch {}
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN deleted_at TEXT`).run(); } catch {}
+
+      const kakao = await db.prepare(`SELECT id, provider, provider_user_id, name, profile_image, email, phone FROM users WHERE id = ?`).bind(kakaoUid).first();
+      const manual = await db.prepare(`SELECT id, real_name FROM users WHERE id = ?`).bind(manualUid).first();
+      if (!kakao || !manual) return Response.json({ error: "user not found" }, { status: 404 });
+
+      const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+      const stats = { mappings: 0, memos: 0, conversations: 0, room_members: 0, documents: 0 };
+
+      /* 1. 카카오 정보 → manual user 흡수 */
+      await db.prepare(`
+        UPDATE users SET
+          provider = ?,
+          provider_user_id = ?,
+          profile_image = COALESCE(?, profile_image),
+          name = COALESCE(?, name),
+          email = COALESCE(?, email),
+          phone = COALESCE(phone, ?),
+          name_confirmed = 1,
+          approval_status = 'approved_client',
+          approved_at = COALESCE(approved_at, ?),
+          last_login_at = ?
+        WHERE id = ?
+      `).bind(
+        kakao.provider, kakao.provider_user_id, kakao.profile_image,
+        kakao.name, kakao.email, kakao.phone, now, now, manualUid
+      ).run();
+
+      /* 2. 매핑 / 데이터 이전 — kakao_user_id → manual_user_id */
+      try {
+        const r1 = await db.prepare(`UPDATE business_members SET user_id = ? WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`).bind(manualUid, kakaoUid).run();
+        stats.mappings = r1?.meta?.changes || 0;
+      } catch {}
+      try {
+        const r2 = await db.prepare(`UPDATE memos SET target_user_id = ? WHERE target_user_id = ?`).bind(manualUid, kakaoUid).run();
+        stats.memos += r2?.meta?.changes || 0;
+      } catch {}
+      try {
+        const r3 = await db.prepare(`UPDATE memos SET author_user_id = ? WHERE author_user_id = ?`).bind(manualUid, kakaoUid).run();
+        stats.memos += r3?.meta?.changes || 0;
+      } catch {}
+      try {
+        const r4 = await db.prepare(`UPDATE conversations SET user_id = ? WHERE user_id = ?`).bind(manualUid, kakaoUid).run();
+        stats.conversations = r4?.meta?.changes || 0;
+      } catch {}
+      try {
+        const r5 = await db.prepare(`UPDATE room_members SET user_id = ? WHERE user_id = ? AND (left_at IS NULL OR left_at = '')`).bind(manualUid, kakaoUid).run();
+        stats.room_members = r5?.meta?.changes || 0;
+      } catch {}
+      try {
+        const r6 = await db.prepare(`UPDATE documents SET user_id = ? WHERE user_id = ?`).bind(manualUid, kakaoUid).run();
+        stats.documents = r6?.meta?.changes || 0;
+      } catch {}
+      /* daily_usage / sessions / 기타 작은 테이블도 — fail silent */
+      try { await db.prepare(`UPDATE daily_usage SET user_id = ? WHERE user_id = ?`).bind(manualUid, kakaoUid).run(); } catch {}
+      try { await db.prepare(`UPDATE sessions SET user_id = ? WHERE user_id = ?`).bind(manualUid, kakaoUid).run(); } catch {}
+      try { await db.prepare(`UPDATE business_documents SET user_id = ? WHERE user_id = ?`).bind(manualUid, kakaoUid).run(); } catch {}
+
+      /* 3. kakao user archive */
+      await db.prepare(`UPDATE users SET deleted_at = ?, approval_status = 'merged', provider = 'merged', provider_user_id = NULL WHERE id = ?`)
+        .bind(now, kakaoUid).run();
+
+      return Response.json({
+        ok: true,
+        survived_user_id: manualUid,
+        archived_user_id: kakaoUid,
+        survived_real_name: manual.real_name,
+        moved: stats,
+      });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   return Response.json({ error: "unknown action" }, { status: 400 });
 }

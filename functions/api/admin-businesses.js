@@ -209,6 +209,70 @@ export async function onRequestPost(context) {
     return await addBusinessToUser(db, body);
   }
 
+  /* Phase (2026-05-07 사장님 명령): 옛 업체 (ceo_name 있지만 user 매핑 0) 일괄 대표자 자동 생성.
+   * action=migrate_missing_ceo_users — 사장님이 1회 클릭 → 모든 업체 처리.
+   * owner only. */
+  if (action === 'migrate_missing_ceo_users') {
+    if (!auth.owner) return Response.json({ error: 'owner only' }, { status: 403 });
+    try {
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN provider TEXT`).run(); } catch {}
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN provider_user_id TEXT`).run(); } catch {}
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN real_name TEXT`).run(); } catch {}
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN birth_date TEXT`).run(); } catch {}
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN deleted_at TEXT`).run(); } catch {}
+      try { await db.prepare(`ALTER TABLE businesses ADD COLUMN deleted_at TEXT`).run(); } catch {}
+      try { await db.prepare(`CREATE TABLE IF NOT EXISTS business_members (id INTEGER PRIMARY KEY AUTOINCREMENT, business_id INTEGER, user_id INTEGER, role TEXT, is_primary INTEGER DEFAULT 0, added_at TEXT, removed_at TEXT)`).run(); } catch {}
+      const now = kst();
+      /* 매핑 user 가 0개인 업체 + ceo_name 있음 */
+      const { results: targets } = await db.prepare(`
+        SELECT b.id, b.company_name, b.ceo_name, b.phone
+        FROM businesses b
+        WHERE b.ceo_name IS NOT NULL AND TRIM(b.ceo_name) != ''
+          AND (b.deleted_at IS NULL OR b.deleted_at = '')
+          AND NOT EXISTS (
+            SELECT 1 FROM business_members bm
+            WHERE bm.business_id = b.id AND (bm.removed_at IS NULL OR bm.removed_at = '')
+          )
+      `).all();
+      let created = 0, skipped = 0, errors = 0;
+      const summary = [];
+      for (const biz of (targets || [])) {
+        try {
+          const ceoName = String(biz.ceo_name || '').trim();
+          if (!ceoName) { skipped++; continue; }
+          /* 같은 이름의 user 있으면 매핑만 (중복 user INSERT X) */
+          let userId = null;
+          const dup = await db.prepare(`SELECT id FROM users WHERE real_name = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`).bind(ceoName).first();
+          if (dup) {
+            userId = dup.id;
+          } else {
+            /* 신규 INSERT */
+            const pseudoExt = 'admin_migrate_' + Date.now() + '_' + biz.id;
+            const r = await db.prepare(
+              `INSERT INTO users (provider, provider_user_id, name, real_name, phone,
+                                  approval_status, approved_at, approved_by, name_confirmed,
+                                  created_at, last_login_at)
+               VALUES ('admin_created', ?, ?, ?, ?, 'approved_client', ?, 'admin_migrate', 1, ?, NULL)`
+            ).bind(pseudoExt, ceoName, ceoName, biz.phone || null, now, now).run();
+            userId = r.meta?.last_row_id;
+            if (userId) created++;
+          }
+          if (userId) {
+            await db.prepare(
+              `INSERT INTO business_members (business_id, user_id, role, is_primary, added_at) VALUES (?, ?, '대표자', 1, ?)`
+            ).bind(biz.id, userId, now).run();
+            summary.push({ business_id: biz.id, company: biz.company_name, ceo: ceoName, user_id: userId });
+          }
+        } catch (e) {
+          errors++;
+        }
+      }
+      return Response.json({ ok: true, processed: (targets || []).length, created, skipped, errors, summary });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   const name = String(body.company_name || '').trim().slice(0, 120);
   if (!name) return Response.json({ ok: false, error: 'company_name 필요' }, { status: 400 });
   const bn = normBiz(body.business_number);

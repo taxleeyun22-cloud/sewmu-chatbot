@@ -276,9 +276,31 @@ async function _apbLoadSimilarUsers(currentUserId, name, phone){
     list.innerHTML=candidates.map(u=>{
       const nm=u.real_name||u.name||'#'+u.id;
       const sub=[u.phone||'', u.email||'', 'ID #'+u.id].filter(Boolean).join(' · ');
-      return '<div onclick="_apbMergeMappings('+u.id+','+currentUserId+',\''+e(nm).replace(/\'/g,'')+'\')" style="padding:6px 10px;background:#fff;border:1px solid #fcd34d;border-radius:6px;margin-top:4px;cursor:pointer;display:flex;align-items:center;justify-content:space-between" onmouseover="this.style.background=\'#fef9c3\'" onmouseout="this.style.background=\'#fff\'"><div><b>'+e(nm)+'</b><div style="font-size:.72em;color:#92400e">'+e(sub)+'</div></div><span style="background:#f59e0b;color:#fff;font-size:.72em;font-weight:700;padding:3px 8px;border-radius:99px">→ 매핑 복사</span></div>';
+      /* Phase (사장님 명령 정정 2026-05-07): 두 옵션 제공 — 매핑만 복사 또는 진짜 합치기 */
+      return '<div style="padding:8px 10px;background:#fff;border:1px solid #fcd34d;border-radius:6px;margin-top:4px"><div style="margin-bottom:6px"><b>'+e(nm)+'</b><div style="font-size:.72em;color:#92400e">'+e(sub)+'</div></div><div style="display:flex;gap:6px"><button onclick="_apbMergeMappings('+u.id+','+currentUserId+',\''+e(nm).replace(/\'/g,'')+'\')" style="flex:1;background:#fff;color:#92400e;border:1px solid #f59e0b;font-size:.74em;font-weight:600;padding:5px 8px;border-radius:99px;cursor:pointer;font-family:inherit">📋 매핑만 복사</button><button onclick="_apbMergeUsers('+u.id+','+currentUserId+',\''+e(nm).replace(/\'/g,'')+'\')" style="flex:1;background:#dc2626;color:#fff;border:none;font-size:.74em;font-weight:700;padding:5px 8px;border-radius:99px;cursor:pointer;font-family:inherit" title="기존 user 가 살아남고 카카오 user 흡수됨 (진짜 merge)">🔗 진짜 합치기</button></div></div>';
     }).join('');
   }catch(_){ /* silent */ }
+}
+
+/* 진짜 merge — 카카오 user 의 카카오 정보·매핑·메모·메시지·등 → 기존 수동 user 로 모두 이전.
+ * 카카오 user 는 deleted_at = now (archive). owner only. */
+async function _apbMergeUsers(manualUserId, kakaoUserId, manualName){
+  if(!IS_OWNER){alert('owner 권한이 필요합니다');return}
+  if(!confirm('⚠️ 진짜 합치기 (Merge)\n\n기존 사용자 "'+manualName+'" (#'+manualUserId+') 가 살아남고,\n카카오 가입자 (#'+kakaoUserId+') 의 카카오 로그인 정보·매핑·메모·메시지·등 모두 흡수됩니다.\n\n카카오 user 는 archive (사라짐).\n\n되돌릴 수 없음. 진행할까요?'))return;
+  if(!confirm('정말 합칠까요? (마지막 확인)\n\n결과: 카카오 로그인하면 #'+manualUserId+' 사용자로 자동 진입.'))return;
+  try{
+    const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=merge_users',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({manual_user_id:manualUserId, kakao_user_id:kakaoUserId}),
+    });
+    const d=await r.json();
+    if(!d.ok){alert('합치기 실패: '+(d.error||'unknown'));return}
+    alert('✅ 합치기 완료\n\n살아남은 user: #'+d.survived_user_id+' ('+d.survived_real_name+')\nArchive: #'+d.archived_user_id+'\n\n이전된 데이터:\n• 매핑 '+d.moved.mappings+'건\n• 메모 '+d.moved.memos+'건\n• 메시지 '+d.moved.conversations+'건\n• 방 멤버 '+d.moved.room_members+'건\n• 문서 '+d.moved.documents+'건');
+    /* 승인 모달 닫기 + 사용자 list 재로드 */
+    closeApproveBizModal();
+    if(typeof loadUsers==='function') loadUsers(currentStatus);
+  }catch(err){alert('오류: '+err.message)}
 }
 
 /* 매핑 복사 — 기존 user_id 의 business_members 들 → 카카오 user_id 에 복사 */

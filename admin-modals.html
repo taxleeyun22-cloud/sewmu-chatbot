@@ -85,6 +85,8 @@
   <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <input id="bizSearchInput" type="text" placeholder="🔍 업체명·사업자번호·대표자명 검색" oninput="onBizSearchInput()" style="flex:1;min-width:200px;padding:9px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;outline:none">
     <button onclick="openNewBusinessModal()" style="background:#10b981;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit">＋ 새 업체</button>
+    <!-- Phase (2026-05-07 사장님 명령): 옛 업체 (수동 등록 후 user 매핑 0인 거) 일괄 대표자 자동 생성. owner only. -->
+    <button id="migrateCeoBtn" onclick="migrateMissingCeoUsers()" style="background:#f59e0b;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit;display:none" title="구성원 0명 + 대표자 정보 있는 옛 업체에 대해 사용자 자동 생성 + 매핑">🚀 옛 업체 대표자 일괄 생성</button>
     <span id="bizCounts" style="font-size:.8em;color:#6b7280"></span>
   </div>
   <div id="bizList"></div>
