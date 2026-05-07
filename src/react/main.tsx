@@ -16,6 +16,7 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { AdminRoleBadge } from './components/AdminRoleBadge';
 import { CustomerFinanceChart } from './components/CustomerFinanceChart';
+import { CustomerInsightsCard } from './components/CustomerInsightsCard';
 
 /**
  * 특정 ID 의 element 안에 React 컴포넌트 mount.
@@ -55,6 +56,24 @@ function mountFinanceChartForUser(userId: number): void {
 }
 
 /**
+ * AI 인사이트 카드 mount — 거래처 dashboard 진입 시.
+ */
+function mountInsightsForUser(userId: number): void {
+  if (typeof document === 'undefined') return;
+  const elementId = 'cust-insights-card';
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const existing = _mountedRoots.get(elementId);
+  if (existing) {
+    if (existing.userId === userId) return;
+    existing.root.unmount();
+  }
+  const root = createRoot(el);
+  root.render(<StrictMode><CustomerInsightsCard userId={userId} /></StrictMode>);
+  _mountedRoots.set(elementId, { root, userId });
+}
+
+/**
  * DOMContentLoaded 후 자동 mount.
  */
 function bootstrap() {
@@ -82,7 +101,9 @@ declare global {
   interface Window {
     __reactMount?: typeof mountAt;
     __mountFinanceChart?: typeof mountFinanceChartForUser;
+    __mountInsights?: typeof mountInsightsForUser;
   }
 }
 window.__reactMount = mountAt;
 window.__mountFinanceChart = mountFinanceChartForUser;
+window.__mountInsights = mountInsightsForUser;

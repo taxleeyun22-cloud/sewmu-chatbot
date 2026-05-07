@@ -232,7 +232,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=16', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=17', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -246,7 +246,7 @@ setTimeout(function(){
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script src="/admin.js?v=169"></script>
 <script src="/admin-memos.js?v=13"></script>
-<script src="/admin-customer-dash.js?v=8"></script>
+<script src="/admin-customer-dash.js?v=9"></script>
 <script src="/admin-business-tab.js?v=2"></script>
 <script src="/admin-search-bulk.js?v=3"></script>
 <script src="/admin-rooms-list.js?v=6"></script>
@@ -307,7 +307,7 @@ setTimeout(function(){
 
 <!-- Phase #2 적용 (2026-05-07): React entry — admin-role-badge-inline 등 mount points 자동 처리.
      classic script 끝난 후 로드 (defer 효과). 사장님 admin.html 전체 로드 후 React 컴포넌트 렌더. -->
-<script type="module" src="/assets/react.js?v=2"></script>
+<script type="module" src="/assets/react.js?v=3"></script>
 
 </body>
 </html>

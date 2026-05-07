@@ -40,8 +40,9 @@ async function openCustomerDashboard(userId, opts){
   if(!userId)return;
   _cdCurrentUserId=userId;
   docsSelectedUserId=userId; /* 다른 모달과 컨텍스트 공유 */
-  /* Phase #2 React (2026-05-07): 매출 차트 자동 mount/re-mount */
+  /* Phase #2 React (2026-05-07): 매출 차트 + AI 인사이트 자동 mount/re-mount */
   try{ if(typeof window.__mountFinanceChart === 'function') window.__mountFinanceChart(Number(userId)); }catch(_){}
+  try{ if(typeof window.__mountInsights === 'function') window.__mountInsights(Number(userId)); }catch(_){}
   /* Phase #7 적용 (2026-05-06): SPA deep link — URL 에 cust=N 추가.
    * 사장님이 거래처 dashboard 본 후 다른 데 갔다가 뒤로가기 → 그 거래처 자동 복원.
    * popstate 호출 시 (opts.fromPopstate) 는 pushState skip — 무한 루프 방지. */
