@@ -919,6 +919,74 @@ async function _mergeWithdrawnUser(oldUserId, newUserId, oldName){
   }catch(err){alert('오류: '+err.message)}
 }
 
+/* 사장님 명령 (2026-05-07): 합치기 모달 — 사용자 row 의 [🔗 합치기] 클릭 시 진입.
+ * 살아남는 user (survivor) 는 클릭한 row 의 user. 흡수할 다른 user 검색·선택. */
+var _mergeSurvivorId=null;
+var _mergeSurvivorName='';
+var _mergeAllUsers=[];
+async function _openMergePicker(survivorId, survivorName){
+  if(typeof IS_OWNER!=='undefined' && !IS_OWNER){alert('owner 권한이 필요합니다');return}
+  _mergeSurvivorId=survivorId;
+  _mergeSurvivorName=survivorName||'#'+survivorId;
+  const m=$g('mergePickerModal'); if(!m) return;
+  $g('mergePickerSurvivor').innerHTML='✅ 살아남는 user: <b>'+e(_mergeSurvivorName)+'</b> (#'+survivorId+')';
+  $g('mergePickerSearch').value='';
+  m.style.display='flex';
+  m.style.alignItems='center';
+  m.style.justifyContent='center';
+  document.body.style.overflow='hidden';
+  /* 모든 active user fetch (모든 status, 자기 자신·관리자 제외) */
+  const list=$g('mergePickerList');
+  list.innerHTML='<div style="text-align:center;color:#8b95a1;padding:20px 0;font-size:.8em">불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=all');
+    const d=await r.json();
+    _mergeAllUsers=(d.users||[]).filter(u=>u.id!==survivorId && !u.is_admin);
+    _mergePickerFilter();
+  }catch(err){
+    list.innerHTML='<div style="color:#f04452;padding:12px;font-size:.8em">오류: '+e(err.message)+'</div>';
+  }
+  setTimeout(()=>$g('mergePickerSearch')?.focus(),60);
+}
+function closeMergePicker(){
+  const m=$g('mergePickerModal'); if(!m) return;
+  m.style.display='none';
+  document.body.style.overflow='';
+  _mergeSurvivorId=null;
+}
+function _mergePickerFilter(){
+  const list=$g('mergePickerList'); if(!list) return;
+  const q=($g('mergePickerSearch')?.value||'').trim().toLowerCase();
+  const filtered=q
+    ? _mergeAllUsers.filter(u=>((u.real_name||'')+' '+(u.name||'')+' '+(u.phone||'')).toLowerCase().indexOf(q)>=0)
+    : _mergeAllUsers;
+  if(!filtered.length){list.innerHTML='<div style="text-align:center;color:#8b95a1;padding:16px 0;font-size:.8em">'+(q?'검색 결과 없음':'사용자 없음')+'</div>';return}
+  list.innerHTML=filtered.slice(0,30).map(function(u){
+    const nm=u.real_name||u.name||'#'+u.id;
+    const sub=[u.phone||'', u.provider||'', 'ID #'+u.id, u.approval_status||''].filter(Boolean).join(' · ');
+    return '<div onclick="_mergePickerConfirm('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="padding:10px 12px;border-bottom:1px solid #f2f4f6;cursor:pointer;background:#fff" onmouseenter="this.style.background=\'#f0f9ff\'" onmouseleave="this.style.background=\'#fff\'">'
+      +'<div style="font-weight:600;font-size:.88em">👤 '+e(nm)+'</div>'
+      +'<div style="font-size:.72em;color:#6b7280">'+e(sub)+'</div>'
+      +'</div>';
+  }).join('');
+}
+async function _mergePickerConfirm(absorbedId, absorbedName){
+  if(!_mergeSurvivorId){alert('살아남는 user 없음');return}
+  if(!confirm('합치기 진행:\n\n• 살아남는 user: '+_mergeSurvivorName+' (#'+_mergeSurvivorId+')\n• 흡수: '+absorbedName+' (#'+absorbedId+') — archive\n\n흡수되는 user 의 카카오 OAuth 정보·매핑·메모·메시지·문서 모두 살아남는 user 로 이전.\n\n진행할까요?'))return;
+  try{
+    const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=merge_users',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({manual_user_id:_mergeSurvivorId, kakao_user_id:absorbedId}),
+    });
+    const d=await r.json();
+    if(!d.ok){alert('합치기 실패: '+(d.error||'unknown'));return}
+    alert('✅ 합치기 완료\n\n살아남은 user: #'+d.survived_user_id+' ('+d.survived_real_name+')\nArchive: #'+d.archived_user_id+'\n\n이전된 데이터:\n• 매핑 '+d.moved.mappings+'건\n• 메모 '+d.moved.memos+'건\n• 메시지 '+d.moved.conversations+'건\n• 방 멤버 '+d.moved.room_members+'건\n• 문서 '+d.moved.documents+'건\n\n잘못 합쳤으면 🔀 분리 버튼으로 복원 가능.');
+    closeMergePicker();
+    if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
+  }catch(err){alert('오류: '+err.message)}
+}
+
 /* 사장님 명령 (2026-05-07): 영구 삭제 — 사용자 list 에서 영원히 사라짐.
  * - approval_status='deleted' + deleted_at + provider_id 무효화
  * - 다시 카카오 로그인해도 새 user (pending) 생성됨 (옛 user 영원히 매칭 X) */
