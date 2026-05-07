@@ -245,7 +245,8 @@ async function openApproveWithBusiness(userId, displayName, phone, action, prefi
 function closeApproveBizModal(){
   const m=$g('approveBizModal');if(m)m.style.display='none';
   document.body.style.overflow='';
-  _apbUser=null;_apbSelectedBizId=null;
+  _apbUser=null;_apbSelectedBizId=null;_apbExistingRepUserId=null;
+  const repBox=$g('apbExistingRepBox'); if(repBox) repBox.style.display='none';
 }
 
 /* Phase P1 (2026-05-07 사장님 명령): 카카오 가입자 승인 시 비슷한 기존 사용자 추천.
@@ -379,9 +380,34 @@ function _apbFilterList(){
       +'</div>';
   }).join('');
 }
-function _apbPickBiz(bid){
+var _apbExistingRepUserId=null;  /* 선택한 업체의 기존 대표자 user_id (null=없음) */
+async function _apbPickBiz(bid){
   _apbSelectedBizId=bid;
+  _apbExistingRepUserId=null;
   _apbFilterList();
+  /* 사장님 명령 (2026-05-07): 업체 클릭 시 그 업체의 기존 대표자(수동 user) 자동 표시 +
+   * 카카오 가입자 = 같은 사람이면 merge 옵션 제공 */
+  const box=$g('apbExistingRepBox'); const info=$g('apbExistingRepInfo');
+  if(!box||!info) return;
+  box.style.display='none';
+  try{
+    const r=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY)+'&id='+bid);
+    const d=await r.json();
+    const members=(d.members||[]).filter(m=>!m.removed_at);
+    /* 대표자 = role='대표자' 또는 is_primary=1, 가장 처음 1명 */
+    const rep=members.find(m=>m.role==='대표자' || m.is_primary===1);
+    if(!rep || !rep.user_id) return;
+    /* 자기 자신(현재 카카오 user)이면 표시 X */
+    if(_apbUser && rep.user_id===_apbUser.id) return;
+    _apbExistingRepUserId=rep.user_id;
+    const nm=rep.real_name||rep.name||'#'+rep.user_id;
+    const sub=[rep.user_phone||'', 'ID #'+rep.user_id, rep.approval_status==='approved_client'?'⭐ 기장거래처':''].filter(Boolean).join(' · ');
+    info.innerHTML='<b>👤 '+e(nm)+'</b><br><span style="font-size:.74em;color:#92400e;font-weight:400">'+e(sub)+'</span>';
+    box.style.display='block';
+    /* default = merge (사장님 워크플로 가장 자주) */
+    const merge=document.querySelector('input[name=apbMatchMode][value=merge]');
+    if(merge) merge.checked=true;
+  }catch(_){ /* silent */ }
 }
 async function submitApproveWithBusiness(){
   if(!_apbUser)return;
@@ -449,7 +475,29 @@ async function submitApproveWithBusiness(){
       createdRoomId=d2.room_id||null;
     }
 
-    /* 3) 구성원 연결 */
+    /* 사장님 명령 (2026-05-07): 기존 업체 + 기존 대표자 = 같은 사람이면 merge 분기.
+     * - apbMatchMode='merge' + _apbExistingRepUserId 있으면 → merge_users 호출
+     *   · 살아남는 user = 기존 대표자 (manual_user_id)
+     *   · archive = 카카오 user (kakao_user_id = _apbUser.id)
+     *   · 카카오 정보 (provider, provider_user_id, profile_image, email) 가 manual user 로 이전
+     *   · 모든 매핑·메모·메시지·방 멤버·문서 manual user 로 이전
+     * - merge 후 → 추가 매핑·구성원 연결 skip (이미 매핑되어 있음) */
+    const matchMode=(document.querySelector('input[name=apbMatchMode]:checked')||{}).value||'separate';
+    if(mode==='existing' && _apbExistingRepUserId && matchMode==='merge'){
+      const rmerge=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=merge_users',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({manual_user_id:_apbExistingRepUserId, kakao_user_id:_apbUser.id}),
+      });
+      const dmerge=await rmerge.json();
+      if(!dmerge.ok){alert('합치기 실패: '+(dmerge.error||'unknown'));return}
+      alert('✅ 승인 + 합치기 완료\n\n살아남은 user: #'+dmerge.survived_user_id+' ('+dmerge.survived_real_name+')\nArchive: 카카오 user #'+dmerge.archived_user_id+'\n\n이전된 데이터:\n• 매핑 '+dmerge.moved.mappings+'건\n• 메모 '+dmerge.moved.memos+'건\n• 메시지 '+dmerge.moved.conversations+'건\n• 방 멤버 '+dmerge.moved.room_members+'건\n• 문서 '+dmerge.moved.documents+'건');
+      closeApproveBizModal();
+      if(typeof loadUsers==='function')loadUsers(currentStatus);
+      if(typeof refreshPendingBadge==='function')refreshPendingBadge();
+      return;
+    }
+    /* 3) 구성원 연결 (merge 안 한 케이스만) */
     const isPrimary=(role==='대표자')?1:0;
     const r3=await fetch('/api/admin-business-members?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({business_id:businessId, user_id:_apbUser.id, role:role, is_primary:isPrimary, phone:_apbUser.phone||null})});
     const d3=await r3.json();

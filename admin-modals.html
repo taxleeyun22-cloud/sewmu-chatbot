@@ -1283,6 +1283,20 @@
         <div id="apbList" style="max-height:160px;overflow-y:auto;border:1px solid #e5e8eb;border-radius:6px;background:#fff">
           <div style="text-align:center;color:#8b95a1;padding:20px 0;font-size:.8em">불러오는 중...</div>
         </div>
+        <!-- 사장님 명령 (2026-05-07): 업체 클릭 시 그 업체의 기존 대표자(수동 user) 표시 + merge 옵션.
+             '사용자에서 기장거래처 들어가있는 대표 개인이랑도 매칭해야지' -->
+        <div id="apbExistingRepBox" style="display:none;margin-top:10px;padding:10px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:6px">
+          <div style="font-size:.82em;font-weight:700;color:#92400e;margin-bottom:6px">⚠️ 이 업체에 이미 등록된 대표자</div>
+          <div id="apbExistingRepInfo" style="font-size:.85em;font-weight:600;color:#1f2937;margin-bottom:8px"></div>
+          <div style="font-size:.78em;color:#374151">
+            <label style="display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer">
+              <input type="radio" name="apbMatchMode" value="merge" checked> 🔗 같은 사람 — 기존 대표자와 합치기 (카카오 정보 흡수, 권장)
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer">
+              <input type="radio" name="apbMatchMode" value="separate"> 👥 다른 사람 — 별도 담당자로 추가
+            </label>
+          </div>
+        </div>
       </div>
       <label style="display:flex;align-items:center;gap:6px;font-size:.88em;padding:6px 0;cursor:pointer">
         <input type="radio" name="apbMode" value="new" onchange="_apbSwitchMode('new')"> 새 업체 생성

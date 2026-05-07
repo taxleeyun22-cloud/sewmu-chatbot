@@ -232,7 +232,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=25', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=26', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -252,7 +252,7 @@ setTimeout(function(){
 <script src="/admin-rooms-list.js?v=6"></script>
 <script src="/admin-rooms-msg.js?v=5"></script>
 <script src="/admin-rooms-misc.js?v=2"></script>
-<script src="/admin-users-tab.js?v=6"></script>
+<script src="/admin-users-tab.js?v=7"></script>
 <!-- Phase #7 적용 (2026-05-06): admin-docs.js lazy load.
      문서 탭 클릭 시점에 동적 <script> 추가. 첫 로딩 시 download 0. -->
 <script>
