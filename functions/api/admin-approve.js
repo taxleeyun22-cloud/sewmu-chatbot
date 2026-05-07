@@ -6,7 +6,9 @@
 //    - 기존 사용자 호환을 위해 status 자체는 유지 (DB 변경 X)
 //    - 신규 승인 흐름에서 'approve_guest' action 호출 X (admin/staff/office UI 에서 버튼 제거됨)
 //    - chat.js getDailyLimit 에서 approved_guest 도 5건/일 (pending 동일) 으로 호환 유지
-const APPROVAL_STATUSES = ['pending', 'approved_client', 'approved_guest', 'rejected', 'terminated', 'withdrawn'];
+/* 사장님 명령 (2026-05-07): 'rejoined' (재가입) / 'deleted' (영구삭제) 추가.
+ * pending 에서 재가입자 분리 → rejoined 탭으로 이전 */
+const APPROVAL_STATUSES = ['pending', 'approved_client', 'approved_guest', 'rejected', 'terminated', 'rejoined', 'withdrawn', 'deleted'];
 
 import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
 
@@ -124,17 +126,26 @@ export async function onRequestGet(context) {
     `;
     const binds = [];
     const where = [`COALESCE(u.is_admin, 0) = 0`];
-    if (status && status !== 'all' && APPROVAL_STATUSES.includes(status)) {
-      where.push(`COALESCE(u.approval_status, 'pending') = ?`);
-      binds.push(status);
-    }
-    /* 사장님 명령 (2026-05-07): deleted_at 필터링.
-     * - withdrawn 탭: deleted_at 있는 user 만
-     * - 다른 탭: deleted_at 없는 user 만 (탈퇴자 안 보이게)
-     * - all 탭: 전부 표시 */
+    /* 사장님 명령 (2026-05-07): status 별 분기.
+     * - withdrawn: deleted_at 있는 user
+     * - rejoined: previous_withdrawn_user_id 있는 활성 user (옛 탈퇴자 재가입)
+     * - pending: approval_status='pending' AND 재가입자 X (정말 처음 가입)
+     * - deleted: approval_status='deleted' (영구 삭제)
+     * - 다른 status: 일반 + deleted_at 없음 */
     if (status === 'withdrawn') {
       where.push(`u.deleted_at IS NOT NULL AND u.deleted_at != ''`);
-    } else if (status && status !== 'all') {
+    } else if (status === 'rejoined') {
+      where.push(`u.previous_withdrawn_user_id IS NOT NULL AND u.previous_withdrawn_user_id > 0`);
+      where.push(`(u.deleted_at IS NULL OR u.deleted_at = '')`);
+    } else if (status === 'pending') {
+      where.push(`COALESCE(u.approval_status, 'pending') = 'pending'`);
+      where.push(`(u.previous_withdrawn_user_id IS NULL OR u.previous_withdrawn_user_id = 0)`);
+      where.push(`(u.deleted_at IS NULL OR u.deleted_at = '')`);
+    } else if (status === 'deleted') {
+      where.push(`COALESCE(u.approval_status, 'pending') = 'deleted'`);
+    } else if (status && status !== 'all' && APPROVAL_STATUSES.includes(status)) {
+      where.push(`COALESCE(u.approval_status, 'pending') = ?`);
+      binds.push(status);
       where.push(`(u.deleted_at IS NULL OR u.deleted_at = '')`);
     }
     query += ` WHERE ` + where.join(' AND ');
@@ -152,15 +163,27 @@ export async function onRequestGet(context) {
       } catch { u.today_count = 0; }
     }
 
-    /* counts 도 deleted_at 필터링 */
+    /* counts 도 분기 */
     const counts = {};
     for (const s of APPROVAL_STATUSES) {
-      const deletedFilter = s === 'withdrawn'
-        ? `AND u.deleted_at IS NOT NULL AND u.deleted_at != ''`
-        : `AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
-      const r = await db.prepare(
-        `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.approval_status, 'pending') = ? AND COALESCE(u.is_admin, 0) = 0 ${deletedFilter}`
-      ).bind(s).first();
+      let sql, binds2;
+      if (s === 'withdrawn') {
+        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND u.deleted_at IS NOT NULL AND u.deleted_at != ''`;
+        binds2 = [];
+      } else if (s === 'rejoined') {
+        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND u.previous_withdrawn_user_id IS NOT NULL AND u.previous_withdrawn_user_id > 0 AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
+        binds2 = [];
+      } else if (s === 'pending') {
+        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND COALESCE(u.approval_status, 'pending') = 'pending' AND (u.previous_withdrawn_user_id IS NULL OR u.previous_withdrawn_user_id = 0) AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
+        binds2 = [];
+      } else if (s === 'deleted') {
+        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND COALESCE(u.approval_status, 'pending') = 'deleted'`;
+        binds2 = [];
+      } else {
+        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.approval_status, 'pending') = ? AND COALESCE(u.is_admin, 0) = 0 AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
+        binds2 = [s];
+      }
+      const r = binds2.length ? await db.prepare(sql).bind(...binds2).first() : await db.prepare(sql).first();
       counts[s] = r?.c || 0;
     }
     try {

@@ -613,5 +613,36 @@ export async function onRequestPost(context) {
     }
   }
 
+  /* 사장님 명령 (2026-05-07): 영구 삭제 (소프트 삭제) — 사용자 list 에서 영원히 안 보임.
+   * action=delete_user { user_id }
+   * - approval_status='deleted' + deleted_at = now (FK 데이터는 그대로 보존)
+   * - admin-approve 의 'deleted' 탭에서만 보임 (또는 안 보임)
+   * - owner only (가장 위험한 액션) */
+  if (action === "delete_user") {
+    const userId = Number(body.user_id);
+    if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
+    try {
+      const u = await db.prepare(`SELECT id, real_name, name FROM users WHERE id = ?`).bind(userId).first();
+      if (!u) return Response.json({ error: "user not found" }, { status: 404 });
+      const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+      /* provider_id 도 무효화 (다시 로그인해도 매칭 안 되게) */
+      const u2 = await db.prepare(`SELECT provider, provider_id FROM users WHERE id = ?`).bind(userId).first();
+      const newProviderId = u2?.provider_id ? `deleted:${userId}:${u2.provider_id}` : `deleted:${userId}`;
+      await db.prepare(`
+        UPDATE users SET
+          approval_status = 'deleted',
+          deleted_at = ?,
+          provider_id = ?,
+          provider_user_id = ?
+        WHERE id = ?
+      `).bind(now, newProviderId, newProviderId, userId).run();
+      /* 세션 삭제 */
+      try { await db.prepare(`DELETE FROM sessions WHERE user_id = ?`).bind(userId).run(); } catch {}
+      return Response.json({ ok: true, user_id: userId, deleted_name: u.real_name || u.name });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   return Response.json({ error: "unknown action" }, { status: 400 });
 }

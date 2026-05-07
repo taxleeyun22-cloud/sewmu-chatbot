@@ -919,6 +919,28 @@ async function _mergeWithdrawnUser(oldUserId, newUserId, oldName){
   }catch(err){alert('오류: '+err.message)}
 }
 
+/* 사장님 명령 (2026-05-07): 영구 삭제 — 사용자 list 에서 영원히 사라짐.
+ * - approval_status='deleted' + deleted_at + provider_id 무효화
+ * - 다시 카카오 로그인해도 새 user (pending) 생성됨 (옛 user 영원히 매칭 X) */
+async function _hardDeleteUser(userId, name){
+  if(typeof IS_OWNER!=='undefined' && !IS_OWNER){alert('owner 권한이 필요합니다');return}
+  if(!confirm('⚠️ 영구 삭제\n\n사용자 #'+userId+' ('+name+') 를 사용자 list 에서 영원히 사라지게 합니다.\n\n• 데이터 (메모·문서·매핑·메시지) 는 DB 에 남음 (FK 보존)\n• 사용자 카카오 다시 로그인 시 새 user 생성됨 (옛 매칭 X)\n• 되돌릴 수 없음\n\n진행할까요?'))return;
+  const typed=prompt('확실하면 사용자 이름을 정확히 입력하세요:\n\n"'+name+'"');
+  if(typed===null) return;
+  if((typed||'').trim()!==(name||'').trim()){alert('이름이 일치하지 않습니다. 삭제 취소.');return}
+  try{
+    const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=delete_user',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:userId}),
+    });
+    const d=await r.json();
+    if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
+    alert('✅ 영구 삭제 완료 — '+(d.deleted_name||'#'+d.user_id));
+    if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
+  }catch(err){alert('오류: '+err.message)}
+}
+
 /* 사이드바 합치기 카운트 자동 갱신 — admin 진입 시 1회 */
 async function _refreshMergesBadge(){
   if(typeof KEY==='undefined' || !KEY) return;
