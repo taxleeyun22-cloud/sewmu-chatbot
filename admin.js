@@ -1503,28 +1503,35 @@ async function openAddBizForUser(userId, userName, userPhone){
 function _mcSwitchMode(mode){
   const newBtn = $g('mcModeNewBtn'); const existBtn = $g('mcModeExistBtn');
   const existArea = $g('mcExistArea');
-  const companyInfoArea = $g('mcCompanyInfoArea');  /* 수임처 + 회계급여 wrapper */
+  const personInfoArea = $g('mcPersonInfoArea');    /* 👤 사람 정보 wrapper */
+  const companyInfoArea = $g('mcCompanyInfoArea');  /* 📋 수임처 + 회계급여 wrapper */
+  const operationArea = $g('mcOperationArea');      /* 🏢 운영 wrapper */
   const selectedBizListWrap = $g('mcSelectedBizListWrap');
   const submitBtn = $g('mcSubmitBtn');
   if(mode === 'exist'){
     if(newBtn){ newBtn.style.background='#fff'; newBtn.style.color='#4b5563'; newBtn.style.border='1px solid #e5e8eb'; }
     if(existBtn){ existBtn.style.background='#191f28'; existBtn.style.color='#fff'; existBtn.style.border='none'; }
     if(existArea) existArea.style.display = 'block';
-    /* 기존 모드: 회사 정보 영역 hide (선택만 하면 됨) */
+    /* 사장님 명령 (2026-05-07): 기존 모드 = 사업장 chip 선택만으로 끝.
+     * 사람·회사·운영 입력 영역 모두 hide. */
+    if(personInfoArea) personInfoArea.style.display = 'none';
     if(companyInfoArea) companyInfoArea.style.display = 'none';
+    if(operationArea) operationArea.style.display = 'none';
     /* 이미 선택된 업체 있으면 list 표시 */
     if(selectedBizListWrap){
       selectedBizListWrap.style.display = (_mcSelectedBizList && _mcSelectedBizList.length) ? 'block' : 'none';
     }
-    /* 등록 버튼은 표시 (검색 후 사람 정보 입력하고 등록) */
+    /* 등록 버튼 표시 */
     if(submitBtn) submitBtn.style.display = '';
     setTimeout(()=>$g('mcExistSearch')?.focus(),60);
   } else {
-    /* 신규 모드: 회사 정보 영역 표시, 선택 list hide */
+    /* 신규 모드: 모든 입력 영역 표시, 선택 list hide */
     if(newBtn){ newBtn.style.background='#191f28'; newBtn.style.color='#fff'; newBtn.style.border='none'; }
     if(existBtn){ existBtn.style.background='#fff'; existBtn.style.color='#4b5563'; existBtn.style.border='1px solid #e5e8eb'; }
     if(existArea) existArea.style.display = 'none';
+    if(personInfoArea) personInfoArea.style.display = '';
     if(companyInfoArea) companyInfoArea.style.display = '';
+    if(operationArea) operationArea.style.display = '';
     if(selectedBizListWrap) selectedBizListWrap.style.display = 'none';
     if(submitBtn) submitBtn.style.display = '';
   }
@@ -1705,14 +1712,17 @@ async function submitManualClient(){
   if(_mcMode==='addBiz' && _mcAddBizUserId){
     return submitAddBizForUser(_mcAddBizUserId);
   }
-  const realName=($g('mcRealName')?.value||'').trim();
-  /* fix Q2 (2026-05-07 사장님 명령): 필수 검증.
-   * 신규 모드: 이름·회사명·대표자·사업자번호 필수
-   * 기존 모드: 이름 + 선택된 업체 list (1+) 필수 */
-  if(!realName){alert('* 이름(실명)은 필수입니다');return}
+  /* 사장님 명령 (2026-05-07 정정): 기존 모드 = 사업장 chip 선택만으로 끝.
+   * 사람·회사 입력 모두 skip. backend 가 첫 chip 의 대표자 user 찾아서 매핑 추가.
+   * 신규 모드: 이름·회사명·대표자·사업자번호 필수 */
   const isExistMode = _mcSelectedBizList && _mcSelectedBizList.length > 0;
-  let company = '', ceo = '', bizNo = '';
-  if(!isExistMode){
+  let realName='', company='', ceo='', bizNo='';
+  if(isExistMode){
+    /* 기존 모드: 사업장 chip 1+ 만 있으면 OK (검증 X) */
+    if(!_mcSelectedBizList.length){alert('* 매핑할 업체를 1개 이상 선택해주세요');return}
+  } else {
+    realName = ($g('mcRealName')?.value||'').trim();
+    if(!realName){alert('* 이름(실명)은 필수입니다');return}
     company = ($g('mcCompany')?.value||'').trim();
     if(!company){alert('* 회사명(수임처명)은 필수입니다');return}
     ceo = ($g('mcCeo')?.value||'').trim()||realName;
@@ -1720,36 +1730,36 @@ async function submitManualClient(){
     bizNo = ($g('mcBizNo')?.value||'').trim();
     if(!bizNo){alert('* 사업자등록번호는 필수입니다');return}
   }
-  const phone=($g('mcPhone')?.value||'').trim();
+  const phone=isExistMode?'':($g('mcPhone')?.value||'').trim();
   /* Q4: 생년월일 (선택) */
-  const birthDate=($g('mcBirthDate')?.value||'').trim()||null;
-  const notes=($g('mcNotes')?.value||'').trim();
-  const autoRoom=$g('mcAutoRoom')?.checked?true:false;
-  const priorityRaw=$g('mcPriority')?.value||'';
+  const birthDate=isExistMode?null:(($g('mcBirthDate')?.value||'').trim()||null);
+  const notes=isExistMode?'':($g('mcNotes')?.value||'').trim();
+  const autoRoom=isExistMode?false:($g('mcAutoRoom')?.checked?true:false);
+  const priorityRaw=isExistMode?'':($g('mcPriority')?.value||'');
   const priority=priorityRaw?Number(priorityRaw):null;
-  /* 위하고 호환 필드 */
-  const addr1=($g('mcAddr1')?.value||'').trim();
-  const addr2=($g('mcAddr2')?.value||'').trim();
+  /* 위하고 호환 필드 — 기존 모드면 모두 skip */
+  const addr1=isExistMode?'':($g('mcAddr1')?.value||'').trim();
+  const addr2=isExistMode?'':($g('mcAddr2')?.value||'').trim();
   const body={
     name:realName, real_name:realName, phone, birth_date:birthDate,
     company_name:company, ceo_name:ceo, business_number:bizNo, notes,
     /* Phase (2026-05-07 사장님 명령): 기존 업체 선택 시 ID list 같이 send (복수 가능) →
-     * backend 가 신규 business INSERT skip + 각 ID 와 매핑만 */
+     * backend 가 신규 user INSERT skip + 첫 chip 의 대표자 user 찾아 모든 chip 매핑 */
     existing_business_ids: isExistMode ? _mcSelectedBizList.map(b=>b.id) : null,
     auto_create_room: autoRoom, priority: priority,
-    company_form:$g('mcForm')?.value||null,
-    sub_business_number:($g('mcSubBiz')?.value||'').trim()||null,
-    corporate_number:($g('mcCorpNo')?.value||'').trim()||null,
-    address:[addr1,addr2].filter(Boolean).join(' ')||null,
-    biz_phone:($g('mcBizPhone')?.value||'').trim()||null,
-    industry_code:($g('mcIndustryCode')?.value||'').trim()||null,
-    business_category:($g('mcBizCategory')?.value||'').trim()||null,
-    industry:($g('mcIndustry')?.value||'').trim()||null,
-    establishment_date:$g('mcEstDate')?.value||null,
-    fiscal_year_start:$g('mcFiscalStart')?.value||null,
-    fiscal_year_end:$g('mcFiscalEnd')?.value||null,
-    fiscal_term:$g('mcFiscalTerm')?.value?Number($g('mcFiscalTerm').value):null,
-    hr_year:$g('mcHrYear')?.value?Number($g('mcHrYear').value):null,
+    company_form:isExistMode?null:($g('mcForm')?.value||null),
+    sub_business_number:isExistMode?null:(($g('mcSubBiz')?.value||'').trim()||null),
+    corporate_number:isExistMode?null:(($g('mcCorpNo')?.value||'').trim()||null),
+    address:isExistMode?null:([addr1,addr2].filter(Boolean).join(' ')||null),
+    biz_phone:isExistMode?null:(($g('mcBizPhone')?.value||'').trim()||null),
+    industry_code:isExistMode?null:(($g('mcIndustryCode')?.value||'').trim()||null),
+    business_category:isExistMode?null:(($g('mcBizCategory')?.value||'').trim()||null),
+    industry:isExistMode?null:(($g('mcIndustry')?.value||'').trim()||null),
+    establishment_date:isExistMode?null:($g('mcEstDate')?.value||null),
+    fiscal_year_start:isExistMode?null:($g('mcFiscalStart')?.value||null),
+    fiscal_year_end:isExistMode?null:($g('mcFiscalEnd')?.value||null),
+    fiscal_term:isExistMode?null:($g('mcFiscalTerm')?.value?Number($g('mcFiscalTerm').value):null),
+    hr_year:isExistMode?null:($g('mcHrYear')?.value?Number($g('mcHrYear').value):null),
   };
   const btn=$g('mcSubmitBtn');
   if(btn){btn.disabled=true;btn.style.opacity='.55';btn.textContent='등록 중...'}
@@ -1760,8 +1770,15 @@ async function submitManualClient(){
     });
     const d=await r.json();
     if(!d.ok){alert('등록 실패: '+(d.error||'unknown'));return}
-    let msg='✅ 거래처 등록됨 (ID #'+d.user_id+')';
-    if(d.room_id) msg+=' · 상담방 '+d.room_id+' 생성';
+    /* 사장님 명령 (2026-05-07): 기존 모드 응답 toast 분기 */
+    let msg;
+    if(d.mode === 'exist_only'){
+      msg='✅ 기존 사용자 (ID #'+d.user_id+') 에 '+d.mapped_count+'개 업체 매핑 완료'
+        + (d.total_chips > d.mapped_count ? ' ('+(d.total_chips-d.mapped_count)+'개는 이미 매핑됨)' : '');
+    } else {
+      msg='✅ 거래처 등록됨 (ID #'+d.user_id+')';
+      if(d.room_id) msg+=' · 상담방 '+d.room_id+' 생성';
+    }
     if(typeof showAdminToast==='function')showAdminToast(msg);
     else alert(msg);
     closeManualClientModal();

@@ -66,7 +66,16 @@ export async function onRequestPost(context) {
   const fiscalTerm = body.fiscal_term ? Number(body.fiscal_term) : null;
   const hrYear = body.hr_year ? Number(body.hr_year) : null;
 
-  if (!realName) return Response.json({ error: "이름(real_name) 필수" }, { status: 400 });
+  /* 사장님 명령 (2026-05-07 정정): 기존 업체 선택 모드 = 사업장 chip 선택만.
+   * existing_business_ids 가 있고 realName 비어있으면:
+   *   → 첫 chip 의 대표자 user 찾아서 그 user 에 나머지 chip 매핑만 추가
+   *   → 새 user INSERT 안 함 */
+  const incomingBizIds = Array.isArray(body.existing_business_ids) && body.existing_business_ids.length
+    ? body.existing_business_ids.map(Number).filter(n => Number.isInteger(n) && n > 0)
+    : (Number(body.existing_business_id || 0) ? [Number(body.existing_business_id)] : []);
+  const isExistOnlyMode = !realName && incomingBizIds.length > 0;
+
+  if (!realName && !isExistOnlyMode) return Response.json({ error: "이름(real_name) 필수" }, { status: 400 });
 
   const now = kst();
 
@@ -87,6 +96,40 @@ export async function onRequestPost(context) {
   try { await db.prepare(`ALTER TABLE users ADD COLUMN birth_date TEXT`).run(); } catch {}
 
   try {
+    let userId;
+    if (isExistOnlyMode) {
+      /* 사장님 명령 (2026-05-07): 기존 모드 = 첫 chip 의 대표자 user 찾아서 그 user 에 나머지 chip 매핑.
+       * - 첫 chip 의 business_members 에 role='대표자' (또는 첫 active member) 검색
+       * - 없으면 에러 (대표자 등록 안 된 업체 → 사장님이 먼저 등록 필요) */
+      try { await db.prepare(`CREATE TABLE IF NOT EXISTS business_members (id INTEGER PRIMARY KEY AUTOINCREMENT, business_id INTEGER, user_id INTEGER, role TEXT, is_primary INTEGER DEFAULT 0, added_at TEXT, removed_at TEXT)`).run(); } catch {}
+      const firstBizId = incomingBizIds[0];
+      let rep = null;
+      try {
+        rep = await db.prepare(
+          `SELECT user_id FROM business_members
+           WHERE business_id = ? AND (removed_at IS NULL OR removed_at = '')
+           ORDER BY (role = '대표자') DESC, is_primary DESC, id ASC LIMIT 1`
+        ).bind(firstBizId).first();
+      } catch {}
+      if (!rep || !rep.user_id) {
+        return Response.json({ error: "선택한 첫 업체에 대표자가 등록되어 있지 않습니다. 먼저 그 업체의 대표자를 등록한 뒤 다시 시도하세요." }, { status: 400 });
+      }
+      userId = rep.user_id;
+      /* 나머지 chip (또는 모두) 매핑 추가 — 중복 skip */
+      let mappedCount = 0;
+      for (const id of incomingBizIds) {
+        const existingMap = await db.prepare(
+          `SELECT id FROM business_members WHERE business_id = ? AND user_id = ? AND (removed_at IS NULL OR removed_at = '') LIMIT 1`
+        ).bind(id, userId).first();
+        if (!existingMap) {
+          await db.prepare(
+            `INSERT INTO business_members (business_id, user_id, role, is_primary, added_at) VALUES (?, ?, '대표자', 0, ?)`
+          ).bind(id, userId, now).run();
+          mappedCount++;
+        }
+      }
+      return Response.json({ ok: true, user_id: userId, mode: 'exist_only', mapped_count: mappedCount, total_chips: incomingBizIds.length });
+    }
     /* users insert — provider_user_id 는 고유해야 하므로 timestamp 로 생성 */
     const pseudoExternalId = 'admin_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
     const r = await db.prepare(
@@ -95,7 +138,7 @@ export async function onRequestPost(context) {
                           created_at, last_login_at)
        VALUES ('admin_created', ?, ?, ?, ?, ?, 'approved_client', ?, 'admin', 1, ?, NULL)`
     ).bind(pseudoExternalId, displayName || realName, realName, phone || null, birthDate, now, now).run();
-    const userId = r.meta?.last_row_id;
+    userId = r.meta?.last_row_id;
     if (!userId) return Response.json({ error: "user insert failed" }, { status: 500 });
 
     /* client_businesses 에도 insert (정보 있으면) — 위하고 전체 필드 포함 */
