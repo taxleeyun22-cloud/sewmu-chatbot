@@ -654,7 +654,33 @@ async function filingSetStatus(status) {
 function filingPrint() {
   /* 저장 먼저 */
   _filSaveNow().then(() => {
-    setTimeout(() => window.print(), 300);
+    /* 비교표·요약 갱신 위해 _filRender 다시 호출 (인쇄 직전 마지막 액션이라 폼 reset OK) */
+    if (typeof _filRender === 'function' && _filCurrent) {
+      try { _filRender(); } catch(_){}
+    }
+    /* fix (사장님 보고 2026-05-07): filingDetailModal 부모 chain 에 mainAppView (display:none).
+     * 인쇄 시 body 직속으로 임시 이동 → window.print() → 원위치. */
+    const m = document.getElementById('filingDetailModal');
+    if (!m) { window.print(); return; }
+    const origParent = m.parentElement;
+    const origNext = m.nextSibling;
+    /* 임시 placeholder + body 첫 자식으로 이동 */
+    const placeholder = document.createComment('filingDetailModal_placeholder');
+    if (origParent) origParent.insertBefore(placeholder, m);
+    document.body.appendChild(m);
+    /* 인쇄 후 원위치 (afterprint 이벤트 + fallback timer) */
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      try {
+        if (placeholder.parentElement) placeholder.parentElement.replaceChild(m, placeholder);
+        else if (origParent) origParent.appendChild(m);
+      } catch (e) { console.warn('filing print restore fail:', e); }
+    };
+    window.addEventListener('afterprint', restore, { once: true });
+    setTimeout(() => { window.print(); }, 300);
+    setTimeout(restore, 5000); /* fallback */
   });
 }
 

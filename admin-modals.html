@@ -1681,9 +1681,11 @@
 @media print {
   @page { size: A4 landscape; margin: 10mm; }
 
-  /* 모든 다른 element 제거 — 모달만 보이게 */
+  /* filingDetailModal 만 보이게 — JS 가 인쇄 시 body 직속으로 이동.
+   * 사장님 보고 fix: 부모 chain 의 mainAppView display:none 우회 */
   html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
-  body > *:not(#filingDetailModal) { display: none !important; }
+  body > * { display: none !important; }
+  body > #filingDetailModal { display: block !important; }
   body * { visibility: visible !important; }
 
   /* 모달 컨테이너 — 풀스크린 */
