@@ -398,10 +398,11 @@ async function _apbLoadExistingUsers(){
   const el=$g('apbUserList'); if(!el) return;
   el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:20px 0;font-size:.8em">불러오는 중...</div>';
   try{
-    /* 기장거래처 (approved_client) 만 fetch */
+    /* 사장님 명령 정정 (2026-05-07): 합칠 대상 = 수동 등록 user 만 (provider='admin_created').
+     * 카카오 인증 안 된 거 = 사장님이 옛날에 수동으로 만든 거래처들. */
     const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=approved_client');
     const d=await r.json();
-    _apbAllUsers=(d.users||[]).filter(u=>!u.is_admin);
+    _apbAllUsers=(d.users||[]).filter(u=>!u.is_admin && u.provider==='admin_created');
     _apbFilterUserList();
   }catch(err){el.innerHTML='<div style="color:#f04452;padding:12px;font-size:.8em">오류: '+e(err.message)+'</div>'}
 }
@@ -413,11 +414,15 @@ function _apbFilterUserList(){
     : _apbAllUsers;
   /* 자기 자신(현재 카카오 user) 제외 */
   const filtered=list.filter(u=>!_apbUser || u.id!==_apbUser.id);
-  if(!filtered.length){el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:16px 0;font-size:.8em">'+(q?'검색 결과 없음':'기장거래처 없음')+'</div>';return}
+  if(!filtered.length){
+    el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:16px 0;font-size:.8em">'
+      +(q?'검색 결과 없음':'수동 등록한 거래처가 없습니다')+'</div>';
+    return;
+  }
   el.innerHTML=filtered.slice(0,50).map(u=>{
     const selected=_apbSelectedExistUserId===u.id;
     const nm=u.real_name||u.name||'#'+u.id;
-    const sub=[u.phone||'', 'ID #'+u.id].filter(Boolean).join(' · ');
+    const sub=[u.phone||'', 'ID #'+u.id, '🚫 카카오 인증 X'].filter(Boolean).join(' · ');
     return '<div onclick="_apbPickUser('+u.id+')" style="padding:8px 12px;border-bottom:1px solid #f2f4f6;cursor:pointer;background:'+(selected?'#dbeafe':'#fff')+'">'
       +'<div style="font-size:.88em;font-weight:600">👤 '+e(nm)+(selected?' ✅':'')+'</div>'
       +(sub?'<div style="font-size:.72em;color:#6b7280">'+e(sub)+'</div>':'')
