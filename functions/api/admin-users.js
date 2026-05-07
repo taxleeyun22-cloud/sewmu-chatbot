@@ -345,7 +345,8 @@ export async function onRequestPost(context) {
         /* audit 실패해도 합치기는 진행 — silent */
       }
 
-      /* 1. 카카오 정보 → manual user 흡수 */
+      /* 1. 카카오 정보 → manual user 흡수.
+       * 사장님 명령 (2026-05-07): 옛 탈퇴자도 manual user 일 수 있으니 deleted_at = NULL (부활) */
       await db.prepare(`
         UPDATE users SET
           provider = ?,
@@ -357,7 +358,9 @@ export async function onRequestPost(context) {
           name_confirmed = 1,
           approval_status = 'approved_client',
           approved_at = COALESCE(approved_at, ?),
-          last_login_at = ?
+          last_login_at = ?,
+          deleted_at = NULL,
+          withdrawal_reason = NULL
         WHERE id = ?
       `).bind(
         kakao.provider, kakao.provider_user_id, kakao.profile_image,

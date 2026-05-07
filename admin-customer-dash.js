@@ -898,6 +898,27 @@ async function submitEditUserInfo(){
   finally{if(btn){btn.disabled=false;btn.textContent='💾 저장';btn.style.opacity=''}}
 }
 
+/* 사장님 명령 (2026-05-07): 옛 탈퇴자 ↔ 재가입자 합치기.
+ * - admin-users-tab.js 의 사용자 row 노란 배지에서 호출
+ * - manual_user_id = 옛 탈퇴자 (살아남음, deleted_at 풀림)
+ * - kakao_user_id = 새 재가입자 (archive)
+ * - audit log (user_merges) 자동 저장 → 추후 분리 가능 */
+async function _mergeWithdrawnUser(oldUserId, newUserId, oldName){
+  if(typeof IS_OWNER!=='undefined' && !IS_OWNER){alert('owner 권한이 필요합니다');return}
+  if(!confirm('옛 탈퇴자 #'+oldUserId+' ('+oldName+') 와 새 재가입자 #'+newUserId+' 합칠까요?\n\n• 옛 user 가 살아남음 (탈퇴 풀림 + 모든 데이터 보존)\n• 새 user 의 카카오 OAuth 정보 흡수\n• 새 user archive\n\n사용자가 다시 카카오 로그인 시 옛 user 로 자동 진입.'))return;
+  try{
+    const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=merge_users',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({manual_user_id:oldUserId, kakao_user_id:newUserId}),
+    });
+    const d=await r.json();
+    if(!d.ok){alert('합치기 실패: '+(d.error||'unknown'));return}
+    alert('✅ 합치기 완료\n\n살아남은 user: #'+d.survived_user_id+' ('+d.survived_real_name+')\nArchive: #'+d.archived_user_id+'\n\n이전된 데이터:\n• 매핑 '+d.moved.mappings+'건\n• 메모 '+d.moved.memos+'건\n• 메시지 '+d.moved.conversations+'건\n• 방 멤버 '+d.moved.room_members+'건\n• 문서 '+d.moved.documents+'건\n\n잘못 합쳤으면 사용자 list 의 🔀 분리 버튼으로 복원 가능.');
+    if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
+  }catch(err){alert('오류: '+err.message)}
+}
+
 /* 사이드바 합치기 카운트 자동 갱신 — admin 진입 시 1회 */
 async function _refreshMergesBadge(){
   if(typeof KEY==='undefined' || !KEY) return;
