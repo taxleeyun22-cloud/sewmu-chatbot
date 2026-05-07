@@ -222,7 +222,11 @@ async function openCustomerDashboard(userId, opts){
     if(typeof _loadCdFilings==='function') _loadCdFilings(userId);
     /* 자동 요약 (캐시 우선 — GPT 비용 0) */
     _loadCdAutoSummary(userId);
-    /* 사장님 명령 (2026-05-07 정정): 합치기 이력 배너 폐기 — 사용자 list row 에 직접 분리 버튼 */
+    /* Phase 3 (2026-05-07 사장님 명세): 신고 검토표 list — 종소세 */
+    if(typeof _filRenderListInto==='function'){
+      const reviewBox=$g('cdFilingsReview');
+      if(reviewBox) _filRenderListInto(reviewBox, 'Person', userId, nm);
+    }
   }catch(err){
     $g('cdName').textContent='오류';
     $g('cdBasic').innerHTML='<div style="color:#f04452">로드 실패: '+e(err.message)+'</div>';
