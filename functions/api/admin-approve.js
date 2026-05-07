@@ -129,7 +129,10 @@ export async function onRequestGet(context) {
      * 옛 탈퇴자가 같은 카카오로 다시 로그인 시 자동 부활 + status='rejoined'.
      * pending 은 정말 처음 가입자만. */
     if (status === 'withdrawn') {
+      /* 사장님 보고 (2026-05-07): merged user (합쳐진 archive) 가 탈퇴 탭에 같이 보임.
+       * status='withdrawn' 인 진짜 탈퇴자만 표시 (status='merged' 인 합쳐진 user 제외). */
       where.push(`u.deleted_at IS NOT NULL AND u.deleted_at != ''`);
+      where.push(`COALESCE(u.approval_status, 'pending') = 'withdrawn'`);
     } else if (status === 'rejoined') {
       where.push(`COALESCE(u.approval_status, 'pending') = 'rejoined'`);
       where.push(`(u.deleted_at IS NULL OR u.deleted_at = '')`);
@@ -160,7 +163,7 @@ export async function onRequestGet(context) {
     for (const s of APPROVAL_STATUSES) {
       let sql, binds2;
       if (s === 'withdrawn') {
-        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND u.deleted_at IS NOT NULL AND u.deleted_at != ''`;
+        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND u.deleted_at IS NOT NULL AND u.deleted_at != '' AND COALESCE(u.approval_status, 'pending') = 'withdrawn'`;
         binds2 = [];
       } else if (s === 'rejoined') {
         sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND COALESCE(u.approval_status, 'pending') = 'rejoined' AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
