@@ -2618,6 +2618,13 @@ async function loadMyPage(){
     statusHtml='<div style="font-weight:700;color:#ffcdd2">✕ 이용 제한된 계정</div>';
     statusHtml+='<div style="font-size:.75em;margin-top:4px;opacity:.9">재신청 또는 세무사에게 문의해 주세요</div>';
     statusHtml+='<button onclick="reapplyAccount()" style="margin-top:10px;background:#fff;color:#c62828;border:none;padding:8px 14px;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">📨 재신청 요청</button>';
+  } else if(st==='rejoined'){
+    /* 사장님 명령 (2026-05-07): 재가입 = 다시 승인 받기 전엔 사용 X */
+    statusHtml='<div style="font-weight:700;color:#fff8e1">🔄 재가입 승인 대기 중</div>';
+    statusHtml+='<div style="font-size:.75em;margin-top:4px;opacity:.9">탈퇴 후 다시 가입하셨습니다. 세무회계 이윤(053-269-1213)에 문의해 주세요.</div>';
+  } else if(st==='terminated'||st==='withdrawn'||st==='merged'||st==='deleted'){
+    statusHtml='<div style="font-weight:700;color:#ffcdd2">✕ 이용 제한된 계정</div>';
+    statusHtml+='<div style="font-size:.75em;margin-top:4px;opacity:.9">세무회계 이윤(053-269-1213)에 문의해 주세요</div>';
   }
   statusEl.innerHTML=statusHtml;
 
@@ -2872,7 +2879,25 @@ function showApprovalBanner(){
   } else if(st==='rejected'){
     bar.style.display='block';bar.style.background='#ffebee';bar.style.color='#c62828';
     bar.innerHTML='✕ 이용이 제한된 계정입니다. 세무회계 이윤에 문의해 주세요';
+  } else if(st==='rejoined'){
+    /* 사장님 명령 (2026-05-07): 재가입 = 다시 승인 받기 전엔 사용 X */
+    bar.style.display='block';bar.style.background='#fff8e1';bar.style.color='#8b6914';
+    bar.innerHTML='🔄 재가입 승인 대기 중 · 세무회계 이윤(053-269-1213) 에 문의해주세요';
+  } else if(st==='terminated'||st==='withdrawn'||st==='merged'||st==='deleted'){
+    bar.style.display='block';bar.style.background='#ffebee';bar.style.color='#c62828';
+    bar.innerHTML='✕ 이용이 제한된 계정입니다. 세무회계 이윤에 문의해 주세요';
   }
+  /* 사장님 명령 (2026-05-07): 차단 status 면 input + 추천질문 disable */
+  var blocked = ['rejected','rejoined','terminated','withdrawn','merged','deleted'].indexOf(st)>=0;
+  var inp = document.getElementById('userInput');
+  var btn = document.getElementById('sendBtn');
+  var qa = document.getElementById('quickArea');
+  if(inp){
+    inp.disabled = blocked;
+    if(blocked) inp.placeholder = '이용이 제한된 계정입니다 — 053-269-1213';
+  }
+  if(btn) btn.disabled = blocked;
+  if(qa && blocked) qa.style.display = 'none';
 }
 
 /* ===== PWA 설치 가이드 ===== */

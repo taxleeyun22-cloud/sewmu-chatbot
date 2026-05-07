@@ -1,5 +1,5 @@
-/* v70: index.html 모달 11개 → index-modals.html 외부화 (Phase H5, 2026-05-04). 사용자 캐시 무효화. */
-const CACHE_NAME = 'sewmu-v70';
+/* v71: 재가입(rejoined) / 차단 status 입력 차단 (사장님 명령 2026-05-07). 사용자 캐시 무효화. */
+const CACHE_NAME = 'sewmu-v71';
 const STATIC_ASSETS = ['/logo.png', '/logo-icon.png', '/logo-vertical.png'];
 
 self.addEventListener('install', e => {
