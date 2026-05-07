@@ -253,7 +253,31 @@ setTimeout(function(){
 <script src="/admin-rooms-msg.js?v=5"></script>
 <script src="/admin-rooms-misc.js?v=1"></script>
 <script src="/admin-users-tab.js?v=2"></script>
-<script src="/admin-docs.js?v=1"></script>
+<!-- Phase #7 적용 (2026-05-06): admin-docs.js lazy load.
+     문서 탭 클릭 시점에 동적 <script> 추가. 첫 로딩 시 download 0. -->
+<script>
+(function lazyDocs(){
+  var loaded=false;
+  function load(){
+    if(loaded)return; loaded=true;
+    var s=document.createElement('script');
+    s.src='/admin-docs.js?v=2&lazy=1';
+    s.async=false;
+    document.head.appendChild(s);
+    if(typeof console!=='undefined' && console.debug) console.debug('[lazy] admin-docs.js loaded');
+  }
+  function tryHook(){
+    if(typeof window.__onTabChange==='function'){
+      window.__onTabChange(function(t){
+        if(t==='docs') load();
+      });
+    } else {
+      setTimeout(tryHook, 200);
+    }
+  }
+  tryHook();
+})();
+</script>
 <!-- Phase #7 적용 (C 2026-05-06): admin-anal-review-faq.js lazy load 시범.
      초기 로딩 시 안 받음 → 사장님이 anal/review/faq 탭 클릭 시점에 동적 <script> 추가.
      classic script 환경 호환 (var + function 선언 그대로) — fetch + eval 안 쓰고 순수 <script src>. -->
