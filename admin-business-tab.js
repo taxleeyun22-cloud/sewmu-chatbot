@@ -57,39 +57,7 @@ async function loadBusinessList(){
     const c=d.counts||{};
     $g('bizCounts').textContent='전체 '+(_bizListCache.length)+' · 활성 '+(c.active||0)+' · 종료 '+(c.closed||0)+' · 이관 '+(c.terminated||0);
     _renderBizList();
-    /* Phase (2026-05-07): owner 일 때 마이그레이션 버튼 표시 + 매핑 0 업체 갯수 안내 */
-    const migBtn=$g('migrateCeoBtn');
-    if(migBtn && typeof IS_OWNER !== 'undefined' && IS_OWNER){
-      const orphanCount=_bizListCache.filter(b=>b.ceo_name && Number(b.member_count||0)===0).length;
-      if(orphanCount>0){
-        migBtn.style.display='inline-block';
-        migBtn.textContent='🚀 옛 업체 대표자 일괄 생성 ('+orphanCount+')';
-      } else {
-        migBtn.style.display='none';
-      }
-    }
   }catch(err){el.innerHTML='<div style="color:#f04452;padding:20px">오류: '+e(err.message)+'</div>'}
-}
-
-/* 옛 업체 (구성원 0명 + ceo_name 있음) 일괄 대표자 user 자동 생성 + 매핑.
- * 사장님 명령 (2026-05-07): "옆커폰 부산센터 / 옆커폰 주식회사 같은 옛 거 걍 바로 처리해버려"
- * owner only. backend admin-businesses POST?action=migrate_missing_ceo_users. */
-async function migrateMissingCeoUsers(){
-  if(!IS_OWNER){alert('owner 권한이 필요합니다');return}
-  if(!confirm('구성원 0명 + 대표자 정보 있는 옛 업체들의 대표자 사용자를 자동 생성합니다.\n\n같은 이름의 사용자 이미 있으면 매핑만 추가 (중복 X).\n진행할까요?'))return;
-  const btn=$g('migrateCeoBtn');
-  if(btn){btn.disabled=true;btn.textContent='🚀 처리 중...';btn.style.opacity='.5'}
-  try{
-    const r=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY)+'&action=migrate_missing_ceo_users',{
-      method:'POST',headers:{'Content-Type':'application/json'},body:'{}'
-    });
-    const d=await r.json();
-    if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
-    alert('✅ 완료\n\n총 처리: '+d.processed+'개\n신규 사용자 생성: '+d.created+'명\n기존 매핑만: '+(d.processed-d.created-d.errors)+'\n에러: '+d.errors);
-    loadBusinessList();
-    if(typeof loadUsers === 'function') loadUsers('approved_client');
-  }catch(err){alert('오류: '+err.message)}
-  finally{if(btn){btn.disabled=false;btn.style.opacity='';}}
 }
 function _renderBizList(){
   const el=$g('bizList');if(!el)return;
