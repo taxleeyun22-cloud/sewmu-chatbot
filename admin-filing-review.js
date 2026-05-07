@@ -119,7 +119,9 @@ async function _filNewToggleBizList() {
     try {
       const r = await fetch('/api/admin-businesses?key=' + encodeURIComponent(_filGetKey()) + '&user_id=' + _filNewOwnerId);
       const d = await r.json();
-      const bizList = (d.businesses || []).filter(b => b.status !== 'closed' && (!b.deleted_at || b.deleted_at === ''));
+      /* 사장님 명령 (2026-05-08): "전체적으로 연관된거 다 체크".
+       * 신규 Case 사업체 후보 list — closed 도 표시 (사장님이 결정). soft delete 만 제외. */
+      const bizList = (d.businesses || []).filter(b => !b.deleted_at || b.deleted_at === '');
       if (!bizList.length) {
         list.innerHTML = '<div style="color:#9ca3af;padding:8px;font-size:.78em">매핑된 사업체 없음</div>';
         return;

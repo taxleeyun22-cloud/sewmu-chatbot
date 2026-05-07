@@ -47,13 +47,16 @@ function onBizSearchInput(){
   if(_bizSearchT)clearTimeout(_bizSearchT);
   _bizSearchT=setTimeout(_renderBizList, 200);
 }
+/* 사장님 보고 (2026-05-08): "업체 5갠데 왜 저기서 만든거 업체에 안뜨지?"
+ * 원인: status='closed' 자동 제외 → 종료 업체 1개 (이재윤) 사라짐.
+ * 해결: filter 제거 — 모든 status 표시 (활성·종료·이관 모두). soft delete 만 제외. */
 async function loadBusinessList(){
   const el=$g('bizList');if(!el)return;
   el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div>';
   try{
     const r=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY));
     const d=await r.json();
-    _bizListCache=(d.businesses||[]).filter(b=>b.status!=='closed');
+    _bizListCache=(d.businesses||[]).filter(b=>!b.deleted_at||b.deleted_at==='');
     const c=d.counts||{};
     $g('bizCounts').textContent='전체 '+(_bizListCache.length)+' · 활성 '+(c.active||0)+' · 종료 '+(c.closed||0)+' · 이관 '+(c.terminated||0);
     _renderBizList();
