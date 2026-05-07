@@ -1625,6 +1625,26 @@
         <label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:4px">생년월일</label>
         <input id="euiBirthDate" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box">
       </div>
+      <!-- 사장님 명령 (2026-05-07): 본인 제출 회사정보도 사장님이 수정 가능 -->
+      <div style="border-top:1px solid #f2f4f6;margin:14px 0 10px;padding-top:12px">
+        <div style="font-size:.74em;font-weight:700;color:#6b7280;margin-bottom:8px">📝 본인 제출 회사정보</div>
+        <div style="margin-bottom:8px">
+          <label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:4px">회사명</label>
+          <input id="euiCompanyName" type="text" placeholder="회사명" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box">
+        </div>
+        <div style="margin-bottom:8px">
+          <label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:4px">사업자번호</label>
+          <input id="euiBusinessNumber" type="text" placeholder="123-45-67890 또는 1234567890" maxlength="14" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box">
+        </div>
+        <div style="margin-bottom:8px">
+          <label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:4px">역할</label>
+          <select id="euiRequestedRole" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box">
+            <option value="">— 미지정</option>
+            <option value="대표자">대표자</option>
+            <option value="담당자">담당자</option>
+          </select>
+        </div>
+      </div>
     </div>
     <div style="padding:10px 16px;border-top:1px solid #f2f4f6;display:flex;gap:8px;justify-content:flex-end;background:#fafbfc">
       <button onclick="closeEditUserInfoModal()" style="background:#e5e8eb;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>

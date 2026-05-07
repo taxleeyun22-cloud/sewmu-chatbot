@@ -223,10 +223,26 @@ export async function onRequestPost(context) {
       updates.push('name_confirmed = ?');
       binds.push(body.name_confirmed ? 1 : 0);
     }
+    /* 사장님 명령 (2026-05-07): 본인 제출 회사정보도 수정 가능 */
+    if (typeof body.requested_company_name === 'string' || body.requested_company_name === null) {
+      updates.push('requested_company_name = ?');
+      binds.push(body.requested_company_name ? String(body.requested_company_name).trim().slice(0, 100) : null);
+    }
+    if (typeof body.requested_business_number === 'string' || body.requested_business_number === null) {
+      updates.push('requested_business_number = ?');
+      binds.push(body.requested_business_number ? String(body.requested_business_number).trim().replace(/\D/g, '').slice(0, 12) : null);
+    }
+    if (typeof body.requested_role === 'string' || body.requested_role === null) {
+      updates.push('requested_role = ?');
+      binds.push(body.requested_role ? String(body.requested_role).trim().slice(0, 20) : null);
+    }
     if (!updates.length) return Response.json({ error: "no fields to update" }, { status: 400 });
     try {
       try { await db.prepare(`ALTER TABLE users ADD COLUMN birth_date TEXT`).run(); } catch {}
       try { await db.prepare(`ALTER TABLE users ADD COLUMN name_confirmed INTEGER DEFAULT 0`).run(); } catch {}
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_company_name TEXT`).run(); } catch {}
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_business_number TEXT`).run(); } catch {}
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_role TEXT`).run(); } catch {}
       binds.push(userId);
       await db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).bind(...binds).run();
       return Response.json({ ok: true, user_id: userId });

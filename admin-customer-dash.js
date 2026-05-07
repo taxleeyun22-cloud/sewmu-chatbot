@@ -844,6 +844,10 @@ function openEditUserInfoModal(userId, prefill){
   if($g('euiRealName')) $g('euiRealName').value=u.real_name||'';
   if($g('euiPhone')) $g('euiPhone').value=u.phone||'';
   if($g('euiBirthDate')) $g('euiBirthDate').value=(u.birth_date||'').slice(0,10);
+  /* 사장님 명령 (2026-05-07): 본인 제출 회사정보도 prefill */
+  if($g('euiCompanyName')) $g('euiCompanyName').value=u.requested_company_name||u.company_name||'';
+  if($g('euiBusinessNumber')) $g('euiBusinessNumber').value=u.requested_business_number||'';
+  if($g('euiRequestedRole')) $g('euiRequestedRole').value=u.requested_role||'';
   m.style.display='flex';
   m.style.alignItems='center';
   m.style.justifyContent='center';
@@ -861,6 +865,10 @@ async function submitEditUserInfo(){
   const realName=($g('euiRealName')?.value||'').trim();
   const phone=($g('euiPhone')?.value||'').trim();
   const birthDate=($g('euiBirthDate')?.value||'').trim();
+  /* 사장님 명령 (2026-05-07): 본인 제출 회사정보도 수정 */
+  const companyName=($g('euiCompanyName')?.value||'').trim();
+  const businessNumber=($g('euiBusinessNumber')?.value||'').trim().replace(/\D/g,'');
+  const requestedRole=($g('euiRequestedRole')?.value||'').trim();
   if(!realName){alert('이름은 필수입니다');return}
   const btn=$g('euiSubmitBtn');
   if(btn){btn.disabled=true;btn.textContent='저장 중...';btn.style.opacity='.6'}
@@ -868,7 +876,12 @@ async function submitEditUserInfo(){
     const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=update_name',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({user_id:_euiUserId, real_name:realName, phone:phone||null, birth_date:birthDate||null}),
+      body:JSON.stringify({
+        user_id:_euiUserId, real_name:realName, phone:phone||null, birth_date:birthDate||null,
+        requested_company_name:companyName||null,
+        requested_business_number:businessNumber||null,
+        requested_role:requestedRole||null,
+      }),
     });
     const d=await r.json();
     if(!d.ok){alert('수정 실패: '+(d.error||'unknown'));return}
