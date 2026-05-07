@@ -488,9 +488,17 @@ async function _fetchSearchDropdown(q){
         const due=m.due_date?' · '+e(m.due_date):'';
         const snip=String(m.content||'').slice(0,60);
         const tagChips=Array.isArray(m.tags)&&m.tags.length?m.tags.slice(0,3).map(t=>'<span style="background:#dbeafe;color:#1e40af;font-size:.66em;font-weight:600;padding:1px 6px;border-radius:99px;margin-right:3px">#'+e(t)+'</span>').join(''):'';
-        const userId=m.target_user_id;
-        const onclick=userId?'_searchPickMemo('+userId+','+m.id+')':'';
-        const cursorStyle=userId?'cursor:pointer':'cursor:default;opacity:.7';
+        /* 버그 fix (2026-05-07 사장님 보고): 이전엔 target_user_id 메모만 클릭 가능.
+           업체 메모 (target_business_id) / 상담방 메모 (room_id) 도 점프 추가. */
+        let onclick='';
+        if(m.target_user_id){
+          onclick='_searchPickMemo('+m.target_user_id+','+m.id+')';
+        } else if(m.target_business_id){
+          onclick='_searchPickBusinessMemo('+m.target_business_id+','+m.id+')';
+        } else if(m.room_id && m.room_id !== '__none__'){
+          onclick='_searchPickRoomMemo(\''+e(m.room_id).replace(/\'/g,'')+'\','+m.id+')';
+        }
+        const cursorStyle=onclick?'cursor:pointer':'cursor:default;opacity:.7';
         return '<div onclick="'+onclick+'" style="padding:8px 12px;border-bottom:1px solid #f3f4f6;'+cursorStyle+';transition:background .12s" onmouseover="if(this.onclick)this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'\'"><div style="display:flex;align-items:center;gap:5px;font-size:.78em"><span style="flex-shrink:0">'+ic+'</span><span style="color:#1e40af;font-weight:600">'+e(ctx)+'</span><span style="color:#8b95a1;font-size:.92em;margin-left:auto">'+e((m.created_at||'').substring(0,10))+due+'</span></div><div style="font-size:.78em;color:#191f28;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+e(snip)+(snip.length>=60?'…':'')+'</div>'+(tagChips?'<div style="margin-top:2px">'+tagChips+'</div>':'')+'</div>';
       }).join('');
     }
@@ -530,6 +538,44 @@ function _searchPickMemo(userId, memoId){
       }
     }, 1200);
   }
+}
+
+/* 업체 메모 클릭 → business.html 점프 (memo highlight 옵션은 후속) */
+function _searchPickBusinessMemo(businessId, memoId){
+  const dd=$g('clientSearchDropdown'); if(dd)dd.style.display='none';
+  if(!businessId) return;
+  /* business.html 진입 시 ?key=ADMIN_KEY + #memo=ID 로 deep link */
+  try{
+    const k = (typeof KEY === 'string' && KEY) ? KEY : '';
+    const url = '/business.html?id=' + encodeURIComponent(businessId)
+              + (k ? '&key=' + encodeURIComponent(k) : '')
+              + (memoId ? '#memo=' + encodeURIComponent(memoId) : '');
+    location.href = url;
+  }catch(_){
+    location.href = '/business.html?id=' + businessId;
+  }
+}
+
+/* 상담방 메모 클릭 → 그 상담방 진입 (deep link Phase #7) */
+function _searchPickRoomMemo(roomId, memoId){
+  const dd=$g('clientSearchDropdown'); if(dd)dd.style.display='none';
+  if(!roomId) return;
+  /* tab('rooms') + openRoom(roomId) — Phase #7 deep link 자동 hash */
+  if(typeof tab === 'function') tab('rooms');
+  setTimeout(()=>{
+    if(typeof openRoom === 'function') openRoom(roomId);
+    /* 메모 highlight (1.5초) — admin.js loadRoomMemos 후 */
+    setTimeout(()=>{
+      const card=document.querySelector('#memoList [data-memo-id="'+memoId+'"]');
+      if(card){
+        card.scrollIntoView({behavior:'smooth', block:'center'});
+        const orig=card.style.background;
+        card.style.transition='background .25s';
+        card.style.background='#fef3c7';
+        setTimeout(()=>{ card.style.background=orig||''; }, 1500);
+      }
+    }, 1500);
+  }, 200);
 }
 
 /* 검색칸 밖 클릭 시 드롭다운 닫기 */
