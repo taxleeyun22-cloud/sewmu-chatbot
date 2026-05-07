@@ -84,6 +84,48 @@ export async function onRequestGet(context) {
     return Response.json({ ok: true, filing: f, previous: prev });
   }
 
+  /* Phase 7 (2026-05-07): ChatRoom 통합 — ?room_id=X 로 그 방 관련 모든 Case 조회.
+   * room_members 의 user_id (Person Case) + room_businesses 의 business_id (Business Case)
+   * + 레거시 chat_rooms.business_id 도 포함. */
+  const roomId = url.searchParams.get('room_id');
+  if (roomId) {
+    try {
+      const userIds = [];
+      const bizIds = [];
+      try {
+        const m = await db.prepare(`SELECT user_id FROM room_members WHERE room_id = ? AND (left_at IS NULL OR left_at = '') AND user_id IS NOT NULL`).bind(roomId).all();
+        (m.results || []).forEach(r => { if (r.user_id) userIds.push(r.user_id); });
+      } catch {}
+      try {
+        const b = await db.prepare(`SELECT business_id FROM room_businesses WHERE room_id = ? AND (removed_at IS NULL OR removed_at = '')`).bind(roomId).all();
+        (b.results || []).forEach(r => { if (r.business_id) bizIds.push(r.business_id); });
+      } catch {}
+      try {
+        const cr = await db.prepare(`SELECT business_id FROM chat_rooms WHERE id = ?`).bind(roomId).first();
+        if (cr?.business_id && !bizIds.includes(cr.business_id)) bizIds.push(cr.business_id);
+      } catch {}
+
+      const conditions = [];
+      const params = [];
+      if (userIds.length) {
+        conditions.push(`(owner_type = 'Person' AND owner_id IN (${userIds.map(() => '?').join(',')}))`);
+        params.push(...userIds);
+      }
+      if (bizIds.length) {
+        conditions.push(`(owner_type = 'Business' AND owner_id IN (${bizIds.map(() => '?').join(',')}))`);
+        params.push(...bizIds);
+      }
+      if (!conditions.length) {
+        return Response.json({ ok: true, filings: [] });
+      }
+      const sql = `SELECT * FROM filings WHERE (deleted_at IS NULL OR deleted_at = '') AND (${conditions.join(' OR ')}) ORDER BY fiscal_year DESC, type ASC, id DESC LIMIT 100`;
+      const r = await db.prepare(sql).bind(...params).all();
+      return Response.json({ ok: true, filings: r.results || [], userIds, bizIds });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   /* list — 그 owner 의 모든 Case */
   const ownerType = url.searchParams.get('owner_type');
   const ownerId = Number(url.searchParams.get('owner_id') || 0);

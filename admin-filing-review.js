@@ -882,6 +882,81 @@ async function _filRenderListInto(containerEl, ownerType, ownerId, ownerName) {
   }
 }
 
+/* Phase 7 (2026-05-07): ChatRoom 통합 — 그 방의 거래처/업체 신고 Case 읽기 전용 list */
+async function openRoomFilings(roomId) {
+  if (!roomId) { alert('상담방을 먼저 열어주세요'); return; }
+  const m = _filGet('roomFilingsModal');
+  if (!m) return;
+  m.style.display = 'flex';
+  m.style.alignItems = 'center';
+  m.style.justifyContent = 'center';
+  document.body.style.overflow = 'hidden';
+
+  const body = _filGet('roomFilingsBody');
+  const subtitle = _filGet('roomFilingsSubtitle');
+  body.innerHTML = '<div style="text-align:center;color:#9ca3af;padding:30px 0">불러오는 중...</div>';
+  if (subtitle) subtitle.textContent = '';
+
+  try {
+    const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(_filGetKey()) + '&room_id=' + encodeURIComponent(roomId));
+    const d = await r.json();
+    if (!d.ok) { body.innerHTML = '<div style="color:#f04452;padding:14px">오류: ' + _filEsc(d.error || 'unknown') + '</div>'; return; }
+    const list = d.filings || [];
+    const userIds = d.userIds || [];
+    const bizIds = d.bizIds || [];
+
+    if (subtitle) subtitle.textContent = '👤 ' + userIds.length + '명 · 🏢 ' + bizIds.length + '개 업체';
+
+    if (!list.length) {
+      body.innerHTML = '<div style="color:#9ca3af;padding:24px 0;text-align:center;font-size:.9em">'
+        + '연결된 신고 Case 가 없습니다.<br>'
+        + '<span style="font-size:.8em">거래처/업체 dashboard 에서 새 Case 를 만들 수 있습니다.</span>'
+        + '</div>';
+      return;
+    }
+
+    /* 그룹화: type 별 (종소세 / 법인세) */
+    const byType = { '종소세': [], '법인세': [] };
+    list.forEach(f => {
+      if (!byType[f.type]) byType[f.type] = [];
+      byType[f.type].push(f);
+    });
+
+    let html = '';
+    Object.keys(byType).forEach(type => {
+      if (!byType[type].length) return;
+      html += '<div style="margin-bottom:14px">';
+      html += '<div style="font-weight:700;font-size:.85em;color:#191f28;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #e5e8eb">'
+        + (type === '종소세' ? '👤 ' : '🏢 ') + _filEsc(type)
+        + ' <span style="color:#8b95a1;font-weight:400;font-size:.92em">' + byType[type].length + '건</span></div>';
+      byType[type].forEach(f => {
+        const af = (function () { try { return JSON.parse(f.auto_fields || '{}'); } catch { return {}; } })();
+        const stColor = { '작성중': '#9ca3af', '결재대기': '#f59e0b', '보관완료': '#10b981' }[f.review_status] || '#9ca3af';
+        const dec = af.decisive_tax || 0;
+        html += '<div onclick="closeRoomFilings();openFilingDetail(' + f.id + ')" '
+          + 'style="padding:9px 12px;background:#fff;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:5px;cursor:pointer;display:flex;align-items:center;justify-content:space-between" '
+          + 'onmouseenter="this.style.background=\'#f0f9ff\'" onmouseleave="this.style.background=\'#fff\'">'
+          + '<div style="flex:1;min-width:0">'
+          + '<div style="font-size:.86em;font-weight:600">[' + f.fiscal_year + '귀속] '
+          + '<span style="background:' + stColor + ';color:#fff;font-size:.74em;padding:2px 8px;border-radius:99px;font-weight:700;margin-left:4px">' + _filEsc(f.review_status) + '</span></div>'
+          + '<div style="font-size:.74em;color:#6b7280;margin-top:3px">결정세액 ' + (dec ? _filFormatNum(dec) + '원' : '—') + '</div>'
+          + '</div>'
+          + '<span style="color:#3182f6;font-size:1.2em">›</span>'
+          + '</div>';
+      });
+      html += '</div>';
+    });
+    body.innerHTML = html;
+  } catch (err) {
+    body.innerHTML = '<div style="color:#f04452;padding:14px">오류: ' + _filEsc(err.message) + '</div>';
+  }
+}
+function closeRoomFilings() {
+  const m = _filGet('roomFilingsModal');
+  if (m) m.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
 var _filLastListContext = null;
 function _filReloadList(ownerType, ownerId) {
   /* 마지막 컨텍스트 저장 → 모달 닫고 dashboard 갱신 시 재호출 */
