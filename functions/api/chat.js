@@ -157,6 +157,11 @@ function buildClientContext(businesses, userRealName) {
 function getDailyLimit(status) {
   if (status === 'approved_client') return 999999; // 기장거래처 무제한
   if (status === 'rejected') return 0;
+  if (status === 'terminated') return 0;
+  if (status === 'withdrawn') return 0; // 탈퇴자 차단
+  if (status === 'merged') return 0; // archive 된 합쳐진 user 차단
+  if (status === 'deleted') return 0; // 영구 삭제 차단
+  if (status === 'rejoined') return 0; // 사장님 명령 (2026-05-07): 재가입 = 다시 승인 받기 전엔 사용 X
   // approved_guest 는 deprecated 단계지만 기존 사용자 호환 위해 5회 유지
   if (status === 'approved_guest') return 5;
   return 5; // pending (승인 대기) — 기존 3 → 5 로 인상 (사장님 명령)
@@ -509,6 +514,13 @@ export async function onRequestPost(context) {
 
   // 거절된 사용자 차단
   if (approvalStatus === 'rejected') {
+    return Response.json({ error: "이용이 제한된 계정입니다. 세무회계 이윤에 문의해 주세요." }, { status: 403 });
+  }
+  // 사장님 명령 (2026-05-07): 재가입자 = 다시 승인 받기 전엔 사용 차단
+  if (approvalStatus === 'rejoined') {
+    return Response.json({ error: "재가입 승인 대기 중입니다. 세무회계 이윤(053-269-1213)에 문의해 주세요." }, { status: 403 });
+  }
+  if (approvalStatus === 'terminated' || approvalStatus === 'withdrawn' || approvalStatus === 'merged' || approvalStatus === 'deleted') {
     return Response.json({ error: "이용이 제한된 계정입니다. 세무회계 이윤에 문의해 주세요." }, { status: 403 });
   }
 
