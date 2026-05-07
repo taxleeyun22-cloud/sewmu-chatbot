@@ -9,10 +9,35 @@
  * - filingSetStatus(status) — 결재 상태 변경
  *
  * 의존:
- * - KEY (admin.js global)
+ * - KEY (admin.js global) — 또는 _filGetKey() fallback (business.html 처럼 admin.js 미로드 페이지)
  * - $g / e / escAttr (admin.js)
  * - admin-customer-dash.js / admin-business-tab.js 가 호출
  */
+
+/* 사장님 보고 fix (2026-05-07): business.html 에서 "불러오는 중..." 안 사라지던 거.
+ * 원인: business.html 은 admin.js 안 로드 → KEY 글로벌 미정의 → ReferenceError.
+ * 해결: KEY → _filGetKey() 로 통합 — admin.js 의 KEY / window.KEY / URL ?key= 순으로 fallback.
+ * 화면용 헬퍼 + escape 도 admin.js 미로드 케이스 fallback. */
+function _filGetKey() {
+  try { if (typeof KEY !== 'undefined' && KEY) return KEY; } catch (_) {}
+  try { if (typeof window !== 'undefined' && window.KEY) return window.KEY; } catch (_) {}
+  try {
+    const url = new URL(location.href);
+    return url.searchParams.get('key') || '';
+  } catch { return ''; }
+}
+function _filGet(id) {
+  try { if (typeof $g === 'function') return $g(id); } catch (_) {}
+  return document.getElementById(id);
+}
+function _filEsc(s) {
+  try { if (typeof e === 'function') return e(s); } catch (_) {}
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function _filEscAttr(s) {
+  try { if (typeof escAttr === 'function') return escAttr(s); } catch (_) {}
+  return _filEsc(s).replace(/'/g, '&#39;');
+}
 
 /* ==================== 유틸 ==================== */
 function _filFormatNum(n) {
@@ -92,7 +117,7 @@ async function _filNewToggleBizList() {
     area.style.display = 'block';
     list.innerHTML = '<div style="color:#9ca3af;padding:8px;font-size:.78em">불러오는 중...</div>';
     try {
-      const r = await fetch('/api/admin-businesses?key=' + encodeURIComponent(KEY) + '&user_id=' + _filNewOwnerId);
+      const r = await fetch('/api/admin-businesses?key=' + encodeURIComponent(_filGetKey()) + '&user_id=' + _filNewOwnerId);
       const d = await r.json();
       const bizList = (d.businesses || []).filter(b => b.status !== 'closed' && (!b.deleted_at || b.deleted_at === ''));
       if (!bizList.length) {
@@ -126,7 +151,7 @@ async function submitFilingNew() {
   const btn = $g('filingNewSubmitBtn');
   if (btn) { btn.disabled = true; btn.textContent = '생성 중...'; btn.style.opacity = '.6'; }
   try {
-    const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(KEY), {
+    const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(_filGetKey()), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: type,
@@ -164,7 +189,7 @@ async function openFilingDetail(filingId) {
   document.body.style.overflow = 'hidden';
   $g('filingBody').innerHTML = '<div style="text-align:center;color:#8b95a1;padding:40px 0">불러오는 중...</div>';
   try {
-    const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(KEY) + '&id=' + filingId);
+    const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(_filGetKey()) + '&id=' + filingId);
     const d = await r.json();
     if (!d.ok || !d.filing) { $g('filingBody').innerHTML = '<div style="color:#f04452;padding:20px">오류: ' + e(d.error || 'unknown') + '</div>'; return; }
     _filCurrent = d.filing;
@@ -187,13 +212,13 @@ async function _filFetchOwnerData(f) {
   f._ownerBirth = '';
   if (f.owner_type === 'Person') {
     try {
-      const u = await fetch('/api/admin-approve?key=' + encodeURIComponent(KEY) + '&status=all').then(r => r.json());
+      const u = await fetch('/api/admin-approve?key=' + encodeURIComponent(_filGetKey()) + '&status=all').then(r => r.json());
       const me = (u.users || []).find(x => x.id === f.owner_id);
       f._ownerName = me?.real_name || me?.name || '#' + f.owner_id;
       f._ownerBirth = me?.birth_date || '';
     } catch {}
     try {
-      const bizR = await fetch('/api/admin-businesses?key=' + encodeURIComponent(KEY) + '&user_id=' + f.owner_id);
+      const bizR = await fetch('/api/admin-businesses?key=' + encodeURIComponent(_filGetKey()) + '&user_id=' + f.owner_id);
       const bizD = await bizR.json();
       let allBiz = (bizD.businesses || []).filter(b => b.status !== 'closed');
       let includedIds = [];
@@ -208,7 +233,7 @@ async function _filFetchOwnerData(f) {
     } catch {}
   } else if (f.owner_type === 'Business') {
     try {
-      const r = await fetch('/api/admin-businesses?key=' + encodeURIComponent(KEY) + '&id=' + f.owner_id);
+      const r = await fetch('/api/admin-businesses?key=' + encodeURIComponent(_filGetKey()) + '&id=' + f.owner_id);
       const d = await r.json();
       if (d.business) f._businesses = [d.business];
     } catch {}
@@ -261,45 +286,22 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   const ro = readonly ? 'readonly disabled' : '';
   const revenueLabel = isJongSo ? '총수입금액' : '매출액';
 
-  /* 사장님 명령 (2026-05-07):
-   * - 매출액 + 전체매출액 → "매출액 (복수사업장포함)" 1행 통합
-   * - 세율 (%) 행 제거 — 코멘트 박스 안 잘리게 행 줄임 */
-  const fields = isJongSo
-    ? [
-        { key: 'sales', label: '매출액 (복수사업장포함)' },
-        { key: 'net_income', label: '결산서상 당기순이익' },
-        { key: 'adj_inclusion', label: '세무조정 익금산입 (+)' },
-        { key: 'adj_exclusion', label: '세무조정 손금산입 (−)' },
-        { key: 'revenue', label: '총수입금액', bold: true },
-        { key: 'income', label: '소득금액', showRate: 'revenue' },
-        { key: 'comprehensive_deduction', label: '소득공제' },
-        { key: 'tax_base', label: '과세표준' },
-        { key: 'calculated_tax', label: '산출세액' },
-        { key: 'deduction_total', label: '공제·감면 (합계)', autoSum: 'deductions' },
-        { key: 'decisive_tax', label: '결정세액', bold: true },
-        { key: 'penalty_total', label: '가산세 (합계)', autoSum: 'penalties' },
-        { key: 'additional_tax', label: '추가납부세액' },
-        { key: 'prepaid_tax', label: '기납부세액' },
-        { key: 'nong_teuk', label: '농특세 납부' },
-        { key: 'payable_tax', label: '납부할세액', bold: true, highlight: true },
-      ]
-    : [
-        { key: 'sales', label: '매출액 (복수사업장포함)' },
-        { key: 'net_income', label: '결산서상 당기순이익' },
-        { key: 'adj_inclusion', label: '세무조정 익금산입 (+)' },
-        { key: 'adj_exclusion', label: '세무조정 손금산입 (−)' },
-        { key: 'revenue', label: '매출액 (영업수익)', bold: true },
-        { key: 'business_income', label: '각사업연도소득금액', showRate: 'revenue' },
-        { key: 'tax_base', label: '과세표준' },
-        { key: 'calculated_tax', label: '산출세액' },
-        { key: 'deduction_total', label: '공제·감면 (합계)', autoSum: 'deductions' },
-        { key: 'decisive_tax', label: '결정세액', bold: true },
-        { key: 'penalty_total', label: '가산세 (합계)', autoSum: 'penalties' },
-        { key: 'additional_tax', label: '추가납부세액' },
-        { key: 'prepaid_tax', label: '기납부세액 (중간예납 등)' },
-        { key: 'nong_teuk', label: '농특세 납부' },
-        { key: 'payable_tax', label: '납부할세액', bold: true, highlight: true },
-      ];
+  /* 사장님 명령 (2026-05-07): "법인이랑 개인 동일하게 가자" — 10개 항목 단일 list.
+   * 종소세 / 법인세 둘 다 같은 항목·라벨. 사장님 명시:
+   * 결산서상당기순이익 / 익금산입 / 손금산입 / 각사업연도소득금액 / 과세표준 /
+   * 산출세액 / 공제감면세액 / 가산세액 / 기납부세액 / 감면분추가납부세액 */
+  const fields = [
+    { key: 'net_income', label: '결산서상당기순이익' },
+    { key: 'adj_inclusion', label: '익금산입 (+)' },
+    { key: 'adj_exclusion', label: '손금산입 (−)' },
+    { key: 'business_income', label: '각사업연도소득금액' },
+    { key: 'tax_base', label: '과세표준' },
+    { key: 'calculated_tax', label: '산출세액' },
+    { key: 'deduction_total', label: '공제감면세액', autoSum: 'deductions' },
+    { key: 'penalty_total', label: '가산세액', autoSum: 'penalties' },
+    { key: 'prepaid_tax', label: '기납부세액' },
+    { key: 'additional_tax', label: '감면분추가납부세액' },
+  ];
 
   /* 사장님 명령 (2026-05-07): 결재란은 헤더 우상단 (admin-modals.html) 으로 이동.
    * 본문 stamp4 영역 제거 — CHECKLIST 도 사장님 명령 "검토사항 업애자" 로 제거. */
@@ -771,7 +773,7 @@ async function _filSaveNow() {
   const st = $g('filSaveStatus');
   if (st) { st.textContent = '저장 중...'; st.style.color = '#f59e0b'; }
   try {
-    const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(KEY) + '&id=' + _filCurrent.id, {
+    const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(_filGetKey()) + '&id=' + _filCurrent.id, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ auto_fields: af, reviewer_comment: reviewerComment }),
     });
@@ -796,7 +798,7 @@ async function filingSetStatus(status) {
   /* 저장 먼저 */
   await _filSaveNow();
   try {
-    const r = await fetch('/api/admin-filings?action=set_status&id=' + _filCurrent.id + '&key=' + encodeURIComponent(KEY), {
+    const r = await fetch('/api/admin-filings?action=set_status&id=' + _filCurrent.id + '&key=' + encodeURIComponent(_filGetKey()), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
@@ -849,7 +851,7 @@ async function _filRenderListInto(containerEl, ownerType, ownerId, ownerName) {
   if (!containerEl) return;
   containerEl.innerHTML = '<div style="color:#9ca3af;padding:10px 0;font-size:.85em">불러오는 중...</div>';
   try {
-    const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(KEY) + '&owner_type=' + ownerType + '&owner_id=' + ownerId);
+    const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(_filGetKey()) + '&owner_type=' + ownerType + '&owner_id=' + ownerId);
     const d = await r.json();
     const list = d.filings || [];
     let html = '';
