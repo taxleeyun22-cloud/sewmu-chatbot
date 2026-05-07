@@ -1283,19 +1283,23 @@
         <div id="apbList" style="max-height:160px;overflow-y:auto;border:1px solid #e5e8eb;border-radius:6px;background:#fff">
           <div style="text-align:center;color:#8b95a1;padding:20px 0;font-size:.8em">불러오는 중...</div>
         </div>
-        <!-- 사장님 명령 (2026-05-07): 업체 클릭 시 그 업체의 기존 대표자(수동 user) 표시 + merge 옵션.
-             '사용자에서 기장거래처 들어가있는 대표 개인이랑도 매칭해야지' -->
-        <div id="apbExistingRepBox" style="display:none;margin-top:10px;padding:10px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:6px">
-          <div style="font-size:.82em;font-weight:700;color:#92400e;margin-bottom:6px">⚠️ 이 업체에 이미 등록된 대표자</div>
-          <div id="apbExistingRepInfo" style="font-size:.85em;font-weight:600;color:#1f2937;margin-bottom:8px"></div>
-          <div style="font-size:.78em;color:#374151">
-            <label style="display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer">
-              <input type="radio" name="apbMatchMode" value="merge" checked> 🔗 같은 사람 — 기존 대표자와 합치기 (카카오 정보 흡수, 권장)
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer">
-              <input type="radio" name="apbMatchMode" value="separate"> 👥 다른 사람 — 별도 담당자로 추가
-            </label>
-          </div>
+      </div>
+
+      <!-- 사장님 명령 (2026-05-07 정정): 업체 선택 + 사용자 선택 = 별도 영역 둘 다.
+           '업체선택이랑 사용자선택 두개가 있어야된다고' -->
+      <div style="font-size:.82em;font-weight:700;color:#374151;margin:14px 0 6px">👤 기존 사용자 (합칠 사람) <span style="color:#8b95a1;font-weight:400;font-size:.92em">— 선택사항</span></div>
+      <div style="padding:0 0 10px 22px">
+        <div style="font-size:.74em;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:6px;margin-bottom:6px;border-left:3px solid #f59e0b">
+          📌 이 카카오 가입자 = 기존 기장거래처와 같은 사람이면 → 클릭해서 합치기.<br>
+          <span style="color:#374151">합치면: 기존 user 가 살아남고 카카오 정보 흡수 + 카카오 user archive.</span>
+        </div>
+        <input id="apbUserSearch" type="text" placeholder="기장거래처 이름·전화 검색..." oninput="_apbFilterUserList()" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box;margin-bottom:6px">
+        <div id="apbUserList" style="max-height:160px;overflow-y:auto;border:1px solid #e5e8eb;border-radius:6px;background:#fff">
+          <div style="text-align:center;color:#8b95a1;padding:20px 0;font-size:.8em">불러오는 중...</div>
+        </div>
+        <div id="apbSelectedUserBox" style="display:none;margin-top:6px;padding:6px 10px;background:#dbeafe;border:1px solid #3b82f6;border-radius:6px;font-size:.78em;color:#1e3a8a">
+          <span id="apbSelectedUserText"></span>
+          <button type="button" onclick="_apbClearUser()" style="margin-left:6px;background:none;border:none;color:#dc2626;cursor:pointer;font-weight:700;font-family:inherit">✕ 선택 해제</button>
         </div>
       </div>
       <label style="display:flex;align-items:center;gap:6px;font-size:.88em;padding:6px 0;cursor:pointer">
