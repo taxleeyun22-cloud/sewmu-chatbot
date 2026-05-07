@@ -132,14 +132,13 @@ export async function onRequestGet(context) {
      * - pending: approval_status='pending' AND 재가입자 X (정말 처음 가입)
      * - deleted: approval_status='deleted' (영구 삭제)
      * - 다른 status: 일반 + deleted_at 없음 */
+    /* 사장님 명령 (2026-05-07 정정): rejoined 는 approval_status='rejoined' 자체.
+     * 옛 탈퇴자가 같은 카카오로 다시 로그인 시 자동 부활 + status='rejoined'.
+     * pending 은 정말 처음 가입자만. */
     if (status === 'withdrawn') {
       where.push(`u.deleted_at IS NOT NULL AND u.deleted_at != ''`);
     } else if (status === 'rejoined') {
-      where.push(`u.previous_withdrawn_user_id IS NOT NULL AND u.previous_withdrawn_user_id > 0`);
-      where.push(`(u.deleted_at IS NULL OR u.deleted_at = '')`);
-    } else if (status === 'pending') {
-      where.push(`COALESCE(u.approval_status, 'pending') = 'pending'`);
-      where.push(`(u.previous_withdrawn_user_id IS NULL OR u.previous_withdrawn_user_id = 0)`);
+      where.push(`COALESCE(u.approval_status, 'pending') = 'rejoined'`);
       where.push(`(u.deleted_at IS NULL OR u.deleted_at = '')`);
     } else if (status === 'deleted') {
       where.push(`COALESCE(u.approval_status, 'pending') = 'deleted'`);
@@ -171,10 +170,7 @@ export async function onRequestGet(context) {
         sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND u.deleted_at IS NOT NULL AND u.deleted_at != ''`;
         binds2 = [];
       } else if (s === 'rejoined') {
-        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND u.previous_withdrawn_user_id IS NOT NULL AND u.previous_withdrawn_user_id > 0 AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
-        binds2 = [];
-      } else if (s === 'pending') {
-        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND COALESCE(u.approval_status, 'pending') = 'pending' AND (u.previous_withdrawn_user_id IS NULL OR u.previous_withdrawn_user_id = 0) AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
+        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND COALESCE(u.approval_status, 'pending') = 'rejoined' AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
         binds2 = [];
       } else if (s === 'deleted') {
         sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND COALESCE(u.approval_status, 'pending') = 'deleted'`;

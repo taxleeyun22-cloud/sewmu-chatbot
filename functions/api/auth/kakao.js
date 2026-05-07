@@ -113,40 +113,57 @@ export async function onRequestGet(context) {
 
     await initTables(db);
 
-    /* 사장님 명령 (2026-05-07): 자동 복구 폐지.
-     * - 활성 user 매칭 → 정상 로그인 (last_login_at 갱신만)
-     * - 매칭 없음 → 새 user (pending). withdrawn_provider_id 매칭 → 옛 탈퇴자 발견 시 previous_withdrawn_user_id 저장 */
+    /* 사장님 명령 (2026-05-07 정정): 옛 탈퇴자 자동 부활 + 재가입 상태.
+     * - 활성 user 매칭 → 정상 로그인
+     * - 옛 탈퇴자 (withdrawn_provider_id 매칭) → 부활 + approval_status='rejoined'
+     * - 진짜 새 user → INSERT (pending) */
     try { await db.prepare(`ALTER TABLE users ADD COLUMN withdrawn_provider_id TEXT`).run(); } catch {}
-    try { await db.prepare(`ALTER TABLE users ADD COLUMN previous_withdrawn_user_id INTEGER`).run(); } catch {}
 
-    /* 1. 활성 user 매칭 (deleted_at IS NULL) */
+    /* 1. 활성 user 매칭 */
     let user = await db.prepare(
       `SELECT id FROM users WHERE provider = 'kakao' AND provider_id = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
     ).bind(kakaoId).first();
 
     if (user) {
-      /* 활성 user 있으면 → 정상 로그인 (정보 갱신) */
+      /* 정상 로그인 (정보 갱신) */
       await db.prepare(
         `UPDATE users SET name = ?, email = ?, phone = ?, profile_image = ?, last_login_at = datetime('now', '+9 hours') WHERE id = ?`
       ).bind(name, email, phone, profileImage, user.id).run();
     } else {
-      /* 2. 옛 탈퇴자 (withdrawn_provider_id 매칭) 검색 */
-      const prevWithdrawn = await db.prepare(
-        `SELECT id, real_name, deleted_at FROM users
-         WHERE provider = 'kakao' AND withdrawn_provider_id = ? AND deleted_at IS NOT NULL
-         ORDER BY deleted_at DESC LIMIT 1`
+      /* 2. 옛 탈퇴자 검색 (withdrawn_provider_id 매칭) */
+      const withdrawnUser = await db.prepare(
+        `SELECT id FROM users WHERE provider = 'kakao' AND withdrawn_provider_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 1`
       ).bind(kakaoId).first();
-      const prevId = prevWithdrawn?.id || null;
 
-      /* 3. 새 user INSERT (pending). previous_withdrawn_user_id 저장 (있으면) */
-      const r = await db.prepare(
-        `INSERT INTO users (provider, provider_id, name, email, phone, profile_image,
-                            approval_status, name_confirmed,
-                            previous_withdrawn_user_id,
-                            created_at, last_login_at)
-         VALUES ('kakao', ?, ?, ?, ?, ?, 'pending', 0, ?, datetime('now', '+9 hours'), datetime('now', '+9 hours'))`
-      ).bind(kakaoId, name, email, phone, profileImage, prevId).run();
-      user = { id: r.meta?.last_row_id };
+      if (withdrawnUser) {
+        /* 옛 탈퇴자 부활 + approval_status='rejoined' (재가입 상태)
+         * provider_id 복원 (옛 'withdrawn:N:KAKAO_ID' → 다시 KAKAO_ID) */
+        await db.prepare(`
+          UPDATE users SET
+            deleted_at = NULL,
+            withdrawal_reason = NULL,
+            approval_status = 'rejoined',
+            provider_id = ?,
+            provider_user_id = ?,
+            withdrawn_provider_id = NULL,
+            name = ?,
+            email = ?,
+            phone = ?,
+            profile_image = ?,
+            last_login_at = datetime('now', '+9 hours')
+          WHERE id = ?
+        `).bind(kakaoId, kakaoId, name, email, phone, profileImage, withdrawnUser.id).run();
+        user = { id: withdrawnUser.id };
+      } else {
+        /* 3. 진짜 새 user INSERT (pending) */
+        const r = await db.prepare(
+          `INSERT INTO users (provider, provider_id, name, email, phone, profile_image,
+                              approval_status, name_confirmed,
+                              created_at, last_login_at)
+           VALUES ('kakao', ?, ?, ?, ?, ?, 'pending', 0, datetime('now', '+9 hours'), datetime('now', '+9 hours'))`
+        ).bind(kakaoId, name, email, phone, profileImage).run();
+        user = { id: r.meta?.last_row_id };
+      }
     }
 
     // 4. 세션 생성

@@ -84,9 +84,8 @@ export async function onRequestGet(context) {
 
     await initTables(db);
 
-    /* 사장님 명령 (2026-05-07): 자동 복구 폐지 (kakao.js 와 동일 패턴) */
+    /* 사장님 명령 (2026-05-07 정정): 옛 탈퇴자 부활 + 재가입 상태 (kakao.js 동일) */
     try { await db.prepare(`ALTER TABLE users ADD COLUMN withdrawn_provider_id TEXT`).run(); } catch {}
-    try { await db.prepare(`ALTER TABLE users ADD COLUMN previous_withdrawn_user_id INTEGER`).run(); } catch {}
 
     let user = await db.prepare(
       `SELECT id FROM users WHERE provider = 'naver' AND provider_id = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
@@ -97,17 +96,31 @@ export async function onRequestGet(context) {
         `UPDATE users SET name = ?, email = ?, phone = ?, profile_image = ?, last_login_at = datetime('now') WHERE id = ?`
       ).bind(name, email, phone, profileImage, user.id).run();
     } else {
-      const prevWithdrawn = await db.prepare(
+      const withdrawnUser = await db.prepare(
         `SELECT id FROM users WHERE provider = 'naver' AND withdrawn_provider_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 1`
       ).bind(naverId).first();
-      const prevId = prevWithdrawn?.id || null;
-      const r = await db.prepare(
-        `INSERT INTO users (provider, provider_id, name, email, phone, profile_image,
-                            approval_status, name_confirmed, previous_withdrawn_user_id,
-                            created_at, last_login_at)
-         VALUES ('naver', ?, ?, ?, ?, ?, 'pending', 0, ?, datetime('now'), datetime('now'))`
-      ).bind(naverId, name, email, phone, profileImage, prevId).run();
-      user = { id: r.meta?.last_row_id };
+      if (withdrawnUser) {
+        await db.prepare(`
+          UPDATE users SET
+            deleted_at = NULL,
+            withdrawal_reason = NULL,
+            approval_status = 'rejoined',
+            provider_id = ?,
+            provider_user_id = ?,
+            withdrawn_provider_id = NULL,
+            name = ?, email = ?, phone = ?, profile_image = ?,
+            last_login_at = datetime('now')
+          WHERE id = ?
+        `).bind(naverId, naverId, name, email, phone, profileImage, withdrawnUser.id).run();
+        user = { id: withdrawnUser.id };
+      } else {
+        const r = await db.prepare(
+          `INSERT INTO users (provider, provider_id, name, email, phone, profile_image,
+                              approval_status, name_confirmed, created_at, last_login_at)
+           VALUES ('naver', ?, ?, ?, ?, ?, 'pending', 0, datetime('now'), datetime('now'))`
+        ).bind(naverId, name, email, phone, profileImage).run();
+        user = { id: r.meta?.last_row_id };
+      }
     }
 
     // 4. 세션 생성
