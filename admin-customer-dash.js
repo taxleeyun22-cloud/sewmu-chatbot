@@ -36,10 +36,21 @@ var _summaryMode = 'room';  /* 'room' (방단위) | 'customer' (사람단위 use
 var _customerSummaryUserId = null;
 var _customerSummaryBusinessId = null;
 
-async function openCustomerDashboard(userId){
+async function openCustomerDashboard(userId, opts){
   if(!userId)return;
   _cdCurrentUserId=userId;
   docsSelectedUserId=userId; /* 다른 모달과 컨텍스트 공유 */
+  /* Phase #7 적용 (2026-05-06): SPA deep link — URL 에 cust=N 추가.
+   * 사장님이 거래처 dashboard 본 후 다른 데 갔다가 뒤로가기 → 그 거래처 자동 복원.
+   * popstate 호출 시 (opts.fromPopstate) 는 pushState skip — 무한 루프 방지. */
+  if(!(opts && opts.fromPopstate)){
+    try{
+      var newHash = '#tab=users&cust=' + userId;
+      if(location.hash !== newHash){
+        history.pushState({adminTab:'users', cust:userId}, '', location.pathname + location.search + newHash);
+      }
+    }catch(_){}
+  }
   /* 통합 메모 영역 reset (메모 빡센 세팅) */
   _cdMemoCategory='all';
   _cdPendingAttachments=[];
@@ -332,10 +343,21 @@ function _cdOpenSummary(roomId, summaryId){
   }, 100);
 }
 
-function closeCustomerDashboard(){
+function closeCustomerDashboard(opts){
   $g('custDashModal').style.display='none';
   document.body.style.overflow='';
   _cdCurrentUserId=null;
+  /* Phase #7 적용 (2026-05-06): SPA — 닫을 때 hash 정리.
+   * 사용자가 ✕ 버튼으로 닫으면 hash 의 cust=N 제거 (뒤로가기 시 다시 안 열리게).
+   * popstate 호출 시 (opts.fromPopstate) 는 history 변경 skip. */
+  if(!(opts && opts.fromPopstate)){
+    try{
+      var m = location.hash.match(/^#tab=users&cust=\d+/);
+      if(m){
+        history.replaceState({adminTab:'users'}, '', location.pathname + location.search + '#tab=users');
+      }
+    }catch(_){}
+  }
 }
 function cdGotoDocs(){
   closeCustomerDashboard();
