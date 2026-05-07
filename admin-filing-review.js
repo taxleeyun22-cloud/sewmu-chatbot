@@ -169,9 +169,49 @@ async function openFilingDetail(filingId) {
     if (!d.ok || !d.filing) { $g('filingBody').innerHTML = '<div style="color:#f04452;padding:20px">오류: ' + e(d.error || 'unknown') + '</div>'; return; }
     _filCurrent = d.filing;
     _filPrev = d.previous || null;
+    /* 사장님 보고 fix (2026-05-07): "불러오는 중..." 안 사라지던 거.
+     * 원인: _filRenderOwnerInfo 가 setTimeout async fetch — _filRender 후 fill.
+     *       인쇄 시점엔 fetch 미완료 → "불러오는 중..." 그대로 인쇄됨.
+     * 해결: openFilingDetail 에서 owner data pre-fetch → _filCurrent 에 stash → 동기 render. */
+    await _filFetchOwnerData(_filCurrent);
     _filRender();
   } catch (err) {
     $g('filingBody').innerHTML = '<div style="color:#f04452;padding:20px">오류: ' + e(err.message) + '</div>';
+  }
+}
+
+/* 사장님 보고 fix (2026-05-07): owner 정보 동기 fetch 후 _filCurrent stash. */
+async function _filFetchOwnerData(f) {
+  f._businesses = [];
+  f._ownerName = '';
+  f._ownerBirth = '';
+  if (f.owner_type === 'Person') {
+    try {
+      const u = await fetch('/api/admin-approve?key=' + encodeURIComponent(KEY) + '&status=all').then(r => r.json());
+      const me = (u.users || []).find(x => x.id === f.owner_id);
+      f._ownerName = me?.real_name || me?.name || '#' + f.owner_id;
+      f._ownerBirth = me?.birth_date || '';
+    } catch {}
+    try {
+      const bizR = await fetch('/api/admin-businesses?key=' + encodeURIComponent(KEY) + '&user_id=' + f.owner_id);
+      const bizD = await bizR.json();
+      let allBiz = (bizD.businesses || []).filter(b => b.status !== 'closed');
+      let includedIds = [];
+      if (f.included_business_ids) {
+        try { includedIds = JSON.parse(f.included_business_ids) || []; } catch {}
+      }
+      if (includedIds.length) {
+        const inSet = new Set(includedIds);
+        allBiz = allBiz.filter(b => inSet.has(b.id));
+      }
+      f._businesses = allBiz;
+    } catch {}
+  } else if (f.owner_type === 'Business') {
+    try {
+      const r = await fetch('/api/admin-businesses?key=' + encodeURIComponent(KEY) + '&id=' + f.owner_id);
+      const d = await r.json();
+      if (d.business) f._businesses = [d.business];
+    } catch {}
   }
 }
 function closeFilingDetail() {
@@ -261,29 +301,16 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
         { key: 'payable_tax', label: '납부할세액', bold: true, highlight: true },
       ];
 
-  /* 사장님 명령 (2026-05-07): 결재란 — 직사각형 4칸 / 위 라벨 / 아래 도장 자리 */
-  const stamp4 = '<div class="filing-stamp-area print-only" style="display:none;margin-top:8px">'
-    + '<table style="border-collapse:collapse;width:100%;font-size:8pt;font-weight:700">'
-    + '<tr>'
-    + '<td style="border:1.5px solid #191f28;width:25%;height:5mm;text-align:center;padding:1mm;background:#f3f4f6">담당자</td>'
-    + '<td style="border:1.5px solid #191f28;width:25%;height:5mm;text-align:center;padding:1mm;background:#f3f4f6">사무장</td>'
-    + '<td style="border:1.5px solid #191f28;width:25%;height:5mm;text-align:center;padding:1mm;background:#f3f4f6">세무사</td>'
-    + '<td style="border:1.5px solid #191f28;width:25%;height:5mm;text-align:center;padding:1mm;background:#f3f4f6">대표</td>'
-    + '</tr>'
-    + '<tr>'
-    + '<td style="border:1.5px solid #191f28;border-top:none;width:25%;height:18mm;text-align:center"></td>'
-    + '<td style="border:1.5px solid #191f28;border-top:none;width:25%;height:18mm;text-align:center"></td>'
-    + '<td style="border:1.5px solid #191f28;border-top:none;width:25%;height:18mm;text-align:center"></td>'
-    + '<td style="border:1.5px solid #191f28;border-top:none;width:25%;height:18mm;text-align:center"></td>'
-    + '</tr>'
-    + '</table></div>';
+  /* 사장님 명령 (2026-05-07): 결재란은 헤더 우상단 (admin-modals.html) 으로 이동.
+   * 본문 stamp4 영역 제거 — CHECKLIST 도 사장님 명령 "검토사항 업애자" 로 제거. */
 
-  /* SECTION 01: 기본 정보 — 사장님 명령 (2026-05-07): 주업체 회사정보로 변경.
-   * 회사명 / 사업자번호 / 개업일자 / 사업장주소. 사업체 여러개면 모두 나열. */
-  let html = '<div class="keep-together" style="margin-bottom:18px">';
+  /* SECTION 01: 기본 정보 — 사장님 명령 (2026-05-07): 주업체 회사정보.
+   * 회사명 / 사업자번호 / 개업일자 / 사업장주소. 사업체 여러개면 모두 나열.
+   * 사장님 보고 fix: "불러오는 중..." 안 사라지던 거 — 동기 렌더로 변경 (openFilingDetail 에서 pre-fetch 후 stash). */
+  let html = '<div class="keep-together" style="margin-bottom:14px">';
   html += '<div class="filing-section-header">SECTION 01 · BASIC INFO</div>';
   html += '<div class="filing-section-title">기본정보</div>';
-  html += '<div id="filingOwnerInfoBody" style="font-size:.88em;color:#374151;line-height:1.7"><div style="color:#9ca3af">불러오는 중...</div></div>';
+  html += '<div id="filingOwnerInfoBody" style="font-size:.88em;color:#374151;line-height:1.6">' + _filRenderOwnerInfoSync(f) + '</div>';
   html += '</div>';
 
   /* SECTION 02: 작년 vs 올해 비교표 */
@@ -414,74 +441,55 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   html += '</div>';
   html += '</div>';
 
-  /* SECTION 04: 작년 리뷰 (참조용 — 직원 + 결재자 코멘트 둘 다, 작년 있을 때만) */
+  /* SECTION 04: 작년 리뷰 (참조용 — 직원 + 결재자 코멘트, 작년 있을 때만).
+   * 사장님 명령: 2장 fit 컴팩트. */
   const prevEmpNote = pf.employee_note || '';
   if (prev && (prevEmpNote || prev.reviewer_comment)) {
-    html += '<div class="keep-together" style="margin-bottom:14px;padding:10px 14px;background:#f9fafb;border-left:3px solid #6b7280;border-radius:6px">';
+    html += '<div class="keep-together" style="margin-bottom:10px;padding:6px 10px;background:#f9fafb;border-left:3px solid #6b7280;border-radius:6px">';
     html += '<div class="filing-section-header" style="margin-top:0">SECTION 04 · LAST YEAR REVIEW</div>';
-    html += '<div class="filing-section-title" style="font-size:.92em">📜 작년 (' + prev.fiscal_year + ') 리뷰 — 참조용</div>';
+    html += '<div class="filing-section-title" style="font-size:.9em;margin-bottom:5px">📜 작년 (' + prev.fiscal_year + ') 리뷰 — 참조용</div>';
     if (prevEmpNote) {
-      html += '<div style="margin-bottom:8px"><div style="font-weight:700;font-size:.84em;margin-bottom:3px;color:#374151">○ 작년 직원 코멘트 (특이사항·이슈)</div>';
-      html += '<div style="font-size:.84em;color:#374151;white-space:pre-wrap;line-height:1.6;background:#fff7ed;padding:8px 10px;border-radius:4px;border-left:2px solid #f59e0b">' + e(prevEmpNote) + '</div></div>';
+      html += '<div style="margin-bottom:4px"><div style="font-weight:700;font-size:.82em;margin-bottom:2px;color:#374151">○ 작년 직원 코멘트 (특이사항·이슈)</div>';
+      html += '<div style="font-size:.82em;color:#374151;white-space:pre-wrap;line-height:1.5;background:#fff7ed;padding:5px 8px;border-radius:4px;border-left:2px solid #f59e0b">' + e(prevEmpNote) + '</div></div>';
     }
     if (prev.reviewer_comment) {
-      html += '<div><div style="font-weight:700;font-size:.84em;margin-bottom:3px;color:#374151">○ 작년 결재자 코멘트</div>';
-      html += '<div style="font-size:.84em;color:#374151;white-space:pre-wrap;line-height:1.6;background:#fff;padding:8px 10px;border-radius:4px;border-left:2px solid #6b7280">' + e(prev.reviewer_comment) + '</div></div>';
+      html += '<div><div style="font-weight:700;font-size:.82em;margin-bottom:2px;color:#374151">○ 작년 결재자 코멘트</div>';
+      html += '<div style="font-size:.82em;color:#374151;white-space:pre-wrap;line-height:1.5;background:#fff;padding:5px 8px;border-radius:4px;border-left:2px solid #6b7280">' + e(prev.reviewer_comment) + '</div></div>';
     }
     html += '</div>';
   }
 
-  /* SECTION 05: 직원 코멘트 (특이사항·이슈) — 큰 영역. 매년 누적, 다음 해 작년 리뷰에 표시 */
-  html += '<div class="keep-together" style="margin-bottom:14px">';
+  /* SECTION 05: 직원 코멘트 (특이사항·이슈) — 매년 누적, 다음 해 작년 리뷰에 표시.
+   * 사장님 명령 (2026-05-07): "두장에 다담아야한다" — 박스 컴팩트화. */
+  html += '<div class="keep-together" style="margin-bottom:10px">';
   html += '<div class="filing-section-header">SECTION 05 · EMPLOYEE NOTE</div>';
   html += '<div class="filing-section-title">📝 직원 코멘트 <span style="font-size:.74em;color:#6b7280;font-weight:500">(특이사항·이슈 — 다음 해 작년 리뷰에 자동 표시)</span></div>';
-  /* 인쇄용 — 큰 박스 */
-  html += '<div class="print-only" style="display:none;border:1.5px solid #191f28;border-radius:4px;padding:6mm;min-height:50mm;font-size:10pt;line-height:1.7;white-space:pre-wrap;background:#fff7ed">';
+  /* 인쇄용 — 컴팩트 (35mm) */
+  html += '<div class="print-only" style="display:none;border:1.5px solid #191f28;border-radius:4px;padding:4mm;min-height:35mm;font-size:9.5pt;line-height:1.6;white-space:pre-wrap;background:#fff7ed">';
   html += e(af.employee_note || '');
   html += '</div>';
-  /* 편집용 textarea — 크게 */
-  html += '<textarea class="no-print" data-fil-text-field="employee_note" rows="6" ' + ro + ' placeholder="이번 신고의 특이사항·이슈 — 직원이 작성. 매년 누적되어 다음 해 검토표에 자동 표시.\n예) 카페 신규 오픈으로 매출 급증 / 사업용계좌 12월 매출 누락 가능성 / 청년창업감면 신청 가능 — 재확인 필요" style="width:100%;padding:10px 12px;border:1px solid #f59e0b;border-radius:6px;font-size:.92em;font-family:inherit;box-sizing:border-box;resize:vertical;line-height:1.6;background:#fff7ed">' + e(af.employee_note || '') + '</textarea>';
+  /* 편집용 textarea */
+  html += '<textarea class="no-print" data-fil-text-field="employee_note" rows="5" ' + ro + ' placeholder="이번 신고의 특이사항·이슈 — 직원이 작성. 매년 누적되어 다음 해 검토표에 자동 표시.\n예) 카페 신규 오픈으로 매출 급증 / 사업용계좌 12월 매출 누락 가능성 / 청년창업감면 신청 가능 — 재확인 필요" style="width:100%;padding:10px 12px;border:1px solid #f59e0b;border-radius:6px;font-size:.92em;font-family:inherit;box-sizing:border-box;resize:vertical;line-height:1.6;background:#fff7ed">' + e(af.employee_note || '') + '</textarea>';
   html += '</div>';
 
-  /* SECTION 06: 결재자 코멘트 — 작은 영역 (사장님 결재 시 작성) */
-  html += '<div class="keep-together" style="margin-bottom:18px">';
+  /* SECTION 07: 결재자 코멘트 — 작은 영역 (사장님 결재 시 작성).
+   * 사장님 명령: 2장 fit 위해 컴팩트. */
+  html += '<div class="keep-together" style="margin-bottom:10px">';
   html += '<div class="filing-section-header">SECTION 07 · REVIEWER COMMENT</div>';
   html += '<div class="filing-section-title">✍️ 결재자 코멘트 <span style="font-size:.74em;color:#6b7280;font-weight:500">(사장님 결재 시 작성 — 선택)</span></div>';
-  /* 인쇄용 — 작은 박스 (손글씨 자리 또는 입력 내용) */
-  html += '<div class="print-only" style="display:none;border:1px solid #191f28;border-radius:4px;padding:5mm;min-height:25mm;font-size:10pt;line-height:1.7;white-space:pre-wrap">';
+  /* 인쇄용 — 작은 박스 (20mm) */
+  html += '<div class="print-only" style="display:none;border:1px solid #191f28;border-radius:4px;padding:4mm;min-height:20mm;font-size:9.5pt;line-height:1.6;white-space:pre-wrap">';
   html += e(f.reviewer_comment || '');
   html += '</div>';
-  /* 편집용 textarea — 작게 */
+  /* 편집용 textarea */
   html += '<textarea class="no-print" data-fil-field="reviewer_comment" rows="3" ' + ro + ' placeholder="결재자 (사장님) 코멘트 — 결재 시 작성 (선택)" style="width:100%;padding:10px 12px;border:1px solid #e5e8eb;border-radius:6px;font-size:.9em;font-family:inherit;box-sizing:border-box;resize:vertical;line-height:1.6">' + e(f.reviewer_comment || '') + '</textarea>';
   html += '</div>';
 
   /* 좌우 2단 폐기 — placeholder div 닫기 */
   html += '</div>'; /* end placeholder */
 
-  /* SECTION 08 (인쇄 전용): 필수 검토 체크박스 + 결재란 — Page 1 하단 */
-  html += '<div class="print-only keep-together" style="display:none;margin-top:14px;border-top:2px solid #191f28;padding-top:10px">';
-  html += '<div class="filing-section-header">SECTION 08 · CHECKLIST</div>';
-  html += '<div class="filing-section-title">필수 검토 사항</div>';
-  /* 큰 체크박스 (사장님 펜으로 체크) */
-  html += '<table style="border-collapse:collapse;width:100%;margin-bottom:8px;font-size:9pt">';
-  const chkItems = [
-    '수입금액 누락 점검', '가산세 점검', '사업용계좌 사용 확인', '적격증빙 검토',
-    '세무조정 사항 확인', '공제·감면 신청 검토', '기납부세액 확인', '신고서 최종 점검'
-  ];
-  for (let i = 0; i < chkItems.length; i += 2) {
-    html += '<tr>';
-    html += '<td style="border:1px solid #d1d5db;padding:5mm 4mm;width:50%;font-weight:600">'
-      + '<span style="display:inline-block;width:5mm;height:5mm;border:1.5px solid #191f28;margin-right:3mm;vertical-align:middle"></span>'
-      + e(chkItems[i]) + '</td>';
-    html += '<td style="border:1px solid #d1d5db;padding:5mm 4mm;width:50%;font-weight:600">'
-      + '<span style="display:inline-block;width:5mm;height:5mm;border:1.5px solid #191f28;margin-right:3mm;vertical-align:middle"></span>'
-      + e(chkItems[i + 1] || '') + '</td>';
-    html += '</tr>';
-  }
-  html += '</table>';
-  /* 결재란 — 4칸 직사각형 */
-  html += '<div style="margin-top:6mm">' + stamp4 + '</div>';
-  html += '</div>';
+  /* SECTION 08 CHECKLIST 폐기 — 사장님 명령 (2026-05-07): "검토사항 업애자".
+   * 결재란도 헤더 우상단 (admin-modals.html) 으로 이동 → stamp4 사용처 0. */
 
   /* SECTION 07: 입력 폼 (직원 작성용, 화면 전용) — 사장님 명령 (2026-05-07): 폼은 1번 위치 (위) */
   html += '<div class="keep-together no-print" style="margin-bottom:18px;padding:14px 16px;background:#f9fafb;border-radius:10px;border:1px solid #e5e8eb">';
@@ -530,16 +538,20 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   }
   html += '</div>';
 
-  /* owner info 섹션 채우기 (별도 div) */
-  setTimeout(() => _filRenderOwnerInfo(f), 10);
+  /* 헤더 owner 요약 (타이틀 아래) — 동기 set */
+  if ($g('filingOwnerInfo')) {
+    const summary = (f._businesses && f._businesses.length)
+      ? '🏢 ' + e(f._businesses[0].company_name || '') + (f._businesses.length > 1 ? ' 외 ' + (f._businesses.length - 1) + '개' : '')
+      : '';
+    $g('filingOwnerInfo').innerHTML = summary;
+  }
 
   return html;
 }
 
-async function _filRenderOwnerInfo(f) {
-  const target = $g('filingOwnerInfoBody');
-  if (!target) return;
-  /* 주업체 정보 + 사업체 list 자동 표시 (사장님 명령 2026-05-07) */
+/* 사장님 보고 fix (2026-05-07): owner info 동기 렌더 — _filCurrent._businesses 사용.
+ * 인쇄 시 "불러오는 중..." 안 사라지던 사고 해결. */
+function _filRenderOwnerInfoSync(f) {
   const fmtBizRow = (b, isPrimary) => {
     const form = b.company_form || '';
     const formShort = /법인/.test(form) ? '법인' : (/개인/.test(form) ? '개인' : (/간이/.test(form) ? '간이' : ''));
@@ -552,60 +564,20 @@ async function _filRenderOwnerInfo(f) {
       + (b.establishment_date ? ' · 개업 ' + e(b.establishment_date.slice(0, 10)) : '')
       + (b.address ? '<div style="margin-left:18px;color:#6b7280;font-size:.92em">' + e(b.address) + '</div>' : '');
   };
-
   let html = '';
-  let businesses = [];
-  if (f.owner_type === 'Person') {
-    /* 종소세 = Person + 포함 사업체 */
-    try {
-      const u = await fetch('/api/admin-approve?key=' + encodeURIComponent(KEY) + '&status=all').then(r => r.json());
-      const me = (u.users || []).find(x => x.id === f.owner_id);
-      const meName = me?.real_name || me?.name || '#' + f.owner_id;
-      const meBirth = me?.birth_date || '';
-      html += '<div style="margin-bottom:6px">👤 대표 · 사람: <b>' + e(meName) + '</b>' + (meBirth ? ' · 생년월일 ' + e(meBirth) : '') + '</div>';
-    } catch {}
-    /* 매핑 사업체 모두 fetch */
-    try {
-      const bizR = await fetch('/api/admin-businesses?key=' + encodeURIComponent(KEY) + '&user_id=' + f.owner_id);
-      const bizD = await bizR.json();
-      let allBiz = (bizD.businesses || []).filter(b => b.status !== 'closed');
-      /* included_business_ids 가 있으면 그 list 우선 표시 */
-      let includedIds = [];
-      if (f.included_business_ids) {
-        try { includedIds = JSON.parse(f.included_business_ids) || []; } catch {}
-      }
-      if (includedIds.length) {
-        const inSet = new Set(includedIds);
-        allBiz = allBiz.filter(b => inSet.has(b.id));
-      }
-      businesses = allBiz;
-    } catch {}
-  } else if (f.owner_type === 'Business') {
-    /* 법인세 = 단일 업체 */
-    try {
-      const r = await fetch('/api/admin-businesses?key=' + encodeURIComponent(KEY) + '&id=' + f.owner_id);
-      const d = await r.json();
-      if (d.business) businesses = [d.business];
-    } catch {}
+  if (f.owner_type === 'Person' && f._ownerName) {
+    html += '<div style="margin-bottom:4px">👤 대표 · 사람: <b>' + e(f._ownerName) + '</b>' + (f._ownerBirth ? ' · 생년월일 ' + e(f._ownerBirth) : '') + '</div>';
   }
-
+  const businesses = f._businesses || [];
   if (businesses.length) {
-    html += '<div style="font-weight:700;margin-top:4px;margin-bottom:4px;color:#191f28">📋 사업체 (' + businesses.length + '개)</div>';
+    html += '<div style="font-weight:700;margin-top:2px;margin-bottom:3px;color:#191f28">📋 사업체 (' + businesses.length + '개)</div>';
     businesses.forEach((b, i) => {
-      html += '<div style="margin:3px 0;padding:6px 0;border-bottom:1px dashed #e5e8eb">' + fmtBizRow(b, i === 0) + '</div>';
+      html += '<div style="margin:2px 0;padding:4px 0;border-bottom:1px dashed #e5e8eb">' + fmtBizRow(b, i === 0) + '</div>';
     });
   } else {
     html += '<div style="color:#9ca3af">매핑된 사업체 없음</div>';
   }
-
-  target.innerHTML = html;
-  /* 헤더 owner 정보 (타이틀 아래 — 짧은 요약) */
-  if ($g('filingOwnerInfo')) {
-    const summary = businesses.length
-      ? '🏢 ' + e(businesses[0].company_name || '') + (businesses.length > 1 ? ' 외 ' + (businesses.length - 1) + '개' : '')
-      : '';
-    $g('filingOwnerInfo').innerHTML = summary;
-  }
+  return html;
 }
 
 function _filRenderDeductionRow(d, idx, readonly) {
