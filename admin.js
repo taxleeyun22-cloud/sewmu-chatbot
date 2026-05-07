@@ -1,4 +1,11 @@
-/* ⛳ 디버깅 — 캐시 적용 여부 즉시 확인. 화면 좌상단에 5초간 작은 라벨 표시. */
+// @ts-check
+/// <reference path="./src/types/admin-globals.d.ts" />
+/* ⛳ 디버깅 — 캐시 적용 여부 즉시 확인. 화면 좌상단에 5초간 작은 라벨 표시.
+ *
+ * Phase #3 Phase 1 적용 (2026-05-06): // @ts-check 활성화.
+ * tsconfig.json 의 exclude 에서 admin.js 빠지면 tsc 가 검증.
+ * 현재는 IDE (VS Code) 가 인라인 검증 — 빨간 줄 표시.
+ * admin-globals.d.ts 가 KEY / IS_OWNER / openRoom / 등 declare. */
 window.__ADMIN_VERSION='v=127';
 /* Phase #11 (2026-05-06): 자체 에러 로거 — window.onerror + unhandledrejection → /api/admin-error-log */
 (function(){
@@ -367,6 +374,15 @@ if(!k)return;
 await doLogin(k,true);
 }
 
+/**
+ * admin 로그인 — ADMIN_KEY 검증 + 세션 저장 + role fetch + UI 전환.
+ * Phase #6 (2026-05-06): __sharedStore.$key.set / $isOwner.set 자동.
+ * Phase #10 (2026-05-06): _refreshAdminRole() 자동 호출 → IS_MANAGER 등 결정.
+ *
+ * @param {string} k - ADMIN_KEY
+ * @param {boolean} showErr - 실패 시 에러 표시 여부
+ * @returns {Promise<boolean>} 성공 여부
+ */
 async function doLogin(k,showErr){
 try{
 const r=await fetch('/api/conversations?key='+encodeURIComponent(k)+'&page=1');
@@ -409,6 +425,10 @@ return false;
 }
 
 
+/**
+ * 로그아웃 — KEY 비우고 sessionStorage 정리 + UI 복구.
+ * @returns {void}
+ */
 function logout(){
 KEY='';
 try{sessionStorage.removeItem('admin_key')}catch{}
@@ -434,6 +454,13 @@ let IS_OWNER=true;
  * UI 가드 (삭제 버튼·권한 변경 버튼 등) — 후속 phase 에서 점진 적용. */
 let IS_MANAGER=false;
 let IS_STAFF=false;
+/**
+ * /api/admin-whoami 호출 → IS_OWNER / IS_MANAGER / IS_STAFF 갱신.
+ * Phase #10 (2026-05-06): RBAC 3-tier role.
+ * Phase #6: __sharedStore.$isOwner.set sync.
+ *
+ * @returns {Promise<void>}
+ */
 async function _refreshAdminRole(){
   try{
     const url = '/api/admin-whoami' + (KEY ? ('?key=' + encodeURIComponent(KEY)) : '');
@@ -468,6 +495,13 @@ async function _refreshAdminRole(){
  *  - hash 기반 (admin#tab=users) — query string 충돌 없음, ?embedded=1 와 공존
  *  - _tabBypassPushState 로 무한 루프 방지 */
 var _tabBypassPushState = false;
+/**
+ * admin 탭 전환 — SPA history push + 사이드바 active state + view 표시.
+ * Phase #7 (2026-05-06): broadcastTabChange 호출로 다른 모듈 자동 알림.
+ *
+ * @param {string} t - 'chat' | 'live' | 'rooms' | 'users' | 'docs' | 'anal' | 'review' | 'faq' | 'internal'
+ * @returns {void}
+ */
 function tab(t){
 /* SPA history push — popstate 호출 시 skip */
 if(!_tabBypassPushState){
@@ -3571,6 +3605,12 @@ function _adminSidebarClick(e){
 })();
 
 /* 사이드바 카운트 갱신 (대기/기장/거절/종료/관리자 + 휴지통 + 종료 요청) */
+/**
+ * 사이드바 카운트 일괄 갱신 — 사용자/업체/휴지통/내일정/종료요청/에러로그.
+ * 30초 polling + Phase #6 nanostores subscribe 시 즉시 갱신.
+ *
+ * @returns {void}
+ */
 function refreshSidebarCounts(){
   if(!KEY) return;
   /* 사용자 카운트 (admin-approve 한 번에 모든 status)
@@ -3654,6 +3694,11 @@ function refreshSidebarCounts(){
 /* ============================================================
  * Phase #11 적용 (2026-05-06): 에러 로그 모달 함수들
  * ============================================================ */
+/**
+ * 🐞 에러 로그 모달 열기 + loadErrorLog 자동 호출.
+ * Phase #11 (2026-05-06): 자체 에러 로거 UI.
+ * @returns {void}
+ */
 function openErrorLog(){
   var m = document.getElementById('errorLogModal');
   if(!m){ alert('에러 로그 모달 미로딩 — 새로고침'); return; }
