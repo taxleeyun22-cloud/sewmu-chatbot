@@ -250,27 +250,40 @@ function closeApproveBizModal(){
 
 /* Phase P1 (2026-05-07 사장님 명령): 카카오 가입자 승인 시 비슷한 기존 사용자 추천.
  * - 입력: 카카오 가입자 user_id / 이름 / 전화
- * - 검색: phone 동일 또는 이름 비슷한 user (자기 자신 제외)
- * - 사장님이 클릭 → merge_mappings 호출 → 매핑 복사. */
+ * - 검색: 기장거래처 (approval_status='approved_client') 만 대상 (사장님 명령 정정 2026-05-07)
+ * - 매칭: 전화 동일 또는 real_name 부분 매치 (자기 자신·관리자·기장거래처 아닌 사람 제외)
+ * - "닉네임을 등록해주세요" 같은 default placeholder name 제외
+ * - 사장님이 클릭 → merge_mappings (매핑만) 또는 merge_users (진짜 합치기) 호출 */
 async function _apbLoadSimilarUsers(currentUserId, name, phone){
   const box=$g('apbSimilarBox'); const list=$g('apbSimilarList');
   if(!box||!list) return;
   box.style.display='none';
-  /* 검색 query: 전화 또는 이름 (이름 길이 2자 이상) */
-  const q = (phone && phone.length>=8) ? phone : (name && name.length>=2 ? name : '');
-  if(!q) return;
+  /* 사장님 명령 정정: 매칭 대상은 기장거래처만 → 검색 query 가 비어도 모두 fetch
+   * (단, 매칭 점수 0 이면 표시 X — 자동 매칭 X, 수동 검색은 별도) */
   try{
-    const r=await fetch('/api/admin-search?key='+encodeURIComponent(KEY)+'&q='+encodeURIComponent(q));
+    /* 기장거래처 list 모두 fetch — admin-approve API 의 status=approved_client 사용 */
+    const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=approved_client');
     const d=await r.json();
-    const candidates=(d.users||[]).filter(u=>{
-      if(u.id===currentUserId) return false;  /* 자기 자신 제외 */
-      if(u.is_admin) return false;            /* 관리자 제외 */
-      /* 매칭 조건: 전화 같음 또는 real_name 부분 매치 */
-      if(phone && u.phone && u.phone.replace(/\D/g,'')===phone.replace(/\D/g,'')) return true;
-      if(name && u.real_name && u.real_name.includes(name)) return true;
-      if(name && u.name && u.name.includes(name)) return true;
-      return false;
-    }).slice(0,5);
+    const allClients = d.users || [];
+    /* 매칭 점수 계산 — 전화 같음 (10점), real_name 부분 매치 (5점), name 부분 매치 (3점) */
+    const phoneNorm = (phone||'').replace(/\D/g,'');
+    const nameTrim = (name||'').trim();
+    /* placeholder name 패턴 — 매칭에 사용하지 않음 */
+    const isPlaceholder = !nameTrim || /닉네임|등록해주세요|미설정/.test(nameTrim);
+    const candidates = allClients.map(u=>{
+      let score = 0;
+      if(u.id===currentUserId) return null;
+      if(u.is_admin) return null;
+      const uPhone = (u.phone||'').replace(/\D/g,'');
+      if(phoneNorm && uPhone && phoneNorm===uPhone) score += 10;
+      if(!isPlaceholder){
+        const uRealName = (u.real_name||'').trim();
+        const uName = (u.name||'').trim();
+        if(uRealName && (uRealName.includes(nameTrim) || nameTrim.includes(uRealName))) score += 5;
+        if(uName && (uName.includes(nameTrim) || nameTrim.includes(uName))) score += 3;
+      }
+      return score > 0 ? {...u, _score: score} : null;
+    }).filter(Boolean).sort((a,b)=>b._score-a._score).slice(0,5);
     if(!candidates.length) return;
     box.style.display='block';
     list.innerHTML=candidates.map(u=>{
