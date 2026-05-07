@@ -261,11 +261,15 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   const ro = readonly ? 'readonly disabled' : '';
   const revenueLabel = isJongSo ? '총수입금액' : '매출액';
 
-  /* 사장님 명령 (2026-05-07): 사장님 PDF (3번째 사진) 항목 따라.
-   * 종소세 / 법인세 항목 확장 — 부가세과세표준, 세무조정 익금/손금, 소득률, 세율, 추가납부세액, 농특세 등 */
+  /* 사장님 명령 (2026-05-07): 비교표 항목 정리.
+   * - vat_tax_base (부가세과세표준) → 결산서상 당기순이익 (net_income) 으로 변경
+   * - 위에 매출액 (sales) + 전체매출액 (sales_total) 신규 추가
+   * 종소세 / 법인세 둘 다 동일 패턴. */
   const fields = isJongSo
     ? [
-        { key: 'vat_tax_base', label: '부가세과세표준' },
+        { key: 'sales', label: '매출액' },
+        { key: 'sales_total', label: '전체매출액' },
+        { key: 'net_income', label: '결산서상 당기순이익' },
         { key: 'adj_inclusion', label: '세무조정 익금산입 (+)' },
         { key: 'adj_exclusion', label: '세무조정 손금산입 (−)' },
         { key: 'revenue', label: '총수입금액', bold: true },
@@ -283,11 +287,12 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
         { key: 'payable_tax', label: '납부할세액', bold: true, highlight: true },
       ]
     : [
-        { key: 'vat_tax_base', label: '부가세과세표준' },
+        { key: 'sales', label: '매출액' },
+        { key: 'sales_total', label: '전체매출액' },
+        { key: 'net_income', label: '결산서상 당기순이익' },
         { key: 'adj_inclusion', label: '세무조정 익금산입 (+)' },
         { key: 'adj_exclusion', label: '세무조정 손금산입 (−)' },
-        { key: 'revenue', label: '매출액', bold: true },
-        { key: 'net_income', label: '결산서 당기순이익' },
+        { key: 'revenue', label: '매출액 (영업수익)', bold: true },
         { key: 'business_income', label: '각사업연도소득금액', showRate: 'revenue' },
         { key: 'tax_base', label: '과세표준' },
         { key: 'tax_rate', label: '세율 (%)', percent: true },
