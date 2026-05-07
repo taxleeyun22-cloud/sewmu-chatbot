@@ -317,8 +317,8 @@ export async function onRequestPost(context) {
         unmerged_by_admin TEXT
       )`).run(); } catch {}
 
-      const kakao = await db.prepare(`SELECT id, provider, provider_user_id, name, profile_image, email, phone, approval_status FROM users WHERE id = ?`).bind(kakaoUid).first();
-      const manual = await db.prepare(`SELECT id, real_name, provider, provider_user_id, profile_image, email, approval_status FROM users WHERE id = ?`).bind(manualUid).first();
+      const kakao = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(kakaoUid).first();
+      const manual = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(manualUid).first();
       if (!kakao || !manual) return Response.json({ error: "user not found" }, { status: 404 });
 
       const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
@@ -345,29 +345,70 @@ export async function onRequestPost(context) {
         /* audit 실패해도 합치기는 진행 — silent */
       }
 
-      /* 1. 카카오 정보 → manual user 흡수.
-       * 사장님 명령 (2026-05-07): 옛 탈퇴자도 manual user 일 수 있으니 deleted_at = NULL (부활) */
+      /* fix (2026-05-07 사장님 보고): UNIQUE constraint 충돌 방지 — kakao archive 먼저.
+       * 1. kakao user 의 provider_id 무효화 (manual 이 그 KAKAO_ID 흡수해도 충돌 X) */
+      const kakaoArchivedProviderId = `merged:${kakaoUid}:${kakao.provider_id || kakao.provider_user_id || ''}`;
       await db.prepare(`
         UPDATE users SET
-          provider = ?,
-          provider_user_id = ?,
-          profile_image = COALESCE(?, profile_image),
-          name = COALESCE(?, name),
-          email = COALESCE(?, email),
-          phone = COALESCE(phone, ?),
-          name_confirmed = 1,
-          approval_status = 'approved_client',
-          approved_at = COALESCE(approved_at, ?),
-          last_login_at = ?,
-          deleted_at = NULL,
-          withdrawal_reason = NULL
+          deleted_at = ?,
+          approval_status = 'merged',
+          provider = 'merged',
+          provider_id = ?,
+          provider_user_id = NULL
         WHERE id = ?
-      `).bind(
-        kakao.provider, kakao.provider_user_id, kakao.profile_image,
-        kakao.name, kakao.email, kakao.phone, now, now, manualUid
-      ).run();
+      `).bind(now, kakaoArchivedProviderId, kakaoUid).run();
 
-      /* 2. 매핑 / 데이터 이전 — kakao_user_id → manual_user_id */
+      /* 2. 카카오 정보 → manual user 흡수 (provider_id 도 같이 — 옛 탈퇴자 부활 포함).
+       * legacy provider_id 컬럼 NOT NULL 처리 */
+      let hasProviderIdCol = false;
+      try {
+        const info = await db.prepare(`PRAGMA table_info(users)`).all();
+        hasProviderIdCol = (info?.results || []).some(c => c.name === 'provider_id');
+      } catch {}
+      if (hasProviderIdCol) {
+        await db.prepare(`
+          UPDATE users SET
+            provider = ?,
+            provider_id = ?,
+            provider_user_id = ?,
+            profile_image = COALESCE(?, profile_image),
+            name = COALESCE(?, name),
+            email = COALESCE(?, email),
+            phone = COALESCE(phone, ?),
+            name_confirmed = 1,
+            approval_status = 'approved_client',
+            approved_at = COALESCE(approved_at, ?),
+            last_login_at = ?,
+            deleted_at = NULL,
+            withdrawal_reason = NULL
+          WHERE id = ?
+        `).bind(
+          kakao.provider, kakao.provider_id, kakao.provider_user_id, kakao.profile_image,
+          kakao.name, kakao.email, kakao.phone, now, now, manualUid
+        ).run();
+      } else {
+        await db.prepare(`
+          UPDATE users SET
+            provider = ?,
+            provider_user_id = ?,
+            profile_image = COALESCE(?, profile_image),
+            name = COALESCE(?, name),
+            email = COALESCE(?, email),
+            phone = COALESCE(phone, ?),
+            name_confirmed = 1,
+            approval_status = 'approved_client',
+            approved_at = COALESCE(approved_at, ?),
+            last_login_at = ?,
+            deleted_at = NULL,
+            withdrawal_reason = NULL
+          WHERE id = ?
+        `).bind(
+          kakao.provider, kakao.provider_user_id, kakao.profile_image,
+          kakao.name, kakao.email, kakao.phone, now, now, manualUid
+        ).run();
+      }
+
+      /* 3. 매핑 / 데이터 이전 — kakao_user_id → manual_user_id */
       try {
         const r1 = await db.prepare(`UPDATE business_members SET user_id = ? WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`).bind(manualUid, kakaoUid).run();
         stats.mappings = r1?.meta?.changes || 0;
@@ -397,9 +438,7 @@ export async function onRequestPost(context) {
       try { await db.prepare(`UPDATE sessions SET user_id = ? WHERE user_id = ?`).bind(manualUid, kakaoUid).run(); } catch {}
       try { await db.prepare(`UPDATE business_documents SET user_id = ? WHERE user_id = ?`).bind(manualUid, kakaoUid).run(); } catch {}
 
-      /* 3. kakao user archive */
-      await db.prepare(`UPDATE users SET deleted_at = ?, approval_status = 'merged', provider = 'merged', provider_user_id = NULL WHERE id = ?`)
-        .bind(now, kakaoUid).run();
+      /* kakao user archive 는 위 1번 단계에서 이미 처리됨 (UNIQUE 회피) */
 
       return Response.json({
         ok: true,
