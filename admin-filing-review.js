@@ -445,7 +445,7 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
 
   /* SECTION 06: 결재자 코멘트 — 작은 영역 (사장님 결재 시 작성) */
   html += '<div class="keep-together" style="margin-bottom:18px">';
-  html += '<div class="filing-section-header">SECTION 06 · REVIEWER COMMENT</div>';
+  html += '<div class="filing-section-header">SECTION 07 · REVIEWER COMMENT</div>';
   html += '<div class="filing-section-title">✍️ 결재자 코멘트 <span style="font-size:.74em;color:#6b7280;font-weight:500">(사장님 결재 시 작성 — 선택)</span></div>';
   /* 인쇄용 — 작은 박스 (손글씨 자리 또는 입력 내용) */
   html += '<div class="print-only" style="display:none;border:1px solid #191f28;border-radius:4px;padding:5mm;min-height:25mm;font-size:10pt;line-height:1.7;white-space:pre-wrap">';
@@ -458,9 +458,9 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   /* 좌우 2단 폐기 — placeholder div 닫기 */
   html += '</div>'; /* end placeholder */
 
-  /* SECTION 06 (인쇄 전용): 필수 검토 체크박스 + 결재란 — Page 1 하단 */
+  /* SECTION 08 (인쇄 전용): 필수 검토 체크박스 + 결재란 — Page 1 하단 */
   html += '<div class="print-only keep-together" style="display:none;margin-top:14px;border-top:2px solid #191f28;padding-top:10px">';
-  html += '<div class="filing-section-header">SECTION 06 · CHECKLIST</div>';
+  html += '<div class="filing-section-header">SECTION 08 · CHECKLIST</div>';
   html += '<div class="filing-section-title">필수 검토 사항</div>';
   /* 큰 체크박스 (사장님 펜으로 체크) */
   html += '<table style="border-collapse:collapse;width:100%;margin-bottom:8px;font-size:9pt">';
