@@ -72,8 +72,9 @@
 <span id="cGuest" class="hidden">0</span>
 <button id="uStRejected" onclick="userStatus('rejected')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">거절 <span id="cRejected">0</span></button>
 <button id="uStTerminated" onclick="userStatus('terminated')" title="거래가 종료된 거래처 — 상담방 모두 closed, 접근 차단됨" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">🚫 종료 <span id="cTerminated">0</span></button>
-<!-- 사장님 명령 (2026-05-07 정정): 탈퇴 탭 폐지 → '재가입' 탭으로 교체 -->
-<button id="uStRejoined" onclick="userStatus('rejoined')" title="옛 탈퇴자가 다시 카카오 로그인한 user — admin 검토 후 합치기 또는 신규 처리" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">🔄 탈퇴자 재가입 <span id="cRejoined">0</span></button>
+<!-- 사장님 명령 (2026-05-07 최종): 탈퇴 + 재가입 둘 다 표시 -->
+<button id="uStWithdrawn" onclick="userStatus('withdrawn')" title="회원 탈퇴한 사용자 (deleted_at 있음). 같은 카카오로 다시 로그인 시 재가입 탭으로 자동 이동." style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">🚪 탈퇴 <span id="cWithdrawn">0</span></button>
+<button id="uStRejoined" onclick="userStatus('rejoined')" title="옛 탈퇴자가 다시 카카오 로그인 → 자동 부활 + 재가입 상태. admin 검토 후 다시 승인 결정." style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">🔄 재가입 <span id="cRejoined">0</span></button>
 <button id="uStAdmin" onclick="userStatus('admin')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500" title="is_admin=1 관리자 사용자">👑 관리자 <span id="cAdmin">0</span></button>
 <button onclick="openManualClientModal()" style="margin-left:auto;background:#10b981;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="OAuth 없이 관리자가 직접 거래처 생성 — 오프라인 고객·기존 거래처 마이그레이션용">➕ 수동 거래처</button>
 <!-- 📥 owner 전용 전체 내보내기 (사장님 명령 2026-04-30: 나(세무사)만 할 수 있어야) -->
