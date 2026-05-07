@@ -523,5 +523,76 @@ export async function onRequestPost(context) {
     }
   }
 
+  /* 사장님 명령 (2026-05-07): 옛 합치기 (audit log 없음) best-effort 분리.
+   * action=split_legacy { user_id }
+   * - 카카오 user (provider='kakao', real_name 있음) 의 데이터를 새 admin user 로 이전
+   * - 카카오 user 는 대기 상태로 (real_name=NULL, name_confirmed=0, approval_status='pending')
+   * - 새 admin user (real_name 보존) → 모든 매핑·메모·메시지·문서 가져감
+   * - OAuth 정보는 카카오 user 에 그대로 (다시 로그인하면 그 카카오 user 로 진입) */
+  if (action === "split_legacy") {
+    const userId = Number(body.user_id);
+    if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
+    try {
+      const u = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(userId).first();
+      if (!u) return Response.json({ error: "user not found" }, { status: 404 });
+      if (u.provider !== 'kakao') return Response.json({ error: "kakao 가입자가 아님" }, { status: 400 });
+      if (!u.real_name) return Response.json({ error: "real_name 없음 — 합치기 흔적이 없습니다" }, { status: 400 });
+
+      const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+
+      /* legacy provider_id NOT NULL 컬럼 처리 */
+      let hasProviderIdCol = false;
+      try {
+        const info = await db.prepare(`PRAGMA table_info(users)`).all();
+        hasProviderIdCol = (info?.results || []).some(c => c.name === 'provider_id');
+      } catch {}
+      const pseudoExtId = 'admin_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+
+      /* 1. 새 admin user 생성 (real_name·phone·birth_date 보존) */
+      let r;
+      if (hasProviderIdCol) {
+        r = await db.prepare(
+          `INSERT INTO users (provider, provider_id, provider_user_id, name, real_name, phone, birth_date,
+                              approval_status, approved_at, approved_by, name_confirmed,
+                              created_at, last_login_at)
+           VALUES ('admin_created', ?, ?, ?, ?, ?, ?, 'approved_client', ?, 'admin', 1, ?, NULL)`
+        ).bind(pseudoExtId, pseudoExtId, u.real_name, u.real_name, u.phone || null, u.birth_date || null, now, now).run();
+      } else {
+        r = await db.prepare(
+          `INSERT INTO users (provider, provider_user_id, name, real_name, phone, birth_date,
+                              approval_status, approved_at, approved_by, name_confirmed,
+                              created_at, last_login_at)
+           VALUES ('admin_created', ?, ?, ?, ?, ?, 'approved_client', ?, 'admin', 1, ?, NULL)`
+        ).bind(pseudoExtId, u.real_name, u.real_name, u.phone || null, u.birth_date || null, now, now).run();
+      }
+      const newAdminUid = r.meta?.last_row_id;
+      if (!newAdminUid) return Response.json({ error: "new admin user create failed" }, { status: 500 });
+
+      /* 2. 모든 데이터 → 새 admin user 로 이전 */
+      const stats = { mappings: 0, memos: 0, conversations: 0, room_members: 0, documents: 0 };
+      try { const r1 = await db.prepare(`UPDATE business_members SET user_id = ? WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`).bind(newAdminUid, userId).run(); stats.mappings = r1?.meta?.changes || 0; } catch {}
+      try { const r2 = await db.prepare(`UPDATE memos SET target_user_id = ? WHERE target_user_id = ?`).bind(newAdminUid, userId).run(); stats.memos += r2?.meta?.changes || 0; } catch {}
+      try { const r3 = await db.prepare(`UPDATE memos SET author_user_id = ? WHERE author_user_id = ?`).bind(newAdminUid, userId).run(); stats.memos += r3?.meta?.changes || 0; } catch {}
+      try { const r4 = await db.prepare(`UPDATE conversations SET user_id = ? WHERE user_id = ?`).bind(newAdminUid, userId).run(); stats.conversations = r4?.meta?.changes || 0; } catch {}
+      try { const r5 = await db.prepare(`UPDATE room_members SET user_id = ? WHERE user_id = ? AND (left_at IS NULL OR left_at = '')`).bind(newAdminUid, userId).run(); stats.room_members = r5?.meta?.changes || 0; } catch {}
+      try { const r6 = await db.prepare(`UPDATE documents SET user_id = ? WHERE user_id = ?`).bind(newAdminUid, userId).run(); stats.documents = r6?.meta?.changes || 0; } catch {}
+      try { await db.prepare(`UPDATE business_documents SET user_id = ? WHERE user_id = ?`).bind(newAdminUid, userId).run(); } catch {}
+
+      /* 3. 카카오 user → 대기 상태 (real_name 떼어냄, name 만 유지 = 카카오 닉네임) */
+      await db.prepare(`UPDATE users SET real_name = NULL, approval_status = 'pending', name_confirmed = 0, approved_at = NULL WHERE id = ?`).bind(userId).run();
+
+      return Response.json({
+        ok: true,
+        kakao_user_id: userId,
+        new_admin_user_id: newAdminUid,
+        new_admin_real_name: u.real_name,
+        moved: stats,
+        legacy: true,
+      });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   return Response.json({ error: "unknown action" }, { status: 400 });
 }

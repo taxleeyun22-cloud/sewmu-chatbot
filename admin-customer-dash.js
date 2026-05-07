@@ -745,24 +745,38 @@ async function _loadCdMergeBanner(userId){
   }catch(_){ /* silent */ }
 }
 
-async function _splitMerge(mergeId){
+async function _splitMerge(mergeId, userId, realName){
   if(typeof IS_OWNER!=='undefined' && !IS_OWNER){alert('owner 권한이 필요합니다');return}
-  if(!mergeId){alert('합치기 이력 없음');return}
-  if(!confirm('합치기를 분리할까요?\n\n• 카카오 user → 대기 상태로 복원 (OAuth 정보 그대로)\n• 수동 user → 기장거래처 (데이터 그대로 유지)\n\n사용자가 다시 카카오 로그인 시 분리된 그 카카오 user 로 자동 진입.'))return;
+  /* mergeId 있음 = audit log 있는 합치기 → 정상 split_users
+   * mergeId 없음 (=0) + userId 있음 = 옛 합치기 휴리스틱 → split_legacy (best-effort) */
+  if(mergeId){
+    if(!confirm('합치기를 분리할까요?\n\n• 카카오 user → 대기 상태로 복원 (OAuth 정보 그대로)\n• 수동 user → 기장거래처 (데이터 그대로 유지)\n\n사용자가 다시 카카오 로그인 시 분리된 그 카카오 user 로 자동 진입.'))return;
+    try{
+      const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=split_users',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({merge_id:mergeId}),
+      });
+      const d=await r.json();
+      if(!d.ok){alert('분리 실패: '+(d.error||'unknown'));return}
+      alert('✅ 분리 완료\n• 카카오 user #'+d.kakao_user_id+' → 대기 (OAuth 정보 그대로)\n• 수동 user #'+d.manual_user_id+' → 기장거래처 (데이터 그대로)');
+      if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
+    }catch(err){alert('오류: '+err.message)}
+    return;
+  }
+  /* 옛 합치기 best-effort */
+  if(!userId){alert('user_id 없음');return}
+  if(!confirm('이 사용자는 합치기 audit log 가 없는 옛 합치기입니다.\n\nbest-effort 분리:\n• 새 admin user 생성 ('+e(realName||'#'+userId)+') ← 기장거래처\n• 카카오 user → 대기 상태 (OAuth 정보 그대로)\n• 모든 데이터 (매핑·메모·메시지·문서) → 새 admin user 로 이전\n\n진행할까요?'))return;
   try{
-    const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=split_users',{
+    const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=split_legacy',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({merge_id:mergeId}),
+      body:JSON.stringify({user_id:userId}),
     });
     const d=await r.json();
     if(!d.ok){alert('분리 실패: '+(d.error||'unknown'));return}
-    alert('✅ 분리 완료\n• 카카오 user #'+d.kakao_user_id+' → 대기 (OAuth 정보 그대로)\n• 수동 user #'+d.manual_user_id+' → 기장거래처 (데이터 그대로)');
-    /* 배너 새로고침 + 사용자 list refresh */
-    if(typeof _cdCurrentUserId!=='undefined' && _cdCurrentUserId) _loadCdMergeBanner(_cdCurrentUserId);
+    alert('✅ 옛 합치기 분리 완료 (best-effort)\n• 카카오 user #'+d.kakao_user_id+' → 대기\n• 새 admin user #'+d.new_admin_user_id+' ('+e(d.new_admin_real_name)+') → 기장거래처\n\n이전된 데이터:\n• 매핑 '+d.moved.mappings+'건\n• 메모 '+d.moved.memos+'건\n• 메시지 '+d.moved.conversations+'건\n• 방 멤버 '+d.moved.room_members+'건\n• 문서 '+d.moved.documents+'건');
     if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
-    /* mergeListModal 열려있으면 list 도 갱신 */
-    if($g('mergeListModal')?.style.display==='flex' || $g('mergeListModal')?.style.display==='block') _loadMergeList();
   }catch(err){alert('오류: '+err.message)}
 }
 

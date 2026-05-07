@@ -104,7 +104,14 @@ export async function onRequestGet(context) {
               ORDER BY is_primary DESC, id ASC LIMIT 1) AS ceo_name,
              (SELECT id FROM user_merges
               WHERE manual_user_id = u.id AND (unmerged_at IS NULL OR unmerged_at = '')
-              ORDER BY merged_at DESC LIMIT 1) AS active_merge_id
+              ORDER BY merged_at DESC LIMIT 1) AS active_merge_id,
+             /* 사장님 명령 (2026-05-07): 옛 합치기 (audit 없음) 휴리스틱 검출.
+              * provider='kakao' + real_name != name + name_confirmed=1
+              * = 사장님이 카카오 user 의 본명 수동 입력 = 합치기 흔적 */
+             CASE WHEN u.provider = 'kakao' AND u.real_name IS NOT NULL
+                       AND TRIM(COALESCE(u.real_name, '')) != TRIM(COALESCE(u.name, ''))
+                       AND u.name_confirmed = 1
+                  THEN 1 ELSE 0 END AS is_likely_merged
       FROM users u
     `;
     const binds = [];
