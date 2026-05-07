@@ -386,69 +386,151 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
        + '</tr>';
   html += '</tbody></table></div>';
 
-  /* 공제감면 — 사장님 명령 (2026-05-07): "작년도 있긴해야되 빨간줄만없애라고".
-   * 작년 항목 표시 살리되 빨간 줄 (line-through) + [작년 → 올해 삭제] 태그만 제거.
-   * 회색 + (작년) 표시. */
+  /* 공제감면 — 사장님 명령 (2026-05-07): "위 비교표랑 같은 칸 느낌으로 좌우 비교".
+   * SECTION 02 비교표 패턴 — 4열 (항목 / 작년 / 올해 / 증감) + 소계 행. */
   const prevDeductions = pf.공제감면 || pf.deductions || [];
   const currDeductions = af.공제감면 || af.deductions || [];
-  const currDedNamesSet = new Set(currDeductions.map(d => (d.name || d.종류 || '').trim()).filter(Boolean));
 
-  /* SECTION 03: 공제감면 / 가산세 — 단일 컬럼 */
+  /* 공제·감면 항목 union (작년 + 올해, 순서: 올해 먼저 → 작년 only 추가) */
+  const dedRows = [];
+  const dedSeen = new Set();
+  currDeductions.forEach(d => {
+    const nm = (d.name || d.종류 || '').trim();
+    if (!nm || dedSeen.has(nm)) return;
+    dedSeen.add(nm);
+    const prevD = prevDeductions.find(p => (p.name || p.종류 || '').trim() === nm);
+    dedRows.push({
+      name: nm,
+      curr: Number(d.amount || d.금액 || 0),
+      prev: prevD ? Number(prevD.amount || prevD.금액 || 0) : null,
+    });
+  });
+  prevDeductions.forEach(d => {
+    const nm = (d.name || d.종류 || '').trim();
+    if (!nm || dedSeen.has(nm)) return;
+    dedSeen.add(nm);
+    dedRows.push({
+      name: nm,
+      curr: null,
+      prev: Number(d.amount || d.금액 || 0),
+    });
+  });
+
+  /* SECTION 03: 공제감면 / 가산세 — 비교표 형식 */
   html += '<div class="keep-together" style="margin-bottom:18px">';
   html += '<div class="filing-section-header">SECTION 03 · DEDUCTIONS &amp; PENALTIES</div>';
   html += '<div class="filing-section-title">공제·감면 / 가산세 명세</div>';
 
-  /* 공제감면 — 올해 입력 + 작년 only 항목 (회색·작년 라벨, 빨간 줄 X) */
-  html += '<div style="font-size:.86em;margin-bottom:10px"><b>○ 적용 공제·감면</b>';
-  html += '<ul class="print-only" style="display:none;margin:4px 0 0 18px;padding:0">';
-  const dedListEmpty = !currDeductions.length && !prevDeductions.length;
-  if (dedListEmpty) html += '<li style="color:#9ca3af">없음</li>';
-  currDeductions.forEach(d => {
-    const nm = (d.name || d.종류 || '').trim();
-    html += '<li>' + e(nm) + ' ' + _filFormatNum(d.amount || d.금액 || 0) + '원</li>';
-  });
-  /* 작년 only — 회색, 빨간 줄 X */
-  if (prev) {
-    prevDeductions.forEach(d => {
-      const nm = (d.name || d.종류 || '').trim();
-      if (!nm || currDedNamesSet.has(nm)) return;
-      html += '<li style="color:#9ca3af">' + e(nm) + ' ' + _filFormatNum(d.amount || d.금액 || 0) + '원 <span style="font-size:.86em">(' + prev.fiscal_year + '년)</span></li>';
+  /* 공제·감면 비교표 (인쇄용) */
+  html += '<div class="print-only" style="display:none;margin-bottom:10px"><div style="font-weight:700;margin-bottom:4px;font-size:.92em">○ 적용 공제·감면</div>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:.86em">';
+  html += '<thead><tr style="background:#f9fafb;border-top:1.5px solid #191f28;border-bottom:1px solid #191f28">'
+       + '<th style="padding:5px 8px;text-align:left;font-weight:700;width:46%">항목</th>'
+       + '<th style="padding:5px 8px;text-align:right;font-weight:700;color:#6b7280;width:22%">' + (prev ? prev.fiscal_year + '귀속' : '작년') + '</th>'
+       + '<th style="padding:5px 8px;text-align:right;font-weight:700;width:22%">' + f.fiscal_year + '귀속</th>'
+       + '<th style="padding:5px 8px;text-align:right;font-weight:700;color:#6b7280;width:10%">증감</th>'
+       + '</tr></thead><tbody>';
+  if (!dedRows.length) {
+    html += '<tr><td colspan="4" style="padding:8px;color:#9ca3af;text-align:center">없음</td></tr>';
+  } else {
+    dedRows.forEach(row => {
+      const diff = (row.prev && row.curr) ? _filDiff(row.prev, row.curr) : '';
+      const diffColor = diff.startsWith('+') ? '#dc2626' : (diff.startsWith('-') ? '#10b981' : '#6b7280');
+      html += '<tr style="border-bottom:1px solid #f2f4f6">'
+           + '<td style="padding:5px 8px">' + e(row.name) + '</td>'
+           + '<td style="padding:5px 8px;text-align:right;color:#6b7280">' + (row.prev ? _filFormatNum(row.prev) + '원' : '—') + '</td>'
+           + '<td style="padding:5px 8px;text-align:right">' + (row.curr ? _filFormatNum(row.curr) + '원' : '—') + '</td>'
+           + '<td style="padding:5px 8px;text-align:right;color:' + diffColor + '">' + (diff || '—') + '</td>'
+           + '</tr>';
     });
+    /* 소계 */
+    const prevTot = prevDeductions.reduce((s, d) => s + Number(d.amount || d.금액 || 0), 0);
+    const currTot = currDeductions.reduce((s, d) => s + Number(d.amount || d.금액 || 0), 0);
+    const totDiff = (prevTot && currTot) ? _filDiff(prevTot, currTot) : '';
+    const totColor = totDiff.startsWith('+') ? '#dc2626' : (totDiff.startsWith('-') ? '#10b981' : '#6b7280');
+    html += '<tr style="border-top:1.5px solid #191f28;background:#fafbfc;font-weight:700">'
+         + '<td style="padding:5px 8px">소계</td>'
+         + '<td style="padding:5px 8px;text-align:right;color:#6b7280">' + (prevTot ? _filFormatNum(prevTot) + '원' : '—') + '</td>'
+         + '<td style="padding:5px 8px;text-align:right">' + (currTot ? _filFormatNum(currTot) + '원' : '—') + '</td>'
+         + '<td style="padding:5px 8px;text-align:right;color:' + totColor + '">' + (totDiff || '—') + '</td>'
+         + '</tr>';
   }
-  html += '</ul>';
+  html += '</tbody></table></div>';
+  /* 화면 list (편집 모드 — 입력 폼만 표시, 비교는 print 에서) */
+  html += '<div class="no-print" style="font-size:.86em;margin-bottom:10px"><b>○ 적용 공제·감면</b></div>';
   html += '<div id="filDeductionRows" class="no-print" style="margin-top:6px">';
   if (currDeductions.length === 0) html += _filRenderDeductionRow({ name: '', amount: '' }, 0, readonly);
   else currDeductions.forEach((d, i) => { html += _filRenderDeductionRow(d, i, readonly); });
   html += '</div>';
-  if (!readonly) html += '<button onclick="_filAddDeductionRow()" class="no-print" style="background:#fff;color:#3182f6;border:1px dashed #3182f6;padding:4px 10px;border-radius:6px;font-size:.74em;cursor:pointer;font-family:inherit;margin-top:6px">+ 공제감면 추가</button>';
-  html += '</div>';
+  if (!readonly) html += '<button onclick="_filAddDeductionRow()" class="no-print" style="background:#fff;color:#3182f6;border:1px dashed #3182f6;padding:4px 10px;border-radius:6px;font-size:.74em;cursor:pointer;font-family:inherit;margin-top:6px;margin-bottom:10px">+ 공제감면 추가</button>';
+  /* 공제 wrapper close 제거 — wrapper 자체가 없음 (no-print div 별도 닫음) */
 
-  /* 가산세 — 동일 패턴 (작년 데이터 회색 표시, 빨간 줄 X) */
+  /* 가산세 — SECTION 02 같은 4열 비교표 (사장님 명령 2026-05-07) */
   const currPenalties_2 = af.가산세 || af.penalties || [];
   const prevPenalties = pf.가산세 || pf.penalties || [];
-  const currPenNamesSet = new Set(currPenalties_2.map(p => (p.name || p.종류 || '').trim()).filter(Boolean));
-  html += '<div style="font-size:.86em;margin-bottom:10px"><b>○ 가산세</b>';
-  html += '<ul class="print-only" style="display:none;margin:4px 0 0 18px;padding:0">';
-  const penListEmpty = !currPenalties_2.length && !prevPenalties.length;
-  if (penListEmpty) html += '<li style="color:#9ca3af">없음</li>';
+  const penRows = [];
+  const penSeen = new Set();
   currPenalties_2.forEach(p => {
-    html += '<li>' + e(p.name || p.종류 || '') + ' ' + _filFormatNum(p.amount || p.금액 || 0) + '원</li>';
-  });
-  if (prev) {
-    prevPenalties.forEach(p => {
-      const nm = (p.name || p.종류 || '').trim();
-      if (!nm || currPenNamesSet.has(nm)) return;
-      html += '<li style="color:#9ca3af">' + e(nm) + ' ' + _filFormatNum(p.amount || p.금액 || 0) + '원 <span style="font-size:.86em">(' + prev.fiscal_year + '년)</span></li>';
+    const nm = (p.name || p.종류 || '').trim();
+    if (!nm || penSeen.has(nm)) return;
+    penSeen.add(nm);
+    const prevP = prevPenalties.find(x => (x.name || x.종류 || '').trim() === nm);
+    penRows.push({
+      name: nm,
+      curr: Number(p.amount || p.금액 || 0),
+      prev: prevP ? Number(prevP.amount || prevP.금액 || 0) : null,
     });
+  });
+  prevPenalties.forEach(p => {
+    const nm = (p.name || p.종류 || '').trim();
+    if (!nm || penSeen.has(nm)) return;
+    penSeen.add(nm);
+    penRows.push({ name: nm, curr: null, prev: Number(p.amount || p.금액 || 0) });
+  });
+
+  /* 가산세 비교표 (인쇄용) */
+  html += '<div class="print-only" style="display:none;margin-bottom:8px"><div style="font-weight:700;margin-bottom:4px;font-size:.92em">○ 가산세</div>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:.86em">';
+  html += '<thead><tr style="background:#f9fafb;border-top:1.5px solid #191f28;border-bottom:1px solid #191f28">'
+       + '<th style="padding:5px 8px;text-align:left;font-weight:700;width:46%">항목</th>'
+       + '<th style="padding:5px 8px;text-align:right;font-weight:700;color:#6b7280;width:22%">' + (prev ? prev.fiscal_year + '귀속' : '작년') + '</th>'
+       + '<th style="padding:5px 8px;text-align:right;font-weight:700;width:22%">' + f.fiscal_year + '귀속</th>'
+       + '<th style="padding:5px 8px;text-align:right;font-weight:700;color:#6b7280;width:10%">증감</th>'
+       + '</tr></thead><tbody>';
+  if (!penRows.length) {
+    html += '<tr><td colspan="4" style="padding:8px;color:#9ca3af;text-align:center">없음</td></tr>';
+  } else {
+    penRows.forEach(row => {
+      const diff = (row.prev && row.curr) ? _filDiff(row.prev, row.curr) : '';
+      const diffColor = diff.startsWith('+') ? '#dc2626' : (diff.startsWith('-') ? '#10b981' : '#6b7280');
+      html += '<tr style="border-bottom:1px solid #f2f4f6">'
+           + '<td style="padding:5px 8px">' + e(row.name) + '</td>'
+           + '<td style="padding:5px 8px;text-align:right;color:#6b7280">' + (row.prev ? _filFormatNum(row.prev) + '원' : '—') + '</td>'
+           + '<td style="padding:5px 8px;text-align:right">' + (row.curr ? _filFormatNum(row.curr) + '원' : '—') + '</td>'
+           + '<td style="padding:5px 8px;text-align:right;color:' + diffColor + '">' + (diff || '—') + '</td>'
+           + '</tr>';
+    });
+    const prevTot = prevPenalties.reduce((s, p) => s + Number(p.amount || p.금액 || 0), 0);
+    const currTot = currPenalties_2.reduce((s, p) => s + Number(p.amount || p.금액 || 0), 0);
+    const totDiff = (prevTot && currTot) ? _filDiff(prevTot, currTot) : '';
+    const totColor = totDiff.startsWith('+') ? '#dc2626' : (totDiff.startsWith('-') ? '#10b981' : '#6b7280');
+    html += '<tr style="border-top:1.5px solid #191f28;background:#fafbfc;font-weight:700">'
+         + '<td style="padding:5px 8px">소계</td>'
+         + '<td style="padding:5px 8px;text-align:right;color:#6b7280">' + (prevTot ? _filFormatNum(prevTot) + '원' : '—') + '</td>'
+         + '<td style="padding:5px 8px;text-align:right">' + (currTot ? _filFormatNum(currTot) + '원' : '—') + '</td>'
+         + '<td style="padding:5px 8px;text-align:right;color:' + totColor + '">' + (totDiff || '—') + '</td>'
+         + '</tr>';
   }
-  html += '</ul>';
+  html += '</tbody></table></div>';
+  /* 화면 list (편집 모드 — 입력 폼만 표시, 비교는 print 에서) */
+  html += '<div class="no-print" style="font-size:.86em;margin-bottom:8px"><b>○ 가산세</b></div>';
   html += '<div id="filPenaltyRows" class="no-print" style="margin-top:6px">';
   if (currPenalties_2.length === 0) html += _filRenderPenaltyRow({ name: '', amount: '' }, 0, readonly);
   else currPenalties_2.forEach((p, i) => { html += _filRenderPenaltyRow(p, i, readonly); });
   html += '</div>';
   if (!readonly) html += '<button onclick="_filAddPenaltyRow()" class="no-print" style="background:#fff;color:#dc2626;border:1px dashed #dc2626;padding:4px 10px;border-radius:6px;font-size:.74em;cursor:pointer;font-family:inherit;margin-top:6px">+ 가산세 추가</button>';
-  html += '</div>';
-  html += '</div>';
+  /* 가산세 wrapper close 제거 — wrapper 자체가 없음 */
+  html += '</div>'; /* SECTION 03 keep-together close */
 
   /* SECTION 04: 작년 리뷰 (참조용 — 직원 + 결재자 코멘트, 작년 있을 때만).
    * 사장님 명령: 2장 fit 컴팩트. */
