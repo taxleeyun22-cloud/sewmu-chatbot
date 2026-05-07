@@ -391,36 +391,24 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
        + '</tr>';
   html += '</tbody></table></div>';
 
-  /* 공제감면 비교 (작년 vs 올해 매칭 — 신규/유지/삭제 자동) */
+  /* 공제감면 (현재 입력만 — 사장님 명령 2026-05-07: 빨간 줄 / [신규] / [유지] / [작년 → 올해 삭제]
+   * 표시 모두 폐기. 단순 list. 작년 vs 올해 비교는 위 비교표 합계 행으로 충분. */
   const prevDeductions = pf.공제감면 || pf.deductions || [];
   const currDeductions = af.공제감면 || af.deductions || [];
-  const prevDedNames = new Set(prevDeductions.map(d => (d.name || d.종류 || '').trim()).filter(Boolean));
-  const currDedNames = new Set(currDeductions.map(d => (d.name || d.종류 || '').trim()).filter(Boolean));
-  const dedNew = [...currDedNames].filter(n => !prevDedNames.has(n));     /* 올해 신규 */
-  const dedKept = [...currDedNames].filter(n => prevDedNames.has(n));      /* 유지 */
-  const dedRemoved = [...prevDedNames].filter(n => !currDedNames.has(n));  /* 작년 only — 삭제됨 */
 
-  /* SECTION 03: 공제감면 / 가산세 — 단일 컬럼 (사장님 명령 2026-05-07: A4 세로) */
+  /* SECTION 03: 공제감면 / 가산세 — 단일 컬럼 */
   html += '<div class="keep-together" style="margin-bottom:18px">';
   html += '<div class="filing-section-header">SECTION 03 · DEDUCTIONS &amp; PENALTIES</div>';
   html += '<div class="filing-section-title">공제·감면 / 가산세 명세</div>';
 
-  /* 공제감면 입력 + 인쇄 list */
+  /* 공제감면 — 올해 입력만 단순 표시 */
   html += '<div style="font-size:.86em;margin-bottom:10px"><b>○ 적용 공제·감면</b>';
   html += '<ul class="print-only" style="display:none;margin:4px 0 0 18px;padding:0">';
   if (!currDeductions.length) html += '<li style="color:#9ca3af">없음</li>';
   else currDeductions.forEach(d => {
     const nm = (d.name || d.종류 || '').trim();
-    const isNew = dedNew.indexOf(nm) >= 0;
-    const tag = (prev && isNew) ? ' <span style="color:#dc2626;font-weight:700">[신규]</span>' : (prev ? ' <span style="color:#10b981;font-weight:700">[유지]</span>' : '');
-    html += '<li>' + e(nm) + ' ' + _filFormatNum(d.amount || d.금액 || 0) + '원' + tag + '</li>';
+    html += '<li>' + e(nm) + ' ' + _filFormatNum(d.amount || d.금액 || 0) + '원</li>';
   });
-  if (prev && dedRemoved.length) {
-    dedRemoved.forEach(nm => {
-      const prevD = prevDeductions.find(d => (d.name || d.종류 || '').trim() === nm);
-      html += '<li style="color:#dc2626;text-decoration:line-through">' + e(nm) + ' ' + _filFormatNum(prevD?.amount || prevD?.금액 || 0) + '원 <span style="font-weight:700">[작년 → 올해 삭제]</span></li>';
-    });
-  }
   html += '</ul>';
   html += '<div id="filDeductionRows" class="no-print" style="margin-top:6px">';
   if (currDeductions.length === 0) html += _filRenderDeductionRow({ name: '', amount: '' }, 0, readonly);
