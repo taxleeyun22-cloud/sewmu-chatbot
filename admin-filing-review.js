@@ -220,11 +220,14 @@ async function _filFetchOwnerData(f) {
     try {
       const bizR = await fetch('/api/admin-businesses?key=' + encodeURIComponent(_filGetKey()) + '&user_id=' + f.owner_id);
       const bizD = await bizR.json();
-      const allBiz = (bizD.businesses || []).filter(b => b.status !== 'closed' && (!b.deleted_at || b.deleted_at === ''));
-      /* 사장님 보고 fix (2026-05-07): "사업체 3개 연결했는데 1개만 뜬다".
-       * 원인: 새 Case 만들 때 일부 체크 → included_business_ids 에 [1] 만 저장 → filter 1개만 보임.
-       * 해결: filter 폐기 — 종소세는 사람 단위 신고 → 모든 매핑 사업체 표시. */
-      f._businesses = allBiz;
+      /* deleted_at 만 제외 (closed 도 표시 — 폐업 정보도 사장님이 봐야 함). */
+      let filtered = (bizD.businesses || []).filter(b => !b.deleted_at || b.deleted_at === '');
+      /* 사장님 명령 (2026-05-07): "종소세 검토표에는 법인사업자는 빼야된다".
+       * 종소세 = 개인사업자 신고 → 법인사업자 자동 제외. */
+      if (f.type === '종소세') {
+        filtered = filtered.filter(b => !/법인/.test(b.company_form || ''));
+      }
+      f._businesses = filtered;
       /* 참고용 — 어느 사업체가 included_business_ids 에 있는지 (★ 표시 등 활용 가능) */
       try { f._includedBizIds = JSON.parse(f.included_business_ids || '[]'); } catch { f._includedBizIds = []; }
     } catch {}
@@ -628,12 +631,19 @@ function _filRenderOwnerInfoSync(f) {
     const formShort = /법인/.test(form) ? '법인' : (/개인/.test(form) ? '개인' : (/간이/.test(form) ? '간이' : ''));
     const bn = b.business_number || '';
     const bnFmt = bn && bn.length === 10 ? bn.slice(0,3)+'-'+bn.slice(3,5)+'-'+bn.slice(5) : bn;
-    return (isPrimary ? '★ ' : '  ') + '🏢 <b>' + _filEsc(b.company_name || '#' + b.id) + '</b>'
+    /* 사장님 명령 (2026-05-07): closed 사업체도 표시 + 폐업 라벨 (이재윤 case) */
+    const isClosed = b.status === 'closed';
+    const closedBadge = isClosed ? ' <span style="color:#dc2626;font-size:.86em;font-weight:700">(폐업)</span>' : '';
+    const rowStyle = isClosed ? 'color:#9ca3af;' : '';
+    return '<span style="' + rowStyle + '">'
+      + (isPrimary ? '★ ' : '  ') + '🏢 <b>' + _filEsc(b.company_name || '#' + b.id) + '</b>'
+      + closedBadge
       + (formShort ? ' <span style="color:#6b7280">(' + formShort + ')</span>' : '')
       + (bnFmt ? ' · 사업자 ' + _filEsc(bnFmt) : '')
       + (b.ceo_name ? ' · 대표 ' + _filEsc(b.ceo_name) : '')
       + (b.establishment_date ? ' · 개업 ' + _filEsc(b.establishment_date.slice(0, 10)) : '')
-      + (b.address ? '<div style="margin-left:18px;color:#6b7280;font-size:.92em">' + _filEsc(b.address) + '</div>' : '');
+      + (b.address ? '<div style="margin-left:18px;color:#6b7280;font-size:.92em">' + _filEsc(b.address) + '</div>' : '')
+      + '</span>';
   };
   let html = '';
   if (f.owner_type === 'Person' && f._ownerName) {
