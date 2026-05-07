@@ -745,14 +745,9 @@ async function _loadCdMergeBanner(userId){
   }catch(_){ /* silent */ }
 }
 
-async function _splitMerge(mergeId, userId){
+async function _splitMerge(mergeId){
   if(typeof IS_OWNER!=='undefined' && !IS_OWNER){alert('owner 권한이 필요합니다');return}
-  if(!mergeId){
-    /* 사장님 명령 (2026-05-07): audit log 없으면 분리 불가 안내.
-     * 옛 합치기 (audit log 시스템 도입 전) 또는 합치기 한 적 없는 user. */
-    alert('이 사용자는 합치기 이력이 없습니다.\n\n• 합치기를 한 적이 없는 일반 사용자이거나,\n• audit log 도입 (2026-05-07) 전에 합쳐진 옛 합치기일 수 있습니다.\n\n옛 합치기는 분리 정보가 저장되지 않아 분리 불가.\n수정이 필요하면 사용자 정보 직접 수정 (✏️ 수정) 또는 다시 합치기 후 분리 가능.');
-    return;
-  }
+  if(!mergeId){alert('합치기 이력 없음');return}
   if(!confirm('합치기를 분리할까요?\n\n• 카카오 user → 대기 상태로 복원 (OAuth 정보 그대로)\n• 수동 user → 기장거래처 (데이터 그대로 유지)\n\n사용자가 다시 카카오 로그인 시 분리된 그 카카오 user 로 자동 진입.'))return;
   try{
     const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=split_users',{
