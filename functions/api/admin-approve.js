@@ -101,7 +101,6 @@ export async function onRequestGet(context) {
              u.approval_status, u.approved_at, u.created_at, u.last_login_at, u.name_confirmed, u.is_admin,
              u.birth_date,
              u.requested_company_name, u.requested_business_number, u.requested_role, u.requested_at,
-             u.previous_withdrawn_user_id,
              (SELECT company_name FROM client_businesses
               WHERE user_id = u.id
               ORDER BY is_primary DESC, id ASC LIMIT 1) AS company_name,
@@ -111,17 +110,11 @@ export async function onRequestGet(context) {
              (SELECT id FROM user_merges
               WHERE manual_user_id = u.id AND (unmerged_at IS NULL OR unmerged_at = '')
               ORDER BY merged_at DESC LIMIT 1) AS active_merge_id,
-             /* 사장님 명령 (2026-05-07): 옛 합치기 (audit 없음) 휴리스틱 검출.
-              * provider='kakao' + real_name != name + name_confirmed=1
-              * = 사장님이 카카오 user 의 본명 수동 입력 = 합치기 흔적 */
+             /* 옛 합치기 휴리스틱 — provider='kakao' AND real_name != name AND name_confirmed=1 */
              CASE WHEN u.provider = 'kakao' AND u.real_name IS NOT NULL
                        AND TRIM(COALESCE(u.real_name, '')) != TRIM(COALESCE(u.name, ''))
                        AND u.name_confirmed = 1
-                  THEN 1 ELSE 0 END AS is_likely_merged,
-             /* 사장님 명령 (2026-05-07): 탈퇴자 정보 JOIN — admin 화면에 '이전 탈퇴자' 배지 */
-             (SELECT real_name FROM users WHERE id = u.previous_withdrawn_user_id) AS prev_withdrawn_real_name,
-             (SELECT name FROM users WHERE id = u.previous_withdrawn_user_id) AS prev_withdrawn_name,
-             (SELECT deleted_at FROM users WHERE id = u.previous_withdrawn_user_id) AS prev_withdrawn_at
+                  THEN 1 ELSE 0 END AS is_likely_merged
       FROM users u
     `;
     const binds = [];
