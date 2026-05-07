@@ -27,11 +27,11 @@ function _filGetKey() {
   } catch { return ''; }
 }
 function _filGet(id) {
-  try { if (typeof $g === 'function') return $g(id); } catch (_) {}
+  /* 자체 getElementById — admin.js 의 $g() 와 무관 (business.html 호환) */
   return document.getElementById(id);
 }
 function _filEsc(s) {
-  try { if (typeof e === 'function') return e(s); } catch (_) {}
+  /* 자체 escape — admin.js 의 e() 와 무관하게 동작 (business.html 등 e() 미정의 페이지 호환) */
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 function _filEscAttr(s) {
@@ -79,16 +79,16 @@ async function openFilingNew(ownerType, ownerId, ownerName) {
   _filNewOwnerType = ownerType;
   _filNewOwnerId = ownerId;
   _filNewOwnerName = ownerName || '';
-  const m = $g('filingNewModal');
+  const m = _filGet('filingNewModal');
   if (!m) return;
-  $g('filingNewOwnerInfo').innerHTML = (ownerType === 'Person' ? '👤 ' : '🏢 ') + e(ownerName) + ' (#' + ownerId + ')';
+  _filGet('filingNewOwnerInfo').innerHTML = (ownerType === 'Person' ? '👤 ' : '🏢 ') + _filEsc(ownerName) + ' (#' + ownerId + ')';
 
   /* 종소세 default = Person, 법인세 default = Business */
-  const typeSel = $g('filingNewType');
+  const typeSel = _filGet('filingNewType');
   if (typeSel) typeSel.value = (ownerType === 'Business') ? '법인세' : '종소세';
 
   /* 귀속연도 default = 작년 */
-  const yearInp = $g('filingNewYear');
+  const yearInp = _filGet('filingNewYear');
   if (yearInp) yearInp.value = new Date().getFullYear() - 1;
 
   /* 종소세 + Person owner = 포함 사업체 list 자동 fetch */
@@ -101,16 +101,16 @@ async function openFilingNew(ownerType, ownerId, ownerName) {
   document.body.style.overflow = 'hidden';
 }
 function closeFilingNew() {
-  const m = $g('filingNewModal');
+  const m = _filGet('filingNewModal');
   if (m) m.style.display = 'none';
   document.body.style.overflow = '';
   _filNewOwnerType = null;
   _filNewOwnerId = null;
 }
 async function _filNewToggleBizList() {
-  const type = $g('filingNewType')?.value;
-  const area = $g('filingNewBizArea');
-  const list = $g('filingNewBizList');
+  const type = _filGet('filingNewType')?.value;
+  const area = _filGet('filingNewBizArea');
+  const list = _filGet('filingNewBizList');
   if (!area || !list) return;
   /* 종소세 + Person 일 때만 사업체 다중 선택 */
   if (type === '종소세' && _filNewOwnerType === 'Person') {
@@ -127,12 +127,12 @@ async function _filNewToggleBizList() {
       list.innerHTML = bizList.map(b =>
         '<label style="display:flex;align-items:center;gap:6px;padding:5px 6px;cursor:pointer;font-size:.84em;border-bottom:1px solid #f2f4f6">'
         + '<input type="checkbox" class="fil-new-biz" value="' + b.id + '" checked> '
-        + '🏢 <b>' + e(b.company_name || '#' + b.id) + '</b>'
-        + (b.business_number ? ' <span style="color:#6b7280;font-size:.92em">' + e(b.business_number) + '</span>' : '')
+        + '🏢 <b>' + _filEsc(b.company_name || '#' + b.id) + '</b>'
+        + (b.business_number ? ' <span style="color:#6b7280;font-size:.92em">' + _filEsc(b.business_number) + '</span>' : '')
         + '</label>'
       ).join('');
     } catch (err) {
-      list.innerHTML = '<div style="color:#f04452;padding:8px;font-size:.78em">오류: ' + e(err.message) + '</div>';
+      list.innerHTML = '<div style="color:#f04452;padding:8px;font-size:.78em">오류: ' + _filEsc(err.message) + '</div>';
     }
   } else {
     area.style.display = 'none';
@@ -141,14 +141,14 @@ async function _filNewToggleBizList() {
 
 async function submitFilingNew() {
   if (!_filNewOwnerType || !_filNewOwnerId) { alert('owner 없음'); return; }
-  const type = $g('filingNewType')?.value;
-  const fiscalYear = Number($g('filingNewYear')?.value || 0);
+  const type = _filGet('filingNewType')?.value;
+  const fiscalYear = Number(_filGet('filingNewYear')?.value || 0);
   if (!fiscalYear || fiscalYear < 2000 || fiscalYear > 2100) { alert('귀속연도 입력'); return; }
   const includedBizIds = [];
   if (type === '종소세' && _filNewOwnerType === 'Person') {
     document.querySelectorAll('.fil-new-biz:checked').forEach(c => { includedBizIds.push(Number(c.value)); });
   }
-  const btn = $g('filingNewSubmitBtn');
+  const btn = _filGet('filingNewSubmitBtn');
   if (btn) { btn.disabled = true; btn.textContent = '생성 중...'; btn.style.opacity = '.6'; }
   try {
     const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(_filGetKey()), {
@@ -181,17 +181,17 @@ var _filPrev = null;
 var _filSaveTimer = null;
 
 async function openFilingDetail(filingId) {
-  const m = $g('filingDetailModal');
+  const m = _filGet('filingDetailModal');
   if (!m) return;
   m.style.display = 'flex';
   m.style.alignItems = 'flex-start';
   m.style.justifyContent = 'center';
   document.body.style.overflow = 'hidden';
-  $g('filingBody').innerHTML = '<div style="text-align:center;color:#8b95a1;padding:40px 0">불러오는 중...</div>';
+  _filGet('filingBody').innerHTML = '<div style="text-align:center;color:#8b95a1;padding:40px 0">불러오는 중...</div>';
   try {
     const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(_filGetKey()) + '&id=' + filingId);
     const d = await r.json();
-    if (!d.ok || !d.filing) { $g('filingBody').innerHTML = '<div style="color:#f04452;padding:20px">오류: ' + e(d.error || 'unknown') + '</div>'; return; }
+    if (!d.ok || !d.filing) { _filGet('filingBody').innerHTML = '<div style="color:#f04452;padding:20px">오류: ' + _filEsc(d.error || 'unknown') + '</div>'; return; }
     _filCurrent = d.filing;
     _filPrev = d.previous || null;
     /* 사장님 보고 fix (2026-05-07): "불러오는 중..." 안 사라지던 거.
@@ -201,7 +201,7 @@ async function openFilingDetail(filingId) {
     await _filFetchOwnerData(_filCurrent);
     _filRender();
   } catch (err) {
-    $g('filingBody').innerHTML = '<div style="color:#f04452;padding:20px">오류: ' + e(err.message) + '</div>';
+    _filGet('filingBody').innerHTML = '<div style="color:#f04452;padding:20px">오류: ' + _filEsc(err.message) + '</div>';
   }
 }
 
@@ -240,7 +240,7 @@ async function _filFetchOwnerData(f) {
   }
 }
 function closeFilingDetail() {
-  const m = $g('filingDetailModal');
+  const m = _filGet('filingDetailModal');
   if (m) m.style.display = 'none';
   document.body.style.overflow = '';
   if (_filSaveTimer) { clearTimeout(_filSaveTimer); _filSaveTimer = null; }
@@ -258,17 +258,17 @@ function _filRender() {
   const readonly = f.review_status === '보관완료' && !(typeof IS_OWNER !== 'undefined' && IS_OWNER);
 
   /* 헤더 */
-  $g('filingTitle').innerHTML = f.fiscal_year + '년귀속 <span style="background:' + (isJongSo ? '#dbeafe' : '#fef3c7') + ';color:' + (isJongSo ? '#1e40af' : '#92400e') + ';padding:2px 8px;border-radius:6px;font-size:.7em;font-weight:700;margin:0 4px">' + e(f.type) + '</span> 신고검토표';
+  _filGet('filingTitle').innerHTML = f.fiscal_year + '년귀속 <span style="background:' + (isJongSo ? '#dbeafe' : '#fef3c7') + ';color:' + (isJongSo ? '#1e40af' : '#92400e') + ';padding:2px 8px;border-radius:6px;font-size:.7em;font-weight:700;margin:0 4px">' + _filEsc(f.type) + '</span> 신고검토표';
 
   /* 결재 상태 배지 */
   const stColor = { '작성중': '#9ca3af', '결재대기': '#f59e0b', '보관완료': '#10b981' }[f.review_status] || '#9ca3af';
-  const stBadge = $g('filingStatusBadge');
+  const stBadge = _filGet('filingStatusBadge');
   stBadge.textContent = f.review_status;
   stBadge.style.background = stColor;
   stBadge.style.color = '#fff';
 
   /* 본문 렌더 */
-  const body = $g('filingBody');
+  const body = _filGet('filingBody');
   body.innerHTML = _filRenderBody(f, prev, af, pf, isJongSo, readonly);
 
   /* 자동 저장 핸들러 바인딩 */
@@ -366,7 +366,7 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
     const rowBg = fl.highlight ? 'background:#fef3c7' : (fl.bold ? 'background:#fafbfc' : '');
     const fontWeight = fl.bold ? 'font-weight:700' : '';
     html += '<tr style="border-bottom:1px solid #f2f4f6;' + rowBg + '">'
-         + '<td style="padding:6px 10px;' + fontWeight + '">' + e(fl.label) + '</td>'
+         + '<td style="padding:6px 10px;' + fontWeight + '">' + _filEsc(fl.label) + '</td>'
          + '<td style="padding:6px 10px;text-align:right;color:#6b7280">' + fmtVal(prevVal, fl) + prevRateBadge + '</td>'
          + '<td style="padding:6px 10px;text-align:right;' + fontWeight + '">' + fmtVal(currVal, fl) + rateBadge + '</td>'
          + '</tr>';
@@ -431,7 +431,7 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   } else {
     dedRows.forEach(row => {
       html += '<tr style="border-bottom:1px solid #f2f4f6">'
-           + '<td style="padding:5px 8px">' + e(row.name) + '</td>'
+           + '<td style="padding:5px 8px">' + _filEsc(row.name) + '</td>'
            + '<td style="padding:5px 8px;text-align:right;color:#6b7280">' + (row.prev ? _filFormatNum(row.prev) + '원' : '—') + '</td>'
            + '<td style="padding:5px 8px;text-align:right">' + (row.curr ? _filFormatNum(row.curr) + '원' : '—') + '</td>'
            + '</tr>';
@@ -491,7 +491,7 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   } else {
     penRows.forEach(row => {
       html += '<tr style="border-bottom:1px solid #f2f4f6">'
-           + '<td style="padding:5px 8px">' + e(row.name) + '</td>'
+           + '<td style="padding:5px 8px">' + _filEsc(row.name) + '</td>'
            + '<td style="padding:5px 8px;text-align:right;color:#6b7280">' + (row.prev ? _filFormatNum(row.prev) + '원' : '—') + '</td>'
            + '<td style="padding:5px 8px;text-align:right">' + (row.curr ? _filFormatNum(row.curr) + '원' : '—') + '</td>'
            + '</tr>';
@@ -524,11 +524,11 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
     html += '<div class="filing-section-title" style="font-size:.9em;margin-bottom:5px">📜 작년 (' + prev.fiscal_year + ') 리뷰 — 참조용</div>';
     if (prevEmpNote) {
       html += '<div style="margin-bottom:4px"><div style="font-weight:700;font-size:.82em;margin-bottom:2px;color:#374151">○ 작년 직원 코멘트 (특이사항·이슈)</div>';
-      html += '<div style="font-size:.82em;color:#374151;white-space:pre-wrap;line-height:1.5;background:#fff7ed;padding:5px 8px;border-radius:4px;border-left:2px solid #f59e0b">' + e(prevEmpNote) + '</div></div>';
+      html += '<div style="font-size:.82em;color:#374151;white-space:pre-wrap;line-height:1.5;background:#fff7ed;padding:5px 8px;border-radius:4px;border-left:2px solid #f59e0b">' + _filEsc(prevEmpNote) + '</div></div>';
     }
     if (prev.reviewer_comment) {
       html += '<div><div style="font-weight:700;font-size:.82em;margin-bottom:2px;color:#374151">○ 작년 결재자 코멘트</div>';
-      html += '<div style="font-size:.82em;color:#374151;white-space:pre-wrap;line-height:1.5;background:#fff;padding:5px 8px;border-radius:4px;border-left:2px solid #6b7280">' + e(prev.reviewer_comment) + '</div></div>';
+      html += '<div style="font-size:.82em;color:#374151;white-space:pre-wrap;line-height:1.5;background:#fff;padding:5px 8px;border-radius:4px;border-left:2px solid #6b7280">' + _filEsc(prev.reviewer_comment) + '</div></div>';
     }
     html += '</div>';
   }
@@ -540,10 +540,10 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   html += '<div class="filing-section-title">📝 직원 코멘트 <span style="font-size:.74em;color:#6b7280;font-weight:500">(특이사항·이슈 — 다음 해 작년 리뷰에 자동 표시)</span></div>';
   /* 인쇄용 — 컴팩트 (35mm) */
   html += '<div class="print-only" style="display:none;border:1.5px solid #191f28;border-radius:4px;padding:4mm;min-height:35mm;font-size:9.5pt;line-height:1.6;white-space:pre-wrap;background:#fff7ed">';
-  html += e(af.employee_note || '');
+  html += _filEsc(af.employee_note || '');
   html += '</div>';
   /* 편집용 textarea */
-  html += '<textarea class="no-print" data-fil-text-field="employee_note" rows="5" ' + ro + ' placeholder="이번 신고의 특이사항·이슈 — 직원이 작성. 매년 누적되어 다음 해 검토표에 자동 표시.\n예) 카페 신규 오픈으로 매출 급증 / 사업용계좌 12월 매출 누락 가능성 / 청년창업감면 신청 가능 — 재확인 필요" style="width:100%;padding:10px 12px;border:1px solid #f59e0b;border-radius:6px;font-size:.92em;font-family:inherit;box-sizing:border-box;resize:vertical;line-height:1.6;background:#fff7ed">' + e(af.employee_note || '') + '</textarea>';
+  html += '<textarea class="no-print" data-fil-text-field="employee_note" rows="5" ' + ro + ' placeholder="이번 신고의 특이사항·이슈 — 직원이 작성. 매년 누적되어 다음 해 검토표에 자동 표시.\n예) 카페 신규 오픈으로 매출 급증 / 사업용계좌 12월 매출 누락 가능성 / 청년창업감면 신청 가능 — 재확인 필요" style="width:100%;padding:10px 12px;border:1px solid #f59e0b;border-radius:6px;font-size:.92em;font-family:inherit;box-sizing:border-box;resize:vertical;line-height:1.6;background:#fff7ed">' + _filEsc(af.employee_note || '') + '</textarea>';
   html += '</div>';
 
   /* SECTION 07: 결재자 코멘트 — 작은 영역 (사장님 결재 시 작성).
@@ -553,10 +553,10 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   html += '<div class="filing-section-title">✍️ 결재자 코멘트 <span style="font-size:.74em;color:#6b7280;font-weight:500">(사장님 결재 시 작성 — 선택)</span></div>';
   /* 인쇄용 — 작은 박스 (20mm) */
   html += '<div class="print-only" style="display:none;border:1px solid #191f28;border-radius:4px;padding:4mm;min-height:20mm;font-size:9.5pt;line-height:1.6;white-space:pre-wrap">';
-  html += e(f.reviewer_comment || '');
+  html += _filEsc(f.reviewer_comment || '');
   html += '</div>';
   /* 편집용 textarea */
-  html += '<textarea class="no-print" data-fil-field="reviewer_comment" rows="3" ' + ro + ' placeholder="결재자 (사장님) 코멘트 — 결재 시 작성 (선택)" style="width:100%;padding:10px 12px;border:1px solid #e5e8eb;border-radius:6px;font-size:.9em;font-family:inherit;box-sizing:border-box;resize:vertical;line-height:1.6">' + e(f.reviewer_comment || '') + '</textarea>';
+  html += '<textarea class="no-print" data-fil-field="reviewer_comment" rows="3" ' + ro + ' placeholder="결재자 (사장님) 코멘트 — 결재 시 작성 (선택)" style="width:100%;padding:10px 12px;border:1px solid #e5e8eb;border-radius:6px;font-size:.9em;font-family:inherit;box-sizing:border-box;resize:vertical;line-height:1.6">' + _filEsc(f.reviewer_comment || '') + '</textarea>';
   html += '</div>';
 
   /* 좌우 2단 폐기 — placeholder div 닫기 */
@@ -574,14 +574,14 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
     if (fl.autoSum) {
       /* 공제감면/가산세 합계 — readonly 자동 계산 */
       const sum = calcAutoSum(af, fl.autoSum);
-      html += '<div><label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:3px">' + e(fl.label) + ' <span style="color:#9ca3af">(자동)</span></label>';
+      html += '<div><label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:3px">' + _filEsc(fl.label) + ' <span style="color:#9ca3af">(자동)</span></label>';
       html += '<input type="text" id="fil_sum_' + fl.autoSum + '" readonly value="' + _filFormatNum(sum) + '" class="filing-num-input" style="background:#f3f4f6;color:#374151"></div>';
       return;
     }
     const v = af[fl.key];
     const suffix = fl.percent ? ' <span style="color:#9ca3af">(%)</span>' : ' <span style="color:#9ca3af">(원)</span>';
     html += '<div>';
-    html += '<label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:3px">' + e(fl.label) + suffix + '</label>';
+    html += '<label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:3px">' + _filEsc(fl.label) + suffix + '</label>';
     if (fl.percent) {
       html += '<input type="text" data-fil-field="' + fl.key + '" ' + ro + ' value="' + (v !== undefined && v !== null ? Number(v).toFixed(2) : '') + '" placeholder="0.00" class="filing-num-input">';
     } else {
@@ -613,11 +613,11 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   html += '</div>';
 
   /* 헤더 owner 요약 (타이틀 아래) — 동기 set */
-  if ($g('filingOwnerInfo')) {
+  if (_filGet('filingOwnerInfo')) {
     const summary = (f._businesses && f._businesses.length)
-      ? '🏢 ' + e(f._businesses[0].company_name || '') + (f._businesses.length > 1 ? ' 외 ' + (f._businesses.length - 1) + '개' : '')
+      ? '🏢 ' + _filEsc(f._businesses[0].company_name || '') + (f._businesses.length > 1 ? ' 외 ' + (f._businesses.length - 1) + '개' : '')
       : '';
-    $g('filingOwnerInfo').innerHTML = summary;
+    _filGet('filingOwnerInfo').innerHTML = summary;
   }
 
   return html;
@@ -631,16 +631,16 @@ function _filRenderOwnerInfoSync(f) {
     const formShort = /법인/.test(form) ? '법인' : (/개인/.test(form) ? '개인' : (/간이/.test(form) ? '간이' : ''));
     const bn = b.business_number || '';
     const bnFmt = bn && bn.length === 10 ? bn.slice(0,3)+'-'+bn.slice(3,5)+'-'+bn.slice(5) : bn;
-    return (isPrimary ? '★ ' : '  ') + '🏢 <b>' + e(b.company_name || '#' + b.id) + '</b>'
+    return (isPrimary ? '★ ' : '  ') + '🏢 <b>' + _filEsc(b.company_name || '#' + b.id) + '</b>'
       + (formShort ? ' <span style="color:#6b7280">(' + formShort + ')</span>' : '')
-      + (bnFmt ? ' · 사업자 ' + e(bnFmt) : '')
-      + (b.ceo_name ? ' · 대표 ' + e(b.ceo_name) : '')
-      + (b.establishment_date ? ' · 개업 ' + e(b.establishment_date.slice(0, 10)) : '')
-      + (b.address ? '<div style="margin-left:18px;color:#6b7280;font-size:.92em">' + e(b.address) + '</div>' : '');
+      + (bnFmt ? ' · 사업자 ' + _filEsc(bnFmt) : '')
+      + (b.ceo_name ? ' · 대표 ' + _filEsc(b.ceo_name) : '')
+      + (b.establishment_date ? ' · 개업 ' + _filEsc(b.establishment_date.slice(0, 10)) : '')
+      + (b.address ? '<div style="margin-left:18px;color:#6b7280;font-size:.92em">' + _filEsc(b.address) + '</div>' : '');
   };
   let html = '';
   if (f.owner_type === 'Person' && f._ownerName) {
-    html += '<div style="margin-bottom:4px">👤 대표 · 사람: <b>' + e(f._ownerName) + '</b>' + (f._ownerBirth ? ' · 생년월일 ' + e(f._ownerBirth) : '') + '</div>';
+    html += '<div style="margin-bottom:4px">👤 대표 · 사람: <b>' + _filEsc(f._ownerName) + '</b>' + (f._ownerBirth ? ' · 생년월일 ' + _filEsc(f._ownerBirth) : '') + '</div>';
   }
   const businesses = f._businesses || [];
   if (businesses.length) {
@@ -658,7 +658,7 @@ function _filRenderDeductionRow(d, idx, readonly) {
   const ro = readonly ? 'readonly disabled' : '';
   const remBtn = readonly ? '' : '<button onclick="_filRemoveDeductionRow(' + idx + ')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1.1em;padding:0 4px;font-family:inherit">×</button>';
   return '<div class="fil-deduction-row" data-idx="' + idx + '" style="display:grid;grid-template-columns:1.5fr 1fr auto;gap:6px;margin-bottom:4px">'
-    + '<input type="text" ' + ro + ' value="' + e(d.name || d.종류 || '') + '" placeholder="항목 (예: 자녀세액공제)" oninput="_filDeductionChanged()" class="filing-text-input fil-ded-name">'
+    + '<input type="text" ' + ro + ' value="' + _filEsc(d.name || d.종류 || '') + '" placeholder="항목 (예: 자녀세액공제)" oninput="_filDeductionChanged()" class="filing-text-input fil-ded-name">'
     + '<input type="text" ' + ro + ' value="' + (d.amount || d.금액 ? _filFormatNum(d.amount || d.금액) : '') + '" placeholder="금액" oninput="_filFormatOnInput(this);_filDeductionChanged()" class="filing-num-input fil-ded-amount">'
     + remBtn
     + '</div>';
@@ -667,13 +667,13 @@ function _filRenderPenaltyRow(p, idx, readonly) {
   const ro = readonly ? 'readonly disabled' : '';
   const remBtn = readonly ? '' : '<button onclick="_filRemovePenaltyRow(' + idx + ')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1.1em;padding:0 4px;font-family:inherit">×</button>';
   return '<div class="fil-penalty-row" data-idx="' + idx + '" style="display:grid;grid-template-columns:1.5fr 1fr auto;gap:6px;margin-bottom:4px">'
-    + '<input type="text" ' + ro + ' value="' + e(p.name || p.종류 || '') + '" placeholder="가산세 종류 (예: 무신고)" oninput="_filPenaltyChanged()" class="filing-text-input fil-pen-name">'
+    + '<input type="text" ' + ro + ' value="' + _filEsc(p.name || p.종류 || '') + '" placeholder="가산세 종류 (예: 무신고)" oninput="_filPenaltyChanged()" class="filing-text-input fil-pen-name">'
     + '<input type="text" ' + ro + ' value="' + (p.amount || p.금액 ? _filFormatNum(p.amount || p.금액) : '') + '" placeholder="금액" oninput="_filFormatOnInput(this);_filPenaltyChanged()" class="filing-num-input fil-pen-amount">'
     + remBtn
     + '</div>';
 }
 function _filAddDeductionRow() {
-  const box = $g('filDeductionRows');
+  const box = _filGet('filDeductionRows');
   if (!box) return;
   const idx = document.querySelectorAll('.fil-deduction-row').length;
   box.insertAdjacentHTML('beforeend', _filRenderDeductionRow({ name: '', amount: '' }, idx, false));
@@ -685,7 +685,7 @@ function _filRemoveDeductionRow(idx) {
   _filDeductionChanged();
 }
 function _filAddPenaltyRow() {
-  const box = $g('filPenaltyRows');
+  const box = _filGet('filPenaltyRows');
   if (!box) return;
   const idx = document.querySelectorAll('.fil-penalty-row').length;
   box.insertAdjacentHTML('beforeend', _filRenderPenaltyRow({ name: '', amount: '' }, idx, false));
@@ -711,7 +711,7 @@ function _filFormatOnInput(el) {
 function _filOnFieldChange() {
   /* 자동 저장 — 1.5초 후 */
   if (_filSaveTimer) clearTimeout(_filSaveTimer);
-  const st = $g('filSaveStatus');
+  const st = _filGet('filSaveStatus');
   if (st) { st.textContent = '입력 중...'; st.style.color = '#f59e0b'; }
   _filSaveTimer = setTimeout(_filSaveNow, 1500);
   /* 공제·감면 / 가산세 합계 자동 갱신 */
@@ -731,9 +731,9 @@ function _filOnFieldChange() {
     });
     return s;
   })();
-  const dedSumEl = $g('fil_sum_deductions');
+  const dedSumEl = _filGet('fil_sum_deductions');
   if (dedSumEl) dedSumEl.value = _filFormatNum(sumDed);
-  const penSumEl = $g('fil_sum_penalties');
+  const penSumEl = _filGet('fil_sum_penalties');
   if (penSumEl) penSumEl.value = _filFormatNum(sumPen);
 }
 
@@ -770,7 +770,7 @@ async function _filSaveNow() {
   });
   const reviewerComment = (document.querySelector('[data-fil-field="reviewer_comment"]')?.value || '').trim();
 
-  const st = $g('filSaveStatus');
+  const st = _filGet('filSaveStatus');
   if (st) { st.textContent = '저장 중...'; st.style.color = '#f59e0b'; }
   try {
     const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(_filGetKey()) + '&id=' + _filCurrent.id, {
@@ -856,7 +856,7 @@ async function _filRenderListInto(containerEl, ownerType, ownerId, ownerName) {
     const list = d.filings || [];
     let html = '';
     /* 신규 버튼 */
-    html += '<button onclick="openFilingNew(\'' + ownerType + '\',' + ownerId + ',\'' + e(ownerName).replace(/\'/g, '') + '\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">+ 새 ' + (ownerType === 'Person' ? '종소세' : '법인세') + ' Case</button>';
+    html += '<button onclick="openFilingNew(\'' + ownerType + '\',' + ownerId + ',\'' + _filEsc(ownerName).replace(/\'/g, '') + '\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">+ 새 ' + (ownerType === 'Person' ? '종소세' : '법인세') + ' Case</button>';
     /* list */
     if (!list.length) {
       html += '<div style="color:#9ca3af;padding:8px 0;font-size:.85em">신고 Case 가 없습니다.</div>';
@@ -869,8 +869,8 @@ async function _filRenderListInto(containerEl, ownerType, ownerId, ownerName) {
         const eff = rev ? _filEffRate(dec, rev) : '—';
         return '<div onclick="openFilingDetail(' + f.id + ')" style="padding:10px 12px;background:#fff;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;justify-content:space-between" onmouseenter="this.style.background=\'#f0f9ff\'" onmouseleave="this.style.background=\'#fff\'">'
           + '<div style="flex:1;min-width:0">'
-          + '<div style="font-size:.86em;font-weight:600">[' + f.fiscal_year + '귀속] <span style="background:' + stColor + ';color:#fff;font-size:.74em;padding:2px 8px;border-radius:99px;font-weight:700;margin-left:4px">' + e(f.review_status) + '</span></div>'
-          + '<div style="font-size:.74em;color:#6b7280;margin-top:3px">' + e(f.type) + ' · 수입 ' + (rev ? _filFormatNum(rev) + '원' : '—') + ' · 결정세액 ' + (dec ? _filFormatNum(dec) + '원' : '—') + ' · 실효세율 ' + eff + '</div>'
+          + '<div style="font-size:.86em;font-weight:600">[' + f.fiscal_year + '귀속] <span style="background:' + stColor + ';color:#fff;font-size:.74em;padding:2px 8px;border-radius:99px;font-weight:700;margin-left:4px">' + _filEsc(f.review_status) + '</span></div>'
+          + '<div style="font-size:.74em;color:#6b7280;margin-top:3px">' + _filEsc(f.type) + ' · 수입 ' + (rev ? _filFormatNum(rev) + '원' : '—') + ' · 결정세액 ' + (dec ? _filFormatNum(dec) + '원' : '—') + ' · 실효세율 ' + eff + '</div>'
           + '</div>'
           + '<span style="color:#3182f6;font-size:1.2em">›</span>'
           + '</div>';
@@ -878,7 +878,7 @@ async function _filRenderListInto(containerEl, ownerType, ownerId, ownerName) {
     }
     containerEl.innerHTML = html;
   } catch (err) {
-    containerEl.innerHTML = '<div style="color:#f04452;padding:8px;font-size:.82em">오류: ' + e(err.message) + '</div>';
+    containerEl.innerHTML = '<div style="color:#f04452;padding:8px;font-size:.82em">오류: ' + _filEsc(err.message) + '</div>';
   }
 }
 
@@ -970,9 +970,9 @@ function _filReloadList(ownerType, ownerId) {
     { id: 'bdFilingsReview', type: 'Business' },
   ];
   containers.forEach(c => {
-    const el = $g(c.id);
+    const el = _filGet(c.id);
     if (el && c.type === _filLastListContext.ownerType) {
-      const nameEl = c.type === 'Person' ? $g('cdName') : $g('bdName');
+      const nameEl = c.type === 'Person' ? _filGet('cdName') : _filGet('bdName');
       const name = nameEl ? nameEl.textContent : '';
       _filRenderListInto(el, _filLastListContext.ownerType, _filLastListContext.ownerId, name);
     }
