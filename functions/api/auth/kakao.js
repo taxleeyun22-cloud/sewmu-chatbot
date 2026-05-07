@@ -152,7 +152,7 @@ export async function onRequestGet(context) {
         `).bind(kakaoId, kakaoId, name, email, phone, profileImage, withdrawnUser.id).run();
         user = { id: withdrawnUser.id };
       } else {
-        /* 3. 합쳐진 옛 user audit log 검색 (kakao_snapshot.provider_id = KAKAO_ID) */
+        /* 3. 합쳐진 옛 user audit log 검색 — 정확한 카톡 ID 만 매칭, admin user 는 redirect 안 함 */
         let mergedSurvivorId = null;
         try {
           const merges = await db.prepare(
@@ -161,10 +161,11 @@ export async function onRequestGet(context) {
           for (const m of (merges.results || [])) {
             try {
               const snap = JSON.parse(m.kakao_snapshot || '{}');
-              if (String(snap.provider_id || '') === String(kakaoId) || String(snap.provider_user_id || '') === String(kakaoId)) {
-                /* 살아남은 user 가 활성 (deleted_at NULL) 인지 확인 */
+              const snapPid = String(snap.provider_id || snap.provider_user_id || '').trim();
+              if (snapPid && snapPid === String(kakaoId).trim()) {
+                /* 살아남은 user 활성 + 일반 user (admin 제외) 인지 확인 */
                 const surv = await db.prepare(
-                  `SELECT id FROM users WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
+                  `SELECT id FROM users WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '') AND COALESCE(is_admin, 0) = 0 LIMIT 1`
                 ).bind(m.manual_user_id).first();
                 if (surv) { mergedSurvivorId = surv.id; break; }
               }
@@ -173,19 +174,34 @@ export async function onRequestGet(context) {
         } catch {}
 
         if (mergedSurvivorId) {
-          /* 합쳐진 옛 카카오 ID → 살아남은 user 로 진입 (정보 갱신만) */
+          /* 합쳐진 옛 카카오 ID → 살아남은 user 로 진입 */
           await db.prepare(
             `UPDATE users SET name = ?, email = ?, phone = COALESCE(phone, ?), profile_image = COALESCE(?, profile_image), last_login_at = datetime('now', '+9 hours') WHERE id = ?`
           ).bind(name, email, phone, profileImage, mergedSurvivorId).run();
           user = { id: mergedSurvivorId };
         } else {
-          /* 4. 진짜 새 user INSERT */
-          const r = await db.prepare(
-            `INSERT INTO users (provider, provider_id, name, email, phone, profile_image,
-                                approval_status, name_confirmed,
-                                created_at, last_login_at)
-             VALUES ('kakao', ?, ?, ?, ?, ?, 'pending', 0, datetime('now', '+9 hours'), datetime('now', '+9 hours'))`
-          ).bind(kakaoId, name, email, phone, profileImage).run();
+          /* 4. 진짜 새 user INSERT — legacy provider_id NOT NULL 처리 */
+          let hasProviderUserIdCol = false;
+          try {
+            const info = await db.prepare(`PRAGMA table_info(users)`).all();
+            hasProviderUserIdCol = (info?.results || []).some(c => c.name === 'provider_user_id');
+          } catch {}
+          let r;
+          if (hasProviderUserIdCol) {
+            r = await db.prepare(
+              `INSERT INTO users (provider, provider_id, provider_user_id, name, email, phone, profile_image,
+                                  approval_status, name_confirmed,
+                                  created_at, last_login_at)
+               VALUES ('kakao', ?, ?, ?, ?, ?, ?, 'pending', 0, datetime('now', '+9 hours'), datetime('now', '+9 hours'))`
+            ).bind(kakaoId, kakaoId, name, email, phone, profileImage).run();
+          } else {
+            r = await db.prepare(
+              `INSERT INTO users (provider, provider_id, name, email, phone, profile_image,
+                                  approval_status, name_confirmed,
+                                  created_at, last_login_at)
+               VALUES ('kakao', ?, ?, ?, ?, ?, 'pending', 0, datetime('now', '+9 hours'), datetime('now', '+9 hours'))`
+            ).bind(kakaoId, name, email, phone, profileImage).run();
+          }
           user = { id: r.meta?.last_row_id };
         }
       }
