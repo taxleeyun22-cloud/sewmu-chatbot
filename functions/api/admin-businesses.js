@@ -165,13 +165,15 @@ export async function onRequestGet(context) {
     }
   }
 
-  /* 목록 */
+  /* 목록 — 사장님 보고 fix (2026-05-08): "5개인데 list 4개".
+   * 원인: GET 응답이 deleted_at 사업체도 포함 → 사이드바 카운트 5, list filter 후 4 = mismatch.
+   * 해결: backend 자체에서 soft delete 제외 (모든 응답 일관). */
   let query = `SELECT b.*,
       (SELECT COUNT(*) FROM business_members WHERE business_id = b.id AND removed_at IS NULL) AS member_count,
       (SELECT COUNT(*) FROM chat_rooms WHERE business_id = b.id) AS room_count
       FROM businesses b`;
   const binds = [];
-  const where = [];
+  const where = ['(b.deleted_at IS NULL OR b.deleted_at = \'\')'];
   if (status) { where.push(`b.status = ?`); binds.push(status); }
   if (search) {
     where.push(`(b.company_name LIKE ? OR b.business_number LIKE ? OR b.ceo_name LIKE ? OR b.phone LIKE ?)`);
@@ -182,10 +184,12 @@ export async function onRequestGet(context) {
   query += ' ORDER BY b.created_at DESC LIMIT 500';
   try {
     const { results } = await db.prepare(query).bind(...binds).all();
-    /* 상태별 카운트 */
+    /* 사장님 보고 fix (2026-05-08): "5개인데 list 4개" — counts 와 list mismatch.
+     * 원인: counts SQL 이 deleted_at filter 안 함 → 휴지통 처리된 업체도 카운트.
+     * 해결: deleted_at IS NULL 조건 추가 (list 와 동일 기준). */
     const counts = {};
     for (const s of ['active', 'closed', 'terminated']) {
-      const r = await db.prepare(`SELECT COUNT(*) AS c FROM businesses WHERE status = ?`).bind(s).first();
+      const r = await db.prepare(`SELECT COUNT(*) AS c FROM businesses WHERE status = ? AND (deleted_at IS NULL OR deleted_at = '')`).bind(s).first();
       counts[s] = r?.c || 0;
     }
     return Response.json({ ok: true, businesses: results || [], counts });
