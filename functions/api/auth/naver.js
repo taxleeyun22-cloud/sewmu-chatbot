@@ -84,7 +84,7 @@ export async function onRequestGet(context) {
 
     await initTables(db);
 
-    /* 사장님 명령 (2026-05-07 정정): 옛 탈퇴자 부활 + 재가입 상태 (kakao.js 동일) */
+    /* 사장님 대원칙 (2026-05-07): 같은 OAuth ID = 1 user only (kakao.js 동일 패턴) */
     try { await db.prepare(`ALTER TABLE users ADD COLUMN withdrawn_provider_id TEXT`).run(); } catch {}
 
     let user = await db.prepare(
@@ -102,24 +102,40 @@ export async function onRequestGet(context) {
       if (withdrawnUser) {
         await db.prepare(`
           UPDATE users SET
-            deleted_at = NULL,
-            withdrawal_reason = NULL,
-            approval_status = 'rejoined',
-            provider_id = ?,
-            provider_user_id = ?,
-            withdrawn_provider_id = NULL,
+            deleted_at = NULL, withdrawal_reason = NULL, approval_status = 'rejoined',
+            provider_id = ?, provider_user_id = ?, withdrawn_provider_id = NULL,
             name = ?, email = ?, phone = ?, profile_image = ?,
             last_login_at = datetime('now')
           WHERE id = ?
         `).bind(naverId, naverId, name, email, phone, profileImage, withdrawnUser.id).run();
         user = { id: withdrawnUser.id };
       } else {
-        const r = await db.prepare(
-          `INSERT INTO users (provider, provider_id, name, email, phone, profile_image,
-                              approval_status, name_confirmed, created_at, last_login_at)
-           VALUES ('naver', ?, ?, ?, ?, ?, 'pending', 0, datetime('now'), datetime('now'))`
-        ).bind(naverId, name, email, phone, profileImage).run();
-        user = { id: r.meta?.last_row_id };
+        /* 합쳐진 옛 user audit log 매칭 → 살아남은 user 로 진입 */
+        let mergedSurvivorId = null;
+        try {
+          const merges = await db.prepare(`SELECT manual_user_id, kakao_snapshot FROM user_merges WHERE unmerged_at IS NULL ORDER BY merged_at DESC LIMIT 100`).all();
+          for (const m of (merges.results || [])) {
+            try {
+              const snap = JSON.parse(m.kakao_snapshot || '{}');
+              if (String(snap.provider_id || '') === String(naverId) || String(snap.provider_user_id || '') === String(naverId)) {
+                const surv = await db.prepare(`SELECT id FROM users WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`).bind(m.manual_user_id).first();
+                if (surv) { mergedSurvivorId = surv.id; break; }
+              }
+            } catch {}
+          }
+        } catch {}
+        if (mergedSurvivorId) {
+          await db.prepare(`UPDATE users SET name = ?, email = ?, phone = COALESCE(phone, ?), profile_image = COALESCE(?, profile_image), last_login_at = datetime('now') WHERE id = ?`)
+            .bind(name, email, phone, profileImage, mergedSurvivorId).run();
+          user = { id: mergedSurvivorId };
+        } else {
+          const r = await db.prepare(
+            `INSERT INTO users (provider, provider_id, name, email, phone, profile_image,
+                                approval_status, name_confirmed, created_at, last_login_at)
+             VALUES ('naver', ?, ?, ?, ?, ?, 'pending', 0, datetime('now'), datetime('now'))`
+          ).bind(naverId, name, email, phone, profileImage).run();
+          user = { id: r.meta?.last_row_id };
+        }
       }
     }
 

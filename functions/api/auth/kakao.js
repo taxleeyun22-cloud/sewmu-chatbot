@@ -113,10 +113,12 @@ export async function onRequestGet(context) {
 
     await initTables(db);
 
-    /* 사장님 명령 (2026-05-07 정정): 옛 탈퇴자 자동 부활 + 재가입 상태.
-     * - 활성 user 매칭 → 정상 로그인
-     * - 옛 탈퇴자 (withdrawn_provider_id 매칭) → 부활 + approval_status='rejoined'
-     * - 진짜 새 user → INSERT (pending) */
+    /* 사장님 대원칙 (2026-05-07): 같은 카톡 ID = 1 user only.
+     * 매칭 우선순위:
+     * 1. 활성 user (deleted_at NULL, provider_id = KAKAO_ID) → 정상 로그인
+     * 2. 옛 탈퇴자 (withdrawn_provider_id = KAKAO_ID) → 부활 + 'rejoined'
+     * 3. 합쳐진 옛 user (user_merges audit log 의 kakao_snapshot 매칭) → 살아남은 user 로 자동 진입
+     * 4. 어디서도 매칭 X → 새 user INSERT */
     try { await db.prepare(`ALTER TABLE users ADD COLUMN withdrawn_provider_id TEXT`).run(); } catch {}
 
     /* 1. 활성 user 매칭 */
@@ -130,14 +132,12 @@ export async function onRequestGet(context) {
         `UPDATE users SET name = ?, email = ?, phone = ?, profile_image = ?, last_login_at = datetime('now', '+9 hours') WHERE id = ?`
       ).bind(name, email, phone, profileImage, user.id).run();
     } else {
-      /* 2. 옛 탈퇴자 검색 (withdrawn_provider_id 매칭) */
+      /* 2. 옛 탈퇴자 부활 (withdrawn_provider_id 매칭) */
       const withdrawnUser = await db.prepare(
         `SELECT id FROM users WHERE provider = 'kakao' AND withdrawn_provider_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 1`
       ).bind(kakaoId).first();
 
       if (withdrawnUser) {
-        /* 옛 탈퇴자 부활 + approval_status='rejoined' (재가입 상태)
-         * provider_id 복원 (옛 'withdrawn:N:KAKAO_ID' → 다시 KAKAO_ID) */
         await db.prepare(`
           UPDATE users SET
             deleted_at = NULL,
@@ -146,23 +146,48 @@ export async function onRequestGet(context) {
             provider_id = ?,
             provider_user_id = ?,
             withdrawn_provider_id = NULL,
-            name = ?,
-            email = ?,
-            phone = ?,
-            profile_image = ?,
+            name = ?, email = ?, phone = ?, profile_image = ?,
             last_login_at = datetime('now', '+9 hours')
           WHERE id = ?
         `).bind(kakaoId, kakaoId, name, email, phone, profileImage, withdrawnUser.id).run();
         user = { id: withdrawnUser.id };
       } else {
-        /* 3. 진짜 새 user INSERT (pending) */
-        const r = await db.prepare(
-          `INSERT INTO users (provider, provider_id, name, email, phone, profile_image,
-                              approval_status, name_confirmed,
-                              created_at, last_login_at)
-           VALUES ('kakao', ?, ?, ?, ?, ?, 'pending', 0, datetime('now', '+9 hours'), datetime('now', '+9 hours'))`
-        ).bind(kakaoId, name, email, phone, profileImage).run();
-        user = { id: r.meta?.last_row_id };
+        /* 3. 합쳐진 옛 user audit log 검색 (kakao_snapshot.provider_id = KAKAO_ID) */
+        let mergedSurvivorId = null;
+        try {
+          const merges = await db.prepare(
+            `SELECT manual_user_id, kakao_snapshot FROM user_merges WHERE unmerged_at IS NULL ORDER BY merged_at DESC LIMIT 100`
+          ).all();
+          for (const m of (merges.results || [])) {
+            try {
+              const snap = JSON.parse(m.kakao_snapshot || '{}');
+              if (String(snap.provider_id || '') === String(kakaoId) || String(snap.provider_user_id || '') === String(kakaoId)) {
+                /* 살아남은 user 가 활성 (deleted_at NULL) 인지 확인 */
+                const surv = await db.prepare(
+                  `SELECT id FROM users WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
+                ).bind(m.manual_user_id).first();
+                if (surv) { mergedSurvivorId = surv.id; break; }
+              }
+            } catch {}
+          }
+        } catch {}
+
+        if (mergedSurvivorId) {
+          /* 합쳐진 옛 카카오 ID → 살아남은 user 로 진입 (정보 갱신만) */
+          await db.prepare(
+            `UPDATE users SET name = ?, email = ?, phone = COALESCE(phone, ?), profile_image = COALESCE(?, profile_image), last_login_at = datetime('now', '+9 hours') WHERE id = ?`
+          ).bind(name, email, phone, profileImage, mergedSurvivorId).run();
+          user = { id: mergedSurvivorId };
+        } else {
+          /* 4. 진짜 새 user INSERT */
+          const r = await db.prepare(
+            `INSERT INTO users (provider, provider_id, name, email, phone, profile_image,
+                                approval_status, name_confirmed,
+                                created_at, last_login_at)
+             VALUES ('kakao', ?, ?, ?, ?, ?, 'pending', 0, datetime('now', '+9 hours'), datetime('now', '+9 hours'))`
+          ).bind(kakaoId, name, email, phone, profileImage).run();
+          user = { id: r.meta?.last_row_id };
+        }
       }
     }
 
