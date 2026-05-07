@@ -234,8 +234,8 @@ async function openApproveWithBusiness(userId, displayName, phone, action, prefi
   m.style.display='flex';
   document.body.style.overflow='hidden';
   await _apbLoadBusinesses();
-  /* Phase P1 (2026-05-07 사장님 명령): 비슷한 기존 사용자 자동 검색 */
-  _apbLoadSimilarUsers(userId, displayName, phone).catch(_=>{});
+  /* 사장님 명령 (2026-05-07): '비슷한 기존 사용자' 자동 추천 폐기.
+   * 사장님이 기존 업체 list 에서 직접 고름. */
   } catch(err) {
     /* Phase 5-23: 디버그 안내 ("F12 Console") 제거. 세무사용 메시지만. */
     console.error('openApproveWithBusiness error:', err);
