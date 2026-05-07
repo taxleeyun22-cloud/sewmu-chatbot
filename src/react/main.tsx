@@ -13,7 +13,9 @@
 
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import { AdminRoleBadge } from './components/AdminRoleBadge';
+import { CustomerFinanceChart } from './components/CustomerFinanceChart';
 
 /**
  * 특정 ID 의 element 안에 React 컴포넌트 mount.
@@ -27,6 +29,31 @@ function mountAt(elementId: string, render: () => React.ReactNode): boolean {
   return true;
 }
 
+/* 사용자별 mount 추적 — re-mount 방지 + 거래처 dashboard 재진입 시 갱신 */
+const _mountedRoots = new Map<string, { root: Root; userId?: number }>();
+
+function mountFinanceChart(elementId: string, userId: number): void {
+  if (typeof document === 'undefined') return;
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const existing = _mountedRoots.get(elementId);
+  if (existing) {
+    if (existing.userId === userId) return;  /* 같은 user — re-render 불필요 */
+    existing.root.unmount();
+  }
+  const root = createRoot(el);
+  root.render(<StrictMode><CustomerFinanceChart userId={userId} /></StrictMode>);
+  _mountedRoots.set(elementId, { root, userId });
+}
+
+/**
+ * 거래처 dashboard 가 user_id 변경 시 호출.
+ * admin-customer-dash.js openCustomerDashboard 가 window.__mountFinanceChart(userId).
+ */
+function mountFinanceChartForUser(userId: number): void {
+  mountFinanceChart('cust-finance-chart', userId);
+}
+
 /**
  * DOMContentLoaded 후 자동 mount.
  */
@@ -34,6 +61,14 @@ function bootstrap() {
   /* admin role 배지 — admin.html / business.html / 등 어디든 */
   mountAt('admin-role-badge-inline', () => <AdminRoleBadge variant="inline" />);
   mountAt('admin-role-badge-block', () => <AdminRoleBadge variant="block" />);
+
+  /* 거래처 dashboard 매출 차트 — data-user-id 속성 있으면 자동 mount.
+   * 없으면 admin-customer-dash.js 가 openCustomerDashboard 시 window.__mountFinanceChart(userId) 호출. */
+  const chartEl = document.getElementById('cust-finance-chart');
+  if (chartEl) {
+    const uid = Number(chartEl.dataset.userId || 0);
+    if (uid) mountFinanceChartForUser(uid);
+  }
 }
 
 if (document.readyState === 'loading') {
@@ -46,6 +81,8 @@ if (document.readyState === 'loading') {
 declare global {
   interface Window {
     __reactMount?: typeof mountAt;
+    __mountFinanceChart?: typeof mountFinanceChartForUser;
   }
 }
 window.__reactMount = mountAt;
+window.__mountFinanceChart = mountFinanceChartForUser;
