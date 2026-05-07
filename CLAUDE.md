@@ -220,6 +220,36 @@ Cloudflare Pages + D1 DB + OpenAI GPT-4.1-mini + 국가법령정보센터 API.
 - 헤더 타이틀 말줄임 정상 동작인지 (좁은 폭에서 "세무회계 이윤 이재윤대표" 같은 긴 이름)
 - 기존 기능 회귀 없는지 (보낸 메시지 렌더·스크롤·탭 전환)
 
+### ⚛️ #2 React 18/19 도입 (Phase 1 인프라 · 2026-05-07)
+
+**메타 12종 #2 — React 컴포넌트 시스템 인프라 활성화.**
+
+설치:
+- react@19 / react-dom@19 (dependencies)
+- @types/react / @types/react-dom / @vitejs/plugin-react (devDeps)
+- @testing-library/react / @testing-library/jest-dom (test)
+
+빌드 entry (vite.config.ts):
+- main: src/main.ts (기존, 자체 ES module)
+- react: src/react/main.tsx (신규 — JSX + React)
+- 별도 output: dist/assets/react.js (gzip 61 kB)
+- main.css 그대로 + react.css 자동 (있으면)
+
+신규 (Phase 1, 7 tests 추가):
+- src/react/components/AdminRoleBadge.tsx — owner/manager/staff 자동 표시
+- src/react/hooks/useAdminRole.ts — /api/admin-whoami fetch + 30s polling
+
+**룰**:
+- ✅ **신규 admin 시각 컴포넌트는 React (.tsx)** 로 작성 (인프라 준비됨)
+- ✅ **타입 안전 + 단위 테스트** (React Testing Library)
+- ⚠️ admin.html / admin-modals.html 본체 inline 마크업은 그대로 — 점진 마이그레이션
+- ⚠️ React 사용 spot 은 `<div id="admin-role-badge-inline"></div>` + `<script type="module" src="/assets/react.js"></script>` 패턴으로 점진 추가
+
+**사장님 영향**:
+- 현재 (Phase 1): 인프라만 — admin.html 변경 0 → 사장님 화면 영향 0
+- 향후 (Phase 2): admin.html 에 mount point 추가 시 React 컴포넌트 표시
+- 가장 큰 가치: **새 기능 (예: 거래처 dashboard 차트, 메모 통계, 인사이트)** 을 React 로 작성 시 type-safe + tests + 자동 update
+
 ### 📦 #3 TypeScript 5단계 변환 완료 (2026-05-06)
 
 **메타 12종 #3 — admin.js 점진 .ts 변환. admin.js 본체 plain JS 유지 + src/admin/*.ts 9개 모듈 + 197 tests.**

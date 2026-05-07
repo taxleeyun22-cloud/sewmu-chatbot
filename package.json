@@ -19,9 +19,14 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20.14.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.10.0",
     "eslint-plugin-import": "^2.30.0",
@@ -36,6 +41,8 @@
     "wrangler": "^3.78.0"
   },
   "dependencies": {
-    "nanostores": "^0.11.3"
+    "nanostores": "^0.11.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
   }
 }

@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 
 /**
@@ -34,6 +35,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'src/main.ts'),
+        /* Phase #2 (2026-05-07): React entry — admin.html 안 mount points 자동 처리.
+         * 별도 output assets/react.js + assets/react.css. 사장님 화면 영향 0 (HTML 변경 X). */
+        react: resolve(__dirname, 'src/react/main.tsx'),
       },
       output: {
         // Phase S3a (2026-05-04): main.js 파일명 고정 (hash 제거) → HTML 에서 ?v=N 으로 cache bust
@@ -45,6 +49,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    react(),
     viteStaticCopy({
       targets: [
         // HTML 6개 — byte-identical 복사 (Phase 2 에서 점진 분해)
