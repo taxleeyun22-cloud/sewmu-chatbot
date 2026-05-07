@@ -181,17 +181,23 @@ export async function onRequestPost(context) {
 
       /* Q3 (2026-05-07 사장님 명령): 새 N:N 매핑 (businesses + business_members) 도 자동 생성.
        * 옛 client_businesses 는 호환 유지. 새 흐름 = 양방향 자동 생성.
-       * - 사업자번호 또는 회사명 있는 사람 → businesses INSERT (없으면) + business_members 매핑 */
+       * - body.existing_business_id 있으면 그 ID 사용 (기존 업체 선택)
+       * - 없으면 사업자번호 또는 회사명 있을 때 businesses INSERT (없으면) + business_members 매핑 */
       try {
+        const existingBizId = Number(body.existing_business_id || 0);
         const normBiz = String(businessNumber || '').replace(/\D/g, '');
         let bizId = null;
-        if (normBiz) {
+        if (existingBizId) {
+          /* 사장님이 기존 업체 선택 — 그 ID 그대로 사용 (검증만) */
+          const ex = await db.prepare(`SELECT id FROM businesses WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`).bind(existingBizId).first();
+          if (ex) bizId = ex.id;
+        } else if (normBiz) {
           /* 같은 사업자번호 기존 업체 있으면 재사용 */
           const dup = await db.prepare(`SELECT id FROM businesses WHERE business_number = ? LIMIT 1`).bind(normBiz).first();
           if (dup) bizId = dup.id;
         }
-        if (!bizId && (normBiz || companyName)) {
-          /* 신규 INSERT */
+        if (!bizId && !existingBizId && (normBiz || companyName)) {
+          /* 신규 INSERT (사용자가 기존 업체 선택 안 한 경우만) */
           const r2 = await db.prepare(
             `INSERT INTO businesses (company_name, business_number, ceo_name, address, phone,
                                      establishment_date, sub_business_number, corporate_number,

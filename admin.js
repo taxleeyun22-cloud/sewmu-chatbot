@@ -1417,9 +1417,16 @@ async function openManualClientModal(){
   m.style.display='flex';
   document.body.style.overflow='hidden';
   /* 👤 사람 정보 */
-  ['mcRealName','mcPhone','mcCompany','mcCeo','mcBizNo','mcSubBiz','mcCorpNo',
+  ['mcRealName','mcBirthDate','mcPhone','mcCompany','mcCeo','mcBizNo','mcSubBiz','mcCorpNo',
    'mcAddr1','mcAddr2','mcBizPhone','mcIndustryCode','mcBizCategory','mcIndustry',
    'mcEstDate','mcFiscalTerm','mcNotes'].forEach(id=>{const el=$g(id);if(el)el.value=''});
+  /* Phase (2026-05-07 사장님 명령): 사용자 등록 흐름에도 기존 업체 선택 모드 표시.
+   * default '➕ 신규 입력'. mcModeTabs 활성화. */
+  _mcSelectedExistingBizId = null;
+  _mcSelectedExistingBizName = '';
+  const tabs = $g('mcModeTabs'); if(tabs) tabs.style.display = 'flex';
+  _mcSwitchMode('new');
+  /* '신규 업체 생성' 라벨은 사용자 등록 흐름에선 약간 다름 — UI 그대로, JS submit 분기. */
   if($g('mcForm'))$g('mcForm').value='0.법인사업자';
   /* 📊 기수·인사연도 — 올해 기본값 */
   var curYear=new Date().getFullYear();
@@ -1447,7 +1454,14 @@ function closeManualClientModal(){
   const existArea = $g('mcExistArea'); if(existArea) existArea.style.display = 'none';
   const existInp = $g('mcExistSearch'); if(existInp) existInp.value = '';
   const existRes = $g('mcExistResults'); if(existRes) existRes.innerHTML = '';
-  const subBtn = $g('mcSubmitBtn'); if(subBtn) subBtn.style.display = '';
+  const subBtn = $g('mcSubmitBtn'); if(subBtn){ subBtn.style.display = ''; subBtn.textContent='➕ 등록'; }
+  /* 기존 업체 선택 readonly 해제 */
+  ['mcCompany','mcCeo','mcBizNo','mcForm'].forEach(id=>{
+    const el=$g(id);
+    if(el){ el.readOnly=false; el.disabled=false; el.style.background=''; el.style.cursor=''; }
+  });
+  _mcSelectedExistingBizId = null;
+  _mcSelectedExistingBizName = '';
   /* addBiz 모드 정리 — 다음 신규 거래처 등록 시 readonly·hidden 잔존 방지 */
   if(_mcMode==='addBiz'){
     _mcMode='newClient'; _mcAddBizUserId=null;
@@ -1539,24 +1553,59 @@ async function _mcExistSearch(){
     res.innerHTML = '<div style="color:#f04452;padding:10px;font-size:.82em">오류: '+e(err.message)+'</div>';
   }
 }
+/* Phase (2026-05-07 사장님 명령): 신규 사용자 등록 흐름에서 선택한 기존 업체 ID 저장 */
+var _mcSelectedExistingBizId = null;
+var _mcSelectedExistingBizName = '';
+
 async function _mcLinkExisting(bizId, bizName){
-  if(!_mcAddBizUserId){ alert('user_id 누락'); return; }
-  if(!confirm('"'+bizName+'" 업체를 이 거래처에 매핑할까요?')) return;
-  try{
-    const r = await fetch('/api/admin-businesses?action=add_to_user&key='+encodeURIComponent(KEY), {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ user_id: _mcAddBizUserId, business_id: bizId })
-    });
-    const d = await r.json();
-    if(!d.ok){ alert('매핑 실패: '+(d.error||'unknown')); return; }
-    alert('✅ "'+bizName+'" 매핑 완료');
-    closeManualClientModal();
-    if(typeof _cdCurrentUserId !== 'undefined' && _cdCurrentUserId === _mcAddBizUserId && typeof openCustomerDashboard === 'function'){
-      openCustomerDashboard(_mcAddBizUserId);
+  /* addBiz 흐름 (사용자 dashboard "+ 사업장 추가") — 기존 동작 그대로 */
+  if(_mcMode === 'addBiz' && _mcAddBizUserId){
+    if(!confirm('"'+bizName+'" 업체를 이 거래처에 매핑할까요?')) return;
+    try{
+      const r = await fetch('/api/admin-businesses?action=add_to_user&key='+encodeURIComponent(KEY), {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ user_id: _mcAddBizUserId, business_id: bizId })
+      });
+      const d = await r.json();
+      if(!d.ok){ alert('매핑 실패: '+(d.error||'unknown')); return; }
+      alert('✅ "'+bizName+'" 매핑 완료');
+      closeManualClientModal();
+      if(typeof _cdCurrentUserId !== 'undefined' && _cdCurrentUserId === _mcAddBizUserId && typeof openCustomerDashboard === 'function'){
+        openCustomerDashboard(_mcAddBizUserId);
+      }
+    }catch(err){
+      alert('오류: '+err.message);
     }
-  }catch(err){
-    alert('오류: '+err.message);
+    return;
   }
+  /* 일반 신규 사용자 등록 흐름 — 기존 업체 ID 저장만 + UI 안내 + 신규 모드로 자동 전환 (사용자 정보 입력) */
+  _mcSelectedExistingBizId = bizId;
+  _mcSelectedExistingBizName = bizName;
+  /* 신규 모드로 전환 (사용자 정보 입력 영역 표시) + 회사 정보는 자동 채워짐 */
+  _mcSwitchMode('new');
+  /* 회사명·사업자번호 등 칸을 자동 채움 */
+  try{
+    const r = await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY)+'&id='+bizId);
+    const d = await r.json();
+    const b = d.business || (d.businesses && d.businesses[0]) || {};
+    if($g('mcCompany')) $g('mcCompany').value = b.company_name || bizName;
+    if($g('mcCeo')) $g('mcCeo').value = b.ceo_name || '';
+    if($g('mcBizNo')) $g('mcBizNo').value = b.business_number || '';
+    if($g('mcForm') && b.company_form) $g('mcForm').value = b.company_form;
+    /* readonly 처리 — 기존 업체라 변경 X */
+    ['mcCompany','mcCeo','mcBizNo','mcForm'].forEach(id=>{
+      const el=$g(id);
+      if(el){ el.readOnly=true; el.disabled=true; el.style.background='#f3f4f6'; el.style.cursor='not-allowed'; }
+    });
+  }catch(_){}
+  /* 안내 표시 — 등록 버튼 위에 */
+  const submitBtn = $g('mcSubmitBtn');
+  if(submitBtn){
+    submitBtn.textContent = '➕ "'+bizName+'" 매핑 + 사용자 등록';
+  }
+  /* 위로 스크롤 → 사람 정보 입력 영역 */
+  setTimeout(()=>$g('mcRealName')?.focus(), 100);
+  alert('✅ 기존 업체 "'+bizName+'" 선택됨\n\n이제 사람 정보 (이름·생년월일·전화) 입력하고 등록하세요.\n자동으로 그 업체에 매핑됩니다.');
 }
 async function submitAddBizForUser(userId){
   const company=($g('mcCompany')?.value||'').trim();
@@ -1636,7 +1685,7 @@ async function submitManualClient(){
   const ceo=($g('mcCeo')?.value||'').trim()||realName;
   if(!ceo){alert('* 대표자명은 필수입니다');return}
   const bizNo=($g('mcBizNo')?.value||'').trim();
-  if(!bizNo){alert('* 사업자등록번호는 필수입니다');return}
+  if(!bizNo && !_mcSelectedExistingBizId){alert('* 사업자등록번호는 필수입니다');return}
   const phone=($g('mcPhone')?.value||'').trim();
   /* Q4: 생년월일 (선택) */
   const birthDate=($g('mcBirthDate')?.value||'').trim()||null;
@@ -1650,6 +1699,9 @@ async function submitManualClient(){
   const body={
     name:realName, real_name:realName, phone, birth_date:birthDate,
     company_name:company, ceo_name:ceo, business_number:bizNo, notes,
+    /* Phase (2026-05-07 사장님 명령): 기존 업체 선택 시 ID 같이 send → backend 가
+     * 신규 business INSERT skip + 그 ID 와 매핑만 */
+    existing_business_id: _mcSelectedExistingBizId || null,
     auto_create_room: autoRoom, priority: priority,
     company_form:$g('mcForm')?.value||null,
     sub_business_number:($g('mcSubBiz')?.value||'').trim()||null,
