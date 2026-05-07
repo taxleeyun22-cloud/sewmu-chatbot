@@ -128,6 +128,15 @@ export async function onRequestGet(context) {
       where.push(`COALESCE(u.approval_status, 'pending') = ?`);
       binds.push(status);
     }
+    /* 사장님 명령 (2026-05-07): deleted_at 필터링.
+     * - withdrawn 탭: deleted_at 있는 user 만
+     * - 다른 탭: deleted_at 없는 user 만 (탈퇴자 안 보이게)
+     * - all 탭: 전부 표시 */
+    if (status === 'withdrawn') {
+      where.push(`u.deleted_at IS NOT NULL AND u.deleted_at != ''`);
+    } else if (status && status !== 'all') {
+      where.push(`(u.deleted_at IS NULL OR u.deleted_at = '')`);
+    }
     query += ` WHERE ` + where.join(' AND ');
     query += ` ORDER BY u.created_at DESC LIMIT 200`;
 
@@ -143,10 +152,14 @@ export async function onRequestGet(context) {
       } catch { u.today_count = 0; }
     }
 
+    /* counts 도 deleted_at 필터링 */
     const counts = {};
     for (const s of APPROVAL_STATUSES) {
+      const deletedFilter = s === 'withdrawn'
+        ? `AND u.deleted_at IS NOT NULL AND u.deleted_at != ''`
+        : `AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
       const r = await db.prepare(
-        `SELECT COUNT(*) as c FROM users WHERE COALESCE(approval_status, 'pending') = ? AND COALESCE(is_admin, 0) = 0`
+        `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.approval_status, 'pending') = ? AND COALESCE(u.is_admin, 0) = 0 ${deletedFilter}`
       ).bind(s).first();
       counts[s] = r?.c || 0;
     }
