@@ -88,7 +88,13 @@
   <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <input id="bizSearchInput" type="text" placeholder="🔍 업체명·사업자번호·대표자명 검색" oninput="onBizSearchInput()" style="flex:1;min-width:200px;padding:9px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;outline:none">
     <button onclick="openNewBusinessModal()" style="background:#10b981;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit">＋ 새 업체</button>
-    <span id="bizCounts" style="font-size:.8em;color:#6b7280"></span>
+  </div>
+  <!-- 사장님 명령 (2026-05-08): 사용자처럼 status 별 탭 (전체 / 활성 / 종료 / 이관) -->
+  <div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">
+    <button class="on" id="bStAll" onclick="bizStatus('all')" style="background:#3182f6;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:500">전체 <span id="cBizAll">0</span></button>
+    <button id="bStActive" onclick="bizStatus('active')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">활성 <span id="cBizActive">0</span></button>
+    <button id="bStClosed" onclick="bizStatus('closed')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500" title="status='closed' 업체">📦 종료 <span id="cBizClosed">0</span></button>
+    <button id="bStTerminated" onclick="bizStatus('terminated')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500" title="이관된 업체">🚫 이관 <span id="cBizTerminated">0</span></button>
   </div>
   <div id="bizList"></div>
 </div>

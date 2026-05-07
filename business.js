@@ -36,6 +36,8 @@
     { k: 'address', label: '사업장주소' },
     { k: 'phone', label: '사업장전화' },
     { k: 'establishment_date', label: '개업일', type: 'date' },
+    /* 사장님 명령 (2026-05-08): 폐업일자 — 신고검토표 fiscal_year 매칭 */
+    { k: 'closed_date', label: '폐업일자', type: 'date' },
     { k: 'contract_date', label: '수임일자', type: 'date' },
     { k: 'fiscal_year_start', label: '회계기간 시작', type: 'date' },
     { k: 'fiscal_year_end', label: '회계기간 종료', type: 'date' },

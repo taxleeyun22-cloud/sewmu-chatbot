@@ -47,9 +47,11 @@ function onBizSearchInput(){
   if(_bizSearchT)clearTimeout(_bizSearchT);
   _bizSearchT=setTimeout(_renderBizList, 200);
 }
-/* 사장님 보고 (2026-05-08): "업체 5갠데 왜 저기서 만든거 업체에 안뜨지?"
- * 원인: status='closed' 자동 제외 → 종료 업체 1개 (이재윤) 사라짐.
- * 해결: filter 제거 — 모든 status 표시 (활성·종료·이관 모두). soft delete 만 제외. */
+/* 사장님 보고 (2026-05-08):
+ * - "업체 5갠데 왜 저기서 만든거 업체에 안뜨지?" → closed filter 폐기, 모두 표시
+ * - "활성4 종료1 카운트는 뭐야? 사용자처럼 업체도 status 탭 만들자" → status 별 탭 */
+var _bizStatusFilter = 'all';  /* 'all' | 'active' | 'closed' | 'terminated' */
+
 async function loadBusinessList(){
   const el=$g('bizList');if(!el)return;
   el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div>';
@@ -58,14 +60,43 @@ async function loadBusinessList(){
     const d=await r.json();
     _bizListCache=(d.businesses||[]).filter(b=>!b.deleted_at||b.deleted_at==='');
     const c=d.counts||{};
-    $g('bizCounts').textContent='전체 '+(_bizListCache.length)+' · 활성 '+(c.active||0)+' · 종료 '+(c.closed||0)+' · 이관 '+(c.terminated||0);
+    /* 탭 카운트 갱신 */
+    if($g('cBizAll')) $g('cBizAll').textContent = _bizListCache.length;
+    if($g('cBizActive')) $g('cBizActive').textContent = c.active || 0;
+    if($g('cBizClosed')) $g('cBizClosed').textContent = c.closed || 0;
+    if($g('cBizTerminated')) $g('cBizTerminated').textContent = c.terminated || 0;
     _renderBizList();
   }catch(err){el.innerHTML='<div style="color:#f04452;padding:20px">오류: '+e(err.message)+'</div>'}
+}
+
+/* 사장님 명령 (2026-05-08): status 별 탭 클릭 핸들러 (사용자 패턴) */
+function bizStatus(status){
+  _bizStatusFilter = status;
+  /* 탭 시각 토글 */
+  ['bStAll','bStActive','bStClosed','bStTerminated'].forEach(function(id){
+    var b=$g(id); if(!b) return;
+    b.classList.remove('on');
+    b.style.background='#e5e8eb';
+    b.style.color='#8b95a1';
+  });
+  var activeMap = { all: 'bStAll', active: 'bStActive', closed: 'bStClosed', terminated: 'bStTerminated' };
+  var activeBtn = $g(activeMap[status]);
+  if(activeBtn){
+    activeBtn.classList.add('on');
+    activeBtn.style.background = (status === 'closed' ? '#6b7280' : (status === 'terminated' ? '#dc2626' : '#3182f6'));
+    activeBtn.style.color = '#fff';
+  }
+  _renderBizList();
 }
 function _renderBizList(){
   const el=$g('bizList');if(!el)return;
   const q=(($g('bizSearchInput').value)||'').trim().toLowerCase();
-  const list=q?_bizListCache.filter(b=>((b.company_name||'')+' '+(b.business_number||'')+' '+(b.ceo_name||'')).toLowerCase().indexOf(q)>=0):_bizListCache;
+  /* 사장님 명령 (2026-05-08): status 별 탭 filter 적용 */
+  let base = _bizListCache;
+  if(_bizStatusFilter === 'active') base = base.filter(b => (b.status || 'active') === 'active');
+  else if(_bizStatusFilter === 'closed') base = base.filter(b => b.status === 'closed');
+  else if(_bizStatusFilter === 'terminated') base = base.filter(b => b.status === 'terminated');
+  const list=q?base.filter(b=>((b.company_name||'')+' '+(b.business_number||'')+' '+(b.ceo_name||'')).toLowerCase().indexOf(q)>=0):base;
   if(!list.length){el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">'+(q?'검색 결과 없음':'등록된 업체가 없습니다. [＋ 새 업체] 로 추가하세요.')+'</div>';return}
   el.innerHTML=list.map(function(b){
     const st=b.status==='terminated'?'<span style="background:#fee2e2;color:#991b1b;font-size:.68em;padding:2px 7px;border-radius:4px;margin-left:6px;font-weight:700">🚫 이관</span>':(b.status==='closed'?'<span style="background:#e5e8eb;color:#6b7280;font-size:.68em;padding:2px 7px;border-radius:4px;margin-left:6px">📦 종료</span>':'');
