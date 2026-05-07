@@ -130,9 +130,12 @@ const roleBadge=ceoName
     : '<span style="font-size:.62em;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600">👤 담당자</span>')
   : '';
 const kakaoAlias=(u.name&&u.real_name&&u.name!==u.real_name?' <span style="font-size:.72em;color:#8b95a1">(카톡: '+e(u.name)+')</span>':'');
+/* Phase P2 (2026-05-07 사장님 명령): 카카오 닉네임/실명 편집 버튼.
+ * 카카오 가입자 = 카톡 닉네임이 가명일 수 있어 사장님이 진짜 이름으로 수정. */
+const editBtn=' <button onclick="editUserName('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\',\''+e(u.phone||'').replace(/\'/g,'')+'\',\''+e(u.birth_date||'').replace(/\'/g,'')+'\')" style="background:none;border:none;color:#3182f6;cursor:pointer;font-size:.78em;padding:0 4px;font-family:inherit" title="이름 / 전화 / 생년월일 수정">✏️</button>';
 const nameLine=company
-  ? '<div class="name">🏢 '+e(company)+' <span style="font-weight:500;color:#8b95a1;font-size:.88em">· '+e(nm)+'</span>'+roleBadge+kakaoAlias+adminMark+roleMark+'</div>'
-  : '<div class="name">'+e(nm)+roleBadge+kakaoAlias+adminMark+roleMark+'</div>';
+  ? '<div class="name">🏢 '+e(company)+' <span style="font-weight:500;color:#8b95a1;font-size:.88em">· '+e(nm)+'</span>'+roleBadge+kakaoAlias+adminMark+roleMark+editBtn+'</div>'
+  : '<div class="name">'+e(nm)+roleBadge+kakaoAlias+adminMark+roleMark+editBtn+'</div>';
 return '<div data-user-id="'+u.id+'" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.03)">'
 +'<div style="display:flex;align-items:center;gap:14px">'
 +'<div class="avatar">'+av+'</div>'
@@ -231,6 +234,8 @@ async function openApproveWithBusiness(userId, displayName, phone, action, prefi
   m.style.display='flex';
   document.body.style.overflow='hidden';
   await _apbLoadBusinesses();
+  /* Phase P1 (2026-05-07 사장님 명령): 비슷한 기존 사용자 자동 검색 */
+  _apbLoadSimilarUsers(userId, displayName, phone).catch(_=>{});
   } catch(err) {
     /* Phase 5-23: 디버그 안내 ("F12 Console") 제거. 세무사용 메시지만. */
     console.error('openApproveWithBusiness error:', err);
@@ -241,6 +246,58 @@ function closeApproveBizModal(){
   const m=$g('approveBizModal');if(m)m.style.display='none';
   document.body.style.overflow='';
   _apbUser=null;_apbSelectedBizId=null;
+}
+
+/* Phase P1 (2026-05-07 사장님 명령): 카카오 가입자 승인 시 비슷한 기존 사용자 추천.
+ * - 입력: 카카오 가입자 user_id / 이름 / 전화
+ * - 검색: phone 동일 또는 이름 비슷한 user (자기 자신 제외)
+ * - 사장님이 클릭 → merge_mappings 호출 → 매핑 복사. */
+async function _apbLoadSimilarUsers(currentUserId, name, phone){
+  const box=$g('apbSimilarBox'); const list=$g('apbSimilarList');
+  if(!box||!list) return;
+  box.style.display='none';
+  /* 검색 query: 전화 또는 이름 (이름 길이 2자 이상) */
+  const q = (phone && phone.length>=8) ? phone : (name && name.length>=2 ? name : '');
+  if(!q) return;
+  try{
+    const r=await fetch('/api/admin-search?key='+encodeURIComponent(KEY)+'&q='+encodeURIComponent(q));
+    const d=await r.json();
+    const candidates=(d.users||[]).filter(u=>{
+      if(u.id===currentUserId) return false;  /* 자기 자신 제외 */
+      if(u.is_admin) return false;            /* 관리자 제외 */
+      /* 매칭 조건: 전화 같음 또는 real_name 부분 매치 */
+      if(phone && u.phone && u.phone.replace(/\D/g,'')===phone.replace(/\D/g,'')) return true;
+      if(name && u.real_name && u.real_name.includes(name)) return true;
+      if(name && u.name && u.name.includes(name)) return true;
+      return false;
+    }).slice(0,5);
+    if(!candidates.length) return;
+    box.style.display='block';
+    list.innerHTML=candidates.map(u=>{
+      const nm=u.real_name||u.name||'#'+u.id;
+      const sub=[u.phone||'', u.email||'', 'ID #'+u.id].filter(Boolean).join(' · ');
+      return '<div onclick="_apbMergeMappings('+u.id+','+currentUserId+',\''+e(nm).replace(/\'/g,'')+'\')" style="padding:6px 10px;background:#fff;border:1px solid #fcd34d;border-radius:6px;margin-top:4px;cursor:pointer;display:flex;align-items:center;justify-content:space-between" onmouseover="this.style.background=\'#fef9c3\'" onmouseout="this.style.background=\'#fff\'"><div><b>'+e(nm)+'</b><div style="font-size:.72em;color:#92400e">'+e(sub)+'</div></div><span style="background:#f59e0b;color:#fff;font-size:.72em;font-weight:700;padding:3px 8px;border-radius:99px">→ 매핑 복사</span></div>';
+    }).join('');
+  }catch(_){ /* silent */ }
+}
+
+/* 매핑 복사 — 기존 user_id 의 business_members 들 → 카카오 user_id 에 복사 */
+async function _apbMergeMappings(fromUserId, toUserId, fromName){
+  if(!confirm('기존 사용자 "'+fromName+'" (#'+fromUserId+') 의 사업장 매핑을\n현재 카카오 가입자 (#'+toUserId+') 에 복사할까요?\n\n(매핑만 복사 — 두 사용자 별도 유지)')) return;
+  try{
+    const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=merge_mappings',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({from_user_id:fromUserId, to_user_id:toUserId}),
+    });
+    const d=await r.json();
+    if(!d.ok){ alert('매핑 복사 실패: '+(d.error||'unknown')); return; }
+    alert('✅ 매핑 복사 완료: '+d.copied+'건\n\n이제 업체 리스트에서 그 업체들이 자동 표시됩니다.');
+    /* 업체 list 재로드 */
+    if(typeof _apbLoadBusinesses==='function') _apbLoadBusinesses();
+    /* similar box hide */
+    const box=$g('apbSimilarBox'); if(box) box.style.display='none';
+  }catch(err){ alert('오류: '+err.message); }
 }
 /* 🔍 카카오 주소검색 (위하고 스타일) — 승인 모달 '새 업체 생성' 주소 입력용 */
 function _apbOpenAddressSearch(){
@@ -396,6 +453,36 @@ async function submitApproveWithBusiness(){
     if(typeof refreshPendingBadge==='function')refreshPendingBadge();
   }catch(err){alert('오류: '+err.message)}
   finally{if(btn){btn.disabled=false;btn.textContent='✅ 승인하고 연결';btn.style.opacity=''}}
+}
+
+/* Phase P2 (2026-05-07 사장님 명령): 사용자 이름·전화·생년월일 수정.
+ * 카카오 닉네임이 가명일 수 있어 사장님이 진짜 이름으로 수정 + 본명 확인 마킹.
+ * owner only (admin-users.js update_name 가드). */
+async function editUserName(userId, currentName, currentPhone, currentBirth){
+  if(!IS_OWNER){ alert('owner 권한이 필요합니다'); return; }
+  const newName = prompt('실명 (한글):', currentName||'');
+  if(newName === null) return;
+  const newPhone = prompt('전화 (010-1234-5678 또는 빈 값):', currentPhone||'');
+  if(newPhone === null) return;
+  const newBirth = prompt('생년월일 (YYYY-MM-DD 또는 빈 값):', currentBirth||'');
+  if(newBirth === null) return;
+  try{
+    const r = await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=update_name', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        user_id: userId,
+        real_name: newName.trim(),
+        phone: newPhone.trim(),
+        birth_date: newBirth.trim(),
+        name_confirmed: 1,  /* 사장님이 직접 입력 = 본명 확인 */
+      }),
+    });
+    const d = await r.json();
+    if(!d.ok){ alert('수정 실패: '+(d.error||'unknown')); return; }
+    if(typeof loadUsers === 'function') loadUsers(currentStatus);
+    alert('✅ 정보 수정 완료');
+  }catch(err){ alert('오류: '+err.message); }
 }
 
 async function setAdminFlag(id,flag){

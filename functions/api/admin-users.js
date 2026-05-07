@@ -193,5 +193,82 @@ export async function onRequestPost(context) {
     }
   }
 
+  /* Phase P2 (2026-05-07 사장님 명령): 카카오 닉네임 / 실명 수정.
+   * action=update_name { user_id, name?, real_name?, phone?, birth_date? }
+   * - 카카오 가입자: 카톡 닉네임이 가명일 수 있음 → 사장님이 진짜 이름으로 수정 가능
+   * - admin (any) — 단순 정보 업데이트 (권한 변경 X) */
+  if (action === "update_name") {
+    const userId = Number(body.user_id);
+    if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
+    const updates = [];
+    const binds = [];
+    if (typeof body.name === 'string') {
+      updates.push('name = ?');
+      binds.push(String(body.name).trim().slice(0, 50));
+    }
+    if (typeof body.real_name === 'string') {
+      updates.push('real_name = ?');
+      binds.push(String(body.real_name).trim().slice(0, 50) || null);
+    }
+    if (typeof body.phone === 'string') {
+      updates.push('phone = ?');
+      binds.push(String(body.phone).trim().slice(0, 20) || null);
+    }
+    if (typeof body.birth_date === 'string') {
+      const m = body.birth_date.match(/^\d{4}-\d{2}-\d{2}$/);
+      updates.push('birth_date = ?');
+      binds.push(m ? body.birth_date : null);
+    }
+    if (typeof body.name_confirmed === 'number' || typeof body.name_confirmed === 'boolean') {
+      updates.push('name_confirmed = ?');
+      binds.push(body.name_confirmed ? 1 : 0);
+    }
+    if (!updates.length) return Response.json({ error: "no fields to update" }, { status: 400 });
+    try {
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN birth_date TEXT`).run(); } catch {}
+      try { await db.prepare(`ALTER TABLE users ADD COLUMN name_confirmed INTEGER DEFAULT 0`).run(); } catch {}
+      binds.push(userId);
+      await db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).bind(...binds).run();
+      return Response.json({ ok: true, user_id: userId });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
+  /* Phase P1 (2026-05-07 사장님 명령): 카카오 가입자 승인 시 기존 사용자 매핑 복사.
+   * action=merge_mappings { from_user_id, to_user_id }
+   * - from_user_id 의 business_members 매핑 → to_user_id 에 복사
+   * - 보통: from = 기존 수동 user, to = 새 카카오 가입자
+   * - 매핑만 복사 (메모 / 메시지 / 등 데이터 이전 X — 별도 endpoint)
+   * - admin (any) */
+  if (action === "merge_mappings") {
+    const fromId = Number(body.from_user_id);
+    const toId = Number(body.to_user_id);
+    if (!fromId || !toId) return Response.json({ error: "from_user_id/to_user_id required" }, { status: 400 });
+    if (fromId === toId) return Response.json({ error: "same user" }, { status: 400 });
+    try {
+      try { await db.prepare(`CREATE TABLE IF NOT EXISTS business_members (id INTEGER PRIMARY KEY AUTOINCREMENT, business_id INTEGER, user_id INTEGER, role TEXT, is_primary INTEGER DEFAULT 0, added_at TEXT, removed_at TEXT)`).run(); } catch {}
+      const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+      const { results: rows } = await db.prepare(
+        `SELECT business_id, role, is_primary FROM business_members WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`
+      ).bind(fromId).all();
+      let copied = 0;
+      for (const r of (rows || [])) {
+        /* to_user_id 가 같은 business_id 매핑 이미 있으면 skip */
+        const existing = await db.prepare(
+          `SELECT id FROM business_members WHERE user_id = ? AND business_id = ? AND (removed_at IS NULL OR removed_at = '') LIMIT 1`
+        ).bind(toId, r.business_id).first();
+        if (existing) continue;
+        await db.prepare(
+          `INSERT INTO business_members (business_id, user_id, role, is_primary, added_at) VALUES (?, ?, ?, ?, ?)`
+        ).bind(r.business_id, toId, r.role || '대표자', r.is_primary || 0, now).run();
+        copied++;
+      }
+      return Response.json({ ok: true, copied, from_user_id: fromId, to_user_id: toId });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   return Response.json({ error: "unknown action" }, { status: 400 });
 }

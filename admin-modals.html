@@ -1260,6 +1260,14 @@
     <div style="flex:1;overflow-y:auto;padding:14px 18px">
       <div id="apbUser" style="padding:10px 12px;background:#eff6ff;border-radius:8px;font-size:.88em;color:#1e3a8a;margin-bottom:14px"></div>
 
+      <!-- Phase P1 (2026-05-07 사장님 명령): 비슷한 기존 사용자 자동 추천.
+           카카오 가입자 = 사장님이 이미 수동으로 만든 user 일 수도 → 같은 사람이면 매핑 복사. -->
+      <div id="apbSimilarBox" style="display:none;padding:10px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:6px;margin-bottom:14px">
+        <div style="font-size:.82em;font-weight:700;color:#92400e;margin-bottom:6px">🔍 비슷한 기존 사용자 발견</div>
+        <div id="apbSimilarList" style="font-size:.82em"></div>
+        <div style="font-size:.72em;color:#78350f;margin-top:6px">↑ 같은 사람이면 클릭 → 그 사람의 사업장 매핑이 이 사용자에 자동 복사됩니다.</div>
+      </div>
+
       <div style="font-size:.82em;font-weight:700;color:#374151;margin-bottom:6px">🏢 업체</div>
       <label style="display:flex;align-items:center;gap:6px;font-size:.88em;padding:6px 0;cursor:pointer">
         <input type="radio" name="apbMode" value="existing" checked onchange="_apbSwitchMode('existing')"> 기존 업체 선택
