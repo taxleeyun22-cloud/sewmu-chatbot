@@ -1,5 +1,5 @@
-/* v72: 가입 완료 시 모두 pending (approved_guest 폐지, 사장님 명령 2026-05-07). 사용자 캐시 무효화. */
-const CACHE_NAME = 'sewmu-v72';
+/* v71: 재가입(rejoined) / 차단 status 입력 차단 (사장님 명령 2026-05-07). 사용자 캐시 무효화. */
+const CACHE_NAME = 'sewmu-v71';
 const STATIC_ASSETS = ['/logo.png', '/logo-icon.png', '/logo-vertical.png'];
 
 self.addEventListener('install', e => {

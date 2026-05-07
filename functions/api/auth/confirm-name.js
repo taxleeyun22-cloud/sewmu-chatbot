@@ -39,13 +39,20 @@ export async function onRequestPost(context) {
       return Response.json({ error: "올바른 휴대폰 번호를 입력해 주세요. (예: 010-1234-5678)" }, { status: 400 });
     }
 
-    // 사장님 명령 (2026-05-07): 모든 가입자 = pending (사장님 승인 후 사용).
-    // 'approved_guest' (자동 승인) 폐지. user_type 은 declared_client 구분만.
+    // user_type 'client' = 기장거래처 신청 (사장님 승인 대기)
+    // user_type 'guest' = 무료 사용 (바로 approved_guest)
     let approvalStatus = 'pending';
-    let declaredClient = (userType === 'client') ? 1 : 0;
+    let declaredClient = 0;
+    if (userType === 'client') {
+      approvalStatus = 'pending';
+      declaredClient = 1;
+    } else {
+      approvalStatus = 'approved_guest';
+      declaredClient = 0;
+    }
 
     const kst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
-    const approvedAt = null;
+    const approvedAt = approvalStatus === 'approved_guest' ? kst : null;
 
     await db.prepare(
       `UPDATE users SET real_name = ?, phone = ?, name_confirmed = 1,
