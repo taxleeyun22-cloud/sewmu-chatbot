@@ -414,25 +414,45 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   html += '</div>';
   html += '</div>';
 
-  /* SECTION 04: 작년 코멘트 (참조용) — 단일 컬럼 (작년 있을 때만) */
-  if (prev && prev.reviewer_comment) {
+  /* SECTION 04: 작년 리뷰 (참조용 — 직원 + 결재자 코멘트 둘 다, 작년 있을 때만) */
+  const prevEmpNote = pf.employee_note || '';
+  if (prev && (prevEmpNote || prev.reviewer_comment)) {
     html += '<div class="keep-together" style="margin-bottom:14px;padding:10px 14px;background:#f9fafb;border-left:3px solid #6b7280;border-radius:6px">';
-    html += '<div class="filing-section-header" style="margin-top:0">SECTION 04 · LAST YEAR COMMENT</div>';
-    html += '<div style="font-weight:700;font-size:.86em;margin-bottom:4px;color:#374151">📜 작년 (' + prev.fiscal_year + ') 결재자 코멘트</div>';
-    html += '<div style="font-size:.84em;color:#374151;white-space:pre-wrap;line-height:1.6">' + e(prev.reviewer_comment) + '</div>';
+    html += '<div class="filing-section-header" style="margin-top:0">SECTION 04 · LAST YEAR REVIEW</div>';
+    html += '<div class="filing-section-title" style="font-size:.92em">📜 작년 (' + prev.fiscal_year + ') 리뷰 — 참조용</div>';
+    if (prevEmpNote) {
+      html += '<div style="margin-bottom:8px"><div style="font-weight:700;font-size:.84em;margin-bottom:3px;color:#374151">○ 작년 직원 코멘트 (특이사항·이슈)</div>';
+      html += '<div style="font-size:.84em;color:#374151;white-space:pre-wrap;line-height:1.6;background:#fff7ed;padding:8px 10px;border-radius:4px;border-left:2px solid #f59e0b">' + e(prevEmpNote) + '</div></div>';
+    }
+    if (prev.reviewer_comment) {
+      html += '<div><div style="font-weight:700;font-size:.84em;margin-bottom:3px;color:#374151">○ 작년 결재자 코멘트</div>';
+      html += '<div style="font-size:.84em;color:#374151;white-space:pre-wrap;line-height:1.6;background:#fff;padding:8px 10px;border-radius:4px;border-left:2px solid #6b7280">' + e(prev.reviewer_comment) + '</div></div>';
+    }
     html += '</div>';
   }
 
-  /* SECTION 05: 결재자 코멘트 (특이사항·이슈 통합) — 큰 영역 */
-  html += '<div class="keep-together" style="margin-bottom:18px">';
-  html += '<div class="filing-section-header">SECTION 05 · REVIEWER COMMENT</div>';
-  html += '<div class="filing-section-title">결재자 코멘트 <span style="font-size:.74em;color:#6b7280;font-weight:500">(특이사항·이슈 포함)</span></div>';
-  /* 인쇄용 — 큰 박스 (손글씨 자리 또는 입력 내용 전체) */
-  html += '<div class="print-only" style="display:none;border:1.5px solid #191f28;border-radius:4px;padding:8mm;min-height:60mm;font-size:10pt;line-height:1.7;white-space:pre-wrap">';
-  html += e(f.reviewer_comment || '');
+  /* SECTION 05: 직원 코멘트 (특이사항·이슈) — 큰 영역. 매년 누적, 다음 해 작년 리뷰에 표시 */
+  html += '<div class="keep-together" style="margin-bottom:14px">';
+  html += '<div class="filing-section-header">SECTION 05 · EMPLOYEE NOTE</div>';
+  html += '<div class="filing-section-title">📝 직원 코멘트 <span style="font-size:.74em;color:#6b7280;font-weight:500">(특이사항·이슈 — 다음 해 작년 리뷰에 자동 표시)</span></div>';
+  /* 인쇄용 — 큰 박스 */
+  html += '<div class="print-only" style="display:none;border:1.5px solid #191f28;border-radius:4px;padding:6mm;min-height:50mm;font-size:10pt;line-height:1.7;white-space:pre-wrap;background:#fff7ed">';
+  html += e(af.employee_note || '');
   html += '</div>';
   /* 편집용 textarea — 크게 */
-  html += '<textarea class="no-print" data-fil-field="reviewer_comment" rows="8" ' + ro + ' placeholder="결재자 코멘트 + 특이사항 + 이슈 (다음 해 작년 리뷰에 검색 가능)\n예) 카페 매출 분리 OK / 청년창업감면 신청 가능 / 사업용계좌 12월 매출 누락 가능성 — 재확인" style="width:100%;padding:10px 12px;border:1px solid #e5e8eb;border-radius:6px;font-size:.92em;font-family:inherit;box-sizing:border-box;resize:vertical;line-height:1.6">' + e(f.reviewer_comment || '') + '</textarea>';
+  html += '<textarea class="no-print" data-fil-text-field="employee_note" rows="6" ' + ro + ' placeholder="이번 신고의 특이사항·이슈 — 직원이 작성. 매년 누적되어 다음 해 검토표에 자동 표시.\n예) 카페 신규 오픈으로 매출 급증 / 사업용계좌 12월 매출 누락 가능성 / 청년창업감면 신청 가능 — 재확인 필요" style="width:100%;padding:10px 12px;border:1px solid #f59e0b;border-radius:6px;font-size:.92em;font-family:inherit;box-sizing:border-box;resize:vertical;line-height:1.6;background:#fff7ed">' + e(af.employee_note || '') + '</textarea>';
+  html += '</div>';
+
+  /* SECTION 06: 결재자 코멘트 — 작은 영역 (사장님 결재 시 작성) */
+  html += '<div class="keep-together" style="margin-bottom:18px">';
+  html += '<div class="filing-section-header">SECTION 06 · REVIEWER COMMENT</div>';
+  html += '<div class="filing-section-title">✍️ 결재자 코멘트 <span style="font-size:.74em;color:#6b7280;font-weight:500">(사장님 결재 시 작성 — 선택)</span></div>';
+  /* 인쇄용 — 작은 박스 (손글씨 자리 또는 입력 내용) */
+  html += '<div class="print-only" style="display:none;border:1px solid #191f28;border-radius:4px;padding:5mm;min-height:25mm;font-size:10pt;line-height:1.7;white-space:pre-wrap">';
+  html += e(f.reviewer_comment || '');
+  html += '</div>';
+  /* 편집용 textarea — 작게 */
+  html += '<textarea class="no-print" data-fil-field="reviewer_comment" rows="3" ' + ro + ' placeholder="결재자 (사장님) 코멘트 — 결재 시 작성 (선택)" style="width:100%;padding:10px 12px;border:1px solid #e5e8eb;border-radius:6px;font-size:.9em;font-family:inherit;box-sizing:border-box;resize:vertical;line-height:1.6">' + e(f.reviewer_comment || '') + '</textarea>';
   html += '</div>';
 
   /* 좌우 2단 폐기 — placeholder div 닫기 */
