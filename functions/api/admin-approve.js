@@ -76,9 +76,12 @@ export async function onRequestGet(context) {
     try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_business_number TEXT`).run(); } catch {}
     try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_role TEXT`).run(); } catch {}
     try { await db.prepare(`ALTER TABLE users ADD COLUMN requested_at TEXT`).run(); } catch {}
+    /* 사장님 명령 (2026-05-07): birth_date 컬럼 보장 + 응답 포함 */
+    try { await db.prepare(`ALTER TABLE users ADD COLUMN birth_date TEXT`).run(); } catch {}
     let query = `
       SELECT u.id, u.provider, u.name, u.real_name, u.email, u.phone, u.profile_image,
              u.approval_status, u.approved_at, u.created_at, u.last_login_at, u.name_confirmed, u.is_admin,
+             u.birth_date,
              u.requested_company_name, u.requested_business_number, u.requested_role, u.requested_at,
              (SELECT company_name FROM client_businesses
               WHERE user_id = u.id

@@ -1606,6 +1606,34 @@
   </div>
 </div>
 
+<!-- 사장님 명령 (2026-05-07): 사용자 기본 정보 수정 모달 — 이름·연락처·생년월일 수정 -->
+<div id="editUserInfoModal" class="modal-overlay" style="display:none;z-index:11500">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;background:#fafbfc;position:sticky;top:0;z-index:1">
+      <div style="font-weight:700;font-size:1em">✏️ 사용자 정보 수정</div>
+      <button onclick="closeEditUserInfoModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
+    </div>
+    <div style="padding:14px 18px">
+      <div style="margin-bottom:10px">
+        <label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:4px">이름 (실명)</label>
+        <input id="euiRealName" type="text" placeholder="이름" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:4px">연락처</label>
+        <input id="euiPhone" type="tel" placeholder="010-1234-5678" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:4px">생년월일</label>
+        <input id="euiBirthDate" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box">
+      </div>
+    </div>
+    <div style="padding:10px 16px;border-top:1px solid #f2f4f6;display:flex;gap:8px;justify-content:flex-end;background:#fafbfc">
+      <button onclick="closeEditUserInfoModal()" style="background:#e5e8eb;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
+      <button id="euiSubmitBtn" onclick="submitEditUserInfo()" style="background:#3182f6;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">💾 저장</button>
+    </div>
+  </div>
+</div>
+
 <!-- 사장님 명령 (2026-05-07): 합치기 이력 모달 — 사이드바에서 진입. 활성 합치기 list + 분리 버튼. -->
 <div id="mergeListModal" class="modal-overlay" style="display:none;z-index:11500">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:680px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">

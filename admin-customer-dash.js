@@ -102,11 +102,17 @@ async function openCustomerDashboard(userId, opts){
     const priLabel=pri>0?pri+'순위':'미분류';
     $g('cdPriority').innerHTML='<span style="background:'+priColor+';color:#fff;padding:4px 10px;border-radius:14px;font-size:.74em;font-weight:700">'+priLabel+'</span>';
     $g('cdSub').textContent=(u?((u.phone||'연락처 미등록')+' · '+(u.provider||'')+' 로그인'):'')+' · '+(u?(u.approval_status==='approved_client'?'🏢 기장거래처':u.approval_status==='approved_guest'?'✅ 일반':'⏳ '+(u.approval_status||'pending')):'');
-    /* 기본 정보 */
+    /* 기본 정보 — 사장님 명령 (2026-05-07): 이름·연락처·생년월일 표시 + 수정 버튼 */
+    const birthStr=(u&&u.birth_date)?String(u.birth_date).slice(0,10):'';
     $g('cdBasic').innerHTML=''
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+      +'  <span style="font-size:.78em;color:#6b7280">기본 정보</span>'
+      +'  <button onclick="openEditUserInfoModal('+(u&&u.id?u.id:0)+')" style="background:#eff6ff;color:#1e40af;border:1px solid #3b82f6;padding:3px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit">✏️ 수정</button>'
+      +'</div>'
       +'<div>이름: <b>'+e(nm)+'</b></div>'
+      +'<div>연락처: '+e((u&&u.phone)||'미등록')+'</div>'
+      +'<div>생년월일: '+e(birthStr||'미등록')+'</div>'
       +(u&&u.email?'<div>이메일: '+e(u.email)+'</div>':'')
-      +(u&&u.phone?'<div>연락처: '+e(u.phone)+'</div>':'')
       +'<div>가입: '+e((u&&u.created_at||'').slice(0,10))+'</div>';
     /* 문서 현황 */
     const counts=docsRes.counts||{};
@@ -810,6 +816,54 @@ async function _loadMergeList(){
   }catch(err){
     body.innerHTML='<div style="color:#f04452;padding:12px;font-size:.82em">오류: '+e(err.message)+'</div>';
   }
+}
+
+/* 사장님 명령 (2026-05-07): 거래처 기본 정보 수정 모달 — 이름·연락처·생년월일.
+ * /api/admin-users?action=update_name 활용 (P2 commit). */
+var _euiUserId=null;
+function openEditUserInfoModal(userId){
+  if(!userId){alert('사용자 ID 없음');return}
+  _euiUserId=userId;
+  const m=$g('editUserInfoModal'); if(!m) return;
+  /* 현재 dashboard 의 cdBasic 에서 값 채워넣기 — 또는 user_cache 활용 */
+  const u=(typeof _cdUserCache!=='undefined' && _cdUserCache && _cdUserCache[userId])||{};
+  if($g('euiRealName')) $g('euiRealName').value=u.real_name||'';
+  if($g('euiPhone')) $g('euiPhone').value=u.phone||'';
+  if($g('euiBirthDate')) $g('euiBirthDate').value=(u.birth_date||'').slice(0,10);
+  m.style.display='flex';
+  m.style.alignItems='center';
+  m.style.justifyContent='center';
+  document.body.style.overflow='hidden';
+  setTimeout(()=>$g('euiRealName')?.focus(),60);
+}
+function closeEditUserInfoModal(){
+  const m=$g('editUserInfoModal'); if(!m) return;
+  m.style.display='none';
+  document.body.style.overflow='';
+  _euiUserId=null;
+}
+async function submitEditUserInfo(){
+  if(!_euiUserId){alert('사용자 ID 없음');return}
+  const realName=($g('euiRealName')?.value||'').trim();
+  const phone=($g('euiPhone')?.value||'').trim();
+  const birthDate=($g('euiBirthDate')?.value||'').trim();
+  if(!realName){alert('이름은 필수입니다');return}
+  const btn=$g('euiSubmitBtn');
+  if(btn){btn.disabled=true;btn.textContent='저장 중...';btn.style.opacity='.6'}
+  try{
+    const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=update_name',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:_euiUserId, real_name:realName, phone:phone||null, birth_date:birthDate||null}),
+    });
+    const d=await r.json();
+    if(!d.ok){alert('수정 실패: '+(d.error||'unknown'));return}
+    closeEditUserInfoModal();
+    /* dashboard 새로고침 */
+    if(typeof openCustomerDashboard==='function' && _euiUserId) openCustomerDashboard(_euiUserId);
+    if(typeof showAdminToast==='function') showAdminToast('✅ 수정 완료');
+  }catch(err){alert('오류: '+err.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent='💾 저장';btn.style.opacity=''}}
 }
 
 /* 사이드바 합치기 카운트 자동 갱신 — admin 진입 시 1회 */
