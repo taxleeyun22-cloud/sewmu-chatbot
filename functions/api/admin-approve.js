@@ -204,7 +204,8 @@ export async function onRequestPost(context) {
     const body = await context.request.json();
     const userId = body.user_id;
     const action = body.action;
-    const reason = body.reason || null;
+    /* 사장님 보고 (2026-05-07): rejection_reason / reason 둘 다 받기 (admin-users-tab.js 호환) */
+    const reason = body.rejection_reason || body.reason || null;
 
     if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
 
