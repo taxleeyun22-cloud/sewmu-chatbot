@@ -463,12 +463,13 @@ export async function onRequestPost(context) {
     }
   }
 
-  /* 사장님 명령 (2026-05-07): 합치기 이력 조회 (UI 배너용).
-   * action=get_merges { user_id }
-   * - 살아남은 user (manual_user_id) 가 user_id 인 활성 merge list */
+  /* 사장님 명령 (2026-05-07): 합치기 이력 조회.
+   * action=get_merges { user_id?, all? }
+   * - user_id 있으면: 그 살아남은 user 의 활성 merge (배너용)
+   * - user_id 없거나 all=1: 모든 활성 merge (사이드바 list 용) */
   if (action === "get_merges") {
-    const userId = Number(body.user_id);
-    if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
+    const userId = Number(body.user_id || 0);
+    const all = !!body.all || !userId;
     try {
       try { await db.prepare(`CREATE TABLE IF NOT EXISTS user_merges (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -481,20 +482,40 @@ export async function onRequestPost(context) {
         unmerged_at TEXT,
         unmerged_by_admin TEXT
       )`).run(); } catch {}
-      const { results } = await db.prepare(`
-        SELECT um.id, um.manual_user_id, um.kakao_user_id, um.merged_at, um.kakao_snapshot
-        FROM user_merges um
-        WHERE um.manual_user_id = ? AND (um.unmerged_at IS NULL OR um.unmerged_at = '')
-        ORDER BY um.merged_at DESC
-      `).bind(userId).all();
-      /* snapshot 에서 카카오 닉네임 추출 */
+      let results;
+      if (all) {
+        const r = await db.prepare(`
+          SELECT um.id, um.manual_user_id, um.kakao_user_id, um.merged_at, um.kakao_snapshot,
+                 mu.real_name AS manual_real_name, mu.name AS manual_name
+          FROM user_merges um
+          LEFT JOIN users mu ON um.manual_user_id = mu.id
+          WHERE (um.unmerged_at IS NULL OR um.unmerged_at = '')
+          ORDER BY um.merged_at DESC
+          LIMIT 200
+        `).all();
+        results = r.results;
+      } else {
+        const r = await db.prepare(`
+          SELECT um.id, um.manual_user_id, um.kakao_user_id, um.merged_at, um.kakao_snapshot,
+                 mu.real_name AS manual_real_name, mu.name AS manual_name
+          FROM user_merges um
+          LEFT JOIN users mu ON um.manual_user_id = mu.id
+          WHERE um.manual_user_id = ? AND (um.unmerged_at IS NULL OR um.unmerged_at = '')
+          ORDER BY um.merged_at DESC
+        `).bind(userId).all();
+        results = r.results;
+      }
       const merges = (results || []).map(m => {
         let kakaoName = '';
         try {
           const snap = JSON.parse(m.kakao_snapshot || '{}');
           kakaoName = snap.name || '';
         } catch {}
-        return { id: m.id, manual_user_id: m.manual_user_id, kakao_user_id: m.kakao_user_id, merged_at: m.merged_at, kakao_name: kakaoName };
+        return {
+          id: m.id, manual_user_id: m.manual_user_id, kakao_user_id: m.kakao_user_id,
+          merged_at: m.merged_at, kakao_name: kakaoName,
+          manual_real_name: m.manual_real_name || m.manual_name || '',
+        };
       });
       return Response.json({ ok: true, merges });
     } catch (e) {

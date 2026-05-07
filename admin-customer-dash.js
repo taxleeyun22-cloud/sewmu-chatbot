@@ -755,5 +755,76 @@ async function _splitMerge(mergeId){
     /* 배너 새로고침 + 사용자 list refresh */
     if(typeof _cdCurrentUserId!=='undefined' && _cdCurrentUserId) _loadCdMergeBanner(_cdCurrentUserId);
     if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
+    /* mergeListModal 열려있으면 list 도 갱신 */
+    if($g('mergeListModal')?.style.display==='flex' || $g('mergeListModal')?.style.display==='block') _loadMergeList();
   }catch(err){alert('오류: '+err.message)}
 }
+
+/* 사장님 명령 (2026-05-07): 사이드바 합치기 이력 모달 — 모든 활성 합치기 list. */
+function openMergeListModal(){
+  const m=$g('mergeListModal'); if(!m) return;
+  m.style.display='flex';
+  m.style.alignItems='center';
+  m.style.justifyContent='center';
+  document.body.style.overflow='hidden';
+  _loadMergeList();
+}
+function closeMergeListModal(){
+  const m=$g('mergeListModal'); if(!m) return;
+  m.style.display='none';
+  document.body.style.overflow='';
+}
+async function _loadMergeList(){
+  const body=$g('mergeListBody'); if(!body) return;
+  body.innerHTML='<div style="text-align:center;color:#8b95a1;padding:30px 0;font-size:.85em">불러오는 중...</div>';
+  try{
+    const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=get_merges',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({all:1}),
+    });
+    const d=await r.json();
+    const merges=d.merges||[];
+    /* 사이드바 카운트 갱신 */
+    const cnt=$g('sbCntMerges'); if(cnt){ cnt.textContent=merges.length; cnt.style.display=merges.length>0?'':'none'; }
+    if(!merges.length){
+      body.innerHTML='<div style="text-align:center;color:#8b95a1;padding:30px 0;font-size:.85em">활성 합치기가 없습니다.</div>';
+      return;
+    }
+    const ownerOnly=(typeof IS_OWNER!=='undefined' && IS_OWNER);
+    body.innerHTML=merges.map(function(m){
+      const dt=(m.merged_at||'').slice(0,16);
+      const km=m.kakao_name||'#'+m.kakao_user_id;
+      const mn=m.manual_real_name||'#'+m.manual_user_id;
+      const splitBtn=ownerOnly
+        ? '<button onclick="_splitMerge('+m.id+')" style="background:#dc2626;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">↩️ 분리</button>'
+        : '<span style="font-size:.72em;color:#92400e">분리는 owner 권한 필요</span>';
+      return '<div style="background:#fff;border:1px solid #fcd34d;border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px">'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-weight:700;font-size:.92em;margin-bottom:3px">👤 <b>'+e(mn)+'</b> (#'+m.manual_user_id+') ⇐ 카카오 <b>'+e(km)+'</b> (#'+m.kakao_user_id+')</div>'
+        +'<div style="font-size:.74em;color:#6b7280">'+e(dt)+'</div>'
+        +'</div>'
+        +splitBtn
+        +'</div>';
+    }).join('');
+  }catch(err){
+    body.innerHTML='<div style="color:#f04452;padding:12px;font-size:.82em">오류: '+e(err.message)+'</div>';
+  }
+}
+
+/* 사이드바 합치기 카운트 자동 갱신 — admin 진입 시 1회 */
+async function _refreshMergesBadge(){
+  if(typeof KEY==='undefined' || !KEY) return;
+  try{
+    const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=get_merges',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({all:1}),
+    });
+    const d=await r.json();
+    const n=(d.merges||[]).length;
+    const cnt=$g('sbCntMerges'); if(cnt){ cnt.textContent=n; cnt.style.display=n>0?'':'none'; }
+  }catch(_){}
+}
+/* 로그인 후 1회 + 5분마다 갱신 */
+setTimeout(function(){_refreshMergesBadge(); setInterval(_refreshMergesBadge, 300000)}, 2000);

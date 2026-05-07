@@ -162,6 +162,10 @@ if ('serviceWorker' in navigator) {
       <button class="of-sb-item" type="button" id="sbTrashBtn">
         <span class="ic">🗑️</span><span class="lb">휴지통</span><span class="cnt" id="sbCntTrash">0</span>
       </button>
+      <!-- 사장님 명령 (2026-05-07): 합치기 이력 모달 — 잘못 합쳤을 때 분리 -->
+      <button class="of-sb-item" type="button" id="sbMergeListBtn" onclick="openMergeListModal()" title="합쳐진 사용자 list — 잘못 합쳤을 때 분리 (owner)">
+        <span class="ic">🔀</span><span class="lb">합치기 이력</span><span class="cnt" id="sbCntMerges">0</span>
+      </button>
       <!-- Phase #11 적용 (2026-05-06): 자체 에러 로거 사이드바 진입 — 빨간 점 = 7일 이내 에러 N건 -->
       <button class="of-sb-item alert" type="button" id="sbErrorLogBtn" onclick="openErrorLog()" title="JS 에러 로그 (자체 수집)">
         <span class="ic">🐞</span><span class="lb">에러 로그</span><span class="cnt" id="sbCntErrorLog">0</span>
@@ -232,7 +236,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=29', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=30', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -246,7 +250,7 @@ setTimeout(function(){
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script src="/admin.js?v=175"></script>
 <script src="/admin-memos.js?v=13"></script>
-<script src="/admin-customer-dash.js?v=10"></script>
+<script src="/admin-customer-dash.js?v=11"></script>
 <script src="/admin-business-tab.js?v=5"></script>
 <script src="/admin-search-bulk.js?v=3"></script>
 <script src="/admin-rooms-list.js?v=6"></script>
