@@ -179,24 +179,30 @@ export async function onRequestPost(context) {
         }
       } catch {}
 
-      /* Q3 (2026-05-07 사장님 명령): 새 N:N 매핑 (businesses + business_members) 도 자동 생성.
-       * 옛 client_businesses 는 호환 유지. 새 흐름 = 양방향 자동 생성.
-       * - body.existing_business_id 있으면 그 ID 사용 (기존 업체 선택)
-       * - 없으면 사업자번호 또는 회사명 있을 때 businesses INSERT (없으면) + business_members 매핑 */
+      /* Q3 (2026-05-07 사장님 명령): 새 N:N 매핑 (businesses + business_members) 자동 생성.
+       * 사장님 명령 (2026-05-07 정정): existing_business_ids 배열 지원 — 복수 사업장 매핑.
+       * - body.existing_business_ids = [N, M, ...] → 각 ID 와 매핑 (신규 INSERT 0)
+       * - body.existing_business_id (단일, 호환)
+       * - 없으면 사업자번호/회사명 있을 때 businesses INSERT + 매핑 */
       try {
-        const existingBizId = Number(body.existing_business_id || 0);
+        const existingBizIds = Array.isArray(body.existing_business_ids) && body.existing_business_ids.length
+          ? body.existing_business_ids.map(Number).filter(n => Number.isInteger(n) && n > 0)
+          : (Number(body.existing_business_id || 0) ? [Number(body.existing_business_id)] : []);
         const normBiz = String(businessNumber || '').replace(/\D/g, '');
         let bizId = null;
-        if (existingBizId) {
-          /* 사장님이 기존 업체 선택 — 그 ID 그대로 사용 (검증만) */
-          const ex = await db.prepare(`SELECT id FROM businesses WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`).bind(existingBizId).first();
+        if (existingBizIds.length === 1) {
+          /* 단일 — 기존 흐름 호환 */
+          const ex = await db.prepare(`SELECT id FROM businesses WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`).bind(existingBizIds[0]).first();
           if (ex) bizId = ex.id;
+        } else if (existingBizIds.length > 1) {
+          /* 복수 — 모두 매핑. bizId = null 두면 신규 INSERT skip 됨 */
+          bizId = null;
         } else if (normBiz) {
           /* 같은 사업자번호 기존 업체 있으면 재사용 */
           const dup = await db.prepare(`SELECT id FROM businesses WHERE business_number = ? LIMIT 1`).bind(normBiz).first();
           if (dup) bizId = dup.id;
         }
-        if (!bizId && !existingBizId && (normBiz || companyName)) {
+        if (!bizId && !existingBizIds.length && (normBiz || companyName)) {
           /* 신규 INSERT (사용자가 기존 업체 선택 안 한 경우만) */
           const r2 = await db.prepare(
             `INSERT INTO businesses (company_name, business_number, ceo_name, address, phone,
@@ -215,16 +221,22 @@ export async function onRequestPost(context) {
           ).run();
           bizId = r2.meta?.last_row_id || null;
         }
-        if (bizId) {
+        /* 매핑 대상 ID 결정 — 복수 / 단일 / 신규 INSERT 결과 합치기 */
+        const allBizIds = existingBizIds.length > 1 ? existingBizIds : (bizId ? [bizId] : []);
+        if (allBizIds.length) {
           /* business_members 매핑 — 기존 매핑 있으면 skip */
           try { await db.prepare(`CREATE TABLE IF NOT EXISTS business_members (id INTEGER PRIMARY KEY AUTOINCREMENT, business_id INTEGER, user_id INTEGER, role TEXT, is_primary INTEGER DEFAULT 0, added_at TEXT, removed_at TEXT)`).run(); } catch {}
-          const existingMap = await db.prepare(
-            `SELECT id FROM business_members WHERE business_id = ? AND user_id = ? AND (removed_at IS NULL OR removed_at = '') LIMIT 1`
-          ).bind(bizId, userId).first();
-          if (!existingMap) {
-            await db.prepare(
-              `INSERT INTO business_members (business_id, user_id, role, is_primary, added_at) VALUES (?, ?, '대표자', 1, ?)`
-            ).bind(bizId, userId, now).run();
+          let primaryAssigned = false;
+          for (const id of allBizIds) {
+            const existingMap = await db.prepare(
+              `SELECT id FROM business_members WHERE business_id = ? AND user_id = ? AND (removed_at IS NULL OR removed_at = '') LIMIT 1`
+            ).bind(id, userId).first();
+            if (!existingMap) {
+              await db.prepare(
+                `INSERT INTO business_members (business_id, user_id, role, is_primary, added_at) VALUES (?, ?, '대표자', ?, ?)`
+              ).bind(id, userId, primaryAssigned ? 0 : 1, now).run();
+              primaryAssigned = true;
+            }
           }
         }
       } catch (e) {

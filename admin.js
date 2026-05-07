@@ -1421,9 +1421,9 @@ async function openManualClientModal(){
    'mcAddr1','mcAddr2','mcBizPhone','mcIndustryCode','mcBizCategory','mcIndustry',
    'mcEstDate','mcFiscalTerm','mcNotes'].forEach(id=>{const el=$g(id);if(el)el.value=''});
   /* Phase (2026-05-07 사장님 명령): 사용자 등록 흐름에도 기존 업체 선택 모드 표시.
-   * default '➕ 신규 입력'. mcModeTabs 활성화. */
-  _mcSelectedExistingBizId = null;
-  _mcSelectedExistingBizName = '';
+   * default '➕ 신규 입력'. mcModeTabs 활성화. 복수 선택 list 초기화. */
+  _mcSelectedBizList = [];
+  _mcRenderSelectedBizList();
   const tabs = $g('mcModeTabs'); if(tabs) tabs.style.display = 'flex';
   _mcSwitchMode('new');
   /* '신규 업체 생성' 라벨은 사용자 등록 흐름에선 약간 다름 — UI 그대로, JS submit 분기. */
@@ -1455,13 +1455,10 @@ function closeManualClientModal(){
   const existInp = $g('mcExistSearch'); if(existInp) existInp.value = '';
   const existRes = $g('mcExistResults'); if(existRes) existRes.innerHTML = '';
   const subBtn = $g('mcSubmitBtn'); if(subBtn){ subBtn.style.display = ''; subBtn.textContent='➕ 등록'; }
-  /* 기존 업체 선택 readonly 해제 */
-  ['mcCompany','mcCeo','mcBizNo','mcForm'].forEach(id=>{
-    const el=$g(id);
-    if(el){ el.readOnly=false; el.disabled=false; el.style.background=''; el.style.cursor=''; }
-  });
-  _mcSelectedExistingBizId = null;
-  _mcSelectedExistingBizName = '';
+  /* 회사 정보 영역 / 선택 list reset */
+  const companyInfoArea = $g('mcCompanyInfoArea'); if(companyInfoArea) companyInfoArea.style.display = '';
+  const selectedListWrap = $g('mcSelectedBizListWrap'); if(selectedListWrap) selectedListWrap.style.display = 'none';
+  _mcSelectedBizList = [];
   /* addBiz 모드 정리 — 다음 신규 거래처 등록 시 readonly·hidden 잔존 방지 */
   if(_mcMode==='addBiz'){
     _mcMode='newClient'; _mcAddBizUserId=null;
@@ -1500,21 +1497,35 @@ async function openAddBizForUser(userId, userName, userPhone){
   setTimeout(()=>$g('mcCompany')?.focus(),60);
 }
 
-/* Phase R2-8 (M19 2026-05-05): 신규/기존 모드 전환 + 검색 */
+/* Phase R2-8 (M19 2026-05-05) + 사장님 명령 (2026-05-07): 신규/기존 모드 전환.
+ * 기존 모드 = 회사 정보 입력 영역 hide + 선택 list 표시.
+ * 복수 사업장 선택 가능. */
 function _mcSwitchMode(mode){
   const newBtn = $g('mcModeNewBtn'); const existBtn = $g('mcModeExistBtn');
   const existArea = $g('mcExistArea');
+  const companyInfoArea = $g('mcCompanyInfoArea');  /* 수임처 + 회계급여 wrapper */
+  const selectedBizListWrap = $g('mcSelectedBizListWrap');
   const submitBtn = $g('mcSubmitBtn');
   if(mode === 'exist'){
     if(newBtn){ newBtn.style.background='#fff'; newBtn.style.color='#4b5563'; newBtn.style.border='1px solid #e5e8eb'; }
     if(existBtn){ existBtn.style.background='#191f28'; existBtn.style.color='#fff'; existBtn.style.border='none'; }
     if(existArea) existArea.style.display = 'block';
-    if(submitBtn) submitBtn.style.display = 'none';
+    /* 기존 모드: 회사 정보 영역 hide (선택만 하면 됨) */
+    if(companyInfoArea) companyInfoArea.style.display = 'none';
+    /* 이미 선택된 업체 있으면 list 표시 */
+    if(selectedBizListWrap){
+      selectedBizListWrap.style.display = (_mcSelectedBizList && _mcSelectedBizList.length) ? 'block' : 'none';
+    }
+    /* 등록 버튼은 표시 (검색 후 사람 정보 입력하고 등록) */
+    if(submitBtn) submitBtn.style.display = '';
     setTimeout(()=>$g('mcExistSearch')?.focus(),60);
   } else {
+    /* 신규 모드: 회사 정보 영역 표시, 선택 list hide */
     if(newBtn){ newBtn.style.background='#191f28'; newBtn.style.color='#fff'; newBtn.style.border='none'; }
     if(existBtn){ existBtn.style.background='#fff'; existBtn.style.color='#4b5563'; existBtn.style.border='1px solid #e5e8eb'; }
     if(existArea) existArea.style.display = 'none';
+    if(companyInfoArea) companyInfoArea.style.display = '';
+    if(selectedBizListWrap) selectedBizListWrap.style.display = 'none';
     if(submitBtn) submitBtn.style.display = '';
   }
 }
@@ -1553,12 +1564,45 @@ async function _mcExistSearch(){
     res.innerHTML = '<div style="color:#f04452;padding:10px;font-size:.82em">오류: '+e(err.message)+'</div>';
   }
 }
-/* Phase (2026-05-07 사장님 명령): 신규 사용자 등록 흐름에서 선택한 기존 업체 ID 저장 */
-var _mcSelectedExistingBizId = null;
-var _mcSelectedExistingBizName = '';
+/* Phase (2026-05-07 사장님 명령): 신규 사용자 등록 흐름에서 선택한 기존 업체들 (복수 가능).
+ * 배열 형태 — [{id, name}, ...] */
+var _mcSelectedBizList = [];
+
+function _mcRenderSelectedBizList(){
+  const box = $g('mcSelectedBizList');
+  const wrap = $g('mcSelectedBizListWrap');
+  if(!box) return;
+  if(!_mcSelectedBizList.length){
+    if(wrap) wrap.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+  if(wrap) wrap.style.display = 'block';
+  box.innerHTML = _mcSelectedBizList.map(function(b, i){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:#fff;border-radius:6px;margin-bottom:3px;border:1px solid #d1fae5">'
+      + '<span><b>🏢 '+e(b.name)+'</b></span>'
+      + '<button onclick="_mcRemoveSelectedBiz('+i+')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1em;padding:0 6px;font-family:inherit" title="제거">✕</button>'
+      + '</div>';
+  }).join('');
+  /* 등록 버튼 라벨 갱신 */
+  const submitBtn = $g('mcSubmitBtn');
+  if(submitBtn){
+    submitBtn.textContent = '➕ '+_mcSelectedBizList.length+'개 업체 매핑 + 사용자 등록';
+  }
+}
+
+function _mcRemoveSelectedBiz(idx){
+  if(idx < 0 || idx >= _mcSelectedBizList.length) return;
+  _mcSelectedBizList.splice(idx, 1);
+  _mcRenderSelectedBizList();
+  if(!_mcSelectedBizList.length){
+    const submitBtn = $g('mcSubmitBtn');
+    if(submitBtn) submitBtn.textContent = '➕ 등록';
+  }
+}
 
 async function _mcLinkExisting(bizId, bizName){
-  /* addBiz 흐름 (사용자 dashboard "+ 사업장 추가") — 기존 동작 그대로 */
+  /* addBiz 흐름 (사용자 dashboard "+ 사업장 추가") — 기존 동작 그대로 (단일 업체 매핑) */
   if(_mcMode === 'addBiz' && _mcAddBizUserId){
     if(!confirm('"'+bizName+'" 업체를 이 거래처에 매핑할까요?')) return;
     try{
@@ -1578,34 +1622,18 @@ async function _mcLinkExisting(bizId, bizName){
     }
     return;
   }
-  /* 일반 신규 사용자 등록 흐름 — 기존 업체 ID 저장만 + UI 안내 + 신규 모드로 자동 전환 (사용자 정보 입력) */
-  _mcSelectedExistingBizId = bizId;
-  _mcSelectedExistingBizName = bizName;
-  /* 신규 모드로 전환 (사용자 정보 입력 영역 표시) + 회사 정보는 자동 채워짐 */
-  _mcSwitchMode('new');
-  /* 회사명·사업자번호 등 칸을 자동 채움 */
-  try{
-    const r = await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY)+'&id='+bizId);
-    const d = await r.json();
-    const b = d.business || (d.businesses && d.businesses[0]) || {};
-    if($g('mcCompany')) $g('mcCompany').value = b.company_name || bizName;
-    if($g('mcCeo')) $g('mcCeo').value = b.ceo_name || '';
-    if($g('mcBizNo')) $g('mcBizNo').value = b.business_number || '';
-    if($g('mcForm') && b.company_form) $g('mcForm').value = b.company_form;
-    /* readonly 처리 — 기존 업체라 변경 X */
-    ['mcCompany','mcCeo','mcBizNo','mcForm'].forEach(id=>{
-      const el=$g(id);
-      if(el){ el.readOnly=true; el.disabled=true; el.style.background='#f3f4f6'; el.style.cursor='not-allowed'; }
-    });
-  }catch(_){}
-  /* 안내 표시 — 등록 버튼 위에 */
-  const submitBtn = $g('mcSubmitBtn');
-  if(submitBtn){
-    submitBtn.textContent = '➕ "'+bizName+'" 매핑 + 사용자 등록';
+  /* 일반 신규 사용자 등록 흐름 — 선택 list 에 추가 (복수 가능, 중복 제거) */
+  if(_mcSelectedBizList.find(function(b){return b.id===bizId})){
+    /* 이미 선택됨 — 알림만 */
+    return;
   }
-  /* 위로 스크롤 → 사람 정보 입력 영역 */
-  setTimeout(()=>$g('mcRealName')?.focus(), 100);
-  alert('✅ 기존 업체 "'+bizName+'" 선택됨\n\n이제 사람 정보 (이름·생년월일·전화) 입력하고 등록하세요.\n자동으로 그 업체에 매핑됩니다.');
+  _mcSelectedBizList.push({id: bizId, name: bizName});
+  _mcRenderSelectedBizList();
+  /* 검색 결과 / 입력 box 비우기 (다음 검색 위해) */
+  const inp = $g('mcExistSearch'); if(inp) inp.value = '';
+  const res = $g('mcExistResults'); if(res) res.innerHTML = '';
+  /* 사용자 정보 입력 영역으로 포커스 */
+  setTimeout(()=>$g('mcRealName')?.focus(), 50);
 }
 async function submitAddBizForUser(userId){
   const company=($g('mcCompany')?.value||'').trim();
@@ -1678,14 +1706,20 @@ async function submitManualClient(){
     return submitAddBizForUser(_mcAddBizUserId);
   }
   const realName=($g('mcRealName')?.value||'').trim();
-  /* fix Q2 (2026-05-07 사장님 명령): 필수 4종 검증 — 이름·회사명·대표자·사업자번호. 생년월일 선택. */
+  /* fix Q2 (2026-05-07 사장님 명령): 필수 검증.
+   * 신규 모드: 이름·회사명·대표자·사업자번호 필수
+   * 기존 모드: 이름 + 선택된 업체 list (1+) 필수 */
   if(!realName){alert('* 이름(실명)은 필수입니다');return}
-  const company=($g('mcCompany')?.value||'').trim();
-  if(!company){alert('* 회사명(수임처명)은 필수입니다');return}
-  const ceo=($g('mcCeo')?.value||'').trim()||realName;
-  if(!ceo){alert('* 대표자명은 필수입니다');return}
-  const bizNo=($g('mcBizNo')?.value||'').trim();
-  if(!bizNo && !_mcSelectedExistingBizId){alert('* 사업자등록번호는 필수입니다');return}
+  const isExistMode = _mcSelectedBizList && _mcSelectedBizList.length > 0;
+  let company = '', ceo = '', bizNo = '';
+  if(!isExistMode){
+    company = ($g('mcCompany')?.value||'').trim();
+    if(!company){alert('* 회사명(수임처명)은 필수입니다');return}
+    ceo = ($g('mcCeo')?.value||'').trim()||realName;
+    if(!ceo){alert('* 대표자명은 필수입니다');return}
+    bizNo = ($g('mcBizNo')?.value||'').trim();
+    if(!bizNo){alert('* 사업자등록번호는 필수입니다');return}
+  }
   const phone=($g('mcPhone')?.value||'').trim();
   /* Q4: 생년월일 (선택) */
   const birthDate=($g('mcBirthDate')?.value||'').trim()||null;
@@ -1699,9 +1733,9 @@ async function submitManualClient(){
   const body={
     name:realName, real_name:realName, phone, birth_date:birthDate,
     company_name:company, ceo_name:ceo, business_number:bizNo, notes,
-    /* Phase (2026-05-07 사장님 명령): 기존 업체 선택 시 ID 같이 send → backend 가
-     * 신규 business INSERT skip + 그 ID 와 매핑만 */
-    existing_business_id: _mcSelectedExistingBizId || null,
+    /* Phase (2026-05-07 사장님 명령): 기존 업체 선택 시 ID list 같이 send (복수 가능) →
+     * backend 가 신규 business INSERT skip + 각 ID 와 매핑만 */
+    existing_business_ids: isExistMode ? _mcSelectedBizList.map(b=>b.id) : null,
     auto_create_room: autoRoom, priority: priority,
     company_form:$g('mcForm')?.value||null,
     sub_business_number:($g('mcSubBiz')?.value||'').trim()||null,
