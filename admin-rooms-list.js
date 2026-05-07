@@ -268,10 +268,21 @@ async function loadRoomList(){
   }catch(err){$g('roomList').innerHTML='<div style="padding:20px;color:#f04452">오류: '+e(err.message)+'</div>'}
 }
 
-async function openRoom(roomId){
+async function openRoom(roomId, opts){
   currentRoomId=roomId;
   /* Phase #6 적용 (2026-05-06): shared store sync — 다른 모듈이 subscribe 가능 */
   try{ if(window.__sharedStore){ window.__sharedStore.$currentRoomId.set(roomId); } }catch(_){}
+  /* Phase #7 적용 (2026-05-06): SPA deep link — URL 에 room=ID 추가.
+   * 사장님이 방 본 후 다른 데 갔다가 뒤로가기 → 그 방 자동 복원.
+   * popstate 호출 시 (opts.fromPopstate) 는 pushState skip — 무한 루프 방지. */
+  if(!(opts && opts.fromPopstate)){
+    try{
+      var newHash = '#tab=rooms&room=' + encodeURIComponent(roomId);
+      if(location.hash !== newHash){
+        history.pushState({adminTab:'rooms', room:roomId}, '', location.pathname + location.search + newHash);
+      }
+    }catch(_){}
+  }
   /* 햄버거·팝아웃 버튼 노출 */
   const mb=$g('roomMenuBtn');if(mb)mb.style.display='inline-block';
   const pb=$g('roomPopoutBtn');if(pb)pb.style.display='inline-block';

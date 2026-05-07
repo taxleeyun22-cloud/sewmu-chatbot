@@ -3323,23 +3323,26 @@ window.addEventListener('popstate', function(e){
     var state = e.state || {};
     var t = state.adminTab || null;
     var custFromState = state.cust || null;
+    var roomFromState = state.room || null;
     var custFromHash = null;
+    var roomFromHash = null;
     /* state 없으면 hash 파싱 (페이지 새로고침 또는 deep link) */
     if(!t){
       var mTab = location.hash.match(/^#tab=(\w+)/);
       if(mTab) t = mTab[1];
       var mCust = location.hash.match(/[#&]cust=(\d+)/);
       if(mCust) custFromHash = Number(mCust[1]);
+      var mRoom = location.hash.match(/[#&]room=([^&]+)/);
+      if(mRoom) roomFromHash = decodeURIComponent(mRoom[1]);
     }
     var targetCust = custFromState || custFromHash;
+    var targetRoom = roomFromState || roomFromHash;
     if(t && typeof tab === 'function'){
       _tabBypassPushState = true;
       tab(t);
     }
-    /* Phase #7 적용 (2026-05-06): cust=N 있으면 거래처 dashboard 복원.
-     * 없으면 (이전 거래처 dashboard 가 열려있다 닫힌 상태) dashboard 닫기. */
+    /* Phase #7 적용 (2026-05-06): cust=N 있으면 거래처 dashboard 복원 */
     if(targetCust && typeof openCustomerDashboard === 'function'){
-      /* 같은 거래처 이미 열려있으면 skip (무한 루프 방지) */
       if(typeof _cdCurrentUserId === 'undefined' || _cdCurrentUserId !== targetCust){
         setTimeout(function(){ openCustomerDashboard(targetCust, {fromPopstate:true}); }, 100);
       }
@@ -3347,6 +3350,12 @@ window.addEventListener('popstate', function(e){
       var custModal = document.getElementById('custDashModal');
       if(custModal && custModal.style.display !== 'none' && typeof closeCustomerDashboard === 'function'){
         closeCustomerDashboard({fromPopstate:true});
+      }
+    }
+    /* Phase #7 적용 (2026-05-06): room=ID 있으면 상담방 자동 진입 */
+    if(targetRoom && typeof openRoom === 'function'){
+      if(typeof currentRoomId === 'undefined' || currentRoomId !== targetRoom){
+        setTimeout(function(){ openRoom(targetRoom, {fromPopstate:true}); }, 100);
       }
     }
   }catch(err){console.warn('[popstate]', err)}
@@ -3833,27 +3842,31 @@ setTimeout(_refreshErrorLogOwnerUI, 1500);
 })();
 
 /* 페이지 첫 진입 시 hash 가 #tab=X 면 자동 tab 전환.
- * Phase #7 적용 (2026-05-06): #tab=users&cust=N 이면 자동 거래처 dashboard 도 열기. */
+ * Phase #7 적용 (2026-05-06): deep link 강화
+ *  - #tab=users&cust=N → 자동 거래처 dashboard
+ *  - #tab=rooms&room=ID → 자동 상담방 진입 */
 (function(){
   try{
     var mTab = location.hash.match(/^#tab=(\w+)/);
     var mCust = location.hash.match(/[#&]cust=(\d+)/);
+    var mRoom = location.hash.match(/[#&]room=([^&]+)/);
     if(mTab && typeof tab === 'function'){
-      /* DOMContentLoaded 후에 호출 — login 끝나고 mainView 표시되면 */
       var attempt = 0;
       var iv = setInterval(function(){
         attempt++;
         var mainView = document.getElementById('mainView');
         if(mainView && mainView.style.display !== 'none'){
           clearInterval(iv);
-          _tabBypassPushState = true;  /* 첫 진입 — pushState 안 함 */
+          _tabBypassPushState = true;
           tab(mTab[1]);
-          /* deep link 거래처 dashboard 자동 열기 */
           if(mCust && typeof openCustomerDashboard === 'function'){
             setTimeout(function(){ openCustomerDashboard(Number(mCust[1]), {fromPopstate:true}); }, 300);
           }
+          if(mRoom && typeof openRoom === 'function'){
+            setTimeout(function(){ openRoom(decodeURIComponent(mRoom[1]), {fromPopstate:true}); }, 400);
+          }
         } else if(attempt > 50){
-          clearInterval(iv);  /* 10초 후 포기 (login 안 됨) */
+          clearInterval(iv);
         }
       }, 200);
     }
