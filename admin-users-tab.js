@@ -109,6 +109,9 @@ actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✕ 거절</button>'
 +adminBtn
+/* 사장님 명령 (2026-05-07): pending 탭에도 합치기 + 삭제 */
++(IS_OWNER?'<button onclick="_openMergePicker('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px dashed #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="다른 사용자와 합치기 (이 user 가 살아남음)">🔗 합치기</button>':'')
++(IS_OWNER?'<button onclick="_hardDeleteUser('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#9ca3af;border:1px solid #d1d5db;padding:8px 12px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit" title="영구 삭제 (owner only)">🗑️</button>':'')
 +'</div>';
 }else{
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
