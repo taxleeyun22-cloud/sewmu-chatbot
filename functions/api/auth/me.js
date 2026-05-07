@@ -47,11 +47,17 @@ export async function onRequestGet(context) {
     // 승인상태별 일일 한도 (is_admin=1 관리자/스태프는 무제한)
     const status = session.approval_status || 'pending';
     const isAdmin = !!session.is_admin;
+    /* 사장님 보고 (2026-05-07): chat.js getDailyLimit 와 일치 통일 */
     const dailyLimit = isAdmin ? 999999
                      : status === 'approved_client' ? 999999
                      : status === 'approved_guest' ? 5
                      : status === 'rejected' ? 0
-                     : 3;
+                     : status === 'terminated' ? 0
+                     : status === 'withdrawn' ? 0
+                     : status === 'merged' ? 0
+                     : status === 'deleted' ? 0
+                     : status === 'rejoined' ? 0
+                     : 5; /* pending */
 
     return Response.json({
       logged_in: true,

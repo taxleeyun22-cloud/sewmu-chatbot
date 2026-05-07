@@ -1,5 +1,5 @@
-/* v71: 재가입(rejoined) / 차단 status 입력 차단 (사장님 명령 2026-05-07). 사용자 캐시 무효화. */
-const CACHE_NAME = 'sewmu-v71';
+/* v72: daily_limit 통일 5 (10 hardcode fix, 사장님 보고 2026-05-07). 사용자 캐시 무효화. */
+const CACHE_NAME = 'sewmu-v72';
 const STATIC_ASSETS = ['/logo.png', '/logo-icon.png', '/logo-vertical.png'];
 
 self.addEventListener('install', e => {

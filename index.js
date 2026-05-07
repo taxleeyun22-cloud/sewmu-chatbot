@@ -2827,7 +2827,7 @@ async function submitName(){
         currentUser.phone=p;
         currentUser.name_confirmed=true;
         currentUser.approval_status=d.approval_status||currentUser.approval_status;
-        if(userType==='guest'){currentUser.daily_limit=10}
+        if(userType==='guest'){currentUser.daily_limit=5}  /* 사장님 보고 (2026-05-07): 10 → 5 (chat.js 와 일치) */
       }
       showApprovalBanner();
     } else {err.textContent=d.error||'오류';err.style.display='block'}
