@@ -43,7 +43,16 @@ async function doSearch(){
     const d=await r.json();
     if(d.error){el.innerHTML='<div style="color:#f04452;font-size:.85em;padding:20px 0">오류: '+e(d.error)+'</div>';return}
     let html='';
-    const totalN=(d.users||[]).length+(d.conversations||[]).length+(d.rooms||[]).length+(d.room_messages||[]).length;
+    /* 버그 fix (2026-05-07 사장님 보고): memos / businesses / documents 가 totalN 에서 빠져
+       backend 결과 있어도 "결과 없음" 표시 + return → 메모/업체/문서 렌더 안 됨.
+       해결: 모든 result group 합산. */
+    const totalN=(d.users||[]).length
+                 +(d.conversations||[]).length
+                 +(d.rooms||[]).length
+                 +(d.room_messages||[]).length
+                 +(d.memos||[]).length
+                 +(d.businesses||[]).length
+                 +(d.documents||[]).length;
     if(totalN===0){
       el.innerHTML='<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 0">"'+e(q)+'"에 대한 검색 결과가 없습니다</div>';return;
     }
