@@ -423,7 +423,13 @@ async function loadRoomDetail(){
     }).join('');
     if(atBottom||adminForceScrollOnNext)container.scrollTop=container.scrollHeight;
     adminForceScrollOnNext=false;
-  }catch(err){console.error(err)}
+  }catch(err){
+    /* fix (2026-05-07): 이전 console.error 만 → 메시지 안 떠도 사용자 모름. 첫 로드 시 UI 에러 + 재시도 */
+    console.error('[loadRoomDetail]', err);
+    if(container && !container.children.length){
+      container.innerHTML='<div style="text-align:center;color:#dc2626;font-size:.85em;padding:30px 0">메시지 불러오기 실패: '+e(err.message||'')+'<br><button onclick="loadRoomDetail()" style="margin-top:10px;background:#3182f6;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:inherit">🔄 재시도</button></div>';
+    }
+  }
 }
 
 /* 사진 모아보기 그리드 (카톡 스타일, 최대 9장) */

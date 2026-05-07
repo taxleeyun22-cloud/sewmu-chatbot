@@ -84,11 +84,13 @@ function jumpFromSearch(mid){
   },80);
 }
 async function loadRoomMedia(){
+  const photoEl=$g('riPhotoGrid');
+  const linkEl=$g('riLinkList');
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+encodeURIComponent(currentRoomId)+'&view=media');
+    if(!r.ok) throw new Error('HTTP '+r.status);
     const d=await r.json();
-    const photoEl=$g('riPhotoGrid');
-    const linkEl=$g('riLinkList');
+    if(d.error) throw new Error(d.error);
     if(!d.photos||d.photos.length===0){
       photoEl.innerHTML='<div style="grid-column:1/-1;text-align:center;color:#8b95a1;font-size:.8em;padding:30px 0">사진 없음</div>';
     } else {
@@ -107,7 +109,13 @@ async function loadRoomMedia(){
         return '<div class="ri-link-item"><a href="'+e(l.url)+'" target="_blank" rel="noopener">'+e(l.url)+'</a><div class="ri-meta">'+who+' · '+e(l.created_at||'')+'</div></div>';
       }).join('');
     }
-  }catch(err){console.error(err)}
+  }catch(err){
+    /* fix (2026-05-07): 이전 console.error 만 → 사용자가 영원히 "불러오는 중" 봄. UI 에러 표시 추가 */
+    console.error('[loadRoomMedia]', err);
+    const errMsg='<div style="grid-column:1/-1;text-align:center;color:#dc2626;font-size:.8em;padding:30px 0">불러오기 실패: '+e(err.message||'')+'</div>';
+    if(photoEl) photoEl.innerHTML=errMsg;
+    if(linkEl) linkEl.innerHTML=errMsg;
+  }
 }
 
 async function loadRoomFiles(){
@@ -559,7 +567,13 @@ async function loadLiveMessages(){
     adminForceLiveScrollOnNext=false;
     // 세션 목록도 unread 초기화 반영
     refreshLiveBadge();
-  }catch(err){console.error(err)}
+  }catch(err){
+    /* fix (2026-05-07): 이전 console.error 만 → 폴링 시 메시지 안 떠도 사용자 모름. UI 표시 + 콘솔 둘 다 */
+    console.error('[loadLiveMessages]', err);
+    if(container && !container.children.length){
+      container.innerHTML='<div style="text-align:center;color:#dc2626;font-size:.85em;padding:30px 0">메시지 불러오기 실패: '+e(err.message||'')+'<br><button onclick="loadLiveMessages()" style="margin-top:10px;background:#3182f6;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:inherit">🔄 재시도</button></div>';
+    }
+  }
 }
 
 async function sendLiveMessage(){
