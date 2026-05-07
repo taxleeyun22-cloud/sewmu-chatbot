@@ -821,12 +821,12 @@ async function _loadMergeList(){
 /* 사장님 명령 (2026-05-07): 거래처 기본 정보 수정 모달 — 이름·연락처·생년월일.
  * /api/admin-users?action=update_name 활용 (P2 commit). */
 var _euiUserId=null;
-function openEditUserInfoModal(userId){
+function openEditUserInfoModal(userId, prefill){
   if(!userId){alert('사용자 ID 없음');return}
   _euiUserId=userId;
   const m=$g('editUserInfoModal'); if(!m) return;
-  /* 현재 dashboard 의 cdBasic 에서 값 채워넣기 — 또는 user_cache 활용 */
-  const u=(typeof _cdUserCache!=='undefined' && _cdUserCache && _cdUserCache[userId])||{};
+  /* prefill 인자 우선 (사용자 list row 에서 호출 시) → 없으면 _cdUserCache (dashboard 에서 호출 시) */
+  const u=prefill||(typeof _cdUserCache!=='undefined' && _cdUserCache && _cdUserCache[userId])||{};
   if($g('euiRealName')) $g('euiRealName').value=u.real_name||'';
   if($g('euiPhone')) $g('euiPhone').value=u.phone||'';
   if($g('euiBirthDate')) $g('euiBirthDate').value=(u.birth_date||'').slice(0,10);
@@ -858,9 +858,14 @@ async function submitEditUserInfo(){
     });
     const d=await r.json();
     if(!d.ok){alert('수정 실패: '+(d.error||'unknown'));return}
+    const savedUserId=_euiUserId;
     closeEditUserInfoModal();
-    /* dashboard 새로고침 */
-    if(typeof openCustomerDashboard==='function' && _euiUserId) openCustomerDashboard(_euiUserId);
+    /* dashboard 가 열려있으면 새로고침, 아니면 사용자 list 갱신 */
+    if(typeof _cdCurrentUserId!=='undefined' && _cdCurrentUserId===savedUserId && typeof openCustomerDashboard==='function'){
+      openCustomerDashboard(savedUserId);
+    } else if(typeof loadUsers==='function' && typeof currentStatus!=='undefined'){
+      loadUsers(currentStatus);
+    }
     if(typeof showAdminToast==='function') showAdminToast('✅ 수정 완료');
   }catch(err){alert('오류: '+err.message)}
   finally{if(btn){btn.disabled=false;btn.textContent='💾 저장';btn.style.opacity=''}}

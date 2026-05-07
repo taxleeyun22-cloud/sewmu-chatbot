@@ -592,32 +592,19 @@ async function submitApproveWithBusiness(){
 
 /* Phase P2 (2026-05-07 사장님 명령): 사용자 이름·전화·생년월일 수정.
  * 카카오 닉네임이 가명일 수 있어 사장님이 진짜 이름으로 수정 + 본명 확인 마킹.
- * owner only (admin-users.js update_name 가드). */
-async function editUserName(userId, currentName, currentPhone, currentBirth){
+ * owner only (admin-users.js update_name 가드).
+ * 사장님 명령 (2026-05-07 정정): prompt 3개 → editUserInfoModal 1개 모달로. */
+function editUserName(userId, currentName, currentPhone, currentBirth){
   if(!IS_OWNER){ alert('owner 권한이 필요합니다'); return; }
-  const newName = prompt('실명 (한글):', currentName||'');
-  if(newName === null) return;
-  const newPhone = prompt('전화 (010-1234-5678 또는 빈 값):', currentPhone||'');
-  if(newPhone === null) return;
-  const newBirth = prompt('생년월일 (YYYY-MM-DD 또는 빈 값):', currentBirth||'');
-  if(newBirth === null) return;
-  try{
-    const r = await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=update_name', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        user_id: userId,
-        real_name: newName.trim(),
-        phone: newPhone.trim(),
-        birth_date: newBirth.trim(),
-        name_confirmed: 1,  /* 사장님이 직접 입력 = 본명 확인 */
-      }),
+  if(typeof openEditUserInfoModal === 'function'){
+    openEditUserInfoModal(userId, {
+      real_name: currentName||'',
+      phone: currentPhone||'',
+      birth_date: currentBirth||'',
     });
-    const d = await r.json();
-    if(!d.ok){ alert('수정 실패: '+(d.error||'unknown')); return; }
-    if(typeof loadUsers === 'function') loadUsers(currentStatus);
-    alert('✅ 정보 수정 완료');
-  }catch(err){ alert('오류: '+err.message); }
+  } else {
+    alert('수정 모달 로드 안 됨. 새로고침 후 다시 시도해주세요.');
+  }
 }
 
 async function setAdminFlag(id,flag){
