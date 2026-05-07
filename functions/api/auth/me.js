@@ -24,7 +24,7 @@ export async function onRequestGet(context) {
 
     const session = await db.prepare(`
       SELECT s.user_id, s.expires_at, u.name, u.real_name, u.email, u.phone, u.provider, u.profile_image,
-             u.approval_status, u.name_confirmed, u.is_admin,
+             u.approval_status, u.name_confirmed, u.is_admin, u.rejection_reason,
              u.consent_age_14, u.consent_tos, u.consent_privacy, u.consent_overseas,
              u.consent_marketing, u.consent_all_at, u.consent_overseas_at
       FROM sessions s
@@ -70,6 +70,7 @@ export async function onRequestGet(context) {
         provider: session.provider,
         profile_image: session.profile_image,
         approval_status: status,
+        rejection_reason: session.rejection_reason || null,
         name_confirmed: session.name_confirmed ? true : false,
         is_admin: session.is_admin ? true : false,
         consent_age_14: session.consent_age_14 ? true : false,

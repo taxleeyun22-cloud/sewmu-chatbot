@@ -68,8 +68,8 @@
 <div class="tabs" style="margin-bottom:14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
 <button class="on" id="uStPending" onclick="userStatus('pending')" style="background:#f04452;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#fff;font-weight:500">대기 <span id="cPending">0</span></button>
 <button id="uStClient" onclick="userStatus('approved_client')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">기장거래처 <span id="cClient">0</span></button>
-<!-- 일반승인 카테고리 폐지 (사장님 명령 2026-05-02). 기존 approved_guest 사용자 호환 위해 hidden span 으로 카운트만 살아있게 (cGuest 가 admin.js 에서 setText) -->
-<span id="cGuest" class="hidden">0</span>
+<!-- 사장님 명령 (2026-05-07): 일반 승인 탭 부활 — 무료 이용 가입자 사후 검토 -->
+<button id="uStGuest" onclick="userStatus('approved_guest')" title="무료 이용 (일 5건) — 사장님 사후 검토 가능. 기장거래처로 승급 또는 거절 가능." style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">📗 일반 승인 <span id="cGuest">0</span></button>
 <button id="uStRejected" onclick="userStatus('rejected')" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">거절 <span id="cRejected">0</span></button>
 <button id="uStTerminated" onclick="userStatus('terminated')" title="거래가 종료된 거래처 — 상담방 모두 closed, 접근 차단됨" style="background:#e5e8eb;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#8b95a1;font-weight:500">🚫 종료 <span id="cTerminated">0</span></button>
 <!-- 사장님 명령 (2026-05-07 최종): 탈퇴 + 재가입 둘 다 표시 -->

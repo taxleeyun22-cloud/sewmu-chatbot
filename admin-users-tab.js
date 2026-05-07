@@ -28,13 +28,30 @@ if(n>0){b.textContent=n;b.style.display='inline-block'}else{b.style.display='non
 }catch{}
 }
 
+/* 사장님 명령 (2026-05-07): 거절 + 사유 입력 + 보정 안내.
+ * 거절 시 사유 prompt → /api/admin-approve action='reject' rejection_reason 같이 send.
+ * 사용자 화면에 '✕ 거절: [사유]. 보정해 주세요.' 표시. */
+async function rejectUserWithReason(userId, name){
+  const reason = prompt(name+' 거절 사유 (사용자에게 표시됨):\n\n예) "본명·연락처가 카톡과 일치하지 않음. 보정 후 재신청 부탁드립니다."', '');
+  if(reason === null) return; /* 취소 */
+  try{
+    const r = await fetch('/api/admin-approve?key='+encodeURIComponent(KEY), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({user_id:userId, action:'reject', rejection_reason: (reason||'').trim()||null}),
+    });
+    const d = await r.json();
+    if(!d.ok){ alert('거절 실패: '+(d.error||'unknown')); return; }
+    if(typeof loadUsers==='function') loadUsers(currentStatus);
+  }catch(err){ alert('오류: '+err.message); }
+}
+
 function userStatus(s){
 currentStatus=s;
-/* 사장님 명령 (2026-05-07 최종): Withdrawn + Rejoined 둘 다 */
+/* 사장님 명령 (2026-05-07 최종): Withdrawn + Rejoined + Guest 모두 */
 ['Pending','Client','Guest','Rejected','Terminated','Withdrawn','Rejoined','Admin'].forEach(k=>{
 const el=$g('uSt'+k);if(!el)return;
 const active=('uSt'+k).toLowerCase().indexOf(s.replace('approved_','').toLowerCase())>=0;
-el.style.background=active?(s==='rejected'?'#8b95a1':s==='terminated'?'#6b7280':s==='withdrawn'?'#7c3aed':s==='rejoined'?'#f59e0b':s==='pending'?'#f04452':s==='admin'?'#b45309':'#3182f6'):'#e5e8eb';
+el.style.background=active?(s==='rejected'?'#8b95a1':s==='terminated'?'#6b7280':s==='withdrawn'?'#7c3aed':s==='rejoined'?'#f59e0b':s==='approved_guest'?'#10b981':s==='pending'?'#f04452':s==='admin'?'#b45309':'#3182f6'):'#e5e8eb';
 el.style.color=active?'#fff':'#8b95a1';
 /* .on 클래스 동기화 — admin.html 의 html.embedded CSS 가 .on 으로 색상 결정 (!important).
    inline style 만 바꾸면 embedded 모드에서 색깔 안 바뀌는 버그 — 사장님 보고 (2026-04-29).
@@ -116,9 +133,10 @@ actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +(status!=='approved_client'?'<button onclick="openApproveWithBusiness('+u.id+',\''+e(nm).replace(/\'/g,'')+'\',\''+e(u.phone||'').replace(/\'/g,'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="승인 + 업체 연결">→ 기장거래처</button>':'')
-/* '→ 일반승인' 변경 버튼 폐지 (사장님 명령 2026-05-02). 다른 status 에서 일반승인으로 다운그레이드 X. */
+/* 사장님 명령 (2026-05-07): 기장 ↔ 일반 와리가리 — approved_client 도 일반으로 강등 가능 */
++(status!=='approved_guest'?'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#10b981;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="일반 승인 (일 5건 무료)">→ 일반</button>':'')
 +(status!=='pending'?'<button onclick="approveUser('+u.id+',\'pending\')" style="background:#8b95a1;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 대기로</button>':'')
-+(IS_OWNER && status!=='rejected'?'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 거절</button>':'')
++(IS_OWNER && status!=='rejected'?'<button onclick="rejectUserWithReason('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#f04452;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="거절 + 사유 입력">→ 거절</button>':'')
 +(IS_OWNER && (status==='approved_client'||status==='approved_guest')?'<button onclick="archiveClient('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" title="폐업 처리 — 방만 closed, 고객 접근·계정은 유지" style="background:#fff;color:#8b6914;border:1px solid #fcd34d;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">📦 폐업 처리</button>':'')
 +(IS_OWNER && (status==='approved_client'||status==='approved_guest')?'<button onclick="terminateUser('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" title="거래 종료(기장이관) — 상담방 모두 closed, 고객 접근 차단" style="background:#fff;color:#6b7280;border:1px solid #6b7280;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🚫 거래 종료</button>':'')
 +(IS_OWNER && status==='terminated'?'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🔄 거래 재개(기장)</button>':'')

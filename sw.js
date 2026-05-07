@@ -1,5 +1,5 @@
-/* v72: daily_limit 통일 5 (10 hardcode fix, 사장님 보고 2026-05-07). 사용자 캐시 무효화. */
-const CACHE_NAME = 'sewmu-v72';
+/* v73: 카카오 전화번호 검증 + 거절 사유 표시 (사장님 명령 2026-05-07). */
+const CACHE_NAME = 'sewmu-v73';
 const STATIC_ASSETS = ['/logo.png', '/logo-icon.png', '/logo-vertical.png'];
 
 self.addEventListener('install', e => {

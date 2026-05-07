@@ -2792,11 +2792,13 @@ async function saveMyInfo(){
 }
 
 /* ===== 가입 정보 모달 ===== */
+var _kakaoPhoneDefault='';  /* 사장님 명령 (2026-05-07): 카카오 전화번호 보정 검증용 */
 function showNameModal(defaultName,defaultPhone){
   var m=document.getElementById('nameModal');
   document.getElementById('nameInput').value=defaultName||'';
   var pi=document.getElementById('phoneInput');
   if(pi)pi.value=defaultPhone||'';
+  _kakaoPhoneDefault=(defaultPhone||'').replace(/\D/g,'');
   document.getElementById('nameKakao').textContent='카카오 프로필명: '+(defaultName||'(없음)');
   m.style.display='flex';
   setTimeout(function(){document.getElementById('nameInput').focus()},100);
@@ -2817,6 +2819,16 @@ async function submitName(){
   if(!/^[가-힣a-zA-Z\s]+$/.test(v)){err.textContent='한글 또는 영문 이름만 입력 가능합니다.';err.style.display='block';return}
   var digits=p.replace(/\D/g,'');
   if(digits.length!==10&&digits.length!==11){err.textContent='올바른 휴대폰 번호를 입력해 주세요.';err.style.display='block';return}
+  /* 사장님 명령 (2026-05-07): 카카오 전화번호와 다르면 보정 요구 */
+  if(_kakaoPhoneDefault && _kakaoPhoneDefault.length>=10 && digits !== _kakaoPhoneDefault){
+    var kFmt = _kakaoPhoneDefault.length===11
+      ? _kakaoPhoneDefault.slice(0,3)+'-'+_kakaoPhoneDefault.slice(3,7)+'-'+_kakaoPhoneDefault.slice(7)
+      : _kakaoPhoneDefault.slice(0,3)+'-'+_kakaoPhoneDefault.slice(3,6)+'-'+_kakaoPhoneDefault.slice(6);
+    err.innerHTML='⚠️ 카카오 등록 전화번호 (<b>'+kFmt+'</b>) 와 다릅니다. 카카오와 동일하게 입력해 주세요.';
+    err.style.display='block';
+    if(document.getElementById('phoneInput')) document.getElementById('phoneInput').value=kFmt;
+    return;
+  }
   try{
     var r=await fetch('/api/auth/confirm-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({real_name:v,phone:p,user_type:userType})});
     var d=await r.json();
@@ -2878,7 +2890,8 @@ function showApprovalBanner(){
     bar.innerHTML='✓ 일반 승인 · 오늘 '+used+'/'+lim+'건 이용';
   } else if(st==='rejected'){
     bar.style.display='block';bar.style.background='#ffebee';bar.style.color='#c62828';
-    bar.innerHTML='✕ 이용이 제한된 계정입니다. 세무회계 이윤에 문의해 주세요';
+    var reason = currentUser.rejection_reason ? '<br><span style="font-size:.92em">📝 사유: '+esc(currentUser.rejection_reason)+'</span>' : '';
+    bar.innerHTML='✕ 이용이 제한된 계정입니다.'+reason+'<br>보정 후 세무회계 이윤(053-269-1213)에 재신청 부탁드립니다.';
   } else if(st==='rejoined'){
     /* 사장님 명령 (2026-05-07): 재가입 = 다시 승인 받기 전엔 사용 X */
     bar.style.display='block';bar.style.background='#fff8e1';bar.style.color='#8b6914';
