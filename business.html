@@ -127,9 +127,24 @@
 <input id="memoInput" type="hidden">
 <div id="memoModal" class="hidden"><div id="memoSaveBtn" class="hidden"></div></div>
 
+<!-- 사장님 보고 fix (2026-05-07): "+ 새 법인세 Case 눌러도 아무것도 안뜸"
+     원인: business.html 은 admin-modals.html 미로드 → filingNewModal/filingDetailModal DOM 없음.
+     해결: admin-modals.html 통째 fetch (admin.html 동일 패턴). -->
+<div id="adminModalsSlot"></div>
+<script>
+window.KEY = window.KEY || (new URL(location.href)).searchParams.get('key') || '';
+fetch('/admin-modals.html?v=46', { cache: 'no-cache' })
+  .then(r => r.ok ? r.text() : Promise.reject(r.status))
+  .then(html => {
+    const slot = document.getElementById('adminModalsSlot');
+    if (slot) slot.insertAdjacentHTML('beforeend', html);
+  })
+  .catch(err => console.warn('[admin-modals] fetch fail:', err));
+</script>
+
 <script src="/business.js?v=2"></script>
 <!-- Phase 6 (2026-05-07): 신고 검토표 시스템 (법인세) -->
-<script src="/admin-filing-review.js?v=16"></script>
+<script src="/admin-filing-review.js?v=17"></script>
 <script>
 /* business.html 페이지 로드 후 — 법인세 검토표 list 표시.
  * business.js 가 url 의 ?id=N 로 업체 정보 fetch 후 _bdCurrent 같은 변수에 저장.
