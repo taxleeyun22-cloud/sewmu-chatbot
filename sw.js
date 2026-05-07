@@ -1,5 +1,5 @@
-/* v74: 거절 사유 모달 + 사용자 화면 표시 (사장님 명령 2026-05-07). */
-const CACHE_NAME = 'sewmu-v74';
+/* v75: 이름·연락처 수정 항목에 거절 경고등 (사장님 명령 2026-05-07). */
+const CACHE_NAME = 'sewmu-v75';
 const STATIC_ASSETS = ['/logo.png', '/logo-icon.png', '/logo-vertical.png'];
 
 self.addEventListener('install', e => {

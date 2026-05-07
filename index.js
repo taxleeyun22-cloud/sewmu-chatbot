@@ -2634,6 +2634,13 @@ async function loadMyPage(){
 
   /* 내 정보 요약 */
   document.getElementById('mpInfoValue').textContent=nm+(currentUser.phone?(' · '+currentUser.phone):'');
+  /* 사장님 명령 (2026-05-07): 거절 사유에 '연락처/카카오/전화/번호' 키워드 있으면 경고 표시 */
+  var warnEl=document.getElementById('mpInfoWarn');
+  var infoItem=document.getElementById('mpInfoItem');
+  var rr=(currentUser.rejection_reason||'').toLowerCase();
+  var phoneIssue=st==='rejected' && rr && /연락처|카카오|전화|번호/.test(rr);
+  if(warnEl) warnEl.style.display=phoneIssue?'block':'none';
+  if(infoItem) infoItem.style.boxShadow=phoneIssue?'inset 4px 0 0 #dc2626':'';
   /* 업체 등록 요청 상태 불러오기 */
   try{loadMyCompanyRequest()}catch(_){}
 

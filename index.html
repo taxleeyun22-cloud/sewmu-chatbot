@@ -196,11 +196,13 @@
   <!-- 내 정보 -->
   <div class="mp-section">
     <div class="mp-section-title">내 정보</div>
-    <div class="mp-item" onclick="editMyInfo()">
+    <div class="mp-item" id="mpInfoItem" onclick="editMyInfo()" style="position:relative">
       <div class="mp-item-icon">👤</div>
       <div class="mp-item-main">
-        <div class="mp-item-label">이름 · 연락처 수정</div>
+        <div class="mp-item-label" id="mpInfoLabel">이름 · 연락처 수정</div>
         <div class="mp-item-value" id="mpInfoValue">-</div>
+        <!-- 사장님 명령 (2026-05-07): 거절 사유에 연락처 키워드 있으면 경고 표시 -->
+        <div id="mpInfoWarn" style="display:none;font-size:.74em;color:#dc2626;margin-top:4px;font-weight:600">⚠️ 카카오와 연락처가 다릅니다 — 보정 필요</div>
       </div>
       <div class="mp-item-arrow">›</div>
     </div>
@@ -404,6 +406,6 @@
 </script>
 
 <!-- Phase H3 (2026-05-04): 인라인 JS 3468줄 → index.js 외부화. 사장님 명령 "html여러개로 쪼개기". -->
-<script src="/index.js?v=6"></script>
+<script src="/index.js?v=7"></script>
 
 </html>
