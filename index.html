@@ -389,7 +389,7 @@
 <script>
 (function loadIndexModals(){
   function inject(){
-    fetch('/index-modals.html?v=1', {cache: 'no-cache'})
+    fetch('/index-modals.html?v=2', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('indexModalsSlot');
