@@ -529,14 +529,120 @@ export async function onRequestPost(context) {
   const authorName = auth.name || auth.realName || (auth.owner ? '대표' : '담당자');
 
   const now = kst();
+
+  /* Phase 8 (사장님 명세 2026-05-07): attached_to + related_* 자동 채움.
+   * 신규 명세 = 메모 통합뷰 위해 인덱스 컬럼.
+   * target_user_id / target_business_id / room_id 와 별개로 관계 인덱스 자동 set. */
+  let attachedToType = body.attached_to_type || null;
+  let attachedToId = Number(body.attached_to_id || 0) || null;
+  /* 추론: body 안 attached_to 명시 X 면 target_*/room 으로 추론 */
+  if (!attachedToType) {
+    if (filingType === 'Filing' && filingPeriod) {
+      /* 호환: filing_type='Filing' + filing_period=Filing.id */
+      attachedToType = 'Filing'; attachedToId = Number(filingPeriod);
+    } else if (targetUserId) { attachedToType = 'Person'; attachedToId = targetUserId; }
+    else if (targetBusinessId) { attachedToType = 'Business'; attachedToId = targetBusinessId; }
+    else if (roomId) { attachedToType = 'ChatRoom'; attachedToId = null; /* room_id 는 string */ }
+  }
+
+  /* related_* 자동 채움 */
+  const rPersons = new Set();
+  const rBusinesses = new Set();
+  const rChatrooms = new Set();
+  const rFilings = new Set();
+
+  if (targetUserId) rPersons.add(targetUserId);
+  if (targetBusinessId) {
+    rBusinesses.add(targetBusinessId);
+    /* 그 business 의 대표자(user) 추가 */
+    try {
+      const rep = await db.prepare(
+        `SELECT user_id FROM business_members WHERE business_id = ? AND (removed_at IS NULL OR removed_at = '') AND (role = '대표자' OR is_primary = 1) ORDER BY is_primary DESC LIMIT 1`
+      ).bind(targetBusinessId).first();
+      if (rep?.user_id) rPersons.add(rep.user_id);
+    } catch {}
+  }
+  if (roomId) {
+    rChatrooms.add(roomId);
+    /* 그 방의 연결 업체 + 대표자 */
+    try {
+      const { results: rbiz } = await db.prepare(
+        `SELECT business_id FROM room_businesses WHERE room_id = ? AND (removed_at IS NULL OR removed_at = '')`
+      ).bind(roomId).all();
+      for (const rb of (rbiz || [])) {
+        if (rb.business_id) {
+          rBusinesses.add(rb.business_id);
+          try {
+            const rep = await db.prepare(
+              `SELECT user_id FROM business_members WHERE business_id = ? AND (removed_at IS NULL OR removed_at = '') AND (role = '대표자' OR is_primary = 1) ORDER BY is_primary DESC LIMIT 1`
+            ).bind(rb.business_id).first();
+            if (rep?.user_id) rPersons.add(rep.user_id);
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+  if (attachedToType === 'Filing' && attachedToId) {
+    rFilings.add(attachedToId);
+    /* Filing 의 owner + 포함사업체 추가 */
+    try {
+      const f = await db.prepare(`SELECT owner_type, owner_id, included_business_ids FROM filings WHERE id = ?`).bind(attachedToId).first();
+      if (f) {
+        if (f.owner_type === 'Person' && f.owner_id) rPersons.add(f.owner_id);
+        if (f.owner_type === 'Business' && f.owner_id) {
+          rBusinesses.add(f.owner_id);
+          try {
+            const rep = await db.prepare(
+              `SELECT user_id FROM business_members WHERE business_id = ? AND (removed_at IS NULL OR removed_at = '') AND (role = '대표자' OR is_primary = 1) ORDER BY is_primary DESC LIMIT 1`
+            ).bind(f.owner_id).first();
+            if (rep?.user_id) rPersons.add(rep.user_id);
+          } catch {}
+        }
+        if (f.included_business_ids) {
+          try {
+            const bizIds = JSON.parse(f.included_business_ids);
+            (bizIds || []).forEach(b => rBusinesses.add(b));
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  const relPersonsJson = rPersons.size ? JSON.stringify([...rPersons]) : null;
+  const relBusinessesJson = rBusinesses.size ? JSON.stringify([...rBusinesses]) : null;
+  const relChatroomsJson = rChatrooms.size ? JSON.stringify([...rChatrooms]) : null;
+  const relFilingsJson = rFilings.size ? JSON.stringify([...rFilings]) : null;
+
+  /* memos 컬럼 lazy migration (admin-filings.js 와 동일 — 안전망) */
+  const addCol = async (sql) => { try { await db.prepare(sql).run(); } catch {} };
+  await addCol(`ALTER TABLE memos ADD COLUMN attached_to_type TEXT`);
+  await addCol(`ALTER TABLE memos ADD COLUMN attached_to_id INTEGER`);
+  await addCol(`ALTER TABLE memos ADD COLUMN related_persons_json TEXT`);
+  await addCol(`ALTER TABLE memos ADD COLUMN related_businesses_json TEXT`);
+  await addCol(`ALTER TABLE memos ADD COLUMN related_chatrooms_json TEXT`);
+  await addCol(`ALTER TABLE memos ADD COLUMN related_filings_json TEXT`);
+
   try {
     const r = await db.prepare(
-      `INSERT INTO memos (room_id, target_user_id, target_business_id, author_user_id, author_name, assigned_to_user_id, memo_type, content, visibility, is_edited, due_date, linked_message_id, filing_type, filing_period, category, tags, attachments, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'internal', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(roomId, targetUserId, targetBusinessId, authorUserId, authorName, assignedToUserId, memoType, content, dueDate, linkedMsgId, filingType, filingPeriod, category, tags, attachments, now, now).run();
+      `INSERT INTO memos (room_id, target_user_id, target_business_id, author_user_id, author_name, assigned_to_user_id, memo_type, content, visibility, is_edited, due_date, linked_message_id, filing_type, filing_period, category, tags, attachments,
+                          attached_to_type, attached_to_id, related_persons_json, related_businesses_json, related_chatrooms_json, related_filings_json,
+                          created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'internal', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(roomId, targetUserId, targetBusinessId, authorUserId, authorName, assignedToUserId, memoType, content, dueDate, linkedMsgId, filingType, filingPeriod, category, tags, attachments,
+           attachedToType, attachedToId, relPersonsJson, relBusinessesJson, relChatroomsJson, relFilingsJson,
+           now, now).run();
     return Response.json({ ok: true, id: r.meta?.last_row_id || null, tags: tags ? safeParseJson(tags) : [] });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    /* 컬럼 없는 환경 fallback — 기존 INSERT */
+    try {
+      const r = await db.prepare(
+        `INSERT INTO memos (room_id, target_user_id, target_business_id, author_user_id, author_name, assigned_to_user_id, memo_type, content, visibility, is_edited, due_date, linked_message_id, filing_type, filing_period, category, tags, attachments, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'internal', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(roomId, targetUserId, targetBusinessId, authorUserId, authorName, assignedToUserId, memoType, content, dueDate, linkedMsgId, filingType, filingPeriod, category, tags, attachments, now, now).run();
+      return Response.json({ ok: true, id: r.meta?.last_row_id || null, tags: tags ? safeParseJson(tags) : [], legacy: true });
+    } catch (e2) {
+      return Response.json({ error: e2.message }, { status: 500 });
+    }
   }
 }
 

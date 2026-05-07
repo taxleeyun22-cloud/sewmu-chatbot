@@ -33,6 +33,13 @@
     <div id="bizBasic"><div class="loading">기본 정보 불러오는 중...</div></div>
   </div>
 
+  <!-- Phase 6 (2026-05-07 사장님 명세): 신고 검토표 — 법인세 -->
+  <div class="section" id="bizFilingReviewSection">
+    <div class="sec-title">🧾 신고 검토표 — 법인세 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">결재용 검토표 · 작년 vs 올해 비교 · A4 가로 PDF</span>
+    </div>
+    <div id="bdFilingsReview" style="font-size:.85em"><div class="loading">불러오는 중...</div></div>
+  </div>
+
   <div class="section">
     <div class="sec-title">🏢 업체 메모 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">전화·문서·이슈·약속 + #태그 + 📎첨부 — 이 메모는 거래처(사람) dashboard 에도 "🏢 업체명 메모" 로 표시</span>
       <button onclick="openMemoWindowBiz()" style="margin-left:auto;background:#fff;color:#3182f6;border:1px solid #3182f6;padding:4px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit" title="메모만 별창으로 — 카톡 보면서 동시에 메모">🪟 별창</button>
@@ -121,5 +128,54 @@
 <div id="memoModal" class="hidden"><div id="memoSaveBtn" class="hidden"></div></div>
 
 <script src="/business.js?v=2"></script>
+<!-- Phase 6 (2026-05-07): 신고 검토표 시스템 (법인세) -->
+<script src="/admin-filing-review.js?v=1"></script>
+<script>
+/* business.html 페이지 로드 후 — 법인세 검토표 list 표시.
+ * business.js 가 url 의 ?id=N 로 업체 정보 fetch 후 _bdCurrent 같은 변수에 저장.
+ * 우리는 단순 url id 사용 + bizName 보고 호출. */
+(function bizFilingReviewInit(){
+  function init(){
+    var url=new URL(location.href);
+    var bid=Number(url.searchParams.get('id')||0);
+    if(!bid) return;
+    /* 업체 정보 fetch — 법인 / 개인 분기 */
+    fetch('/api/admin-businesses?key='+encodeURIComponent(window.KEY||url.searchParams.get('key')||'')+'&id='+bid)
+      .then(r=>r.json()).then(d=>{
+        var box=document.getElementById('bdFilingsReview');
+        if(!box) return;
+        var biz=d.business||{};
+        var nm=biz.company_name||('#'+bid);
+        var form=biz.company_form||'';
+        var isCorp=/법인/.test(form);
+        if(isCorp){
+          /* 법인사업자 → 법인세 Case list */
+          if(typeof _filRenderListInto==='function'){
+            _filRenderListInto(box, 'Business', bid, nm);
+          } else {
+            box.innerHTML='<div style="color:#9ca3af;padding:8px;font-size:.82em">로딩 중...</div>';
+            setTimeout(()=>{ if(typeof _filRenderListInto==='function') _filRenderListInto(box, 'Business', bid, nm); }, 500);
+          }
+        } else {
+          /* 개인사업자 → 안내 + 대표자 link */
+          var ceo=biz.ceo_name||'대표자';
+          /* business_members 에서 대표자 user_id 찾기 */
+          var rep=(d.members||[]).find(m=>(m.role==='대표자'||m.is_primary===1)&&m.user_id);
+          var link=rep?'<a href="javascript:void(0)" onclick="alert(\'admin 화면에서 사용자 list 의 '+ceo.replace(/[\'\"]/g,'')+' → 거래처정보 → 신고 검토표 섹션 참조\')" style="color:#3182f6;font-weight:600">→ '+ceo+' 종소세 Case 보기 (admin)</a>':'';
+          box.innerHTML='<div style="background:#dbeafe;border-left:3px solid #3b82f6;padding:10px 14px;border-radius:6px;color:#1e3a8a;font-size:.86em">'
+            +'📌 이 업체는 <b>개인사업자</b> 입니다. 법인세 Case 가 아닌, 대표자 ('+ceo+') 의 종소세에 포함됩니다.'
+            +(link?'<div style="margin-top:6px">'+link+'</div>':'')
+            +'</div>';
+        }
+      })
+      .catch(()=>{
+        var box=document.getElementById('bdFilingsReview');
+        if(box) box.innerHTML='<div style="color:#f04452;padding:8px;font-size:.82em">업체 정보 로드 실패</div>';
+      });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
+  else setTimeout(init, 100);
+})();
+</script>
 </body>
 </html>
