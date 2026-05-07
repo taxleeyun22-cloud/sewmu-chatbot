@@ -28,21 +28,47 @@ if(n>0){b.textContent=n;b.style.display='inline-block'}else{b.style.display='non
 }catch{}
 }
 
-/* 사장님 명령 (2026-05-07): 거절 + 사유 입력 + 보정 안내.
- * 거절 시 사유 prompt → /api/admin-approve action='reject' rejection_reason 같이 send.
- * 사용자 화면에 '✕ 거절: [사유]. 보정해 주세요.' 표시. */
-async function rejectUserWithReason(userId, name){
-  const reason = prompt(name+' 거절 사유 (사용자에게 표시됨):\n\n예) "본명·연락처가 카톡과 일치하지 않음. 보정 후 재신청 부탁드립니다."', '');
-  if(reason === null) return; /* 취소 */
+/* 사장님 명령 (2026-05-07): 거절 모달 — 미리 옵션 + 직접 입력 + 사용자 화면에 사유 표시 */
+var _rejTargetUserId=null;
+function rejectUserWithReason(userId, name){
+  _rejTargetUserId=userId;
+  const m=$g('rejectReasonModal'); if(!m) return;
+  $g('rejectReasonTarget').innerHTML='👤 <b>'+e(name||'#'+userId)+'</b> 거절';
+  /* 라디오 reset */
+  document.querySelectorAll('input[name=rejReason]').forEach(function(r){r.checked=false});
+  if($g('rejReasonText')) $g('rejReasonText').value='';
+  m.style.display='flex';
+  m.style.alignItems='center';
+  m.style.justifyContent='center';
+  document.body.style.overflow='hidden';
+}
+function closeRejectReasonModal(){
+  const m=$g('rejectReasonModal'); if(!m) return;
+  m.style.display='none';
+  document.body.style.overflow='';
+  _rejTargetUserId=null;
+}
+function _rrPick(el){
+  /* 라디오 클릭 시 textarea 에 자동 채움 (사장님 수정 가능) */
+  if(el && el.value && $g('rejReasonText')) $g('rejReasonText').value=el.value;
+}
+async function submitRejectReason(){
+  if(!_rejTargetUserId){alert('user_id 없음');return}
+  const reason=($g('rejReasonText')?.value||'').trim();
+  if(!reason){alert('거절 사유를 입력하거나 옵션을 선택해주세요');return}
+  const btn=$g('rejReasonSubmitBtn');
+  if(btn){btn.disabled=true;btn.textContent='처리 중...';btn.style.opacity='.6'}
   try{
-    const r = await fetch('/api/admin-approve?key='+encodeURIComponent(KEY), {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({user_id:userId, action:'reject', rejection_reason: (reason||'').trim()||null}),
+    const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:_rejTargetUserId, action:'reject', rejection_reason:reason}),
     });
-    const d = await r.json();
-    if(!d.ok){ alert('거절 실패: '+(d.error||'unknown')); return; }
+    const d=await r.json();
+    if(!d.ok){alert('거절 실패: '+(d.error||'unknown'));return}
+    closeRejectReasonModal();
     if(typeof loadUsers==='function') loadUsers(currentStatus);
-  }catch(err){ alert('오류: '+err.message); }
+  }catch(err){alert('오류: '+err.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent='→ 거절';btn.style.opacity=''}}
 }
 
 function userStatus(s){

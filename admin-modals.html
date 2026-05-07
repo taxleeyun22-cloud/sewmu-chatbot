@@ -1608,6 +1608,40 @@
   </div>
 </div>
 
+<!-- 사장님 명령 (2026-05-07): 거절 사유 모달 — 미리 옵션 + 직접 입력 -->
+<div id="rejectReasonModal" class="modal-overlay" style="display:none;z-index:11600">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:480px;box-shadow:0 10px 40px rgba(0,0,0,.2);overflow:hidden">
+    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;background:#fafbfc">
+      <div style="font-weight:700;font-size:1em;color:#dc2626">✕ 거절 사유</div>
+      <button onclick="closeRejectReasonModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
+    </div>
+    <div style="padding:14px 18px">
+      <div id="rejectReasonTarget" style="font-size:.86em;background:#fef3c7;border-left:3px solid #f59e0b;padding:8px 12px;border-radius:6px;margin-bottom:12px;color:#92400e"></div>
+      <label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:6px">자주 쓰는 사유 선택</label>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;cursor:pointer;font-size:.85em">
+          <input type="radio" name="rejReason" value="연락처가 카카오와 일치하지 않습니다. 카카오에 등록된 번호로 보정 후 재신청해 주세요." onchange="_rrPick(this)"> 📞 연락처가 카카오와 일치하지 않음
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;cursor:pointer;font-size:.85em">
+          <input type="radio" name="rejReason" value="본명·실명 확인 불가. 진짜 본명을 입력 후 재신청해 주세요." onchange="_rrPick(this)"> 👤 본명 확인 불가
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;cursor:pointer;font-size:.85em">
+          <input type="radio" name="rejReason" value="가명·허위 정보 의심. 정확한 정보로 보정 후 재신청해 주세요." onchange="_rrPick(this)"> 🚫 가명·허위 의심
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;cursor:pointer;font-size:.85em">
+          <input type="radio" name="rejReason" value="기장거래처 자격 미확인. 사장님에게 직접 문의해 주세요." onchange="_rrPick(this)"> ⚠️ 기장거래처 자격 미확인
+        </label>
+      </div>
+      <label style="font-size:.78em;color:#6b7280;display:block;margin-bottom:4px">또는 직접 입력 (사용자에게 그대로 표시됨)</label>
+      <textarea id="rejReasonText" rows="3" placeholder="거절 사유를 입력하세요..." style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.88em;font-family:inherit;box-sizing:border-box;resize:vertical"></textarea>
+    </div>
+    <div style="padding:10px 16px;border-top:1px solid #f2f4f6;display:flex;gap:8px;justify-content:flex-end;background:#fafbfc">
+      <button onclick="closeRejectReasonModal()" style="background:#e5e8eb;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
+      <button id="rejReasonSubmitBtn" onclick="submitRejectReason()" style="background:#dc2626;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">→ 거절</button>
+    </div>
+  </div>
+</div>
+
 <!-- 사장님 명령 (2026-05-07): 합치기 모달 — 사용자 row 의 [🔗 합치기] 버튼에서 진입. -->
 <div id="mergePickerModal" class="modal-overlay" style="display:none;z-index:11500">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">

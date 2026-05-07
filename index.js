@@ -2616,7 +2616,11 @@ async function loadMyPage(){
     statusHtml+='<div style="margin-top:8px;font-size:.75em;opacity:.9">기장거래처이시면 카톡으로 문의해 주세요 ↓</div>';
   } else if(st==='rejected'){
     statusHtml='<div style="font-weight:700;color:#ffcdd2">✕ 이용 제한된 계정</div>';
-    statusHtml+='<div style="font-size:.75em;margin-top:4px;opacity:.9">재신청 또는 세무사에게 문의해 주세요</div>';
+    /* 사장님 명령 (2026-05-07): 거절 사유 사용자에게 표시 + 보정 안내 */
+    if(currentUser.rejection_reason){
+      statusHtml+='<div style="font-size:.78em;margin-top:6px;padding:8px 10px;background:rgba(255,255,255,.18);border-radius:6px;line-height:1.5"><b>📝 사유:</b> '+esc(currentUser.rejection_reason)+'</div>';
+    }
+    statusHtml+='<div style="font-size:.75em;margin-top:6px;opacity:.9">위 사유를 보정 후 재신청 또는 세무사에게 문의해 주세요</div>';
     statusHtml+='<button onclick="reapplyAccount()" style="margin-top:10px;background:#fff;color:#c62828;border:none;padding:8px 14px;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">📨 재신청 요청</button>';
   } else if(st==='rejoined'){
     /* 사장님 명령 (2026-05-07): 재가입 = 다시 승인 받기 전엔 사용 X */
@@ -2889,9 +2893,9 @@ function showApprovalBanner(){
     bar.style.display='block';bar.style.background='#e3f2fd';bar.style.color='#0d47a1';
     bar.innerHTML='✓ 일반 승인 · 오늘 '+used+'/'+lim+'건 이용';
   } else if(st==='rejected'){
-    bar.style.display='block';bar.style.background='#ffebee';bar.style.color='#c62828';
-    var reason = currentUser.rejection_reason ? '<br><span style="font-size:.92em">📝 사유: '+esc(currentUser.rejection_reason)+'</span>' : '';
-    bar.innerHTML='✕ 이용이 제한된 계정입니다.'+reason+'<br>보정 후 세무회계 이윤(053-269-1213)에 재신청 부탁드립니다.';
+    bar.style.display='block';bar.style.background='#ffebee';bar.style.color='#c62828';bar.style.textAlign='left';bar.style.padding='10px 14px';
+    var reason = currentUser.rejection_reason ? '<div style="font-size:.92em;margin-top:4px"><b>📝 사유:</b> '+esc(currentUser.rejection_reason)+'</div>' : '';
+    bar.innerHTML='<div style="font-weight:700">✕ 이용이 제한된 계정입니다</div>'+reason+'<div style="font-size:.85em;margin-top:4px">보정 후 세무회계 이윤(053-269-1213)에 재신청 부탁드립니다</div>';
   } else if(st==='rejoined'){
     /* 사장님 명령 (2026-05-07): 재가입 = 다시 승인 받기 전엔 사용 X */
     bar.style.display='block';bar.style.background='#fff8e1';bar.style.color='#8b6914';
