@@ -227,6 +227,22 @@ async function _filFetchOwnerData(f) {
       if (f.type === '종소세') {
         filtered = filtered.filter(b => !/법인/.test(b.company_form || ''));
       }
+      /* 사장님 명령 (2026-05-08): 연도별 매칭 — 사업체 운영기간(개업일~폐업일) 과
+       * fiscal_year(YYYY-01-01 ~ YYYY-12-31) 가 하루라도 겹치면 표시.
+       * 예: '24-12-02 개업, '25-03 폐업 → 24년·25년 검토표 표시, 26년 X.
+       * - 개업일 없음/빈값 → fiscal_year 통과 가정 (의문 시 표시)
+       * - 폐업일 없음 → 운영 중 (개업일만 통과 OK) */
+      if (f.fiscal_year) {
+        const yearStart = String(f.fiscal_year) + '-01-01';
+        const yearEnd = String(f.fiscal_year) + '-12-31';
+        filtered = filtered.filter(b => {
+          const open = (b.establishment_date || '').slice(0, 10);
+          const close = (b.closed_date || '').slice(0, 10);
+          if (open && open > yearEnd) return false;       /* 개업이 fiscal_year 이후 */
+          if (close && close < yearStart) return false;    /* 폐업이 fiscal_year 이전 */
+          return true;
+        });
+      }
       f._businesses = filtered;
       /* 참고용 — 어느 사업체가 included_business_ids 에 있는지 (★ 표시 등 활용 가능) */
       try { f._includedBizIds = JSON.parse(f.included_business_ids || '[]'); } catch { f._includedBizIds = []; }
@@ -639,6 +655,7 @@ function _filRenderOwnerInfoSync(f) {
       + (bnFmt ? ' · 사업자 ' + _filEsc(bnFmt) : '')
       + (b.ceo_name ? ' · 대표 ' + _filEsc(b.ceo_name) : '')
       + (b.establishment_date ? ' · 개업 ' + _filEsc(b.establishment_date.slice(0, 10)) : '')
+      + (b.closed_date ? ' · 폐업 ' + _filEsc(b.closed_date.slice(0, 10)) : '')
       + (b.address ? '<div style="margin-left:18px;color:#6b7280;font-size:.92em">' + _filEsc(b.address) + '</div>' : '');
   };
   let html = '';

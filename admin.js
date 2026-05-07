@@ -1419,7 +1419,7 @@ async function openManualClientModal(){
   /* 👤 사람 정보 */
   ['mcRealName','mcBirthDate','mcPhone','mcCompany','mcCeo','mcBizNo','mcSubBiz','mcCorpNo',
    'mcAddr1','mcAddr2','mcBizPhone','mcIndustryCode','mcBizCategory','mcIndustry',
-   'mcEstDate','mcFiscalTerm','mcNotes'].forEach(id=>{const el=$g(id);if(el)el.value=''});
+   'mcEstDate','mcClosedDate','mcFiscalTerm','mcNotes'].forEach(id=>{const el=$g(id);if(el)el.value=''});
   /* Phase (2026-05-07 사장님 명령): 사용자 등록 흐름에도 기존 업체 선택 모드 표시.
    * default '➕ 신규 입력'. mcModeTabs 활성화. 복수 선택 list 초기화. */
   _mcSelectedBizList = [];
@@ -1656,6 +1656,7 @@ async function submitAddBizForUser(userId){
     address:[addr1,addr2].filter(Boolean).join(' ')||null,
     phone:($g('mcBizPhone')?.value||'').trim()||null,
     establishment_date:$g('mcEstDate')?.value||null,
+    closed_date:$g('mcClosedDate')?.value||null,
     fiscal_year_start:$g('mcFiscalStart')?.value||null,
     fiscal_year_end:$g('mcFiscalEnd')?.value||null,
     fiscal_term:$g('mcFiscalTerm')?.value?Number($g('mcFiscalTerm').value):null,
@@ -1746,6 +1747,7 @@ async function submitManualClient(){
     business_category:($g('mcBizCategory')?.value||'').trim()||null,
     industry:($g('mcIndustry')?.value||'').trim()||null,
     establishment_date:$g('mcEstDate')?.value||null,
+    closed_date:$g('mcClosedDate')?.value||null,
     fiscal_year_start:$g('mcFiscalStart')?.value||null,
     fiscal_year_end:$g('mcFiscalEnd')?.value||null,
     fiscal_term:$g('mcFiscalTerm')?.value?Number($g('mcFiscalTerm').value):null,

@@ -812,7 +812,7 @@ async function loadBusinesses(){
 }
 
 async function pmClearForm(){
-  ['pmCompany','pmBizNo','pmCEO','pmPhone','pmIndustry','pmAddr','pmAddr2','pmEstDate','pmEmp','pmRevenue','pmNotes','pmSubBizNo','pmCorpNo','pmBizCategory','pmIndustryCode','pmFiscalStart','pmFiscalEnd','pmFiscalTerm','pmHrYear'].forEach(id=>{const el=$g(id);if(el)el.value=''});
+  ['pmCompany','pmBizNo','pmCEO','pmPhone','pmIndustry','pmAddr','pmAddr2','pmEstDate','pmClosedDate','pmEmp','pmRevenue','pmNotes','pmSubBizNo','pmCorpNo','pmBizCategory','pmIndustryCode','pmFiscalStart','pmFiscalEnd','pmFiscalTerm','pmHrYear'].forEach(id=>{const el=$g(id);if(el)el.value=''});
   $g('pmBizType').value='';
   $g('pmTaxType').value='';
   $g('pmVatPeriod').value='';
@@ -872,6 +872,8 @@ async function pmEditBusiness(bizId){
     $g('pmTaxType').value=b.tax_type||'';
     $g('pmVatPeriod').value=b.vat_period||'';
     $g('pmEstDate').value=b.establishment_date||'';
+    /* 사장님 명령 (2026-05-08): 폐업일자 */
+    if($g('pmClosedDate')) $g('pmClosedDate').value=(b.closed_date||'').slice(0,10);
     $g('pmEmp').value=b.employee_count||'';
     $g('pmAddr').value=b.address||'';
     $g('pmRevenue').value=b.last_revenue||'';
@@ -905,6 +907,7 @@ async function saveBusiness(){
     tax_type:$g('pmTaxType').value,
     vat_period:$g('pmVatPeriod').value,
     establishment_date:$g('pmEstDate').value,
+    closed_date:$g('pmClosedDate')?$g('pmClosedDate').value:null,
     employee_count:$g('pmEmp').value,
     address:$g('pmAddr').value.trim(),
     last_revenue:$g('pmRevenue').value,

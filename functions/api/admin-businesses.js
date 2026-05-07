@@ -52,6 +52,8 @@ async function ensureTables(db) {
   await add(`ALTER TABLE businesses ADD COLUMN fiscal_term INTEGER`);            /* N기 (몇 번째 회계연도) */
   await add(`ALTER TABLE businesses ADD COLUMN hr_year INTEGER`);                /* 인사연도 */
   await add(`ALTER TABLE businesses ADD COLUMN company_form TEXT`);              /* 회사구분: 법인사업자/개인사업자/간이사업자 등 */
+  /* 사장님 명령 (2026-05-07): 폐업일자 — 신고검토표 fiscal_year 매칭에 사용 */
+  await add(`ALTER TABLE businesses ADD COLUMN closed_date TEXT`);                /* 폐업일자 YYYY-MM-DD */
 }
 
 export async function onRequestGet(context) {
@@ -118,6 +120,7 @@ export async function onRequestGet(context) {
         sub_business_number: r.sub_business_number,
         corporate_number: r.corporate_number,
         establishment_date: r.establishment_date,
+        closed_date: r.closed_date,
         contract_date: r.contract_date,
         fiscal_year_start: r.fiscal_year_start,
         fiscal_year_end: r.fiscal_year_end,
@@ -427,7 +430,7 @@ export async function onRequestPut(context) {
   const fields = [];
   const vals = [];
   const allow = ['company_name', 'business_number', 'ceo_name', 'industry', 'business_type', 'tax_type',
-    'establishment_date', 'address', 'phone', 'employee_count', 'last_revenue', 'vat_period', 'notes', 'status',
+    'establishment_date', 'closed_date', 'address', 'phone', 'employee_count', 'last_revenue', 'vat_period', 'notes', 'status',
     'sub_business_number', 'corporate_number', 'business_category', 'industry_code',
     'fiscal_year_start', 'fiscal_year_end', 'fiscal_term', 'hr_year', 'company_form',
     'service_type', 'contract_date'];

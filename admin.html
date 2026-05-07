@@ -234,7 +234,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=46', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=47', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -246,7 +246,7 @@ setTimeout(function(){
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=176"></script>
+<script src="/admin.js?v=177"></script>
 <script src="/admin-memos.js?v=13"></script>
 <script src="/admin-customer-dash.js?v=23"></script>
 <script src="/admin-business-tab.js?v=5"></script>
@@ -254,9 +254,9 @@ setTimeout(function(){
 <script src="/admin-rooms-list.js?v=6"></script>
 <script src="/admin-rooms-msg.js?v=5"></script>
 <script src="/admin-rooms-misc.js?v=2"></script>
-<script src="/admin-users-tab.js?v=25"></script>
+<script src="/admin-users-tab.js?v=26"></script>
 <!-- Phase 2 (2026-05-07): 신고 검토표 시스템 (사장님 명세) -->
-<script src="/admin-filing-review.js?v=19"></script>
+<script src="/admin-filing-review.js?v=20"></script>
 <!-- Phase #7 적용 (2026-05-06): admin-docs.js lazy load.
      문서 탭 클릭 시점에 동적 <script> 추가. 첫 로딩 시 download 0. -->
 <script>
