@@ -664,19 +664,24 @@ export async function onRequestPost(context) {
       const u = await db.prepare(`SELECT id, real_name, name FROM users WHERE id = ?`).bind(userId).first();
       if (!u) return Response.json({ error: "user not found" }, { status: 404 });
       const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
-      /* provider_id 도 무효화 (다시 로그인해도 매칭 안 되게) */
-      const u2 = await db.prepare(`SELECT provider, provider_id FROM users WHERE id = ?`).bind(userId).first();
-      const newProviderId = u2?.provider_id ? `deleted:${userId}:${u2.provider_id}` : `deleted:${userId}`;
+      /* 사장님 명령 (2026-05-08): provider_id 무효화 폐기.
+       * 사장님 의도: "카카오 재로그인하면 다시 기록매칭되어야지".
+       * provider_id 그대로 유지 → 같은 카카오 로그인 시 자동 매칭 + 매핑 revive (auth/me 에서 처리). */
       await db.prepare(`
         UPDATE users SET
           approval_status = 'deleted',
-          deleted_at = ?,
-          provider_id = ?,
-          provider_user_id = ?
+          deleted_at = ?
         WHERE id = ?
-      `).bind(now, newProviderId, newProviderId, userId).run();
-      /* 세션 삭제 */
+      `).bind(now, userId).run();
+      /* 세션 삭제 (재로그인 강제) */
       try { await db.prepare(`DELETE FROM sessions WHERE user_id = ?`).bind(userId).run(); } catch {}
+      /* 사장님 명령 (2026-05-08): business_members cascade — 비활성 user 매핑 자동 해제 */
+      try {
+        await db.prepare(
+          `UPDATE business_members SET removed_at = ? WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`
+        ).bind(now, userId).run();
+      } catch {}
+      /* 메모는 절대 안 건드림 (사장님 명시) */
       return Response.json({ ok: true, user_id: userId, deleted_name: u.real_name || u.name });
     } catch (e) {
       return Response.json({ error: e.message }, { status: 500 });

@@ -315,6 +315,27 @@ export async function onRequestPost(context) {
       ).bind(actor, 'approval_change', userId, prev?.approval_status || null, newStatus).run();
     } catch {}
 
+    /* 사장님 명령 (2026-05-08): 사용자 status 변경 시 business_members 자동 cascade.
+     * 원칙 2 (승인된 user 만 담당자) + 원칙 3 (자동 동기화) + 원칙 4 (manual fix 금지).
+     * 활성 status: approved_client / approved_guest / admin → 매핑 활성 (revive)
+     * 비활성: pending / rejected / terminated / withdrawn / deleted / merged → removed_at = now
+     * 메모는 절대 안 건드림 (사장님 명시: "메모는 아무것도 건들지마라"). */
+    try {
+      const ACTIVE = ['approved_client', 'approved_guest', 'admin'];
+      const isActive = ACTIVE.includes(newStatus);
+      if (isActive) {
+        /* 카카오 재로그인 자동 복구 패턴: 매핑 revive */
+        await db.prepare(
+          `UPDATE business_members SET removed_at = NULL WHERE user_id = ? AND removed_at IS NOT NULL`
+        ).bind(userId).run();
+      } else {
+        /* 비활성 → 매핑 자동 해제 */
+        await db.prepare(
+          `UPDATE business_members SET removed_at = ? WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`
+        ).bind(kst, userId).run();
+      }
+    } catch {}
+
     /* 거래 종료 처리 — 해당 사용자가 속한 모든 활성 방 closed + 해당 사용자 left_at 마킹.
        일반 관리자 멤버는 '종료된 방' 탭에서 계속 볼 수 있고, 거래처 본인은
        my-rooms 조회 시 terminated 상태에 의해 접근 차단됨 (아래 my-rooms 쿼리 수정 참고) */

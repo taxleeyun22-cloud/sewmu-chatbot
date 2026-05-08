@@ -364,12 +364,10 @@ async function _openBusinessDashboardLegacy(bid){
       +'</div>'
       +'<div style="font-size:.78em;color:#8b95a1;padding:4px 0">이 거래처(업체) 의 모든 상담방 대화 + 메모 통합 요약. 클릭 시 별도 모달.</div>'
     +'</div>';
-    /* 구성원 — 사장님 명령 (2026-05-08): "사용자가 연결된 사업장으로 넣는사람만 / 나머진 자동 삭제".
-     * "🧹 중복 정리" 버튼: 같은 phone 의 user 중복 detect → keep 1명 + 나머지 removed_at */
+    /* 사장님 명령 (2026-05-08): "manual fix 금지 / 자동 조정". 🧹 중복 정리 버튼 폐기.
+     * approval_status cascade 가 자동 매핑 정리 — 사장님이 사용자 status 만 관리. */
     html+='<div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:12px">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px"><div style="font-weight:700;font-size:.92em">👥 구성원 ('+members.length+'명)</div>'
-      +'<div style="display:flex;gap:6px"><button onclick="_bdCleanupDuplicateMembers('+_bdCurrent.id+')" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:5px 12px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit" title="같은 phone 의 중복 user 자동 정리 — 가장 오래된 1명만 남김">🧹 중복 정리</button>'
-      +'<button onclick="_bdAddMember()" style="background:var(--brand-primary,#3182f6);color:#fff;border:none;padding:5px 14px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">＋ 구성원 추가</button></div></div>';
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-weight:700;font-size:.92em">👥 구성원 ('+members.length+'명) <span style="font-size:.7em;color:#8b95a1;font-weight:500;margin-left:6px">활성 사용자 자동 표시 — 사용자 status 변경 시 자동 동기화</span></div><button onclick="_bdAddMember()" style="background:var(--brand-primary,#3182f6);color:#fff;border:none;padding:5px 14px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">＋ 구성원 추가</button></div>';
     if(!members.length){
       html+='<div style="color:#8b95a1;font-size:.85em;padding:12px 0;text-align:center">아직 연결된 구성원이 없습니다</div>';
     } else {

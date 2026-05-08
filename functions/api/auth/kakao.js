@@ -121,16 +121,37 @@ export async function onRequestGet(context) {
      * 4. 어디서도 매칭 X → 새 user INSERT */
     try { await db.prepare(`ALTER TABLE users ADD COLUMN withdrawn_provider_id TEXT`).run(); } catch {}
 
-    /* 1. 활성 user 매칭 */
+    /* 사장님 명령 (2026-05-08): "카카오 재로그인하면 다시 기록매칭되어야지".
+     * 1단계 매칭에서 deleted_at filter 제거 → deleted user 도 매칭 + 자동 복구.
+     * approval_status='deleted' 면 'approved_client' 로 복구. business_members 매핑 자동 revive. */
     let user = await db.prepare(
-      `SELECT id FROM users WHERE provider = 'kakao' AND provider_id = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
+      `SELECT id, deleted_at, approval_status FROM users WHERE provider = 'kakao' AND provider_id = ? LIMIT 1`
     ).bind(kakaoId).first();
 
     if (user) {
-      /* 정상 로그인 (정보 갱신) */
-      await db.prepare(
-        `UPDATE users SET name = ?, email = ?, phone = ?, profile_image = ?, last_login_at = datetime('now', '+9 hours') WHERE id = ?`
-      ).bind(name, email, phone, profileImage, user.id).run();
+      if (user.deleted_at && user.deleted_at !== '') {
+        /* 사장님 의도: 자동 부활 + 매핑 자동 revive */
+        const newStatus = user.approval_status === 'deleted' ? 'approved_client' : (user.approval_status || 'approved_client');
+        await db.prepare(`
+          UPDATE users SET
+            deleted_at = NULL,
+            approval_status = ?,
+            name = ?, email = ?, phone = ?, profile_image = ?,
+            last_login_at = datetime('now', '+9 hours')
+          WHERE id = ?
+        `).bind(newStatus, name, email, phone, profileImage, user.id).run();
+        /* business_members 자동 revive */
+        try {
+          await db.prepare(
+            `UPDATE business_members SET removed_at = NULL WHERE user_id = ? AND removed_at IS NOT NULL`
+          ).bind(user.id).run();
+        } catch {}
+      } else {
+        /* 정상 로그인 (정보 갱신) */
+        await db.prepare(
+          `UPDATE users SET name = ?, email = ?, phone = ?, profile_image = ?, last_login_at = datetime('now', '+9 hours') WHERE id = ?`
+        ).bind(name, email, phone, profileImage, user.id).run();
+      }
     } else {
       /* 2. 옛 탈퇴자 부활 (withdrawn_provider_id 매칭) */
       const withdrawnUser = await db.prepare(

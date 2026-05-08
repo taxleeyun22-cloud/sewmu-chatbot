@@ -86,6 +86,21 @@ export async function onRequestPost(context) {
   const businessId = Number(body.business_id);
   const userId = Number(body.user_id);
   if (!businessId || !userId) return Response.json({ error: 'business_id, user_id 필요' }, { status: 400 });
+  /* 사장님 명령 (2026-05-08): pending/비활성 user 매핑 가드 (원칙 2). */
+  const userStatus = await db.prepare(
+    `SELECT approval_status, COALESCE(is_admin, 0) AS is_admin, deleted_at FROM users WHERE id = ?`
+  ).bind(userId).first();
+  if (!userStatus) return Response.json({ error: 'user 없음' }, { status: 404 });
+  const ACTIVE_STATUSES_BM = ['approved_client', 'approved_guest', 'admin'];
+  const isUserActive = (
+    !userStatus.deleted_at &&
+    (Number(userStatus.is_admin) === 1 || ACTIVE_STATUSES_BM.includes(userStatus.approval_status))
+  );
+  if (!isUserActive) {
+    return Response.json({
+      error: '담당자 자격 없음 — 승인된 사용자만 매핑 가능 (현재 status: ' + (userStatus.approval_status || 'pending') + ')'
+    }, { status: 400 });
+  }
   const role = ALLOWED_ROLES.includes(body.role) ? body.role : '담당자';
   const isPrimary = body.is_primary ? 1 : 0;
   const phone = String(body.phone || '').trim().replace(/[^\d\-]/g, '').slice(0, 20) || null;

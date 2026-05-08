@@ -140,9 +140,15 @@ async function openCustomerDashboard(userId, opts){
     const mappedBizs=(mappedBizRes.businesses)||[];
     const legacyBizs=(bizDocsRes.businesses)||[];
     const userPhoneRaw=(u&&u.phone)||'';
+    /* 사장님 명령 (2026-05-08): 원칙 2 가드 — pending/비활성 user 는 매핑 추가 X */
+    const _ACTIVE_FOR_BIZ = ['approved_client','approved_guest','admin'];
+    const _userActiveForBiz = u && !u.deleted_at && (Number(u.is_admin)===1 || _ACTIVE_FOR_BIZ.indexOf(u.approval_status)>=0);
+    const _addBtn = _userActiveForBiz
+      ? '<button onclick="openAddBizForUser('+userId+',\''+e(nm).replace(/\'/g,'')+'\',\''+e(userPhoneRaw).replace(/\'/g,'')+'\')" style="background:var(--brand-primary,#3182f6);color:#fff;border:none;padding:6px 13px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">＋ 🏢 사업장 추가</button>'
+      : '<button disabled title="기장거래처 승인 후 사업장 추가 가능" style="background:#e5e8eb;color:#9ca3af;border:none;padding:6px 13px;border-radius:6px;font-size:.78em;font-weight:600;cursor:not-allowed;font-family:inherit">＋ 🏢 사업장 추가 (승인 필요)</button>';
     const headerHtml='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
       +'<div style="font-weight:700;font-size:.92em">🏢 연결된 사업장 ('+(mappedBizs.length+legacyBizs.length)+')</div>'
-      +'<button onclick="openAddBizForUser('+userId+',\''+e(nm).replace(/\'/g,'')+'\',\''+e(userPhoneRaw).replace(/\'/g,'')+'\')" style="background:var(--brand-primary,#3182f6);color:#fff;border:none;padding:6px 13px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">＋ 🏢 사업장 추가</button>'
+      +_addBtn
       +'</div>';
     let bizHtml='';
     if(!mappedBizs.length && !legacyBizs.length){
@@ -190,6 +196,8 @@ async function openCustomerDashboard(userId, opts){
             +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:4px 12px;color:#374151">'+kvs+'</div>'
             +'<div style="display:flex;align-items:center;gap:6px;margin-top:9px;padding-top:8px;border-top:1px dashed #e5e8eb">'
               +'<div style="flex:1;font-size:.74em;color:#555">📑 신분증 '+idC+' · 사등 '+bz+' · 홈택스 '+ht+'</div>'
+              /* 사장님 명령 (2026-05-08): 거래처 dashboard 의 ★ 주업체 토글 — 사장님이 위치 못 찾았던 거 명시 */
+              +'<button onclick="toggleCustBizPrimary('+b.member_id+','+(b.member_is_primary?0:1)+',\''+escAttr(b.company_name||'사업장 #'+b.id)+'\')" style="background:'+(b.member_is_primary?'#10b981':'#fff')+';color:'+(b.member_is_primary?'#fff':'#10b981')+';border:1px solid #10b981;padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit;font-weight:700;margin-right:4px" title="'+(b.member_is_primary?'★ 주업체 (해제하려면 클릭)':'☆ 주업체로 설정')+'">'+(b.member_is_primary?'★ 주업체':'☆ 주업체')+'</button>'
               /* 사장님 명령 (2026-05-08): 휴지통 처리된 사업장 → 복원 버튼 */
               +(b.deleted_at?'<button onclick="restoreBusiness('+b.id+',\''+escAttr(b.company_name||'사업장 #'+b.id)+'\')" style="background:#10b981;color:#fff;border:none;padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit;font-weight:700;margin-right:4px" title="휴지통에서 복원 — deleted_at NULL + status=active">♻️ 복원</button>':'')
               /* 사장님 명령 (2026-05-07): "연결된사업장 해제도 있어야될거같은데. 폐업했다던지 사유 발생 가능". */
@@ -238,6 +246,27 @@ async function openCustomerDashboard(userId, opts){
     $g('cdName').textContent='오류';
     $g('cdBasic').innerHTML='<div style="color:#f04452">로드 실패: '+e(err.message)+'</div>';
   }
+}
+
+/* 사장님 명령 (2026-05-08): 거래처 dashboard 에서 주업체 변경 (★ 토글).
+ * 사장님 보고: "사업장 dashboard 의 _bdTogglePrimary 못 찾겠다" → 거래처 dashboard 에 직접 추가.
+ * member_id 로 PATCH /api/admin-business-members?id={member_id}. */
+async function toggleCustBizPrimary(memberId, nextPrimary, bizName){
+  if(!memberId){ alert('member_id 없음'); return; }
+  const ok = confirm(nextPrimary
+    ? '★ 사업장 [' + bizName + '] 을 주업체로 설정할까요?\n(다른 주업체는 자동 해제됨)'
+    : '☆ 사업장 [' + bizName + '] 의 주업체 설정을 해제할까요?');
+  if(!ok) return;
+  try{
+    const r = await fetch('/api/admin-business-members?key=' + encodeURIComponent(KEY) + '&id=' + memberId, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_primary: nextPrimary }),
+    });
+    const d = await r.json();
+    if(!d.ok){ alert('변경 실패: ' + (d.error || 'unknown')); return; }
+    if(typeof openCustomerDashboard === 'function' && _cdCurrentUserId) openCustomerDashboard(_cdCurrentUserId);
+  }catch(err){ alert('오류: ' + err.message); }
 }
 
 /* 사장님 명령 (2026-05-08): 휴지통 사업장 복원 */

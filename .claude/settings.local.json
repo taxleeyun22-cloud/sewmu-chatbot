@@ -6,7 +6,9 @@
       "Bash(grep -l \"admin\" C:/Users/user/Desktop/sewmu-chatbot/functions/api/*.js)",
       "Bash(ls C:/Users/user/Desktop/sewmu-chatbot/*.json C:/Users/user/Desktop/sewmu-chatbot/**/*.json)",
       "mcp__chrome-devtools__*",
-      "mcp__playwright__*"
+      "mcp__playwright__*",
+      "Bash(npm run *)",
+      "Bash(git add *)"
     ]
   }
 }

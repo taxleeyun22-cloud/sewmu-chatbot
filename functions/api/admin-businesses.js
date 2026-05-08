@@ -274,6 +274,32 @@ export async function onRequestPost(context) {
     return await addBusinessToUser(db, body);
   }
 
+  /* 사장님 명령 (2026-05-08): 1회용 비활성 user 매핑 일괄 정리.
+   * 원칙 1·2 가드 — 현재 비활성(pending/rejected/deleted/merged 등) user 의
+   * business_members 매핑 자동 정리. owner 권한 검증. */
+  if (action === 'cleanup_inactive_mappings') {
+    try {
+      const now = kst();
+      /* 활성 status NOT IN → 매핑 removed_at */
+      const r = await db.prepare(`
+        UPDATE business_members SET removed_at = ?
+        WHERE (removed_at IS NULL OR removed_at = '')
+          AND user_id IN (
+            SELECT id FROM users
+            WHERE COALESCE(is_admin, 0) = 0
+              AND (
+                deleted_at IS NOT NULL AND deleted_at != ''
+                OR COALESCE(approval_status, 'pending') NOT IN ('approved_client', 'approved_guest', 'admin')
+              )
+          )
+      `).bind(now).run();
+      const cleaned = r?.meta?.changes || 0;
+      return Response.json({ ok: true, cleaned });
+    } catch (e) {
+      return Response.json({ ok: false, error: e.message }, { status: 500 });
+    }
+  }
+
   /* 사장님 명령 (2026-05-08): 사업장 구성원 중복 정리.
    * "사용자가 연결된 사업장으로 넣는사람만 / 나머진 자동 삭제".
    * 룰: 같은 phone 의 user 들 중 가장 오래된 user_id (id 작은 것) keep,
@@ -655,6 +681,24 @@ export async function onRequestDelete(context) {
 async function addBusinessToUser(db, body) {
   const userId = Number(body.user_id);
   if (!userId) return Response.json({ ok: false, error: 'user_id 필요' }, { status: 400 });
+
+  /* 사장님 명령 (2026-05-08): pending/비활성 user 매핑 가드.
+   * "approved_client / approved_guest / admin 만 담당자 가능". */
+  const userStatus = await db.prepare(
+    `SELECT approval_status, COALESCE(is_admin, 0) AS is_admin, deleted_at FROM users WHERE id = ?`
+  ).bind(userId).first();
+  if (!userStatus) return Response.json({ ok: false, error: 'user 없음' }, { status: 404 });
+  const ACTIVE_STATUSES = ['approved_client', 'approved_guest', 'admin'];
+  const isUserActive = (
+    !userStatus.deleted_at &&
+    (Number(userStatus.is_admin) === 1 || ACTIVE_STATUSES.includes(userStatus.approval_status))
+  );
+  if (!isUserActive) {
+    return Response.json({
+      ok: false,
+      error: '담당자 자격 없음 — 기장거래처 승인 후 매핑 가능 (현재 status: ' + (userStatus.approval_status || 'pending') + ')'
+    }, { status: 400 });
+  }
 
   /* Phase R2-2 (M19, 2026-05-05 사장님 명령: "기존사업장 선택하는거도 만들고"):
    * body.business_id 있으면 기존 업체 직접 매핑 (company_name 검증 skip) */
