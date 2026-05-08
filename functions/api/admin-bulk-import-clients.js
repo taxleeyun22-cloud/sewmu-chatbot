@@ -303,10 +303,16 @@ export async function onRequestPost(context) {
     const auditLog = [];
     const stats = { inserted_users: 0, inserted_businesses: 0, inserted_members: 0, enriched_users: 0 };
 
-    /* fix v6 (2026-05-08): Bulk INSERT VALUES (...), (...) — 진짜 1 statement.
-     * D1 batch API 도 statement 마다 subrequest 카운트해서 효과 X.
-     * 50 row 씩 chunk → INSERT OR IGNORE INTO ... VALUES (?,?), (?,?), ... 한 번에. */
-    const BULK_CHUNK = 50;
+    /* fix v7 (2026-05-08): D1 의 bind parameter 한계 = 100 per query.
+     * 컬럼 수에 따라 chunk size 다르게:
+     * - user (8 col): 12 row × 8 = 96 ✓
+     * - biz (13 col): 7 row × 13 = 91 ✓
+     * - mapping (4 col): 25 row × 4 = 100 ✓
+     * - SELECT IN (1 col): 100 row */
+    const CHUNK_USER = 12;
+    const CHUNK_BIZ = 7;
+    const CHUNK_MAPPING = 25;
+    const CHUNK_SELECT = 100;
 
     /* 1. user INSERT batch */
     const userIdMap = {}; /* row_no → user_id */
@@ -343,7 +349,7 @@ export async function onRequestPost(context) {
         }
       }
     }
-    /* 신규 user — bulk INSERT VALUES (...), (...) chunk 단위 (BULK_CHUNK=50 row × 9 col = 450 bind, SQLite 999 limit 안전) */
+    /* 신규 user — bulk INSERT VALUES (...), (...) chunk 단위 (CHUNK_USER=12 row × 8 col = 96 bind, D1 limit 100) */
     const userInfo = []; /* { row_no, providerId } */
     const userValues = []; /* [[v1, v2, ...], [v1, v2, ...]] */
     for (const a of details) {
@@ -358,8 +364,8 @@ export async function onRequestPost(context) {
       ]);
     }
     /* bulk INSERT (8 col 사용 — provider/approval_status 는 SQL literal) */
-    for (let i = 0; i < userValues.length; i += BULK_CHUNK) {
-      const chunk = userValues.slice(i, i + BULK_CHUNK);
+    for (let i = 0; i < userValues.length; i += CHUNK_USER) {
+      const chunk = userValues.slice(i, i + CHUNK_USER);
       const placeholders = chunk.map(() => "(?, ?, ?, 'manual', ?, 'pending', ?, ?, ?, ?)").join(', ');
       const sql = `INSERT OR IGNORE INTO users (real_name, name, phone, provider, provider_id, approval_status, birth_date, resident_back_hash, import_batch_id, created_at) VALUES ${placeholders}`;
       try {
@@ -371,8 +377,8 @@ export async function onRequestPost(context) {
     /* user_id SELECT (provider_id IN (...)) — chunk 단위 */
     const providerIds = userInfo.map(i => i.providerId);
     const userIdByProvider = {};
-    for (let i = 0; i < providerIds.length; i += BULK_CHUNK) {
-      const chunk = providerIds.slice(i, i + BULK_CHUNK);
+    for (let i = 0; i < providerIds.length; i += CHUNK_SELECT) {
+      const chunk = providerIds.slice(i, i + CHUNK_SELECT);
       const placeholders = chunk.map(() => '?').join(',');
       try {
         const { results } = await db.prepare(
@@ -421,8 +427,8 @@ export async function onRequestPost(context) {
       ]);
     }
     /* bulk INSERT — 13 col, 50 row × 13 = 650 bind. OK */
-    for (let i = 0; i < bizValues.length; i += BULK_CHUNK) {
-      const chunk = bizValues.slice(i, i + BULK_CHUNK);
+    for (let i = 0; i < bizValues.length; i += CHUNK_BIZ) {
+      const chunk = bizValues.slice(i, i + CHUNK_BIZ);
       const placeholders = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)").join(', ');
       const sql = `INSERT OR IGNORE INTO businesses (company_name, business_number, ceo_name, business_category, industry, address, phone, corporate_number, company_form, tax_office, status, import_batch_id, created_at, updated_at) VALUES ${placeholders}`;
       try {
@@ -434,8 +440,8 @@ export async function onRequestPost(context) {
     /* biz_id SELECT */
     const bizNos = bizInfo.map(i => i.biz_no);
     const bizIdByBizNo = {};
-    for (let i = 0; i < bizNos.length; i += BULK_CHUNK) {
-      const chunk = bizNos.slice(i, i + BULK_CHUNK);
+    for (let i = 0; i < bizNos.length; i += CHUNK_SELECT) {
+      const chunk = bizNos.slice(i, i + CHUNK_SELECT);
       const placeholders = chunk.map(() => '?').join(',');
       try {
         const { results } = await db.prepare(
@@ -466,8 +472,8 @@ export async function onRequestPost(context) {
       /* 모든 main biz_no IN (...) */
       const allMainBizNos = mainBizMap.map(m => m.main_biz_no);
       const mainBizIdByNo = {};
-      for (let i = 0; i < allMainBizNos.length; i += BULK_CHUNK) {
-        const chunk = allMainBizNos.slice(i, i + BULK_CHUNK);
+      for (let i = 0; i < allMainBizNos.length; i += CHUNK_SELECT) {
+        const chunk = allMainBizNos.slice(i, i + CHUNK_SELECT);
         const placeholders = chunk.map(() => '?').join(',');
         try {
           const { results } = await db.prepare(
@@ -486,8 +492,8 @@ export async function onRequestPost(context) {
         if (!mainBizId) continue;
         const branchBizNos = (m.all_rows || []).map(r => normBiz(r.biz_no)).filter(b => b && b !== m.main_biz_no);
         if (!branchBizNos.length) continue;
-        for (let i = 0; i < branchBizNos.length; i += BULK_CHUNK) {
-          const chunk = branchBizNos.slice(i, i + BULK_CHUNK);
+        for (let i = 0; i < branchBizNos.length; i += CHUNK_SELECT) {
+          const chunk = branchBizNos.slice(i, i + CHUNK_SELECT);
           const placeholders = chunk.map(() => '?').join(',');
           try {
             await db.prepare(
@@ -515,8 +521,8 @@ export async function onRequestPost(context) {
     }
     let mapErrorMsg = null;
     /* bulk INSERT — 4 col, 100 row × 4 = 400 bind. OK */
-    for (let i = 0; i < mapValues.length; i += BULK_CHUNK) {
-      const chunk = mapValues.slice(i, i + BULK_CHUNK);
+    for (let i = 0; i < mapValues.length; i += CHUNK_MAPPING) {
+      const chunk = mapValues.slice(i, i + CHUNK_MAPPING);
       const placeholders = chunk.map(() => "(?, ?, '대표자', 1, ?, ?)").join(', ');
       const sql = `INSERT OR IGNORE INTO business_members (business_id, user_id, role, is_primary, added_at, import_batch_id) VALUES ${placeholders}`;
       try {
