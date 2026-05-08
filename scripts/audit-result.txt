@@ -1,0 +1,21 @@
+﻿=== 전체 active user: 257 명 ===
+counts: {'pending': 2, 'approved_client': 254, 'approved_guest': 1, 'rejected': 0, 'terminated': 0, 'rejoined': 0, 'withdrawn': 0, 'deleted': 15, 'admin': 4}
+
+=== 같은 이름 2명 이상 group: 3개 ===
+
+
+[A] 동명이인 (정상 — birth 다름): 2명
+  · 이정민: birth=['1984-02-07', '1991-08-24'] (2 user, providers=['manual'])
+  · 이정숙: birth=['1958-05-12', '1962-04-30'] (2 user, providers=['manual'])
+
+[B] 카톡 + manual 분리 (비정상 — merge 필요): 0명
+
+[C] 같은 provider 중복 (비정상 — 위하고 import 시 매칭 누락): 0명
+
+[D] 기타 (provider 모름 또는 mix): 1명
+  · 반재훈: providers=['admin_created', 'manual'], birth=['1991-08-29']
+
+=== 합계 ===
+  중복 group: 3개
+  중복으로 인한 잉여 user: 3명
+  분류: 동명이인 2 / 카톡-manual 분리 0 / 같은 provider 중복 0 / 기타 1
