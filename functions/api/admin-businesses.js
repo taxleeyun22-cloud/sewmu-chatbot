@@ -206,12 +206,23 @@ export async function onRequestGet(context) {
     try {
       const biz = await db.prepare(`SELECT * FROM businesses WHERE id = ?`).bind(id).first();
       if (!biz) return Response.json({ ok: false, error: 'not found' }, { status: 404 });
+      /* 사장님 명령 (2026-05-08 원칙 2·4): 사업장 구성원 list = 활성 user 만 자동 표시.
+       * - removed_at NULL (이미)
+       * - users.deleted_at NULL
+       * - is_admin=1 OR approval_status IN (approved_client, approved_guest, admin)
+       * → 비활성 user 매핑은 DB에 남아있어도 화면 자동 제외 (manual cleanup 불필요). */
       const { results: members } = await db.prepare(
         `SELECT bm.id, bm.business_id, bm.user_id, bm.role, bm.is_primary, bm.phone, bm.memo, bm.added_at,
                 u.real_name, u.name, u.profile_image, u.approval_status, u.phone AS user_phone
            FROM business_members bm
            LEFT JOIN users u ON bm.user_id = u.id
-          WHERE bm.business_id = ? AND bm.removed_at IS NULL
+          WHERE bm.business_id = ?
+            AND bm.removed_at IS NULL
+            AND (u.deleted_at IS NULL OR u.deleted_at = '')
+            AND (
+              COALESCE(u.is_admin, 0) = 1
+              OR COALESCE(u.approval_status, 'pending') IN ('approved_client', 'approved_guest', 'admin')
+            )
           ORDER BY bm.is_primary DESC, bm.added_at ASC`
       ).bind(id).all();
       const { results: rooms } = await db.prepare(
@@ -274,31 +285,9 @@ export async function onRequestPost(context) {
     return await addBusinessToUser(db, body);
   }
 
-  /* 사장님 명령 (2026-05-08): 1회용 비활성 user 매핑 일괄 정리.
-   * 원칙 1·2 가드 — 현재 비활성(pending/rejected/deleted/merged 등) user 의
-   * business_members 매핑 자동 정리. owner 권한 검증. */
-  if (action === 'cleanup_inactive_mappings') {
-    try {
-      const now = kst();
-      /* 활성 status NOT IN → 매핑 removed_at */
-      const r = await db.prepare(`
-        UPDATE business_members SET removed_at = ?
-        WHERE (removed_at IS NULL OR removed_at = '')
-          AND user_id IN (
-            SELECT id FROM users
-            WHERE COALESCE(is_admin, 0) = 0
-              AND (
-                deleted_at IS NOT NULL AND deleted_at != ''
-                OR COALESCE(approval_status, 'pending') NOT IN ('approved_client', 'approved_guest', 'admin')
-              )
-          )
-      `).bind(now).run();
-      const cleaned = r?.meta?.changes || 0;
-      return Response.json({ ok: true, cleaned });
-    } catch (e) {
-      return Response.json({ ok: false, error: e.message }, { status: 500 });
-    }
-  }
+  /* 사장님 명령 (2026-05-08): cleanup_inactive_mappings 폐기.
+   * "왜 정리가 있어야함?" — backend GET 응답 자체에서 활성 user 매핑만 자동 표시 →
+   * DB 정리 불필요. 사장님 원칙 4 (자동 조정 / manual fix 금지) 일관. */
 
   /* 사장님 명령 (2026-05-08): 사업장 구성원 중복 정리.
    * "사용자가 연결된 사업장으로 넣는사람만 / 나머진 자동 삭제".
