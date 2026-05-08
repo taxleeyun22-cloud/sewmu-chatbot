@@ -116,8 +116,9 @@ export async function onRequestPost(context) {
       if (batch.status === 'rolled_back') {
         return Response.json({ ok: false, error: '이미 롤백된 batch' }, { status: 400 });
       }
-      if (batch.status !== 'committed') {
-        return Response.json({ ok: false, error: 'committed 상태 batch 만 롤백 가능 (현재: ' + batch.status + ')' }, { status: 400 });
+      /* 사장님 명령 (2026-05-08): preview 상태도 롤백 허용 (비정상 상태 정리용 — INSERT 됐는데 status update 실패한 케이스) */
+      if (batch.status !== 'committed' && batch.status !== 'preview') {
+        return Response.json({ ok: false, error: 'committed/preview 상태만 롤백 가능 (현재: ' + batch.status + ')' }, { status: 400 });
       }
 
       const now = kst();
