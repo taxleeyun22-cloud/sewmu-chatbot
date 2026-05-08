@@ -454,11 +454,22 @@ async function _apbLoadExistingUsers(){
   const el=$g('apbUserList'); if(!el) return;
   el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:20px 0;font-size:.8em">불러오는 중...</div>';
   try{
-    /* 사장님 명령 정정 (2026-05-07): 합칠 대상 = 수동 등록 user 만 (provider='admin_created').
-     * 카카오 인증 안 된 거 = 사장님이 옛날에 수동으로 만든 거래처들. */
+    /* 사장님 명령 (2026-05-08): "위하고로 올린거도 떠야된다 / 어드민 + 눌러서 한 거만 뜬다"
+     * = 합칠 대상 = 모든 수동 등록 user (admin_created + manual + 위하고 import 흔적).
+     *   provider='admin_created' (사장님이 옛날 admin UI 에서 직접 등록)
+     *   provider='manual' (위하고 엑셀 import 결과)
+     *   import_batch_id NOT NULL (위하고 import 흔적 — 이미 카카오 흡수해도 후보 표시)
+     *   provider_id LIKE 'manual:%' (수동 등록 흔적, 변환된 경우) */
     const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=approved_client');
     const d=await r.json();
-    _apbAllUsers=(d.users||[]).filter(u=>!u.is_admin && u.provider==='admin_created');
+    _apbAllUsers=(d.users||[]).filter(u => {
+      if(u.is_admin) return false;
+      if(u.provider === 'admin_created') return true;
+      if(u.provider === 'manual') return true;
+      if(u.import_batch_id) return true;
+      if(typeof u.provider_id === 'string' && u.provider_id.indexOf('manual:') === 0) return true;
+      return false;
+    });
     _apbFilterUserList();
   }catch(err){el.innerHTML='<div style="color:#f04452;padding:12px;font-size:.8em">오류: '+e(err.message)+'</div>'}
 }

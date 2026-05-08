@@ -97,9 +97,9 @@ export async function onRequestGet(context) {
     try { await db.prepare(`ALTER TABLE users ADD COLUMN previous_withdrawn_user_id INTEGER`).run(); } catch {}
     try { await db.prepare(`ALTER TABLE users ADD COLUMN withdrawn_provider_id TEXT`).run(); } catch {}
     let query = `
-      SELECT u.id, u.provider, u.name, u.real_name, u.email, u.phone, u.profile_image,
+      SELECT u.id, u.provider, u.provider_id, u.name, u.real_name, u.email, u.phone, u.profile_image,
              u.approval_status, u.approved_at, u.created_at, u.last_login_at, u.name_confirmed, u.is_admin,
-             u.birth_date,
+             u.birth_date, u.import_batch_id,
              u.requested_company_name, u.requested_business_number, u.requested_role, u.requested_at,
              (SELECT company_name FROM client_businesses
               WHERE user_id = u.id
