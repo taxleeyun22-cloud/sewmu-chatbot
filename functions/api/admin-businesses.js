@@ -67,6 +67,49 @@ export async function onRequestGet(context) {
   const userIdParam = url.searchParams.get('user_id');
   const search = (url.searchParams.get('search') || '').trim();
   const status = (url.searchParams.get('status') || '').trim();
+  const getAction = url.searchParams.get('action') || '';
+
+  /* 사장님 명령 (2026-05-08): 중복 구성원 정리 미리보기 */
+  if (getAction === 'cleanup_dup_members_preview') {
+    const bizId = Number(id || 0);
+    if (!bizId) return Response.json({ ok: false, error: 'id 필요' }, { status: 400 });
+    try {
+      const { results: members } = await db.prepare(
+        `SELECT bm.id, bm.user_id, u.phone, u.real_name, u.name
+           FROM business_members bm
+           LEFT JOIN users u ON bm.user_id = u.id
+          WHERE bm.business_id = ? AND bm.removed_at IS NULL
+          ORDER BY bm.user_id ASC`
+      ).bind(bizId).all();
+      const byPhone = {};
+      (members || []).forEach(m => {
+        const ph = (m.phone || '').replace(/\D/g, '');
+        if (!ph || ph.length < 9) return;
+        if (!byPhone[ph]) byPhone[ph] = [];
+        byPhone[ph].push(m);
+      });
+      const duplicates = [];
+      let toRemove = 0;
+      for (const ph in byPhone) {
+        const grp = byPhone[ph];
+        if (grp.length < 2) continue;
+        grp.sort((a, b) => (a.user_id || 0) - (b.user_id || 0));
+        duplicates.push({
+          phone: ph,
+          keep_user_id: grp[0].user_id,
+          keep_name: grp[0].real_name || grp[0].name || '#' + grp[0].user_id,
+          remove_users: grp.slice(1).map(m => ({
+            user_id: m.user_id,
+            name: m.real_name || m.name || '#' + m.user_id,
+          })),
+        });
+        toRemove += grp.length - 1;
+      }
+      return Response.json({ ok: true, duplicates, toRemove });
+    } catch (e) {
+      return Response.json({ ok: false, error: e.message }, { status: 500 });
+    }
+  }
 
   /* 사용자별 매핑된 사업장 (시스템 B: business_members) — user dashboard 의 cdBizDocs 섹션이 사용 */
   if (userIdParam) {
@@ -215,6 +258,51 @@ export async function onRequestPost(context) {
   const action = url.searchParams.get('action');
   if (action === 'add_to_user') {
     return await addBusinessToUser(db, body);
+  }
+
+  /* 사장님 명령 (2026-05-08): 사업장 구성원 중복 정리.
+   * "사용자가 연결된 사업장으로 넣는사람만 / 나머진 자동 삭제".
+   * 룰: 같은 phone 의 user 들 중 가장 오래된 user_id (id 작은 것) keep,
+   *     나머지 user 들의 business_members 매핑 → removed_at.
+   * 사용자 계정 자체는 유지 (안전). */
+  if (action === 'cleanup_dup_members') {
+    const bizId = Number(body.business_id || url.searchParams.get('id') || 0);
+    if (!bizId) return Response.json({ ok: false, error: 'business_id 필요' }, { status: 400 });
+    try {
+      /* 1. 활성 매핑 가져오기 (user join phone) */
+      const { results: members } = await db.prepare(
+        `SELECT bm.id, bm.user_id, u.phone, u.real_name, u.name
+           FROM business_members bm
+           LEFT JOIN users u ON bm.user_id = u.id
+          WHERE bm.business_id = ? AND bm.removed_at IS NULL
+          ORDER BY bm.user_id ASC`
+      ).bind(bizId).all();
+      /* 2. phone 별 group, 빈 phone 제외 */
+      const byPhone = {};
+      (members || []).forEach(m => {
+        const ph = (m.phone || '').replace(/\D/g, '');
+        if (!ph || ph.length < 9) return;
+        if (!byPhone[ph]) byPhone[ph] = [];
+        byPhone[ph].push(m);
+      });
+      const now = kst();
+      let removed = 0;
+      for (const ph in byPhone) {
+        const grp = byPhone[ph];
+        if (grp.length < 2) continue;
+        grp.sort((a, b) => (a.user_id || 0) - (b.user_id || 0));
+        const keepUserId = grp[0].user_id;
+        for (let i = 1; i < grp.length; i++) {
+          const r = await db.prepare(
+            `UPDATE business_members SET removed_at = ? WHERE id = ?`
+          ).bind(now, grp[i].id).run();
+          removed += (r?.meta?.changes || 0);
+        }
+      }
+      return Response.json({ ok: true, removed, business_id: bizId });
+    } catch (e) {
+      return Response.json({ ok: false, error: e.message }, { status: 500 });
+    }
   }
 
   /* 사장님 명령 (2026-05-08): 휴지통에서 사업장 복원.

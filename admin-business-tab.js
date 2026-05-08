@@ -364,9 +364,12 @@ async function _openBusinessDashboardLegacy(bid){
       +'</div>'
       +'<div style="font-size:.78em;color:#8b95a1;padding:4px 0">이 거래처(업체) 의 모든 상담방 대화 + 메모 통합 요약. 클릭 시 별도 모달.</div>'
     +'</div>';
-    /* 구성원 */
+    /* 구성원 — 사장님 명령 (2026-05-08): "사용자가 연결된 사업장으로 넣는사람만 / 나머진 자동 삭제".
+     * "🧹 중복 정리" 버튼: 같은 phone 의 user 중복 detect → keep 1명 + 나머지 removed_at */
     html+='<div style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:12px">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-weight:700;font-size:.92em">👥 구성원 ('+members.length+'명)</div><button onclick="_bdAddMember()" style="background:var(--brand-primary,#3182f6);color:#fff;border:none;padding:5px 14px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">＋ 구성원 추가</button></div>';
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px"><div style="font-weight:700;font-size:.92em">👥 구성원 ('+members.length+'명)</div>'
+      +'<div style="display:flex;gap:6px"><button onclick="_bdCleanupDuplicateMembers('+_bdCurrent.id+')" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:5px 12px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit" title="같은 phone 의 중복 user 자동 정리 — 가장 오래된 1명만 남김">🧹 중복 정리</button>'
+      +'<button onclick="_bdAddMember()" style="background:var(--brand-primary,#3182f6);color:#fff;border:none;padding:5px 14px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">＋ 구성원 추가</button></div></div>';
     if(!members.length){
       html+='<div style="color:#8b95a1;font-size:.85em;padding:12px 0;text-align:center">아직 연결된 구성원이 없습니다</div>';
     } else {
@@ -602,4 +605,40 @@ async function _bdRemoveMember(memberId, displayName){
     if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
     openBusinessDashboard(_bdCurrent.id);
   }catch(err){alert('오류: '+err.message)}
+}
+
+/* 사장님 명령 (2026-05-08): "구성원 자동 정리" — 같은 phone 의 중복 user 가장 오래된 1명만 남기고 나머지 매핑 제거 */
+async function _bdCleanupDuplicateMembers(bizId){
+  if(!bizId){ alert('잘못된 호출'); return; }
+  try{
+    /* 1. 미리보기 — 어떤 사람이 정리될지 사장님 확인 */
+    const r0 = await fetch('/api/admin-businesses?key=' + encodeURIComponent(KEY) + '&action=cleanup_dup_members_preview&id=' + bizId);
+    const d0 = await r0.json();
+    if(!d0.ok){ alert('미리보기 실패: ' + (d0.error || 'unknown')); return; }
+    const dups = d0.duplicates || [];
+    if(!dups.length){
+      alert('중복 구성원이 없습니다 (같은 전화번호의 user 가 여러 명 매핑되어 있는 경우만 정리 대상).');
+      return;
+    }
+    let msg = '🧹 다음 중복 구성원을 정리할까요? (' + d0.toRemove + '명 제거)\n\n';
+    dups.forEach(grp => {
+      msg += '📞 ' + grp.phone + ':\n';
+      msg += '  ✓ keep #' + grp.keep_user_id + ' (' + grp.keep_name + ')\n';
+      grp.remove_users.forEach(u => {
+        msg += '  ✕ remove #' + u.user_id + ' (' + u.name + ')\n';
+      });
+      msg += '\n';
+    });
+    msg += '⚠️ 사업장 매핑만 제거 (사용자 계정 자체는 유지).';
+    if(!confirm(msg)) return;
+    /* 2. 실행 */
+    const r = await fetch('/api/admin-businesses?key=' + encodeURIComponent(KEY) + '&action=cleanup_dup_members', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ business_id: bizId }),
+    });
+    const d = await r.json();
+    if(!d.ok){ alert('정리 실패: ' + (d.error || 'unknown')); return; }
+    alert('✅ 정리 완료: ' + (d.removed || 0) + '명의 중복 매핑 제거됨');
+    openBusinessDashboard(bizId);
+  }catch(err){ alert('오류: ' + err.message); }
 }
