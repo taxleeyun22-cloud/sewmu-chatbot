@@ -179,14 +179,19 @@ async function openCustomerDashboard(userId, opts){
             ?'<span style="background:#fee2e2;color:#991b1b;font-size:.64em;padding:1px 6px;border-radius:4px;margin-left:3px">주 연락</span>':'';
           const formBadge=b.company_form
             ?'<span style="background:#eef2ff;color:#3730a3;font-size:.64em;padding:1px 6px;border-radius:4px;margin-left:3px">'+e(b.company_form)+'</span>':'';
-          return '<div style="border:1px solid #d1d5db;border-radius:10px;background:#fff;padding:12px 14px">'
+          /* 사장님 명령 (2026-05-08): 휴지통 / 종료 사업장 시각 라벨 */
+          const trashedBadge = b.deleted_at ? '<span style="background:#fee2e2;color:#991b1b;font-size:.66em;padding:1px 7px;border-radius:4px;margin-left:4px;font-weight:700">🗑️ 휴지통</span>' : '';
+          const closedBadge = (!b.deleted_at && b.status === 'closed') ? '<span style="background:#e5e8eb;color:#6b7280;font-size:.66em;padding:1px 7px;border-radius:4px;margin-left:4px">📦 종료</span>' : '';
+          return '<div style="border:1px solid '+(b.deleted_at?'#fca5a5':'#d1d5db')+';border-radius:10px;background:'+(b.deleted_at?'#fef2f2':'#fff')+';padding:12px 14px">'
             +'<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:8px">'
               +'<div style="font-weight:700;font-size:.95em;color:#1e40af;cursor:pointer;text-decoration:underline" onclick="closeCustomerDashboard&&closeCustomerDashboard();setTimeout(function(){openBusinessDashboard('+b.id+')},150)">'+e(b.company_name||'사업장 #'+b.id)+'</div>'
-              +formBadge+roleBadge+primaryBadge
+              +formBadge+roleBadge+primaryBadge+trashedBadge+closedBadge
             +'</div>'
             +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:4px 12px;color:#374151">'+kvs+'</div>'
             +'<div style="display:flex;align-items:center;gap:6px;margin-top:9px;padding-top:8px;border-top:1px dashed #e5e8eb">'
               +'<div style="flex:1;font-size:.74em;color:#555">📑 신분증 '+idC+' · 사등 '+bz+' · 홈택스 '+ht+'</div>'
+              /* 사장님 명령 (2026-05-08): 휴지통 처리된 사업장 → 복원 버튼 */
+              +(b.deleted_at?'<button onclick="restoreBusiness('+b.id+',\''+escAttr(b.company_name||'사업장 #'+b.id)+'\')" style="background:#10b981;color:#fff;border:none;padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit;font-weight:700;margin-right:4px" title="휴지통에서 복원 — deleted_at NULL + status=active">♻️ 복원</button>':'')
               /* 사장님 명령 (2026-05-07): "연결된사업장 해제도 있어야될거같은데. 폐업했다던지 사유 발생 가능". */
               +'<button onclick="unlinkCustomerBusiness('+_cdCurrentUserId+','+b.id+',\''+escAttr(b.company_name||'사업장 #'+b.id)+'\')" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit;font-weight:600;margin-right:4px" title="이 거래처와 사업장 매핑만 해제 (사업장 자체는 유지)">🔗 매핑 해제</button>'
               +'<button onclick="closeCustomerDashboard&&closeCustomerDashboard();setTimeout(function(){openBusinessDashboard('+b.id+')},150)" style="background:#eef2ff;color:#3730a3;border:none;padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit;font-weight:600">🏢 업체로 →</button>'
@@ -233,6 +238,23 @@ async function openCustomerDashboard(userId, opts){
     $g('cdName').textContent='오류';
     $g('cdBasic').innerHTML='<div style="color:#f04452">로드 실패: '+e(err.message)+'</div>';
   }
+}
+
+/* 사장님 명령 (2026-05-08): 휴지통 사업장 복원 */
+async function restoreBusiness(bizId, bizName){
+  if(!bizId){ alert('잘못된 호출'); return; }
+  const ok = confirm('♻️ 사업장 [' + bizName + '] 을 휴지통에서 복원할까요?\n\n• status = active\n• deleted_at = NULL\n• 매핑은 그대로 (이미 살아있음)');
+  if(!ok) return;
+  try{
+    const r = await fetch('/api/admin-businesses?action=restore&key=' + encodeURIComponent(KEY), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ business_id: bizId }),
+    });
+    const d = await r.json();
+    if(!d.ok){ alert('복원 실패: ' + (d.error || 'unknown')); return; }
+    if(typeof openCustomerDashboard === 'function' && _cdCurrentUserId) openCustomerDashboard(_cdCurrentUserId);
+  }catch(err){ alert('오류: ' + err.message); }
 }
 
 /* 사장님 명령 (2026-05-07): 거래처 ↔ 사업장 매핑 해제.

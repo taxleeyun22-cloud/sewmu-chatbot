@@ -128,6 +128,7 @@ export async function onRequestGet(context) {
         hr_year: r.hr_year,
         notes: r.notes,
         status: r.status,
+        deleted_at: r.deleted_at,  /* 휴지통 사업장 식별용 (사장님 명령 2026-05-08) */
         member_id: r.member_id,
         member_role: r.member_role,
         member_is_primary: r.member_is_primary,
@@ -214,6 +215,24 @@ export async function onRequestPost(context) {
   const action = url.searchParams.get('action');
   if (action === 'add_to_user') {
     return await addBusinessToUser(db, body);
+  }
+
+  /* 사장님 명령 (2026-05-08): 휴지통에서 사업장 복원.
+   * deleted_at 처리된 사업장 → deleted_at NULL + status='active' 복구.
+   * 매핑(business_members) 은 그대로 (이미 살아있음). */
+  if (action === 'restore') {
+    const bizId = Number(body.business_id || url.searchParams.get('id') || 0);
+    if (!bizId) return Response.json({ ok: false, error: 'business_id 필요' }, { status: 400 });
+    try {
+      const r = await db.prepare(
+        `UPDATE businesses SET deleted_at = NULL, status = 'active', updated_at = ? WHERE id = ?`
+      ).bind(kst(), bizId).run();
+      const changes = r?.meta?.changes || 0;
+      if (!changes) return Response.json({ ok: false, error: '사업장 없음' }, { status: 404 });
+      return Response.json({ ok: true, business_id: bizId, restored: true });
+    } catch (e) {
+      return Response.json({ ok: false, error: e.message }, { status: 500 });
+    }
   }
 
   /* 사장님 명령 (2026-05-07): 거래처 ↔ 사업장 매핑 해제.
