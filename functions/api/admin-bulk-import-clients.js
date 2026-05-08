@@ -83,11 +83,13 @@ async function ensureSchema(db) {
   await addCol(`ALTER TABLE businesses ADD COLUMN tax_office TEXT`);
 }
 
-/* user dedup: 1) hash 일치, 2) 이름+생년월일 일치 */
+/* user dedup: 1) hash, 2) 이름+생년월일, 3) 이름+phone, 4) 이름 (fallback)
+ * 사장님 명령 (2026-05-08): "같은사람 두 개 안 됨 / 이름 같으면 한 명". */
 async function findExistingUser(db, row, salt) {
   const { birth_date, back_raw } = parseRRN(row.resident_or_corp_no);
   const back_hash = back_raw ? await sha256Hex(back_raw + ':' + salt) : null;
-  /* layer 1: hash 매칭 */
+  const cleanPhone = String(row.phone || '').replace(/\D/g, '');
+  /* layer 1: hash + birth_date 매칭 (가장 정확) */
   if (back_hash && birth_date) {
     const u = await db.prepare(
       `SELECT * FROM users WHERE resident_back_hash = ? AND birth_date = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
@@ -101,8 +103,22 @@ async function findExistingUser(db, row, salt) {
     ).bind(birth_date, row.ceo, row.ceo).first();
     if (u) return { user: u, match_by: 'name_birth', back_hash, birth_date };
   }
-  /* layer 3: 이름만 매칭 (위험 — fallback only, 동명이인 위험) */
-  /* 이건 자동 매칭 X. 신규 INSERT 로 처리. */
+  /* layer 3: 이름 + phone 매칭 (admin user 가 birth_date 비어있는 경우 — 카카오 로그인 user) */
+  if (cleanPhone && cleanPhone.length >= 9 && row.ceo) {
+    const u = await db.prepare(
+      `SELECT * FROM users WHERE REPLACE(REPLACE(REPLACE(phone, '-', ''), ' ', ''), '+', '') = ?
+                            AND (real_name = ? OR name = ?)
+                            AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
+    ).bind(cleanPhone, row.ceo, row.ceo).first();
+    if (u) return { user: u, match_by: 'name_phone', back_hash, birth_date };
+  }
+  /* layer 4: 이름만 매칭 (사장님 명시 — 같은 이름 = 같은 사람으로 dedup) */
+  if (row.ceo) {
+    const u = await db.prepare(
+      `SELECT * FROM users WHERE (real_name = ? OR name = ?) AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
+    ).bind(row.ceo, row.ceo).first();
+    if (u) return { user: u, match_by: 'name', back_hash, birth_date };
+  }
   return { user: null, match_by: null, back_hash, birth_date };
 }
 
@@ -367,15 +383,24 @@ export async function onRequestPost(context) {
         }
       }
     }
-    /* 신규 user — bulk INSERT VALUES (...), (...) chunk 단위 (CHUNK_USER=12 row × 8 col = 96 bind, D1 limit 100) */
+    /* 신규 user — bulk INSERT.
+     * 사장님 명령 (2026-05-08): "같은사람 두 개 안 됨 — 이름 같으면 한 명".
+     * provider_id 키 = 이름 + birth_date + hash (사업자번호 X) → 같은 사람 자동 dedup.
+     * 같은 위하고 row 여러 개의 같은 사람 → INSERT OR IGNORE 로 1번만. */
     const userInfo = []; /* { row_no, providerId } */
     const userValues = []; /* [[v1, v2, ...], [v1, v2, ...]] */
+    const seenProviderIds = new Set(); /* 같은 batch 안 in-memory dedup */
     for (const a of details) {
       const row = a.row;
       if (a.user.action !== 'new' || !row.ceo) continue;
-      const providerId = 'manual:wehago:' + (row.biz_no || ('row_' + row.no)) + ':' + (a.user.birth_date || '');
-      const backHash = a.user.back_hash || null;
+      /* provider_id = 이름+birth_date+hash (사업자번호 X). 같은 사람 = 동일 키. */
+      const hashShort = a.user.back_hash ? String(a.user.back_hash).slice(0, 16) : '';
+      const providerId = 'manual:wehago:' + row.ceo + ':' + (a.user.birth_date || '') + ':' + hashShort;
       userInfo.push({ row_no: row.no, providerId });
+      /* 같은 batch 안 같은 사람 — INSERT 1번만 (이미 추가된 거 skip) */
+      if (seenProviderIds.has(providerId)) continue;
+      seenProviderIds.add(providerId);
+      const backHash = a.user.back_hash || null;
       userValues.push([
         row.ceo, row.ceo, row.phone || null, providerId,
         a.user.birth_date || null, backHash, batchId, now
