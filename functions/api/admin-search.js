@@ -18,13 +18,18 @@ export async function onRequestGet(context) {
 
   try {
     // 1) 사용자 (이름/본명/이메일/전화)
+    // 사장님 명령 (2026-05-08): "박승호 2명, 이재윤 8명 — 카톡꺼 잔재 왜 남아있냐"
+    // → archived (status='merged'|'deleted', deleted_at NOT NULL) 자동 제외
     const usersR = await db.prepare(`
       SELECT id, provider, name, real_name, email, phone, profile_image,
              approval_status, is_admin, created_at, last_login_at
       FROM users
-      WHERE name LIKE ? OR real_name LIKE ? OR email LIKE ? OR phone LIKE ?
+      WHERE (name LIKE ? OR real_name LIKE ? OR email LIKE ? OR phone LIKE ?)
+        AND (deleted_at IS NULL OR deleted_at = '')
+        AND COALESCE(approval_status, 'pending') NOT IN ('merged', 'deleted', 'withdrawn')
+        AND COALESCE(provider, '') != 'merged'
       ORDER BY last_login_at DESC
-      LIMIT 10
+      LIMIT 20
     `).bind(pat, pat, pat, pat).all();
 
     // 2) 일반 대화 (방 외부)

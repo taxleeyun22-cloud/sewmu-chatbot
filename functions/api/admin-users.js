@@ -99,6 +99,17 @@ export async function onRequestPost(context) {
     if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
     try {
       await db.prepare(`UPDATE users SET is_admin = ? WHERE id = ?`).bind(isAdmin, userId).run();
+      /* 사장님 명령 (2026-05-08): "대기에서 관리자로 올려도 관리자 2 + 대기 2 개판이다"
+       * → set_admin=1 승급 시 approval_status='pending' 이면 'approved_client' 자동 변경.
+       *   대기 카운트 자동 감소. (admin 카테고리는 is_admin 기준이라 별도 +1) */
+      if (isAdmin === 1) {
+        try {
+          await db.prepare(
+            `UPDATE users SET approval_status = 'approved_client', approved_at = COALESCE(approved_at, ?)
+             WHERE id = ? AND COALESCE(approval_status, 'pending') = 'pending'`
+          ).bind(new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19), userId).run();
+        } catch {}
+      }
       /* 승급(1)이면 기존 활성 방 전체에 자동 참여 — 카톡 그룹방 스타일 통일.
          강등(0)이면 강제 참여로 'admin' 박혔던 멤버십을 'member' 로 환원 —
          my-rooms.js '내 상담방' 필터에 막혀 기장거래처 전환 후 빈 화면 나는 버그 방지. */
@@ -324,7 +335,8 @@ export async function onRequestPost(context) {
         if (isHomonym) continue; /* 동명이인 — 분리 유지, merge 위험 */
         /* admin user 가 섞여있으면 skip (안전) */
         if (us.some(u => u.is_admin)) continue;
-        /* keep 후보: kakao 우선 (프사·OAuth 정보 가장 풍부), 그 다음 가장 오래된 user */
+        /* 사장님 명령 (2026-05-08 강조): "카톡으로 온 사람이 무조건 제일 상위다 임의로 만든 또는 위하고로 올린 것들을 덮는다"
+         * keep 후보: 카카오 user 무조건 우선. 카카오 없으면 가장 오래된 (id 작음). */
         let keep = us.find(u => u.provider === 'kakao');
         if (!keep) keep = [...us].sort((a, b) => (a.id || 0) - (b.id || 0))[0];
         const others = us.filter(u => u.id !== keep.id);
@@ -360,60 +372,30 @@ export async function onRequestPost(context) {
           await db.prepare(`UPDATE users SET deleted_at = ?, approval_status = 'merged', provider = 'merged', provider_id = ?, provider_user_id = NULL WHERE id = ?`)
             .bind(now, archivedProviderId, archiveId).run();
 
-          /* keep 흡수 — 사장님 명령 (2026-05-08): "카카오가 다 덮어쓰도록".
-           * archive 가 kakao 일 때 = 카카오 정보로 keep 덮어쓰기. archive 가 manual 일 때는 빈 컬럼만 enrich.
-           * 단순화: archive 의 NULL 아닌 컬럼은 모두 keep 에 적용 (덮어쓰기). NULL 인 컬럼은 keep 그대로. */
-          const overwriteByArchive = archived.provider === 'kakao';
-          if (overwriteByArchive) {
-            /* 카카오 archive → manual keep 에 카카오 정보로 덮어쓰기 (사장님 명령) */
-            await db.prepare(`
-              UPDATE users SET
-                provider = ?,
-                provider_id = COALESCE(NULLIF(?, ''), provider_id),
-                provider_user_id = COALESCE(NULLIF(?, ''), provider_user_id),
-                profile_image = COALESCE(NULLIF(?, ''), profile_image),
-                name = COALESCE(NULLIF(?, ''), name),
-                real_name = COALESCE(NULLIF(?, ''), real_name),
-                email = COALESCE(NULLIF(?, ''), email),
-                phone = COALESCE(NULLIF(?, ''), phone),
-                birth_date = COALESCE(birth_date, ?),
-                resident_back_hash = COALESCE(resident_back_hash, ?),
-                name_confirmed = 1,
-                approval_status = 'approved_client',
-                approved_at = COALESCE(approved_at, ?),
-                last_login_at = ?,
-                deleted_at = NULL, withdrawal_reason = NULL
-              WHERE id = ?
-            `).bind(
-              archived.provider, archived.provider_id, archived.provider_user_id, archived.profile_image,
-              archived.name, archived.real_name, archived.email, archived.phone,
-              archived.birth_date, archived.resident_back_hash, now, now, keepId
-            ).run();
-          } else {
-            /* manual archive → keep 에 빈 컬럼만 enrich (덮어쓰기 X) */
-            await db.prepare(`
-              UPDATE users SET
-                provider_id = COALESCE(provider_id, ?),
-                profile_image = COALESCE(NULLIF(profile_image, ''), ?),
-                name = COALESCE(NULLIF(name, ''), ?),
-                real_name = COALESCE(NULLIF(real_name, ''), ?),
-                email = COALESCE(NULLIF(email, ''), ?),
-                phone = COALESCE(NULLIF(phone, ''), NULLIF(phone, '000-000-0000'), ?),
-                birth_date = COALESCE(birth_date, ?),
-                resident_back_hash = COALESCE(resident_back_hash, ?),
-                name_confirmed = COALESCE(NULLIF(name_confirmed, 0), ?),
-                approval_status = COALESCE(NULLIF(approval_status, ''), 'approved_client'),
-                approved_at = COALESCE(approved_at, ?),
-                last_login_at = COALESCE(last_login_at, ?),
-                deleted_at = NULL, withdrawal_reason = NULL
-              WHERE id = ?
-            `).bind(
-              archived.provider_id, archived.profile_image,
-              archived.name, archived.real_name, archived.email, archived.phone,
-              archived.birth_date, archived.resident_back_hash, archived.name_confirmed || 0,
-              now, now, keepId
-            ).run();
-          }
+          /* keep 흡수 — 사장님 명령 (2026-05-08): "카톡 master, manual 흡수".
+           * keep = 카톡 user (또는 가장 오래된 user). archive 의 빈 컬럼만 keep 에 enrich (카톡 데이터 보호).
+           * 단, archive 의 birth_date / resident_back_hash (위하고 데이터) 는 keep 이 비어있으면 흡수. */
+          await db.prepare(`
+            UPDATE users SET
+              provider_id = COALESCE(provider_id, ?),
+              profile_image = COALESCE(NULLIF(profile_image, ''), ?),
+              name = COALESCE(NULLIF(name, ''), ?),
+              real_name = COALESCE(NULLIF(real_name, ''), ?),
+              email = COALESCE(NULLIF(email, ''), ?),
+              phone = COALESCE(NULLIF(phone, ''), NULLIF(phone, '000-000-0000'), NULLIF(?, '000-000-0000'), ?),
+              birth_date = COALESCE(birth_date, ?),
+              resident_back_hash = COALESCE(resident_back_hash, ?),
+              name_confirmed = 1,
+              approval_status = 'approved_client',
+              approved_at = COALESCE(approved_at, ?),
+              last_login_at = COALESCE(last_login_at, ?),
+              deleted_at = NULL, withdrawal_reason = NULL
+            WHERE id = ?
+          `).bind(
+            archived.provider_id, archived.profile_image,
+            archived.name, archived.real_name, archived.email, archived.phone, archived.phone,
+            archived.birth_date, archived.resident_back_hash, now, now, keepId
+          ).run();
 
           /* 매핑 이전 (archive → keep) */
           await db.prepare(`UPDATE business_members SET user_id = ? WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`).bind(keepId, archiveId).run();
@@ -495,9 +477,13 @@ export async function onRequestPost(context) {
         /* audit 실패해도 합치기는 진행 — silent */
       }
 
-      /* fix (2026-05-07 사장님 보고): UNIQUE constraint 충돌 방지 — kakao archive 먼저.
-       * 1. kakao user 의 provider_id 무효화 (manual 이 그 KAKAO_ID 흡수해도 충돌 X) */
-      const kakaoArchivedProviderId = `merged:${kakaoUid}:${kakao.provider_id || kakao.provider_user_id || ''}`;
+      /* 사장님 명령 (2026-05-08): "카톡으로 온 사람이 무조건 제일 상위다 거기서 임의로 만든 또는 위하고로 올린 것들을 덮는다"
+       * = 룰 반전: 카톡 user 가 살아남고 manual user 가 archived.
+       *   카톡 user 의 OAuth 정보 유지 + manual 의 위하고 데이터 (birth_date, resident_back_hash, real_name) 흡수.
+       *   매핑 / 메모 / 메시지 / 등 → 카톡 user 로 이전. */
+
+      /* 1. manual user archive — UNIQUE 회피 위해 먼저 */
+      const manualArchivedProviderId = `merged_manual:${manualUid}:${manual.provider_id || ''}`;
       await db.prepare(`
         UPDATE users SET
           deleted_at = ?,
@@ -506,100 +492,69 @@ export async function onRequestPost(context) {
           provider_id = ?,
           provider_user_id = NULL
         WHERE id = ?
-      `).bind(now, kakaoArchivedProviderId, kakaoUid).run();
+      `).bind(now, manualArchivedProviderId, manualUid).run();
 
-      /* 2. 카카오 정보 → manual user 흡수 (provider_id 도 같이 — 옛 탈퇴자 부활 포함).
-       * legacy provider_id 컬럼 NOT NULL 처리 */
+      /* 2. 카카오 user 살아남음 — manual 의 정보 흡수 (카카오 빈 컬럼만 채움, 카카오 데이터 유지). */
       let hasProviderIdCol = false;
       try {
         const info = await db.prepare(`PRAGMA table_info(users)`).all();
         hasProviderIdCol = (info?.results || []).some(c => c.name === 'provider_id');
       } catch {}
-      /* 사장님 명령 (2026-05-08): "들어오면 우리가 매칭시키고 그대로 카카오가 다 덮어쓰도록 만들어야함"
-       * = 카카오 정보 우선 (덮어쓰기 모드). 카카오 값이 NULL/빈 일 때만 manual 그대로.
-       * 패턴: COALESCE(NULLIF(?, ''), 기존_컬럼) — 카카오값 비어있지 않으면 카카오값으로 덮어쓰기 */
-      if (hasProviderIdCol) {
-        await db.prepare(`
-          UPDATE users SET
-            provider = ?,
-            provider_id = ?,
-            provider_user_id = ?,
-            profile_image = COALESCE(NULLIF(?, ''), profile_image),
-            name = COALESCE(NULLIF(?, ''), name),
-            real_name = COALESCE(NULLIF(?, ''), real_name),
-            email = COALESCE(NULLIF(?, ''), email),
-            phone = COALESCE(NULLIF(?, ''), phone),
-            name_confirmed = 1,
-            approval_status = 'approved_client',
-            approved_at = COALESCE(approved_at, ?),
-            last_login_at = ?,
-            deleted_at = NULL,
-            withdrawal_reason = NULL
-          WHERE id = ?
-        `).bind(
-          kakao.provider, kakao.provider_id, kakao.provider_user_id, kakao.profile_image,
-          kakao.name, kakao.real_name, kakao.email, kakao.phone, now, now, manualUid
-        ).run();
-      } else {
-        await db.prepare(`
-          UPDATE users SET
-            provider = ?,
-            provider_user_id = ?,
-            profile_image = COALESCE(NULLIF(?, ''), profile_image),
-            name = COALESCE(NULLIF(?, ''), name),
-            real_name = COALESCE(NULLIF(?, ''), real_name),
-            email = COALESCE(NULLIF(?, ''), email),
-            phone = COALESCE(NULLIF(?, ''), phone),
-            name_confirmed = 1,
-            approval_status = 'approved_client',
-            approved_at = COALESCE(approved_at, ?),
-            last_login_at = ?,
-            deleted_at = NULL,
-            withdrawal_reason = NULL
-          WHERE id = ?
-        `).bind(
-          kakao.provider, kakao.provider_user_id, kakao.profile_image,
-          kakao.name, kakao.real_name, kakao.email, kakao.phone, now, now, manualUid
-        ).run();
-      }
+      await db.prepare(`
+        UPDATE users SET
+          real_name = COALESCE(NULLIF(real_name, ''), ?),
+          name = COALESCE(NULLIF(name, ''), ?),
+          phone = COALESCE(NULLIF(phone, ''), NULLIF(phone, '000-000-0000'), NULLIF(?, '000-000-0000'), ?),
+          email = COALESCE(NULLIF(email, ''), ?),
+          birth_date = COALESCE(birth_date, ?),
+          resident_back_hash = COALESCE(resident_back_hash, ?),
+          name_confirmed = 1,
+          approval_status = 'approved_client',
+          approved_at = COALESCE(approved_at, ?),
+          last_login_at = ?,
+          deleted_at = NULL,
+          withdrawal_reason = NULL
+        WHERE id = ?
+      `).bind(
+        manual.real_name, manual.name, manual.phone, manual.phone, manual.email,
+        manual.birth_date, manual.resident_back_hash, now, now, kakaoUid
+      ).run();
 
-      /* 3. 매핑 / 데이터 이전 — kakao_user_id → manual_user_id */
+      /* 3. 매핑 / 데이터 이전 — manual_user_id → kakao_user_id (카카오 master) */
       try {
-        const r1 = await db.prepare(`UPDATE business_members SET user_id = ? WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`).bind(manualUid, kakaoUid).run();
+        const r1 = await db.prepare(`UPDATE business_members SET user_id = ? WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`).bind(kakaoUid, manualUid).run();
         stats.mappings = r1?.meta?.changes || 0;
       } catch {}
       try {
-        const r2 = await db.prepare(`UPDATE memos SET target_user_id = ? WHERE target_user_id = ?`).bind(manualUid, kakaoUid).run();
+        const r2 = await db.prepare(`UPDATE memos SET target_user_id = ? WHERE target_user_id = ?`).bind(kakaoUid, manualUid).run();
         stats.memos += r2?.meta?.changes || 0;
       } catch {}
       try {
-        const r3 = await db.prepare(`UPDATE memos SET author_user_id = ? WHERE author_user_id = ?`).bind(manualUid, kakaoUid).run();
+        const r3 = await db.prepare(`UPDATE memos SET author_user_id = ? WHERE author_user_id = ?`).bind(kakaoUid, manualUid).run();
         stats.memos += r3?.meta?.changes || 0;
       } catch {}
       try {
-        const r4 = await db.prepare(`UPDATE conversations SET user_id = ? WHERE user_id = ?`).bind(manualUid, kakaoUid).run();
+        const r4 = await db.prepare(`UPDATE conversations SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run();
         stats.conversations = r4?.meta?.changes || 0;
       } catch {}
       try {
-        const r5 = await db.prepare(`UPDATE room_members SET user_id = ? WHERE user_id = ? AND (left_at IS NULL OR left_at = '')`).bind(manualUid, kakaoUid).run();
+        const r5 = await db.prepare(`UPDATE room_members SET user_id = ? WHERE user_id = ? AND (left_at IS NULL OR left_at = '')`).bind(kakaoUid, manualUid).run();
         stats.room_members = r5?.meta?.changes || 0;
       } catch {}
       try {
-        const r6 = await db.prepare(`UPDATE documents SET user_id = ? WHERE user_id = ?`).bind(manualUid, kakaoUid).run();
+        const r6 = await db.prepare(`UPDATE documents SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run();
         stats.documents = r6?.meta?.changes || 0;
       } catch {}
-      /* daily_usage / sessions / 기타 작은 테이블도 — fail silent */
-      try { await db.prepare(`UPDATE daily_usage SET user_id = ? WHERE user_id = ?`).bind(manualUid, kakaoUid).run(); } catch {}
-      try { await db.prepare(`UPDATE sessions SET user_id = ? WHERE user_id = ?`).bind(manualUid, kakaoUid).run(); } catch {}
-      try { await db.prepare(`UPDATE business_documents SET user_id = ? WHERE user_id = ?`).bind(manualUid, kakaoUid).run(); } catch {}
-
-      /* kakao user archive 는 위 1번 단계에서 이미 처리됨 (UNIQUE 회피) */
+      try { await db.prepare(`UPDATE daily_usage SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run(); } catch {}
+      try { await db.prepare(`UPDATE sessions SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run(); } catch {}
+      try { await db.prepare(`UPDATE business_documents SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run(); } catch {}
+      /* manual user 의 import_batch_id 도 그대로 — rollback 시 archived manual 자동 제거 */
 
       return Response.json({
         ok: true,
-        survived_user_id: manualUid,
-        archived_user_id: kakaoUid,
-        survived_real_name: manual.real_name,
+        survived_user_id: kakaoUid,
+        archived_user_id: manualUid,
+        survived_real_name: kakao.real_name || manual.real_name,
         moved: stats,
         merge_id: mergeAuditId,
       });
