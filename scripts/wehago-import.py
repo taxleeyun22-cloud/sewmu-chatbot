@@ -78,9 +78,32 @@ def enrich_empty_corp_no(rows):
         if len(candidates) == 1:
             corp_no = next(iter(candidates))
             r['resident_or_corp_no'] = corp_no
-            enriched.append({'company': r['company'], 'tag': tag, 'corp_no': corp_no})
-        elif len(candidates) == 0:
-            skipped.append({'company': r['company'], 'tag': tag, 'reason': '같은 태그 row 0건'})
+            enriched.append({'company': r['company'], 'tag': tag, 'corp_no': corp_no, 'via': 'tag'})
+            continue
+
+        # Fallback: 같은 [태그] row 0건 / 다중 → 태그에서 키워드 추출 후 회사명 검색
+        # 예: '옆커호텔지점' → 키워드 '옆커호텔' → 회사명에 '옆커호텔' 들어간 법인 row 의 법인번호
+        keyword = re.sub(r'(지점|지사|영업소|센터점|/[^/]*$|/[^/]*지점)', '', tag).strip()
+        if keyword and len(keyword) >= 2:
+            kw_candidates = set()
+            for other in rows:
+                if other is r:
+                    continue
+                if other['corp_or_indiv'] != '법인' or not other['resident_or_corp_no']:
+                    continue
+                if keyword in other['company']:
+                    kw_candidates.add(other['resident_or_corp_no'])
+            if len(kw_candidates) == 1:
+                corp_no = next(iter(kw_candidates))
+                r['resident_or_corp_no'] = corp_no
+                enriched.append({'company': r['company'], 'tag': tag, 'corp_no': corp_no, 'via': 'keyword=' + keyword})
+                continue
+            elif len(kw_candidates) > 1:
+                skipped.append({'company': r['company'], 'tag': tag, 'reason': f'키워드 "{keyword}" → 후보 {len(kw_candidates)}개 (수동 결정 필요)'})
+                continue
+
+        if len(candidates) == 0:
+            skipped.append({'company': r['company'], 'tag': tag, 'reason': '같은 태그 row 0건 + 키워드 매칭도 실패'})
         else:
             skipped.append({'company': r['company'], 'tag': tag, 'reason': f'같은 태그 다른 법인번호 {len(candidates)}개'})
 
