@@ -83,43 +83,54 @@ async function ensureSchema(db) {
   await addCol(`ALTER TABLE businesses ADD COLUMN tax_office TEXT`);
 }
 
-/* user dedup: 1) hash, 2) 이름+생년월일, 3) 이름+phone, 4) 이름 (fallback)
- * 사장님 명령 (2026-05-08): "같은사람 두 개 안 됨 / 이름 같으면 한 명". */
+/* user dedup — 사장님 명령 (2026-05-08, 최종 룰):
+ *   "이름 주민등록번호 겹치는 사람들로 가야함"
+ *   "동명이인만 같은이름이 두개 떠야한다"
+ *   "법인등록번호가 알아서 잘 넣을수 있겠어?" (법인은 법인번호 단독)
+ *
+ * 룰:
+ *   [개인] row.corp_or_indiv != '법인' AND ceo 가 사람 이름:
+ *     - 매칭 키 = (real_name OR name) AND birth_date AND resident_back_hash 모두 일치
+ *     - 셋 다 일치 → 같은 사람 (1 user) → 신규 row 의 사업장만 추가 매핑
+ *     - 하나라도 다름 (예: 같은 이름 다른 주민번호) → 다른 사람 → 신규 user (동명이인)
+ *
+ *   [법인] row.corp_or_indiv == '법인' AND resident_or_corp_no (= 법인등록번호):
+ *     - 매칭 키 = 법인등록번호 단독 (이름/대표 무관)
+ *     - 같은 법인등록번호 = 1 user (대표는 첫 row 의 ceo 로 저장)
+ *     - 13자리 법인번호 → birth_date 추출 X (parseRRN skip), back_hash 만 사용
+ */
 async function findExistingUser(db, row, salt) {
+  const isCorp = row.corp_or_indiv === '법인';
+  const cleanNo = String(row.resident_or_corp_no || '').replace(/\D/g, '');
+
+  if (isCorp) {
+    /* 법인: 법인번호 단독 매칭. birth_date 는 추출 안 함 (법인번호는 생년월일 X). */
+    if (!cleanNo) return { user: null, match_by: null, back_hash: null, birth_date: null, is_corp: true };
+    const back_hash = await sha256Hex(cleanNo + ':corp:' + salt);
+    /* 법인 user 는 birth_date NULL + resident_back_hash 가 법인번호 hash */
+    const u = await db.prepare(
+      `SELECT * FROM users WHERE resident_back_hash = ? AND (deleted_at IS NULL OR deleted_at = '') ORDER BY id ASC LIMIT 1`
+    ).bind(back_hash).first();
+    if (u) return { user: u, match_by: 'corp_no', back_hash, birth_date: null, is_corp: true };
+    return { user: null, match_by: null, back_hash, birth_date: null, is_corp: true };
+  }
+
+  /* 개인: 이름 + 주민번호 strict (둘 다 일치) */
   const { birth_date, back_raw } = parseRRN(row.resident_or_corp_no);
   const back_hash = back_raw ? await sha256Hex(back_raw + ':' + salt) : null;
-  const cleanPhone = String(row.phone || '').replace(/\D/g, '');
-  /* layer 1: hash + birth_date 매칭 (가장 정확) */
-  if (back_hash && birth_date) {
+  if (row.ceo && back_hash && birth_date) {
     const u = await db.prepare(
-      `SELECT * FROM users WHERE resident_back_hash = ? AND birth_date = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
-    ).bind(back_hash, birth_date).first();
-    if (u) return { user: u, match_by: 'hash', back_hash, birth_date };
+      `SELECT * FROM users
+       WHERE (real_name = ? OR name = ?)
+         AND birth_date = ?
+         AND resident_back_hash = ?
+         AND (deleted_at IS NULL OR deleted_at = '')
+       ORDER BY id ASC LIMIT 1`
+    ).bind(row.ceo, row.ceo, birth_date, back_hash).first();
+    if (u) return { user: u, match_by: 'name+rrn', back_hash, birth_date, is_corp: false };
   }
-  /* layer 2: 이름 + 생년월일 매칭 */
-  if (birth_date && row.ceo) {
-    const u = await db.prepare(
-      `SELECT * FROM users WHERE birth_date = ? AND (real_name = ? OR name = ?) AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
-    ).bind(birth_date, row.ceo, row.ceo).first();
-    if (u) return { user: u, match_by: 'name_birth', back_hash, birth_date };
-  }
-  /* layer 3: 이름 + phone 매칭 (admin user 가 birth_date 비어있는 경우 — 카카오 로그인 user) */
-  if (cleanPhone && cleanPhone.length >= 9 && row.ceo) {
-    const u = await db.prepare(
-      `SELECT * FROM users WHERE REPLACE(REPLACE(REPLACE(phone, '-', ''), ' ', ''), '+', '') = ?
-                            AND (real_name = ? OR name = ?)
-                            AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
-    ).bind(cleanPhone, row.ceo, row.ceo).first();
-    if (u) return { user: u, match_by: 'name_phone', back_hash, birth_date };
-  }
-  /* layer 4: 이름만 매칭 (사장님 명시 — 같은 이름 = 같은 사람으로 dedup) */
-  if (row.ceo) {
-    const u = await db.prepare(
-      `SELECT * FROM users WHERE (real_name = ? OR name = ?) AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
-    ).bind(row.ceo, row.ceo).first();
-    if (u) return { user: u, match_by: 'name', back_hash, birth_date };
-  }
-  return { user: null, match_by: null, back_hash, birth_date };
+  /* 매칭 X = 신규 user (이름만 같고 주민번호 다름 = 동명이인 → 별도 user) */
+  return { user: null, match_by: null, back_hash, birth_date, is_corp: false };
 }
 
 /* 사업장 dedup: 사업자번호 매칭 */
@@ -233,12 +244,19 @@ export async function onRequestPost(context) {
         preview.warnings.push(`row ${row.no}: 사업자번호 없음 → skip`);
       }
 
-      /* user dedup */
+      /* user dedup — 사장님 명령 (2026-05-08): 개인 = 이름+주민번호 strict / 법인 = 법인번호 단독 */
       if (row.ceo) {
         const matchResult = await findExistingUser(db, row, SALT);
         if (matchResult.user) {
-          analysis.user = { action: 'matched', existing_id: matchResult.user.id, match_by: matchResult.match_by };
-          /* enrichment check */
+          analysis.user = {
+            action: 'matched',
+            existing_id: matchResult.user.id,
+            match_by: matchResult.match_by,
+            is_corp: matchResult.is_corp,
+            birth_date: matchResult.birth_date,
+            back_hash: matchResult.back_hash,
+          };
+          /* enrichment check — 빈 컬럼만 채움 (사장님 입력 절대 우선) */
           const enrichFields = [];
           const u = matchResult.user;
           if (!u.birth_date && matchResult.birth_date) enrichFields.push('birth_date');
@@ -250,7 +268,12 @@ export async function onRequestPost(context) {
           }
           preview.users.matched++;
         } else {
-          analysis.user = { action: 'new', birth_date: matchResult.birth_date, back_hash: matchResult.back_hash };
+          analysis.user = {
+            action: 'new',
+            birth_date: matchResult.birth_date,
+            back_hash: matchResult.back_hash,
+            is_corp: matchResult.is_corp,
+          };
           preview.users.new++;
         }
       } else {
@@ -384,26 +407,40 @@ export async function onRequestPost(context) {
       }
     }
     /* 신규 user — bulk INSERT.
-     * 사장님 명령 (2026-05-08): "같은사람 두 개 안 됨 — 이름 같으면 한 명".
-     * provider_id 키 = 이름 + birth_date + hash (사업자번호 X) → 같은 사람 자동 dedup.
-     * 같은 위하고 row 여러 개의 같은 사람 → INSERT OR IGNORE 로 1번만. */
+     * 사장님 명령 (2026-05-08, 최종 룰):
+     *   "이름 주민등록번호 겹치는 사람들로 가야함" — 개인은 이름+주민번호 strict
+     *   "동명이인만 같은이름이 두개 떠야한다" — 같은 이름 다른 주민번호 = 동명이인 (별도 user)
+     *   "법인등록번호가 알아서 잘 넣을수 있겠어?" — 법인은 법인번호 단독
+     *
+     * provider_id 키:
+     *   [개인] 'manual:wehago:i:이름:birth_date:hash16'  (이름+주민번호 같으면 같은 키 → INSERT OR IGNORE)
+     *   [법인] 'manual:wehago:c:법인번호:hash16'         (법인번호 같으면 같은 키)
+     */
     const userInfo = []; /* { row_no, providerId } */
     const userValues = []; /* [[v1, v2, ...], [v1, v2, ...]] */
     const seenProviderIds = new Set(); /* 같은 batch 안 in-memory dedup */
     for (const a of details) {
       const row = a.row;
       if (a.user.action !== 'new' || !row.ceo) continue;
-      /* provider_id = 이름+birth_date+hash (사업자번호 X). 같은 사람 = 동일 키. */
       const hashShort = a.user.back_hash ? String(a.user.back_hash).slice(0, 16) : '';
-      const providerId = 'manual:wehago:' + row.ceo + ':' + (a.user.birth_date || '') + ':' + hashShort;
+      const isCorp = a.user.is_corp === true;
+      let providerId;
+      if (isCorp) {
+        /* 법인 user — 법인번호 단독 dedup. 이름은 첫 row 의 ceo (대표). */
+        const cleanCorpNo = String(row.resident_or_corp_no || '').replace(/\D/g, '');
+        providerId = 'manual:wehago:c:' + cleanCorpNo + ':' + hashShort;
+      } else {
+        providerId = 'manual:wehago:i:' + row.ceo + ':' + (a.user.birth_date || '') + ':' + hashShort;
+      }
       userInfo.push({ row_no: row.no, providerId });
-      /* 같은 batch 안 같은 사람 — INSERT 1번만 (이미 추가된 거 skip) */
+      /* 같은 batch 안 같은 사람 — INSERT 1번만 */
       if (seenProviderIds.has(providerId)) continue;
       seenProviderIds.add(providerId);
       const backHash = a.user.back_hash || null;
+      /* 법인은 birth_date NULL 저장 (생년월일 없음) */
       userValues.push([
         row.ceo, row.ceo, row.phone || null, providerId,
-        a.user.birth_date || null, backHash, batchId, now
+        isCorp ? null : (a.user.birth_date || null), backHash, batchId, now
       ]);
     }
     /* bulk INSERT — 사장님 명령 (2026-05-08): "위하고 import = 기장거래처".

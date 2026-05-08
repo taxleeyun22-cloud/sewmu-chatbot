@@ -19,8 +19,72 @@
   3. (사장님 OK 시) POST ?action=commit&batch_id=N → 실제 INSERT
   4. 결과 보고 (롤백은 admin UI 에서)
 """
-import sys, os, argparse, json, urllib.request, urllib.error
+import sys, os, argparse, json, re, urllib.request, urllib.error
 import openpyxl
+
+
+def extract_branch_tag(name):
+    """회사명에서 [...] 안 태그 추출 (지점 표시).
+    예: '두산동지점 [옆커폰/유킹지점]' -> '옆커폰/유킹지점'"""
+    if not name:
+        return None
+    m = re.search(r'\[([^\]]+)\]', name)
+    return m.group(1).strip() if m else None
+
+
+def enrich_empty_corp_no(rows):
+    """법인 row 중 법인등록번호 비어있으면 같은 [태그] 의 다른 row 법인번호로 자동 채움.
+    사장님 명령 (2026-05-08): "1~5번은 옆커폰주식회사 지점, 6번은 옆커호텔 지점.
+    법인등록번호가 알아서 잘 넣을수 있겠어?"
+
+    알고리즘:
+      1) 회사명에서 [...] 태그 추출
+      2) 같은 태그 가진 다른 row 의 법인번호 그룹화
+      3) 단일 법인번호로 통일되면 빈 row 도 그 번호로 채움
+      4) 다중 / 매칭 0 → enrichment 안 함, warning 만 표시
+
+    추가 변환:
+      - '옆커폰지점/유킹' (variant) → '옆커폰/유킹지점' 정규화 (같은 그룹 인식)
+    """
+    def normalize_tag(t):
+        if not t:
+            return t
+        # 동일 그룹 variant 정규화
+        if t in ('옆커폰지점/유킹', '옆커폰/유킹', '옆커폰/유킹지점'):
+            return '옆커폰/유킹지점'
+        return t
+
+    # 1. 태그 → 법인번호 set 매핑 (법인 + 법인번호 있는 row 만)
+    tag_to_corp_nos = {}
+    for r in rows:
+        if r['corp_or_indiv'] != '법인' or not r['resident_or_corp_no']:
+            continue
+        tag = normalize_tag(extract_branch_tag(r['company']))
+        if not tag:
+            continue
+        tag_to_corp_nos.setdefault(tag, set()).add(r['resident_or_corp_no'])
+
+    # 2. 빈 법인 row 채우기
+    enriched = []
+    skipped = []
+    for r in rows:
+        if r['corp_or_indiv'] != '법인' or r['resident_or_corp_no']:
+            continue
+        tag = normalize_tag(extract_branch_tag(r['company']))
+        if not tag:
+            skipped.append({'company': r['company'], 'reason': '태그 추출 실패'})
+            continue
+        candidates = tag_to_corp_nos.get(tag, set())
+        if len(candidates) == 1:
+            corp_no = next(iter(candidates))
+            r['resident_or_corp_no'] = corp_no
+            enriched.append({'company': r['company'], 'tag': tag, 'corp_no': corp_no})
+        elif len(candidates) == 0:
+            skipped.append({'company': r['company'], 'tag': tag, 'reason': '같은 태그 row 0건'})
+        else:
+            skipped.append({'company': r['company'], 'tag': tag, 'reason': f'같은 태그 다른 법인번호 {len(candidates)}개'})
+
+    return enriched, skipped
 
 
 def parse_xlsx(path):
@@ -48,6 +112,16 @@ def parse_xlsx(path):
             'home_addr': str(row2[6]).strip() if row2[6] else '',
             'tax_office': '',  # 위하고 export 에 별도 컬럼 없음, 주소 분석 필요
         })
+
+    # 사장님 명령 (2026-05-08): 법인 row 빈 법인번호 자동 채움
+    enriched, skipped = enrich_empty_corp_no(rows)
+    if enriched or skipped:
+        print(f'>> 법인등록번호 자동 enrichment: {len(enriched)}건 채움 / {len(skipped)}건 skip')
+        for e in enriched:
+            print(f'   ✅ {e["company"]} → {e["corp_no"]} (태그: {e["tag"]})')
+        for s in skipped:
+            print(f'   ⚠️  {s["company"]} → skip ({s["reason"]})')
+
     return rows
 
 
@@ -56,7 +130,11 @@ def call_api(base_url, key, action, body):
     req = urllib.request.Request(
         url,
         data=json.dumps(body, ensure_ascii=False).encode('utf-8'),
-        headers={'Content-Type': 'application/json; charset=utf-8'},
+        headers={
+            'Content-Type': 'application/json; charset=utf-8',
+            'User-Agent': 'Mozilla/5.0 (sewmu-import-script) AppleWebKit/537.36',
+            'Accept': 'application/json',
+        },
         method='POST',
     )
     try:
