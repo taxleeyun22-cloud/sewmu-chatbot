@@ -286,6 +286,110 @@ export async function onRequestPost(context) {
     }
   }
 
+  /* 사장님 명령 (2026-05-08): 카톡 user + manual user 분리된 쌍 자동 점검.
+   * action=find_split_pairs (POST 또는 GET 둘 다 OK — 사이드 이펙트 0)
+   * 결과: 같은 real_name (또는 name) 의 user 중 한쪽 provider='kakao', 한쪽 provider='manual'
+   *       (둘 다 deleted_at IS NULL). merge_users 추천 + 사장님 사이즈 보고.
+   * body 옵션: { auto_merge: true } → 자동 일괄 merge (owner only 정책 적용)
+   *           { dry_run: true } → list 만 반환 (default) */
+  if (action === "find_split_pairs") {
+    try {
+      const dryRun = !body.auto_merge;
+      /* 같은 이름 group 만들기 — limit 5000 (안전) */
+      const { results } = await db.prepare(`
+        SELECT id, real_name, name, provider, provider_user_id, phone, profile_image,
+               approval_status, birth_date, last_login_at, created_at, is_admin
+          FROM users
+         WHERE (deleted_at IS NULL OR deleted_at = '')
+           AND (provider = 'kakao' OR provider = 'manual')
+           AND COALESCE(approval_status, '') NOT IN ('merged', 'deleted')
+         ORDER BY id ASC
+         LIMIT 5000
+      `).all();
+      const all = results || [];
+      const byName = {};
+      for (const u of all) {
+        const nm = (u.real_name || u.name || '').trim();
+        if (!nm) continue;
+        if (!byName[nm]) byName[nm] = [];
+        byName[nm].push(u);
+      }
+      const splitPairs = [];
+      for (const nm of Object.keys(byName)) {
+        const us = byName[nm];
+        const kakaos = us.filter(u => u.provider === 'kakao');
+        const manuals = us.filter(u => u.provider === 'manual');
+        if (!kakaos.length || !manuals.length) continue;
+        /* 동명이인 검사: birth_date 둘 다 있고 다르면 skip (다른 사람) */
+        for (const k of kakaos) {
+          for (const m of manuals) {
+            if (k.birth_date && m.birth_date && k.birth_date !== m.birth_date) continue;
+            /* 카톡 admin 인 경우 skip — 위험 */
+            if (k.is_admin || m.is_admin) continue;
+            splitPairs.push({
+              name: nm,
+              kakao: { id: k.id, name: k.name, phone: k.phone, profile_image: k.profile_image, last_login_at: k.last_login_at, birth_date: k.birth_date },
+              manual: { id: m.id, name: m.name, phone: m.phone, birth_date: m.birth_date, last_login_at: m.last_login_at },
+            });
+          }
+        }
+      }
+      if (dryRun) {
+        return Response.json({ ok: true, dry_run: true, split_pairs: splitPairs, total: splitPairs.length });
+      }
+      /* auto_merge — owner only */
+      if (!auth?.owner) return Response.json({ ok: false, error: 'owner only for auto_merge' }, { status: 403 });
+      const merged = [];
+      const failed = [];
+      for (const pair of splitPairs) {
+        try {
+          /* merge_users 동일 룰을 직접 호출 */
+          const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+          const kakao = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(pair.kakao.id).first();
+          const manual = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(pair.manual.id).first();
+          if (!kakao || !manual) { failed.push({ pair, reason: 'one of users not found' }); continue; }
+
+          /* archive kakao first (UNIQUE 회피) */
+          const kakaoArchivedProviderId = `merged:${pair.kakao.id}:${kakao.provider_id || kakao.provider_user_id || ''}`;
+          await db.prepare(`UPDATE users SET deleted_at = ?, approval_status = 'merged', provider = 'merged', provider_id = ?, provider_user_id = NULL WHERE id = ?`)
+            .bind(now, kakaoArchivedProviderId, pair.kakao.id).run();
+          /* manual 흡수 */
+          await db.prepare(`
+            UPDATE users SET
+              provider = ?, provider_id = ?, provider_user_id = ?,
+              profile_image = COALESCE(?, profile_image),
+              name = COALESCE(?, name),
+              email = COALESCE(?, email),
+              phone = COALESCE(NULLIF(phone, ''), NULLIF(phone, '000-000-0000'), ?),
+              name_confirmed = 1,
+              approval_status = 'approved_client',
+              approved_at = COALESCE(approved_at, ?),
+              last_login_at = ?,
+              deleted_at = NULL, withdrawal_reason = NULL
+            WHERE id = ?
+          `).bind(kakao.provider, kakao.provider_id, kakao.provider_user_id, kakao.profile_image,
+                  kakao.name, kakao.email, kakao.phone, now, now, pair.manual.id).run();
+          /* 매핑 이전 */
+          await db.prepare(`UPDATE business_members SET user_id = ? WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`).bind(pair.manual.id, pair.kakao.id).run();
+          await db.prepare(`UPDATE memos SET target_user_id = ? WHERE target_user_id = ?`).bind(pair.manual.id, pair.kakao.id).run();
+          await db.prepare(`UPDATE memos SET author_user_id = ? WHERE author_user_id = ?`).bind(pair.manual.id, pair.kakao.id).run();
+          try { await db.prepare(`UPDATE conversations SET user_id = ? WHERE user_id = ?`).bind(pair.manual.id, pair.kakao.id).run(); } catch {}
+          try { await db.prepare(`UPDATE room_members SET user_id = ? WHERE user_id = ? AND (left_at IS NULL OR left_at = '')`).bind(pair.manual.id, pair.kakao.id).run(); } catch {}
+          try { await db.prepare(`UPDATE documents SET user_id = ? WHERE user_id = ?`).bind(pair.manual.id, pair.kakao.id).run(); } catch {}
+          try { await db.prepare(`UPDATE daily_usage SET user_id = ? WHERE user_id = ?`).bind(pair.manual.id, pair.kakao.id).run(); } catch {}
+          try { await db.prepare(`UPDATE sessions SET user_id = ? WHERE user_id = ?`).bind(pair.manual.id, pair.kakao.id).run(); } catch {}
+          try { await db.prepare(`UPDATE business_documents SET user_id = ? WHERE user_id = ?`).bind(pair.manual.id, pair.kakao.id).run(); } catch {}
+          merged.push({ name: pair.name, survived: pair.manual.id, archived: pair.kakao.id });
+        } catch (e) {
+          failed.push({ pair, reason: e.message });
+        }
+      }
+      return Response.json({ ok: true, dry_run: false, merged, failed, total_merged: merged.length, total_failed: failed.length });
+    } catch (e) {
+      return Response.json({ ok: false, error: e.message }, { status: 500 });
+    }
+  }
+
   /* Phase (2026-05-07 사장님 명령 정정): 진짜 merge — 카카오 가입자와 수동 user 합치기.
    * action=merge_users { kakao_user_id, manual_user_id }
    * 결과: manual_user 가 살아남음. kakao_user 의 카카오 정보 (provider/provider_user_id/profile_image)

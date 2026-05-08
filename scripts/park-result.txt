@@ -1,0 +1,38 @@
+﻿=== 박승호 검색: 2명 ===
+
+  id=1931
+  real_name: '박승호'
+  name: '박승호'
+  phone: '010-7133-2776'
+  provider: manual
+  provider_id: None
+  provider_user_id: None
+  approval_status: approved_client
+  birth_date: None
+  resident_back_hash 채움?: False
+  deleted_at: None
+  is_admin: 0
+  last_login_at: 2026-05-08 07:42:27
+  profile_image: 
+  import_batch_id: None
+
+  id=64
+  real_name: '박승호'
+  name: '박승호'
+  phone: '01071332776'
+  provider: kakao
+  provider_id: None
+  provider_user_id: None
+  approval_status: approved_client
+  birth_date: None
+  resident_back_hash 채움?: False
+  deleted_at: None
+  is_admin: 0
+  last_login_at: 2026-04-15 19:49:09
+  profile_image: http://k.kakaocdn.net/dn/ub8HW/btsPqkhpBYS/zyV6IVV6f6shVRvfo
+  import_batch_id: None
+
+=== batch_24 안 + 기존 DB 같은 이름 user 가 분리된 케이스 점검 ===
+전체 approved_client: 200 명
+
+분리된 케이스 (같은 이름 + kakao 1+ + manual 1+): 0 명
