@@ -248,7 +248,39 @@ export async function onRequestGet(context) {
       const { results: rooms } = await db.prepare(
         `SELECT id, name, status, created_at FROM chat_rooms WHERE business_id = ? ORDER BY created_at DESC LIMIT 50`
       ).bind(id).all();
-      return Response.json({ ok: true, business: biz, members: members || [], rooms: rooms || [] });
+
+      /* 사장님 명령 (2026-05-08): 본점 dashboard 진입 시 지점 자동 표시.
+       * 이 사업장이 parent → branches[] (자식 사업장 list).
+       * 이 사업장이 child → parent (본점 정보). */
+      let branches = [];
+      let parent = null;
+      try {
+        const r = await db.prepare(
+          `SELECT id, company_name, business_number, ceo_name, address, phone,
+                  company_form, status, industry, business_category
+             FROM businesses
+            WHERE parent_business_id = ? AND (deleted_at IS NULL OR deleted_at = '')
+            ORDER BY company_name`
+        ).bind(id).all();
+        branches = r.results || [];
+      } catch {}
+      if (biz.parent_business_id) {
+        try {
+          parent = await db.prepare(
+            `SELECT id, company_name, business_number, ceo_name, corporate_number
+               FROM businesses WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '')`
+          ).bind(biz.parent_business_id).first();
+        } catch {}
+      }
+
+      return Response.json({
+        ok: true,
+        business: biz,
+        members: members || [],
+        rooms: rooms || [],
+        branches,
+        parent,
+      });
     } catch (e) {
       return Response.json({ ok: false, error: e.message }, { status: 500 });
     }

@@ -98,18 +98,25 @@ function _renderBizList(){
   else if(_bizStatusFilter === 'terminated') base = base.filter(b => b.status === 'terminated');
   const list=q?base.filter(b=>((b.company_name||'')+' '+(b.business_number||'')+' '+(b.ceo_name||'')).toLowerCase().indexOf(q)>=0):base;
   if(!list.length){el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">'+(q?'검색 결과 없음':'등록된 업체가 없습니다. [＋ 새 업체] 로 추가하세요.')+'</div>';return}
+  /* 사장님 명령 (2026-05-08): 본점·지점 indent 표시.
+   * - parent_business_id 가 있으면 → 지점 (indent + 📍 prefix)
+   * - 같은 list 안 본점도 함께 표시되면 본점-지점 트리. */
   el.innerHTML=list.map(function(b){
+    const isBranch = !!b.parent_business_id;
     const st=b.status==='terminated'?'<span style="background:#fee2e2;color:#991b1b;font-size:.68em;padding:2px 7px;border-radius:4px;margin-left:6px;font-weight:700">🚫 이관</span>':(b.status==='closed'?'<span style="background:#e5e8eb;color:#6b7280;font-size:.68em;padding:2px 7px;border-radius:4px;margin-left:6px">📦 종료</span>':'');
     const bn=b.business_number?'<span style="color:#6b7280;font-size:.82em">· '+e(b.business_number)+'</span>':'';
     const ceo=b.ceo_name?'<span style="color:#6b7280;font-size:.82em;margin-left:4px">· 대표 '+e(b.ceo_name)+'</span>':'';
     const cat=[b.business_type||'', b.industry||'', b.tax_type||''].filter(Boolean).join(' · ');
     const memCount=Number(b.member_count||0);
     const roomCount=Number(b.room_count||0);
-    return '<div onclick="openBusinessDashboard('+b.id+')" style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:8px;cursor:pointer;transition:.15s" onmouseover="this.style.borderColor=\'#3182f6\';this.style.boxShadow=\'0 2px 8px rgba(49,130,246,.08)\'" onmouseout="this.style.borderColor=\'#e5e8eb\';this.style.boxShadow=\'none\'">'
+    const indent = isBranch ? 'margin-left:24px;' : '';
+    const icon = isBranch ? '📍' : '🏢';
+    const branchBadge = isBranch ? '<span style="background:#e0f2fe;color:#075985;font-size:.66em;padding:2px 7px;border-radius:4px;margin-left:6px;font-weight:600">지점</span>' : '';
+    return '<div onclick="openBusinessDashboard('+b.id+')" style="background:#fff;border:1px solid '+(isBranch?'#dbeafe':'#e5e8eb')+';border-radius:10px;padding:14px 16px;margin-bottom:8px;'+indent+'cursor:pointer;transition:.15s" onmouseover="this.style.borderColor=\'#3182f6\';this.style.boxShadow=\'0 2px 8px rgba(49,130,246,.08)\'" onmouseout="this.style.borderColor=\''+(isBranch?'#dbeafe':'#e5e8eb')+'\';this.style.boxShadow=\'none\'">'
       +'<div style="display:flex;align-items:flex-start;gap:10px">'
-      +'<div style="font-size:1.2em;line-height:1">🏢</div>'
+      +'<div style="font-size:1.2em;line-height:1">'+icon+'</div>'
       +'<div style="flex:1;min-width:0">'
-      +'<div style="font-weight:700;font-size:.95em">'+e(b.company_name||'(이름없음)')+st+'</div>'
+      +'<div style="font-weight:700;font-size:.95em">'+e(b.company_name||'(이름없음)')+branchBadge+st+'</div>'
       +'<div style="font-size:.82em;color:#4b5563;margin-top:2px">'+bn+ceo+'</div>'
       +(cat?'<div style="font-size:.75em;color:#8b95a1;margin-top:2px">'+e(cat)+'</div>':'')
       +'<div style="display:flex;gap:10px;margin-top:6px;font-size:.76em;color:#6b7280">'

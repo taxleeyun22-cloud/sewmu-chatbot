@@ -91,6 +91,60 @@
       /* 기본정보 그리드 — view 모드 */
       try { $('bizBasic').innerHTML = renderBasic(false); }
       catch (err) { $('bizBasic').innerHTML = '<div class="err">기본정보 렌더 실패: ' + e(err.message) + '</div>'; }
+
+      /* 사장님 명령 (2026-05-08): 본점·지점 표시.
+       * - 이 사업장이 본점 (branches 있음) → 📍 지점 list (클릭→ 지점 dashboard)
+       * - 이 사업장이 지점 (parent 있음) → 🏢 본점 link (클릭→ 본점 dashboard) */
+      try {
+        const branches = d.branches || [];
+        const parent = d.parent || null;
+        const sec = $('branchInfoSection');
+        const body = $('branchInfoBody');
+        const title = $('branchSecTitle');
+        const hint = $('branchSecHint');
+        const keyParam = (window.KEY || (new URL(location.href)).searchParams.get('key') || '');
+        if (parent) {
+          /* 이 사업장이 지점 */
+          if (sec) sec.style.display = '';
+          if (title) title.textContent = '🏢 본점 (이 사업장은 지점)';
+          if (hint) hint.textContent = '클릭하면 본점 dashboard 진입';
+          if (body) {
+            body.innerHTML = '<div class="branch-row" onclick="location.href=\'/business.html?id=' + parent.id + '&key=' + encodeURIComponent(keyParam) + '\'" style="cursor:pointer;padding:12px 14px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;display:flex;align-items:center;gap:10px">'
+              + '<div style="flex:1"><div style="font-weight:700;font-size:.95em">🏢 ' + e(parent.company_name || '#' + parent.id) + '</div>'
+              + '<div style="font-size:.78em;color:#475569;margin-top:3px">사업자번호 ' + e(parent.business_number || '-') + (parent.ceo_name ? ' · 대표 ' + e(parent.ceo_name) : '') + (parent.corporate_number ? ' · 법인 ' + e(parent.corporate_number) : '') + '</div></div>'
+              + '<div style="color:#3182f6;font-size:1.4em">›</div>'
+              + '</div>';
+          }
+        } else if (branches.length) {
+          /* 이 사업장이 본점 */
+          if (sec) sec.style.display = '';
+          if (title) title.textContent = '📍 지점 (' + branches.length + ')';
+          if (hint) hint.textContent = '이 본점에 연결된 지점들 — 클릭하면 지점 dashboard 진입';
+          if (body) {
+            body.innerHTML = branches.map(function(br) {
+              try {
+                const nm = e(br.company_name || '#' + br.id);
+                const bn = e(br.business_number || '-');
+                const ceo = br.ceo_name ? ' · 대표 ' + e(br.ceo_name) : '';
+                const addr = br.address ? '<div style="font-size:.72em;color:#9ca3af;margin-top:2px">' + e(String(br.address).substring(0, 40)) + '</div>' : '';
+                const formBadge = br.company_form ? '<span style="background:#f3f4f6;color:#374151;font-size:.66em;padding:2px 7px;border-radius:4px;margin-left:6px;font-weight:600">' + e(br.company_form) + '</span>' : '';
+                return '<div class="branch-row" onclick="location.href=\'/business.html?id=' + br.id + '&key=' + encodeURIComponent(keyParam) + '\'" style="cursor:pointer;padding:10px 14px;border-bottom:1px solid #f2f4f6;display:flex;align-items:center;gap:10px">'
+                  + '<div style="flex:1;min-width:0">'
+                  + '<div style="font-weight:600;font-size:.88em">📍 ' + nm + formBadge + '</div>'
+                  + '<div style="font-size:.76em;color:#6b7280;margin-top:2px">사업자 ' + bn + ceo + '</div>'
+                  + addr
+                  + '</div>'
+                  + '<div style="color:#3182f6;font-size:1.2em">›</div>'
+                  + '</div>';
+              } catch (_) { return ''; }
+            }).join('');
+          }
+        } else {
+          if (sec) sec.style.display = 'none';
+        }
+      } catch (brerr) {
+        console.warn('[branch] render fail:', brerr);
+      }
       /* 구성원 */
       if (!members.length) {
         $('memberList').innerHTML = '<div class="empty">구성원 없음</div>';

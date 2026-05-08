@@ -12,7 +12,7 @@
 <script type="module" src="/assets/main.js?v=1"></script>
 </head>
 <body>
-<div id="diag">✓ business.html v=7 (메모 빡센)</div>
+<div id="diag">✓ business.html v=8 (본점·지점)</div>
 <div class="container">
   <div class="topbar">
     <a href="javascript:history.back()">← 뒤로</a>
@@ -31,6 +31,16 @@
       <span style="margin-left:auto" id="basicActions"><button class="btn-ghost" onclick="toggleEdit(true)">✏️ 편집</button></span>
     </div>
     <div id="bizBasic"><div class="loading">기본 정보 불러오는 중...</div></div>
+  </div>
+
+  <!-- 사장님 명령 (2026-05-08): "주식회사 옆커폰 본사 업체 쪽에서 들어가면 아래 지점 쫙 깔리는거지?"
+       → 본점 진입 시 지점 list / 지점 진입 시 본점 link 표시 -->
+  <div class="section" id="branchInfoSection" style="display:none">
+    <div class="sec-title">
+      <span id="branchSecTitle">🏢 본점·지점</span>
+      <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px" id="branchSecHint"></span>
+    </div>
+    <div id="branchInfoBody"></div>
   </div>
 
   <!-- Phase 6 (2026-05-07 사장님 명세): 신고 검토표 — 법인세 -->
@@ -142,7 +152,7 @@ fetch('/admin-modals.html?v=46', { cache: 'no-cache' })
   .catch(err => console.warn('[admin-modals] fetch fail:', err));
 </script>
 
-<script src="/business.js?v=3"></script>
+<script src="/business.js?v=4"></script>
 <!-- Phase 6 (2026-05-07): 신고 검토표 시스템 (법인세) -->
 <script src="/admin-filing-review.js?v=21"></script>
 <script>
