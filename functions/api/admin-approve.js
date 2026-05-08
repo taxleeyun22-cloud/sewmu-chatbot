@@ -148,7 +148,10 @@ export async function onRequestGet(context) {
       where.push(`(u.deleted_at IS NULL OR u.deleted_at = '')`);
     }
     query += ` WHERE ` + where.join(' AND ');
-    query += ` ORDER BY u.created_at DESC LIMIT 200`;
+    /* 사장님 보고 (2026-05-08): LIMIT 200 으로 created_at 오래된 user (이재윤 id=99 4월 7일, 채승용 id=63 4월 15일) 가 잘림.
+     * 위하고 import 후 새 user 254명 추가 → 기존 admin user 도 200 안에 안 들어감.
+     * LIMIT 1000 으로 확대 — 응답 크기 OK. */
+    query += ` ORDER BY u.created_at DESC LIMIT 1000`;
 
     const { results } = await db.prepare(query).bind(...binds).all();
 
