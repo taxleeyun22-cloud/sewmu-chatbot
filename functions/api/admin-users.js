@@ -360,30 +360,60 @@ export async function onRequestPost(context) {
           await db.prepare(`UPDATE users SET deleted_at = ?, approval_status = 'merged', provider = 'merged', provider_id = ?, provider_user_id = NULL WHERE id = ?`)
             .bind(now, archivedProviderId, archiveId).run();
 
-          /* keep 흡수 — archive 의 정보 enrich (빈 컬럼만) */
-          await db.prepare(`
-            UPDATE users SET
-              provider_id = COALESCE(provider_id, ?),
-              provider_user_id = COALESCE(provider_user_id, ?),
-              profile_image = COALESCE(NULLIF(profile_image, ''), ?),
-              name = COALESCE(NULLIF(name, ''), ?),
-              real_name = COALESCE(NULLIF(real_name, ''), ?),
-              email = COALESCE(NULLIF(email, ''), ?),
-              phone = COALESCE(NULLIF(phone, ''), NULLIF(phone, '000-000-0000'), ?),
-              birth_date = COALESCE(birth_date, ?),
-              resident_back_hash = COALESCE(resident_back_hash, ?),
-              name_confirmed = COALESCE(NULLIF(name_confirmed, 0), ?),
-              approval_status = COALESCE(NULLIF(approval_status, ''), 'approved_client'),
-              approved_at = COALESCE(approved_at, ?),
-              last_login_at = COALESCE(last_login_at, ?),
-              deleted_at = NULL, withdrawal_reason = NULL
-            WHERE id = ?
-          `).bind(
-            archived.provider_id, archived.provider_user_id, archived.profile_image,
-            archived.name, archived.real_name, archived.email, archived.phone,
-            archived.birth_date, archived.resident_back_hash, archived.name_confirmed || 0,
-            now, now, keepId
-          ).run();
+          /* keep 흡수 — 사장님 명령 (2026-05-08): "카카오가 다 덮어쓰도록".
+           * archive 가 kakao 일 때 = 카카오 정보로 keep 덮어쓰기. archive 가 manual 일 때는 빈 컬럼만 enrich.
+           * 단순화: archive 의 NULL 아닌 컬럼은 모두 keep 에 적용 (덮어쓰기). NULL 인 컬럼은 keep 그대로. */
+          const overwriteByArchive = archived.provider === 'kakao';
+          if (overwriteByArchive) {
+            /* 카카오 archive → manual keep 에 카카오 정보로 덮어쓰기 (사장님 명령) */
+            await db.prepare(`
+              UPDATE users SET
+                provider = ?,
+                provider_id = COALESCE(NULLIF(?, ''), provider_id),
+                provider_user_id = COALESCE(NULLIF(?, ''), provider_user_id),
+                profile_image = COALESCE(NULLIF(?, ''), profile_image),
+                name = COALESCE(NULLIF(?, ''), name),
+                real_name = COALESCE(NULLIF(?, ''), real_name),
+                email = COALESCE(NULLIF(?, ''), email),
+                phone = COALESCE(NULLIF(?, ''), phone),
+                birth_date = COALESCE(birth_date, ?),
+                resident_back_hash = COALESCE(resident_back_hash, ?),
+                name_confirmed = 1,
+                approval_status = 'approved_client',
+                approved_at = COALESCE(approved_at, ?),
+                last_login_at = ?,
+                deleted_at = NULL, withdrawal_reason = NULL
+              WHERE id = ?
+            `).bind(
+              archived.provider, archived.provider_id, archived.provider_user_id, archived.profile_image,
+              archived.name, archived.real_name, archived.email, archived.phone,
+              archived.birth_date, archived.resident_back_hash, now, now, keepId
+            ).run();
+          } else {
+            /* manual archive → keep 에 빈 컬럼만 enrich (덮어쓰기 X) */
+            await db.prepare(`
+              UPDATE users SET
+                provider_id = COALESCE(provider_id, ?),
+                profile_image = COALESCE(NULLIF(profile_image, ''), ?),
+                name = COALESCE(NULLIF(name, ''), ?),
+                real_name = COALESCE(NULLIF(real_name, ''), ?),
+                email = COALESCE(NULLIF(email, ''), ?),
+                phone = COALESCE(NULLIF(phone, ''), NULLIF(phone, '000-000-0000'), ?),
+                birth_date = COALESCE(birth_date, ?),
+                resident_back_hash = COALESCE(resident_back_hash, ?),
+                name_confirmed = COALESCE(NULLIF(name_confirmed, 0), ?),
+                approval_status = COALESCE(NULLIF(approval_status, ''), 'approved_client'),
+                approved_at = COALESCE(approved_at, ?),
+                last_login_at = COALESCE(last_login_at, ?),
+                deleted_at = NULL, withdrawal_reason = NULL
+              WHERE id = ?
+            `).bind(
+              archived.provider_id, archived.profile_image,
+              archived.name, archived.real_name, archived.email, archived.phone,
+              archived.birth_date, archived.resident_back_hash, archived.name_confirmed || 0,
+              now, now, keepId
+            ).run();
+          }
 
           /* 매핑 이전 (archive → keep) */
           await db.prepare(`UPDATE business_members SET user_id = ? WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`).bind(keepId, archiveId).run();
@@ -485,16 +515,20 @@ export async function onRequestPost(context) {
         const info = await db.prepare(`PRAGMA table_info(users)`).all();
         hasProviderIdCol = (info?.results || []).some(c => c.name === 'provider_id');
       } catch {}
+      /* 사장님 명령 (2026-05-08): "들어오면 우리가 매칭시키고 그대로 카카오가 다 덮어쓰도록 만들어야함"
+       * = 카카오 정보 우선 (덮어쓰기 모드). 카카오 값이 NULL/빈 일 때만 manual 그대로.
+       * 패턴: COALESCE(NULLIF(?, ''), 기존_컬럼) — 카카오값 비어있지 않으면 카카오값으로 덮어쓰기 */
       if (hasProviderIdCol) {
         await db.prepare(`
           UPDATE users SET
             provider = ?,
             provider_id = ?,
             provider_user_id = ?,
-            profile_image = COALESCE(?, profile_image),
-            name = COALESCE(?, name),
-            email = COALESCE(?, email),
-            phone = COALESCE(phone, ?),
+            profile_image = COALESCE(NULLIF(?, ''), profile_image),
+            name = COALESCE(NULLIF(?, ''), name),
+            real_name = COALESCE(NULLIF(?, ''), real_name),
+            email = COALESCE(NULLIF(?, ''), email),
+            phone = COALESCE(NULLIF(?, ''), phone),
             name_confirmed = 1,
             approval_status = 'approved_client',
             approved_at = COALESCE(approved_at, ?),
@@ -504,17 +538,18 @@ export async function onRequestPost(context) {
           WHERE id = ?
         `).bind(
           kakao.provider, kakao.provider_id, kakao.provider_user_id, kakao.profile_image,
-          kakao.name, kakao.email, kakao.phone, now, now, manualUid
+          kakao.name, kakao.real_name, kakao.email, kakao.phone, now, now, manualUid
         ).run();
       } else {
         await db.prepare(`
           UPDATE users SET
             provider = ?,
             provider_user_id = ?,
-            profile_image = COALESCE(?, profile_image),
-            name = COALESCE(?, name),
-            email = COALESCE(?, email),
-            phone = COALESCE(phone, ?),
+            profile_image = COALESCE(NULLIF(?, ''), profile_image),
+            name = COALESCE(NULLIF(?, ''), name),
+            real_name = COALESCE(NULLIF(?, ''), real_name),
+            email = COALESCE(NULLIF(?, ''), email),
+            phone = COALESCE(NULLIF(?, ''), phone),
             name_confirmed = 1,
             approval_status = 'approved_client',
             approved_at = COALESCE(approved_at, ?),
@@ -524,7 +559,7 @@ export async function onRequestPost(context) {
           WHERE id = ?
         `).bind(
           kakao.provider, kakao.provider_user_id, kakao.profile_image,
-          kakao.name, kakao.email, kakao.phone, now, now, manualUid
+          kakao.name, kakao.real_name, kakao.email, kakao.phone, now, now, manualUid
         ).run();
       }
 

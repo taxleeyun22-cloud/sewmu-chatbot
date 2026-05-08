@@ -118,7 +118,11 @@ export async function onRequestGet(context) {
       FROM users u
     `;
     const binds = [];
-    const where = [`COALESCE(u.is_admin, 0) = 0`];
+    /* 사장님 명령 (2026-05-08): is_admin=1 user 도 status 카테고리 (기장거래처/일반승인/대기/등) 에 표시.
+     * 이전: where 에 `COALESCE(u.is_admin, 0) = 0` 추가 → admin user 가 모든 status 카테고리 자동 제외 → "이재윤·채승용 기장거래처에 안 보임"
+     * 새 룰: admin 도 본인의 approval_status 따라 list 표시 (이재윤=approved_client → 기장거래처 카테고리에 표시).
+     *        '👑 관리자' 카테고리는 기존대로 is_admin=1 만. */
+    const where = ['1=1'];
     /* 사장님 명령 (2026-05-07): status 별 분기.
      * - withdrawn: deleted_at 있는 user
      * - rejoined: previous_withdrawn_user_id 있는 활성 user (옛 탈퇴자 재가입)
@@ -163,16 +167,16 @@ export async function onRequestGet(context) {
     for (const s of APPROVAL_STATUSES) {
       let sql, binds2;
       if (s === 'withdrawn') {
-        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND u.deleted_at IS NOT NULL AND u.deleted_at != '' AND COALESCE(u.approval_status, 'pending') = 'withdrawn'`;
+        sql = `SELECT COUNT(*) as c FROM users u WHERE u.deleted_at IS NOT NULL AND u.deleted_at != '' AND COALESCE(u.approval_status, 'pending') = 'withdrawn'`;
         binds2 = [];
       } else if (s === 'rejoined') {
-        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND COALESCE(u.approval_status, 'pending') = 'rejoined' AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
+        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.approval_status, 'pending') = 'rejoined' AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
         binds2 = [];
       } else if (s === 'deleted') {
-        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND COALESCE(u.approval_status, 'pending') = 'deleted'`;
+        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.approval_status, 'pending') = 'deleted'`;
         binds2 = [];
       } else {
-        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.approval_status, 'pending') = ? AND COALESCE(u.is_admin, 0) = 0 AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
+        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.approval_status, 'pending') = ? AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
         binds2 = [s];
       }
       const r = binds2.length ? await db.prepare(sql).bind(...binds2).first() : await db.prepare(sql).first();
