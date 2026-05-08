@@ -303,8 +303,10 @@ export async function onRequestPost(context) {
     const auditLog = [];
     const stats = { inserted_users: 0, inserted_businesses: 0, inserted_members: 0, enriched_users: 0 };
 
-    /* fix v5 (2026-05-08): D1 batch API 사용 — Cloudflare Workers "Too many API requests" 제한 우회.
-     * 308 거래처 × (user + biz + mapping) = 1000+ query → 3 batch call 로 축소. */
+    /* fix v6 (2026-05-08): Bulk INSERT VALUES (...), (...) — 진짜 1 statement.
+     * D1 batch API 도 statement 마다 subrequest 카운트해서 효과 X.
+     * 50 row 씩 chunk → INSERT OR IGNORE INTO ... VALUES (?,?), (?,?), ... 한 번에. */
+    const BULK_CHUNK = 50;
 
     /* 1. user INSERT batch */
     const userIdMap = {}; /* row_no → user_id */
@@ -341,65 +343,56 @@ export async function onRequestPost(context) {
         }
       }
     }
-    /* 신규 user INSERT — batch 로 묶기. INSERT OR IGNORE 사용 (UNIQUE 충돌 자동 skip).
-     * provider_id 별 row.no 매핑 보존 (충돌 시 SELECT 로 user_id 받기 위해). */
-    const userBatchInfo = []; /* { row_no, providerId } */
-    const userBatchStmts = [];
+    /* 신규 user — bulk INSERT VALUES (...), (...) chunk 단위 (BULK_CHUNK=50 row × 9 col = 450 bind, SQLite 999 limit 안전) */
+    const userInfo = []; /* { row_no, providerId } */
+    const userValues = []; /* [[v1, v2, ...], [v1, v2, ...]] */
     for (const a of details) {
       const row = a.row;
       if (a.user.action !== 'new' || !row.ceo) continue;
       const providerId = 'manual:wehago:' + (row.biz_no || ('row_' + row.no)) + ':' + (a.user.birth_date || '');
       const backHash = a.user.back_hash || null;
-      userBatchInfo.push({ row_no: row.no, providerId });
-      userBatchStmts.push(
-        db.prepare(
-          `INSERT OR IGNORE INTO users (real_name, name, phone, provider, provider_id, approval_status,
-                                        birth_date, resident_back_hash, import_batch_id, created_at)
-           VALUES (?, ?, ?, 'manual', ?, 'pending', ?, ?, ?, ?)`
-        ).bind(row.ceo, row.ceo, row.phone || null, providerId, a.user.birth_date || null, backHash, batchId, now)
-      );
+      userInfo.push({ row_no: row.no, providerId });
+      userValues.push([
+        row.ceo, row.ceo, row.phone || null, providerId,
+        a.user.birth_date || null, backHash, batchId, now
+      ]);
     }
-    /* batch 실행 */
-    if (userBatchStmts.length) {
+    /* bulk INSERT (8 col 사용 — provider/approval_status 는 SQL literal) */
+    for (let i = 0; i < userValues.length; i += BULK_CHUNK) {
+      const chunk = userValues.slice(i, i + BULK_CHUNK);
+      const placeholders = chunk.map(() => "(?, ?, ?, 'manual', ?, 'pending', ?, ?, ?, ?)").join(', ');
+      const sql = `INSERT OR IGNORE INTO users (real_name, name, phone, provider, provider_id, approval_status, birth_date, resident_back_hash, import_batch_id, created_at) VALUES ${placeholders}`;
       try {
-        const userResults = await db.batch(userBatchStmts);
-        for (let i = 0; i < userResults.length; i++) {
-          const info = userBatchInfo[i];
-          const result = userResults[i];
-          const lastId = result?.meta?.last_row_id;
-          const changes = result?.meta?.changes || 0;
-          if (changes === 1 && lastId) {
-            userIdMap[info.row_no] = lastId;
-            stats.inserted_users++;
-          }
-          /* changes=0 → INSERT IGNORE (UNIQUE 충돌). 별도 SELECT 로 해결 (다음 단계). */
-        }
+        await db.prepare(sql).bind(...chunk.flat()).run();
       } catch (e) {
-        userInsertErrors.push({ phase: 'user_batch', error: String(e.message || e).slice(0, 300) });
+        userInsertErrors.push({ phase: 'user_bulk_insert', chunk_start: i, error: String(e.message || e).slice(0, 300) });
       }
     }
-    /* IGNORE 된 user (UNIQUE 충돌) 의 id 를 SELECT 로 채움 — batch 사용 */
-    const missingUserInfo = userBatchInfo.filter(i => !userIdMap[i.row_no]);
-    if (missingUserInfo.length) {
-      const selectStmts = missingUserInfo.map(i =>
-        db.prepare(`SELECT id FROM users WHERE provider = 'manual' AND provider_id = ? LIMIT 1`).bind(i.providerId)
-      );
+    /* user_id SELECT (provider_id IN (...)) — chunk 단위 */
+    const providerIds = userInfo.map(i => i.providerId);
+    const userIdByProvider = {};
+    for (let i = 0; i < providerIds.length; i += BULK_CHUNK) {
+      const chunk = providerIds.slice(i, i + BULK_CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
       try {
-        const selectResults = await db.batch(selectStmts);
-        for (let i = 0; i < selectResults.length; i++) {
-          const info = missingUserInfo[i];
-          const rs = selectResults[i]?.results;
-          if (rs && rs.length && rs[0].id) {
-            userIdMap[info.row_no] = rs[0].id;
-            /* stats++ X — 기존 user 재사용 */
-          } else {
-            userInsertErrors.push({ row_no: info.row_no, error: 'UNIQUE 충돌 후 SELECT 매칭 실패' });
-          }
+        const { results } = await db.prepare(
+          `SELECT id, provider_id FROM users WHERE provider = 'manual' AND provider_id IN (${placeholders})`
+        ).bind(...chunk).all();
+        for (const r of (results || [])) {
+          userIdByProvider[r.provider_id] = r.id;
         }
       } catch (e) {
-        userInsertErrors.push({ phase: 'user_select_batch', error: String(e.message || e).slice(0, 300) });
+        userInsertErrors.push({ phase: 'user_select', chunk_start: i, error: String(e.message || e).slice(0, 300) });
       }
     }
+    for (const info of userInfo) {
+      if (userIdByProvider[info.providerId]) {
+        userIdMap[info.row_no] = userIdByProvider[info.providerId];
+      } else {
+        userInsertErrors.push({ row_no: info.row_no, error: 'INSERT 후 SELECT 매칭 실패' });
+      }
+    }
+    stats.inserted_users = Object.keys(userIdByProvider).length;
 
     /* 2. business INSERT batch */
     const bizIdMap = {}; /* row_no → business_id */
@@ -409,91 +402,107 @@ export async function onRequestPost(context) {
         bizIdMap[a.row.no] = a.business.existing_id;
       }
     }
-    const bizBatchInfo = [];
-    const bizBatchStmts = [];
+    /* 사업장 bulk INSERT VALUES (chunk 단위) */
+    const bizInfo = []; /* { row_no, biz_no } */
+    const bizValues = [];
     for (const a of details) {
       const row = a.row;
       if (a.business.action !== 'new' || !row.biz_no) continue;
       const corp_no = (row.corp_or_indiv === '법인' && row.resident_or_corp_no) ? row.resident_or_corp_no : null;
-      bizBatchInfo.push({ row_no: row.no, biz_no: normBiz(row.biz_no) });
-      bizBatchStmts.push(
-        db.prepare(
-          `INSERT OR IGNORE INTO businesses (company_name, business_number, ceo_name, business_category, industry,
-                                             address, phone, corporate_number, company_form, tax_office,
-                                             status, import_batch_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`
-        ).bind(
-          row.company || '#' + row.no, normBiz(row.biz_no), row.ceo || null,
-          row.type1 || null, row.industry || null,
-          row.address || null, row.phone || null,
-          corp_no,
-          row.corp_or_indiv === '법인' ? '0.법인사업자' : '1.개인사업자',
-          row.tax_office || null,
-          batchId, now, now
-        )
-      );
+      bizInfo.push({ row_no: row.no, biz_no: normBiz(row.biz_no) });
+      bizValues.push([
+        row.company || '#' + row.no, normBiz(row.biz_no), row.ceo || null,
+        row.type1 || null, row.industry || null,
+        row.address || null, row.phone || null,
+        corp_no,
+        row.corp_or_indiv === '법인' ? '0.법인사업자' : '1.개인사업자',
+        row.tax_office || null,
+        batchId, now, now
+      ]);
     }
-    if (bizBatchStmts.length) {
+    /* bulk INSERT — 13 col, 50 row × 13 = 650 bind. OK */
+    for (let i = 0; i < bizValues.length; i += BULK_CHUNK) {
+      const chunk = bizValues.slice(i, i + BULK_CHUNK);
+      const placeholders = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)").join(', ');
+      const sql = `INSERT OR IGNORE INTO businesses (company_name, business_number, ceo_name, business_category, industry, address, phone, corporate_number, company_form, tax_office, status, import_batch_id, created_at, updated_at) VALUES ${placeholders}`;
       try {
-        const bizResults = await db.batch(bizBatchStmts);
-        for (let i = 0; i < bizResults.length; i++) {
-          const info = bizBatchInfo[i];
-          const result = bizResults[i];
-          if ((result?.meta?.changes || 0) === 1 && result.meta.last_row_id) {
-            bizIdMap[info.row_no] = result.meta.last_row_id;
-            stats.inserted_businesses++;
-          }
-        }
+        await db.prepare(sql).bind(...chunk.flat()).run();
       } catch (e) {
-        userInsertErrors.push({ phase: 'biz_batch', error: String(e.message || e).slice(0, 300) });
+        userInsertErrors.push({ phase: 'biz_bulk_insert', chunk_start: i, error: String(e.message || e).slice(0, 300) });
       }
     }
+    /* biz_id SELECT */
+    const bizNos = bizInfo.map(i => i.biz_no);
+    const bizIdByBizNo = {};
+    for (let i = 0; i < bizNos.length; i += BULK_CHUNK) {
+      const chunk = bizNos.slice(i, i + BULK_CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      try {
+        const { results } = await db.prepare(
+          `SELECT id, business_number FROM businesses WHERE business_number IN (${placeholders}) AND (deleted_at IS NULL OR deleted_at = '')`
+        ).bind(...chunk).all();
+        for (const r of (results || [])) {
+          bizIdByBizNo[r.business_number] = r.id;
+        }
+      } catch (e) {
+        userInsertErrors.push({ phase: 'biz_select', chunk_start: i, error: String(e.message || e).slice(0, 300) });
+      }
+    }
+    for (const info of bizInfo) {
+      if (bizIdByBizNo[info.biz_no]) bizIdMap[info.row_no] = bizIdByBizNo[info.biz_no];
+    }
+    stats.inserted_businesses = bizValues.length; /* 신규 INSERT 시도 수 */
 
-    /* 3. parent_business_id 자동 설정 (본점·지점) — batch UPDATE */
+    /* 3. parent_business_id 자동 설정 (본점·지점) — main biz_no IN(...) SELECT + UPDATE bulk */
     const branchGroups = preview.branch_group_list || [];
-    const parentUpdateStmts = [];
-    /* 본점 biz_no → biz_id resolve (한 번에) */
-    const mainBizNos = [];
+    const mainBizMap = []; /* { main_biz_no, all_rows } */
     for (const grp of branchGroups) {
       let mainBizNo = grp.main_row?.biz_no;
       const overrideBizNo = branchOverrides[grp.corp_no];
       if (overrideBizNo) mainBizNo = overrideBizNo;
-      if (mainBizNo) mainBizNos.push({ corp_no: grp.corp_no, main_biz_no: normBiz(mainBizNo), all_rows: grp.all_rows });
+      if (mainBizNo) mainBizMap.push({ main_biz_no: normBiz(mainBizNo), all_rows: grp.all_rows });
     }
-    if (mainBizNos.length) {
-      const mainSelectStmts = mainBizNos.map(m =>
-        db.prepare(`SELECT id, business_number FROM businesses WHERE business_number = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`).bind(m.main_biz_no)
-      );
-      try {
-        const mainResults = await db.batch(mainSelectStmts);
-        for (let i = 0; i < mainResults.length; i++) {
-          const m = mainBizNos[i];
-          const rs = mainResults[i]?.results;
-          if (!rs || !rs.length) continue;
-          const mainBizId = rs[0].id;
-          for (const r of (m.all_rows || [])) {
-            if (normBiz(r.biz_no) === m.main_biz_no) continue;
-            parentUpdateStmts.push(
-              db.prepare(
-                `UPDATE businesses SET parent_business_id = ? WHERE business_number = ? AND (parent_business_id IS NULL OR parent_business_id = 0)`
-              ).bind(mainBizId, normBiz(r.biz_no))
-            );
+    if (mainBizMap.length) {
+      /* 모든 main biz_no IN (...) */
+      const allMainBizNos = mainBizMap.map(m => m.main_biz_no);
+      const mainBizIdByNo = {};
+      for (let i = 0; i < allMainBizNos.length; i += BULK_CHUNK) {
+        const chunk = allMainBizNos.slice(i, i + BULK_CHUNK);
+        const placeholders = chunk.map(() => '?').join(',');
+        try {
+          const { results } = await db.prepare(
+            `SELECT id, business_number FROM businesses WHERE business_number IN (${placeholders}) AND (deleted_at IS NULL OR deleted_at = '')`
+          ).bind(...chunk).all();
+          for (const r of (results || [])) {
+            mainBizIdByNo[r.business_number] = r.id;
+          }
+        } catch (e) {
+          userInsertErrors.push({ phase: 'main_biz_select', error: String(e.message || e).slice(0, 300) });
+        }
+      }
+      /* parent UPDATE — 그룹별 UPDATE WHERE business_number IN (...). 단 mainBizId 별 다른 UPDATE 라 chunk 분리. */
+      for (const m of mainBizMap) {
+        const mainBizId = mainBizIdByNo[m.main_biz_no];
+        if (!mainBizId) continue;
+        const branchBizNos = (m.all_rows || []).map(r => normBiz(r.biz_no)).filter(b => b && b !== m.main_biz_no);
+        if (!branchBizNos.length) continue;
+        for (let i = 0; i < branchBizNos.length; i += BULK_CHUNK) {
+          const chunk = branchBizNos.slice(i, i + BULK_CHUNK);
+          const placeholders = chunk.map(() => '?').join(',');
+          try {
+            await db.prepare(
+              `UPDATE businesses SET parent_business_id = ? WHERE business_number IN (${placeholders}) AND (parent_business_id IS NULL OR parent_business_id = 0)`
+            ).bind(mainBizId, ...chunk).run();
+          } catch (e) {
+            userInsertErrors.push({ phase: 'parent_update', error: String(e.message || e).slice(0, 300) });
           }
         }
-      } catch (e) {
-        userInsertErrors.push({ phase: 'main_biz_select_batch', error: String(e.message || e).slice(0, 300) });
-      }
-    }
-    if (parentUpdateStmts.length) {
-      try { await db.batch(parentUpdateStmts); } catch (e) {
-        userInsertErrors.push({ phase: 'parent_update_batch', error: String(e.message || e).slice(0, 300) });
       }
     }
 
-    /* 4. business_members 매핑 INSERT batch — INSERT OR IGNORE 사용. 이미 매핑된 거 자동 skip */
+    /* 4. business_members 매핑 — bulk INSERT VALUES (...), (...) */
     let skippedMissingId = 0;
-    const mapBatchInfo = [];
-    const mapBatchStmts = [];
+    const mapValues = [];
     for (const a of details) {
       const row = a.row;
       const userId = userIdMap[row.no];
@@ -502,56 +511,42 @@ export async function onRequestPost(context) {
         skippedMissingId++;
         continue;
       }
-      mapBatchInfo.push({ row_no: row.no, user_id: userId, biz_id: bizId });
-      mapBatchStmts.push(
-        db.prepare(
-          `INSERT OR IGNORE INTO business_members (business_id, user_id, role, is_primary, added_at, import_batch_id)
-           VALUES (?, ?, '대표자', 1, ?, ?)`
-        ).bind(bizId, userId, now, batchId)
-      );
+      mapValues.push([bizId, userId, now, batchId]);
     }
     let mapErrorMsg = null;
-    let mappingsInserted = 0;
-    let mappingsSkipped = 0; /* IGNORE 된 (이미 활성) */
-    if (mapBatchStmts.length) {
+    /* bulk INSERT — 4 col, 100 row × 4 = 400 bind. OK */
+    for (let i = 0; i < mapValues.length; i += BULK_CHUNK) {
+      const chunk = mapValues.slice(i, i + BULK_CHUNK);
+      const placeholders = chunk.map(() => "(?, ?, '대표자', 1, ?, ?)").join(', ');
+      const sql = `INSERT OR IGNORE INTO business_members (business_id, user_id, role, is_primary, added_at, import_batch_id) VALUES ${placeholders}`;
       try {
-        const mapResults = await db.batch(mapBatchStmts);
-        for (const r of mapResults) {
-          const changes = r?.meta?.changes || 0;
-          if (changes === 1) mappingsInserted++;
-          else mappingsSkipped++;
-        }
-        stats.inserted_members = mappingsInserted;
+        await db.prepare(sql).bind(...chunk.flat()).run();
       } catch (e) {
         mapErrorMsg = String(e.message || e).slice(0, 300);
       }
     }
-    /* removed_at revive — 별도 처리 (UNIQUE 충돌로 INSERT IGNORE 된 row 중 removed_at 가 있는 것) */
-    if (mappingsSkipped > 0) {
-      /* 이미 매핑이 있는데 IGNORE 됐다는 의미 — removed_at 있을 수 있음. revive batch */
-      const reviveStmts = mapBatchInfo.map(i =>
-        db.prepare(
-          `UPDATE business_members SET removed_at = NULL, role = '대표자', is_primary = 1, import_batch_id = ?
-           WHERE business_id = ? AND user_id = ? AND removed_at IS NOT NULL`
-        ).bind(batchId, i.biz_id, i.user_id)
-      );
-      try {
-        const reviveResults = await db.batch(reviveStmts);
-        let revived = 0;
-        for (const r of reviveResults) {
-          if ((r?.meta?.changes || 0) === 1) revived++;
-        }
-        stats.inserted_members += revived;
-      } catch (e) {
-        mapErrorMsg = (mapErrorMsg ? mapErrorMsg + ' / ' : '') + 'revive batch fail: ' + String(e.message || e).slice(0, 200);
-      }
-    }
+    /* mapping count — SELECT COUNT(*) WHERE import_batch_id = ? */
+    try {
+      const cr = await db.prepare(
+        `SELECT COUNT(*) AS c FROM business_members WHERE import_batch_id = ?`
+      ).bind(batchId).first();
+      stats.inserted_members = cr?.c || 0;
+    } catch {}
+    /* revive — IGNORE 된 매핑 중 removed_at 있는 거 일괄 UPDATE */
+    try {
+      const reviveR = await db.prepare(
+        `UPDATE business_members SET removed_at = NULL, import_batch_id = ?
+         WHERE removed_at IS NOT NULL AND import_batch_id IS NULL
+           AND business_id IN (SELECT id FROM businesses WHERE import_batch_id = ?)`
+      ).bind(batchId, batchId).run();
+      const revived = reviveR?.meta?.changes || 0;
+      stats.inserted_members += revived;
+    } catch {}
     auditLog.push({
       type: 'mapping_diagnostics',
-      mappings_inserted: mappingsInserted,
-      mappings_skipped_already_active: mappingsSkipped,
+      mappings_inserted_total: stats.inserted_members,
       missing_id_skipped: skippedMissingId,
-      batch_error: mapErrorMsg,
+      bulk_error: mapErrorMsg,
     });
 
     /* 5. batch 상태 update — fix v4 (2026-05-08): status 와 audit_log 분리 update.
