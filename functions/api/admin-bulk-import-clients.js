@@ -315,17 +315,18 @@ export async function onRequestPost(context) {
           const providerId = 'manual:wehago:' + (row.biz_no || ('row_' + row.no)) + ':' + (a.user.birth_date || '');
           /* preview 의 a.user.back_hash 는 raw 값이 아니라 hash 결과. 단 이중 hash 방지 위해 그대로 사용 */
           const backHash = a.user.back_hash || null;
+          /* 사장님 보고 fix v3 (2026-05-08): users 테이블에 updated_at 컬럼 없음 (audit_log 검출).
+           * created_at 만 사용. */
           const r = await db.prepare(
             `INSERT INTO users (real_name, name, phone, provider, provider_id, approval_status,
-                                birth_date, resident_back_hash, import_batch_id,
-                                created_at, updated_at)
-             VALUES (?, ?, ?, 'manual', ?, 'pending', ?, ?, ?, ?, ?)`
+                                birth_date, resident_back_hash, import_batch_id, created_at)
+             VALUES (?, ?, ?, 'manual', ?, 'pending', ?, ?, ?, ?)`
           ).bind(
             row.ceo, row.ceo, row.phone || null,
             providerId,
             a.user.birth_date || null,
             backHash,
-            batchId, now, now
+            batchId, now
           ).run();
           userIdMap[row.no] = r?.meta?.last_row_id;
           stats.inserted_users++;
