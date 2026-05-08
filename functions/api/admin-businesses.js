@@ -54,6 +54,26 @@ async function ensureTables(db) {
   await add(`ALTER TABLE businesses ADD COLUMN company_form TEXT`);              /* 회사구분: 법인사업자/개인사업자/간이사업자 등 */
   /* 사장님 명령 (2026-05-07): 폐업일자 — 신고검토표 fiscal_year 매칭에 사용 */
   await add(`ALTER TABLE businesses ADD COLUMN closed_date TEXT`);                /* 폐업일자 YYYY-MM-DD */
+
+  /* 사장님 명령 (2026-05-08): 비활성 user 매핑 자동 정리 (lazy cleanup, DB 자체 청소).
+   * "비활성 매핑 자동 되어있는거 쳐내야지 / 자동으로 없어지게 만드는게 핵심".
+   * = 매 GET 호출 시점에 비활성 user (deleted/pending/rejected/merged 등) 의
+   *   business_members 매핑 자동 removed_at — 사장님 manual 클릭 0. */
+  try {
+    await db.prepare(`
+      UPDATE business_members
+      SET removed_at = datetime('now', '+9 hours')
+      WHERE (removed_at IS NULL OR removed_at = '')
+        AND user_id IN (
+          SELECT id FROM users
+          WHERE COALESCE(is_admin, 0) = 0
+            AND (
+              (deleted_at IS NOT NULL AND deleted_at != '')
+              OR COALESCE(approval_status, 'pending') NOT IN ('approved_client', 'approved_guest', 'admin')
+            )
+        )
+    `).run();
+  } catch {}
 }
 
 export async function onRequestGet(context) {
