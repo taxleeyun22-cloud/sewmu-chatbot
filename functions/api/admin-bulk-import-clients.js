@@ -305,24 +305,33 @@ export async function onRequestPost(context) {
 
     /* 1. user INSERT or enrichment */
     const userIdMap = {}; /* row_no → user_id */
+    const userInsertErrors = []; /* 사장님 보고 fix (2026-05-08): catch 무시하지 말고 audit_log 기록 */
     for (const a of details) {
       const row = a.row;
       if (a.user.action === 'new' && row.ceo) {
         try {
+          /* provider_id 필수 — 'manual:wehago:사업자번호' 또는 row 번호 기반 unique key.
+           * 사장님 보고 fix (2026-05-08): provider_id 없으면 INSERT 실패. */
+          const providerId = 'manual:wehago:' + (row.biz_no || ('row_' + row.no)) + ':' + (a.user.birth_date || '');
+          /* preview 의 a.user.back_hash 는 raw 값이 아니라 hash 결과. 단 이중 hash 방지 위해 그대로 사용 */
+          const backHash = a.user.back_hash || null;
           const r = await db.prepare(
-            `INSERT INTO users (real_name, name, phone, provider, approval_status,
+            `INSERT INTO users (real_name, name, phone, provider, provider_id, approval_status,
                                 birth_date, resident_back_hash, import_batch_id,
                                 created_at, updated_at)
-             VALUES (?, ?, ?, 'manual', 'pending', ?, ?, ?, ?, ?)`
+             VALUES (?, ?, ?, 'manual', ?, 'pending', ?, ?, ?, ?, ?)`
           ).bind(
             row.ceo, row.ceo, row.phone || null,
+            providerId,
             a.user.birth_date || null,
-            a.user.back_hash ? await sha256Hex(a.user.back_hash + ':' + SALT) : null,
+            backHash,
             batchId, now, now
           ).run();
           userIdMap[row.no] = r?.meta?.last_row_id;
           stats.inserted_users++;
-        } catch {}
+        } catch (err) {
+          userInsertErrors.push({ row_no: row.no, ceo: row.ceo, error: String(err.message || err).slice(0, 200) });
+        }
       } else if (a.user.action === 'matched') {
         userIdMap[row.no] = a.user.existing_id;
         /* enrichment — 빈 컬럼만 채움 */
@@ -437,6 +446,10 @@ export async function onRequestPost(context) {
     }
 
     /* 5. batch 상태 update */
+    /* 사장님 보고 fix (2026-05-08): user insert 에러 audit_log 에 보존 */
+    if (userInsertErrors.length) {
+      auditLog.push({ type: 'user_insert_errors', count: userInsertErrors.length, errors: userInsertErrors.slice(0, 50) });
+    }
     try {
       await db.prepare(
         `UPDATE import_batches SET committed_at = ?, status = 'committed',
@@ -445,7 +458,7 @@ export async function onRequestPost(context) {
                                    audit_log = ? WHERE id = ?`
       ).bind(now, stats.inserted_users, stats.inserted_businesses,
              stats.inserted_members, stats.enriched_users,
-             JSON.stringify(auditLog).slice(0, 500000), batchId).run();
+             JSON.stringify(auditLog), batchId).run();
     } catch {}
 
     return Response.json({
@@ -454,6 +467,8 @@ export async function onRequestPost(context) {
       batch_uuid: batch.batch_uuid,
       committed_at: now,
       stats,
+      user_insert_errors: userInsertErrors.length ? userInsertErrors.slice(0, 5) : undefined,
+      total_user_insert_errors: userInsertErrors.length,
       message: 'Import 완료. 롤백은 admin → 📥 import 이력 → [🔄 롤백]'
     });
   }
