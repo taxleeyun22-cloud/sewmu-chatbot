@@ -171,6 +171,83 @@ export async function onRequestPost(context) {
   /* salt — env 또는 default. 서비스 운영 시 ADMIN_KEY 와 별도 salt 권장 */
   const SALT = (context.env.RRN_HASH_SALT || context.env.ADMIN_KEY || 'sewmu_default_salt');
 
+  /* 사장님 명령 (2026-05-08): 본점 직접 등록 후 corp_no 그룹 일괄 parent_business_id SET.
+   * POST ?action=set_parent_for_corp body { corp_no, main_business_id? OR main_keyword? OR main_biz_no? }
+   * 옆커폰 174811-0101397 그룹 14개 → "주식회사 옆커폰(유킹본점)" 본점 ID 로 SET 같은 케이스 */
+  if (action === 'set_parent_for_corp') {
+    const corp_no = String(body.corp_no || '').trim();
+    if (!corp_no) return Response.json({ ok: false, error: 'corp_no 필요' }, { status: 400 });
+    let mainId = Number(body.main_business_id || 0);
+    /* main_keyword: 회사명 LIKE '%keyword%' 매칭 */
+    if (!mainId && body.main_keyword) {
+      try {
+        const m = await db.prepare(
+          `SELECT id, company_name, business_number, corporate_number FROM businesses
+           WHERE company_name LIKE ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 5`
+        ).bind('%' + String(body.main_keyword).trim() + '%').all();
+        const results = m.results || [];
+        if (!results.length) return Response.json({ ok: false, error: 'keyword 매칭 사업장 없음' }, { status: 404 });
+        if (results.length > 1) return Response.json({ ok: false, error: 'keyword 매칭 다중 (' + results.length + '건)', candidates: results }, { status: 400 });
+        mainId = results[0].id;
+      } catch (e) {
+        return Response.json({ ok: false, error: e.message }, { status: 500 });
+      }
+    }
+    /* main_biz_no: 사업자번호 매칭 */
+    if (!mainId && body.main_biz_no) {
+      try {
+        const bn = normBiz(body.main_biz_no);
+        const m = await db.prepare(
+          `SELECT id FROM businesses WHERE business_number = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
+        ).bind(bn).first();
+        if (!m) return Response.json({ ok: false, error: 'main_biz_no 매칭 사업장 없음' }, { status: 404 });
+        mainId = m.id;
+      } catch (e) {
+        return Response.json({ ok: false, error: e.message }, { status: 500 });
+      }
+    }
+    if (!mainId) return Response.json({ ok: false, error: 'main_business_id / main_keyword / main_biz_no 중 하나 필요' }, { status: 400 });
+
+    /* main 자체 corporate_number 가 같은지 자동 enrichment + parent SET (corporate_number 가 없거나 다른 경우) */
+    try {
+      const main = await db.prepare(
+        `SELECT id, company_name, business_number, corporate_number FROM businesses WHERE id = ?`
+      ).bind(mainId).first();
+      if (!main) return Response.json({ ok: false, error: 'main_business_id 사업장 없음' }, { status: 404 });
+
+      /* main 의 corporate_number 비어있으면 채움 (사장님 직접 등록 시 안 채울 수 있음) */
+      if (!main.corporate_number) {
+        try {
+          await db.prepare(
+            `UPDATE businesses SET corporate_number = ? WHERE id = ? AND (corporate_number IS NULL OR corporate_number = '')`
+          ).bind(corp_no, mainId).run();
+        } catch {}
+      }
+
+      /* 같은 corp_no 의 다른 사업장 (main 제외) parent_business_id SET */
+      const r = await db.prepare(
+        `UPDATE businesses SET parent_business_id = ?
+         WHERE corporate_number = ? AND id != ? AND (deleted_at IS NULL OR deleted_at = '')`
+      ).bind(mainId, corp_no, mainId).run();
+
+      /* 결과 — 매핑된 지점 list */
+      const branchesQ = await db.prepare(
+        `SELECT id, company_name, business_number FROM businesses
+         WHERE corporate_number = ? AND id != ? AND parent_business_id = ? AND (deleted_at IS NULL OR deleted_at = '')
+         ORDER BY id`
+      ).bind(corp_no, mainId, mainId).all();
+      return Response.json({
+        ok: true,
+        main: { id: main.id, company_name: main.company_name, business_number: main.business_number },
+        corp_no,
+        updated: r?.meta?.changes || 0,
+        branches: branchesQ.results || [],
+      });
+    } catch (e) {
+      return Response.json({ ok: false, error: e.message }, { status: 500 });
+    }
+  }
+
   /* 사장님 명령 (2026-05-08): batch 의 user 일괄 status 변경 — pending 으로 잘못 INSERT 된 거 빠른 fix.
    * POST ?action=set_batch_users_status body { batch_id, status } */
   if (action === 'set_batch_users_status') {
