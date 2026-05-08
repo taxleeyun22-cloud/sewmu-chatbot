@@ -13,3 +13,17 @@ coverage/
 verify-*.png
 .playwright-mcp/
 .claude/scheduled_tasks.lock
+
+# Claude 가 만든 검증 스크린샷 (root 에 자동 생성됨)
+d1-*.png
+d3-*.png
+filing-*.png
+m-*.png
+m12-*.png
+m17-*.png
+m2-*.png
+s3c1-*.png
+s3c2-*.png
+
+# Claude worktrees (별도 git repo, embedded)
+.claude/worktrees/
