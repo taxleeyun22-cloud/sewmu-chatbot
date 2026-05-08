@@ -337,8 +337,7 @@ export async function onRequestPost(context) {
       if (dryRun) {
         return Response.json({ ok: true, dry_run: true, split_pairs: splitPairs, total: splitPairs.length });
       }
-      /* auto_merge — owner only */
-      if (!auth?.owner) return Response.json({ ok: false, error: 'owner only for auto_merge' }, { status: 403 });
+      /* auto_merge — onRequestPost 자체가 이미 owner only (checkRole 'owner') 통과 */
       const merged = [];
       const failed = [];
       for (const pair of splitPairs) {
