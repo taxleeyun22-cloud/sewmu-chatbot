@@ -3825,6 +3825,93 @@ function refreshSidebarCounts(){
  * Phase #11 적용 (2026-05-06): 에러 로그 모달 함수들
  * ============================================================ */
 /**
+ * 사장님 명령 (2026-05-08): 위하고 import 이력 모달 + 롤백.
+ */
+function openImportHistory(){
+  var m = document.getElementById('importHistoryModal');
+  if(!m){ alert('import 모달 미로딩 — 새로고침'); return; }
+  m.style.display = 'flex';
+  m.style.alignItems = 'center';
+  m.style.justifyContent = 'center';
+  document.body.style.overflow = 'hidden';
+  loadImportHistory();
+}
+function closeImportHistory(){
+  var m = document.getElementById('importHistoryModal');
+  if(m) m.style.display = 'none';
+  document.body.style.overflow = '';
+}
+async function loadImportHistory(){
+  var body = document.getElementById('importHistoryBody');
+  if(!body) return;
+  body.innerHTML = '<div style="text-align:center;color:#9ca3af;padding:30px 0">불러오는 중...</div>';
+  try{
+    var r = await fetch('/api/admin-import-batches?key=' + encodeURIComponent(KEY));
+    var d = await r.json();
+    if(!d.ok){ body.innerHTML = '<div style="color:#f04452;padding:14px">오류: ' + e(d.error || 'unknown') + '</div>'; return; }
+    var batches = d.batches || [];
+    if(!batches.length){
+      body.innerHTML = '<div style="color:#9ca3af;padding:30px 0;text-align:center;font-size:.9em">'
+        + 'Import 이력 없음.<br>'
+        + '<span style="font-size:.8em">위하고 export 엑셀 처리는 Claude 에게 요청 (script 또는 자동 채팅).</span>'
+        + '</div>';
+      return;
+    }
+    body.innerHTML = batches.map(function(b){
+      var stColor = { 'preview': '#9ca3af', 'committed': '#10b981', 'rolled_back': '#dc2626' }[b.status] || '#9ca3af';
+      var stLabel = { 'preview': '⏳ 미리보기', 'committed': '✅ 확정', 'rolled_back': '🔄 롤백됨' }[b.status] || b.status;
+      var canRollback = b.status === 'committed' && (typeof IS_OWNER !== 'undefined' && IS_OWNER);
+      var summary = '';
+      try{ var s = JSON.parse(b.summary || '{}'); summary = s.users_new ? ('user ' + s.users_new + ' / biz ' + s.businesses_new) : ''; }catch(_){}
+      return '<div style="padding:12px 14px;background:#fff;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:8px">'
+        +'<div style="display:flex;align-items:flex-start;gap:10px">'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:.86em;font-weight:600">' + e(b.batch_uuid || ('#' + b.id)) + ' '
+        +'<span style="background:' + stColor + ';color:#fff;font-size:.74em;padding:2px 8px;border-radius:99px;font-weight:700;margin-left:4px">' + stLabel + '</span></div>'
+        +'<div style="font-size:.74em;color:#6b7280;margin-top:3px">'
+        +'source: ' + e(b.source || '-') + ' / ' + e(b.source_file || '-')
+        +' · 시작: ' + e((b.started_at || '').slice(5, 16))
+        +(b.committed_at ? ' · 확정: ' + e(b.committed_at.slice(5, 16)) : '')
+        +(b.rolled_back_at ? ' · 롤백: ' + e(b.rolled_back_at.slice(5, 16)) : '')
+        +'</div>'
+        +(b.status === 'committed' ? '<div style="font-size:.74em;color:#374151;margin-top:3px">'
+          +'신규: user ' + (b.inserted_users || 0) + ' / biz ' + (b.inserted_businesses || 0)
+          +' / 매핑 ' + (b.inserted_members || 0) + ' / enrichment ' + (b.enriched_users || 0)
+          +'</div>' : '')
+        +'</div>'
+        +(canRollback
+          ? '<button onclick="rollbackImportBatch(' + b.id + ',\'' + escAttr(b.batch_uuid) + '\')" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:6px 12px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit" title="이 batch 의 신규 row 모두 hard delete + enrichment 복원 (메모 영향 0)">🔄 롤백</button>'
+          : (b.status === 'rolled_back' ? '<span style="font-size:.74em;color:#9ca3af">이미 롤백됨</span>' : '')
+        )
+        +'</div>'
+        +'</div>';
+    }).join('');
+  }catch(err){ body.innerHTML = '<div style="color:#f04452;padding:14px">오류: ' + e(err.message) + '</div>'; }
+}
+async function rollbackImportBatch(batchId, batchUuid){
+  if(!confirm('🔄 batch [' + batchUuid + '] 롤백:\n\n'
+    + '• 그 batch 의 신규 user / 사업장 / 매핑 모두 hard delete\n'
+    + '• enrichment 한 user 의 before 값 복원\n'
+    + '• 메모는 절대 안 건드림\n'
+    + '• 다른 batch / 사장님 직접 등록한 정보 영향 0\n\n'
+    + '계속하시겠습니까?')) return;
+  try{
+    var r = await fetch('/api/admin-import-batches?action=rollback&key=' + encodeURIComponent(KEY), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ batch_id: batchId }),
+    });
+    var d = await r.json();
+    if(!d.ok){ alert('롤백 실패: ' + (d.error || 'unknown')); return; }
+    alert('✅ 롤백 완료\n\n'
+      + 'user 삭제: ' + (d.stats?.deleted_users || 0) + '\n'
+      + 'biz 삭제: ' + (d.stats?.deleted_businesses || 0) + '\n'
+      + '매핑 삭제: ' + (d.stats?.deleted_members || 0) + '\n'
+      + 'enrichment 복원: ' + (d.stats?.restored_users || 0));
+    loadImportHistory();
+  }catch(err){ alert('오류: ' + err.message); }
+}
+
+/**
  * 🐞 에러 로그 모달 열기 + loadErrorLog 자동 호출.
  * Phase #11 (2026-05-06): 자체 에러 로거 UI.
  * @returns {void}

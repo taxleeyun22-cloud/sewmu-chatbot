@@ -164,6 +164,10 @@ if ('serviceWorker' in navigator) {
       </button>
       <!-- 사장님 명령 (2026-05-07 정정): 사이드바 합치기 이력 폐기 — 사용자 row 에 직접 분리 버튼 -->
       <span id="sbCntMerges" class="hidden">0</span>
+      <!-- 사장님 명령 (2026-05-08): 위하고 import 이력 + 롤백 -->
+      <button class="of-sb-item" type="button" id="sbImportBtn" onclick="openImportHistory()" title="위하고 일괄 import 이력 + 롤백 (owner only)">
+        <span class="ic">📥</span><span class="lb">위하고 Import</span><span class="cnt" id="sbCntImport">0</span>
+      </button>
       <!-- Phase #11 적용 (2026-05-06): 자체 에러 로거 사이드바 진입 — 빨간 점 = 7일 이내 에러 N건 -->
       <button class="of-sb-item alert" type="button" id="sbErrorLogBtn" onclick="openErrorLog()" title="JS 에러 로그 (자체 수집)">
         <span class="ic">🐞</span><span class="lb">에러 로그</span><span class="cnt" id="sbCntErrorLog">0</span>
@@ -234,7 +238,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=48', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=49', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -246,7 +250,7 @@ setTimeout(function(){
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=177"></script>
+<script src="/admin.js?v=178"></script>
 <script src="/admin-memos.js?v=13"></script>
 <script src="/admin-customer-dash.js?v=25"></script>
 <script src="/admin-business-tab.js?v=9"></script>
