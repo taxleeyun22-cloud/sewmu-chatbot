@@ -309,14 +309,11 @@ export async function onRequestPost(context) {
     for (const a of details) {
       const row = a.row;
       if (a.user.action === 'new' && row.ceo) {
+        /* fix v4 (2026-05-08): UNIQUE constraint (provider, provider_id) 충돌 시 SELECT existing 재사용.
+         * 위하고 export 의 사업자번호 중복 4건 + 같은 사람이 여러 사업장 가질 때 자동 dedup. */
+        const providerId = 'manual:wehago:' + (row.biz_no || ('row_' + row.no)) + ':' + (a.user.birth_date || '');
+        const backHash = a.user.back_hash || null;
         try {
-          /* provider_id 필수 — 'manual:wehago:사업자번호' 또는 row 번호 기반 unique key.
-           * 사장님 보고 fix (2026-05-08): provider_id 없으면 INSERT 실패. */
-          const providerId = 'manual:wehago:' + (row.biz_no || ('row_' + row.no)) + ':' + (a.user.birth_date || '');
-          /* preview 의 a.user.back_hash 는 raw 값이 아니라 hash 결과. 단 이중 hash 방지 위해 그대로 사용 */
-          const backHash = a.user.back_hash || null;
-          /* 사장님 보고 fix v3 (2026-05-08): users 테이블에 updated_at 컬럼 없음 (audit_log 검출).
-           * created_at 만 사용. */
           const r = await db.prepare(
             `INSERT INTO users (real_name, name, phone, provider, provider_id, approval_status,
                                 birth_date, resident_back_hash, import_batch_id, created_at)
@@ -331,7 +328,25 @@ export async function onRequestPost(context) {
           userIdMap[row.no] = r?.meta?.last_row_id;
           stats.inserted_users++;
         } catch (err) {
-          userInsertErrors.push({ row_no: row.no, ceo: row.ceo, error: String(err.message || err).slice(0, 200) });
+          /* UNIQUE constraint 면 existing user 검색 → 재사용 (소프트 dedup) */
+          const errMsg = String(err.message || err);
+          if (/UNIQUE constraint failed.*provider/i.test(errMsg)) {
+            try {
+              const existing = await db.prepare(
+                `SELECT id FROM users WHERE provider = 'manual' AND provider_id = ? LIMIT 1`
+              ).bind(providerId).first();
+              if (existing) {
+                userIdMap[row.no] = existing.id;
+                /* stats.inserted_users 증가 X (이미 있는 user) */
+              } else {
+                userInsertErrors.push({ row_no: row.no, ceo: row.ceo, error: errMsg.slice(0, 200) });
+              }
+            } catch (e2) {
+              userInsertErrors.push({ row_no: row.no, ceo: row.ceo, error: errMsg.slice(0, 200) + ' / fallback fail: ' + String(e2.message).slice(0, 100) });
+            }
+          } else {
+            userInsertErrors.push({ row_no: row.no, ceo: row.ceo, error: errMsg.slice(0, 200) });
+          }
         }
       } else if (a.user.action === 'matched') {
         userIdMap[row.no] = a.user.existing_id;
@@ -419,22 +434,30 @@ export async function onRequestPost(context) {
     }
 
     /* 4. business_members 매핑 INSERT */
+    /* fix v4 (2026-05-08): 매핑 누락 진단 + audit log */
+    const mappingErrors = [];
+    let skippedMissingId = 0;
+    let skippedAlreadyActive = 0;
     for (const a of details) {
       const row = a.row;
       const userId = userIdMap[row.no];
       const bizId = bizIdMap[row.no];
-      if (!userId || !bizId) continue;
+      if (!userId || !bizId) {
+        skippedMissingId++;
+        continue;
+      }
       try {
         const existing = await db.prepare(
           `SELECT id, removed_at FROM business_members WHERE business_id = ? AND user_id = ? LIMIT 1`
         ).bind(bizId, userId).first();
         if (existing) {
-          /* revive — but only if approval_status active. 신규 INSERT 와 기존 활성은 동일 */
           if (existing.removed_at) {
             await db.prepare(
               `UPDATE business_members SET removed_at = NULL, role = '대표자', is_primary = 1 WHERE id = ?`
             ).bind(existing.id).run();
             stats.inserted_members++;
+          } else {
+            skippedAlreadyActive++;
           }
         } else {
           await db.prepare(
@@ -443,23 +466,48 @@ export async function onRequestPost(context) {
           ).bind(bizId, userId, now, batchId).run();
           stats.inserted_members++;
         }
-      } catch {}
+      } catch (err) {
+        mappingErrors.push({ row_no: row.no, biz_id: bizId, user_id: userId, error: String(err.message || err).slice(0, 200) });
+      }
+    }
+    if (mappingErrors.length || skippedMissingId || skippedAlreadyActive) {
+      auditLog.push({
+        type: 'mapping_diagnostics',
+        errors: mappingErrors.slice(0, 50),
+        total_errors: mappingErrors.length,
+        skipped_missing_id: skippedMissingId,
+        skipped_already_active: skippedAlreadyActive,
+      });
     }
 
-    /* 5. batch 상태 update */
-    /* 사장님 보고 fix (2026-05-08): user insert 에러 audit_log 에 보존 */
+    /* 5. batch 상태 update — fix v4 (2026-05-08): status 와 audit_log 분리 update.
+     * audit_log 가 너무 커서 timeout 가까울 때 마지막 update 실패한 케이스 (batch 10).
+     * 작은 query 먼저 → status 보장 → audit_log best-effort. */
     if (userInsertErrors.length) {
       auditLog.push({ type: 'user_insert_errors', count: userInsertErrors.length, errors: userInsertErrors.slice(0, 50) });
     }
+    /* status 먼저 (작은 query) — 반드시 성공 */
     try {
       await db.prepare(
         `UPDATE import_batches SET committed_at = ?, status = 'committed',
                                    inserted_users = ?, inserted_businesses = ?,
-                                   inserted_members = ?, enriched_users = ?,
-                                   audit_log = ? WHERE id = ?`
+                                   inserted_members = ?, enriched_users = ?
+         WHERE id = ?`
       ).bind(now, stats.inserted_users, stats.inserted_businesses,
-             stats.inserted_members, stats.enriched_users,
-             JSON.stringify(auditLog), batchId).run();
+             stats.inserted_members, stats.enriched_users, batchId).run();
+    } catch (e) {
+      /* status 실패 시 응답에 알림 */
+      return Response.json({
+        ok: false,
+        error: 'batch status update 실패: ' + String(e.message || e).slice(0, 200),
+        stats,
+      }, { status: 500 });
+    }
+    /* audit_log 별도 (큰 query) — best-effort */
+    try {
+      await db.prepare(
+        `UPDATE import_batches SET audit_log = ? WHERE id = ?`
+      ).bind(JSON.stringify(auditLog), batchId).run();
     } catch {}
 
     return Response.json({
@@ -470,6 +518,9 @@ export async function onRequestPost(context) {
       stats,
       user_insert_errors: userInsertErrors.length ? userInsertErrors.slice(0, 5) : undefined,
       total_user_insert_errors: userInsertErrors.length,
+      mapping_diagnostics: (mappingErrors.length || skippedMissingId || skippedAlreadyActive) ? {
+        errors: mappingErrors.length, missing_id: skippedMissingId, already_active: skippedAlreadyActive
+      } : undefined,
       message: 'Import 완료. 롤백은 admin → 📥 import 이력 → [🔄 롤백]'
     });
   }
