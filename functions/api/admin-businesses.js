@@ -75,7 +75,8 @@ export async function onRequestGet(context) {
     if (!bizId) return Response.json({ ok: false, error: 'id 필요' }, { status: 400 });
     try {
       const { results: members } = await db.prepare(
-        `SELECT bm.id, bm.user_id, u.phone, u.real_name, u.name
+        `SELECT bm.id, bm.user_id, u.phone, u.real_name, u.name,
+                u.is_admin, u.last_login_at, u.created_at, u.approval_status
            FROM business_members bm
            LEFT JOIN users u ON bm.user_id = u.id
           WHERE bm.business_id = ? AND bm.removed_at IS NULL
@@ -88,12 +89,24 @@ export async function onRequestGet(context) {
         if (!byPhone[ph]) byPhone[ph] = [];
         byPhone[ph].push(m);
       });
+      /* 사장님 보고 fix (2026-05-08): 사장님 user(99) 가 remove 대상 됐던 사고.
+       * 룰: approval_status='deleted'|'merged' 는 무조건 remove. 활성 user 중 last_login 가장 최근 keep,
+       *     동률이면 user_id 큰 것(최근 가입) keep. */
       const duplicates = [];
       let toRemove = 0;
+      const isInactiveStatus = (s) => /deleted|merged|rejected|terminated/i.test(s || '');
       for (const ph in byPhone) {
         const grp = byPhone[ph];
         if (grp.length < 2) continue;
-        grp.sort((a, b) => (a.user_id || 0) - (b.user_id || 0));
+        grp.sort((a, b) => {
+          const aInact = isInactiveStatus(a.approval_status) ? 1 : 0;
+          const bInact = isInactiveStatus(b.approval_status) ? 1 : 0;
+          if (aInact !== bInact) return aInact - bInact;        /* 활성 우선 */
+          const aLogin = a.last_login_at || a.created_at || '';
+          const bLogin = b.last_login_at || b.created_at || '';
+          if (bLogin !== aLogin) return bLogin > aLogin ? 1 : -1;  /* 최근 활동 우선 */
+          return (b.user_id || 0) - (a.user_id || 0);            /* 최근 가입 우선 */
+        });
         duplicates.push({
           phone: ph,
           keep_user_id: grp[0].user_id,
@@ -101,6 +114,7 @@ export async function onRequestGet(context) {
           remove_users: grp.slice(1).map(m => ({
             user_id: m.user_id,
             name: m.real_name || m.name || '#' + m.user_id,
+            status: m.approval_status,
           })),
         });
         toRemove += grp.length - 1;
@@ -271,7 +285,8 @@ export async function onRequestPost(context) {
     try {
       /* 1. 활성 매핑 가져오기 (user join phone) */
       const { results: members } = await db.prepare(
-        `SELECT bm.id, bm.user_id, u.phone, u.real_name, u.name
+        `SELECT bm.id, bm.user_id, u.phone, u.real_name, u.name,
+                u.is_admin, u.last_login_at, u.created_at, u.approval_status
            FROM business_members bm
            LEFT JOIN users u ON bm.user_id = u.id
           WHERE bm.business_id = ? AND bm.removed_at IS NULL
@@ -287,11 +302,19 @@ export async function onRequestPost(context) {
       });
       const now = kst();
       let removed = 0;
+      const isInactiveStatusE = (s) => /deleted|merged|rejected|terminated/i.test(s || '');
       for (const ph in byPhone) {
         const grp = byPhone[ph];
         if (grp.length < 2) continue;
-        grp.sort((a, b) => (a.user_id || 0) - (b.user_id || 0));
-        const keepUserId = grp[0].user_id;
+        grp.sort((a, b) => {
+          const aInact = isInactiveStatusE(a.approval_status) ? 1 : 0;
+          const bInact = isInactiveStatusE(b.approval_status) ? 1 : 0;
+          if (aInact !== bInact) return aInact - bInact;
+          const aLogin = a.last_login_at || a.created_at || '';
+          const bLogin = b.last_login_at || b.created_at || '';
+          if (bLogin !== aLogin) return bLogin > aLogin ? 1 : -1;
+          return (b.user_id || 0) - (a.user_id || 0);
+        });
         for (let i = 1; i < grp.length; i++) {
           const r = await db.prepare(
             `UPDATE business_members SET removed_at = ? WHERE id = ?`
