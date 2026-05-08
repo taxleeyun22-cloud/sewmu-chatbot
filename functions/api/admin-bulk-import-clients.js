@@ -303,54 +303,16 @@ export async function onRequestPost(context) {
     const auditLog = [];
     const stats = { inserted_users: 0, inserted_businesses: 0, inserted_members: 0, enriched_users: 0 };
 
-    /* 1. user INSERT or enrichment */
+    /* fix v5 (2026-05-08): D1 batch API 사용 — Cloudflare Workers "Too many API requests" 제한 우회.
+     * 308 거래처 × (user + biz + mapping) = 1000+ query → 3 batch call 로 축소. */
+
+    /* 1. user INSERT batch */
     const userIdMap = {}; /* row_no → user_id */
-    const userInsertErrors = []; /* 사장님 보고 fix (2026-05-08): catch 무시하지 말고 audit_log 기록 */
+    const userInsertErrors = [];
+    /* matched user 먼저 채움 + enrichment */
     for (const a of details) {
-      const row = a.row;
-      if (a.user.action === 'new' && row.ceo) {
-        /* fix v4 (2026-05-08): UNIQUE constraint (provider, provider_id) 충돌 시 SELECT existing 재사용.
-         * 위하고 export 의 사업자번호 중복 4건 + 같은 사람이 여러 사업장 가질 때 자동 dedup. */
-        const providerId = 'manual:wehago:' + (row.biz_no || ('row_' + row.no)) + ':' + (a.user.birth_date || '');
-        const backHash = a.user.back_hash || null;
-        try {
-          const r = await db.prepare(
-            `INSERT INTO users (real_name, name, phone, provider, provider_id, approval_status,
-                                birth_date, resident_back_hash, import_batch_id, created_at)
-             VALUES (?, ?, ?, 'manual', ?, 'pending', ?, ?, ?, ?)`
-          ).bind(
-            row.ceo, row.ceo, row.phone || null,
-            providerId,
-            a.user.birth_date || null,
-            backHash,
-            batchId, now
-          ).run();
-          userIdMap[row.no] = r?.meta?.last_row_id;
-          stats.inserted_users++;
-        } catch (err) {
-          /* UNIQUE constraint 면 existing user 검색 → 재사용 (소프트 dedup) */
-          const errMsg = String(err.message || err);
-          if (/UNIQUE constraint failed.*provider/i.test(errMsg)) {
-            try {
-              const existing = await db.prepare(
-                `SELECT id FROM users WHERE provider = 'manual' AND provider_id = ? LIMIT 1`
-              ).bind(providerId).first();
-              if (existing) {
-                userIdMap[row.no] = existing.id;
-                /* stats.inserted_users 증가 X (이미 있는 user) */
-              } else {
-                userInsertErrors.push({ row_no: row.no, ceo: row.ceo, error: errMsg.slice(0, 200) });
-              }
-            } catch (e2) {
-              userInsertErrors.push({ row_no: row.no, ceo: row.ceo, error: errMsg.slice(0, 200) + ' / fallback fail: ' + String(e2.message).slice(0, 100) });
-            }
-          } else {
-            userInsertErrors.push({ row_no: row.no, ceo: row.ceo, error: errMsg.slice(0, 200) });
-          }
-        }
-      } else if (a.user.action === 'matched') {
-        userIdMap[row.no] = a.user.existing_id;
-        /* enrichment — 빈 컬럼만 채움 */
+      if (a.user.action === 'matched') {
+        userIdMap[a.row.no] = a.user.existing_id;
         if (a.user.will_enrich && a.user.will_enrich.length) {
           const u = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(a.user.existing_id).first();
           if (u) {
@@ -361,11 +323,11 @@ export async function onRequestPost(context) {
               before[f] = u[f];
               if (f === 'birth_date') { sets.push('birth_date = ?'); vals.push(a.user.birth_date || null); }
               else if (f === 'resident_back_hash') {
-                const back_raw = parseRRN(row.resident_or_corp_no).back_raw;
+                const back_raw = parseRRN(a.row.resident_or_corp_no).back_raw;
                 const hash = back_raw ? await sha256Hex(back_raw + ':' + SALT) : null;
                 sets.push('resident_back_hash = ?'); vals.push(hash);
               }
-              else if (f === 'phone') { sets.push('phone = ?'); vals.push(row.phone || null); }
+              else if (f === 'phone') { sets.push('phone = ?'); vals.push(a.row.phone || null); }
             }
             if (sets.length) {
               vals.push(a.user.existing_id);
@@ -379,65 +341,159 @@ export async function onRequestPost(context) {
         }
       }
     }
-
-    /* 2. business INSERT or dedup — corp_no 그룹 처리 위해 2 pass */
-    const bizIdMap = {}; /* row_no → business_id */
+    /* 신규 user INSERT — batch 로 묶기. INSERT OR IGNORE 사용 (UNIQUE 충돌 자동 skip).
+     * provider_id 별 row.no 매핑 보존 (충돌 시 SELECT 로 user_id 받기 위해). */
+    const userBatchInfo = []; /* { row_no, providerId } */
+    const userBatchStmts = [];
     for (const a of details) {
       const row = a.row;
-      if (a.business.action === 'new' && row.biz_no) {
-        const corp_no = (row.corp_or_indiv === '법인' && row.resident_or_corp_no) ? row.resident_or_corp_no : null;
-        try {
-          const r = await db.prepare(
-            `INSERT INTO businesses (company_name, business_number, ceo_name, business_category, industry,
-                                     address, phone, corporate_number, company_form, tax_office,
-                                     status, import_batch_id, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`
-          ).bind(
-            row.company || '#' + row.no, normBiz(row.biz_no), row.ceo || null,
-            row.type1 || null, row.industry || null,
-            row.address || null, row.phone || null,
-            corp_no,
-            row.corp_or_indiv === '법인' ? '0.법인사업자' : '1.개인사업자',
-            row.tax_office || null,
-            batchId, now, now
-          ).run();
-          bizIdMap[row.no] = r?.meta?.last_row_id;
-          stats.inserted_businesses++;
-        } catch {}
-      } else if (a.business.action === 'dedup') {
-        bizIdMap[row.no] = a.business.existing_id;
+      if (a.user.action !== 'new' || !row.ceo) continue;
+      const providerId = 'manual:wehago:' + (row.biz_no || ('row_' + row.no)) + ':' + (a.user.birth_date || '');
+      const backHash = a.user.back_hash || null;
+      userBatchInfo.push({ row_no: row.no, providerId });
+      userBatchStmts.push(
+        db.prepare(
+          `INSERT OR IGNORE INTO users (real_name, name, phone, provider, provider_id, approval_status,
+                                        birth_date, resident_back_hash, import_batch_id, created_at)
+           VALUES (?, ?, ?, 'manual', ?, 'pending', ?, ?, ?, ?)`
+        ).bind(row.ceo, row.ceo, row.phone || null, providerId, a.user.birth_date || null, backHash, batchId, now)
+      );
+    }
+    /* batch 실행 */
+    if (userBatchStmts.length) {
+      try {
+        const userResults = await db.batch(userBatchStmts);
+        for (let i = 0; i < userResults.length; i++) {
+          const info = userBatchInfo[i];
+          const result = userResults[i];
+          const lastId = result?.meta?.last_row_id;
+          const changes = result?.meta?.changes || 0;
+          if (changes === 1 && lastId) {
+            userIdMap[info.row_no] = lastId;
+            stats.inserted_users++;
+          }
+          /* changes=0 → INSERT IGNORE (UNIQUE 충돌). 별도 SELECT 로 해결 (다음 단계). */
+        }
+      } catch (e) {
+        userInsertErrors.push({ phase: 'user_batch', error: String(e.message || e).slice(0, 300) });
+      }
+    }
+    /* IGNORE 된 user (UNIQUE 충돌) 의 id 를 SELECT 로 채움 — batch 사용 */
+    const missingUserInfo = userBatchInfo.filter(i => !userIdMap[i.row_no]);
+    if (missingUserInfo.length) {
+      const selectStmts = missingUserInfo.map(i =>
+        db.prepare(`SELECT id FROM users WHERE provider = 'manual' AND provider_id = ? LIMIT 1`).bind(i.providerId)
+      );
+      try {
+        const selectResults = await db.batch(selectStmts);
+        for (let i = 0; i < selectResults.length; i++) {
+          const info = missingUserInfo[i];
+          const rs = selectResults[i]?.results;
+          if (rs && rs.length && rs[0].id) {
+            userIdMap[info.row_no] = rs[0].id;
+            /* stats++ X — 기존 user 재사용 */
+          } else {
+            userInsertErrors.push({ row_no: info.row_no, error: 'UNIQUE 충돌 후 SELECT 매칭 실패' });
+          }
+        }
+      } catch (e) {
+        userInsertErrors.push({ phase: 'user_select_batch', error: String(e.message || e).slice(0, 300) });
       }
     }
 
-    /* 3. parent_business_id 자동 설정 (본점·지점) */
+    /* 2. business INSERT batch */
+    const bizIdMap = {}; /* row_no → business_id */
+    /* dedup 먼저 채움 */
+    for (const a of details) {
+      if (a.business.action === 'dedup') {
+        bizIdMap[a.row.no] = a.business.existing_id;
+      }
+    }
+    const bizBatchInfo = [];
+    const bizBatchStmts = [];
+    for (const a of details) {
+      const row = a.row;
+      if (a.business.action !== 'new' || !row.biz_no) continue;
+      const corp_no = (row.corp_or_indiv === '법인' && row.resident_or_corp_no) ? row.resident_or_corp_no : null;
+      bizBatchInfo.push({ row_no: row.no, biz_no: normBiz(row.biz_no) });
+      bizBatchStmts.push(
+        db.prepare(
+          `INSERT OR IGNORE INTO businesses (company_name, business_number, ceo_name, business_category, industry,
+                                             address, phone, corporate_number, company_form, tax_office,
+                                             status, import_batch_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`
+        ).bind(
+          row.company || '#' + row.no, normBiz(row.biz_no), row.ceo || null,
+          row.type1 || null, row.industry || null,
+          row.address || null, row.phone || null,
+          corp_no,
+          row.corp_or_indiv === '법인' ? '0.법인사업자' : '1.개인사업자',
+          row.tax_office || null,
+          batchId, now, now
+        )
+      );
+    }
+    if (bizBatchStmts.length) {
+      try {
+        const bizResults = await db.batch(bizBatchStmts);
+        for (let i = 0; i < bizResults.length; i++) {
+          const info = bizBatchInfo[i];
+          const result = bizResults[i];
+          if ((result?.meta?.changes || 0) === 1 && result.meta.last_row_id) {
+            bizIdMap[info.row_no] = result.meta.last_row_id;
+            stats.inserted_businesses++;
+          }
+        }
+      } catch (e) {
+        userInsertErrors.push({ phase: 'biz_batch', error: String(e.message || e).slice(0, 300) });
+      }
+    }
+
+    /* 3. parent_business_id 자동 설정 (본점·지점) — batch UPDATE */
     const branchGroups = preview.branch_group_list || [];
+    const parentUpdateStmts = [];
+    /* 본점 biz_no → biz_id resolve (한 번에) */
+    const mainBizNos = [];
     for (const grp of branchGroups) {
       let mainBizNo = grp.main_row?.biz_no;
-      /* 사장님 override 확인 */
       const overrideBizNo = branchOverrides[grp.corp_no];
       if (overrideBizNo) mainBizNo = overrideBizNo;
-      if (!mainBizNo) continue; /* main 없으면 skip — 사장님 manual 처리 */
-      /* main biz id 찾기 */
-      const mainBiz = await db.prepare(
-        `SELECT id FROM businesses WHERE business_number = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`
-      ).bind(normBiz(mainBizNo)).first();
-      if (!mainBiz) continue;
-      /* 그룹 안 다른 사업장 → parent_business_id 채움 */
-      for (const r of (grp.all_rows || [])) {
-        if (r.biz_no === mainBizNo) continue; /* 본점 자체 skip */
-        try {
-          await db.prepare(
-            `UPDATE businesses SET parent_business_id = ? WHERE business_number = ? AND (parent_business_id IS NULL OR parent_business_id = 0)`
-          ).bind(mainBiz.id, normBiz(r.biz_no)).run();
-        } catch {}
+      if (mainBizNo) mainBizNos.push({ corp_no: grp.corp_no, main_biz_no: normBiz(mainBizNo), all_rows: grp.all_rows });
+    }
+    if (mainBizNos.length) {
+      const mainSelectStmts = mainBizNos.map(m =>
+        db.prepare(`SELECT id, business_number FROM businesses WHERE business_number = ? AND (deleted_at IS NULL OR deleted_at = '') LIMIT 1`).bind(m.main_biz_no)
+      );
+      try {
+        const mainResults = await db.batch(mainSelectStmts);
+        for (let i = 0; i < mainResults.length; i++) {
+          const m = mainBizNos[i];
+          const rs = mainResults[i]?.results;
+          if (!rs || !rs.length) continue;
+          const mainBizId = rs[0].id;
+          for (const r of (m.all_rows || [])) {
+            if (normBiz(r.biz_no) === m.main_biz_no) continue;
+            parentUpdateStmts.push(
+              db.prepare(
+                `UPDATE businesses SET parent_business_id = ? WHERE business_number = ? AND (parent_business_id IS NULL OR parent_business_id = 0)`
+              ).bind(mainBizId, normBiz(r.biz_no))
+            );
+          }
+        }
+      } catch (e) {
+        userInsertErrors.push({ phase: 'main_biz_select_batch', error: String(e.message || e).slice(0, 300) });
+      }
+    }
+    if (parentUpdateStmts.length) {
+      try { await db.batch(parentUpdateStmts); } catch (e) {
+        userInsertErrors.push({ phase: 'parent_update_batch', error: String(e.message || e).slice(0, 300) });
       }
     }
 
-    /* 4. business_members 매핑 INSERT */
-    /* fix v4 (2026-05-08): 매핑 누락 진단 + audit log */
-    const mappingErrors = [];
+    /* 4. business_members 매핑 INSERT batch — INSERT OR IGNORE 사용. 이미 매핑된 거 자동 skip */
     let skippedMissingId = 0;
-    let skippedAlreadyActive = 0;
+    const mapBatchInfo = [];
+    const mapBatchStmts = [];
     for (const a of details) {
       const row = a.row;
       const userId = userIdMap[row.no];
@@ -446,39 +502,57 @@ export async function onRequestPost(context) {
         skippedMissingId++;
         continue;
       }
+      mapBatchInfo.push({ row_no: row.no, user_id: userId, biz_id: bizId });
+      mapBatchStmts.push(
+        db.prepare(
+          `INSERT OR IGNORE INTO business_members (business_id, user_id, role, is_primary, added_at, import_batch_id)
+           VALUES (?, ?, '대표자', 1, ?, ?)`
+        ).bind(bizId, userId, now, batchId)
+      );
+    }
+    let mapErrorMsg = null;
+    let mappingsInserted = 0;
+    let mappingsSkipped = 0; /* IGNORE 된 (이미 활성) */
+    if (mapBatchStmts.length) {
       try {
-        const existing = await db.prepare(
-          `SELECT id, removed_at FROM business_members WHERE business_id = ? AND user_id = ? LIMIT 1`
-        ).bind(bizId, userId).first();
-        if (existing) {
-          if (existing.removed_at) {
-            await db.prepare(
-              `UPDATE business_members SET removed_at = NULL, role = '대표자', is_primary = 1 WHERE id = ?`
-            ).bind(existing.id).run();
-            stats.inserted_members++;
-          } else {
-            skippedAlreadyActive++;
-          }
-        } else {
-          await db.prepare(
-            `INSERT INTO business_members (business_id, user_id, role, is_primary, added_at, import_batch_id)
-             VALUES (?, ?, '대표자', 1, ?, ?)`
-          ).bind(bizId, userId, now, batchId).run();
-          stats.inserted_members++;
+        const mapResults = await db.batch(mapBatchStmts);
+        for (const r of mapResults) {
+          const changes = r?.meta?.changes || 0;
+          if (changes === 1) mappingsInserted++;
+          else mappingsSkipped++;
         }
-      } catch (err) {
-        mappingErrors.push({ row_no: row.no, biz_id: bizId, user_id: userId, error: String(err.message || err).slice(0, 200) });
+        stats.inserted_members = mappingsInserted;
+      } catch (e) {
+        mapErrorMsg = String(e.message || e).slice(0, 300);
       }
     }
-    if (mappingErrors.length || skippedMissingId || skippedAlreadyActive) {
-      auditLog.push({
-        type: 'mapping_diagnostics',
-        errors: mappingErrors.slice(0, 50),
-        total_errors: mappingErrors.length,
-        skipped_missing_id: skippedMissingId,
-        skipped_already_active: skippedAlreadyActive,
-      });
+    /* removed_at revive — 별도 처리 (UNIQUE 충돌로 INSERT IGNORE 된 row 중 removed_at 가 있는 것) */
+    if (mappingsSkipped > 0) {
+      /* 이미 매핑이 있는데 IGNORE 됐다는 의미 — removed_at 있을 수 있음. revive batch */
+      const reviveStmts = mapBatchInfo.map(i =>
+        db.prepare(
+          `UPDATE business_members SET removed_at = NULL, role = '대표자', is_primary = 1, import_batch_id = ?
+           WHERE business_id = ? AND user_id = ? AND removed_at IS NOT NULL`
+        ).bind(batchId, i.biz_id, i.user_id)
+      );
+      try {
+        const reviveResults = await db.batch(reviveStmts);
+        let revived = 0;
+        for (const r of reviveResults) {
+          if ((r?.meta?.changes || 0) === 1) revived++;
+        }
+        stats.inserted_members += revived;
+      } catch (e) {
+        mapErrorMsg = (mapErrorMsg ? mapErrorMsg + ' / ' : '') + 'revive batch fail: ' + String(e.message || e).slice(0, 200);
+      }
     }
+    auditLog.push({
+      type: 'mapping_diagnostics',
+      mappings_inserted: mappingsInserted,
+      mappings_skipped_already_active: mappingsSkipped,
+      missing_id_skipped: skippedMissingId,
+      batch_error: mapErrorMsg,
+    });
 
     /* 5. batch 상태 update — fix v4 (2026-05-08): status 와 audit_log 분리 update.
      * audit_log 가 너무 커서 timeout 가까울 때 마지막 update 실패한 케이스 (batch 10).
