@@ -270,11 +270,11 @@ export async function onRequestPost(context) {
     preview.details = rowAnalysis;
     preview.branch_group_list = branchGroups;
 
-    /* batch 에 preview_data 저장 */
+    /* batch 에 preview_data 저장 — 사장님 보고 fix (2026-05-08): 자르지 않음 (D1 TEXT 무제한) */
     try {
       await db.prepare(
         `UPDATE import_batches SET preview_data = ?, summary = ? WHERE id = ?`
-      ).bind(JSON.stringify(preview).slice(0, 100000), JSON.stringify({
+      ).bind(JSON.stringify(preview), JSON.stringify({
         total_rows: rows.length,
         users_new: preview.users.new,
         users_matched: preview.users.matched,
