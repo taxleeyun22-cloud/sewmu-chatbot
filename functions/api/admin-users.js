@@ -317,21 +317,26 @@ export async function onRequestPost(context) {
       const splitPairs = [];
       for (const nm of Object.keys(byName)) {
         const us = byName[nm];
-        const kakaos = us.filter(u => u.provider === 'kakao');
-        const manuals = us.filter(u => u.provider === 'manual');
-        if (!kakaos.length || !manuals.length) continue;
-        /* 동명이인 검사: birth_date 둘 다 있고 다르면 skip (다른 사람) */
-        for (const k of kakaos) {
-          for (const m of manuals) {
-            if (k.birth_date && m.birth_date && k.birth_date !== m.birth_date) continue;
-            /* 카톡 admin 인 경우 skip — 위험 */
-            if (k.is_admin || m.is_admin) continue;
-            splitPairs.push({
-              name: nm,
-              kakao: { id: k.id, name: k.name, phone: k.phone, profile_image: k.profile_image, last_login_at: k.last_login_at, birth_date: k.birth_date },
-              manual: { id: m.id, name: m.name, phone: m.phone, birth_date: m.birth_date, last_login_at: m.last_login_at },
-            });
-          }
+        if (us.length < 2) continue;
+        /* 동명이인 룰: birth_date 둘 다 있고 다른 케이스만 분리 (사장님 룰 v11). 그 외 같은 사람. */
+        const allBirths = new Set(us.map(u => u.birth_date).filter(Boolean));
+        const isHomonym = allBirths.size > 1;
+        if (isHomonym) continue; /* 동명이인 — 분리 유지, merge 위험 */
+        /* admin user 가 섞여있으면 skip (안전) */
+        if (us.some(u => u.is_admin)) continue;
+        /* keep 후보: kakao 우선 (프사·OAuth 정보 가장 풍부), 그 다음 가장 오래된 user */
+        let keep = us.find(u => u.provider === 'kakao');
+        if (!keep) keep = [...us].sort((a, b) => (a.id || 0) - (b.id || 0))[0];
+        const others = us.filter(u => u.id !== keep.id);
+        for (const o of others) {
+          splitPairs.push({
+            name: nm,
+            keep: { id: keep.id, provider: keep.provider, name: keep.name, phone: keep.phone, profile_image: keep.profile_image, last_login_at: keep.last_login_at, birth_date: keep.birth_date },
+            archive: { id: o.id, provider: o.provider, name: o.name, phone: o.phone, profile_image: o.profile_image, last_login_at: o.last_login_at, birth_date: o.birth_date },
+            /* legacy 호환 — kakao+manual 케이스도 동일 응답 */
+            kakao: keep.provider === 'kakao' ? { id: keep.id, name: keep.name, phone: keep.phone, profile_image: keep.profile_image, last_login_at: keep.last_login_at, birth_date: keep.birth_date } : null,
+            manual: { id: o.id, name: o.name, phone: o.phone, birth_date: o.birth_date, last_login_at: o.last_login_at },
+          });
         }
       }
       if (dryRun) {
@@ -342,43 +347,55 @@ export async function onRequestPost(context) {
       const failed = [];
       for (const pair of splitPairs) {
         try {
-          /* merge_users 동일 룰을 직접 호출 */
+          /* keep 살아남음, archive 흡수. provider 무관 (kakao+kakao / manual+manual / kakao+manual 모두). */
+          const keepId = pair.keep.id;
+          const archiveId = pair.archive.id;
           const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
-          const kakao = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(pair.kakao.id).first();
-          const manual = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(pair.manual.id).first();
-          if (!kakao || !manual) { failed.push({ pair, reason: 'one of users not found' }); continue; }
+          const keep = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(keepId).first();
+          const archived = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(archiveId).first();
+          if (!keep || !archived) { failed.push({ pair, reason: 'one of users not found' }); continue; }
 
-          /* archive kakao first (UNIQUE 회피) */
-          const kakaoArchivedProviderId = `merged:${pair.kakao.id}:${kakao.provider_id || kakao.provider_user_id || ''}`;
+          /* archive 먼저 — UNIQUE 회피 */
+          const archivedProviderId = `merged:${archiveId}:${archived.provider_id || archived.provider_user_id || ''}`;
           await db.prepare(`UPDATE users SET deleted_at = ?, approval_status = 'merged', provider = 'merged', provider_id = ?, provider_user_id = NULL WHERE id = ?`)
-            .bind(now, kakaoArchivedProviderId, pair.kakao.id).run();
-          /* manual 흡수 */
+            .bind(now, archivedProviderId, archiveId).run();
+
+          /* keep 흡수 — archive 의 정보 enrich (빈 컬럼만) */
           await db.prepare(`
             UPDATE users SET
-              provider = ?, provider_id = ?, provider_user_id = ?,
-              profile_image = COALESCE(?, profile_image),
-              name = COALESCE(?, name),
-              email = COALESCE(?, email),
+              provider_id = COALESCE(provider_id, ?),
+              provider_user_id = COALESCE(provider_user_id, ?),
+              profile_image = COALESCE(NULLIF(profile_image, ''), ?),
+              name = COALESCE(NULLIF(name, ''), ?),
+              real_name = COALESCE(NULLIF(real_name, ''), ?),
+              email = COALESCE(NULLIF(email, ''), ?),
               phone = COALESCE(NULLIF(phone, ''), NULLIF(phone, '000-000-0000'), ?),
-              name_confirmed = 1,
-              approval_status = 'approved_client',
+              birth_date = COALESCE(birth_date, ?),
+              resident_back_hash = COALESCE(resident_back_hash, ?),
+              name_confirmed = COALESCE(NULLIF(name_confirmed, 0), ?),
+              approval_status = COALESCE(NULLIF(approval_status, ''), 'approved_client'),
               approved_at = COALESCE(approved_at, ?),
-              last_login_at = ?,
+              last_login_at = COALESCE(last_login_at, ?),
               deleted_at = NULL, withdrawal_reason = NULL
             WHERE id = ?
-          `).bind(kakao.provider, kakao.provider_id, kakao.provider_user_id, kakao.profile_image,
-                  kakao.name, kakao.email, kakao.phone, now, now, pair.manual.id).run();
-          /* 매핑 이전 */
-          await db.prepare(`UPDATE business_members SET user_id = ? WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`).bind(pair.manual.id, pair.kakao.id).run();
-          await db.prepare(`UPDATE memos SET target_user_id = ? WHERE target_user_id = ?`).bind(pair.manual.id, pair.kakao.id).run();
-          await db.prepare(`UPDATE memos SET author_user_id = ? WHERE author_user_id = ?`).bind(pair.manual.id, pair.kakao.id).run();
-          try { await db.prepare(`UPDATE conversations SET user_id = ? WHERE user_id = ?`).bind(pair.manual.id, pair.kakao.id).run(); } catch {}
-          try { await db.prepare(`UPDATE room_members SET user_id = ? WHERE user_id = ? AND (left_at IS NULL OR left_at = '')`).bind(pair.manual.id, pair.kakao.id).run(); } catch {}
-          try { await db.prepare(`UPDATE documents SET user_id = ? WHERE user_id = ?`).bind(pair.manual.id, pair.kakao.id).run(); } catch {}
-          try { await db.prepare(`UPDATE daily_usage SET user_id = ? WHERE user_id = ?`).bind(pair.manual.id, pair.kakao.id).run(); } catch {}
-          try { await db.prepare(`UPDATE sessions SET user_id = ? WHERE user_id = ?`).bind(pair.manual.id, pair.kakao.id).run(); } catch {}
-          try { await db.prepare(`UPDATE business_documents SET user_id = ? WHERE user_id = ?`).bind(pair.manual.id, pair.kakao.id).run(); } catch {}
-          merged.push({ name: pair.name, survived: pair.manual.id, archived: pair.kakao.id });
+          `).bind(
+            archived.provider_id, archived.provider_user_id, archived.profile_image,
+            archived.name, archived.real_name, archived.email, archived.phone,
+            archived.birth_date, archived.resident_back_hash, archived.name_confirmed || 0,
+            now, now, keepId
+          ).run();
+
+          /* 매핑 이전 (archive → keep) */
+          await db.prepare(`UPDATE business_members SET user_id = ? WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`).bind(keepId, archiveId).run();
+          await db.prepare(`UPDATE memos SET target_user_id = ? WHERE target_user_id = ?`).bind(keepId, archiveId).run();
+          await db.prepare(`UPDATE memos SET author_user_id = ? WHERE author_user_id = ?`).bind(keepId, archiveId).run();
+          try { await db.prepare(`UPDATE conversations SET user_id = ? WHERE user_id = ?`).bind(keepId, archiveId).run(); } catch {}
+          try { await db.prepare(`UPDATE room_members SET user_id = ? WHERE user_id = ? AND (left_at IS NULL OR left_at = '')`).bind(keepId, archiveId).run(); } catch {}
+          try { await db.prepare(`UPDATE documents SET user_id = ? WHERE user_id = ?`).bind(keepId, archiveId).run(); } catch {}
+          try { await db.prepare(`UPDATE daily_usage SET user_id = ? WHERE user_id = ?`).bind(keepId, archiveId).run(); } catch {}
+          try { await db.prepare(`UPDATE sessions SET user_id = ? WHERE user_id = ?`).bind(keepId, archiveId).run(); } catch {}
+          try { await db.prepare(`UPDATE business_documents SET user_id = ? WHERE user_id = ?`).bind(keepId, archiveId).run(); } catch {}
+          merged.push({ name: pair.name, survived: keepId, archived: archiveId });
         } catch (e) {
           failed.push({ pair, reason: e.message });
         }
