@@ -146,6 +146,24 @@ export async function onRequestPost(context) {
   /* salt — env 또는 default. 서비스 운영 시 ADMIN_KEY 와 별도 salt 권장 */
   const SALT = (context.env.RRN_HASH_SALT || context.env.ADMIN_KEY || 'sewmu_default_salt');
 
+  /* 사장님 명령 (2026-05-08): batch 의 user 일괄 status 변경 — pending 으로 잘못 INSERT 된 거 빠른 fix.
+   * POST ?action=set_batch_users_status body { batch_id, status } */
+  if (action === 'set_batch_users_status') {
+    const batchId = Number(body.batch_id || 0);
+    const status = String(body.status || '').trim();
+    if (!batchId || !status) return Response.json({ ok: false, error: 'batch_id, status 필요' }, { status: 400 });
+    const allowed = ['pending', 'approved_client', 'approved_guest', 'rejected', 'terminated'];
+    if (!allowed.includes(status)) return Response.json({ ok: false, error: 'invalid status' }, { status: 400 });
+    try {
+      const r = await db.prepare(
+        `UPDATE users SET approval_status = ? WHERE import_batch_id = ?`
+      ).bind(status, batchId).run();
+      return Response.json({ ok: true, batch_id: batchId, status, updated: r?.meta?.changes || 0 });
+    } catch (e) {
+      return Response.json({ ok: false, error: e.message }, { status: 500 });
+    }
+  }
+
   if (action === 'preview') {
     const rows = body.rows || [];
     const sourceFile = body.source_file || 'unknown';
@@ -363,10 +381,11 @@ export async function onRequestPost(context) {
         a.user.birth_date || null, backHash, batchId, now
       ]);
     }
-    /* bulk INSERT (8 col 사용 — provider/approval_status 는 SQL literal) */
+    /* bulk INSERT — 사장님 명령 (2026-05-08): "위하고 import = 기장거래처".
+     * approval_status='approved_client' (default 'pending' 폐기) */
     for (let i = 0; i < userValues.length; i += CHUNK_USER) {
       const chunk = userValues.slice(i, i + CHUNK_USER);
-      const placeholders = chunk.map(() => "(?, ?, ?, 'manual', ?, 'pending', ?, ?, ?, ?)").join(', ');
+      const placeholders = chunk.map(() => "(?, ?, ?, 'manual', ?, 'approved_client', ?, ?, ?, ?)").join(', ');
       const sql = `INSERT OR IGNORE INTO users (real_name, name, phone, provider, provider_id, approval_status, birth_date, resident_back_hash, import_batch_id, created_at) VALUES ${placeholders}`;
       try {
         await db.prepare(sql).bind(...chunk.flat()).run();
