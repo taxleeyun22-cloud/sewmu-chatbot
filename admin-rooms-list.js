@@ -107,15 +107,26 @@ function toggleRoomFilter(key){
 }
 
 async function loadRoomList(){
+  /* Phase 3.5.A (2026-05-08): rooms-store loading 시작 — UI 변화 0 (인프라만) */
+  try { if(window.__roomsStore) window.__roomsStore.setLoading(); } catch(_){}
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+(_roomsMode==='internal'?'&internal=1':''));
     const d=await r.json();
     const el=$g('roomList');
+    /* Phase 3.5.A: store 에 list + 모드 + 라벨 (라벨은 _ensureRoomLabels 후 별도 set) 갱신 */
+    try {
+      if(window.__roomsStore) {
+        window.__roomsStore.setMode(_roomsMode==='internal'?'internal':'normal');
+        window.__roomsStore.setList(d.rooms || [], []);  /* 라벨은 아래에서 별도 set */
+      }
+    } catch(_){}
     if(!d.rooms||d.rooms.length===0){el.innerHTML='<div class="empty" style="padding:40px 20px">상담방이 없습니다</div>';return}
     let totalUnread=0;
     /* 담당자 라벨 동적 로드 (캐시) */
     const labels=await _ensureRoomLabels();
     const labelMap={};for(const lb of labels)labelMap[lb.id]=lb;
+    /* Phase 3.5.A (2026-05-08): 라벨도 store 에 set (인프라만) */
+    try { if(window.__roomsStore) window.__roomsStore.setList(d.rooms || [], labels); } catch(_){}
     /* 🔍 검색어 필터 — 방 이름 / 업체명 / 멤버 이름 / 마지막 메시지 미리보기 */
     const searchQ=((($g('roomListSearch')||{}).value)||'').trim().toLowerCase();
     const filteredRooms=searchQ
