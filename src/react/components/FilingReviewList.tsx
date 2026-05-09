@@ -38,7 +38,8 @@ export function FilingReviewList({ expectedType }: FilingReviewListProps = {}) {
     return <></>;
   }
 
-  if (state.loading) {
+  /* Phase Infra-2 fix (2026-05-09): loading + 빈 list 일 때만 표시 */
+  if (state.loading && !state.filings.length) {
     return (
       <div style={{ color: '#9ca3af', padding: '10px 0', fontSize: '.85em' }}>
         불러오는 중...

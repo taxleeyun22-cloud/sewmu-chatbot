@@ -22,7 +22,8 @@ declare global {
 export function CdFilings() {
   const state = useStore($filings);
 
-  if (state.loading) {
+  /* Phase Infra-2 fix (2026-05-09): loading + 빈 list 일 때만 표시 */
+  if (state.loading && !state.filings.length) {
     return (
       <div style={{ color: '#8b95a1', padding: '10px 0', fontSize: '.85em' }}>
         불러오는 중...

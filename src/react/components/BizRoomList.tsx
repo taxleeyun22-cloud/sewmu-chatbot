@@ -17,7 +17,8 @@ import { $bizRooms } from '../../admin/state/biz-rooms-store';
 export function BizRoomList() {
   const state = useStore($bizRooms);
 
-  if (state.loading) {
+  /* Phase Infra-2 fix (2026-05-09): loading + 빈 list 일 때만 표시 */
+  if (state.loading && !state.rooms.length) {
     return <div className="loading">상담방 불러오는 중...</div>;
   }
   if (state.error) {

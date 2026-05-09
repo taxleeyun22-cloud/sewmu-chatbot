@@ -54,7 +54,11 @@ var _bizStatusFilter = 'all';  /* 'all' | 'active' | 'closed' | 'terminated' */
 
 async function loadBusinessList(){
   const el=$g('bizList');if(!el)return;
-  el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div>';
+  /* Phase Infra-2 fix (2026-05-09): React 활성 시 raw innerHTML 박지 X.
+   * React 가 mount 된 #bizList 안에 raw HTML 박으면 React virtual DOM 충돌 → list stuck. */
+  if(!window.__businessesStore){
+    el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div>';
+  }
   /* Phase 3.2.A (2026-05-08): businesses-store loading 시작 */
   try { if(window.__businessesStore) window.__businessesStore.setLoading(); } catch(_){}
   try{
@@ -75,8 +79,11 @@ async function loadBusinessList(){
     if($g('cBizTerminated')) $g('cBizTerminated').textContent = c.terminated || 0;
     _renderBizList();
   }catch(err){
-    el.innerHTML='<div style="color:#f04452;padding:20px">오류: '+e(err.message)+'</div>';
+    /* Phase Infra-2 fix: React 활성 시 setError 만 (raw innerHTML 박으면 React 충돌) */
     try { if(window.__businessesStore) window.__businessesStore.setError(err.message); } catch(_){}
+    if(!window.__businessesStore){
+      el.innerHTML='<div style="color:#f04452;padding:20px">오류: '+e(err.message)+'</div>';
+    }
   }
 }
 

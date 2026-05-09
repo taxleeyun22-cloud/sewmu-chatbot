@@ -29,7 +29,10 @@ export function BusinessList() {
   /* $filteredBusinesses subscribe — status + search 필터 후 list */
   const list = useStore($filteredBusinesses);
 
-  if (state.loading) {
+  /* Phase Infra-2 fix (2026-05-09): loading 표시 조건 강화 — 데이터 있으면 list 표시 (loading 무시).
+   * 사장님 사고 (2026-05-09): React state.loading=true stuck 시 list 영원히 안 보임.
+   * 첫 진입 (businesses=[]) 만 loading 표시. 그 후엔 cached list 표시 + 백그라운드 갱신. */
+  if (state.loading && !state.businesses.length) {
     return (
       <div style={{ textAlign: 'center', color: '#8b95a1', padding: '40px 0', fontSize: '.88em' }}>
         불러오는 중...

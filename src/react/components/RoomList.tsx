@@ -22,7 +22,8 @@ declare global {
 export function RoomList() {
   const state = useStore($rooms);
 
-  if (state.loading) {
+  /* Phase Infra-2 fix (2026-05-09): loading + 빈 list 일 때만 표시. cached 데이터 있으면 list. */
+  if (state.loading && !state.rooms.length) {
     return <div className="empty">불러오는 중...</div>;
   }
   if (state.error) {
