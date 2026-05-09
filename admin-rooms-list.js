@@ -106,6 +106,139 @@ function toggleRoomFilter(key){
   loadRoomList();
 }
 
+/* Phase 3.5.B (2026-05-08): _buildRoomListHtml — store 에서 읽어 HTML 빌드.
+ * React RoomList 가 store 변경 시 호출 → reactive update.
+ * 부수 효과 (totalUnread 누적, _adminRoomMarkRead 초기화) 는 window._roomListTotalUnreadTemp 로 전달. */
+function _buildRoomListHtml(){
+  if(!window.__roomsStore) return '';
+  const s = window.__roomsStore.get();
+  const rooms = s.rooms || [];
+  const labels = s.labels || [];
+  if(!rooms.length){
+    return '<div class="empty" style="padding:40px 20px">상담방이 없습니다</div>';
+  }
+  const labelMap={};for(const lb of labels)labelMap[lb.id]=lb;
+  /* 🔍 검색어 필터 — 방 이름 / 업체명 / 멤버 이름 / 마지막 메시지 미리보기 */
+  const searchQ=((($g('roomListSearch')||{}).value)||'').trim().toLowerCase();
+  const filteredRooms=searchQ
+    ? rooms.filter(rm=>{
+        const hay=((rm.name||'')+' '+(rm.business_name||'')+' '+(rm.first_member_name||'')+' '+(rm.last_msg_preview||'')+' '+(rm.last_msg_content||'')).toLowerCase();
+        return hay.indexOf(searchQ)>=0;
+      })
+    : rooms;
+  /* 우선순위 그룹화 — 라벨 id 별 + 미분류 + 종료 */
+  const groups={};for(const lb of labels)groups[lb.id]=[];
+  groups.none=[];groups.closed=[];
+  for(const rm of filteredRooms){
+    if(rm.status==='closed'){groups.closed.push(rm);continue}
+    const p=Number(rm.priority||0);
+    if(p&&labelMap[p])(groups[p]=groups[p]||[]).push(rm);
+    else groups.none.push(rm);
+  }
+  /* 필터 상태 */
+  const flt=_roomFilterGet();
+  const filterBtn=(key,label,color,count)=>{
+    const on=flt.has(key);
+    const bg=on?color:'#e5e8eb';
+    const fg=on?'#fff':'#6b7280';
+    return '<button onclick="toggleRoomFilter('+(typeof key==='number'?key:"'"+key+"'")+')" style="background:'+bg+';color:'+fg+';border:none;padding:5px 11px;border-radius:6px;font-size:.76em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit">'+e(label)+' <span style="opacity:.7">'+count+'</span></button>';
+  };
+  let filterBar='<div style="padding:8px 10px;border-bottom:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:4px;flex-wrap:wrap;position:sticky;top:0;z-index:2">';
+  for(const lb of labels){
+    filterBar+=filterBtn(lb.id, lb.name, lb.color||'#6b7280', (groups[lb.id]||[]).length);
+  }
+  filterBar+=filterBtn('none', '⚪ 미분류', '#6b7280', groups.none.length)
+    +filterBtn('closed', '📦 종료', '#9ca3af', groups.closed.length)
+    +'</div>';
+
+  let totalUnread=0;
+  const renderCard=(rm)=>{
+    const cls=['room-item'];
+    if(currentRoomId===rm.id)cls.push('active');
+    if(rm.status==='closed')cls.push('closed');
+    const aiIcon=rm.ai_mode==='off'?'🙅':'🤖';
+    const userCount=Number(rm.non_advisor_msg_count||rm.user_msg_count||0);
+    let unread;
+    if(typeof rm.admin_unread_count==='number'){
+      unread = rm.admin_unread_count;
+    } else {
+      const seen=_adminRoomReadCount(rm.id);
+      if(_adminRoomSeenRaw(rm.id)===null){
+        _adminRoomMarkRead(rm.id, userCount);
+      }
+      unread = Math.max(0, userCount - (seen||0));
+      if(_adminRoomSeenRaw(rm.id)===null) unread=0;
+    }
+    if(currentRoomId===rm.id) unread=0;
+    totalUnread+=unread;
+    const badge=unread>0?'<span class="ri-unread" style="background:#f04452;color:#fff;border-radius:11px;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;font-size:.7em;font-weight:800;flex-shrink:0">'+(unread>99?'99+':unread)+'</span>':'';
+    const p=Number(rm.priority||0);
+    let priTabs;
+    if(labels.length<=4){
+      priTabs='<div class="ri-pri-tabs" onclick="event.stopPropagation()" style="display:inline-flex;gap:1px;background:#f2f4f6;padding:2px;border-radius:6px;flex-shrink:0">'
+        +'<button onclick="setRoomPriority(\''+rm.id+'\',0)" style="background:'+(p===0?'#9ca3af':'transparent')+';color:'+(p===0?'#fff':'#6b7280')+';border:none;padding:2px 6px;border-radius:4px;font-size:.68em;font-weight:'+(p===0?'700':'500')+';cursor:pointer;font-family:inherit;min-width:16px">—</button>'
+        +labels.map(lb=>{
+          const on=p===lb.id;
+          const bg=on?(lb.color||'#6b7280'):'transparent';
+          const fg=on?'#fff':'#6b7280';
+          const lbl=lb.name.length>6?lb.name.substring(0,5)+'…':lb.name;
+          return '<button onclick="setRoomPriority(\''+rm.id+'\','+lb.id+')" title="'+escAttr(lb.name)+'" style="background:'+bg+';color:'+fg+';border:none;padding:2px 6px;border-radius:4px;font-size:.68em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit">'+e(lbl)+'</button>';
+        }).join('')
+        +'</div>';
+    } else {
+      const opts=['<option value="0">— 미분류</option>']
+        .concat(labels.map(lb=>'<option value="'+lb.id+'"'+(p===lb.id?' selected':'')+' style="background:'+lb.color+'">'+e(lb.name)+'</option>'));
+      priTabs='<select onclick="event.stopPropagation()" onchange="setRoomPriority(\''+rm.id+'\',this.value)" style="background:'+(p&&labelMap[p]?labelMap[p].color:'#f2f4f6')+';color:'+(p?'#fff':'#6b7280')+';border:none;padding:2px 4px;border-radius:4px;font-size:.68em;font-family:inherit;cursor:pointer;min-width:70px;max-width:110px">'+opts.join('')+'</select>';
+    }
+    const memberName=rm.first_member_name||rm.name||'?';
+    const avatarInitial=(memberName[0]||'?').toUpperCase();
+    const avatar=rm.first_member_profile
+      ? '<div style="flex-shrink:0;width:44px;height:44px;border-radius:50%;overflow:hidden;background:#f2f4f6"><img src="'+escAttr(rm.first_member_profile)+'" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\''+escAttr(avatarInitial)+'\';this.parentNode.style.display=\'flex\';this.parentNode.style.alignItems=\'center\';this.parentNode.style.justifyContent=\'center\';this.parentNode.style.color=\'#3182f6\';this.parentNode.style.fontWeight=\'700\';this.parentNode.style.fontSize=\'1.1em\'"></div>'
+      : '<div style="flex-shrink:0;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#3182f6,#5da3ff);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1em">'+escAttr(avatarInitial)+'</div>';
+    const preview=rm.last_msg_preview?escAttr(rm.last_msg_preview):'새 상담방';
+    const lastTime=rm.last_msg_at ? (rm.last_msg_at.substring(5,10).replace('-','.')+' '+rm.last_msg_at.substring(11,16)) : '';
+    const closedTag=rm.status==='closed'?'<span class="ri-closed" style="font-size:.65em;color:#9ca3af;margin-left:4px">종료</span>':'';
+    const bizBadge = rm.business_name
+      ? '<span style="font-size:.66em;color:#1e40af;background:#dbeafe;padding:1px 6px;border-radius:10px;margin-right:4px" title="연결된 업체">🏢 '+escAttr(String(rm.business_name).slice(0,14))+'</span>'
+      : '';
+    return '<div class="'+cls.join(' ')+'" onclick="openRoom(\''+rm.id+'\')" ondblclick="event.stopPropagation();currentRoomId=\''+rm.id+'\';popoutCurrentRoom()" title="더블클릭하면 새 창으로 열립니다" style="display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid #f2f4f6;cursor:pointer">'
+      +avatar
+      +'<div style="flex:1;min-width:0">'
+      +  '<div style="display:flex;align-items:center;gap:4px">'
+      +    '<span style="font-weight:700;font-size:.92em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(rm.name||'상담방')+'</span>'
+      +    '<span style="font-size:.66em;color:#9ca3af;flex-shrink:0">'+aiIcon+' '+lastTime+'</span>'
+      +  '</div>'
+      +  '<div style="display:flex;align-items:center;gap:6px;margin-top:3px">'
+      +    '<span style="flex:1;min-width:0;font-size:.78em;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+bizBadge+preview+closedTag+'</span>'
+      +    badge
+      +  '</div>'
+      +  '<div style="display:flex;align-items:center;gap:6px;margin-top:4px">'
+      +    '<span style="font-size:.65em;color:#b0b8c1">👥 '+rm.member_count+'</span>'
+      +    priTabs
+      +  '</div>'
+      +'</div>'
+      +'</div>';
+  };
+  const sep=(title,color,count)=>count?'<div style="padding:8px 12px 4px;font-size:.72em;font-weight:800;color:'+color+';background:'+color+'11;border-bottom:1px solid '+color+'33">'+title+' <span style="opacity:.7">('+count+')</span></div>':'';
+
+  let body='';
+  for(const lb of labels){
+    if(flt.has(lb.id)){
+      const arr=groups[lb.id]||[];
+      body+=sep(lb.name, lb.color||'#6b7280', arr.length)+arr.map(renderCard).join('');
+    }
+  }
+  if(flt.has('none'))body+=sep('⚪ 미분류','#6b7280',groups.none.length)+groups.none.map(renderCard).join('');
+  if(flt.has('closed'))body+=sep('📦 종료','#9ca3af',groups.closed.length)+groups.closed.map(renderCard).join('');
+  if(!body)body='<div class="empty" style="padding:40px 20px;text-align:center;color:#8b95a1">필터에 해당하는 상담방이 없습니다</div>';
+
+  /* 부수효과 — totalUnread 를 임시 글로벌에 저장 (loadRoomList 가 tab 배지 갱신용) */
+  try { window._roomListTotalUnreadTemp = totalUnread; } catch(_){}
+  return filterBar+body;
+}
+/* 글로벌 노출 — React RoomList 컴포넌트 호출용 */
+try { window.__buildRoomListHtml = _buildRoomListHtml; } catch(_){}
+
 async function loadRoomList(){
   /* Phase 3.5.A (2026-05-08): rooms-store loading 시작 — UI 변화 0 (인프라만) */
   try { if(window.__roomsStore) window.__roomsStore.setLoading(); } catch(_){}
@@ -120,141 +253,28 @@ async function loadRoomList(){
         window.__roomsStore.setList(d.rooms || [], []);  /* 라벨은 아래에서 별도 set */
       }
     } catch(_){}
-    if(!d.rooms||d.rooms.length===0){el.innerHTML='<div class="empty" style="padding:40px 20px">상담방이 없습니다</div>';return}
-    let totalUnread=0;
+    /* Phase 3.5.B (2026-05-08): React RoomList 가 store 자동 reactive — innerHTML 조작 skip if mount.
+     * 단, 라벨 fetch (_ensureRoomLabels) 와 currentRoomId 읽음 마킹 등은 진행. */
+    if(!d.rooms||d.rooms.length===0){
+      if(!window.__buildRoomListHtml || !window.__roomsStore){
+        el.innerHTML='<div class="empty" style="padding:40px 20px">상담방이 없습니다</div>';
+      }
+      return;
+    }
     /* 담당자 라벨 동적 로드 (캐시) */
     const labels=await _ensureRoomLabels();
-    const labelMap={};for(const lb of labels)labelMap[lb.id]=lb;
     /* Phase 3.5.A (2026-05-08): 라벨도 store 에 set (인프라만) */
     try { if(window.__roomsStore) window.__roomsStore.setList(d.rooms || [], labels); } catch(_){}
-    /* 🔍 검색어 필터 — 방 이름 / 업체명 / 멤버 이름 / 마지막 메시지 미리보기 */
-    const searchQ=((($g('roomListSearch')||{}).value)||'').trim().toLowerCase();
-    const filteredRooms=searchQ
-      ? d.rooms.filter(rm=>{
-          const hay=((rm.name||'')+' '+(rm.business_name||'')+' '+(rm.first_member_name||'')+' '+(rm.last_msg_preview||'')+' '+(rm.last_msg_content||'')).toLowerCase();
-          return hay.indexOf(searchQ)>=0;
-        })
-      : d.rooms;
-    /* 우선순위 그룹화 — 라벨 id 별 + 미분류 + 종료 */
-    const groups={};for(const lb of labels)groups[lb.id]=[];
-    groups.none=[];groups.closed=[];
-    for(const rm of filteredRooms){
-      if(rm.status==='closed'){groups.closed.push(rm);continue}
-      const p=Number(rm.priority||0);
-      if(p&&labelMap[p])(groups[p]=groups[p]||[]).push(rm);
-      else groups.none.push(rm);
-    }
-    /* 필터 상태 */
-    const flt=_roomFilterGet();
-    const filterBtn=(key,label,color,count)=>{
-      const on=flt.has(key);
-      const bg=on?color:'#e5e8eb';
-      const fg=on?'#fff':'#6b7280';
-      return '<button onclick="toggleRoomFilter('+(typeof key==='number'?key:"'"+key+"'")+')" style="background:'+bg+';color:'+fg+';border:none;padding:5px 11px;border-radius:6px;font-size:.76em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit">'+e(label)+' <span style="opacity:.7">'+count+'</span></button>';
-    };
-    let filterBar='<div style="padding:8px 10px;border-bottom:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:4px;flex-wrap:wrap;position:sticky;top:0;z-index:2">';
-    for(const lb of labels){
-      filterBar+=filterBtn(lb.id, lb.name, lb.color||'#6b7280', (groups[lb.id]||[]).length);
-    }
-    filterBar+=filterBtn('none', '⚪ 미분류', '#6b7280', groups.none.length)
-      +filterBtn('closed', '📦 종료', '#9ca3af', groups.closed.length)
-      +'</div>';
 
-    const renderCard=(rm)=>{
-      const cls=['room-item'];
-      if(currentRoomId===rm.id)cls.push('active');
-      if(rm.status==='closed')cls.push('closed');
-      const aiIcon=rm.ai_mode==='off'?'🙅':'🤖';
-      /* 미읽음 기준: 세무사(human_advisor) 가 보낸 것 외 전부 (고객 + AI).
-         사용자 피드백: user 메시지만 세면 AI 답변만 있는 방은 뱃지가 안 떠서 놓침
-         Phase M10 (2026-05-05 사장님 보고: "안 읽은거 숫자 안 뜨네"):
-         server 의 admin_unread_count (last_read_at 기반) 우선 사용.
-         legacy localStorage 기반은 fallback. */
-      const userCount=Number(rm.non_advisor_msg_count||rm.user_msg_count||0);
-      let unread;
-      if(typeof rm.admin_unread_count==='number'){
-        /* server 정확 값 사용 */
-        unread = rm.admin_unread_count;
-      } else {
-        /* legacy fallback */
-        const seen=_adminRoomReadCount(rm.id);
-        if(_adminRoomSeenRaw(rm.id)===null){
-          _adminRoomMarkRead(rm.id, userCount);
-        }
-        unread = Math.max(0, userCount - (seen||0));
-        if(_adminRoomSeenRaw(rm.id)===null) unread=0;
-      }
-      if(currentRoomId===rm.id) unread=0;
-      totalUnread+=unread;
-      const badge=unread>0?'<span class="ri-unread" style="background:#f04452;color:#fff;border-radius:11px;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;font-size:.7em;font-weight:800;flex-shrink:0">'+(unread>99?'99+':unread)+'</span>':'';
-      /* 우선순위/담당자 탭 버튼 — 라벨 DB 기반 동적 렌더. 너무 많으면 드롭다운으로 */
-      const p=Number(rm.priority||0);
-      let priTabs;
-      if(labels.length<=4){
-        /* 4개 이하는 탭 버튼 */
-        priTabs='<div class="ri-pri-tabs" onclick="event.stopPropagation()" style="display:inline-flex;gap:1px;background:#f2f4f6;padding:2px;border-radius:6px;flex-shrink:0">'
-          +'<button onclick="setRoomPriority(\''+rm.id+'\',0)" style="background:'+(p===0?'#9ca3af':'transparent')+';color:'+(p===0?'#fff':'#6b7280')+';border:none;padding:2px 6px;border-radius:4px;font-size:.68em;font-weight:'+(p===0?'700':'500')+';cursor:pointer;font-family:inherit;min-width:16px">—</button>'
-          +labels.map(lb=>{
-            const on=p===lb.id;
-            const bg=on?(lb.color||'#6b7280'):'transparent';
-            const fg=on?'#fff':'#6b7280';
-            const lbl=lb.name.length>6?lb.name.substring(0,5)+'…':lb.name;
-            return '<button onclick="setRoomPriority(\''+rm.id+'\','+lb.id+')" title="'+escAttr(lb.name)+'" style="background:'+bg+';color:'+fg+';border:none;padding:2px 6px;border-radius:4px;font-size:.68em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit">'+e(lbl)+'</button>';
-          }).join('')
-          +'</div>';
-      } else {
-        /* 5개 이상은 드롭다운 (select) */
-        const opts=['<option value="0">— 미분류</option>']
-          .concat(labels.map(lb=>'<option value="'+lb.id+'"'+(p===lb.id?' selected':'')+' style="background:'+lb.color+'">'+e(lb.name)+'</option>'));
-        priTabs='<select onclick="event.stopPropagation()" onchange="setRoomPriority(\''+rm.id+'\',this.value)" style="background:'+(p&&labelMap[p]?labelMap[p].color:'#f2f4f6')+';color:'+(p?'#fff':'#6b7280')+';border:none;padding:2px 4px;border-radius:4px;font-size:.68em;font-family:inherit;cursor:pointer;min-width:70px;max-width:110px">'+opts.join('')+'</select>';
-      }
-      /* 프로필 아바타 (카톡 스타일) */
-      const memberName=rm.first_member_name||rm.name||'?';
-      const avatarInitial=(memberName[0]||'?').toUpperCase();
-      const avatar=rm.first_member_profile
-        ? '<div style="flex-shrink:0;width:44px;height:44px;border-radius:50%;overflow:hidden;background:#f2f4f6"><img src="'+escAttr(rm.first_member_profile)+'" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\''+escAttr(avatarInitial)+'\';this.parentNode.style.display=\'flex\';this.parentNode.style.alignItems=\'center\';this.parentNode.style.justifyContent=\'center\';this.parentNode.style.color=\'#3182f6\';this.parentNode.style.fontWeight=\'700\';this.parentNode.style.fontSize=\'1.1em\'"></div>'
-        : '<div style="flex-shrink:0;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#3182f6,#5da3ff);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1em">'+escAttr(avatarInitial)+'</div>';
-      /* 마지막 메시지 미리보기 + 시간 */
-      const preview=rm.last_msg_preview?escAttr(rm.last_msg_preview):'새 상담방';
-      const lastTime=rm.last_msg_at ? (rm.last_msg_at.substring(5,10).replace('-','.')+' '+rm.last_msg_at.substring(11,16)) : '';
-      const closedTag=rm.status==='closed'?'<span class="ri-closed" style="font-size:.65em;color:#9ca3af;margin-left:4px">종료</span>':'';
-      /* 🏢 연결된 업체 배지 — business_id 설정돼 있으면 상호 표시 */
-      const bizBadge = rm.business_name
-        ? '<span style="font-size:.66em;color:#1e40af;background:#dbeafe;padding:1px 6px;border-radius:10px;margin-right:4px" title="연결된 업체">🏢 '+escAttr(String(rm.business_name).slice(0,14))+'</span>'
-        : '';
-      return '<div class="'+cls.join(' ')+'" onclick="openRoom(\''+rm.id+'\')" ondblclick="event.stopPropagation();currentRoomId=\''+rm.id+'\';popoutCurrentRoom()" title="더블클릭하면 새 창으로 열립니다" style="display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid #f2f4f6;cursor:pointer">'
-        +avatar
-        +'<div style="flex:1;min-width:0">'
-        +  '<div style="display:flex;align-items:center;gap:4px">'
-        +    '<span style="font-weight:700;font-size:.92em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(rm.name||'상담방')+'</span>'
-        +    '<span style="font-size:.66em;color:#9ca3af;flex-shrink:0">'+aiIcon+' '+lastTime+'</span>'
-        +  '</div>'
-        +  '<div style="display:flex;align-items:center;gap:6px;margin-top:3px">'
-        +    '<span style="flex:1;min-width:0;font-size:.78em;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+bizBadge+preview+closedTag+'</span>'
-        +    badge
-        +  '</div>'
-        +  '<div style="display:flex;align-items:center;gap:6px;margin-top:4px">'
-        +    '<span style="font-size:.65em;color:#b0b8c1">👥 '+rm.member_count+'</span>'
-        +    priTabs
-        +  '</div>'
-        +'</div>'
-        +'</div>';
-    };
-    const sep=(title,color,count)=>count?'<div style="padding:8px 12px 4px;font-size:.72em;font-weight:800;color:'+color+';background:'+color+'11;border-bottom:1px solid '+color+'33">'+title+' <span style="opacity:.7">('+count+')</span></div>':'';
-
-    /* 필터에 포함된 그룹만 렌더 — 라벨 순서대로 */
-    let body='';
-    for(const lb of labels){
-      if(flt.has(lb.id)){
-        const arr=groups[lb.id]||[];
-        body+=sep(lb.name, lb.color||'#6b7280', arr.length)+arr.map(renderCard).join('');
-      }
+    /* Phase 3.5.B (2026-05-08): React 가 mount 됐으면 store 변경 으로 자동 reactive update.
+     * 미마운트 시 fallback — _buildRoomListHtml() 직접 호출. */
+    if(!window.__buildRoomListHtml || !window.__roomsStore){
+      el.innerHTML = _buildRoomListHtml();
+    } else {
+      /* React 가 store 갱신 으로 자동 반영. totalUnread 만 계산 위해 호출 (innerHTML 갱신 0). */
+      _buildRoomListHtml();
     }
-    if(flt.has('none'))body+=sep('⚪ 미분류','#6b7280',groups.none.length)+groups.none.map(renderCard).join('');
-    if(flt.has('closed'))body+=sep('📦 종료','#9ca3af',groups.closed.length)+groups.closed.map(renderCard).join('');
-    if(!body)body='<div class="empty" style="padding:40px 20px;text-align:center;color:#8b95a1">필터에 해당하는 상담방이 없습니다</div>';
-
-    el.innerHTML=filterBar+body;
+    const totalUnread = window._roomListTotalUnreadTemp || 0;
     /* 좌측 상담방 탭 배지 갱신 */
     try{
       const tabBtn=document.querySelector('button[onclick*="tab(\'rooms\')"]');

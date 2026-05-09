@@ -30,6 +30,8 @@ import { SidebarAlertCount } from './components/SidebarAlertCount';
 import { UserList } from './components/UserList';
 /* Phase 3.2.B (2026-05-08): 업체 list React 화 — admin-modals.html #bizList 자리 mount */
 import { BusinessList } from './components/BusinessList';
+/* Phase 3.5.B (2026-05-08): 상담방 list React 화 — admin.html #roomList 자리 mount */
+import { RoomList } from './components/RoomList';
 /* Phase 3.3.A (2026-05-08): 거래처 dashboard 메모 카운트 React 화 */
 import { CdMemoCount } from './components/CdMemoCount';
 /* Phase 3.3.B (2026-05-08): 거래처 dashboard 메모 list React 화 */
@@ -165,6 +167,8 @@ function bootstrap() {
   mountAtWithRetry('userList', () => <UserList />);
   /* Phase 3.2.B (2026-05-08): 업체 list — admin-modals.html 안 #bizList 자리 (retry 필요) */
   mountAtWithRetry('bizList', () => <BusinessList />);
+  /* Phase 3.5.B (2026-05-08): 상담방 list — admin.html 안 #roomList 자리 (DOMContentLoaded 즉시 가능) */
+  mountAtWithRetry('roomList', () => <RoomList />);
 
   /* Phase 3.3.A (2026-05-08): 거래처 dashboard 메모 카운트 — admin-modals.html 안 (retry 필요) */
   mountAtWithRetry('cd-memo-count-mount', () => <CdMemoCount />);
