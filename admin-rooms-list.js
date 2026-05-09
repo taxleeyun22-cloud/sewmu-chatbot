@@ -434,10 +434,21 @@ function _buildRoomMessagesHtml(){
 }
 try { window.__buildRoomMessagesHtml = _buildRoomMessagesHtml; } catch(_){}
 
+/* Phase 3.11 (2026-05-09): polling 효율화 — 첫 로드 만 loading 표시,
+ * 그 후 polling 은 silent (변경 없으면 store 갱신 X → React re-render 0). */
+var _adminLastLoadedRoomId = null;
+var _adminLastMsgId = null;
+var _adminLastMsgCount = 0;
+
 async function loadRoomDetail(){
   if(!currentRoomId)return;
-  /* Phase 3.7 (2026-05-08): messages-store loading 시작 */
-  try { if(window.__messagesStore) window.__messagesStore.setLoading(currentRoomId); } catch(_){}
+  /* Phase 3.7 (2026-05-08) + Phase 3.11 (2026-05-09): 첫 진입 시만 loading 표시 — polling 은 silent */
+  const isFirstLoad = (_adminLastLoadedRoomId !== currentRoomId);
+  if(isFirstLoad){
+    try { if(window.__messagesStore) window.__messagesStore.setLoading(currentRoomId); } catch(_){}
+    _adminLastMsgId = null;
+    _adminLastMsgCount = 0;
+  }
   let container = null;
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+currentRoomId);
@@ -462,25 +473,36 @@ async function loadRoomDetail(){
 
     container=$g('roomMessages');
     const atBottom=container ? container.scrollHeight-container.scrollTop-container.clientHeight<50 : true;
-    /* Phase 3.7 (2026-05-08): store 갱신 — React RoomMessages 가 자동 reactive */
-    try {
-      if(window.__messagesStore) {
-        window.__messagesStore.setData({
-          roomId: currentRoomId,
-          messages: d.messages || [],
-          members: d.members || [],
-          roomStatus: d.room.status || null,
-          roomName: d.room.name || null,
-          roomPhone: d.room.phone || null,
-        });
-      }
-    } catch(_){}
+    /* Phase 3.11 (2026-05-09): polling 변경 감지 — 마지막 메시지 id 와 length 비교.
+     * 같으면 store 갱신 skip (React re-render 0). 다르면 setData. */
+    const newMsgs = d.messages || [];
+    const newLastId = newMsgs.length ? Number(newMsgs[newMsgs.length-1].id || 0) : 0;
+    const newCount = newMsgs.length;
+    const isChanged = isFirstLoad || newLastId !== _adminLastMsgId || newCount !== _adminLastMsgCount;
+    if(isChanged){
+      /* Phase 3.7: store 갱신 — React RoomMessages 가 자동 reactive */
+      try {
+        if(window.__messagesStore) {
+          window.__messagesStore.setData({
+            roomId: currentRoomId,
+            messages: newMsgs,
+            members: d.members || [],
+            roomStatus: d.room.status || null,
+            roomName: d.room.name || null,
+            roomPhone: d.room.phone || null,
+          });
+        }
+      } catch(_){}
+      _adminLastMsgId = newLastId;
+      _adminLastMsgCount = newCount;
+    }
+    _adminLastLoadedRoomId = currentRoomId;
     /* React 미작동 시 fallback — 기존 직접 innerHTML 패턴 */
     if(container && (!window.__buildRoomMessagesHtml || !window.__messagesStore)){
       container.innerHTML = _buildRoomMessagesHtml();
     }
-    if(container && (atBottom||adminForceScrollOnNext)) container.scrollTop=container.scrollHeight;
-    adminForceScrollOnNext=false;
+    if(container && isChanged && (atBottom||adminForceScrollOnNext)) container.scrollTop=container.scrollHeight;
+    if(isChanged) adminForceScrollOnNext=false;
   }catch(err){
     /* fix (2026-05-07): 이전 console.error 만 → 메시지 안 떠도 사용자 모름. 첫 로드 시 UI 에러 + 재시도 */
     console.error('[loadRoomDetail]', err);

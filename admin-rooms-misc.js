@@ -201,6 +201,7 @@ async function deleteNotice(id){
   }catch(err){alert('오류: '+err.message)}
 }
 
+/* Phase 4.1 (2026-05-09): mutationDone 룰 적용 — 직접 loadRoomDetail/loadRoomList 호출 → mutationDone({rooms:true, messages:true}) */
 async function renameRoom(){
   if(!currentRoomId)return;
   const current=$g('roomChatTitle').textContent.replace(/\(.*\)/,'').trim();
@@ -209,7 +210,10 @@ async function renameRoom(){
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action=rename',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId,name:name.trim()})});
     const d=await r.json();
-    if(d.ok){loadRoomDetail();loadRoomList()}
+    if(d.ok){
+      if(typeof mutationDone==='function') mutationDone({rooms:true, messages:true});
+      else { loadRoomDetail(); loadRoomList(); }
+    }
     else alert('실패: '+(d.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
 }
@@ -221,7 +225,10 @@ async function toggleRoomStatus(){
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&action='+act,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room_id:currentRoomId})});
     const d=await r.json();
-    if(d.ok){loadRoomDetail();loadRoomList()}
+    if(d.ok){
+      if(typeof mutationDone==='function') mutationDone({rooms:true, messages:true});
+      else { loadRoomDetail(); loadRoomList(); }
+    }
     else alert('실패: '+(d.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
 }
@@ -255,7 +262,9 @@ async function deleteCurrentRoom(){
     try{$g('roomsLayout').classList.remove('show-chat')}catch(_){}
     if(roomMsgPollTimer)clearInterval(roomMsgPollTimer);
     _adminShowToast('🗑️ 상담방 삭제됨');
-    loadRoomList();
+    /* Phase 4.1 (2026-05-09): mutationDone 룰 적용 */
+    if(typeof mutationDone==='function') mutationDone({rooms:true});
+    else loadRoomList();
   }catch(err){alert('오류: '+err.message)}
 }
 
@@ -321,7 +330,9 @@ async function createRoom(){
     const d=await r.json();
     if(d.ok){
       $g('createRoomModal').style.display='none';
-      await loadRoomList();
+      /* Phase 4.1 (2026-05-09): mutationDone 룰 적용 */
+      if(typeof mutationDone==='function') mutationDone({rooms:true});
+      else await loadRoomList();
       openRoom(d.room_id);
     } else alert('실패: '+(d.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
@@ -394,7 +405,9 @@ async function removeRoomMember(userId, displayName){
     const d=await r.json();
     if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
     _rmmLoad();
-    if(typeof loadRoomDetail==='function')loadRoomDetail();
+    /* Phase 4.1 (2026-05-09): mutationDone 룰 — 멤버 변경 → messages-store 갱신 */
+    if(typeof mutationDone==='function') mutationDone({messages:true});
+    else if(typeof loadRoomDetail==='function')loadRoomDetail();
   }catch(err){alert('오류: '+err.message)}
 }
 
@@ -462,7 +475,9 @@ async function addMemberPick(userId,nm){
     const dd=await rr.json();
     if(dd.ok){
       $g('addMemberModal').style.display='none';
-      loadRoomDetail();loadRoomList();
+      /* Phase 4.1 (2026-05-09): mutationDone 룰 적용 */
+      if(typeof mutationDone==='function') mutationDone({rooms:true, messages:true});
+      else { loadRoomDetail(); loadRoomList(); }
     }
     else alert('실패: '+(dd.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}

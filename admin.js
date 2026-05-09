@@ -3832,6 +3832,14 @@ function mutationDone(opts) {
       if (!patched && typeof loadRoomDetail === 'function') loadRoomDetail();
     } catch (_) {}
   }
+  /* Phase 4.1 (2026-05-09): 거래처 dashboard 신고 Case (cdFilings) — Phase 3.10 store 활용 */
+  if (opts.filings) {
+    try {
+      if (typeof _loadCdFilings === 'function' && typeof _cdCurrentUserId !== 'undefined' && _cdCurrentUserId) {
+        _loadCdFilings(_cdCurrentUserId);
+      }
+    } catch (_) {}
+  }
 }
 /* alias — 명확화 위해 같은 함수 다른 이름 (mutation 후 호출이라는 의도 강조) */
 window.mutationDone = mutationDone;
