@@ -1,27 +1,40 @@
 /**
- * Phase Next-Week4 (2026-05-09): /admin/dashboard.
- *
- * 사장님 매일 아침 진입 = 핵심 카운트 + 알림 + 최근 활동.
- * 기존 admin.html 의 dashboard 영역 마이그레이션.
- *
- * Day 1 (지금): 정적 마크업 + placeholder
- * Day 2: tRPC fetch (실시간 count + 알림)
+ * Phase Next-Day6 (2026-05-09): /admin/dashboard (tRPC + Drizzle 본격).
  */
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { trpcCall } from '@/lib/trpc';
+
+interface Counts {
+  pendingUsers: number;
+  approvedClients: number;
+  pendingDocs: number;
+  activeRooms: number;
+  unreadMessages: number;
+  urgentTodos: number;
+  errorLogs: number;
+}
 
 export default function DashboardPage() {
+  const [counts, setCounts] = useState<Counts | null>(null);
+
+  useEffect(() => {
+    trpcCall<Counts>('dashboard.counts').then(setCounts).catch(() => {});
+  }, []);
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">
         대시보드
       </h1>
 
-      {/* 핵심 카운트 (Phase 2.x 사이드바 카운트와 동일 정보) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <DashCard label="대기 거래처" count="--" href="/admin/users?status=pending" color="yellow" />
-        <DashCard label="기장거래처" count="--" href="/admin/users?status=approved_client" color="blue" />
-        <DashCard label="문서 검토" count="--" href="/admin/docs?status=pending" color="orange" />
-        <DashCard label="상담방" count="--" href="/admin/rooms" color="green" />
+        <DashCard label="대기 거래처" count={counts?.pendingUsers ?? '--'} href="/admin/users?status=pending" color="yellow" />
+        <DashCard label="기장거래처" count={counts?.approvedClients ?? '--'} href="/admin/users?status=approved_client" color="blue" />
+        <DashCard label="활성 상담방" count={counts?.activeRooms ?? '--'} href="/admin/rooms" color="green" />
+        <DashCard label="임박 일정 (7일)" count={counts?.urgentTodos ?? '--'} href="/admin/todos" color="orange" />
       </div>
 
       {/* 빠른 진입 */}
@@ -49,7 +62,7 @@ function DashCard({
   color,
 }: {
   label: string;
-  count: string;
+  count: string | number;
   href: string;
   color: 'yellow' | 'blue' | 'orange' | 'green';
 }) {

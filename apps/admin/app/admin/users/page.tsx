@@ -1,23 +1,55 @@
 /**
- * Phase Next-Week4 (2026-05-09): /admin/users.
- * 기존 admin-users-tab.js 마이그레이션.
+ * Phase Next-Day6 (2026-05-09): /admin/users (tRPC + Drizzle 본격).
  */
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { trpcCall } from '@/lib/trpc';
 
 const STATUS_TABS = [
-  { key: 'pending', label: '대기', color: 'yellow' },
-  { key: 'approved_client', label: '기장거래처', color: 'blue' },
-  { key: 'rejected', label: '거절', color: 'red' },
-  { key: 'terminated', label: '종료', color: 'gray' },
-  { key: 'rejoined', label: '재가입', color: 'orange' },
-  { key: 'admin', label: '관리자', color: 'purple' },
+  { key: 'pending', label: '대기' },
+  { key: 'approved_client', label: '기장거래처' },
+  { key: 'rejected', label: '거절' },
+  { key: 'terminated', label: '종료' },
+  { key: 'rejoined', label: '재가입' },
+  { key: 'admin', label: '관리자' },
 ];
+
+interface User {
+  id: number;
+  real_name: string | null;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  approval_status: string | null;
+  is_admin: number | null;
+}
 
 export default function UsersPage() {
   const [status, setStatus] = useState('pending');
   const [search, setSearch] = useState('');
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    trpcCall<{ users: User[] }>('users.list', { status, search, limit: 100 })
+      .then((data) => {
+        if (!cancelled) setUsers(data.users);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status, search]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -32,7 +64,6 @@ export default function UsersPage() {
         />
       </div>
 
-      {/* status 탭 */}
       <div className="flex flex-wrap gap-2 mb-6">
         {STATUS_TABS.map((t) => (
           <button
@@ -49,14 +80,45 @@ export default function UsersPage() {
         ))}
       </div>
 
-      {/* list 영역 */}
       <div className="bg-white rounded-2xl p-6">
-        <div className="text-center text-gray-400 py-12">
-          <p className="text-sm">Phase Next-Week4 Day 1 — 골격 완성</p>
-          <p className="text-xs mt-2">Day 2: tRPC 사용자 list fetch + 액션 (승인/거절/등)</p>
-          <p className="text-xs mt-1">현재 status: <code className="bg-gray-100 px-2 py-1 rounded">{status}</code></p>
-          <p className="text-xs mt-1">검색: <code className="bg-gray-100 px-2 py-1 rounded">{search || '(없음)'}</code></p>
-        </div>
+        {loading && (
+          <p className="text-center text-gray-400 py-12 text-sm">불러오는 중...</p>
+        )}
+        {error && (
+          <p className="text-center text-red-500 py-12 text-sm">오류: {error}</p>
+        )}
+        {!loading && !error && users.length === 0 && (
+          <p className="text-center text-gray-400 py-12 text-sm">
+            해당 status 의 사용자가 없습니다.
+          </p>
+        )}
+        {!loading && users.length > 0 && (
+          <ul className="divide-y divide-gray-200">
+            {users.map((u) => (
+              <li key={u.id} className="py-3 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-brand-primary text-white flex items-center justify-center font-bold">
+                  {(u.real_name || u.name || '?')[0]}
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">
+                    {u.real_name || u.name || '이름없음'}
+                    {u.is_admin === 1 && (
+                      <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                        👑 관리자
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {u.phone || '-'} · {u.email || '-'}
+                  </p>
+                </div>
+                <button className="text-xs text-brand-primary hover:underline">
+                  →
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
