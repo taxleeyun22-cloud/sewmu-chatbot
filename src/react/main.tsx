@@ -40,6 +40,12 @@ import '../admin/state/biz-rooms-store';
 import { RoomMessages } from './components/RoomMessages';
 /* Phase 3.7 (2026-05-08): messages-store import — window.__messagesStore 활성화 */
 import '../admin/state/messages-store';
+/* Phase 3.9 (2026-05-09): 상담방 헤더 (title / status btn / members) React */
+import { RoomChatTitle, RoomStatusBtn, RoomMembers } from './components/RoomHeader';
+/* Phase 3.10 (2026-05-09): 거래처 dashboard 신고 Case (cdFilings) React */
+import { CdFilings } from './components/CdFilings';
+/* Phase 3.10 (2026-05-09): filings-store import */
+import '../admin/state/filings-store';
 /* Phase 3.3.A (2026-05-08): 거래처 dashboard 메모 카운트 React 화 */
 import { CdMemoCount } from './components/CdMemoCount';
 /* Phase 3.3.B (2026-05-08): 거래처 dashboard 메모 list React 화 */
@@ -183,6 +189,13 @@ function bootstrap() {
   /* Phase 3.7 (2026-05-08): #roomMessages — 상담방 메시지 list React.
    * admin-rooms-list.js loadRoomDetail 가 store 만 set, React 자동 reactive. */
   mountAtWithRetry('roomMessages', () => <RoomMessages />);
+  /* Phase 3.9 (2026-05-09): 상담방 헤더 React (title / status btn / members) */
+  mountAtWithRetry('roomChatTitle', () => <RoomChatTitle />);
+  mountAtWithRetry('roomStatusBtn', () => <RoomStatusBtn />);
+  mountAtWithRetry('roomMembers', () => <RoomMembers />);
+
+  /* Phase 3.10 (2026-05-09): 거래처 dashboard 신고 Case React (#cdFilings) */
+  mountAtWithRetry('cdFilings', () => <CdFilings />);
 
   /* Phase 3.3.A (2026-05-08): 거래처 dashboard 메모 카운트 — admin-modals.html 안 (retry 필요) */
   mountAtWithRetry('cd-memo-count-mount', () => <CdMemoCount />);

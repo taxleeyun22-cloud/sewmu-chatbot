@@ -1776,18 +1776,34 @@ async function submitManualClient(){
 /* ===== 📅 신고 Case — 거래처 × 신고종류 × 기간 단위 업무 묶음 ===== */
 async function _loadCdFilings(userId){
   const box=$g('cdFilings');if(!box||!userId)return;
-  box.innerHTML='<div style="color:#8b95a1;padding:10px 0;font-size:.85em">불러오는 중...</div>';
+  /* Phase 3.10 (2026-05-09): filings-store loading 시작 */
+  try { if(window.__filingsStore) window.__filingsStore.setLoading(userId); } catch(_){}
+  if(!window.__filingsStore){
+    box.innerHTML='<div style="color:#8b95a1;padding:10px 0;font-size:.85em">불러오는 중...</div>';
+  }
   try{
     const r=await fetch('/api/tax-filings?key='+encodeURIComponent(KEY)+'&user_id='+userId+'&status=all');
     const d=await r.json();
     const arr=d.filings||[];
-    if(!arr.length){
-      box.innerHTML='<div style="color:#adb5bd;padding:10px 0;font-size:.85em;line-height:1.6">아직 생성된 신고 Case 가 없습니다.<br>우측 "+ 새 Case" 로 부가세/종소세/법인세 등 신고 건을 시작하세요.</div>';
-      return;
+    /* Phase 3.10: store 갱신 — React CdFilings 자동 reactive */
+    try { if(window.__filingsStore) window.__filingsStore.setList(userId, arr); } catch(_){}
+    /* React 미작동 시 fallback */
+    if(!window.__filingsStore){
+      if(!arr.length){
+        box.innerHTML='<div style="color:#adb5bd;padding:10px 0;font-size:.85em;line-height:1.6">아직 생성된 신고 Case 가 없습니다.<br>우측 "+ 새 Case" 로 부가세/종소세/법인세 등 신고 건을 시작하세요.</div>';
+        return;
+      }
+      box.innerHTML=arr.map(f=>_renderFilingCard(f, userId)).join('');
     }
-    box.innerHTML=arr.map(f=>_renderFilingCard(f, userId)).join('');
-  }catch(err){box.innerHTML='<div style="color:#f04452">오류: '+e(err.message)+'</div>'}
+  }catch(err){
+    try { if(window.__filingsStore) window.__filingsStore.setError(err.message||'unknown'); } catch(_){}
+    if(!window.__filingsStore){
+      box.innerHTML='<div style="color:#f04452">오류: '+e(err.message)+'</div>';
+    }
+  }
 }
+/* Phase 3.10 (2026-05-09): React CdFilings 컴포넌트 호출용 글로벌 노출 */
+try { window.__renderFilingCard = _renderFilingCard; } catch(_){}
 function _renderFilingCard(f, userId){
   const items=f.items||[];
   const done=items.filter(i=>i.is_checked).length;

@@ -446,17 +446,19 @@ async function loadRoomDetail(){
     currentRoomStatus=d.room.status;
     currentRoomPhone=d.room.phone||null;
     currentRoomMembers=d.members||[];
-    $g('roomChatTitle').innerHTML='<b>'+e(d.room.name||'상담방')+'</b> <span style="font-size:.75em;color:#8b95a1">('+currentRoomId+')</span>';
-    $g('roomStatusBtn').textContent=currentRoomStatus==='active'?'종료':'재개';
-    const mm=(d.members||[]).filter(m=>!m.left_at);
-    /* 각 멤버를 span 으로 감싸 long-press·우클릭 시 '거래 종료' 등 메뉴 노출.
-       role='admin' (세무사/직원) 은 제외 — 거래처 고객만 종료 대상 */
-    $g('roomMembers').innerHTML='👥 멤버 '+mm.length+'명: '+mm.map(function(m){
-      const nm=e(m.real_name||m.name||'이름없음');
-      if(m.role==='admin')return nm+'(관리)';
-      return '<span class="room-member" data-uid="'+(m.user_id||'')+'" data-name="'+escAttr(m.real_name||m.name||'')+'" style="cursor:context-menu;text-decoration:underline dotted #9ca3af;text-underline-offset:2px" title="꾹 누르면 메뉴 (거래 종료 등)">'+nm+'</span>';
-    }).join(', ')+'  + 🏢 세무회계 이윤';
-    _bindRoomMemberLongPress();
+    /* Phase 3.9 (2026-05-09): React RoomChatTitle / RoomStatusBtn / RoomMembers 가
+     * messages-store 자동 reactive — innerHTML 조작 skip if React 활성. fallback 만 유지. */
+    if(!window.__messagesStore){
+      $g('roomChatTitle').innerHTML='<b>'+e(d.room.name||'상담방')+'</b> <span style="font-size:.75em;color:#8b95a1">('+currentRoomId+')</span>';
+      $g('roomStatusBtn').textContent=currentRoomStatus==='active'?'종료':'재개';
+      const mm=(d.members||[]).filter(m=>!m.left_at);
+      $g('roomMembers').innerHTML='👥 멤버 '+mm.length+'명: '+mm.map(function(m){
+        const nm=e(m.real_name||m.name||'이름없음');
+        if(m.role==='admin')return nm+'(관리)';
+        return '<span class="room-member" data-uid="'+(m.user_id||'')+'" data-name="'+escAttr(m.real_name||m.name||'')+'" style="cursor:context-menu;text-decoration:underline dotted #9ca3af;text-underline-offset:2px" title="꾹 누르면 메뉴 (거래 종료 등)">'+nm+'</span>';
+      }).join(', ')+'  + 🏢 세무회계 이윤';
+      _bindRoomMemberLongPress();
+    }
 
     container=$g('roomMessages');
     const atBottom=container ? container.scrollHeight-container.scrollTop-container.clientHeight<50 : true;
