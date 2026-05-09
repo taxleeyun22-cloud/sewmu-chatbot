@@ -3851,10 +3851,10 @@ function refreshSidebarCounts(){
     try { if (window.__sidebarStore) window.__sidebarStore.update({ bizTotal: bizTotal }); } catch(_){}
   }).catch(function(_){});
 
-  /* 휴지통 */
+  /* 휴지통 — Phase 2.1 (2026-05-08): React (SidebarTrashCount.tsx) 가 store 자동 reactive 표시.
+   * admin.js 는 textContent 조작 X — store 만 갱신. */
   fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=trash_count').then(function(r){return r.json()}).then(function(d){
     var trashCount = d.count || 0;
-    var el = document.getElementById('sbCntTrash'); if(el) el.textContent = trashCount;
     try { if (window.__sidebarStore) window.__sidebarStore.update({ trash: trashCount }); } catch(_){}
   }).catch(function(_){});
 

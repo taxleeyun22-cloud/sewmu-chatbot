@@ -17,6 +17,10 @@ import type { Root } from 'react-dom/client';
 import { AdminRoleBadge } from './components/AdminRoleBadge';
 import { CustomerFinanceChart } from './components/CustomerFinanceChart';
 import { CustomerInsightsCard } from './components/CustomerInsightsCard';
+/* Phase 2.1 (2026-05-08): 사이드바 휴지통 카운트 React 화 — 첫 점진 phase */
+import { SidebarTrashCount } from './components/SidebarTrashCount';
+/* sidebar-store import — window.__sidebarStore 자동 활성화 (admin.js refreshSidebarCounts 가 사용) */
+import '../admin/state/sidebar-store';
 
 /**
  * 특정 ID 의 element 안에 React 컴포넌트 mount.
@@ -80,6 +84,9 @@ function bootstrap() {
   /* admin role 배지 — admin.html / business.html / 등 어디든 */
   mountAt('admin-role-badge-inline', () => <AdminRoleBadge variant="inline" />);
   mountAt('admin-role-badge-block', () => <AdminRoleBadge variant="block" />);
+
+  /* Phase 2.1 (2026-05-08): 사이드바 휴지통 카운트 — store 자동 reactive */
+  mountAt('sb-trash-count-mount', () => <SidebarTrashCount />);
 
   /* 거래처 dashboard 매출 차트 — data-user-id 속성 있으면 자동 mount.
    * 없으면 admin-customer-dash.js 가 openCustomerDashboard 시 window.__mountFinanceChart(userId) 호출. */
