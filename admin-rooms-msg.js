@@ -215,7 +215,9 @@ async function doCopyMsg(text){
   }, true);
 })();
 
-/* ===== 영수증 승인·반려 ===== */
+/* ===== 영수증 승인·반려 =====
+ * Phase 3.8 (2026-05-08): mutationDone({messages:true, docPatch:{id, patch}}) 사용 →
+ * messages-store 의 그 doc 만 localized in-place update (전체 fetch 0). React 자동 reactive. */
 async function approveDoc(docId, btnEl){
   if(!docId)return;
   const card=btnEl?btnEl.closest('[data-doc-id]'):null;
@@ -226,8 +228,19 @@ async function approveDoc(docId, btnEl){
   try{
     const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:docId,vendor,amount,receipt_date,category})});
     const d=await r.json();
-    if(d.ok){loadRoomDetail()}
-    else alert('승인 실패: '+(d.error||'unknown'));
+    if(d.ok){
+      /* 즉시 localized update: doc.status='approved' + 입력한 필드 patch (빈 값은 미포함) */
+      const patch={status:'approved'};
+      if(vendor!==undefined && vendor!=='')patch.vendor=vendor;
+      if(amount!==undefined && amount!==null)patch.amount=amount;
+      if(receipt_date!==undefined && receipt_date!==null && receipt_date!=='')patch.receipt_date=receipt_date;
+      if(category!==undefined && category!==null && category!=='')patch.category=category;
+      if(typeof mutationDone==='function'){
+        mutationDone({messages:true, docPatch:{id:docId, patch:patch}});
+      } else if(typeof loadRoomDetail==='function'){
+        loadRoomDetail();
+      }
+    } else alert('승인 실패: '+(d.error||'unknown'));
   }catch(e){alert('오류: '+e.message)}
 }
 async function rejectDocPrompt(docId){
@@ -237,8 +250,14 @@ async function rejectDocPrompt(docId){
   try{
     const r=await fetch('/api/admin-documents?key='+encodeURIComponent(KEY)+'&action=reject',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:docId,reason:reason.trim()})});
     const d=await r.json();
-    if(d.ok){loadRoomDetail()}
-    else alert('반려 실패: '+(d.error||'unknown'));
+    if(d.ok){
+      /* 즉시 localized update: doc.status='rejected' + reject_reason */
+      if(typeof mutationDone==='function'){
+        mutationDone({messages:true, docPatch:{id:docId, patch:{status:'rejected', reject_reason:reason.trim()}}});
+      } else if(typeof loadRoomDetail==='function'){
+        loadRoomDetail();
+      }
+    } else alert('반려 실패: '+(d.error||'unknown'));
   }catch(e){alert('오류: '+e.message)}
 }
 

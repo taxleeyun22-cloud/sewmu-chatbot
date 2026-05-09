@@ -2894,6 +2894,7 @@ function renderDocsTable(docs){
 }
 
 // 승인 취소 — 편집 가능한 pending 상태로 복원
+// Phase 3.8 (2026-05-08): mutationDone({messages:true, docPatch}) localized in-place update
 async function revertDocApproval(docId){
   if(!docId)return;
   if(!confirm('이 문서의 승인을 취소하시겠어요?\n(편집 가능한 \'대기\' 상태로 돌아갑니다)'))return;
@@ -2902,6 +2903,9 @@ async function revertDocApproval(docId){
     const d=await r.json();
     if(d.ok){
       if(typeof showAdminToast==='function')showAdminToast('↺ 승인 취소됨 — 편집 가능');
+      if(typeof mutationDone==='function'){
+        mutationDone({messages:true, docPatch:{id:docId, patch:{status:'pending', approver_id:null, approved_at:null}}});
+      }
       loadDocsTab();
     } else alert('실패: '+(d.error||'unknown'));
   }catch(e){alert('오류: '+e.message)}
@@ -2916,7 +2920,8 @@ async function revertDocToPhotoAdmin(docId){
     const d=await r.json();
     if(d.ok){
       if(typeof showAdminToast==='function')showAdminToast('📷 사진으로 되돌렸습니다');
-      if(typeof loadRoomDetail==='function')loadRoomDetail();
+      /* 메시지 자체 content [DOC] → [IMG] 로 바뀜 — localized patch X, 풀 fetch */
+      if(typeof mutationDone==='function') mutationDone({messages:true});
       if(typeof loadDocsTab==='function')loadDocsTab();
     } else alert('실패: '+(d.error||'unknown'));
   }catch(e){alert('오류: '+e.message)}
@@ -2929,7 +2934,8 @@ async function convertDocToFileAdmin(docId){
     const d=await r.json();
     if(d.ok){
       if(typeof showAdminToast==='function')showAdminToast('📁 파일로 변환됨');
-      if(typeof loadRoomDetail==='function')loadRoomDetail();
+      /* 메시지 content 변경 — 풀 fetch 필요 */
+      if(typeof mutationDone==='function') mutationDone({messages:true});
       if(typeof loadDocsTab==='function')loadDocsTab();
     } else alert('실패: '+(d.error||'unknown'));
   }catch(e){alert('오류: '+e.message)}
@@ -2942,7 +2948,8 @@ async function deleteDocAdmin(docId){
     const d=await r.json();
     if(d.ok){
       if(typeof showAdminToast==='function')showAdminToast('🗑️ 삭제 완료');
-      if(typeof loadRoomDetail==='function')loadRoomDetail();
+      /* 메시지 자체 삭제 — 풀 fetch 필요 (localized patch X) */
+      if(typeof mutationDone==='function') mutationDone({messages:true});
       if(typeof loadDocsTab==='function')loadDocsTab();
     } else alert('실패: '+(d.error||'unknown'));
   }catch(e){alert('오류: '+e.message)}
@@ -2963,6 +2970,7 @@ async function convertMsgToReceiptAdmin(messageId){
 }
 
 // AG-Grid cellRenderer에서 호출되는 래퍼 (btnEl 없이 id만으로 승인)
+// Phase 3.8 (2026-05-08): mutationDone({messages:true, docPatch}) localized in-place update
 async function approveDocById(docId){
   if(!docId)return;
   try{
@@ -2973,6 +2981,10 @@ async function approveDocById(docId){
       if(d.alerts_created>0)msg+=` (${d.alerts_created}개 D-day 알림 예약)`;
       if(typeof showAdminToast==='function')showAdminToast(msg);
       else console.log(msg);
+      /* messages-store 안 그 doc 만 patch (해당 메시지 React 자동 reactive) */
+      if(typeof mutationDone==='function'){
+        mutationDone({messages:true, docPatch:{id:docId, patch:{status:'approved'}}});
+      }
       loadDocsTab();
     }
     else alert('승인 실패: '+(d.error||'unknown'));
@@ -3790,6 +3802,18 @@ function mutationDone(opts) {
       if (typeof _loadCdAllMemos === 'function' && typeof _cdCurrentUserId !== 'undefined' && _cdCurrentUserId) {
         _loadCdAllMemos(_cdCurrentUserId);
       }
+    } catch (_) {}
+  }
+  /* Phase 3.8 (2026-05-08): 상담방 메시지 — 영수증 승인/반려/되돌리기 등 메시지 변경 후
+   *   - opts.docPatch: {id, patch} 있으면 messages-store 의 그 doc 만 in-place patch (가장 빠름)
+   *   - 매칭 0이거나 docPatch 없으면 → loadRoomDetail() 풀 fetch (안전 fallback) */
+  if (opts.messages) {
+    try {
+      var patched = false;
+      if (opts.docPatch && opts.docPatch.id != null && opts.docPatch.patch && window.__messagesStore && typeof window.__messagesStore.updateDoc === 'function') {
+        patched = window.__messagesStore.updateDoc(opts.docPatch.id, opts.docPatch.patch);
+      }
+      if (!patched && typeof loadRoomDetail === 'function') loadRoomDetail();
     } catch (_) {}
   }
 }

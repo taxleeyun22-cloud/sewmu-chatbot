@@ -114,6 +114,34 @@ export function appendMessage(message: RoomMessage): void {
   $messages.set({ ...cur, messages: [...cur.messages, message] });
 }
 
+/**
+ * Phase 3.8 (2026-05-08): 메시지 안 document 부분 patch.
+ *
+ * 영수증 승인/반려/되돌리기 후 message.document.status 등을
+ * localized update — 전체 re-fetch 안 하고 그 메시지만 재렌더.
+ *
+ * 매칭: messages.find(m => m.document?.id === docId)
+ */
+export function updateMessageDoc(
+  docId: number,
+  docPatch: Record<string, unknown>,
+): boolean {
+  const cur = $messages.get();
+  let found = false;
+  const next = cur.messages.map((m) => {
+    const doc = m.document as Record<string, unknown> | null | undefined;
+    if (doc && doc.id === docId) {
+      found = true;
+      return { ...m, document: { ...doc, ...docPatch } };
+    }
+    return m;
+  });
+  if (found) {
+    $messages.set({ ...cur, messages: next });
+  }
+  return found;
+}
+
 export function resetMessages(): void {
   $messages.set({ ...initialMessagesState });
 }
@@ -142,6 +170,8 @@ export interface MessagesStoreGlobal {
   setError: (msg: string) => void;
   updateMessage: (messageId: number, patch: Partial<RoomMessage>) => void;
   appendMessage: (message: RoomMessage) => void;
+  /** Phase 3.8: 영수증 등 document 부분 patch (localized in-place update) */
+  updateDoc: (docId: number, docPatch: Record<string, unknown>) => boolean;
   reset: () => void;
   get: () => MessagesState;
   subscribe: (cb: (s: MessagesState) => void) => () => void;
@@ -160,6 +190,7 @@ if (typeof window !== 'undefined') {
     setError: setMessagesError,
     updateMessage: updateMessageInList,
     appendMessage,
+    updateDoc: updateMessageDoc,
     reset: resetMessages,
     get: getMessages,
     subscribe: subscribeMessages,

@@ -5,6 +5,7 @@ import {
   setMessagesError,
   updateMessageInList,
   appendMessage,
+  updateMessageDoc,
   resetMessages,
   getMessages,
   subscribeMessages,
@@ -90,5 +91,55 @@ describe('messages-store', () => {
     expect(window.__messagesStore).toBeDefined();
     expect(typeof window.__messagesStore!.setData).toBe('function');
     expect(typeof window.__messagesStore!.appendMessage).toBe('function');
+    expect(typeof window.__messagesStore!.updateDoc).toBe('function');
+  });
+
+  /* Phase 3.8 (2026-05-08): updateMessageDoc — 영수증 승인 후 localized in-place update */
+  it('updateMessageDoc — 메시지 안 document 부분 patch (status 변경)', () => {
+    const msg1: RoomMessage = {
+      id: 1,
+      content: 'photo',
+      role: 'user',
+      document: { id: 100, status: 'pending', vendor: '편의점', amount: 5000 },
+    };
+    const msg2: RoomMessage = {
+      id: 2,
+      content: 'text',
+      role: 'human_advisor',
+    };
+    setMessagesData({ roomId: 'R1', messages: [msg1, msg2] });
+    const ok = updateMessageDoc(100, { status: 'approved', amount: 5500 });
+    expect(ok).toBe(true);
+    const m1 = getMessages().messages.find((x) => x.id === 1);
+    const doc = m1?.document as Record<string, unknown>;
+    expect(doc.status).toBe('approved');
+    expect(doc.amount).toBe(5500);
+    expect(doc.vendor).toBe('편의점'); // 기존 유지
+  });
+
+  it('updateMessageDoc — 매칭 doc 없으면 false 반환 + 변경 0', () => {
+    setMessagesData({ roomId: 'R1', messages: [makeMsg(1)] });
+    const ok = updateMessageDoc(999, { status: 'approved' });
+    expect(ok).toBe(false);
+  });
+
+  it('updateMessageDoc — 다른 메시지 영향 0', () => {
+    const msg1: RoomMessage = {
+      id: 1,
+      content: 'photo',
+      role: 'user',
+      document: { id: 100, status: 'pending' },
+    };
+    const msg2: RoomMessage = {
+      id: 2,
+      content: 'photo2',
+      role: 'user',
+      document: { id: 200, status: 'pending' },
+    };
+    setMessagesData({ roomId: 'R1', messages: [msg1, msg2] });
+    updateMessageDoc(100, { status: 'approved' });
+    const m2 = getMessages().messages.find((x) => x.id === 2);
+    const doc2 = m2?.document as Record<string, unknown>;
+    expect(doc2.status).toBe('pending'); // 변경 X
   });
 });
