@@ -87,11 +87,108 @@ if(active) el.classList.add('on'); else el.classList.remove('on');
 loadUsers(s);
 }
 
+/* Phase 3.1.B (2026-05-08): 사용자 카드 HTML 렌더 helper — 기존 loadUsers 의 카드 markup 분기를 함수로 추출.
+ * React UserList 컴포넌트가 store 변경 시 호출 → dangerouslySetInnerHTML 로 표시.
+ * 이전 동작과 100% 동일 (markup·액션 그대로).
+ * @param {Object} u - admin-approve user row
+ * @param {string} status - 현재 status 카테고리
+ * @returns {string} 카드 HTML
+ */
+function _renderUserCardHtml(u, status){
+const nm=u.real_name||u.name||'이름없음';
+const av=u.profile_image?'<img src="'+e(u.profile_image)+'" alt="">':nm[0];
+const pv=u.provider||'';
+const phone=u.phone?' · '+e(u.phone):'';
+const nameConf=u.name_confirmed?'':'<span style="color:#f04452;font-size:.72em">⚠️본명미확인</span> ';
+const adminMark=u.is_admin?' <span style="color:#fff;background:#8b6914;font-size:.65em;padding:2px 6px;border-radius:4px;font-weight:700">👑 관리자</span>':'';
+const roleMark=u.is_admin&&u.staff_role==='manager'?' <span style="color:#fff;background:#3182f6;font-size:.65em;padding:2px 6px;border-radius:4px;font-weight:700" title="사업장 관리·메모 작성 권한 강화">🛡️ Manager</span>':(u.is_admin&&u.staff_role==='staff'?' <span style="color:#475569;background:#f1f5f9;font-size:.65em;padding:2px 6px;border-radius:4px;font-weight:600">Staff</span>':'');
+const todayCnt=u.today_count||0;
+const reqInfo=(u.requested_company_name||u.requested_business_number||u.requested_role)
+  ? '<div style="margin-top:6px;padding:7px 10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;font-size:.76em;color:#0c4a6e">'
+    +'📝 본인 제출 회사정보 · '
+    +(u.requested_company_name?'<b>회사명:</b> '+e(u.requested_company_name):'')
+    +(u.requested_business_number?' <span style="color:#4b5563">· <b>사업자번호:</b> '+e(u.requested_business_number)+'</span>':'')
+    +(u.requested_role?' <span style="background:'+(u.requested_role==='대표자'?'#fef3c7':'#e0f2fe')+';color:'+(u.requested_role==='대표자'?'#92400e':'#075985')+';padding:1px 6px;border-radius:4px;margin-left:4px;font-weight:700">'+e(u.requested_role)+'</span>':'')
+    +(u.requested_at?' <span style="color:#9ca3af;font-size:.9em">· '+e(String(u.requested_at).substring(5,16))+'</span>':'')
+    +'</div>'
+  : '';
+const prefill=(u.requested_company_name||u.requested_business_number||u.requested_role)
+  ? JSON.stringify({name:u.requested_company_name||'', bn:u.requested_business_number||'', role:u.requested_role||''}).replace(/"/g,'&quot;')
+  : '';
+let actions='';
+const adminBtn=IS_OWNER?(u.is_admin
+  ?'<button onclick="setAdminFlag('+u.id+',0)" style="background:#fff;color:#8b6914;border:1px solid #8b6914;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">👑 관리자 해제</button>'
+  :'<button onclick="setAdminFlag('+u.id+',1)" style="background:#fff;color:#8b6914;border:1px dashed #8b6914;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">👑 관리자 승급</button>'
+):'';
+if(status==='admin'){
+const isManager = u.staff_role === 'manager';
+const managerBtn = IS_OWNER ? (isManager
+  ? '<button onclick="setStaffRole('+u.id+',null)" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600" title="Manager 권한 해제 (Staff 등급으로)">🛡️ Manager 해제</button>'
+  : '<button onclick="setStaffRole('+u.id+',\'manager\')" style="background:#fff;color:#3182f6;border:1px dashed #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600" title="Manager 권한 부여 (사업장 관리·메모 권한 강화)">🛡️ Manager 부여</button>'
+) : '';
+actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
++(IS_OWNER?'<button onclick="setAdminFlag('+u.id+',0)" style="background:#fff;color:#8b6914;border:1px solid #8b6914;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">👑 관리자 해제</button>':'<span style="font-size:.72em;color:#8b95a1">(owner 만 관리 가능)</span>')
++managerBtn
++'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
++'</div>';
+} else if(status==='pending'){
+actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
++'<button onclick="openApproveWithBusiness('+u.id+',\''+e(nm).replace(/\'/g,'')+'\',\''+e(u.phone||'').replace(/\'/g,'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="승인 + 업체·역할 연결을 한 번에">✓ 기장거래처 승인</button>'
++'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
++'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✕ 거절</button>'
++adminBtn
++(IS_OWNER?'<button onclick="_hardDeleteUser('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#9ca3af;border:1px solid #d1d5db;padding:8px 12px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit" title="영구 삭제 (owner only)">🗑️</button>':'')
++'</div>';
+}else{
+actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
++'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
++(status!=='approved_client'?'<button onclick="openApproveWithBusiness('+u.id+',\''+e(nm).replace(/\'/g,'')+'\',\''+e(u.phone||'').replace(/\'/g,'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="승인 + 업체 연결">→ 기장거래처</button>':'')
++(status!=='approved_guest'?'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#10b981;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="일반 승인 (일 5건 무료)">→ 일반</button>':'')
++(status!=='pending'?'<button onclick="approveUser('+u.id+',\'pending\')" style="background:#8b95a1;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 대기로</button>':'')
++(IS_OWNER && status!=='rejected'?'<button onclick="rejectUserWithReason('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#f04452;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="거절 + 사유 입력">→ 거절</button>':'')
++(IS_OWNER && (status==='approved_client'||status==='approved_guest')?'<button onclick="archiveClient('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" title="폐업 처리 — 방만 closed, 고객 접근·계정은 유지" style="background:#fff;color:#8b6914;border:1px solid #fcd34d;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">📦 폐업 처리</button>':'')
++(IS_OWNER && (status==='approved_client'||status==='approved_guest')?'<button onclick="terminateUser('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" title="거래 종료(기장이관) — 상담방 모두 closed, 고객 접근 차단" style="background:#fff;color:#6b7280;border:1px solid #6b7280;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🚫 거래 종료</button>':'')
++(IS_OWNER && status==='terminated'?'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🔄 거래 재개(기장)</button>':'')
++adminBtn
++(IS_OWNER && (u.active_merge_id || u.is_likely_merged)?'<button onclick="_splitMerge('+(u.active_merge_id||0)+','+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#dc2626;border:1px dashed #dc2626;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600" title="합치기 분리 — 카카오 user 대기로, 수동 user 그대로">🔀 분리</button>':'')
++(IS_OWNER?'<button onclick="_hardDeleteUser('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#9ca3af;border:1px solid #d1d5db;padding:6px 10px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="영구 삭제 (사용자 list 에서 사라짐, owner only)">🗑️</button>':'')
++'</div>';
+}
+const company=(u.company_name||'').trim();
+const ceoName=(u.ceo_name||'').trim();
+const realNm=(u.real_name||'').trim();
+const roleBadge=ceoName
+  ? (realNm && realNm===ceoName
+    ? '<span style="font-size:.62em;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600">🧑‍💼 대표</span>'
+    : '<span style="font-size:.62em;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600">👤 담당자</span>')
+  : '';
+const kakaoAlias=(u.name&&u.real_name&&u.name!==u.real_name?' <span style="font-size:.72em;color:#8b95a1">(카톡: '+e(u.name)+')</span>':'');
+const editBtn=' <button onclick="editUserName('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\',\''+e(u.phone||'').replace(/\'/g,'')+'\',\''+e(u.birth_date||'').replace(/\'/g,'')+'\')" style="background:none;border:none;color:#3182f6;cursor:pointer;font-size:.78em;padding:0 4px;font-family:inherit" title="이름 / 전화 / 생년월일 수정">✏️</button>';
+const nameLine=company
+  ? '<div class="name">🏢 '+e(company)+' <span style="font-weight:500;color:#8b95a1;font-size:.88em">· '+e(nm)+'</span>'+roleBadge+kakaoAlias+adminMark+roleMark+editBtn+'</div>'
+  : '<div class="name">'+e(nm)+roleBadge+kakaoAlias+adminMark+roleMark+editBtn+'</div>';
+return '<div data-user-id="'+u.id+'" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.03)">'
++'<div style="display:flex;align-items:center;gap:14px">'
++'<div class="avatar">'+av+'</div>'
++'<div class="info">'+nameLine
++'<div class="meta">'+nameConf+(pv?'<span class="badge">'+pv+'</span> ':'')+e(u.email||'')+phone+'</div>'
++'<div class="meta" style="margin-top:3px">가입 '+e(u.created_at||'')+' · 오늘 '+todayCnt+'건</div>'
++'</div></div>'
++reqInfo
++actions
++'</div>';
+}
+/* Phase 3.1.B: React UserList 컴포넌트가 호출 가능하게 global 노출 */
+if(typeof window!=='undefined') window.__renderUserCardHtml = _renderUserCardHtml;
+
 async function loadUsers(status){
 const el=$g('userList');
-el.innerHTML='<div class="empty">불러오는 중...</div>';
-/* Phase 3.1.A (2026-05-08): users-store loading 시작 — UI 변화 0, store 만 활성 */
+/* Phase 3.1.A (2026-05-08): users-store loading — React UserList 가 자동 reactive */
 try { if(window.__usersStore) window.__usersStore.setLoading(status); } catch(_){}
+/* Phase 3.1.B: React 미로드 fallback 만 직접 innerHTML */
+if(el && (!window.__renderUserCardHtml || !window.__usersStore)){
+  el.innerHTML='<div class="empty">불러오는 중...</div>';
+}
 try{
 const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status='+encodeURIComponent(status));
 const d=await r.json();
@@ -112,6 +209,14 @@ try { if(window.__sidebarStore) window.__sidebarStore.update({
 /* fallback — withdrawn 은 store 컬럼 없음, 그대로 textContent (legacy) */
 if($g('cWithdrawn'))$g('cWithdrawn').textContent=d.counts.withdrawn||0;
 }
+/* Phase 3.1.B (2026-05-08): React UserList 가 store 자동 reactive 표시.
+ * admin-users-tab.js 는 innerHTML 조작 X — store 만 갱신 (위 setList 에서 처리).
+ * 단, React mount 가 안 된 fallback 케이스는 기존 markup (아래) 그대로 작동. */
+if(window.__renderUserCardHtml && window.__usersStore){
+  /* React UserList 사용 — innerHTML 조작 skip. 단지 fallback 으로 빈 상태일 때만 표시 */
+  return;
+}
+/* === 이하 fallback (React 미로드) === */
 if(!d.users||d.users.length===0){el.innerHTML='<div class="empty">해당 상태의 사용자가 없습니다</div>';return}
 el.innerHTML=d.users.map(u=>{
 const nm=u.real_name||u.name||'이름없음';
@@ -212,7 +317,13 @@ return '<div data-user-id="'+u.id+'" style="background:#fff;border-radius:12px;p
 +actions
 +'</div>';
 }).join('');
-}catch(err){el.innerHTML='<div class="empty">오류: '+e(err.message)+'</div>'}
+}catch(err){
+/* Phase 3.1.B: store error 도 함께 set (React UserList 자동 표시) */
+try { if(window.__usersStore) window.__usersStore.setError(err.message); } catch(_){}
+if(el && (!window.__renderUserCardHtml || !window.__usersStore)){
+  el.innerHTML='<div class="empty">오류: '+e(err.message)+'</div>';
+}
+}
 }
 
 async function approveUser(id,action){

@@ -26,6 +26,8 @@ import { SidebarBizTotal } from './components/SidebarBizTotal';
 import { SidebarStatusCount } from './components/SidebarStatusCount';
 /* Phase 2.4 (2026-05-08): 알림 카운트 React 화 (할 일 / 종료 요청 / 에러 로그) */
 import { SidebarAlertCount } from './components/SidebarAlertCount';
+/* Phase 3.1.B (2026-05-08): 사용자 list React 화 — admin.html #userList 자리 mount */
+import { UserList } from './components/UserList';
 /* sidebar-store import — window.__sidebarStore 자동 활성화 (admin.js refreshSidebarCounts 가 사용) */
 import '../admin/state/sidebar-store';
 
@@ -111,6 +113,9 @@ function bootstrap() {
   mountAt('sb-todo-count-mount', () => <SidebarAlertCount variant="urgentTodos" />);
   mountAt('sb-termreq-count-mount', () => <SidebarAlertCount variant="termReq" />);
   mountAt('sb-errorlog-count-mount', () => <SidebarAlertCount variant="errorLog" redWhenNonZero />);
+
+  /* Phase 3.1.B (2026-05-08): 사용자 list — admin.html #userList 자리 mount */
+  mountAt('userList', () => <UserList />);
 
   /* 거래처 dashboard 매출 차트 — data-user-id 속성 있으면 자동 mount.
    * 없으면 admin-customer-dash.js 가 openCustomerDashboard 시 window.__mountFinanceChart(userId) 호출. */
