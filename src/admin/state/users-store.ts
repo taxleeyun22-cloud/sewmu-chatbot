@@ -51,6 +51,9 @@ export interface UsersState {
   loading: boolean;
   /** 에러 (있을 때) */
   error: string | null;
+  /** 검색어 (clientSearchInput) — Phase Infra-2 fix (2026-05-09):
+   *  React UserList 가 store searchQuery 자동 filter — 카드 display 직접 조작 X */
+  searchQuery: string;
 }
 
 export const initialUsersState: UsersState = {
@@ -60,6 +63,7 @@ export const initialUsersState: UsersState = {
   lastFetchedAt: null,
   loading: false,
   error: null,
+  searchQuery: '',
 };
 
 export const $users = atom<UsersState>({ ...initialUsersState });
@@ -119,6 +123,11 @@ export function updateUserInList(userId: number, patch: Partial<AdminUser>): voi
   });
 }
 
+/** 검색어 set (Phase Infra-2 fix) — admin-search-bulk.js _doClientSearch 가 호출 */
+export function setUsersSearchQuery(q: string): void {
+  $users.set({ ...$users.get(), searchQuery: q });
+}
+
 /** Total reset — logout 시 */
 export function resetUsers(): void {
   $users.set({ ...initialUsersState });
@@ -147,6 +156,8 @@ export interface UsersStoreGlobal {
   setError: (msg: string) => void;
   removeUser: (userId: number) => void;
   updateUser: (userId: number, patch: Partial<AdminUser>) => void;
+  /** Phase Infra-2 (2026-05-09): 검색어 set — React UserList 자동 filter */
+  setSearchQuery: (q: string) => void;
   reset: () => void;
   get: () => UsersState;
   subscribe: (cb: (s: UsersState) => void) => () => void;
@@ -165,6 +176,7 @@ if (typeof window !== 'undefined') {
     setError: setUsersError,
     removeUser: removeUserFromList,
     updateUser: updateUserInList,
+    setSearchQuery: setUsersSearchQuery,
     reset: resetUsers,
     get: getUsers,
     subscribe: subscribeUsers,

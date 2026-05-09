@@ -580,30 +580,36 @@ function clearClientSearch(){
 function _doClientSearch(){
   const q=($g('clientSearchInput')?.value||'').trim().toLowerCase();
   if(_clientTabMode==='user'){
-    /* 사용자 모드 — 현재 렌더된 #userList 카드를 client-side filter
-       카드 텍스트(본명/닉/전화/이메일/회사명) 안 q 매칭 */
-    const list=$g('userList'); if(!list) return;
-    let visible=0, total=0;
-    Array.from(list.children).forEach(c=>{
-      total++;
-      if(!q){ c.style.display=''; visible++; return; }
-      const txt=(c.textContent||'').toLowerCase();
-      const match=txt.indexOf(q)>=0;
-      c.style.display = match ? '' : 'none';
-      if(match) visible++;
-    });
-    const hintId='userListSearchHint';
-    let hint=$g(hintId);
-    if(q && total>0 && visible===0){
-      if(!hint){
-        hint=document.createElement('div');
-        hint.id=hintId;
-        hint.style.cssText='padding:30px 0;text-align:center;color:#8b95a1;font-size:.88em';
-        list.appendChild(hint);
-      }
-      hint.textContent='"'+q+'"에 일치하는 사용자가 없습니다 (현재 탭 내).';
-      hint.style.display='block';
-    }else if(hint){ hint.style.display='none'; }
+    /* 사용자 모드 — Phase Infra-2 fix (2026-05-09): React UserList 가 store searchQuery 자동 filter.
+     * 기존 list.children 직접 hide/show 패턴은 React mount 후 작동 X (children = [react root div] 1개).
+     * 새 패턴: store.setSearchQuery(q) → React 자동 re-render → 자동 filter. */
+    if(window.__usersStore && typeof window.__usersStore.setSearchQuery === 'function'){
+      window.__usersStore.setSearchQuery(q);
+    } else {
+      /* fallback (React 미로드 시): 옛 직접 children filter */
+      const list=$g('userList'); if(!list) return;
+      let visible=0, total=0;
+      Array.from(list.children).forEach(c=>{
+        total++;
+        if(!q){ c.style.display=''; visible++; return; }
+        const txt=(c.textContent||'').toLowerCase();
+        const match=txt.indexOf(q)>=0;
+        c.style.display = match ? '' : 'none';
+        if(match) visible++;
+      });
+      const hintId='userListSearchHint';
+      let hint=$g(hintId);
+      if(q && total>0 && visible===0){
+        if(!hint){
+          hint=document.createElement('div');
+          hint.id=hintId;
+          hint.style.cssText='padding:30px 0;text-align:center;color:#8b95a1;font-size:.88em';
+          list.appendChild(hint);
+        }
+        hint.textContent='"'+q+'"에 일치하는 사용자가 없습니다 (현재 탭 내).';
+        hint.style.display='block';
+      }else if(hint){ hint.style.display='none'; }
+    }
   }else{
     /* 업체 모드 — 기존 bizSearchInput + _renderBizList 재사용. 통합 input 값을 sync */
     const bizInput=$g('bizSearchInput');

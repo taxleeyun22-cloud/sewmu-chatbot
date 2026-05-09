@@ -44,9 +44,43 @@ export function UserList() {
     );
   }
 
-  /* HTML string 합치기 — 카드 100+ 개도 빠름 (단일 dangerouslySetInnerHTML).
-   * key 는 user.id 기반 — React 가 list 재렌더 시 효율 */
-  const html = state.users
+  /* Phase Infra-2 fix (2026-05-09): 사장님 보고 — "민지" 검색 시 list filter 안 됨.
+   * 원인: 기존 _doClientSearch (admin-search-bulk.js) 가 list.children 직접 hide/show 시도.
+   *       React mount 후 list.children = [react root div] 1개 → filter 작동 X.
+   * 해결: store searchQuery 읽어서 React 안에서 filter. */
+  const q = (state.searchQuery || '').trim().toLowerCase();
+  const filtered = q
+    ? state.users.filter((u) => {
+        const hay = (
+          (u.real_name || '') +
+          ' ' +
+          (u.name || '') +
+          ' ' +
+          (u.phone || '') +
+          ' ' +
+          (u.email || '') +
+          ' ' +
+          (u.company_name || '') +
+          ' ' +
+          (u.ceo_name || '')
+        ).toLowerCase();
+        return hay.indexOf(q) >= 0;
+      })
+    : state.users;
+
+  if (q && !filtered.length) {
+    return (
+      <div
+        className="empty"
+        style={{ padding: '30px 0', textAlign: 'center', color: '#8b95a1', fontSize: '.88em' }}
+      >
+        "{q}"에 일치하는 사용자가 없습니다 (현재 탭 내).
+      </div>
+    );
+  }
+
+  /* HTML string 합치기 — 카드 100+ 개도 빠름 (단일 dangerouslySetInnerHTML). */
+  const html = filtered
     .map((u) => {
       try {
         return renderFn(u, state.currentStatus);
