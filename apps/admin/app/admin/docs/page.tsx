@@ -83,11 +83,12 @@ export default function DocsPage() {
                 <th className="px-4 py-3 text-right">금액</th>
                 <th className="px-4 py-3 text-left">날짜</th>
                 <th className="px-4 py-3 text-left">계정</th>
+                <th className="px-4 py-3 text-left">액션</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {docs.map((d) => (
-                <tr key={d.id} className="hover:bg-gray-50 cursor-pointer">
+                <tr key={d.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     {d.status === 'approved' && '✅'}
                     {d.status === 'rejected' && '❌'}
@@ -100,12 +101,65 @@ export default function DocsPage() {
                   </td>
                   <td className="px-4 py-3">{d.receipt_date || '-'}</td>
                   <td className="px-4 py-3">{d.category || '-'}</td>
+                  <td className="px-4 py-3">
+                    {d.status === 'pending' && (
+                      <DocActions doc={d} status={status} onChanged={setDocs} />
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+    </div>
+  );
+}
+
+function DocActions({
+  doc,
+  status,
+  onChanged,
+}: {
+  doc: Doc;
+  status: string;
+  onChanged: (docs: Doc[]) => void;
+}) {
+  async function refetch() {
+    const data = await trpcCall<{ documents: Doc[] }>('documents.list', {
+      status: status as 'pending' | 'approved' | 'rejected' | 'all',
+      limit: 200,
+    });
+    onChanged(data.documents || []);
+  }
+  return (
+    <div className="flex gap-1">
+      <button
+        onClick={async () => {
+          await trpcCall('documents.approve', {
+            id: doc.id,
+            vendor: doc.vendor || undefined,
+            amount: doc.amount || undefined,
+            receipt_date: doc.receipt_date || undefined,
+            category: doc.category || undefined,
+          });
+          refetch();
+        }}
+        className="text-xs bg-green-500 text-white px-2 py-1 rounded"
+      >
+        ✅ 승인
+      </button>
+      <button
+        onClick={async () => {
+          const reason = prompt('반려 사유:');
+          if (!reason) return;
+          await trpcCall('documents.reject', { id: doc.id, reason });
+          refetch();
+        }}
+        className="text-xs bg-red-500 text-white px-2 py-1 rounded"
+      >
+        ❌ 반려
+      </button>
     </div>
   );
 }

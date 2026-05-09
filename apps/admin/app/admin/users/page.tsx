@@ -112,14 +112,52 @@ export default function UsersPage() {
                     {u.phone || '-'} · {u.email || '-'}
                   </p>
                 </div>
-                <button className="text-xs text-brand-primary hover:underline">
-                  →
-                </button>
+                <UserActions user={u} onChanged={() => {
+                  // refetch
+                  trpcCall<{ users: User[] }>('users.list', { status, search, limit: 100 }).then((d) => setUsers(d.users));
+                }} />
               </li>
             ))}
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+function UserActions({ user, onChanged }: { user: User; onChanged: () => void }) {
+  async function setStatus(status: string) {
+    if (!confirm(`${user.real_name || user.name} 을(를) ${status} 으로 변경?`)) return;
+    await trpcCall('users.setStatus', { userId: user.id, status });
+    onChanged();
+  }
+
+  return (
+    <div className="flex gap-1">
+      {user.approval_status === 'pending' && (
+        <>
+          <button
+            onClick={() => setStatus('approved_client')}
+            className="text-xs bg-blue-500 text-white px-2 py-1 rounded"
+          >
+            ⭐ 기장
+          </button>
+          <button
+            onClick={() => setStatus('rejected')}
+            className="text-xs bg-red-500 text-white px-2 py-1 rounded"
+          >
+            ✕ 거절
+          </button>
+        </>
+      )}
+      {user.approval_status === 'approved_client' && (
+        <button
+          onClick={() => setStatus('terminated')}
+          className="text-xs bg-gray-500 text-white px-2 py-1 rounded"
+        >
+          ⛔ 종료
+        </button>
+      )}
     </div>
   );
 }
