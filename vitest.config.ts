@@ -30,6 +30,8 @@ export default defineConfig({
       'src/**/*.test.{ts,tsx}',
       'packages/**/*.test.ts',
       'packages/**/*.test.tsx',
+      'apps/**/*.test.ts',
+      'apps/**/*.test.tsx',
     ],
     globals: true,
     setupFiles: ['./src/test-setup.ts'],

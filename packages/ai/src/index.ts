@@ -21,3 +21,5 @@ export type {
 } from './kakao-alimtalk';
 export { renderFilingHtml } from './filing-pdf';
 export type { FilingPdfData } from './filing-pdf';
+export { makeR2Key, extractSafeExtension, isSafeR2Key } from './r2-key';
+export type { SafeR2KeyOptions } from './r2-key';

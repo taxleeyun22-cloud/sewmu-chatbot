@@ -1,40 +1,59 @@
 /**
- * Phase Next-Week4 (2026-05-09): 사이드바 (사장님 매일 워크플로).
+ * Phase Next-Day25 (2026-05-09): 사이드바 + 실시간 카운트.
  *
- * 기존 admin.html 사이드바 (라인 60-191) 마이그레이션.
- * 옛 디자인 그대로 + Next.js Link.
+ * 사장님 매일 진입 = 사이드바에서 한눈에 알아야 할 카운트:
+ * - 대기 사용자 / 미처리 영수증 / 검증 대기 답변 / D-day 임박 일정
+ * tRPC dashboard.counts 30초 polling.
  */
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { trpcCall } from '@/lib/trpc';
+import { badgeClass, type CountKey } from './sidebar-badge';
+
+export { badgeClass } from './sidebar-badge';
+
+interface DashboardCounts {
+  pendingUsers: number;
+  approvedClients: number;
+  pendingDocs: number;
+  activeRooms: number;
+  unreadMessages: number;
+  urgentTodos: number;
+  reviewPending: number;
+  filingsInProgress: number;
+  errorLogs: number;
+}
 
 interface NavItem {
   href: string;
   icon: string;
   label: string;
-  count?: number;
+  /** key in DashboardCounts — 자동 배지 표시 */
+  countKey?: CountKey;
 }
 
 const SECTIONS: { title: string; items: NavItem[] }[] = [
   {
     title: '방',
     items: [
-      { href: '/admin/rooms', icon: '💬', label: '상담방' },
+      { href: '/admin/rooms', icon: '💬', label: '상담방', countKey: 'activeRooms' },
       { href: '/admin/internal', icon: '🔐', label: '관리자방' },
     ],
   },
   {
     title: '사용자/업체',
     items: [
-      { href: '/admin/users', icon: '👤', label: '사용자' },
+      { href: '/admin/users', icon: '👤', label: '사용자', countKey: 'pendingUsers' },
       { href: '/admin/businesses', icon: '🏢', label: '업체' },
     ],
   },
   {
     title: '문서·메모',
     items: [
-      { href: '/admin/docs', icon: '📄', label: '문서' },
+      { href: '/admin/docs', icon: '📄', label: '문서', countKey: 'pendingDocs' },
       { href: '/admin/memos', icon: '📒', label: '메모' },
     ],
   },
@@ -43,15 +62,15 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: '/admin/dashboard', icon: '📊', label: '대시보드' },
       { href: '/admin/analytics', icon: '📈', label: '분석' },
-      { href: '/admin/review', icon: '✓', label: '검증' },
+      { href: '/admin/review', icon: '✓', label: '검증', countKey: 'reviewPending' },
       { href: '/admin/faq', icon: '📚', label: 'FAQ' },
-      { href: '/admin/filings', icon: '📋', label: '신고 검토표' },
+      { href: '/admin/filings', icon: '📋', label: '신고 검토표', countKey: 'filingsInProgress' },
     ],
   },
   {
     title: '알림',
     items: [
-      { href: '/admin/todos', icon: '📋', label: '내 일정' },
+      { href: '/admin/todos', icon: '📋', label: '내 일정', countKey: 'urgentTodos' },
       { href: '/admin/term-req', icon: '⚠️', label: '종료 요청' },
       { href: '/admin/bulk-send', icon: '📢', label: '단체발송' },
       { href: '/admin/search', icon: '🔍', label: '전역 검색' },
@@ -62,6 +81,25 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [counts, setCounts] = useState<DashboardCounts | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetch = () =>
+      trpcCall<DashboardCounts>('dashboard.counts')
+        .then((d) => {
+          if (!cancelled) setCounts(d);
+        })
+        .catch(() => {
+          /* 실패 시 카운트 미표시 (graceful) */
+        });
+    fetch();
+    const t = setInterval(fetch, 30000); // 30초 polling
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, []);
 
   return (
     <aside className="w-60 bg-sb-bg border-r border-gray-200 flex flex-col">
@@ -81,6 +119,8 @@ export function Sidebar() {
             <ul>
               {section.items.map((item) => {
                 const active = pathname === item.href;
+                const count = item.countKey && counts ? counts[item.countKey] : 0;
+                const cls = badgeClass(item.countKey, count);
                 return (
                   <li key={item.href}>
                     <Link
@@ -93,9 +133,12 @@ export function Sidebar() {
                     >
                       <span className="w-5 text-center">{item.icon}</span>
                       <span className="flex-1">{item.label}</span>
-                      {typeof item.count === 'number' && item.count > 0 && (
-                        <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">
-                          {item.count}
+                      {count > 0 && (
+                        <span
+                          className={`text-xs px-1.5 py-0.5 rounded-full ${cls}`}
+                          data-testid={`badge-${item.countKey}`}
+                        >
+                          {count}
                         </span>
                       )}
                     </Link>

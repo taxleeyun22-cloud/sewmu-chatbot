@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { drizzle } from '@sewmu/db/client';
 import * as schema from '@sewmu/db';
+import { makeR2Key } from '@sewmu/ai';
 
 export const runtime = 'edge';
 
@@ -74,10 +75,12 @@ export async function POST(request: Request) {
       );
     }
 
-    /* 4. R2 key 생성 (CSPRNG) */
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
-    const safeExt = /^[a-z0-9]{1,5}$/.test(ext) ? ext : 'bin';
-    const key = `documents/${userId}/${Date.now()}_${crypto.randomUUID()}.${safeExt}`;
+    /* 4. R2 key 생성 (CSPRNG + path traversal 방어) */
+    const key = makeR2Key({
+      userId,
+      fileName: file.name,
+      category: 'documents',
+    });
 
     /* 5. R2 업로드 */
     const arrayBuffer = await file.arrayBuffer();
