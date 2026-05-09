@@ -46,12 +46,16 @@ export async function makeCaller(authOverride: AuthOverride = {}): Promise<Calle
   /* dynamic import — vi.mock 적용 후 */
   const { appRouter } = await import('../../index');
 
+  /* userId: 명시적으로 null 가능. 'userId' 키 미지정 시만 default 1. */
+  const userId =
+    'userId' in authOverride ? (authOverride.userId as number | null) : 1;
+
   const ctx = {
     db: d1,
     bucket: undefined,
     openaiApiKey: 'sk-test',
     auth: {
-      userId: authOverride.userId ?? 1,
+      userId,
       isOwner: authOverride.isOwner ?? false,
       isAdmin: authOverride.isAdmin ?? authOverride.isOwner ?? false,
       staffRole: authOverride.staffRole ?? null,

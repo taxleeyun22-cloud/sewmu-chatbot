@@ -7,3 +7,17 @@ export { buildSystemPrompt, CORE_RULES } from './system-prompt';
 export type { SystemPromptOptions } from './system-prompt';
 export { cosine, embedQuery, rankFaqsByEmbedding, formatRagContext } from './rag';
 export type { FaqRow, ScoredFaq } from './rag';
+export {
+  sendAlimtalk,
+  sendAlimtalkBulk,
+  normalizePhone,
+  renderTemplate,
+  isWithinSendHours,
+} from './kakao-alimtalk';
+export type {
+  AlimtalkMessage,
+  AlimtalkSendOptions,
+  AlimtalkResult,
+} from './kakao-alimtalk';
+export { renderFilingHtml } from './filing-pdf';
+export type { FilingPdfData } from './filing-pdf';

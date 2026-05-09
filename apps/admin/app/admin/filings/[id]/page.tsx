@@ -279,13 +279,18 @@ export default function FilingDetailPage() {
         />
       </div>
 
-      {/* PDF export — 추후 */}
+      {/* PDF export */}
       <div className="bg-white rounded-2xl p-5 text-center">
         <button
-          disabled
-          className="bg-gray-200 text-gray-500 px-6 py-3 rounded-xl font-medium cursor-not-allowed"
+          onClick={() => {
+            const adminKey = prompt('ADMIN_KEY:');
+            if (!adminKey) return;
+            const url = `/api/filing-pdf/${id}?key=${encodeURIComponent(adminKey)}`;
+            window.open(url, '_blank');
+          }}
+          className="bg-brand-primary text-white px-6 py-3 rounded-xl font-medium hover:opacity-90"
         >
-          📄 PDF 내보내기 (Day 16 — Puppeteer/Workers PDF API 통합)
+          📄 검토표 보기 (Cmd/Ctrl+P → PDF 저장)
         </button>
       </div>
     </div>
