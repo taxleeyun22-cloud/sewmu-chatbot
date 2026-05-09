@@ -3855,7 +3855,7 @@ function refreshSidebarCounts(){
     try { if (window.__sidebarStore) window.__sidebarStore.update({ trash: trashCount }); } catch(_){}
   }).catch(function(_){});
 
-  /* 내 일정 (오늘 + 오버듀 + 3일 이내) */
+  /* 내 일정 — Phase 2.4: SidebarAlertCount(urgentTodos) 자동 reactive */
   fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my&only_mine=1').then(function(r){return r.json()}).then(function(d){
     var arr = (d.memos || []).filter(function(m){
       if(!m.due_date) return false;
@@ -3864,22 +3864,19 @@ function refreshSidebarCounts(){
       var dt = new Date(m.due_date + 'T00:00:00+09:00');
       return dt <= limit;
     });
-    var el = document.getElementById('sbCntTodo'); if(el) el.textContent = arr.length;
     try { if (window.__sidebarStore) window.__sidebarStore.update({ urgentTodos: arr.length }); } catch(_){}
   }).catch(function(_){});
 
-  /* 종료 요청 */
+  /* 종료 요청 — Phase 2.4: SidebarAlertCount(termReq) 자동 reactive */
   fetch('/api/admin-termination-requests?key='+encodeURIComponent(KEY)+'&status=pending').then(function(r){return r.json()}).then(function(d){
-    var el = document.getElementById('sbCntTermReq'); if(el) el.textContent = (d.requests || []).length || 0;
+    var n = (d.requests || []).length || 0;
+    try { if (window.__sidebarStore) window.__sidebarStore.update({ termReq: n }); } catch(_){}
   }).catch(function(_){});
 
-  /* Phase #11 적용 (2026-05-06): 에러 로그 카운트 — 7일 이내 미해결 N건
-   * 빨간 점 = 0 초과면 사이드바 visible. */
+  /* 에러 로그 — Phase 2.4: SidebarAlertCount(errorLog redWhenNonZero) 자동 reactive 빨간 배지.
+   * sbErrorLogBtn 의 alert class 만 기존 처리 (사이드바 item 톤 변경) */
   fetch('/api/admin-error-log?key='+encodeURIComponent(KEY)+'&limit=200').then(function(r){return r.json()}).then(function(d){
     var n = Array.isArray(d.errors) ? d.errors.length : 0;
-    var el = document.getElementById('sbCntErrorLog');
-    if(el){ el.textContent = n; el.style.background = n > 0 ? '#dc2626' : ''; el.style.color = n > 0 ? '#fff' : ''; }
-    /* 사이드바 항목 자체도 알림 톤 */
     var btn = document.getElementById('sbErrorLogBtn');
     if(btn){
       if(n > 0) btn.classList.add('alert');

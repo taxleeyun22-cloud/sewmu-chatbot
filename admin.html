@@ -150,10 +150,10 @@ if ('serviceWorker' in navigator) {
     <div class="of-sb-section" data-section-key="alerts">알림 <span class="arrow">▾</span></div>
     <div class="sb-grp" data-grp="alerts">
       <button class="of-sb-item alert" type="button" id="sbMyTodosBtn" onclick="openMyTodos()">
-        <span class="ic">📋</span><span class="lb">내 일정</span><span class="cnt" id="sbCntTodo">0</span>
+        <span class="ic">📋</span><span class="lb">내 일정</span><span class="cnt" id="sbCntTodo"><span id="sb-todo-count-mount">0</span></span>
       </button>
       <button class="of-sb-item alert" type="button" id="sbTermReqBtn" onclick="openTerminationRequests()">
-        <span class="ic">⚠️</span><span class="lb">종료 요청</span><span class="cnt" id="sbCntTermReq">0</span>
+        <span class="ic">⚠️</span><span class="lb">종료 요청</span><span class="cnt" id="sbCntTermReq"><span id="sb-termreq-count-mount">0</span></span>
       </button>
       <button class="of-sb-item" type="button" id="sbBulkSendBtn" onclick="openBulkSend()">
         <span class="ic">📢</span><span class="lb">단체발송</span>
@@ -170,7 +170,7 @@ if ('serviceWorker' in navigator) {
       </button>
       <!-- Phase #11 적용 (2026-05-06): 자체 에러 로거 사이드바 진입 — 빨간 점 = 7일 이내 에러 N건 -->
       <button class="of-sb-item alert" type="button" id="sbErrorLogBtn" onclick="openErrorLog()" title="JS 에러 로그 (자체 수집)">
-        <span class="ic">🐞</span><span class="lb">에러 로그</span><span class="cnt" id="sbCntErrorLog">0</span>
+        <span class="ic">🐞</span><span class="lb">에러 로그</span><span class="cnt" id="sbCntErrorLog"><span id="sb-errorlog-count-mount">0</span></span>
       </button>
     </div>
 
@@ -250,7 +250,7 @@ setTimeout(function(){
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=182"></script>
+<script src="/admin.js?v=183"></script>
 <script src="/admin-memos.js?v=14"></script>
 <script src="/admin-customer-dash.js?v=26"></script>
 <script src="/admin-business-tab.js?v=11"></script>
@@ -315,7 +315,7 @@ setTimeout(function(){
 
 <!-- Phase #2 적용 (2026-05-07): React entry — admin-role-badge-inline 등 mount points 자동 처리.
      classic script 끝난 후 로드 (defer 효과). 사장님 admin.html 전체 로드 후 React 컴포넌트 렌더. -->
-<script type="module" src="/assets/react.js?v=6"></script>
+<script type="module" src="/assets/react.js?v=7"></script>
 
 </body>
 </html>

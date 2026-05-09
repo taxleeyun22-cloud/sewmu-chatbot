@@ -24,6 +24,8 @@ import { SidebarUserTotal } from './components/SidebarUserTotal';
 import { SidebarBizTotal } from './components/SidebarBizTotal';
 /* Phase 2.3 (2026-05-08): 사용자 status 별 카운트 React 화 (탭바 7개) */
 import { SidebarStatusCount } from './components/SidebarStatusCount';
+/* Phase 2.4 (2026-05-08): 알림 카운트 React 화 (할 일 / 종료 요청 / 에러 로그) */
+import { SidebarAlertCount } from './components/SidebarAlertCount';
 /* sidebar-store import — window.__sidebarStore 자동 활성화 (admin.js refreshSidebarCounts 가 사용) */
 import '../admin/state/sidebar-store';
 
@@ -104,6 +106,11 @@ function bootstrap() {
   mountAt('c-terminated-mount', () => <SidebarStatusCount status="terminated" />);
   mountAt('c-rejoined-mount', () => <SidebarStatusCount status="rejoined" />);
   mountAt('c-admin-mount', () => <SidebarStatusCount status="admin" />);
+
+  /* Phase 2.4 (2026-05-08): 알림 카운트 3개 — 할 일 / 종료 요청 / 에러 로그 */
+  mountAt('sb-todo-count-mount', () => <SidebarAlertCount variant="urgentTodos" />);
+  mountAt('sb-termreq-count-mount', () => <SidebarAlertCount variant="termReq" />);
+  mountAt('sb-errorlog-count-mount', () => <SidebarAlertCount variant="errorLog" redWhenNonZero />);
 
   /* 거래처 dashboard 매출 차트 — data-user-id 속성 있으면 자동 mount.
    * 없으면 admin-customer-dash.js 가 openCustomerDashboard 시 window.__mountFinanceChart(userId) 호출. */

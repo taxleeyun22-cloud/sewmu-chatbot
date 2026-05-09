@@ -25,6 +25,10 @@ export interface SidebarCountsState {
   internalUnread: number;
   /* 7일 이내 에러 */
   errorLog: number;
+  /* 종료 요청 (직원이 큐 등록한 거래 종료 요청 — pending 만) */
+  termReq: number;
+  /* 문서 대기 (문서 카테고리 카운트) */
+  docs: number;
   /* status 별 (사장님이 사이드바 또는 메인탭에서 직접 보는 값) */
   pending: number;
   approvedClient: number;
@@ -44,6 +48,8 @@ export const initialSidebarCounts: SidebarCountsState = {
   urgentTodos: 0,
   internalUnread: 0,
   errorLog: 0,
+  termReq: 0,
+  docs: 0,
   pending: 0,
   approvedClient: 0,
   approvedGuest: 0,
