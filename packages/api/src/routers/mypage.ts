@@ -13,7 +13,7 @@ export const mypageRouter = router({
    */
   summary: customerProcedure.query(async ({ ctx }) => {
     const db = drizzle(ctx.db);
-    const { users, businesses, chatRooms, roomMembers, dailyUsage } = schema;
+    const { users, businesses, businessMembers, chatRooms, roomMembers, dailyUsage } = schema;
 
     if (!ctx.auth.userId) {
       return {
@@ -34,8 +34,26 @@ export const mypageRouter = router({
       .limit(1)
       .then((rows) => rows[0]);
 
-    // 매핑 사업장 (business_members JOIN — 향후 schema 추가)
-    // 지금은 단순화 — businesses WHERE business_members.user_id 매칭
+    // 매핑 사업장 (business_members JOIN)
+    const myBusinesses = await db
+      .select({
+        id: businesses.id,
+        company_name: businesses.company_name,
+        business_number: businesses.business_number,
+        ceo_name: businesses.ceo_name,
+        company_form: businesses.company_form,
+        tax_type: businesses.tax_type,
+        is_primary: businessMembers.is_primary,
+      })
+      .from(businessMembers)
+      .innerJoin(businesses, eq(businessMembers.business_id, businesses.id))
+      .where(
+        and(
+          eq(businessMembers.user_id, userId),
+          isNull(businessMembers.removed_at),
+          isNull(businesses.deleted_at),
+        ),
+      );
 
     // 상담방 (room_members JOIN chat_rooms)
     const myRooms = await db
@@ -73,7 +91,7 @@ export const mypageRouter = router({
             approval_status: user.approval_status,
           }
         : null,
-      businesses: [],  // Day 14: business_members 테이블 schema 추가 후
+      businesses: myBusinesses,
       rooms: myRooms,
       todayCount: usage?.count || 0,
     };

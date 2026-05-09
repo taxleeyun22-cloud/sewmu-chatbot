@@ -127,6 +127,123 @@ export const businessesRouter = router({
       return { ok: true, id: result[0]?.id || 0 };
     }),
 
+  /** 위하고 14필드 update (사장님 매일 워크플로). */
+  update: adminProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        patch: z.object({
+          company_name: z.string().optional(),
+          business_number: z.string().optional(),
+          sub_business_number: z.string().optional(),
+          corporate_number: z.string().optional(),
+          ceo_name: z.string().optional(),
+          company_form: z.string().optional(),
+          business_category: z.string().optional(),
+          industry: z.string().optional(),
+          industry_code: z.string().optional(),
+          tax_type: z.string().optional(),
+          address: z.string().optional(),
+          phone: z.string().optional(),
+          establishment_date: z.string().optional(),
+          closed_date: z.string().optional(),
+          fiscal_year_start: z.string().optional(),
+          fiscal_year_end: z.string().optional(),
+          fiscal_term: z.number().int().optional(),
+          contract_date: z.string().optional(),
+          hr_year: z.number().int().optional(),
+          parent_business_id: z.number().int().positive().nullable().optional(),
+          status: z.enum(['active', 'closed', 'terminated']).optional(),
+          notes: z.string().optional(),
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = drizzle(ctx.db);
+      const { businesses } = schema;
+      await db
+        .update(businesses)
+        .set({ ...input.patch, updated_at: new Date().toISOString() })
+        .where(eq(businesses.id, input.id));
+      return { ok: true };
+    }),
+
+  /** 사장님 매핑 추가 (사람 ↔ 업체). */
+  addToUser: adminProcedure
+    .input(
+      z.object({
+        user_id: z.number().int().positive(),
+        business_id: z.number().int().positive(),
+        is_primary: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = drizzle(ctx.db);
+      const { businessMembers } = schema;
+
+      const existing = await db
+        .select()
+        .from(businessMembers)
+        .where(
+          and(
+            eq(businessMembers.user_id, input.user_id),
+            eq(businessMembers.business_id, input.business_id),
+          ),
+        )
+        .limit(1);
+
+      const now = new Date().toISOString();
+      if (existing[0]) {
+        await db
+          .update(businessMembers)
+          .set({
+            is_primary: input.is_primary ? 1 : 0,
+            removed_at: null,
+          })
+          .where(eq(businessMembers.id, existing[0].id));
+      } else {
+        await db.insert(businessMembers).values({
+          user_id: input.user_id,
+          business_id: input.business_id,
+          is_primary: input.is_primary ? 1 : 0,
+          created_at: now,
+        });
+      }
+      return { ok: true };
+    }),
+
+  /** 사람 매핑 사업장 (마이페이지 + 거래처 dashboard 사용). */
+  byUser: adminProcedure
+    .input(z.object({ user_id: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const db = drizzle(ctx.db);
+      const { businesses, businessMembers } = schema;
+
+      const list = await db
+        .select({
+          id: businesses.id,
+          company_name: businesses.company_name,
+          business_number: businesses.business_number,
+          ceo_name: businesses.ceo_name,
+          company_form: businesses.company_form,
+          tax_type: businesses.tax_type,
+          status: businesses.status,
+          is_primary: businessMembers.is_primary,
+        })
+        .from(businessMembers)
+        .innerJoin(businesses, eq(businessMembers.business_id, businesses.id))
+        .where(
+          and(
+            eq(businessMembers.user_id, input.user_id),
+            isNull(businessMembers.removed_at),
+            or(isNull(businesses.deleted_at), eq(businesses.deleted_at, ''))!,
+          ),
+        )
+        .orderBy(desc(businessMembers.is_primary));
+
+      return { businesses: list };
+    }),
+
   delete: ownerProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
