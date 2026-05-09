@@ -38,9 +38,31 @@ import '../admin/state/sidebar-store';
 function mountAt(elementId: string, render: () => React.ReactNode): boolean {
   const el = document.getElementById(elementId);
   if (!el) return false;
+  /* 중복 mount 방지 — 같은 element 에 root.render 두 번 시 경고 */
+  if ((el as HTMLElement & { _reactRoot?: Root })._reactRoot) return true;
   const root = createRoot(el);
+  (el as HTMLElement & { _reactRoot?: Root })._reactRoot = root;
   root.render(<StrictMode>{render()}</StrictMode>);
   return true;
+}
+
+/**
+ * Phase 3.1.B (2026-05-08): admin-modals.html 늦게 fetch 되는 mount points 위해 polling.
+ * 200ms × 50회 = 10초 안에 element 나타나면 mount. 그 후 포기.
+ * MutationObserver 도 가능하지만 단순함 우선 (DOMContentLoaded 후 admin-modals.html fetch 완료까지 보통 1~3초).
+ */
+function mountAtWithRetry(elementId: string, render: () => React.ReactNode, maxAttempts = 50): void {
+  let attempts = 0;
+  function attempt() {
+    if (mountAt(elementId, render)) return;
+    attempts++;
+    if (attempts < maxAttempts) {
+      setTimeout(attempt, 200);
+    } else if (typeof console !== 'undefined' && console.warn) {
+      console.warn(`[mountAtWithRetry] ${elementId} 10초 안에 element 못 찾음 — React mount 실패`);
+    }
+  }
+  attempt();
 }
 
 /* 사용자별 mount 추적 — re-mount 방지 + 거래처 dashboard 재진입 시 갱신 */
@@ -100,22 +122,24 @@ function bootstrap() {
   mountAt('sb-user-total-mount', () => <SidebarUserTotal />);
   mountAt('sb-biz-total-mount', () => <SidebarBizTotal />);
 
-  /* Phase 2.3 (2026-05-08): 사용자 status 별 카운트 (메인 탭바 7개) */
-  mountAt('c-pending-mount', () => <SidebarStatusCount status="pending" />);
-  mountAt('c-client-mount', () => <SidebarStatusCount status="approvedClient" />);
-  mountAt('c-guest-mount', () => <SidebarStatusCount status="approvedGuest" />);
-  mountAt('c-rejected-mount', () => <SidebarStatusCount status="rejected" />);
-  mountAt('c-terminated-mount', () => <SidebarStatusCount status="terminated" />);
-  mountAt('c-rejoined-mount', () => <SidebarStatusCount status="rejoined" />);
-  mountAt('c-admin-mount', () => <SidebarStatusCount status="admin" />);
+  /* Phase 2.3 (2026-05-08): 사용자 status 별 카운트 (메인 탭바 7개)
+   * — admin-modals.html 안 element. 늦게 fetch 될 수 있어 retry 사용. */
+  mountAtWithRetry('c-pending-mount', () => <SidebarStatusCount status="pending" />);
+  mountAtWithRetry('c-client-mount', () => <SidebarStatusCount status="approvedClient" />);
+  mountAtWithRetry('c-guest-mount', () => <SidebarStatusCount status="approvedGuest" />);
+  mountAtWithRetry('c-rejected-mount', () => <SidebarStatusCount status="rejected" />);
+  mountAtWithRetry('c-terminated-mount', () => <SidebarStatusCount status="terminated" />);
+  mountAtWithRetry('c-rejoined-mount', () => <SidebarStatusCount status="rejoined" />);
+  mountAtWithRetry('c-admin-mount', () => <SidebarStatusCount status="admin" />);
 
-  /* Phase 2.4 (2026-05-08): 알림 카운트 3개 — 할 일 / 종료 요청 / 에러 로그 */
+  /* Phase 2.4 (2026-05-08): 알림 카운트 3개 — 할 일 / 종료 요청 / 에러 로그
+   * admin.html 본체 element — DOMContentLoaded 시 이미 존재. mountAt 즉시 OK. */
   mountAt('sb-todo-count-mount', () => <SidebarAlertCount variant="urgentTodos" />);
   mountAt('sb-termreq-count-mount', () => <SidebarAlertCount variant="termReq" />);
   mountAt('sb-errorlog-count-mount', () => <SidebarAlertCount variant="errorLog" redWhenNonZero />);
 
-  /* Phase 3.1.B (2026-05-08): 사용자 list — admin.html #userList 자리 mount */
-  mountAt('userList', () => <UserList />);
+  /* Phase 3.1.B (2026-05-08): 사용자 list — admin-modals.html 안 #userList 자리 (retry 필요) */
+  mountAtWithRetry('userList', () => <UserList />);
 
   /* 거래처 dashboard 매출 차트 — data-user-id 속성 있으면 자동 mount.
    * 없으면 admin-customer-dash.js 가 openCustomerDashboard 시 window.__mountFinanceChart(userId) 호출. */
