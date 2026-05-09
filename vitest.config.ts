@@ -14,7 +14,11 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: [
+      'src/**/*.test.{ts,tsx}',
+      'packages/**/*.test.ts',
+      'packages/**/*.test.tsx',
+    ],
     globals: true,  /* @testing-library/jest-dom matchers 자동 적용 위해 */
     setupFiles: ['./src/test-setup.ts'],
   },

@@ -5,3 +5,5 @@ export { chatCompletion, extractConfidence } from './openai';
 export type { ChatMessage, ChatCompletionOptions, ChatCompletionResult } from './openai';
 export { buildSystemPrompt, CORE_RULES } from './system-prompt';
 export type { SystemPromptOptions } from './system-prompt';
+export { cosine, embedQuery, rankFaqsByEmbedding, formatRagContext } from './rag';
+export type { FaqRow, ScoredFaq } from './rag';

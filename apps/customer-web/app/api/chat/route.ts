@@ -15,7 +15,14 @@ import { auth } from '@/auth';
 import { drizzle } from '@sewmu/db/client';
 import * as schema from '@sewmu/db';
 import { eq, and, sql } from 'drizzle-orm';
-import { chatCompletion, extractConfidence, buildSystemPrompt } from '@sewmu/ai';
+import {
+  chatCompletion,
+  extractConfidence,
+  buildSystemPrompt,
+  embedQuery,
+  rankFaqsByEmbedding,
+  formatRagContext,
+} from '@sewmu/ai';
 
 export const runtime = 'edge';
 
@@ -28,37 +35,6 @@ const LIMITS: Record<string, number> = {
   rejected: 0,
   terminated: 0,
 };
-
-async function embedQuery(apiKey: string, text: string): Promise<number[]> {
-  const r = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'text-embedding-3-small',
-      input: text.slice(0, 8000),
-    }),
-  });
-  if (!r.ok) throw new Error(`embed failed: ${r.status}`);
-  const data = (await r.json()) as { data: { embedding: number[] }[] };
-  return data.data[0]?.embedding ?? [];
-}
-
-function cosine(a: number[], b: number[]): number {
-  if (a.length !== b.length || a.length === 0) return 0;
-  let dot = 0;
-  let na = 0;
-  let nb = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    na += a[i] * a[i];
-    nb += b[i] * b[i];
-  }
-  const d = Math.sqrt(na) * Math.sqrt(nb);
-  return d === 0 ? 0 : dot / d;
-}
 
 async function retrieveFaqs(db: any, apiKey: string, query: string, k = 3) {
   const { faqs } = schema;
@@ -79,24 +55,7 @@ async function retrieveFaqs(db: any, apiKey: string, query: string, k = 3) {
     .from(faqs)
     .where(and(eq(faqs.active, 1), sql`${faqs.embedding} IS NOT NULL`));
 
-  return rows
-    .map((r: any) => {
-      let vec: number[] = [];
-      try {
-        vec = JSON.parse(r.embedding);
-      } catch {
-        return null;
-      }
-      return {
-        question: r.question,
-        answer: r.answer,
-        law_refs: r.law_refs,
-        score: cosine(queryVec, vec),
-      };
-    })
-    .filter((x: any): x is NonNullable<typeof x> => x !== null && x.score > 0.5)
-    .sort((a: any, b: any) => b.score - a.score)
-    .slice(0, k);
+  return rankFaqsByEmbedding(rows, queryVec, { k });
 }
 
 export async function POST(request: Request) {
@@ -184,18 +143,7 @@ export async function POST(request: Request) {
       /* RAG */
       try {
         const top = await retrieveFaqs(db, apiKey, message, 3);
-        if (top.length > 0) {
-          ragContext =
-            '\n\n[참고 FAQ — 답변 근거 우선 사용]\n' +
-            top
-              .map(
-                (f: any, i: number) =>
-                  `${i + 1}. ${f.question}\n   → ${f.answer}${
-                    f.law_refs ? `\n   근거: ${f.law_refs}` : ''
-                  }`,
-              )
-              .join('\n\n');
-        }
+        ragContext = formatRagContext(top);
       } catch {
         /* graceful */
       }
