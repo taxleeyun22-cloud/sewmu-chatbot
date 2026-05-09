@@ -16,6 +16,7 @@ import { filingsRouter } from './routers/filings';
 import { searchRouter } from './routers/search';
 import { documentsRouter } from './routers/documents';
 import { dashboardRouter } from './routers/dashboard';
+import { mypageRouter } from './routers/mypage';
 
 export const appRouter = router({
   chat: chatRouter,
@@ -27,6 +28,7 @@ export const appRouter = router({
   search: searchRouter,
   documents: documentsRouter,
   dashboard: dashboardRouter,
+  mypage: mypageRouter,
 });
 
 export type AppRouter = typeof appRouter;
