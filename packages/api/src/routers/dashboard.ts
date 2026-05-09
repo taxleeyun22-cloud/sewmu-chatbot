@@ -14,7 +14,7 @@ import { drizzle, schema } from '@sewmu/db/client';
 export const dashboardRouter = router({
   counts: adminProcedure.query(async ({ ctx }) => {
     const db = drizzle(ctx.db);
-    const { users, chatRooms, memos, documents, conversations, filings } = schema;
+    const { users, chatRooms, memos, documents, conversations, filings, errorLogs } = schema;
 
     const [
       pendingUsersRow,
@@ -24,6 +24,7 @@ export const dashboardRouter = router({
       pendingDocsRow,
       reviewPendingRow,
       filingsInProgressRow,
+      errorLogsRow,
     ] = await Promise.all([
       db
         .select({ c: sql<number>`count(*)` })
@@ -88,6 +89,17 @@ export const dashboardRouter = router({
           ),
         )
         .then((rows) => rows[0]),
+
+      db
+        .select({ c: sql<number>`count(*)` })
+        .from(errorLogs)
+        .where(
+          and(
+            eq(errorLogs.resolved, 0),
+            sql`date(${errorLogs.created_at}) >= date('now', '-7 days')`,
+          ),
+        )
+        .then((rows) => rows[0]),
     ]);
 
     return {
@@ -99,7 +111,7 @@ export const dashboardRouter = router({
       urgentTodos: Number(urgentTodosRow?.c || 0),
       reviewPending: Number(reviewPendingRow?.c || 0),
       filingsInProgress: Number(filingsInProgressRow?.c || 0),
-      errorLogs: 0,
+      errorLogs: Number(errorLogsRow?.c || 0),
     };
   }),
 

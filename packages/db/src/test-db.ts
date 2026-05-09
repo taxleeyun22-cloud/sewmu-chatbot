@@ -354,6 +354,20 @@ function applySchema(rawDb: RawDb): void {
       created_at TEXT,
       removed_at TEXT
     )`,
+    `CREATE TABLE error_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source TEXT NOT NULL,
+      user_id INTEGER,
+      message TEXT NOT NULL,
+      stack TEXT,
+      url TEXT,
+      user_agent TEXT,
+      context TEXT,
+      resolved INTEGER DEFAULT 0,
+      resolved_at TEXT,
+      resolved_by INTEGER,
+      created_at TEXT
+    )`,
   ];
   for (const ddl of ddls) {
     rawDb.exec(ddl);

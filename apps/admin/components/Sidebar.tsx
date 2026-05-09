@@ -75,6 +75,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
       { href: '/admin/bulk-send', icon: '📢', label: '단체발송' },
       { href: '/admin/search', icon: '🔍', label: '전역 검색' },
       { href: '/admin/trash', icon: '🗑️', label: '휴지통' },
+      { href: '/admin/errors', icon: '🐞', label: '에러 로그', countKey: 'errorLogs' },
     ],
   },
 ];

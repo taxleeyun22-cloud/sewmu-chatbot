@@ -20,6 +20,7 @@ import { mypageRouter } from './routers/mypage';
 import { reviewRouter } from './routers/review';
 import { faqRouter } from './routers/faq';
 import { bulkSendRouter } from './routers/bulk-send';
+import { errorLogsRouter } from './routers/error-logs';
 
 export const appRouter = router({
   chat: chatRouter,
@@ -35,6 +36,7 @@ export const appRouter = router({
   review: reviewRouter,
   faq: faqRouter,
   bulkSend: bulkSendRouter,
+  errorLogs: errorLogsRouter,
 });
 
 export type AppRouter = typeof appRouter;

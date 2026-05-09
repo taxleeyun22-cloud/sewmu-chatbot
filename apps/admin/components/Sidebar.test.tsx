@@ -11,10 +11,11 @@ describe('badgeClass — 카운트 배지 색깔 매핑', () => {
     expect(badgeClass(undefined, 0)).toBe('hidden');
   });
 
-  it('urgent (red) for pendingUsers / urgentTodos / reviewPending', () => {
+  it('urgent (red) for pendingUsers / urgentTodos / reviewPending / errorLogs', () => {
     expect(badgeClass('pendingUsers', 5)).toContain('red');
     expect(badgeClass('urgentTodos', 1)).toContain('red');
     expect(badgeClass('reviewPending', 2)).toContain('red');
+    expect(badgeClass('errorLogs', 3)).toContain('red');
   });
 
   it('warn (yellow) for pendingDocs / filingsInProgress', () => {

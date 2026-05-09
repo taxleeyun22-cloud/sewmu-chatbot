@@ -17,7 +17,12 @@ export type CountKey =
 /** 0 hide / urgent (red) / warn (yellow) / normal (gray). */
 export function badgeClass(key: CountKey | undefined, n: number): string {
   if (n === 0) return 'hidden';
-  if (key === 'pendingUsers' || key === 'urgentTodos' || key === 'reviewPending') {
+  if (
+    key === 'pendingUsers' ||
+    key === 'urgentTodos' ||
+    key === 'reviewPending' ||
+    key === 'errorLogs'
+  ) {
     return 'bg-red-100 text-red-700';
   }
   if (key === 'pendingDocs' || key === 'filingsInProgress') {
