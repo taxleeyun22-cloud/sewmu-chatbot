@@ -71,15 +71,15 @@ async function openCustomerDashboard(userId, opts){
   if(!m)return;
   m.style.display='block';
   document.body.style.overflow='hidden';
-  /* Phase 3.4.B/C (2026-05-08): React CdName/CdSub/CdBasic 가 store 자동 reactive — DOM 조작 skip if mount */
+  /* Phase 3.4.B/C/D (2026-05-08): React 컴포넌트들이 store 자동 reactive — DOM 조작 skip if mount */
   if(!window.__dashboardStore){
     $g('cdName').textContent='불러오는 중...';
     $g('cdSub').textContent='';
     $g('cdBasic').innerHTML='…';
+    $g('cdDocs').innerHTML='…';
+    $g('cdFinance').innerHTML='…';
+    $g('cdBizDocs').innerHTML='…';
   }
-  $g('cdDocs').innerHTML='…';
-  $g('cdFinance').innerHTML='…';
-  $g('cdBizDocs').innerHTML='…';
   $g('cdRecentChat').innerHTML='…';
   /* 병렬 조회: 거래처 기본·재무·서류(시스템A)·상담방·문서·매핑사업장(시스템B) */
   const q=(p)=>'/api/'+p+(p.includes('?')?'&':'?')+'key='+encodeURIComponent(KEY);
@@ -140,26 +140,43 @@ async function openCustomerDashboard(userId, opts){
     /* 문서 현황 */
     const counts=docsRes.counts||{};
     const fmt=v=>(Number(v)||0).toLocaleString('ko-KR');
-    $g('cdDocs').innerHTML=''
-      +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">'
-      +'<div style="padding:8px 10px;background:#fef3c7;border-radius:6px"><div style="font-size:.72em;color:#92400e">⏳ 대기</div><div style="font-weight:800;font-size:1.1em">'+(counts.pending||0)+'</div></div>'
-      +'<div style="padding:8px 10px;background:#d1fae5;border-radius:6px"><div style="font-size:.72em;color:#065f46">✅ 승인</div><div style="font-weight:800;font-size:1.1em">'+(counts.approved||0)+'</div></div>'
-      +'<div style="padding:8px 10px;background:#fee2e2;border-radius:6px"><div style="font-size:.72em;color:#991b1b">❌ 반려</div><div style="font-weight:800;font-size:1.1em">'+(counts.rejected||0)+'</div></div>'
-      +'<div style="padding:8px 10px;background:#e0f2fe;border-radius:6px"><div style="font-size:.72em;color:#075985">📊 총</div><div style="font-weight:800;font-size:1.1em">'+((counts.pending||0)+(counts.approved||0)+(counts.rejected||0))+'</div></div>'
-      +'</div>';
-    /* 재무 요약 */
-    if(finRes.has_data && finRes.rows){
-      const rows=finRes.rows.slice(0,3);
-      $g('cdFinance').innerHTML=rows.map(r=>{
-        const parts=[];
-        if(r.revenue!=null)parts.push('매출 '+fmt(r.revenue));
-        if(r.vat_payable!=null)parts.push('부가세 '+fmt(r.vat_payable));
-        return '<div style="padding:6px 0;border-bottom:1px dashed #e5e8eb"><b>'+e(r.period)+'</b> '+parts.join(' · ')+'</div>';
-      }).join('')+'<div style="font-size:.72em;color:#8b95a1;margin-top:6px">최근 3건 (편집 → 버튼)</div>';
-    } else {
-      $g('cdFinance').innerHTML='<div style="color:#8b95a1">재무 데이터 없음. 편집 → 버튼으로 추가하거나 PDF 업로드 후 Claude에게 처리 요청.</div>';
+    /* Phase 3.4.D (2026-05-08): React CdDocs/CdFinance 가 store 자동 reactive — fallback 만 직접 조작 */
+    if(!window.__dashboardStore){
+      $g('cdDocs').innerHTML=''
+        +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">'
+        +'<div style="padding:8px 10px;background:#fef3c7;border-radius:6px"><div style="font-size:.72em;color:#92400e">⏳ 대기</div><div style="font-weight:800;font-size:1.1em">'+(counts.pending||0)+'</div></div>'
+        +'<div style="padding:8px 10px;background:#d1fae5;border-radius:6px"><div style="font-size:.72em;color:#065f46">✅ 승인</div><div style="font-weight:800;font-size:1.1em">'+(counts.approved||0)+'</div></div>'
+        +'<div style="padding:8px 10px;background:#fee2e2;border-radius:6px"><div style="font-size:.72em;color:#991b1b">❌ 반려</div><div style="font-weight:800;font-size:1.1em">'+(counts.rejected||0)+'</div></div>'
+        +'<div style="padding:8px 10px;background:#e0f2fe;border-radius:6px"><div style="font-size:.72em;color:#075985">📊 총</div><div style="font-weight:800;font-size:1.1em">'+((counts.pending||0)+(counts.approved||0)+(counts.rejected||0))+'</div></div>'
+        +'</div>';
+      if(finRes.has_data && finRes.rows){
+        const rows=finRes.rows.slice(0,3);
+        $g('cdFinance').innerHTML=rows.map(r=>{
+          const parts=[];
+          if(r.revenue!=null)parts.push('매출 '+fmt(r.revenue));
+          if(r.vat_payable!=null)parts.push('부가세 '+fmt(r.vat_payable));
+          return '<div style="padding:6px 0;border-bottom:1px dashed #e5e8eb"><b>'+e(r.period)+'</b> '+parts.join(' · ')+'</div>';
+        }).join('')+'<div style="font-size:.72em;color:#8b95a1;margin-top:6px">최근 3건 (편집 → 버튼)</div>';
+      } else {
+        $g('cdFinance').innerHTML='<div style="color:#8b95a1">재무 데이터 없음. 편집 → 버튼으로 추가하거나 PDF 업로드 후 Claude에게 처리 요청.</div>';
+      }
     }
-    /* 🏢 연결된 사업장 — 시스템 B (businesses + business_members) 우선, 시스템 A (client_businesses) 는 fallback */
+    /* 🏢 연결된 사업장 — 시스템 B (businesses + business_members) 우선, 시스템 A (client_businesses) 는 fallback.
+     * Phase 3.4.D (2026-05-08): React CdBizDocs 가 store 자동 reactive 표시 — innerHTML 조작 skip if mount. */
+    if(window.__dashboardStore){
+      /* React 사용: cdRecentChat 만 처리하고 다음 단계 진행 */
+      $g('cdRecentChat').innerHTML='<div style="color:#8b95a1">우측 "상담방 열기" 버튼으로 전체 대화 확인.</div>';
+      _loadCdTodosAndSummaries(userId, roomsRes.rooms||[]);
+      _loadCustomerInfo(userId);
+      if(typeof _loadCdFilings==='function') _loadCdFilings(userId);
+      _loadCdAutoSummary(userId);
+      if(typeof _filRenderListInto==='function'){
+        const reviewBox=$g('cdFilingsReview');
+        if(reviewBox) _filRenderListInto(reviewBox, 'Person', userId, nm);
+      }
+      return;
+    }
+    /* === 이하 fallback (React 미로드) === */
     const mappedBizs=(mappedBizRes.businesses)||[];
     const legacyBizs=(bizDocsRes.businesses)||[];
     const userPhoneRaw=(u&&u.phone)||'';
@@ -274,6 +291,103 @@ async function openCustomerDashboard(userId, opts){
     }
   }
 }
+
+/* Phase 3.4.D (2026-05-08): cdBizDocs HTML builder — React CdBizDocs 가 호출.
+ * store 에서 데이터 읽고 markup 반환. */
+function _buildCdBizDocsHtml(){
+  try {
+    if(!window.__dashboardStore) return '';
+    const s = window.__dashboardStore.get();
+    if(!s.userId) return '';
+    const u = s.user;
+    const userId = s.userId;
+    const nm = (u && (u.real_name||u.name)) || ('#'+userId);
+    const mappedBizs = s.mappedBusinesses || [];
+    const legacyBizs = s.legacyBusinesses || [];
+    const userPhoneRaw = (u && u.phone) || '';
+    const _ACTIVE_FOR_BIZ = ['approved_client','approved_guest','admin'];
+    const _userActiveForBiz = u && !u.deleted_at && (Number(u.is_admin)===1 || _ACTIVE_FOR_BIZ.indexOf(u.approval_status)>=0);
+    const _addBtn = _userActiveForBiz
+      ? '<button onclick="openAddBizForUser('+userId+',\''+e(nm).replace(/\'/g,'')+'\',\''+e(userPhoneRaw).replace(/\'/g,'')+'\')" style="background:var(--brand-primary,#3182f6);color:#fff;border:none;padding:6px 13px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">＋ 🏢 사업장 추가</button>'
+      : '<button disabled title="기장거래처 승인 후 사업장 추가 가능" style="background:#e5e8eb;color:#9ca3af;border:none;padding:6px 13px;border-radius:6px;font-size:.78em;font-weight:600;cursor:not-allowed;font-family:inherit">＋ 🏢 사업장 추가 (승인 필요)</button>';
+    const headerHtml='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+      +'<div style="font-weight:700;font-size:.92em">🏢 연결된 사업장 ('+(mappedBizs.length+legacyBizs.length)+')</div>'
+      +_addBtn
+      +'</div>';
+    let bizHtml='';
+    if(!mappedBizs.length && !legacyBizs.length){
+      bizHtml='<div style="color:#8b95a1;padding:14px;text-align:center;border:1px dashed #d1d5db;border-radius:8px;font-size:.86em">등록된 사업장이 없습니다.<br><span style="font-size:.78em;color:#9ca3af">＋ 🏢 사업장 추가 버튼으로 위하고 정보를 입력하세요.</span></div>';
+    } else {
+      if(mappedBizs.length){
+        bizHtml+='<div style="display:flex;flex-direction:column;gap:10px">';
+        bizHtml+=mappedBizs.map(b=>{
+          let kvs='';
+          try{
+            const _kv=(k,v)=>v?'<div style="font-size:.78em"><b style="color:#6b7280;margin-right:5px">'+e(k)+'</b>'+e(String(v))+'</div>':'';
+            kvs+=_kv('회사구분',b.company_form);
+            kvs+=_kv('사업자번호',b.business_number);
+            kvs+=_kv('대표자',b.ceo_name);
+            kvs+=_kv('업태',b.business_category);
+            kvs+=_kv('업종',b.industry);
+            kvs+=_kv('업종코드',b.industry_code);
+            kvs+=_kv('과세유형',b.tax_type);
+            kvs+=_kv('사업장주소',b.address);
+            kvs+=_kv('전화',b.phone);
+            kvs+=_kv('수임일자',b.contract_date);
+            kvs+=_kv('회계기간',[b.fiscal_year_start,b.fiscal_year_end].filter(Boolean).join(' ~ '));
+            kvs+=_kv('기수',b.fiscal_term);
+            kvs+=_kv('인사연도',b.hr_year);
+          }catch(_){kvs='<div style="color:#f04452;font-size:.78em">필드 렌더 오류</div>'}
+          const idC=b.docs&&b.docs.id_card&&b.docs.id_card.uploaded?'✅':'⚠️';
+          const bz=b.docs&&b.docs.biz_reg&&b.docs.biz_reg.uploaded?'✅':'⚠️';
+          const ht=b.docs&&b.docs.hometax&&b.docs.hometax.saved?'✅':'⚠️';
+          const roleBadge=b.member_role==='대표자'
+            ?'<span style="background:#fef3c7;color:#92400e;font-size:.66em;padding:1px 7px;border-radius:4px;margin-left:4px;font-weight:700">🧑‍💼 대표자</span>'
+            :'<span style="background:#e0f2fe;color:#075985;font-size:.66em;padding:1px 7px;border-radius:4px;margin-left:4px">👤 담당자</span>';
+          const primaryBadge=b.member_is_primary
+            ?'<span style="background:#fee2e2;color:#991b1b;font-size:.64em;padding:1px 6px;border-radius:4px;margin-left:3px">주 연락</span>':'';
+          const formBadge=b.company_form
+            ?'<span style="background:#eef2ff;color:#3730a3;font-size:.64em;padding:1px 6px;border-radius:4px;margin-left:3px">'+e(b.company_form)+'</span>':'';
+          const trashedBadge = b.deleted_at ? '<span style="background:#fee2e2;color:#991b1b;font-size:.66em;padding:1px 7px;border-radius:4px;margin-left:4px;font-weight:700">🗑️ 휴지통</span>' : '';
+          const closedBadge = (!b.deleted_at && b.status === 'closed') ? '<span style="background:#e5e8eb;color:#6b7280;font-size:.66em;padding:1px 7px;border-radius:4px;margin-left:4px">📦 종료</span>' : '';
+          return '<div style="border:1px solid '+(b.deleted_at?'#fca5a5':'#d1d5db')+';border-radius:10px;background:'+(b.deleted_at?'#fef2f2':'#fff')+';padding:12px 14px">'
+            +'<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:8px">'
+              +'<div style="font-weight:700;font-size:.95em;color:#1e40af;cursor:pointer;text-decoration:underline" onclick="closeCustomerDashboard&&closeCustomerDashboard();setTimeout(function(){openBusinessDashboard('+b.id+')},150)">'+e(b.company_name||'사업장 #'+b.id)+'</div>'
+              +formBadge+roleBadge+primaryBadge+trashedBadge+closedBadge
+            +'</div>'
+            +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:4px 12px;color:#374151">'+kvs+'</div>'
+            +'<div style="display:flex;align-items:center;gap:6px;margin-top:9px;padding-top:8px;border-top:1px dashed #e5e8eb">'
+              +'<div style="flex:1;font-size:.74em;color:#555">📑 신분증 '+idC+' · 사등 '+bz+' · 홈택스 '+ht+'</div>'
+              +'<button onclick="toggleCustBizPrimary('+b.member_id+','+(b.member_is_primary?0:1)+',\''+escAttr(b.company_name||'사업장 #'+b.id)+'\')" style="background:'+(b.member_is_primary?'#10b981':'#fff')+';color:'+(b.member_is_primary?'#fff':'#10b981')+';border:1px solid #10b981;padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit;font-weight:700;margin-right:4px" title="'+(b.member_is_primary?'★ 주업체 (해제하려면 클릭)':'☆ 주업체로 설정')+'">'+(b.member_is_primary?'★ 주업체':'☆ 주업체')+'</button>'
+              +(b.deleted_at?'<button onclick="restoreBusiness('+b.id+',\''+escAttr(b.company_name||'사업장 #'+b.id)+'\')" style="background:#10b981;color:#fff;border:none;padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit;font-weight:700;margin-right:4px" title="휴지통에서 복원 — deleted_at NULL + status=active">♻️ 복원</button>':'')
+              +'<button onclick="unlinkCustomerBusiness('+userId+','+b.id+',\''+escAttr(b.company_name||'사업장 #'+b.id)+'\')" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit;font-weight:600;margin-right:4px" title="이 거래처와 사업장 매핑만 해제 (사업장 자체는 유지)">🔗 매핑 해제</button>'
+              +'<button onclick="closeCustomerDashboard&&closeCustomerDashboard();setTimeout(function(){openBusinessDashboard('+b.id+')},150)" style="background:#eef2ff;color:#3730a3;border:none;padding:5px 10px;border-radius:6px;font-size:.72em;cursor:pointer;font-family:inherit;font-weight:600">🏢 업체로 →</button>'
+            +'</div>'
+          +'</div>';
+        }).join('');
+        bizHtml+='</div>';
+      }
+      if(legacyBizs.length){
+        bizHtml+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #d1d5db">'
+          +'<div style="font-size:.74em;color:#9ca3af;margin-bottom:6px">📦 구버전 등록 (client_businesses)</div>'
+          +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">'
+          +legacyBizs.map(b=>{
+            const idC=b.docs&&b.docs.id_card&&b.docs.id_card.uploaded?'✅':'⚠️';
+            const bz=b.docs&&b.docs.biz_reg&&b.docs.biz_reg.uploaded?'✅':'⚠️';
+            const ht=b.docs&&b.docs.hometax&&b.docs.hometax.saved?'✅':'⚠️';
+            return '<div style="padding:9px 11px;border:1px solid #e5e8eb;border-radius:8px;background:#fafafa">'
+              +'<div style="font-weight:700;font-size:.84em;margin-bottom:3px">'+e(b.company_name||'사업장 #'+b.id)+'</div>'
+              +'<div style="font-size:.72em;color:#555">신분증 '+idC+' · 사등 '+bz+' · 홈택스 '+ht+'</div>'
+            +'</div>';
+          }).join('')
+          +'</div></div>';
+      }
+      bizHtml+='<button onclick="openBizDocsPanel()" style="margin-top:10px;background:#ecfdf5;color:#065f46;border:none;padding:7px 12px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">📋 서류 자세히 보기</button>';
+    }
+    return headerHtml+bizHtml;
+  } catch(_) { return '<div style="color:#f04452">렌더 실패</div>'; }
+}
+if(typeof window!=='undefined') window.__buildCdBizDocsHtml = _buildCdBizDocsHtml;
 
 /* 사장님 명령 (2026-05-08): 거래처 dashboard 에서 주업체 변경 (★ 토글).
  * 사장님 보고: "사업장 dashboard 의 _bdTogglePrimary 못 찾겠다" → 거래처 dashboard 에 직접 추가.
