@@ -67,9 +67,11 @@ async function _loadCdAllMemos(userId){
     const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=customer_all&user_id='+userId);
     const d=await r.json();
     _cdMemosCache=(d.memos||[]).filter(m=>!m.deleted_at);
-    if(cnt) cnt.textContent=String(_cdMemosCache.length);
+    /* Phase 3.3.A (2026-05-08): React CdMemoCount 가 store 자동 reactive 표시.
+     * cnt.textContent 조작은 fallback (React 미로드 시) 만 — store sync 후 자동. */
+    if(cnt && !window.__memoStore) cnt.textContent=String(_cdMemosCache.length);
     _renderCdMemos();
-    _syncMemoStore();  /* Phase #6 적용: nanostores sync */
+    _syncMemoStore();  /* Phase #6 적용: nanostores sync — React 가 자동 갱신 */
   }catch(err){
     list.innerHTML='<div style="color:#f04452">오류: '+e(err.message)+'</div>';
   }
