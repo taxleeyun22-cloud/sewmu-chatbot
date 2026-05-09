@@ -15,6 +15,7 @@
 | [no-cloudflare-config.md](./policies/no-cloudflare-config.md) | Cloudflare 대시보드 설정 금지 |
 | [no-ui-breakage.md](./policies/no-ui-breakage.md) | UI 박살 방지 |
 | [faq-accuracy.md](./policies/faq-accuracy.md) | FAQ 정확성 최우선 |
+| [explain-why-first.md](./policies/explain-why-first.md) | "왜" 부터 설명 (Auto Mode 핵심) |
 
 ## Architecture Decisions (adr/)
 
