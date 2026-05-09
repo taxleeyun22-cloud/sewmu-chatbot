@@ -158,6 +158,9 @@ fetch('/admin-modals.html?v=53', { cache: 'no-cache' })
 <script src="/business.js?v=5"></script>
 <!-- Phase 6 (2026-05-07): 신고 검토표 시스템 (법인세) -->
 <script src="/admin-filing-review.js?v=21"></script>
+<!-- Phase Infra-2 fix (2026-05-09): admin-modals.html 안 backToList() / 등 admin-anal-review-faq.js 함수 사용
+     사장님 보고 (Sentry first error): ReferenceError: backToList is not defined at /business:158:47 -->
+<script src="/admin-anal-review-faq.js?v=2"></script>
 <script>
 /* business.html 페이지 로드 후 — 법인세 검토표 list 표시.
  * business.js 가 url 의 ?id=N 로 업체 정보 fetch 후 _bdCurrent 같은 변수에 저장.
