@@ -55,18 +55,29 @@ var _bizStatusFilter = 'all';  /* 'all' | 'active' | 'closed' | 'terminated' */
 async function loadBusinessList(){
   const el=$g('bizList');if(!el)return;
   el.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div>';
+  /* Phase 3.2.A (2026-05-08): businesses-store loading 시작 */
+  try { if(window.__businessesStore) window.__businessesStore.setLoading(); } catch(_){}
   try{
     const r=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY));
     const d=await r.json();
     _bizListCache=(d.businesses||[]).filter(b=>!b.deleted_at||b.deleted_at==='');
     const c=d.counts||{};
+    /* Phase 3.2.A (2026-05-08): store 에 list + counts 저장 (UI 변화 0 — 기존 _renderBizList 그대로) */
+    try { if(window.__businessesStore) window.__businessesStore.setList(_bizListCache, {
+      active: c.active || 0,
+      closed: c.closed || 0,
+      terminated: c.terminated || 0,
+    }); } catch(_){}
     /* 탭 카운트 갱신 */
     if($g('cBizAll')) $g('cBizAll').textContent = _bizListCache.length;
     if($g('cBizActive')) $g('cBizActive').textContent = c.active || 0;
     if($g('cBizClosed')) $g('cBizClosed').textContent = c.closed || 0;
     if($g('cBizTerminated')) $g('cBizTerminated').textContent = c.terminated || 0;
     _renderBizList();
-  }catch(err){el.innerHTML='<div style="color:#f04452;padding:20px">오류: '+e(err.message)+'</div>'}
+  }catch(err){
+    el.innerHTML='<div style="color:#f04452;padding:20px">오류: '+e(err.message)+'</div>';
+    try { if(window.__businessesStore) window.__businessesStore.setError(err.message); } catch(_){}
+  }
 }
 
 /* 사장님 명령 (2026-05-08): status 별 탭 클릭 핸들러 (사용자 패턴) */
