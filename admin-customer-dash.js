@@ -450,8 +450,6 @@ async function unlinkCustomerBusiness(userId, bizId, bizName){
 /* 거래처 통합 자동 요약 — admin-customer-summary?cache_only=1 */
 async function _loadCdAutoSummary(userId){
   if(!userId) return;
-  const box=$g('cdSummaries');
-  if(!box) return;
   try{
     const r=await fetch('/api/admin-customer-summary?user_id='+userId+'&range=recent&cache_only=1&key='+encodeURIComponent(KEY),{credentials:'include'});
     if(!r.ok) return;
@@ -466,15 +464,29 @@ async function _loadCdAutoSummary(userId){
       +'<div style="color:#191f28">'+e(j.summary)+'</div>'
       +'<div style="font-size:.7em;color:#8b95a1;margin-top:6px">생성: '+e(stamp)+' · 캐시</div>'
       +'</div>';
-    box.innerHTML=html+box.innerHTML;
+    /* Phase 3.4.F (2026-05-08): React 사용 시 store 의 summariesHtml 앞에 prepend */
+    if(window.__dashboardStore){
+      const cur = window.__dashboardStore.get();
+      window.__dashboardStore.update({ summariesHtml: html + (cur.summariesHtml || '') });
+      return;
+    }
+    const box=$g('cdSummaries');
+    if(box) box.innerHTML=html+box.innerHTML;
   }catch(_){}
 }
 
 async function _loadCdTodosAndSummaries(userId, allRooms){
   const todoBox=$g('cdTodos'), sumBox=$g('cdSummaries');
   const todoCnt=$g('cdTodoCount'), sumCnt=$g('cdSummaryCount');
-  if(todoBox)todoBox.innerHTML='<div style="color:#8b95a1;padding:10px 0">불러오는 중...</div>';
-  if(sumBox)sumBox.innerHTML='<div style="color:#8b95a1;padding:10px 0">불러오는 중...</div>';
+  /* Phase 3.4.F (2026-05-08): React 사용 시 store update / fallback DOM 조작 */
+  const _USE_REACT = !!window.__dashboardStore;
+  const _setLoading = (key)=>{ if(_USE_REACT) window.__dashboardStore.update({[key]:'<div style="color:#8b95a1;padding:10px 0">불러오는 중...</div>'}); };
+  if(_USE_REACT){
+    window.__dashboardStore.update({ todosHtml:'<div style="color:#8b95a1;padding:10px 0">불러오는 중...</div>', summariesHtml:'<div style="color:#8b95a1;padding:10px 0">불러오는 중...</div>', todosCount:0, summaryCount:0 });
+  } else {
+    if(todoBox)todoBox.innerHTML='<div style="color:#8b95a1;padding:10px 0">불러오는 중...</div>';
+    if(sumBox)sumBox.innerHTML='<div style="color:#8b95a1;padding:10px 0">불러오는 중...</div>';
+  }
   /* 이 사용자가 속한 방 id 추출 (first_member_name 또는 user_id 기반. 서버가 full 멤버 리스트 안 주므로
      간단히 first_member 매칭으로 시작 — 더 정확히 하려면 /api/admin-rooms?user_id=X 필요) */
   /* 임시 접근: 전체 방 중 first_member_user_id 혹은 name 일치만 필터.
@@ -493,11 +505,11 @@ async function _loadCdTodosAndSummaries(userId, allRooms){
       const d=await r.json();
       const all=(d.memos||[]).map(m=>({...m,_t:_normType(m.memo_type_display||m.memo_type)}));
       const mine=all.filter(m=>m._t==='할 일' && m.room_id && roomIds.indexOf(m.room_id)>=0);
-      if(todoCnt)todoCnt.textContent=mine.length?'('+mine.length+'건)':'';
+      let todosHtml;
       if(!mine.length){
-        if(todoBox)todoBox.innerHTML='<div style="color:#adb5bd;padding:10px 0;font-size:.88em">미완료 할 일 없음</div>';
+        todosHtml='<div style="color:#adb5bd;padding:10px 0;font-size:.88em">미완료 할 일 없음</div>';
       } else {
-        if(todoBox)todoBox.innerHTML=mine.slice(0,8).map(m=>{
+        todosHtml=mine.slice(0,8).map(m=>{
           const due=m.due_date?'<span style="font-size:.72em;color:#b45309;margin-left:4px">📅 '+e(m.due_date)+'</span>':'';
           return '<div style="padding:6px 0;border-bottom:1px dashed #e5e8eb;display:flex;align-items:center;gap:6px">'
             +'<input type="checkbox" onchange="_cdCompleteTodo('+m.id+',this)" style="width:14px;height:14px;cursor:pointer;accent-color:#10b981;flex-shrink:0">'
@@ -505,12 +517,22 @@ async function _loadCdTodosAndSummaries(userId, allRooms){
             +'</div>';
         }).join('')+(mine.length>8?'<div style="font-size:.72em;color:#8b95a1;margin-top:4px">+ '+(mine.length-8)+'건 더 · 대시보드에서 확인</div>':'');
       }
-    }catch(_){if(todoBox)todoBox.innerHTML='<div style="color:#8b95a1">불러오기 실패</div>'}
+      if(_USE_REACT){
+        window.__dashboardStore.update({ todosHtml: todosHtml, todosCount: mine.length });
+      } else {
+        if(todoCnt)todoCnt.textContent=mine.length?'('+mine.length+'건)':'';
+        if(todoBox)todoBox.innerHTML=todosHtml;
+      }
+    }catch(_){
+      if(_USE_REACT) window.__dashboardStore.update({ todosHtml:'<div style="color:#8b95a1">불러오기 실패</div>' });
+      else if(todoBox)todoBox.innerHTML='<div style="color:#8b95a1">불러오기 실패</div>';
+    }
     /* 2. AI 요약 이력 — 방마다 조회해서 합침 (최대 3개 방까지만, 너무 느려지는 것 방지) */
     try{
       if(!roomIds.length){
-        if(sumBox)sumBox.innerHTML='<div style="color:#adb5bd;padding:10px 0;font-size:.88em">이 거래처 상담방이 없습니다</div>';
-        if(sumCnt)sumCnt.textContent='';
+        const noRoomsHtml='<div style="color:#adb5bd;padding:10px 0;font-size:.88em">이 거래처 상담방이 없습니다</div>';
+        if(_USE_REACT) window.__dashboardStore.update({ summariesHtml: noRoomsHtml, summaryCount: 0 });
+        else { if(sumBox)sumBox.innerHTML=noRoomsHtml; if(sumCnt)sumCnt.textContent=''; }
         return;
       }
       const rs=await Promise.all(roomIds.slice(0,3).map(rid=>
@@ -522,12 +544,12 @@ async function _loadCdTodosAndSummaries(userId, allRooms){
         (res.summaries||[]).forEach(s=>merged.push({...s, _roomId:roomIds[idx]}));
       });
       merged.sort((a,b)=>String(b.generated_at||'').localeCompare(String(a.generated_at||'')));
-      if(sumCnt)sumCnt.textContent=merged.length?'('+merged.length+'건)':'';
+      let sumHtml;
       if(!merged.length){
-        if(sumBox)sumBox.innerHTML='<div style="color:#adb5bd;padding:10px 0;font-size:.88em">생성된 요약이 없습니다</div>';
+        sumHtml='<div style="color:#adb5bd;padding:10px 0;font-size:.88em">생성된 요약이 없습니다</div>';
       } else {
         const rangeLabel={recent:'최근 50건',week:'최근 7일',month:'이번달',all:'전체',custom:'지정기간'};
-        if(sumBox)sumBox.innerHTML=merged.slice(0,5).map(s=>{
+        sumHtml=merged.slice(0,5).map(s=>{
           const lab=rangeLabel[s.range_type]||s.range_type;
           const preview=String(s.summary_text||'').slice(0,80);
           return '<div onclick="_cdOpenSummary(\''+escAttr(s._roomId)+'\','+s.id+')" style="padding:7px 8px;border-bottom:1px dashed #e5e8eb;cursor:pointer" onmouseover="this.style.background=\'#f9fafb\'" onmouseout="this.style.background=\'\'">'
@@ -540,9 +562,19 @@ async function _loadCdTodosAndSummaries(userId, allRooms){
             +'</div>';
         }).join('');
       }
-    }catch(_){if(sumBox)sumBox.innerHTML='<div style="color:#8b95a1">불러오기 실패</div>'}
+      if(_USE_REACT){
+        window.__dashboardStore.update({ summariesHtml: sumHtml, summaryCount: merged.length });
+      } else {
+        if(sumCnt)sumCnt.textContent=merged.length?'('+merged.length+'건)':'';
+        if(sumBox)sumBox.innerHTML=sumHtml;
+      }
+    }catch(_){
+      if(_USE_REACT) window.__dashboardStore.update({ summariesHtml:'<div style="color:#8b95a1">불러오기 실패</div>' });
+      else if(sumBox)sumBox.innerHTML='<div style="color:#8b95a1">불러오기 실패</div>';
+    }
   }catch(err){
-    if(todoBox)todoBox.innerHTML='<div style="color:#f04452">오류: '+e(err.message)+'</div>';
+    if(_USE_REACT) window.__dashboardStore.update({ todosHtml:'<div style="color:#f04452">오류: '+e(err.message)+'</div>' });
+    else if(todoBox)todoBox.innerHTML='<div style="color:#f04452">오류: '+e(err.message)+'</div>';
   }
 }
 

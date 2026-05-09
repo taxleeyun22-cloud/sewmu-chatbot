@@ -79,6 +79,14 @@ export interface DashboardState {
   error: string | null;
   /** 마지막 fetch 시각 */
   lastFetchedAt: number | null;
+  /* Phase 3.4.F (2026-05-08): cdTodos / cdSummaries 영역 — admin-customer-dash.js
+   * 의 _loadCdTodosAndSummaries / _loadCdAutoSummary 가 markup 만든 후 store 에 set.
+   * React 가 자동 reactive 표시 (dangerouslySetInnerHTML).
+   * 별도 fetch 결과라 user 정보와 다른 timing 으로 set 됨. */
+  todosHtml: string;
+  todosCount: number;
+  summariesHtml: string;
+  summaryCount: number;
 }
 
 export const initialDashboardState: DashboardState = {
@@ -94,6 +102,10 @@ export const initialDashboardState: DashboardState = {
   loading: false,
   error: null,
   lastFetchedAt: null,
+  todosHtml: '',
+  todosCount: 0,
+  summariesHtml: '',
+  summaryCount: 0,
 };
 
 export const $dashboard = atom<DashboardState>({ ...initialDashboardState });

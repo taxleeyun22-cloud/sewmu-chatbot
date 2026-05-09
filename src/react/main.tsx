@@ -44,6 +44,13 @@ import { CdFinance } from './components/CdFinance';
 import { CdBizDocs } from './components/CdBizDocs';
 /* Phase 3.4.E (2026-05-08): 거래처 dashboard 최근 대화 React */
 import { CdRecentChat } from './components/CdRecentChat';
+/* Phase 3.4.F (2026-05-08): 거래처 dashboard 할 일 + AI 요약 이력 React */
+import {
+  CdTodos,
+  CdSummaries,
+  CdTodoCount,
+  CdSummaryCount,
+} from './components/CdTodosAndSummaries';
 /* sidebar-store import — window.__sidebarStore 자동 활성화 (admin.js refreshSidebarCounts 가 사용) */
 import '../admin/state/sidebar-store';
 
@@ -178,6 +185,12 @@ function bootstrap() {
   mountAtWithRetry('cdBizDocs', () => <CdBizDocs />);
   /* Phase 3.4.E (2026-05-08): 거래처 dashboard 최근 대화 — admin-modals.html 안 (retry) */
   mountAtWithRetry('cdRecentChat', () => <CdRecentChat />);
+
+  /* Phase 3.4.F (2026-05-08): 거래처 dashboard 할 일 + AI 요약 이력 (admin-modals.html, retry) */
+  mountAtWithRetry('cdTodos', () => <CdTodos />);
+  mountAtWithRetry('cdSummaries', () => <CdSummaries />);
+  mountAtWithRetry('cdTodoCount', () => <CdTodoCount />);
+  mountAtWithRetry('cdSummaryCount', () => <CdSummaryCount />);
 
   /* 거래처 dashboard 매출 차트 — data-user-id 속성 있으면 자동 mount.
    * 없으면 admin-customer-dash.js 가 openCustomerDashboard 시 window.__mountFinanceChart(userId) 호출. */
