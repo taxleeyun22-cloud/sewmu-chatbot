@@ -3835,6 +3835,12 @@ function refreshSidebarCounts(){
     var userTotal = (c.pending||0) + (c.approved_client||0) + (c.approved_guest||0) + (c.rejected||0) + (c.terminated||0) + (c.admin||0);
     var elU = document.getElementById('sbUserTotal');
     if(elU) elU.textContent = userTotal;
+    /* Phase A (2026-05-08): nanostore 동시 갱신 — 향후 React 컴포넌트가 자동 reactive */
+    try { if (window.__sidebarStore) window.__sidebarStore.update({
+      pending: c.pending||0, approvedClient: c.approved_client||0, approvedGuest: c.approved_guest||0,
+      rejected: c.rejected||0, terminated: c.terminated||0, rejoined: c.rejoined||0, admin: c.admin||0,
+      userTotal: userTotal,
+    }); } catch(_){}
   }).catch(function(_){});
 
   /* 업체 총합 — admin-businesses?count_only=1 (없으면 list length) */
@@ -3842,11 +3848,14 @@ function refreshSidebarCounts(){
     var bizTotal = Array.isArray(d.businesses) ? d.businesses.length : (d.total || 0);
     var elB = document.getElementById('sbBizTotal');
     if(elB) elB.textContent = bizTotal;
+    try { if (window.__sidebarStore) window.__sidebarStore.update({ bizTotal: bizTotal }); } catch(_){}
   }).catch(function(_){});
 
   /* 휴지통 */
   fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=trash_count').then(function(r){return r.json()}).then(function(d){
-    var el = document.getElementById('sbCntTrash'); if(el) el.textContent = d.count || 0;
+    var trashCount = d.count || 0;
+    var el = document.getElementById('sbCntTrash'); if(el) el.textContent = trashCount;
+    try { if (window.__sidebarStore) window.__sidebarStore.update({ trash: trashCount }); } catch(_){}
   }).catch(function(_){});
 
   /* 내 일정 (오늘 + 오버듀 + 3일 이내) */
@@ -3859,6 +3868,7 @@ function refreshSidebarCounts(){
       return dt <= limit;
     });
     var el = document.getElementById('sbCntTodo'); if(el) el.textContent = arr.length;
+    try { if (window.__sidebarStore) window.__sidebarStore.update({ urgentTodos: arr.length }); } catch(_){}
   }).catch(function(_){});
 
   /* 종료 요청 */
@@ -3878,6 +3888,7 @@ function refreshSidebarCounts(){
       if(n > 0) btn.classList.add('alert');
       else btn.classList.remove('alert');
     }
+    try { if (window.__sidebarStore) window.__sidebarStore.update({ errorLog: n }); } catch(_){}
   }).catch(function(_){});
 }
 
