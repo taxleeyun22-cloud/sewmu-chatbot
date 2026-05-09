@@ -79,8 +79,8 @@ async function openCustomerDashboard(userId, opts){
     $g('cdDocs').innerHTML='…';
     $g('cdFinance').innerHTML='…';
     $g('cdBizDocs').innerHTML='…';
+    $g('cdRecentChat').innerHTML='…';
   }
-  $g('cdRecentChat').innerHTML='…';
   /* 병렬 조회: 거래처 기본·재무·서류(시스템A)·상담방·문서·매핑사업장(시스템B) */
   const q=(p)=>'/api/'+p+(p.includes('?')?'&':'?')+'key='+encodeURIComponent(KEY);
   try{
@@ -164,8 +164,7 @@ async function openCustomerDashboard(userId, opts){
     /* 🏢 연결된 사업장 — 시스템 B (businesses + business_members) 우선, 시스템 A (client_businesses) 는 fallback.
      * Phase 3.4.D (2026-05-08): React CdBizDocs 가 store 자동 reactive 표시 — innerHTML 조작 skip if mount. */
     if(window.__dashboardStore){
-      /* React 사용: cdRecentChat 만 처리하고 다음 단계 진행 */
-      $g('cdRecentChat').innerHTML='<div style="color:#8b95a1">우측 "상담방 열기" 버튼으로 전체 대화 확인.</div>';
+      /* React 사용: 다른 영역들은 store 자동 reactive — cdRecentChat 도 React */
       _loadCdTodosAndSummaries(userId, roomsRes.rooms||[]);
       _loadCustomerInfo(userId);
       if(typeof _loadCdFilings==='function') _loadCdFilings(userId);
