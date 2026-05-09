@@ -838,7 +838,7 @@ async function _splitMerge(mergeId, userId, realName){
       const d=await r.json();
       if(!d.ok){alert('분리 실패: '+(d.error||'unknown'));return}
       alert('✅ 분리 완료\n• 카카오 user #'+d.kakao_user_id+' → 대기 (OAuth 정보 그대로)\n• 수동 user #'+d.manual_user_id+' → 기장거래처 (데이터 그대로)');
-      if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
+      if(typeof mutationDone==='function') mutationDone({users:true}); else if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
     }catch(err){alert('오류: '+err.message)}
     return;
   }
@@ -854,7 +854,7 @@ async function _splitMerge(mergeId, userId, realName){
     const d=await r.json();
     if(!d.ok){alert('분리 실패: '+(d.error||'unknown'));return}
     alert('✅ 옛 합치기 분리 완료 (best-effort)\n• 카카오 user #'+d.kakao_user_id+' → 대기\n• 새 admin user #'+d.new_admin_user_id+' ('+e(d.new_admin_real_name)+') → 기장거래처\n\n이전된 데이터:\n• 매핑 '+d.moved.mappings+'건\n• 메모 '+d.moved.memos+'건\n• 메시지 '+d.moved.conversations+'건\n• 방 멤버 '+d.moved.room_members+'건\n• 문서 '+d.moved.documents+'건');
-    if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
+    if(typeof mutationDone==='function') mutationDone({users:true}); else if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
   }catch(err){alert('오류: '+err.message)}
 }
 
@@ -965,11 +965,11 @@ async function submitEditUserInfo(){
     if(!d.ok){alert('수정 실패: '+(d.error||'unknown'));return}
     const savedUserId=_euiUserId;
     closeEditUserInfoModal();
-    /* dashboard 가 열려있으면 새로고침, 아니면 사용자 list 갱신 */
+    /* mutationDone 룰 — 사이드바 + users list. dashboard 열려있으면 같이 새로고침 */
+    if(typeof mutationDone==='function') mutationDone({users:true});
+    else { if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus); if(typeof refreshSidebarCounts==='function') refreshSidebarCounts(); }
     if(typeof _cdCurrentUserId!=='undefined' && _cdCurrentUserId===savedUserId && typeof openCustomerDashboard==='function'){
       openCustomerDashboard(savedUserId);
-    } else if(typeof loadUsers==='function' && typeof currentStatus!=='undefined'){
-      loadUsers(currentStatus);
     }
     if(typeof showAdminToast==='function') showAdminToast('✅ 수정 완료');
   }catch(err){alert('오류: '+err.message)}
@@ -993,7 +993,7 @@ async function _mergeWithdrawnUser(oldUserId, newUserId, oldName){
     const d=await r.json();
     if(!d.ok){alert('합치기 실패: '+(d.error||'unknown'));return}
     alert('✅ 합치기 완료\n\n살아남은 user: #'+d.survived_user_id+' ('+d.survived_real_name+')\nArchive: #'+d.archived_user_id+'\n\n이전된 데이터:\n• 매핑 '+d.moved.mappings+'건\n• 메모 '+d.moved.memos+'건\n• 메시지 '+d.moved.conversations+'건\n• 방 멤버 '+d.moved.room_members+'건\n• 문서 '+d.moved.documents+'건\n\n잘못 합쳤으면 사용자 list 의 🔀 분리 버튼으로 복원 가능.');
-    if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
+    if(typeof mutationDone==='function') mutationDone({users:true}); else if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
   }catch(err){alert('오류: '+err.message)}
 }
 
@@ -1061,7 +1061,7 @@ async function _mergePickerConfirm(absorbedId, absorbedName){
     if(!d.ok){alert('합치기 실패: '+(d.error||'unknown'));return}
     alert('✅ 합치기 완료\n\n살아남은 user: #'+d.survived_user_id+' ('+d.survived_real_name+')\nArchive: #'+d.archived_user_id+'\n\n이전된 데이터:\n• 매핑 '+d.moved.mappings+'건\n• 메모 '+d.moved.memos+'건\n• 메시지 '+d.moved.conversations+'건\n• 방 멤버 '+d.moved.room_members+'건\n• 문서 '+d.moved.documents+'건\n\n잘못 합쳤으면 🔀 분리 버튼으로 복원 가능.');
     closeMergePicker();
-    if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
+    if(typeof mutationDone==='function') mutationDone({users:true}); else if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
   }catch(err){alert('오류: '+err.message)}
 }
 
@@ -1083,7 +1083,7 @@ async function _hardDeleteUser(userId, name){
     const d=await r.json();
     if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
     alert('✅ 영구 삭제 완료 — '+(d.deleted_name||'#'+d.user_id));
-    if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
+    if(typeof mutationDone==='function') mutationDone({users:true}); else if(typeof loadUsers==='function' && typeof currentStatus!=='undefined') loadUsers(currentStatus);
   }catch(err){alert('오류: '+err.message)}
 }
 

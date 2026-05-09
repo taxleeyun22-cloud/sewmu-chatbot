@@ -298,7 +298,9 @@ async function deleteCdMemo(id){
       d = await r.json();
     }
     if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
-    if(_cdCurrentUserId) await _loadCdAllMemos(_cdCurrentUserId);
+    /* mutationDone 룰 — 사이드바 휴지통 카운트 + dashboard 메모 */
+    if(typeof mutationDone==='function') mutationDone({memos:true});
+    else if(_cdCurrentUserId) await _loadCdAllMemos(_cdCurrentUserId);
   }catch(err){alert('오류: '+err.message)}
 }
 
@@ -693,7 +695,9 @@ async function cdBulkDelete(){
       fetch('/api/memos?id=' + id + '&key=' + encodeURIComponent(KEY), { method: 'DELETE' })
     ));
     _cdSelectedIds = {};
-    if(_cdCurrentUserId) await _loadCdAllMemos(_cdCurrentUserId);
+    /* mutationDone 룰 — 사이드바 휴지통 카운트 + dashboard 메모 */
+    if(typeof mutationDone==='function') mutationDone({memos:true});
+    else if(_cdCurrentUserId) await _loadCdAllMemos(_cdCurrentUserId);
   }catch(err){ alert('일괄 삭제 오류: ' + err.message); }
 }
 async function cdBulkComplete(){

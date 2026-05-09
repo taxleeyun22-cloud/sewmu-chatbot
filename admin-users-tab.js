@@ -210,7 +210,12 @@ async function approveUser(id,action){
 try{
 const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id,action:action})});
 const d=await r.json();
-if(d.ok){loadUsers(currentStatus);refreshPendingBadge()}
+if(d.ok){
+  /* 사장님 명령 (2026-05-08): mutationDone 룰 — sidebar 카운트 + users list 자동 갱신 */
+  if(typeof mutationDone==='function') mutationDone({users:true});
+  else { loadUsers(currentStatus); if(typeof refreshSidebarCounts==='function') refreshSidebarCounts(); }
+  refreshPendingBadge();
+}
 else alert('실패: '+(d.error||'unknown'));
 }catch(err){alert('오류: '+err.message)}
 }
@@ -372,9 +377,10 @@ async function _apbMergeUsers(manualUserId, kakaoUserId, manualName){
     const d=await r.json();
     if(!d.ok){alert('합치기 실패: '+(d.error||'unknown'));return}
     alert('✅ 합치기 완료\n\n살아남은 user: #'+d.survived_user_id+' ('+d.survived_real_name+')\nArchive: #'+d.archived_user_id+'\n\n이전된 데이터:\n• 매핑 '+d.moved.mappings+'건\n• 메모 '+d.moved.memos+'건\n• 메시지 '+d.moved.conversations+'건\n• 방 멤버 '+d.moved.room_members+'건\n• 문서 '+d.moved.documents+'건');
-    /* 승인 모달 닫기 + 사용자 list 재로드 */
+    /* 승인 모달 닫기 + mutationDone 룰 (사용자 + 사이드바) */
     closeApproveBizModal();
-    if(typeof loadUsers==='function') loadUsers(currentStatus);
+    if(typeof mutationDone==='function') mutationDone({users:true});
+    else { if(typeof loadUsers==='function') loadUsers(currentStatus); }
   }catch(err){alert('오류: '+err.message)}
 }
 
@@ -678,7 +684,12 @@ async function setAdminFlag(id,flag){
   try{
     const r=await fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&action=set_admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id,is_admin:flag})});
     const d=await r.json();
-    if(d.ok){loadUsers(currentStatus);alert(flag?'✅ 관리자로 승급되었습니다':'✅ 관리자 권한이 해제되었습니다')}
+    if(d.ok){
+      /* mutationDone 룰 — 사이드바 카운트 (관리자/대기/기장거래처) + users list 자동 갱신 */
+      if(typeof mutationDone==='function') mutationDone({users:true});
+      else { loadUsers(currentStatus); if(typeof refreshSidebarCounts==='function') refreshSidebarCounts(); }
+      alert(flag?'✅ 관리자로 승급되었습니다':'✅ 관리자 권한이 해제되었습니다');
+    }
     else alert('실패: '+(d.error||'unknown'));
   }catch(err){alert('오류: '+err.message)}
 }
@@ -713,7 +724,11 @@ const reason=prompt('거절 사유 (선택):','')||null;
 try{
 const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id,action:'reject',reason:reason})});
 const d=await r.json();
-if(d.ok){loadUsers(currentStatus);refreshPendingBadge()}
+if(d.ok){
+  if(typeof mutationDone==='function') mutationDone({users:true});
+  else { loadUsers(currentStatus); if(typeof refreshSidebarCounts==='function') refreshSidebarCounts(); }
+  refreshPendingBadge();
+}
 else alert('실패: '+(d.error||'unknown'));
 }catch(err){alert('오류: '+err.message)}
 }
@@ -745,9 +760,14 @@ async function archiveClient(id, displayName){
     const d=await r.json();
     if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
     alert('✅ 폐업 처리 완료\n상담방 '+(d.rooms_closed||0)+'개 / 업체 '+(d.businesses_closed||0)+'개 closed');
-    if(typeof loadUsers==='function')loadUsers(currentStatus);
-    if(typeof loadRoomList==='function')loadRoomList();
-    if(typeof loadBusinessList==='function' && _clientTabMode==='business')loadBusinessList();
+    /* mutationDone 룰 — 사용자/업체/상담방/사이드바 모두 갱신 */
+    if(typeof mutationDone==='function') mutationDone({users:true,businesses:_clientTabMode==='business',rooms:true});
+    else {
+      if(typeof loadUsers==='function')loadUsers(currentStatus);
+      if(typeof loadRoomList==='function')loadRoomList();
+      if(typeof loadBusinessList==='function' && _clientTabMode==='business')loadBusinessList();
+      if(typeof refreshSidebarCounts==='function')refreshSidebarCounts();
+    }
   }catch(err){alert('오류: '+err.message)}
 }
 
@@ -762,8 +782,13 @@ async function terminateUser(id, displayName){
     const d=await r.json();
     if(d.ok){
       alert('✅ 거래 종료 완료');
-      loadUsers(currentStatus);
-      if(typeof loadRoomList==='function')loadRoomList();
+      /* mutationDone 룰 — 사용자/상담방/사이드바 갱신 */
+      if(typeof mutationDone==='function') mutationDone({users:true,rooms:true});
+      else {
+        loadUsers(currentStatus);
+        if(typeof loadRoomList==='function')loadRoomList();
+        if(typeof refreshSidebarCounts==='function')refreshSidebarCounts();
+      }
     } else {
       alert('실패: '+(d.error||'unknown'));
     }

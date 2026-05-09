@@ -715,6 +715,9 @@
         return;
       }
       alert('삭제 완료\n\n업체: ' + (d.deleted_business || bizName) + '\n휴지통으로 이동된 메모: ' + (d.cascaded_memos || 0) + '건');
+      /* 사장님 명령 (2026-05-08): 삭제 후 admin.html 의 _bizListCache 강제 갱신.
+       * localStorage signal — admin 진입 시 storage 이벤트 또는 focus 시 체크해서 loadBusinessList 호출 */
+      try { localStorage.setItem('_bizListDirty', String(Date.now())); } catch(_){}
       try { history.back(); } catch(_) { location.href = '/admin.html'; }
     }catch(err){
       alert('오류: ' + err.message);

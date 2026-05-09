@@ -379,6 +379,9 @@ async function submitBulkSend(){
     const msg='✅ '+d.sent+'건 발송 성공'+(d.failed&&d.failed.length?' / ⚠️ '+d.failed.length+'건 실패':'');
     alert(msg);
     closeBulkSend();
+    /* mutationDone 룰 — 상담방 list 의 last_message / 메시지 카운트 갱신 */
+    if(typeof mutationDone==='function') mutationDone({rooms:true});
+    else if(typeof loadRoomList==='function') loadRoomList();
   }catch(err){alert('오류: '+err.message)}
   finally{if(btn){btn.disabled=false;btn.style.opacity='';btn.textContent='⚠️ 발송'}}
 }

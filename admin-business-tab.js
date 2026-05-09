@@ -282,7 +282,9 @@ async function submitNewBusiness(){
     else if(d.mapped_user_id) msg+='\n🔗 기존 사용자 매핑: #'+d.mapped_user_id;
     alert(msg);
     closeNewBusinessModal();
-    loadBusinessList();
+    /* mutationDone 룰 — 업체 list + 사용자 list (자동 생성 시) + 사이드바 */
+    if(typeof mutationDone==='function') mutationDone({businesses:true,users:!!d.created_user_id});
+    else { loadBusinessList(); if(typeof refreshSidebarCounts==='function') refreshSidebarCounts(); }
     if(d.id)openBusinessDashboard(d.id);
   }catch(err){alert('오류: '+err.message)}
   finally{if(btn){btn.disabled=false;btn.textContent='생성'}}
@@ -565,8 +567,14 @@ async function _bdEditBasic(){
     const r=await fetch('/api/admin-businesses?key='+encodeURIComponent(KEY)+'&id='+_bdCurrent.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(next)});
     const d=await r.json();
     if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
+    /* _bdCurrent.biz cache 갱신 — 다음 dashboard 진입 시 옛 값 보이는 버그 방지 */
+    if(_bdCurrent && _bdCurrent.biz){
+      Object.keys(next).forEach(function(k){ _bdCurrent.biz[k] = next[k]; });
+    }
+    /* mutationDone 룰 — 업체 list + 사이드바 카운트 */
+    if(typeof mutationDone==='function') mutationDone({businesses:true});
+    else { loadBusinessList(); if(typeof refreshSidebarCounts==='function') refreshSidebarCounts(); }
     openBusinessDashboard(_bdCurrent.id);
-    loadBusinessList();
   }catch(err){alert('오류: '+err.message)}
 }
 async function _bdAddMember(){

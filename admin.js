@@ -3741,6 +3741,89 @@ function _adminSidebarClick(e){
  *
  * @returns {void}
  */
+/* ==============================================================================
+ * mutationDone() — 모든 admin UI mutation (POST/PUT/DELETE) 후 호출 강제 룰
+ * 사장님 명령 (2026-05-08): "이런 문제 발생 안 되려면 어떤 조치 취해야 하지"
+ *
+ * 사용법:
+ *   await fetch(...).then(...);
+ *   if (d.ok) {
+ *     mutationDone({ users: true, businesses: false, rooms: false, memos: false, sidebar: true });
+ *   }
+ *
+ * opts (모두 optional, 기본값 false / sidebar=true):
+ *   - sidebar: refreshSidebarCounts() 호출 (default true)
+ *   - users: loadUsers(currentStatus) 호출 — 사용자 list 갱신
+ *   - businesses: loadBusinessList() 호출 — 업체 list 갱신
+ *   - rooms: loadRoomList() 호출 — 상담방 list 갱신
+ *   - memos: 거래처 dashboard 의 통합 메모 갱신 (_loadCdAllMemos)
+ *
+ * CLAUDE.md "🔄 Mutation 후 UI 갱신 절대 룰" 참조.
+ * 누락 시 사장님이 새로고침해야 갱신됨 → 짜증 + 버그 보고.
+ * ============================================================================== */
+function mutationDone(opts) {
+  opts = opts || {};
+  /* 사이드바 카운트 — default true (대부분 mutation 이 어느 카운트 영향) */
+  if (opts.sidebar !== false) {
+    try { if (typeof refreshSidebarCounts === 'function') refreshSidebarCounts(); } catch (_) {}
+  }
+  /* 사용자 list */
+  if (opts.users) {
+    try {
+      if (typeof loadUsers === 'function') {
+        var st = (typeof currentStatus !== 'undefined') ? currentStatus : 'pending';
+        loadUsers(st);
+      }
+    } catch (_) {}
+  }
+  /* 업체 list */
+  if (opts.businesses) {
+    try { if (typeof loadBusinessList === 'function') loadBusinessList(); } catch (_) {}
+  }
+  /* 상담방 list */
+  if (opts.rooms) {
+    try { if (typeof loadRoomList === 'function') loadRoomList(); } catch (_) {}
+  }
+  /* 거래처 dashboard 통합 메모 */
+  if (opts.memos) {
+    try {
+      if (typeof _loadCdAllMemos === 'function' && typeof _cdCurrentUserId !== 'undefined' && _cdCurrentUserId) {
+        _loadCdAllMemos(_cdCurrentUserId);
+      }
+    } catch (_) {}
+  }
+}
+/* alias — 명확화 위해 같은 함수 다른 이름 (mutation 후 호출이라는 의도 강조) */
+window.mutationDone = mutationDone;
+
+/* 사장님 명령 (2026-05-08): cross-page mutation signal — business.html / memo-window 등에서
+ * 데이터 변경 후 admin 으로 돌아왔을 때 자동 reload.
+ * - business.js deleteBusinessFromPage 가 _bizListDirty signal SET → admin focus 시 체크 → loadBusinessList */
+function _checkCrossPageDirty() {
+  try {
+    if (localStorage.getItem('_bizListDirty')) {
+      localStorage.removeItem('_bizListDirty');
+      if (typeof loadBusinessList === 'function') loadBusinessList();
+      if (typeof refreshSidebarCounts === 'function') refreshSidebarCounts();
+    }
+    if (localStorage.getItem('_userListDirty')) {
+      localStorage.removeItem('_userListDirty');
+      if (typeof loadUsers === 'function' && typeof currentStatus !== 'undefined') loadUsers(currentStatus);
+      if (typeof refreshSidebarCounts === 'function') refreshSidebarCounts();
+    }
+    if (localStorage.getItem('_memoListDirty')) {
+      localStorage.removeItem('_memoListDirty');
+      if (typeof refreshSidebarCounts === 'function') refreshSidebarCounts();
+      if (typeof _loadCdAllMemos === 'function' && typeof _cdCurrentUserId !== 'undefined' && _cdCurrentUserId) _loadCdAllMemos(_cdCurrentUserId);
+    }
+  } catch (_) {}
+}
+window.addEventListener('focus', _checkCrossPageDirty);
+window.addEventListener('pageshow', _checkCrossPageDirty);  /* bfcache (history.back) — pageshow 가 더 신뢰성 있음 */
+window.addEventListener('storage', function(ev) {
+  if (ev.key && /^_(bizList|userList|memoList)Dirty$/.test(ev.key)) _checkCrossPageDirty();
+});
+
 function refreshSidebarCounts(){
   if(!KEY) return;
   /* 사용자 카운트 (admin-approve 한 번에 모든 status)

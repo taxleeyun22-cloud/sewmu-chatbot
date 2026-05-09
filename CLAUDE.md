@@ -92,6 +92,48 @@ Cloudflare Pages + D1 DB + OpenAI GPT-4.1-mini + 국가법령정보센터 API.
 
 **처리 후**: `/api/admin-review` 엔드포인트로 각 id를 `mark_reviewed` 또는 `report_and_review` 처리.
 
+## 🔄 Mutation 후 UI 갱신 절대 룰 (2026-05-08 사장님 결정 — 1단계)
+
+**과거 사고**: 9건 발견 (업체 삭제 후 list 안 사라짐 / 사용자 status 변경 후 사이드바 카운트 옛값 / 메모 삭제 후 휴지통 배지 안 갱신 / 단체발송 후 상담방 last_message 옛값 / etc).
+
+**원인**: admin UI 의 mutation 함수마다 reload 호출 수동 — 누락 쉬움. 30초 polling 의 가짜 안전감.
+
+**룰** (모든 admin UI mutation 함수 작성 시 강제):
+
+```js
+// admin-*.js 안 fetch (POST/PUT/DELETE) 호출 후
+const r = await fetch(...);
+const d = await r.json();
+if (d.ok) {
+  /* mutationDone 룰 — 영향받는 영역 명시 */
+  if (typeof mutationDone === 'function') {
+    mutationDone({
+      users: true,        // 사용자 list 갱신 필요?
+      businesses: false,  // 업체 list 갱신 필요?
+      rooms: false,       // 상담방 list 갱신 필요?
+      memos: false,       // 거래처 dashboard 메모 갱신 필요?
+      // sidebar: true (default — 사이드바 카운트 자동)
+    });
+  }
+}
+```
+
+**핵심**:
+1. fetch (POST/PUT/DELETE) 호출 후 → **무조건 `mutationDone()` 호출**
+2. 영향받는 영역만 옵션으로 (users / businesses / rooms / memos)
+3. sidebar 카운트는 default true (대부분 mutation 영향)
+4. 30초 polling 에 의존 X — 즉시 갱신
+5. cross-page 변경 (예: business.html 의 삭제 → admin.html) 은 `localStorage.setItem('_bizListDirty', String(Date.now()))` signal → admin focus/pageshow 시 자동 reload
+
+**구현 위치**:
+- `admin.js` 의 `mutationDone(opts)` — 공통 헬퍼
+- admin.js 의 `_checkCrossPageDirty()` — focus/pageshow/storage 이벤트 listener (cross-page signal 처리)
+
+**향후 (3단계 React 마이그레이션)**:
+nanostores store + React 컴포넌트로 자동 reactive update. mutation 시 `$store.set(...)` 만 → UI 자동 갱신. mutationDone 호출 누락 가능성 0.
+
+---
+
 ## 🐞 에러 로그 — 옵션 A 룰 (2026-05-06 사장님 결정)
 
 자체 에러 로거 (`/api/admin-error-log` + admin 사이드바 🐞 무당벌레) 는 자동 작동:
