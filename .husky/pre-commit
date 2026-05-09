@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+# Phase Infra-1 (2026-05-09): pre-commit hook
+# - TypeScript type check (변경 코드 회귀 방지)
+# - Vitest 단위 테스트 (전체, ~7초)
+# 실패 시 commit 차단
+
+# 1. Type check (전체)
+npx tsc --noEmit
+TSC_RC=$?
+if [ $TSC_RC -ne 0 ]; then
+  echo "❌ TypeScript type check 실패. commit 차단."
+  exit 1
+fi
+
+# 2. Vitest 전체 (현재 ~7초)
+npm test --silent
+TEST_RC=$?
+if [ $TEST_RC -ne 0 ]; then
+  echo "❌ Vitest 단위 테스트 실패. commit 차단."
+  exit 1
+fi
+
+echo "✅ pre-commit 검증 통과"

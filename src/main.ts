@@ -11,6 +11,9 @@
  */
 
 import './styles/globals.css';
+/* Phase Infra-1 (2026-05-09): Sentry 자동 init (VITE_SENTRY_DSN 있을 때만) */
+import { initSentry } from './lib/sentry';
+initSentry();
 import { defineRoute, navigate, start, back, onNavigate, getCurrent } from './router';
 import {
   $roomMemoCache,

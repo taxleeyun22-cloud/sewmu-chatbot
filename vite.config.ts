@@ -1,7 +1,74 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
+import { execSync } from 'node:child_process';
+import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
+/**
+ * Phase Infra-1 (2026-05-09): 자동 cache busting plugin.
+ *
+ * 매 build 시점:
+ *   1. git commit short hash 가져옴 (예: "fda8bd2")
+ *   2. dist/ 안 모든 HTML 파일 의 `?v=숫자` 를 `?v=<hash>` 로 자동 교체
+ *   3. assets/ 안 .js / .css 도 query 없는 link 에 `?v=<hash>` 추가
+ *
+ * 사장님 효과:
+ *   - 매 commit 시 자동 cache bust (사용자 새로 받음)
+ *   - 같은 commit 재배포 시 cache 유지 (효율)
+ *   - 매번 수동 admin.js?v=185 → ?v=186 폐기
+ */
+function autoCacheBustPlugin(): Plugin {
+  let buildVersion = '';
+  return {
+    name: 'auto-cache-bust',
+    apply: 'build',
+    buildStart() {
+      try {
+        buildVersion = execSync('git rev-parse --short HEAD').toString().trim();
+      } catch {
+        // git 없을 때 fallback — timestamp
+        buildVersion = String(Date.now()).slice(-7);
+      }
+      console.log(`[auto-cache-bust] version = ${buildVersion}`);
+    },
+    closeBundle() {
+      const distDir = resolve(__dirname, 'dist');
+      let totalReplaced = 0;
+      let filesProcessed = 0;
+      function walk(dir: string) {
+        for (const entry of readdirSync(dir)) {
+          const p = join(dir, entry);
+          const st = statSync(p);
+          if (st.isDirectory()) {
+            walk(p);
+          } else if (entry.endsWith('.html')) {
+            let html = readFileSync(p, 'utf-8');
+            const before = html;
+            // 1) `?v=숫자` → `?v=<hash>`
+            html = html.replace(/\?v=[\w]+/g, `?v=${buildVersion}`);
+            // 2) `/assets/xxx.js` (query 없으면) → `/assets/xxx.js?v=<hash>` (vite hash output 대비)
+            //   단, 이미 `?v=` 있으면 위 룰에서 처리됨.
+            // 3) `/admin.js` 같은 root .js (query 없으면) → 동일
+            // 일단 1) 만 적용. 매 HTML 의 `?v=` 다 교체.
+            if (html !== before) {
+              writeFileSync(p, html);
+              totalReplaced += (before.match(/\?v=[\w]+/g) || []).length;
+              filesProcessed++;
+            }
+          }
+        }
+      }
+      try {
+        walk(distDir);
+        console.log(`[auto-cache-bust] ${filesProcessed} HTML 파일 처리, ?v=${buildVersion} 자동 적용 (${totalReplaced}곳)`);
+      } catch (e) {
+        console.warn('[auto-cache-bust] dist/ 처리 실패:', (e as Error).message);
+      }
+    },
+  };
+}
 
 /**
  * Phase 0 — 토대 구축 빌드 설정
@@ -50,6 +117,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    autoCacheBustPlugin(),
     viteStaticCopy({
       targets: [
         // HTML 6개 — byte-identical 복사 (Phase 2 에서 점진 분해)

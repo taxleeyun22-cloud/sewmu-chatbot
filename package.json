@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",
-    "ci": "npm run typecheck && npm run test && npm run build"
+    "ci": "npm run typecheck && npm run test && npm run build",
+    "prepare": "husky"
   },
   "engines": {
     "node": ">=20"
@@ -33,6 +34,8 @@
     "eslint-plugin-import": "^2.30.0",
     "globals": "^15.9.0",
     "happy-dom": "^15.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.3",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.2",
@@ -43,6 +46,8 @@
   },
   "dependencies": {
     "@nanostores/react": "^1.1.0",
+    "@sentry/browser": "^10.52.0",
+    "@sentry/react": "^10.52.0",
     "nanostores": "^0.11.3",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",

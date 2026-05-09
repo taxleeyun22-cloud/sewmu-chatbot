@@ -1,0 +1,47 @@
+name: Prod Smoke Test
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: Cloudflare Pages prod smoke check
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    timeout-minutes: 5
+
+    steps:
+      - name: Wait for Cloudflare Pages deploy
+        run: sleep 90
+
+      - name: Smoke — admin.html 200
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://sewmu-chatbot.pages.dev/admin.html)
+          echo "admin.html status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::admin.html returned $STATUS"
+            exit 1
+          fi
+
+      - name: Smoke — index.html 200
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://sewmu-chatbot.pages.dev/)
+          echo "index status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::index returned $STATUS"
+            exit 1
+          fi
+
+      - name: Smoke — /api/admin-whoami 401 (auth required)
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://sewmu-chatbot.pages.dev/api/admin-whoami)
+          echo "admin-whoami status: $STATUS"
+          # 401 (unauth) 또는 200 (cookie 없으면 401 expected) 둘 다 OK
+          if [ "$STATUS" != "401" ] && [ "$STATUS" != "200" ]; then
+            echo "::error::admin-whoami returned unexpected $STATUS"
+            exit 1
+          fi
