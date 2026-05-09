@@ -124,15 +124,87 @@ export default function BusinessDetailPage() {
         </dl>
       </section>
 
-      {/* 메모 / 문서 / 신고검토표 — 후속 phase */}
-      <section className="bg-white rounded-2xl p-5">
-        <h2 className="font-bold mb-3">📒 메모 / 📄 문서 / 📋 신고 검토표</h2>
-        <p className="text-sm text-gray-400">
-          Day 12 마이그레이션 — memos.list scope='business_all' / documents.list /
-          filings.list
-        </p>
-      </section>
+      {/* 메모 */}
+      <BusinessMemos businessId={id} />
+
+      {/* 신고 검토표 */}
+      <BusinessFilings businessId={id} />
     </div>
+  );
+}
+
+function BusinessMemos({ businessId }: { businessId: number }) {
+  const [memos, setMemos] = useState<
+    { id: number; content: string; due_date: string | null }[]
+  >([]);
+  useEffect(() => {
+    trpcCall<{ memos: typeof memos }>('memos.list', {
+      scope: 'business_all',
+      business_id: businessId,
+      limit: 50,
+    }).then((d) => setMemos(d.memos || []));
+  }, [businessId]);
+
+  return (
+    <section className="bg-white rounded-2xl p-5 mb-4">
+      <h2 className="font-bold mb-3">📒 메모 ({memos.length})</h2>
+      {memos.length === 0 ? (
+        <p className="text-sm text-gray-400">메모 없음</p>
+      ) : (
+        <ul className="space-y-2">
+          {memos.map((m) => (
+            <li key={m.id} className="text-sm border-b py-2 last:border-b-0">
+              {m.content}
+              {m.due_date && (
+                <span className="text-xs text-gray-500 ml-2">📅 {m.due_date}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function BusinessFilings({ businessId }: { businessId: number }) {
+  const [filings, setFilings] = useState<
+    {
+      id: number;
+      type: string | null;
+      fiscal_year: number | string;
+      review_status: string | null;
+    }[]
+  >([]);
+  useEffect(() => {
+    trpcCall<{ filings: typeof filings }>('filings.list', {
+      owner_type: 'Business',
+      owner_id: businessId,
+    }).then((d) => setFilings(d.filings || []));
+  }, [businessId]);
+
+  return (
+    <section className="bg-white rounded-2xl p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-bold">📋 신고 검토표 ({filings.length})</h2>
+        <button className="text-xs bg-brand-primary text-white px-3 py-1 rounded">
+          + 새 Case
+        </button>
+      </div>
+      {filings.length === 0 ? (
+        <p className="text-sm text-gray-400">신고 Case 없음</p>
+      ) : (
+        <ul className="space-y-2">
+          {filings.map((f) => (
+            <li key={f.id} className="text-sm border-b py-2 last:border-b-0">
+              [{f.fiscal_year}귀속] {f.type} —
+              <span className="ml-2 text-xs bg-gray-100 px-2 py-0.5 rounded">
+                {f.review_status || '작성중'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
