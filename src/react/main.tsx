@@ -28,6 +28,8 @@ import { SidebarStatusCount } from './components/SidebarStatusCount';
 import { SidebarAlertCount } from './components/SidebarAlertCount';
 /* Phase 3.1.B (2026-05-08): 사용자 list React 화 — admin.html #userList 자리 mount */
 import { UserList } from './components/UserList';
+/* Phase 3.2.B (2026-05-08): 업체 list React 화 — admin-modals.html #bizList 자리 mount */
+import { BusinessList } from './components/BusinessList';
 /* sidebar-store import — window.__sidebarStore 자동 활성화 (admin.js refreshSidebarCounts 가 사용) */
 import '../admin/state/sidebar-store';
 
@@ -140,6 +142,8 @@ function bootstrap() {
 
   /* Phase 3.1.B (2026-05-08): 사용자 list — admin-modals.html 안 #userList 자리 (retry 필요) */
   mountAtWithRetry('userList', () => <UserList />);
+  /* Phase 3.2.B (2026-05-08): 업체 list — admin-modals.html 안 #bizList 자리 (retry 필요) */
+  mountAtWithRetry('bizList', () => <BusinessList />);
 
   /* 거래처 dashboard 매출 차트 — data-user-id 속성 있으면 자동 mount.
    * 없으면 admin-customer-dash.js 가 openCustomerDashboard 시 window.__mountFinanceChart(userId) 호출. */
