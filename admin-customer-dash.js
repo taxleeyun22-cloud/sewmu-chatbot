@@ -71,12 +71,12 @@ async function openCustomerDashboard(userId, opts){
   if(!m)return;
   m.style.display='block';
   document.body.style.overflow='hidden';
-  /* Phase 3.4.B (2026-05-08): React CdName/CdSub 가 store 자동 reactive — textContent 조작 skip if mount */
+  /* Phase 3.4.B/C (2026-05-08): React CdName/CdSub/CdBasic 가 store 자동 reactive — DOM 조작 skip if mount */
   if(!window.__dashboardStore){
     $g('cdName').textContent='불러오는 중...';
     $g('cdSub').textContent='';
+    $g('cdBasic').innerHTML='…';
   }
-  $g('cdBasic').innerHTML='…';
   $g('cdDocs').innerHTML='…';
   $g('cdFinance').innerHTML='…';
   $g('cdBizDocs').innerHTML='…';
@@ -117,26 +117,26 @@ async function openCustomerDashboard(userId, opts){
         });
       }
     } catch(_){}
-    /* Phase 3.4.B fallback (React 미로드 시) — 기존 textContent / innerHTML 직접 */
+    /* Phase 3.4.B/C fallback (React 미로드 시) — 기존 textContent / innerHTML 직접 */
     if(!window.__dashboardStore){
       $g('cdName').textContent=nm;
       const priColor={1:'#dc2626',2:'#f59e0b',3:'#10b981'}[pri]||'#9ca3af';
       const priLabel=pri>0?pri+'순위':'미분류';
       $g('cdPriority').innerHTML='<span style="background:'+priColor+';color:#fff;padding:4px 10px;border-radius:14px;font-size:.74em;font-weight:700">'+priLabel+'</span>';
       $g('cdSub').textContent=(u?((u.phone||'연락처 미등록')+' · '+(u.provider||'')+' 로그인'):'')+' · '+(u?(u.approval_status==='approved_client'?'🏢 기장거래처':u.approval_status==='approved_guest'?'✅ 일반':'⏳ '+(u.approval_status||'pending')):'');
+      /* Phase 3.4.C fallback: cdBasic 기본 정보 그리드 (React 미로드 시) */
+      const birthStr=(u&&u.birth_date)?String(u.birth_date).slice(0,10):'';
+      $g('cdBasic').innerHTML=''
+        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+        +'  <span style="font-size:.78em;color:#6b7280">기본 정보</span>'
+        +'  <button onclick="openEditUserInfoModal('+(u&&u.id?u.id:0)+')" style="background:#eff6ff;color:#1e40af;border:1px solid #3b82f6;padding:3px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit">✏️ 수정</button>'
+        +'</div>'
+        +'<div>이름: <b>'+e(nm)+'</b></div>'
+        +'<div>연락처: '+e((u&&u.phone)||'미등록')+'</div>'
+        +'<div>생년월일: '+e(birthStr||'미등록')+'</div>'
+        +(u&&u.email?'<div>이메일: '+e(u.email)+'</div>':'')
+        +'<div>가입: '+e((u&&u.created_at||'').slice(0,10))+'</div>';
     }
-    /* 기본 정보 — 사장님 명령 (2026-05-07): 이름·연락처·생년월일 표시 + 수정 버튼 */
-    const birthStr=(u&&u.birth_date)?String(u.birth_date).slice(0,10):'';
-    $g('cdBasic').innerHTML=''
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-      +'  <span style="font-size:.78em;color:#6b7280">기본 정보</span>'
-      +'  <button onclick="openEditUserInfoModal('+(u&&u.id?u.id:0)+')" style="background:#eff6ff;color:#1e40af;border:1px solid #3b82f6;padding:3px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit">✏️ 수정</button>'
-      +'</div>'
-      +'<div>이름: <b>'+e(nm)+'</b></div>'
-      +'<div>연락처: '+e((u&&u.phone)||'미등록')+'</div>'
-      +'<div>생년월일: '+e(birthStr||'미등록')+'</div>'
-      +(u&&u.email?'<div>이메일: '+e(u.email)+'</div>':'')
-      +'<div>가입: '+e((u&&u.created_at||'').slice(0,10))+'</div>';
     /* 문서 현황 */
     const counts=docsRes.counts||{};
     const fmt=v=>(Number(v)||0).toLocaleString('ko-KR');
@@ -266,10 +266,12 @@ async function openCustomerDashboard(userId, opts){
       if(reviewBox) _filRenderListInto(reviewBox, 'Person', userId, nm);
     }
   }catch(err){
-    /* Phase 3.4.B (2026-05-08): React 사용 시 setError 로 store 갱신, 미사용 시 fallback */
+    /* Phase 3.4.B/C (2026-05-08): React 사용 시 setError 로 store 갱신 (CdName + CdBasic 자동 표시), 미사용 시 fallback */
     if(window.__dashboardStore) { try { window.__dashboardStore.setError(err.message||'unknown'); } catch(_){} }
-    else $g('cdName').textContent='오류';
-    $g('cdBasic').innerHTML='<div style="color:#f04452">로드 실패: '+e(err.message)+'</div>';
+    else {
+      $g('cdName').textContent='오류';
+      $g('cdBasic').innerHTML='<div style="color:#f04452">로드 실패: '+e(err.message)+'</div>';
+    }
   }
 }
 

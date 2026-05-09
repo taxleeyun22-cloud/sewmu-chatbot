@@ -36,6 +36,8 @@ import { CdMemoCount } from './components/CdMemoCount';
 import { CdMemoList } from './components/CdMemoList';
 /* Phase 3.4.B (2026-05-08): 거래처 dashboard 헤더 (cdName / cdSub / cdPriority) React */
 import { CdName, CdSub, CdPriority } from './components/CdHeader';
+/* Phase 3.4.C (2026-05-08): 거래처 dashboard 기본 정보 (cdBasic) React */
+import { CdBasic } from './components/CdBasic';
 /* sidebar-store import — window.__sidebarStore 자동 활성화 (admin.js refreshSidebarCounts 가 사용) */
 import '../admin/state/sidebar-store';
 
@@ -161,6 +163,9 @@ function bootstrap() {
   mountAtWithRetry('cd-name-mount', () => <CdName />);
   mountAtWithRetry('cd-sub-mount', () => <CdSub />);
   mountAtWithRetry('cd-priority-mount', () => <CdPriority />);
+
+  /* Phase 3.4.C (2026-05-08): 거래처 dashboard 기본 정보 — admin-modals.html 안 #cdBasic (retry) */
+  mountAtWithRetry('cdBasic', () => <CdBasic />);
 
   /* 거래처 dashboard 매출 차트 — data-user-id 속성 있으면 자동 mount.
    * 없으면 admin-customer-dash.js 가 openCustomerDashboard 시 window.__mountFinanceChart(userId) 호출. */
