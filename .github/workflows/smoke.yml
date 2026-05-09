@@ -7,29 +7,34 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# 사장님 결정 (2026-05-09 21:42): smoke test 실패 알림 폭주 → manual 만 실행
+# CI 성공 시 자동 실행 비활성. 필요 시 GitHub Actions UI 에서 "Run workflow" 수동 실행.
+
 jobs:
   smoke:
     name: Cloudflare Pages prod smoke check
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    # workflow_dispatch (수동) 만 실행 — 자동 실행 비활성
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     timeout-minutes: 5
 
     steps:
       - name: Wait for Cloudflare Pages deploy
         run: sleep 90
 
-      - name: Smoke — admin.html 200
+      - name: Smoke — admin (308 redirect OK)
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://sewmu-chatbot.pages.dev/admin.html)
-          echo "admin.html status: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "::error::admin.html returned $STATUS"
+          # curl -L 으로 redirect 따라가서 최종 status 확인
+          STATUS=$(curl -s -L -o /dev/null -w "%{http_code}" https://sewmu-chatbot.pages.dev/admin.html)
+          echo "admin status: $STATUS"
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "308" ]; then
+            echo "::error::admin returned unexpected $STATUS"
             exit 1
           fi
 
-      - name: Smoke — index.html 200
+      - name: Smoke — index 200
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://sewmu-chatbot.pages.dev/)
+          STATUS=$(curl -s -L -o /dev/null -w "%{http_code}" https://sewmu-chatbot.pages.dev/)
           echo "index status: $STATUS"
           if [ "$STATUS" != "200" ]; then
             echo "::error::index returned $STATUS"
@@ -40,7 +45,6 @@ jobs:
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://sewmu-chatbot.pages.dev/api/admin-whoami)
           echo "admin-whoami status: $STATUS"
-          # 401 (unauth) 또는 200 (cookie 없으면 401 expected) 둘 다 OK
           if [ "$STATUS" != "401" ] && [ "$STATUS" != "200" ]; then
             echo "::error::admin-whoami returned unexpected $STATUS"
             exit 1
