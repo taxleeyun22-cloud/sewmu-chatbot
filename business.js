@@ -163,19 +163,31 @@
           } catch (_) { return ''; }
         }).join('');
       }
-      /* 상담방 */
-      if (!rooms.length) {
-        $('roomList').innerHTML = '<div class="empty">연결된 상담방 없음</div>';
-      } else {
-        $('roomList').innerHTML = rooms.map(function(r){
-          try {
-            const stClosed = r.status === 'closed' ? ' <span style="color:#9ca3af;font-size:.78em">종료</span>' : '';
-            return '<div class="room-row" onclick="location.href=\'/admin.html#rooms?room_id=' + encodeURIComponent(r.id) + '\'">'
-              + '<div style="flex:1"><b>' + e(r.name || r.id) + '</b>' + stClosed
-              + '<div style="font-size:.72em;color:#8b95a1">ID: ' + e(r.id) + '</div></div>'
-              + '<div style="color:#3182f6">›</div></div>';
-          } catch (_) { return ''; }
-        }).join('');
+      /* 상담방 — Phase 3.6 (2026-05-08): biz-rooms-store 갱신 → React BizRoomList 자동 reactive.
+       * React 가 mount 되어 있으면 store 만 갱신 (innerHTML 0 — React 가 처리).
+       * React 미로드 (구버전 캐시 / main.js 로드 실패 등) 시 fallback — 기존 innerHTML. */
+      const hasReactStore = !!(window.__bizRoomsStore);
+      try {
+        if (hasReactStore) {
+          window.__bizRoomsStore.setList(bid, rooms);
+        }
+      } catch (_) {}
+      const bizRoomEl = $('bizRoomList');
+      if (bizRoomEl && !hasReactStore) {
+        /* React 미작동 시 fallback — 기존 markup 그대로 유지 */
+        if (!rooms.length) {
+          bizRoomEl.innerHTML = '<div class="empty">연결된 상담방 없음</div>';
+        } else {
+          bizRoomEl.innerHTML = rooms.map(function(r){
+            try {
+              const stClosed = r.status === 'closed' ? ' <span style="color:#9ca3af;font-size:.78em">종료</span>' : '';
+              return '<div class="room-row" onclick="location.href=\'/admin.html#rooms?room_id=' + encodeURIComponent(r.id) + '\'">'
+                + '<div style="flex:1"><b>' + e(r.name || r.id) + '</b>' + stClosed
+                + '<div style="font-size:.72em;color:#8b95a1">ID: ' + e(r.id) + '</div></div>'
+                + '<div style="color:#3182f6">›</div></div>';
+            } catch (_) { return ''; }
+          }).join('');
+        }
       }
     })
     .catch(function(err){
