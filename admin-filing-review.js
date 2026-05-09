@@ -869,38 +869,63 @@ function filingPrint() {
 /* dashboard 통합용 — Person/Business 페이지에서 호출.
  * 1. _filReloadList(ownerType, ownerId) — list refresh
  * 2. _filRenderListInto(containerEl, ownerType, ownerId, ownerName) — 그 영역 렌더 */
+/* Phase 3.14 (2026-05-09): _buildFilingReviewListHtml — store 에서 읽어 HTML 빌드.
+ * React FilingReviewList 가 store 변경 시 호출 → reactive update. */
+function _buildFilingReviewListHtml() {
+  if (!window.__filingReviewStore) return '';
+  const s = window.__filingReviewStore.get();
+  if (!s.ownerType || !s.ownerId) return '';
+  const ownerType = s.ownerType;
+  const ownerId = s.ownerId;
+  const ownerName = s.ownerName || '';
+  const list = s.filings || [];
+  let html = '';
+  /* 신규 버튼 */
+  html += '<button onclick="openFilingNew(\'' + ownerType + '\',' + ownerId + ',\'' + _filEsc(ownerName).replace(/\'/g, '') + '\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">+ 새 ' + (ownerType === 'Person' ? '종소세' : '법인세') + ' Case</button>';
+  if (!list.length) {
+    html += '<div style="color:#9ca3af;padding:8px 0;font-size:.85em">신고 Case 가 없습니다.</div>';
+  } else {
+    html += list.map(f => {
+      const af = (function () { try { return JSON.parse(f.auto_fields || '{}'); } catch { return {}; } })();
+      const stColor = { '작성중': '#9ca3af', '결재대기': '#f59e0b', '보관완료': '#10b981' }[f.review_status] || '#9ca3af';
+      const rev = af.revenue || 0;
+      const dec = af.decisive_tax || 0;
+      const eff = rev ? _filEffRate(dec, rev) : '—';
+      return '<div onclick="openFilingDetail(' + f.id + ')" style="padding:10px 12px;background:#fff;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;justify-content:space-between" onmouseenter="this.style.background=\'#f0f9ff\'" onmouseleave="this.style.background=\'#fff\'">'
+        + '<div style="flex:1;min-width:0">'
+        + '<div style="font-size:.86em;font-weight:600">[' + f.fiscal_year + '귀속] <span style="background:' + stColor + ';color:#fff;font-size:.74em;padding:2px 8px;border-radius:99px;font-weight:700;margin-left:4px">' + _filEsc(f.review_status) + '</span></div>'
+        + '<div style="font-size:.74em;color:#6b7280;margin-top:3px">' + _filEsc(f.type) + ' · 수입 ' + (rev ? _filFormatNum(rev) + '원' : '—') + ' · 결정세액 ' + (dec ? _filFormatNum(dec) + '원' : '—') + ' · 실효세율 ' + eff + '</div>'
+        + '</div>'
+        + '<span style="color:#3182f6;font-size:1.2em">›</span>'
+        + '</div>';
+    }).join('');
+  }
+  return html;
+}
+try { window.__buildFilingReviewListHtml = _buildFilingReviewListHtml; } catch(_){}
+
 async function _filRenderListInto(containerEl, ownerType, ownerId, ownerName) {
   if (!containerEl) return;
-  containerEl.innerHTML = '<div style="color:#9ca3af;padding:10px 0;font-size:.85em">불러오는 중...</div>';
+  /* Phase 3.14 (2026-05-09): store loading 시작 */
+  try { if (window.__filingReviewStore) window.__filingReviewStore.setLoading(ownerType, ownerId, ownerName); } catch(_){}
+  if (!window.__filingReviewStore) {
+    containerEl.innerHTML = '<div style="color:#9ca3af;padding:10px 0;font-size:.85em">불러오는 중...</div>';
+  }
   try {
     const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(_filGetKey()) + '&owner_type=' + ownerType + '&owner_id=' + ownerId);
     const d = await r.json();
     const list = d.filings || [];
-    let html = '';
-    /* 신규 버튼 */
-    html += '<button onclick="openFilingNew(\'' + ownerType + '\',' + ownerId + ',\'' + _filEsc(ownerName).replace(/\'/g, '') + '\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">+ 새 ' + (ownerType === 'Person' ? '종소세' : '법인세') + ' Case</button>';
-    /* list */
-    if (!list.length) {
-      html += '<div style="color:#9ca3af;padding:8px 0;font-size:.85em">신고 Case 가 없습니다.</div>';
-    } else {
-      html += list.map(f => {
-        const af = (function () { try { return JSON.parse(f.auto_fields || '{}'); } catch { return {}; } })();
-        const stColor = { '작성중': '#9ca3af', '결재대기': '#f59e0b', '보관완료': '#10b981' }[f.review_status] || '#9ca3af';
-        const rev = af.revenue || 0;
-        const dec = af.decisive_tax || 0;
-        const eff = rev ? _filEffRate(dec, rev) : '—';
-        return '<div onclick="openFilingDetail(' + f.id + ')" style="padding:10px 12px;background:#fff;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;justify-content:space-between" onmouseenter="this.style.background=\'#f0f9ff\'" onmouseleave="this.style.background=\'#fff\'">'
-          + '<div style="flex:1;min-width:0">'
-          + '<div style="font-size:.86em;font-weight:600">[' + f.fiscal_year + '귀속] <span style="background:' + stColor + ';color:#fff;font-size:.74em;padding:2px 8px;border-radius:99px;font-weight:700;margin-left:4px">' + _filEsc(f.review_status) + '</span></div>'
-          + '<div style="font-size:.74em;color:#6b7280;margin-top:3px">' + _filEsc(f.type) + ' · 수입 ' + (rev ? _filFormatNum(rev) + '원' : '—') + ' · 결정세액 ' + (dec ? _filFormatNum(dec) + '원' : '—') + ' · 실효세율 ' + eff + '</div>'
-          + '</div>'
-          + '<span style="color:#3182f6;font-size:1.2em">›</span>'
-          + '</div>';
-      }).join('');
+    /* Phase 3.14: store 갱신 — React FilingReviewList 자동 reactive */
+    try { if (window.__filingReviewStore) window.__filingReviewStore.setList(ownerType, ownerId, list, ownerName); } catch(_){}
+    /* React 미작동 시 fallback */
+    if (!window.__filingReviewStore) {
+      containerEl.innerHTML = _buildFilingReviewListHtml() || '<div style="color:#9ca3af">데이터 없음</div>';
     }
-    containerEl.innerHTML = html;
   } catch (err) {
-    containerEl.innerHTML = '<div style="color:#f04452;padding:8px;font-size:.82em">오류: ' + _filEsc(err.message) + '</div>';
+    try { if (window.__filingReviewStore) window.__filingReviewStore.setError(err.message || 'unknown'); } catch(_){}
+    if (!window.__filingReviewStore) {
+      containerEl.innerHTML = '<div style="color:#f04452;padding:8px;font-size:.82em">오류: ' + _filEsc(err.message) + '</div>';
+    }
   }
 }
 

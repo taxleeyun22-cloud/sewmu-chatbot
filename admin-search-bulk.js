@@ -33,7 +33,183 @@ function onSearchInput(){
   if(searchTimer)clearTimeout(searchTimer);
   searchTimer=setTimeout(doSearch,300);
 }
+/* Phase 3.13 (2026-05-09): _buildSearchResultsHtml — store 에서 읽어 HTML 빌드.
+ * React SearchResults 가 store 변경 시 호출 → reactive update. */
+function _buildSearchResultsHtml(){
+  if(!window.__searchStore) return '';
+  const s = window.__searchStore.get();
+  const q = s.query || '';
+  const d = s.results || {};
+  if(q.length<2){
+    return '<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 0">2자 이상 입력하세요</div>';
+  }
+  if(s.loading){
+    return '<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 0">검색 중...</div>';
+  }
+  if(s.error){
+    return '<div style="color:#f04452;font-size:.85em;padding:20px 0">오류: '+e(s.error)+'</div>';
+  }
+  if(s.totalN===0){
+    return '<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 0">"'+e(q)+'"에 대한 검색 결과가 없습니다</div>';
+  }
+  let html='';
+  if(d.users&&d.users.length){
+    html+='<div class="sr-group"><div class="sr-title">👤 사용자 '+d.users.length+'명</div>';
+    html+=d.users.map(function(u){
+      const nm=u.real_name||u.name||'이름없음';
+      const badge=u.is_admin?' <span style="background:#8b6914;color:#fff;font-size:.65em;padding:1px 5px;border-radius:4px;font-weight:700">👑</span>':'';
+      const st=u.approval_status||'pending';
+      return '<div class="sr-item" onclick="jumpToUser('+u.id+')"><b>'+e(nm)+'</b>'+badge+'<div class="sr-sub">'+e(u.email||'')+' · '+e(u.phone||'')+' · '+e(st)+'</div></div>';
+    }).join('');
+    html+='</div>';
+  }
+  if(d.rooms&&d.rooms.length){
+    html+='<div class="sr-group"><div class="sr-title">💬 상담방 '+d.rooms.length+'개</div>';
+    html+=d.rooms.map(function(r){
+      const st=r.status==='closed'?' <span style="color:#8b95a1;font-size:.72em">(종료)</span>':'';
+      return '<div class="sr-item" onclick="jumpToRoom(\''+e(r.id).replace(/\'/g,'')+'\')"><b>'+e(r.name||'상담방')+'</b>'+st+'<div class="sr-sub">ID: '+e(r.id)+' · 메시지 '+(r.msg_count||0)+'건 · '+e(r.created_at||'')+'</div></div>';
+    }).join('');
+    html+='</div>';
+  }
+  if(d.room_messages&&d.room_messages.length){
+    html+='<div class="sr-group"><div class="sr-title">📨 상담방 메시지 '+d.room_messages.length+'건</div>';
+    html+=d.room_messages.map(function(m){
+      const who=m.role==='human_advisor'?'👨‍💼 세무사':m.role==='assistant'?'🤖 AI':'👤 '+(m.real_name||m.name||'사용자');
+      const snip=String(m.content||'').slice(0,120);
+      return '<div class="sr-item" onclick="jumpToRoom(\''+e(m.room_id).replace(/\'/g,'')+'\')"><b>'+e(m.room_name||m.room_id)+'</b> · '+who+'<div class="sr-sub">'+e(snip)+(m.content&&m.content.length>120?'…':'')+'</div><div class="sr-sub" style="color:#c6cdd2">'+e(m.created_at||'')+'</div></div>';
+    }).join('');
+    html+='</div>';
+  }
+  if(d.conversations&&d.conversations.length){
+    html+='<div class="sr-group"><div class="sr-title">💭 일반 대화 '+d.conversations.length+'건</div>';
+    html+=d.conversations.map(function(m){
+      const who=m.role==='assistant'?'🤖 AI'+(m.confidence?'['+e(m.confidence)+']':''):'👤 '+(m.real_name||m.name||'사용자');
+      const snip=String(m.content||'').slice(0,120);
+      return '<div class="sr-item" onclick="jumpToConversation(\''+e(m.session_id).replace(/\'/g,'')+'\')">'+who+'<div class="sr-sub">'+e(snip)+(m.content&&m.content.length>120?'…':'')+'</div><div class="sr-sub" style="color:#c6cdd2">'+e(m.created_at||'')+'</div></div>';
+    }).join('');
+    html+='</div>';
+  }
+  if(d.memos&&d.memos.length){
+    html+='<div class="sr-group"><div class="sr-title">📝 메모 '+d.memos.length+'건</div>';
+    html+=d.memos.map(function(m){
+      try{
+        let where='', jumpFn='';
+        if(m.target_business_id){
+          where='[🏢 '+e(m.target_business_name||'#'+m.target_business_id)+']';
+          jumpFn='location.href=\'/business.html?id='+m.target_business_id+'&key=\'+encodeURIComponent(KEY)';
+        } else if(m.target_user_id){
+          where='[👤 '+e(m.target_user_real_name||m.target_user_name||'#'+m.target_user_id)+']';
+          jumpFn='closeSearchModal();openCustomerDashboard('+m.target_user_id+')';
+        } else if(m.room_id && m.room_id !== '__none__'){
+          where='[💬 '+e(m.room_name||m.room_id)+']';
+          jumpFn='jumpToRoom(\''+e(m.room_id).replace(/\'/g,'')+'\')';
+        } else {
+          where='[📌 분류 없음]';
+          jumpFn='void(0)';
+        }
+        const tp=m.memo_type?' <span style="background:#eef2ff;color:#3730a3;font-size:.7em;padding:1px 6px;border-radius:4px;margin-left:4px">'+e(m.memo_type)+'</span>':'';
+        const due=m.due_date?' <span style="color:#dc2626;font-size:.72em;margin-left:4px">📅 '+e(m.due_date)+'</span>':'';
+        const by=m.author_name?' · '+e(m.author_name):'';
+        const snip=String(m.content||'').slice(0,140);
+        return '<div class="sr-item" onclick="'+jumpFn+'"><b>'+where+'</b>'+tp+due+'<div class="sr-sub">'+e(snip)+(m.content&&m.content.length>140?'…':'')+'</div><div class="sr-sub" style="color:#c6cdd2">'+e((m.created_at||'').slice(0,16))+by+'</div></div>';
+      }catch(_){return ''}
+    }).join('');
+    html+='</div>';
+  }
+  if(d.businesses&&d.businesses.length){
+    html+='<div class="sr-group"><div class="sr-title">🏢 사업장 '+d.businesses.length+'개</div>';
+    html+=d.businesses.map(function(b){
+      try{
+        const meta=[
+          b.business_number?'#'+b.business_number:'',
+          b.ceo_name?'대표 '+b.ceo_name:'',
+          b.company_form||'',
+          b.business_category||'',
+          b.industry||''
+        ].filter(Boolean).join(' · ');
+        const stClosed=b.status==='closed'?' <span style="color:#9ca3af;font-size:.72em">(종료)</span>':'';
+        return '<div class="sr-item" onclick="jumpToBusiness('+b.id+')"><b>'+e(b.company_name||'#'+b.id)+'</b>'+stClosed+'<div class="sr-sub">'+e(meta)+'</div></div>';
+      }catch(_){return ''}
+    }).join('');
+    html+='</div>';
+  }
+  if(d.documents&&d.documents.length){
+    const TY={receipt:'영수증',lease:'임대차',payroll:'근로',freelancer_payment:'프리랜서',tax_invoice:'세금계산서',insurance:'보험',utility:'공과금',property_tax:'지방세',bank_stmt:'은행내역',business_reg:'사업자등록증',identity:'신분증',contract:'계약서',other:'기타'};
+    const ST={pending:'⏳',approved:'✅',rejected:'❌'};
+    html+='<div class="sr-group"><div class="sr-title">📋 문서 '+d.documents.length+'건</div>';
+    html+=d.documents.map(function(doc){
+      try{
+        const dt=(doc.created_at||'').slice(0,10);
+        const tp=TY[doc.doc_type]||doc.doc_type||'문서';
+        const st=ST[doc.status]||'';
+        const v=doc.vendor||doc.real_name||doc.name||'';
+        const amt=doc.amount?(Number(doc.amount).toLocaleString('ko-KR')+'원'):'';
+        const cat=doc.category?' · '+e(doc.category):'';
+        return '<div class="sr-item" onclick="jumpToDocument('+doc.id+')"><b>'+st+' '+e(tp)+'</b> '+e(dt)+(v?' · '+e(v):'')+(amt?' · '+e(amt):'')+cat+'</div>';
+      }catch(_){return ''}
+    }).join('');
+    html+='</div>';
+  }
+  return html;
+}
+try { window.__buildSearchResultsHtml = _buildSearchResultsHtml; } catch(_){}
+
 async function doSearch(){
+  const q=$g('searchInput').value.trim();
+  const el=$g('searchResults');
+  /* Phase 3.13 (2026-05-09): query 변경 즉시 store 갱신 → React 자동 reactive */
+  if(q.length<2){
+    try { if(window.__searchStore) window.__searchStore.setResults(q, {}); } catch(_){}
+    if(!window.__searchStore){
+      el.innerHTML='<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 0">2자 이상 입력하세요</div>';
+    }
+    return;
+  }
+  /* loading 상태 store */
+  try { if(window.__searchStore) window.__searchStore.setLoading(q); } catch(_){}
+  if(!window.__searchStore){
+    el.innerHTML='<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 0">검색 중...</div>';
+  }
+  try{
+    const r=await fetch('/api/admin-search?key='+encodeURIComponent(KEY)+'&q='+encodeURIComponent(q));
+    const d=await r.json();
+    if(d.error){
+      try { if(window.__searchStore) window.__searchStore.setError(d.error); } catch(_){}
+      if(!window.__searchStore){
+        el.innerHTML='<div style="color:#f04452;font-size:.85em;padding:20px 0">오류: '+e(d.error)+'</div>';
+      }
+      return;
+    }
+    /* Phase 3.13: store 갱신 — totalN 자동 계산. React 자동 reactive */
+    try { if(window.__searchStore) window.__searchStore.setResults(q, d); } catch(_){}
+    /* React 미작동 시 fallback */
+    if(!window.__searchStore){
+      el.innerHTML = _buildSearchResultsHtml() || _legacySearchResultsHtml(q, d);
+    }
+    return;
+  }catch(err){
+    try { if(window.__searchStore) window.__searchStore.setError(err.message||'unknown'); } catch(_){}
+    if(!window.__searchStore){
+      el.innerHTML='<div style="color:#f04452;font-size:.85em;padding:20px 0">오류: '+e(err.message)+'</div>';
+    }
+    return;
+  }
+}
+
+/* Phase 3.13 (2026-05-09): legacy fallback — React 미로드 시 직접 HTML 빌드 (구버전 호환). */
+function _legacySearchResultsHtml(q, d){
+  /* 임시 store 안 돌리고 빌드 — _buildSearchResultsHtml 와 동일한 마크업.
+   * 실제로 React 가 로드되면 이 path 안 탐. 단순 인라인 fallback 만 유지. */
+  const totalN=(d.users||[]).length+(d.conversations||[]).length+(d.rooms||[]).length
+    +(d.room_messages||[]).length+(d.memos||[]).length+(d.businesses||[]).length+(d.documents||[]).length;
+  if(totalN===0){
+    return '<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 0">"'+e(q)+'"에 대한 검색 결과가 없습니다</div>';
+  }
+  return '<div style="color:#8b95a1;font-size:.85em;padding:20px 0">결과 '+totalN+'건 — React 로드 필요</div>';
+}
+
+async function _doSearch_legacy_unused(){
+  /* legacy 본체 — Phase 3.13 이후 사용 안 함. 보존만 (필요 시 참조). */
   const q=$g('searchInput').value.trim();
   const el=$g('searchResults');
   if(q.length<2){el.innerHTML='<div style="text-align:center;color:#8b95a1;font-size:.85em;padding:40px 0">2자 이상 입력하세요</div>';return}
@@ -43,9 +219,6 @@ async function doSearch(){
     const d=await r.json();
     if(d.error){el.innerHTML='<div style="color:#f04452;font-size:.85em;padding:20px 0">오류: '+e(d.error)+'</div>';return}
     let html='';
-    /* 버그 fix (2026-05-07 사장님 보고): memos / businesses / documents 가 totalN 에서 빠져
-       backend 결과 있어도 "결과 없음" 표시 + return → 메모/업체/문서 렌더 안 됨.
-       해결: 모든 result group 합산. */
     const totalN=(d.users||[]).length
                  +(d.conversations||[]).length
                  +(d.rooms||[]).length

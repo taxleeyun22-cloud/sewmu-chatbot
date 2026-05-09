@@ -46,6 +46,18 @@ import { RoomChatTitle, RoomStatusBtn, RoomMembers } from './components/RoomHead
 import { CdFilings } from './components/CdFilings';
 /* Phase 3.10 (2026-05-09): filings-store import */
 import '../admin/state/filings-store';
+/* Phase 3.12 (2026-05-09): 상담방 첨부 대기열 React */
+import { RoomAttachPreview } from './components/RoomAttachPreview';
+/* Phase 3.12 (2026-05-09): attachments-store import */
+import '../admin/state/attachments-store';
+/* Phase 3.13 (2026-05-09): 전역 검색 결과 React */
+import { SearchResults } from './components/SearchResults';
+/* Phase 3.13 (2026-05-09): search-store import */
+import '../admin/state/search-store';
+/* Phase 3.14 (2026-05-09): 신고 검토표 React */
+import { FilingReviewList } from './components/FilingReviewList';
+/* Phase 3.14 (2026-05-09): filing-review-store import */
+import '../admin/state/filing-review-store';
 /* Phase 3.3.A (2026-05-08): 거래처 dashboard 메모 카운트 React 화 */
 import { CdMemoCount } from './components/CdMemoCount';
 /* Phase 3.3.B (2026-05-08): 거래처 dashboard 메모 list React 화 */
@@ -196,6 +208,17 @@ function bootstrap() {
 
   /* Phase 3.10 (2026-05-09): 거래처 dashboard 신고 Case React (#cdFilings) */
   mountAtWithRetry('cdFilings', () => <CdFilings />);
+
+  /* Phase 3.12 (2026-05-09): 상담방 첨부 대기열 React (#roomAttachPreview) */
+  mountAtWithRetry('roomAttachPreview', () => <RoomAttachPreview />);
+
+  /* Phase 3.13 (2026-05-09): 전역 검색 결과 React (#searchResults) */
+  mountAtWithRetry('searchResults', () => <SearchResults />);
+
+  /* Phase 3.14 (2026-05-09): 신고 검토표 list React (cdFilingsReview / bdFilingsReview).
+   * 같은 컴포넌트 mount 2곳, 자기 owner type 가드 — 다른 dashboard 데이터면 안 보임. */
+  mountAtWithRetry('cdFilingsReview', () => <FilingReviewList expectedType="Person" />);
+  mountAtWithRetry('bdFilingsReview', () => <FilingReviewList expectedType="Business" />);
 
   /* Phase 3.3.A (2026-05-08): 거래처 dashboard 메모 카운트 — admin-modals.html 안 (retry 필요) */
   mountAtWithRetry('cd-memo-count-mount', () => <CdMemoCount />);

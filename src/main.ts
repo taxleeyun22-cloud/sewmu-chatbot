@@ -67,6 +67,12 @@ import './admin/state/biz-rooms-store';
 import './admin/state/messages-store';
 /* Phase 3.10 (2026-05-09): 거래처 dashboard 신고 Case nanostore — window.__filingsStore 자동 노출 */
 import './admin/state/filings-store';
+/* Phase 3.12 (2026-05-09): 상담방 첨부 대기열 nanostore — window.__attachmentsStore 자동 노출 */
+import './admin/state/attachments-store';
+/* Phase 3.13 (2026-05-09): 전역 검색 결과 nanostore — window.__searchStore 자동 노출 */
+import './admin/state/search-store';
+/* Phase 3.14 (2026-05-09): 신고 검토표 nanostore — window.__filingReviewStore 자동 노출 */
+import './admin/state/filing-review-store';
 
 /* Phase #7 적용 확장 (B, 2026-05-06): tab 변경 broadcast — admin.js tab() 호출 시
  * 다른 모듈 (admin-memos / admin-rooms / 등) 이 자동 알림 받기. */

@@ -139,7 +139,10 @@ function doReplyTo(mid,sender,text){
   if(_pendingAttachments && _pendingAttachments.length){
     if(!confirm('첨부한 사진이 있습니다. 답장을 하려면 첨부를 취소해야 합니다. 계속할까요?')){hideMsgCtxMenu();return}
     _pendingAttachments.forEach(p=>{try{URL.revokeObjectURL(p.previewUrl)}catch(_){}});
-    _pendingAttachments=[];_renderPendingAttachments();
+    _pendingAttachments=[];
+    /* Phase 3.12 (2026-05-09): store clear */
+    try { if(window.__attachmentsStore) window.__attachmentsStore.clear(); } catch(_){}
+    _renderPendingAttachments();
   }
   roomReplyingTo={mid:mid, sender:sender, text:String(text).slice(0,100)};
   const bar=$g('roomReplyBar');
@@ -342,7 +345,10 @@ async function sendRoomMessage(){
   }
   const replyMeta = roomReplyingTo ? {t:roomReplyingTo.text, s:roomReplyingTo.sender, i:roomReplyingTo.mid} : null;
   input.value='';input.style.height='auto';
-  _pendingAttachments=[];_renderPendingAttachments();
+  _pendingAttachments=[];
+  /* Phase 3.12 (2026-05-09): store clear */
+  try { if(window.__attachmentsStore) window.__attachmentsStore.clear(); } catch(_){}
+  _renderPendingAttachments();
   cancelRoomReply();
   adminForceScrollOnNext=true;
 
@@ -391,8 +397,13 @@ async function sendRoomMessage(){
   }catch(err){alert('오류: '+err.message)}
 }
 
-/* ===== 첨부 대기열 프리뷰 ===== */
+/* ===== 첨부 대기열 프리뷰 =====
+ * Phase 3.12 (2026-05-09): React RoomAttachPreview + attachments-store 자동 reactive.
+ * _pendingAttachments 배열은 호환 유지 (sendRoomMessage 등이 직접 참조).
+ * store 와 _pendingAttachments 양쪽 동시 유지 — store 가 React 렌더, _pendingAttachments 가 send 시 사용. */
 function _renderPendingAttachments(){
+  /* React 활성 시 — RoomAttachPreview 자동 reactive. fallback (React 미로드) 시만 직접 DOM 조작 */
+  if(window.__attachmentsStore) return;
   let bar=document.getElementById('roomAttachPreview');
   if(_pendingAttachments.length===0){if(bar)bar.style.display='none';return}
   if(!bar){
@@ -414,15 +425,22 @@ function _removePendingAttach(i){
   const a=_pendingAttachments[i];
   if(a && a.previewUrl){try{URL.revokeObjectURL(a.previewUrl)}catch(_){}}
   _pendingAttachments.splice(i,1);
+  /* Phase 3.12: store 동기화 */
+  try { if(window.__attachmentsStore) window.__attachmentsStore.removeAt(i); } catch(_){}
   _renderPendingAttachments();
 }
 function _addPendingAttachments(files){
   const arr=Array.from(files||[]).filter(f=>f&&f.type&&f.type.indexOf('image/')===0);
   if(!arr.length)return;
+  const newItems=[];
   for(const f of arr){
     if(_pendingAttachments.length>=10){alert('한 번에 최대 10장까지');break}
-    _pendingAttachments.push({file:f, previewUrl:URL.createObjectURL(f)});
+    const item={file:f, previewUrl:URL.createObjectURL(f)};
+    _pendingAttachments.push(item);
+    newItems.push(item);
   }
+  /* Phase 3.12: store 동기화 — React RoomAttachPreview 가 자동 reactive */
+  try { if(window.__attachmentsStore && newItems.length) window.__attachmentsStore.add(newItems); } catch(_){}
   _renderPendingAttachments();
   const inp=document.getElementById('roomInput');if(inp)inp.focus();
 }
