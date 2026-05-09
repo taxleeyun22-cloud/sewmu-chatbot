@@ -850,11 +850,11 @@
     <div style="background:#fff;padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10">
       <button onclick="closeCustomerDashboard()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#191f28">←</button>
       <div style="flex:1;min-width:0">
-        <div id="cdName" style="font-weight:800;font-size:1.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">-</div>
-        <div id="cdSub" style="font-size:.75em;color:#8b95a1;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">-</div>
+        <div id="cdName" style="font-weight:800;font-size:1.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span id="cd-name-mount">-</span></div>
+        <div id="cdSub" style="font-size:.75em;color:#8b95a1;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span id="cd-sub-mount">-</span></div>
       </div>
       <button onclick="openCustomerSummary()" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0" title="이 거래처 단위 AI 요약 (모든 방 대화 + 메모 통합)">📝 요약</button>
-      <div id="cdPriority" style="flex-shrink:0"></div>
+      <div id="cdPriority" style="flex-shrink:0"><span id="cd-priority-mount"></span></div>
     </div>
     <!-- 본문 그리드 -->
     <div style="padding:14px;max-width:1200px;margin:0 auto">

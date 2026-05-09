@@ -71,8 +71,11 @@ async function openCustomerDashboard(userId, opts){
   if(!m)return;
   m.style.display='block';
   document.body.style.overflow='hidden';
-  $g('cdName').textContent='불러오는 중...';
-  $g('cdSub').textContent='';
+  /* Phase 3.4.B (2026-05-08): React CdName/CdSub 가 store 자동 reactive — textContent 조작 skip if mount */
+  if(!window.__dashboardStore){
+    $g('cdName').textContent='불러오는 중...';
+    $g('cdSub').textContent='';
+  }
   $g('cdBasic').innerHTML='…';
   $g('cdDocs').innerHTML='…';
   $g('cdFinance').innerHTML='…';
@@ -91,7 +94,6 @@ async function openCustomerDashboard(userId, opts){
     ]);
     const u=(custRes.users||[]).find(x=>x.id===userId);
     const nm=u?(u.real_name||u.name||'#'+userId):'#'+userId;
-    $g('cdName').textContent=nm;
     /* 사용자 이름 캐시 — _loadCdTodosAndSummaries 가 참조 */
     if(u)_cdUserCache[userId]=u;
     /* 우선순위 배지 + 연락처 */
@@ -100,7 +102,7 @@ async function openCustomerDashboard(userId, opts){
       return r.status==='active';
     });
     const pri=userRoom?Number(userRoom.priority||0):0;
-    /* Phase 3.4.A (2026-05-08): dashboard-store 갱신 — UI 변화 0 (인프라만) */
+    /* Phase 3.4.A/B (2026-05-08): dashboard-store 갱신 — React CdName/CdSub/CdPriority 자동 표시 */
     try {
       if(window.__dashboardStore){
         window.__dashboardStore.setLoaded({
@@ -115,10 +117,14 @@ async function openCustomerDashboard(userId, opts){
         });
       }
     } catch(_){}
-    const priColor={1:'#dc2626',2:'#f59e0b',3:'#10b981'}[pri]||'#9ca3af';
-    const priLabel=pri>0?pri+'순위':'미분류';
-    $g('cdPriority').innerHTML='<span style="background:'+priColor+';color:#fff;padding:4px 10px;border-radius:14px;font-size:.74em;font-weight:700">'+priLabel+'</span>';
-    $g('cdSub').textContent=(u?((u.phone||'연락처 미등록')+' · '+(u.provider||'')+' 로그인'):'')+' · '+(u?(u.approval_status==='approved_client'?'🏢 기장거래처':u.approval_status==='approved_guest'?'✅ 일반':'⏳ '+(u.approval_status||'pending')):'');
+    /* Phase 3.4.B fallback (React 미로드 시) — 기존 textContent / innerHTML 직접 */
+    if(!window.__dashboardStore){
+      $g('cdName').textContent=nm;
+      const priColor={1:'#dc2626',2:'#f59e0b',3:'#10b981'}[pri]||'#9ca3af';
+      const priLabel=pri>0?pri+'순위':'미분류';
+      $g('cdPriority').innerHTML='<span style="background:'+priColor+';color:#fff;padding:4px 10px;border-radius:14px;font-size:.74em;font-weight:700">'+priLabel+'</span>';
+      $g('cdSub').textContent=(u?((u.phone||'연락처 미등록')+' · '+(u.provider||'')+' 로그인'):'')+' · '+(u?(u.approval_status==='approved_client'?'🏢 기장거래처':u.approval_status==='approved_guest'?'✅ 일반':'⏳ '+(u.approval_status||'pending')):'');
+    }
     /* 기본 정보 — 사장님 명령 (2026-05-07): 이름·연락처·생년월일 표시 + 수정 버튼 */
     const birthStr=(u&&u.birth_date)?String(u.birth_date).slice(0,10):'';
     $g('cdBasic').innerHTML=''
@@ -260,7 +266,9 @@ async function openCustomerDashboard(userId, opts){
       if(reviewBox) _filRenderListInto(reviewBox, 'Person', userId, nm);
     }
   }catch(err){
-    $g('cdName').textContent='오류';
+    /* Phase 3.4.B (2026-05-08): React 사용 시 setError 로 store 갱신, 미사용 시 fallback */
+    if(window.__dashboardStore) { try { window.__dashboardStore.setError(err.message||'unknown'); } catch(_){} }
+    else $g('cdName').textContent='오류';
     $g('cdBasic').innerHTML='<div style="color:#f04452">로드 실패: '+e(err.message)+'</div>';
   }
 }
