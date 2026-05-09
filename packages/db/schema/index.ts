@@ -21,3 +21,4 @@ export * from './conversations';
 export * from './filings';
 export * from './faqs';
 export * from './auth';
+export * from './documents';
