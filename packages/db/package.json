@@ -5,6 +5,11 @@
   "type": "module",
   "main": "./schema/index.ts",
   "types": "./schema/index.ts",
+  "exports": {
+    ".": "./schema/index.ts",
+    "./schema": "./schema/index.ts",
+    "./client": "./src/client.ts"
+  },
   "scripts": {
     "generate": "drizzle-kit generate",
     "push": "drizzle-kit push",
