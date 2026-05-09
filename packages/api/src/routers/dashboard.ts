@@ -83,7 +83,7 @@ export const dashboardRouter = router({
         .from(filings)
         .where(
           and(
-            sql`${filings.deleted_at} IS NULL OR ${filings.deleted_at} = ''`,
+            or(isNull(filings.deleted_at), eq(filings.deleted_at, ''))!,
             sql`${filings.review_status} IN ('작성중', '결재대기')`,
           ),
         )

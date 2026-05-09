@@ -4,7 +4,7 @@
  * 사장님 명세 (2026-05-07): 종소세·법인세 신고 결재 검토표.
  */
 import { z } from 'zod';
-import { eq, and, isNull, desc, sql } from 'drizzle-orm';
+import { eq, and, isNull, desc, sql, or } from 'drizzle-orm';
 import { adminProcedure, router } from '../trpc';
 import { drizzle, schema } from '@sewmu/db/client';
 import { FilingType } from '@sewmu/types';
@@ -27,7 +27,7 @@ export const filingsRouter = router({
       const { filings } = schema;
 
       const conditions = [
-        sql`${filings.deleted_at} IS NULL OR ${filings.deleted_at} = ''`,
+        or(isNull(filings.deleted_at), eq(filings.deleted_at, ''))!,
       ];
 
       if (input.owner_type && input.owner_id) {
@@ -58,7 +58,7 @@ export const filingsRouter = router({
         .where(
           and(
             eq(filings.id, input.id),
-            sql`${filings.deleted_at} IS NULL OR ${filings.deleted_at} = ''`,
+            or(isNull(filings.deleted_at), eq(filings.deleted_at, ''))!,
           ),
         )
         .limit(1)
@@ -78,7 +78,7 @@ export const filingsRouter = router({
             eq(filings.owner_type, f.owner_type),
             eq(filings.owner_id, f.owner_id),
             eq(filings.fiscal_year, f.fiscal_year - 1),
-            sql`${filings.deleted_at} IS NULL OR ${filings.deleted_at} = ''`,
+            or(isNull(filings.deleted_at), eq(filings.deleted_at, ''))!,
             sql`${filings.id} != ${input.id}`,
           ),
         )
