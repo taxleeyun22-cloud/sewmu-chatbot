@@ -57,6 +57,8 @@ import './admin/state/sidebar-store';
 import './admin/state/users-store';
 /* Phase 3.2.A (2026-05-08): 업체 list nanostore — window.__businessesStore 자동 노출 */
 import './admin/state/businesses-store';
+/* Phase 3.4.A (2026-05-08): 거래처 dashboard nanostore — window.__dashboardStore 자동 노출 */
+import './admin/state/dashboard-store';
 
 /* Phase #7 적용 확장 (B, 2026-05-06): tab 변경 broadcast — admin.js tab() 호출 시
  * 다른 모듈 (admin-memos / admin-rooms / 등) 이 자동 알림 받기. */

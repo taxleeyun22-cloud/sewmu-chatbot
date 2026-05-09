@@ -40,6 +40,8 @@ async function openCustomerDashboard(userId, opts){
   if(!userId)return;
   _cdCurrentUserId=userId;
   docsSelectedUserId=userId; /* 다른 모달과 컨텍스트 공유 */
+  /* Phase 3.4.A (2026-05-08): dashboard-store loading 시작 — UI 변화 0 (인프라만) */
+  try { if(window.__dashboardStore) window.__dashboardStore.setLoading(Number(userId)); } catch(_){}
   /* Phase #2 React (2026-05-07): 매출 차트 + AI 인사이트 자동 mount/re-mount */
   try{ if(typeof window.__mountFinanceChart === 'function') window.__mountFinanceChart(Number(userId)); }catch(_){}
   try{ if(typeof window.__mountInsights === 'function') window.__mountInsights(Number(userId)); }catch(_){}
@@ -98,6 +100,21 @@ async function openCustomerDashboard(userId, opts){
       return r.status==='active';
     });
     const pri=userRoom?Number(userRoom.priority||0):0;
+    /* Phase 3.4.A (2026-05-08): dashboard-store 갱신 — UI 변화 0 (인프라만) */
+    try {
+      if(window.__dashboardStore){
+        window.__dashboardStore.setLoaded({
+          userId: Number(userId),
+          user: u || null,
+          mappedBusinesses: (mappedBizRes.businesses)||[],
+          legacyBusinesses: (bizDocsRes.businesses)||[],
+          docCounts: docsRes.counts || {},
+          finance: { has_data: !!finRes.has_data, rows: (finRes.rows||[]).slice(0,3) },
+          priority: pri,
+          recentRoom: userRoom || null,
+        });
+      }
+    } catch(_){}
     const priColor={1:'#dc2626',2:'#f59e0b',3:'#10b981'}[pri]||'#9ca3af';
     const priLabel=pri>0?pri+'순위':'미분류';
     $g('cdPriority').innerHTML='<span style="background:'+priColor+';color:#fff;padding:4px 10px;border-radius:14px;font-size:.74em;font-weight:700">'+priLabel+'</span>';
