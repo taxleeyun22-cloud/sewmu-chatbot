@@ -25,6 +25,7 @@
 | [001](./adr/001-cloudflare-pages.md) | Cloudflare Pages + D1 + R2 |
 | [002](./adr/002-react-migration.md) | React 점진 마이그레이션 + dangerouslySetInnerHTML |
 | [003](./adr/003-auto-cache-bust.md) | 자동 cache busting (git hash) |
+| [004](./adr/004-monorepo-strategy.md) | Monorepo + Next.js 15 (6주 마이그레이션) |
 
 ## 향후 추가 예정
 

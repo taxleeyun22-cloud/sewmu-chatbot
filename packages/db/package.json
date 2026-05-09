@@ -1,0 +1,21 @@
+{
+  "name": "@sewmu/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./schema/index.ts",
+  "types": "./schema/index.ts",
+  "scripts": {
+    "generate": "drizzle-kit generate",
+    "push": "drizzle-kit push",
+    "studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.36.4"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.28.1",
+    "@cloudflare/workers-types": "^4.20241022.0",
+    "typescript": "^5.6.2"
+  }
+}

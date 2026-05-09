@@ -1,0 +1,13 @@
+# Phase Next-1.1 (2026-05-09): pnpm workspaces — Next.js 마이그레이션 시작
+#
+# 기존 root (vite + npm) 그대로 유지 (admin.html / business.html / index.html 작동).
+# apps/ + packages/ 만 pnpm workspace 로 관리.
+#
+# 점진 마이그레이션:
+#   - Week 1 (지금): 골격 + Drizzle + shared packages
+#   - Week 2-3: customer-web (챗봇)
+#   - Week 4-5: admin
+#   - Week 6: business + cleanup
+packages:
+  - 'apps/*'
+  - 'packages/*'

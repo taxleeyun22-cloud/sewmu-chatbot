@@ -1,0 +1,33 @@
+{
+  "name": "@sewmu/customer-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "preview": "wrangler pages dev",
+    "deploy": "wrangler pages deploy"
+  },
+  "dependencies": {
+    "@sewmu/db": "workspace:*",
+    "@sewmu/ui": "workspace:*",
+    "@sewmu/auth": "workspace:*",
+    "@sewmu/api": "workspace:*",
+    "@sewmu/types": "workspace:*",
+    "next": "^15.0.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "drizzle-orm": "^0.36.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@cloudflare/next-on-pages": "^1.13.7",
+    "@cloudflare/workers-types": "^4.20241022.0",
+    "typescript": "^5.6.2"
+  }
+}
