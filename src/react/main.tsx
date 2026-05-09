@@ -19,6 +19,9 @@ import { CustomerFinanceChart } from './components/CustomerFinanceChart';
 import { CustomerInsightsCard } from './components/CustomerInsightsCard';
 /* Phase 2.1 (2026-05-08): 사이드바 휴지통 카운트 React 화 — 첫 점진 phase */
 import { SidebarTrashCount } from './components/SidebarTrashCount';
+/* Phase 2.2 (2026-05-08): 사용자/업체 총합 카운트 React 화 — 두번째 점진 phase */
+import { SidebarUserTotal } from './components/SidebarUserTotal';
+import { SidebarBizTotal } from './components/SidebarBizTotal';
 /* sidebar-store import — window.__sidebarStore 자동 활성화 (admin.js refreshSidebarCounts 가 사용) */
 import '../admin/state/sidebar-store';
 
@@ -87,6 +90,9 @@ function bootstrap() {
 
   /* Phase 2.1 (2026-05-08): 사이드바 휴지통 카운트 — store 자동 reactive */
   mountAt('sb-trash-count-mount', () => <SidebarTrashCount />);
+  /* Phase 2.2 (2026-05-08): 사용자/업체 총합 카운트 — store 자동 reactive */
+  mountAt('sb-user-total-mount', () => <SidebarUserTotal />);
+  mountAt('sb-biz-total-mount', () => <SidebarBizTotal />);
 
   /* 거래처 dashboard 매출 차트 — data-user-id 속성 있으면 자동 mount.
    * 없으면 admin-customer-dash.js 가 openCustomerDashboard 시 window.__mountFinanceChart(userId) 호출. */

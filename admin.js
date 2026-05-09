@@ -3833,9 +3833,8 @@ function refreshSidebarCounts(){
     var c = d.counts || {};
     /* 사용자 총합 = pending + approved_client + approved_guest + rejected + terminated + admin */
     var userTotal = (c.pending||0) + (c.approved_client||0) + (c.approved_guest||0) + (c.rejected||0) + (c.terminated||0) + (c.admin||0);
-    var elU = document.getElementById('sbUserTotal');
-    if(elU) elU.textContent = userTotal;
-    /* Phase A (2026-05-08): nanostore 동시 갱신 — 향후 React 컴포넌트가 자동 reactive */
+    /* Phase 2.2 (2026-05-08): React (SidebarUserTotal.tsx) 가 store 자동 reactive 표시.
+     * admin.js 는 textContent 조작 X — store 만 갱신. */
     try { if (window.__sidebarStore) window.__sidebarStore.update({
       pending: c.pending||0, approvedClient: c.approved_client||0, approvedGuest: c.approved_guest||0,
       rejected: c.rejected||0, terminated: c.terminated||0, rejoined: c.rejoined||0, admin: c.admin||0,
@@ -3843,11 +3842,9 @@ function refreshSidebarCounts(){
     }); } catch(_){}
   }).catch(function(_){});
 
-  /* 업체 총합 — admin-businesses?count_only=1 (없으면 list length) */
+  /* 업체 총합 — Phase 2.2: SidebarBizTotal.tsx 가 store 자동 reactive */
   fetch('/api/admin-businesses?key='+encodeURIComponent(KEY)).then(function(r){return r.json()}).then(function(d){
     var bizTotal = Array.isArray(d.businesses) ? d.businesses.length : (d.total || 0);
-    var elB = document.getElementById('sbBizTotal');
-    if(elB) elB.textContent = bizTotal;
     try { if (window.__sidebarStore) window.__sidebarStore.update({ bizTotal: bizTotal }); } catch(_){}
   }).catch(function(_){});
 
