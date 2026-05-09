@@ -92,6 +92,27 @@ Cloudflare Pages + D1 DB + OpenAI GPT-4.1-mini + 국가법령정보센터 API.
 
 **처리 후**: `/api/admin-review` 엔드포인트로 각 id를 `mark_reviewed` 또는 `report_and_review` 처리.
 
+## 🚫 사용자 권한·Status 자동 변경 절대 금지 (2026-05-08 사장님 명령)
+
+**과거 사고**: 오늘 (2026-05-08) Claude (나) 가 이재윤·채승용 admin 권한 자동으로 set_admin=1 SET 3번 반복.
+**진짜 원인**: 사장님이 의도적으로 admin 권한 X (기장거래처 카테고리로 옮김) 했는데, Claude 가 admin counts=2 보고 "reset 됐다 → 복구해야" 잘못 해석하고 자동 SET.
+
+**룰**:
+- 사용자 권한 (`is_admin`, `staff_role`) 및 status (`approval_status`) 변경은 **사장님이 직접 admin UI 에서 관리**
+- Claude 가 자동으로 set_admin / approval_status / staff_role 변경 **절대 금지**
+- 사장님 명시 명령 받을 때만 실행:
+  - "이재윤 admin 으로 만들어줘" / "박승호 기장거래처 승급해줘" / "○○ admin 권한 회수" 등
+- "admin counts 줄어들면 reset" / "관리자 4명이 정상" 같은 자동 가정 X
+- `set_admin auto-status` 같은 자동 흐름 (대기 → 관리자 승급 시 status='approved_client' 자동 변경) 은 사장님이 명시 명령한 경우 (오늘 fix) 만 유지. 그 외 cascading SET 금지.
+
+**예외**:
+- 사장님이 직접 클릭한 흐름 (admin UI 의 "관리자 승급" 버튼 등) 은 그 코드 안에서 set_admin 호출 OK
+- 사장님이 명시 명령한 외부 호출 OK (예: "이재윤 admin 다시 부여해줘")
+
+**위반 시**: Claude 가 사장님 결정 무시 + 데이터 인위 변경. 사장님 짜증·신뢰 ↓.
+
+---
+
 ## 🔄 Mutation 후 UI 갱신 절대 룰 (2026-05-08 사장님 결정 — 1단계)
 
 **과거 사고**: 9건 발견 (업체 삭제 후 list 안 사라짐 / 사용자 status 변경 후 사이드바 카운트 옛값 / 메모 삭제 후 휴지통 배지 안 갱신 / 단체발송 후 상담방 last_message 옛값 / etc).
