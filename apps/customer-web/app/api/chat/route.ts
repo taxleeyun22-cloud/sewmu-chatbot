@@ -1,39 +1,52 @@
 /**
- * Phase Next-Week2 (2026-05-09): /api/chat — Next.js Route Handler.
+ * Phase Next-Day5 (2026-05-09): /api/chat 직접 OpenAI 호출 (proxy 폐기).
  *
- * 마이그레이션 단계:
- *   1. (이번) 기존 functions/api/chat.js 로 forward (proxy)
- *   2. (Week 2 Day 2) tRPC + 직접 OpenAI 호출
- *   3. (Week 2 Day 3) FAQ RAG retrieval (packages/ai)
- *   4. (Week 2 Day 4) 신뢰도 자동 태깅 + flagged-items
+ * Cloudflare Pages env: OPENAI_API_KEY (사장님이 대시보드에서 설정)
  */
 import { NextResponse } from 'next/server';
+import { chatCompletion, extractConfidence, buildSystemPrompt } from '@sewmu/ai';
 
 export const runtime = 'edge';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const message = body.message;
+    if (!message || typeof message !== 'string') {
+      return NextResponse.json({ error: 'message 필요' }, { status: 400 });
+    }
 
-    // Phase Next-Week2 Day 1: 기존 chat.js 로 forward (호환성 유지)
-    // Day 2 부터 tRPC + OpenAI 직접 호출로 변경
-    const oldChatRes = await fetch('https://sewmu-chatbot.pages.dev/api/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // session cookie 등 forward (browser 가 자동 처리)
-        cookie: request.headers.get('cookie') || '',
-      },
-      body: JSON.stringify(body),
+    const apiKey = (process.env as { OPENAI_API_KEY?: string }).OPENAI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'OPENAI_API_KEY 미설정 (사장님 Cloudflare 환경변수 추가 필요)' },
+        { status: 500 },
+      );
+    }
+
+    const systemPrompt = buildSystemPrompt({});
+
+    const result = await chatCompletion({
+      apiKey,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message },
+      ],
     });
-    const data = await oldChatRes.json();
-    return NextResponse.json(data);
+
+    const { cleaned, confidence } = extractConfidence(result.content);
+
+    return NextResponse.json({
+      response: result.content,
+      cleaned,
+      confidence,
+      tokensUsed: result.tokensUsed,
+      model: result.model,
+    });
   } catch (err) {
+    console.error('[chat] error:', err);
     return NextResponse.json(
-      {
-        error: '챗봇 응답 실패',
-        message: (err as Error).message,
-      },
+      { error: '챗봇 응답 실패', message: (err as Error).message },
       { status: 500 },
     );
   }
