@@ -8,6 +8,8 @@ export { kakaoProvider } from './providers/kakao';
 export { naverProvider } from './providers/naver';
 export type { KakaoProfile } from './providers/kakao';
 export type { NaverProfile } from './providers/naver';
+export { buildAuthConfig, buildAuthConfigSimple } from './config';
+export { DrizzleD1Adapter } from './drizzle-adapter';
 
 export {
   calculateRole,

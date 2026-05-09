@@ -24,6 +24,7 @@ export const users = sqliteTable('users', {
   name: text('name'),                    // 카톡 닉네임 또는 자체 입력
   real_name: text('real_name'),          // 본명 (필수)
   email: text('email'),
+  email_verified: text('email_verified'),  // Auth.js 표준 (Day 15)
   phone: text('phone'),                  // 010-1234-5678
   profile_image: text('profile_image'),  // 카톡 프사 URL
 
