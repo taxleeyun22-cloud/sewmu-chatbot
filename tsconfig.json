@@ -27,5 +27,5 @@
     "types": ["vite/client", "node"]
   },
   "include": ["src/**/*", "vite.config.ts", "vitest.config.ts", "tailwind.config.ts"],
-  "exclude": ["node_modules", "dist", "functions", "articles", "admin.js"]
+  "exclude": ["node_modules", "dist", "functions", "articles", "admin.js", "apps", "packages"]
 }
