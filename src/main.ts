@@ -19,6 +19,7 @@ import {
   $cdMemoCategory,
   $cdSelectedMemoIds,
   $trashSelectedIds,
+  $cdMemoListTrigger,
 } from './features/memos/state';
 import type { Memo } from './features/memos/state';
 import {
@@ -96,6 +97,7 @@ declare global {
       $cdMemoCategory: typeof $cdMemoCategory;
       $cdSelectedMemoIds: typeof $cdSelectedMemoIds;
       $trashSelectedIds: typeof $trashSelectedIds;
+      $cdMemoListTrigger: typeof $cdMemoListTrigger;
     };
     /* Phase #3 적용 (2026-05-06): TypeScript 검증 끝난 메모 utility 를 classic
        script (admin-memos.js / functions/api 가 아닌 곳) 가 호출 가능하게 노출.
@@ -161,6 +163,7 @@ if (typeof window !== 'undefined') {
     $cdMemoCategory,
     $cdSelectedMemoIds,
     $trashSelectedIds,
+    $cdMemoListTrigger,
   };
   window.__sharedStore = {
     $key,

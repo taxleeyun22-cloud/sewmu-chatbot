@@ -46,3 +46,8 @@ export const $cdSelectedMemoIds = map<Record<number, boolean>>({});
 
 /** 휴지통 일괄 선택 ID set */
 export const $trashSelectedIds = map<Record<number, boolean>>({});
+
+/** Phase 3.3.B (2026-05-08): cdMemoList re-render trigger.
+ *  _cdActiveTag / _cdSortMode 같은 var 변경 시 cdMemoFilter/cdSetTagFilter/cdSortChange 가
+ *  이 atom 값을 increment 하면 React CdMemoList 가 store subscribe 로 자동 갱신. */
+export const $cdMemoListTrigger = atom<number>(0);

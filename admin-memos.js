@@ -77,8 +77,11 @@ async function _loadCdAllMemos(userId){
   }
 }
 
-function _renderCdMemos(){
-  const list=$g('cdMemoList'); if(!list) return;
+/* Phase 3.3.B (2026-05-08): 메모 list HTML 반환 helper.
+ * React CdMemoList 가 호출 → dangerouslySetInnerHTML.
+ * 정렬·필터·카드 markup 모두 처리. _renderCdMemoHeader 는 list 외부 element 라 별도 호출.
+ */
+function _buildCdMemosListHtml(){
   const cat=_cdMemoCategory;
   let arr=_cdMemosCache.slice();
   /* 카테고리 / 타입 필터 */
@@ -86,16 +89,13 @@ function _renderCdMemos(){
     if(cat==='할 일') arr=arr.filter(m=>['할 일','확인필요','고객요청'].includes(m.memo_type));
     else if(cat==='거래처 정보') arr=arr.filter(m=>['거래처 정보','사실메모','담당자판단','주의사항','참고'].includes(m.memo_type));
     else if(cat==='완료') arr=arr.filter(m=>['완료','완료처리'].includes(m.memo_type));
-    else arr=arr.filter(m=>m.category===cat);  /* 전화/문서/이슈/약속/일반 */
+    else arr=arr.filter(m=>m.category===cat);
   }
-  /* 태그 필터 (chip 클릭 시 set) */
   if(_cdActiveTag){
     arr=arr.filter(m=>Array.isArray(m.tags)&&m.tags.indexOf(_cdActiveTag)>=0);
   }
-  /* 정렬 */
   const TYPE_ORDER={'할 일':0,'확인필요':0,'고객요청':0,'거래처 정보':1,'사실메모':1,'담당자판단':1,'주의사항':1,'참고':1,'완료':2,'완료처리':2};
   if(_cdSortMode==='due'){
-    /* 기한순 asc — 없는 건 맨 뒤. 같은 날짜면 created_at desc */
     arr.sort((a,b)=>{
       const ad=a.due_date||'9999-99-99', bd=b.due_date||'9999-99-99';
       if(ad!==bd) return ad.localeCompare(bd);
@@ -107,24 +107,19 @@ function _renderCdMemos(){
       if(at!==bt) return at-bt;
       return String(b.created_at||'').localeCompare(String(a.created_at||''));
     });
-  } else {
-    /* recent (default) — 시간순 desc. 백엔드가 이미 desc 로 줘서 변경 X */
   }
-
-  /* 헤더에 active tag pill + 일괄 액션 바 추가 */
-  _renderCdMemoHeader(arr.length);
-
+  /* 헤더 갱신 (list 외부 element — React 영향 X) */
+  try { _renderCdMemoHeader(arr.length); } catch(_){}
   if(!arr.length){
     let msg = '아직 메모가 없습니다.<br>아래 입력 폼으로 첫 메모를 추가해보세요.';
     if(cat!=='all') msg = '이 카테고리 메모가 없습니다.';
     if(_cdActiveTag) msg = '#'+_cdActiveTag+' 태그 메모가 없습니다.';
-    list.innerHTML='<div style="color:#adb5bd;padding:14px 0;font-size:.84em;line-height:1.6;text-align:center">'+msg+'</div>';
-    return;
+    return '<div style="color:#adb5bd;padding:14px 0;font-size:.84em;line-height:1.6;text-align:center">'+msg+'</div>';
   }
   const TYPE_ICONS={'할 일':'📌','확인필요':'📌','고객요청':'📌','거래처 정보':'🏢','사실메모':'🏢','담당자판단':'🏢','주의사항':'🏢','참고':'🏢','완료':'✅','완료처리':'✅'};
   const CAT_ICONS={'전화':'📞','문서':'📁','이슈':'⚠️','약속':'📅','일반':'📝'};
   const TYPE_COLORS={'할 일':'#b45309','확인필요':'#b45309','고객요청':'#b45309','거래처 정보':'#1e40af','사실메모':'#1e40af','담당자판단':'#1e40af','주의사항':'#dc2626','참고':'#1e40af','완료':'#10b981','완료처리':'#10b981'};
-  list.innerHTML=arr.map(m=>{
+  return arr.map(m=>{
     const ic=CAT_ICONS[m.category]||TYPE_ICONS[m.memo_type]||'📝';
     const tColor=TYPE_COLORS[m.memo_type]||'#4e5968';
     const created=(m.created_at||'').substring(0,16).replace('T',' ');
@@ -160,6 +155,27 @@ function _renderCdMemos(){
       +'<div id="cdMemoComments_'+m.id+'" style="display:none;margin-top:8px;padding:8px 10px;background:#f9fafb;border-left:3px solid #c7d2fe;border-radius:4px"></div>'
     +'</div>';
   }).join('');
+}
+/* React CdMemoList 가 호출 — global 노출 */
+if(typeof window!=='undefined') window.__buildCdMemosListHtml = _buildCdMemosListHtml;
+
+function _renderCdMemos(){
+  /* Phase 3.3.B (2026-05-08): React CdMemoList 가 store 자동 reactive 표시.
+   * React 사용 시 list.innerHTML 조작 skip — store trigger increment 만.
+   * Fallback: React 미로드 시 helper 호출해서 직접 DOM 조작. */
+  /* React mount 됐으면 trigger increment → React 자동 갱신 */
+  try {
+    const s = window.__memoStore;
+    if(s && s.$cdMemoListTrigger && window.__buildCdMemosListHtml){
+      s.$cdMemoListTrigger.set(s.$cdMemoListTrigger.get() + 1);
+      /* 헤더만 별도 렌더 (list element 외부 — React 영향 X) */
+      try { _renderCdMemoHeader(_cdMemosCache.length); } catch(_){}
+      return;
+    }
+  } catch(_){}
+  /* === fallback (React 미로드) === */
+  const list=$g('cdMemoList'); if(!list) return;
+  list.innerHTML = _buildCdMemosListHtml();
 }
 
 /* 헤더 영역 (카테고리 탭 위) — active tag pill + 정렬 select + 일괄 액션 바 */
