@@ -125,6 +125,8 @@ function DocActions({
   status: string;
   onChanged: (docs: Doc[]) => void;
 }) {
+  const [ocrLoading, setOcrLoading] = useState(false);
+
   async function refetch() {
     const data = await trpcCall<{ documents: Doc[] }>('documents.list', {
       status: status as 'pending' | 'approved' | 'rejected' | 'all',
@@ -132,8 +134,44 @@ function DocActions({
     });
     onChanged(data.documents || []);
   }
+
+  async function runOcr() {
+    setOcrLoading(true);
+    try {
+      const r = await fetch('/api/ocr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': prompt('ADMIN_KEY:') || '',
+        },
+        body: JSON.stringify({ document_id: doc.id }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        alert(`OCR 실패: ${data.error || data.message}`);
+      } else {
+        alert(
+          `OCR 완료\n매입처: ${data.parsed?.vendor || '-'}\n금액: ${
+            data.parsed?.amount?.toLocaleString() || '-'
+          }원`,
+        );
+        refetch();
+      }
+    } finally {
+      setOcrLoading(false);
+    }
+  }
+
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1 flex-wrap">
+      <button
+        onClick={runOcr}
+        disabled={ocrLoading}
+        className="text-xs bg-purple-500 text-white px-2 py-1 rounded disabled:opacity-50"
+        title="OpenAI gpt-4o-mini Vision 으로 영수증 자동 분석"
+      >
+        {ocrLoading ? '...' : '🤖 OCR'}
+      </button>
       <button
         onClick={async () => {
           await trpcCall('documents.approve', {
