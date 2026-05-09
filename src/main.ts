@@ -52,6 +52,8 @@ import {
 import { loadAdminModals, startModalLoader } from './admin/modal-loader';
 /* Phase A (2026-05-08): 사이드바 카운트 nanostore — import 만으로 window.__sidebarStore 자동 노출 */
 import './admin/state/sidebar-store';
+/* Phase 3.1.A (2026-05-08): 사용자 list nanostore — window.__usersStore 자동 노출 */
+import './admin/state/users-store';
 
 /* Phase #7 적용 확장 (B, 2026-05-06): tab 변경 broadcast — admin.js tab() 호출 시
  * 다른 모듈 (admin-memos / admin-rooms / 등) 이 자동 알림 받기. */

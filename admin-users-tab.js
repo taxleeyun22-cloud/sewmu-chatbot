@@ -90,9 +90,13 @@ loadUsers(s);
 async function loadUsers(status){
 const el=$g('userList');
 el.innerHTML='<div class="empty">불러오는 중...</div>';
+/* Phase 3.1.A (2026-05-08): users-store loading 시작 — UI 변화 0, store 만 활성 */
+try { if(window.__usersStore) window.__usersStore.setLoading(status); } catch(_){}
 try{
 const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status='+encodeURIComponent(status));
 const d=await r.json();
+/* Phase 3.1.A: store 에 users + counts 저장 (UI 변화 0 — admin-users-tab.js 가 기존 innerHTML 조작 그대로 유지) */
+try { if(window.__usersStore) window.__usersStore.setList(status, d.users || [], d.counts); } catch(_){}
 if(d.counts){
 /* Phase 2.3 (2026-05-08): React (SidebarStatusCount) 자동 reactive — textContent 조작 제거.
  * sidebar-store update 1 회 → 7개 컴포넌트 동시 갱신. */
