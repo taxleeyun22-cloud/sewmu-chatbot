@@ -36,6 +36,10 @@ import { RoomList } from './components/RoomList';
 import { BizRoomList } from './components/BizRoomList';
 /* Phase 3.6 (2026-05-08): biz-rooms-store import — window.__bizRoomsStore 활성화 */
 import '../admin/state/biz-rooms-store';
+/* Phase 3.7 (2026-05-08): 상담방 메시지 list React — #roomMessages 자리 mount */
+import { RoomMessages } from './components/RoomMessages';
+/* Phase 3.7 (2026-05-08): messages-store import — window.__messagesStore 활성화 */
+import '../admin/state/messages-store';
 /* Phase 3.3.A (2026-05-08): 거래처 dashboard 메모 카운트 React 화 */
 import { CdMemoCount } from './components/CdMemoCount';
 /* Phase 3.3.B (2026-05-08): 거래처 dashboard 메모 list React 화 */
@@ -176,6 +180,9 @@ function bootstrap() {
   /* Phase 3.6 (2026-05-08): business.html #bizRoomList — 연결된 상담방 list React.
    * business.js 가 window.__bizRoomsStore 존재 확인 후 store 만 갱신 (innerHTML 안 건드림). */
   mountAtWithRetry('bizRoomList', () => <BizRoomList />);
+  /* Phase 3.7 (2026-05-08): #roomMessages — 상담방 메시지 list React.
+   * admin-rooms-list.js loadRoomDetail 가 store 만 set, React 자동 reactive. */
+  mountAtWithRetry('roomMessages', () => <RoomMessages />);
 
   /* Phase 3.3.A (2026-05-08): 거래처 dashboard 메모 카운트 — admin-modals.html 안 (retry 필요) */
   mountAtWithRetry('cd-memo-count-mount', () => <CdMemoCount />);

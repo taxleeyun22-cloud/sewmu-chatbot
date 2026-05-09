@@ -63,6 +63,8 @@ import './admin/state/dashboard-store';
 import './admin/state/rooms-store';
 /* Phase 3.6 (2026-05-08): business.html 연결된 상담방 nanostore — window.__bizRoomsStore 자동 노출 */
 import './admin/state/biz-rooms-store';
+/* Phase 3.7 (2026-05-08): 상담방 메시지 list nanostore — window.__messagesStore 자동 노출 */
+import './admin/state/messages-store';
 
 /* Phase #7 적용 확장 (B, 2026-05-06): tab 변경 broadcast — admin.js tab() 호출 시
  * 다른 모듈 (admin-memos / admin-rooms / 등) 이 자동 알림 받기. */

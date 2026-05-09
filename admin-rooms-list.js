@@ -334,8 +334,111 @@ function closeRoomOnMobile(){
   $g('roomsLayout').classList.remove('show-chat');
 }
 
+/* Phase 3.7 (2026-05-08): _buildRoomMessagesHtml — store 에서 읽어 메시지 HTML 빌드.
+ * React RoomMessages 가 store 변경 시 호출 → reactive update.
+ * 외부 의존: parseMsg, renderMsgBody, renderPhotoGroupAdmin, escAttr, e (모두 글로벌). */
+function _buildRoomMessagesHtml(){
+  if(!window.__messagesStore) return '';
+  const s = window.__messagesStore.get();
+  const rawMsgs = s.messages || [];
+  if(!rawMsgs.length) return '';
+  /* 날짜 구분선 helpers */
+  let _lastDateLabel=null;
+  function _dateLabel(iso){
+    if(!iso)return '';
+    const d=String(iso).substring(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return '';
+    const dt=new Date(d+'T00:00:00');
+    const days=['일','월','화','수','목','금','토'];
+    return d.substring(0,4)+'년 '+parseInt(d.substring(5,7),10)+'월 '+parseInt(d.substring(8,10),10)+'일 '+days[dt.getDay()]+'요일';
+  }
+  function _dateSep(m){
+    const lab=_dateLabel(m.created_at);
+    if(!lab||lab===_lastDateLabel)return '';
+    _lastDateLabel=lab;
+    return '<div style="display:flex;align-items:center;gap:10px;margin:14px 0 10px"><div style="flex:1;height:1px;background:#e5e8eb"></div>'
+      +'<div style="font-size:.7em;color:#8b95a1;background:#f2f4f6;padding:4px 12px;border-radius:12px;border:1px solid #e5e8eb">📅 '+lab+'</div>'
+      +'<div style="flex:1;height:1px;background:#e5e8eb"></div></div>';
+  }
+  /* 사진 모아보기: 연속 [IMG] (같은 사용자·60초 이내·최대 9장) 하나의 그리드로 */
+  const groupedMsgs=[];
+  for(let gi=0;gi<rawMsgs.length;gi++){
+    const gm=rawMsgs[gi];
+    const gp=parseMsg(gm.content);
+    const isPurePhoto=gp.image&&!gp.reply&&!gp.doc_id&&!gp.file&&!gp.alert&&!gp.text&&!gm.deleted_at;
+    if(isPurePhoto&&groupedMsgs.length){
+      const prev=groupedMsgs[groupedMsgs.length-1];
+      if(prev._isPhotoGroup&&prev.user_id===gm.user_id&&prev.role===gm.role&&prev._photos.length<9){
+        const dt=new Date(gm.created_at)-new Date(prev._lastAt);
+        if(dt<=60*1000){
+          prev._photos.push({url:gp.image,msgId:gm.id,createdAt:gm.created_at});
+          prev._lastAt=gm.created_at;
+          continue;
+        }
+      }
+    }
+    if(isPurePhoto){
+      groupedMsgs.push({
+        _isPhotoGroup:true,
+        id:gm.id, user_id:gm.user_id, role:gm.role,
+        real_name:gm.real_name, name:gm.name,
+        created_at:gm.created_at, _lastAt:gm.created_at,
+        _photos:[{url:gp.image,msgId:gm.id,createdAt:gm.created_at}]
+      });
+    } else {
+      groupedMsgs.push(gm);
+    }
+  }
+  return groupedMsgs.map(m=>{
+    const sep=_dateSep(m);
+    const nm=m.real_name||m.name||'';
+    if(m._isPhotoGroup){
+      return sep+renderPhotoGroupAdmin(m);
+    }
+    if(m.deleted_at){
+      return sep+'<div style="margin-bottom:10px;text-align:center;opacity:.6"><span style="display:inline-block;background:#f2f4f6;color:#8b95a1;padding:6px 14px;border-radius:10px;font-size:.75em;font-style:italic">삭제된 메시지입니다</span></div>';
+    }
+    const parsed=parseMsg(m.content);
+    let preview=parsed.text;
+    if(!preview){
+      if(parsed.doc_id && m.document){
+        const d=m.document;
+        const parts=[];
+        if(d.vendor)parts.push(d.vendor);
+        if(d.amount)parts.push(Number(d.amount).toLocaleString()+'원');
+        if(d.receipt_date)parts.push(d.receipt_date);
+        preview='🧾 '+(parts.length?parts.join(' · '):'영수증');
+      } else if(parsed.image){
+        preview='[사진]';
+      } else if(parsed.file){
+        preview='[파일] '+(parsed.file.name||'');
+      }
+    }
+    const isAdvisor=m.role==='human_advisor';
+    const canDel=isAdvisor?1:0;
+    const kind = parsed.doc_id ? 'doc' : (parsed.image ? 'img' : (parsed.file ? 'file' : 'text'));
+    const imgSrcAttr = parsed.image ? ' data-img-src="'+escAttr(parsed.image)+'"' : '';
+    function attrs(sender,mine){
+      return ' class="rc-msg-bubble" data-msg="'+m.id+'" data-sender="'+escAttr(sender)+'" data-text="'+escAttr(preview)+'" data-mine="'+(mine?1:0)+'" data-deletable="'+canDel+'" data-kind="'+kind+'"'+imgSrcAttr;
+    }
+    const ur=(m.unread_count>0)?'<span style="font-size:.68em;color:#f4c430;font-weight:700;margin:0 4px;align-self:flex-end">'+m.unread_count+'</span>':'';
+    if(m.role==='user'){
+      return sep+'<div style="margin-bottom:10px;display:flex;align-items:flex-end;gap:4px"><div style="max-width:70%"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+'</div><div'+attrs(nm,0)+' style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>'+ur+'</div>';
+    } else if(m.role==='assistant'){
+      return sep+'<div style="margin-bottom:10px;display:flex;align-items:flex-end;gap:4px"><div'+attrs('AI',0)+' style="display:inline-block;background:#f2f4f6;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div>'+ur+'</div>';
+    } else if(m.role==='human_advisor'){
+      return sep+'<div style="margin-bottom:10px;display:flex;justify-content:flex-end;align-items:flex-end;gap:4px">'+ur+'<div'+attrs('세무사',1)+' style="background:#10b981;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;opacity:.9;margin-top:4px"><img src="logo-icon.png" alt="" style="width:12px;height:12px;vertical-align:middle;object-fit:contain;margin-right:3px;filter:brightness(0) invert(1)"> 세무사 · '+e(m.created_at||'')+'</div></div></div>';
+    }
+    return '';
+  }).join('');
+}
+try { window.__buildRoomMessagesHtml = _buildRoomMessagesHtml; } catch(_){}
+
 async function loadRoomDetail(){
   if(!currentRoomId)return;
+  /* Phase 3.7 (2026-05-08): messages-store loading 시작 */
+  try { if(window.__messagesStore) window.__messagesStore.setLoading(currentRoomId); } catch(_){}
+  let container = null;
   try{
     const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+'&room_id='+currentRoomId);
     const d=await r.json();
@@ -355,108 +458,31 @@ async function loadRoomDetail(){
     }).join(', ')+'  + 🏢 세무회계 이윤';
     _bindRoomMemberLongPress();
 
-    const container=$g('roomMessages');
-    const atBottom=container.scrollHeight-container.scrollTop-container.clientHeight<50;
-    /* 날짜 구분선 */
-    let _lastDateLabel=null;
-    function _dateLabel(iso){
-      if(!iso)return '';
-      const d=String(iso).substring(0,10);
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return '';
-      const dt=new Date(d+'T00:00:00');
-      const days=['일','월','화','수','목','금','토'];
-      return d.substring(0,4)+'년 '+parseInt(d.substring(5,7),10)+'월 '+parseInt(d.substring(8,10),10)+'일 '+days[dt.getDay()]+'요일';
-    }
-    function _dateSep(m){
-      const lab=_dateLabel(m.created_at);
-      if(!lab||lab===_lastDateLabel)return '';
-      _lastDateLabel=lab;
-      return '<div style="display:flex;align-items:center;gap:10px;margin:14px 0 10px"><div style="flex:1;height:1px;background:#e5e8eb"></div>'
-        +'<div style="font-size:.7em;color:#8b95a1;background:#f2f4f6;padding:4px 12px;border-radius:12px;border:1px solid #e5e8eb">📅 '+lab+'</div>'
-        +'<div style="flex:1;height:1px;background:#e5e8eb"></div></div>';
-    }
-    /* 사진 모아보기: 연속 [IMG] (같은 사용자·60초 이내·최대 9장) 하나의 그리드로 */
-    const rawMsgs=d.messages||[];
-    const groupedMsgs=[];
-    for(let gi=0;gi<rawMsgs.length;gi++){
-      const gm=rawMsgs[gi];
-      const gp=parseMsg(gm.content);
-      const isPurePhoto=gp.image&&!gp.reply&&!gp.doc_id&&!gp.file&&!gp.alert&&!gp.text&&!gm.deleted_at;
-      if(isPurePhoto&&groupedMsgs.length){
-        const prev=groupedMsgs[groupedMsgs.length-1];
-        if(prev._isPhotoGroup&&prev.user_id===gm.user_id&&prev.role===gm.role&&prev._photos.length<9){
-          const dt=new Date(gm.created_at)-new Date(prev._lastAt);
-          if(dt<=60*1000){
-            prev._photos.push({url:gp.image,msgId:gm.id,createdAt:gm.created_at});
-            prev._lastAt=gm.created_at;
-            continue;
-          }
-        }
-      }
-      if(isPurePhoto){
-        groupedMsgs.push({
-          _isPhotoGroup:true,
-          id:gm.id, user_id:gm.user_id, role:gm.role,
-          real_name:gm.real_name, name:gm.name,
-          created_at:gm.created_at, _lastAt:gm.created_at,
-          _photos:[{url:gp.image,msgId:gm.id,createdAt:gm.created_at}]
+    container=$g('roomMessages');
+    const atBottom=container ? container.scrollHeight-container.scrollTop-container.clientHeight<50 : true;
+    /* Phase 3.7 (2026-05-08): store 갱신 — React RoomMessages 가 자동 reactive */
+    try {
+      if(window.__messagesStore) {
+        window.__messagesStore.setData({
+          roomId: currentRoomId,
+          messages: d.messages || [],
+          members: d.members || [],
+          roomStatus: d.room.status || null,
+          roomName: d.room.name || null,
+          roomPhone: d.room.phone || null,
         });
-      } else {
-        groupedMsgs.push(gm);
       }
+    } catch(_){}
+    /* React 미작동 시 fallback — 기존 직접 innerHTML 패턴 */
+    if(container && (!window.__buildRoomMessagesHtml || !window.__messagesStore)){
+      container.innerHTML = _buildRoomMessagesHtml();
     }
-    container.innerHTML=groupedMsgs.map(m=>{
-      const sep=_dateSep(m);
-      const nm=m.real_name||m.name||'';
-      /* 사진 그룹 렌더링 */
-      if(m._isPhotoGroup){
-        return sep+renderPhotoGroupAdmin(m);
-      }
-      /* 삭제된 메시지 플레이스홀더 */
-      if(m.deleted_at){
-        return sep+'<div style="margin-bottom:10px;text-align:center;opacity:.6"><span style="display:inline-block;background:#f2f4f6;color:#8b95a1;padding:6px 14px;border-radius:10px;font-size:.75em;font-style:italic">삭제된 메시지입니다</span></div>';
-      }
-      /* 컨텍스트 메뉴용 데이터 (답장·복사·삭제) */
-      const parsed=parseMsg(m.content);
-      /* 영수증은 "🧾 가게 · 금액원 · 날짜", 사진은 "[사진]", 파일은 "[파일] 이름" 으로
-         답장 인용 프리뷰와 복사 내용이 의미있는 텍스트가 되게 함 */
-      let preview=parsed.text;
-      if(!preview){
-        if(parsed.doc_id && m.document){
-          const d=m.document;
-          const parts=[];
-          if(d.vendor)parts.push(d.vendor);
-          if(d.amount)parts.push(Number(d.amount).toLocaleString()+'원');
-          if(d.receipt_date)parts.push(d.receipt_date);
-          preview='🧾 '+(parts.length?parts.join(' · '):'영수증');
-        } else if(parsed.image){
-          preview='[사진]';
-        } else if(parsed.file){
-          preview='[파일] '+(parsed.file.name||'');
-        }
-      }
-      const isAdvisor=m.role==='human_advisor';
-      const canDel=isAdvisor?1:0;
-      const kind = parsed.doc_id ? 'doc' : (parsed.image ? 'img' : (parsed.file ? 'file' : 'text'));
-      const imgSrcAttr = parsed.image ? ' data-img-src="'+escAttr(parsed.image)+'"' : '';
-      function attrs(sender,mine){
-        return ' class="rc-msg-bubble" data-msg="'+m.id+'" data-sender="'+escAttr(sender)+'" data-text="'+escAttr(preview)+'" data-mine="'+(mine?1:0)+'" data-deletable="'+canDel+'" data-kind="'+kind+'"'+imgSrcAttr;
-      }
-      const ur=(m.unread_count>0)?'<span style="font-size:.68em;color:#f4c430;font-weight:700;margin:0 4px;align-self:flex-end">'+m.unread_count+'</span>':'';
-      if(m.role==='user'){
-        return sep+'<div style="margin-bottom:10px;display:flex;align-items:flex-end;gap:4px"><div style="max-width:70%"><div style="font-size:.7em;color:#8b95a1;margin-bottom:2px">'+e(nm)+'</div><div'+attrs(nm,0)+' style="display:inline-block;background:#fff;border:1px solid #e5e8eb;padding:10px 14px;border-radius:4px 14px 14px 14px;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">'+e(m.created_at||'')+'</div></div></div>'+ur+'</div>';
-      } else if(m.role==='assistant'){
-        return sep+'<div style="margin-bottom:10px;display:flex;align-items:flex-end;gap:4px"><div'+attrs('AI',0)+' style="display:inline-block;background:#f2f4f6;padding:10px 14px;border-radius:4px 14px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;color:#8b95a1;margin-top:4px">🤖 AI · '+e(m.created_at||'')+'</div></div>'+ur+'</div>';
-      } else if(m.role==='human_advisor'){
-        return sep+'<div style="margin-bottom:10px;display:flex;justify-content:flex-end;align-items:flex-end;gap:4px">'+ur+'<div'+attrs('세무사',1)+' style="background:#10b981;color:#fff;padding:10px 14px;border-radius:14px 4px 14px 14px;max-width:70%;font-size:.85em;white-space:pre-wrap">'+renderMsgBody(m.content, m.document)+'<div style="font-size:.65em;opacity:.9;margin-top:4px"><img src="logo-icon.png" alt="" style="width:12px;height:12px;vertical-align:middle;object-fit:contain;margin-right:3px;filter:brightness(0) invert(1)"> 세무사 · '+e(m.created_at||'')+'</div></div></div>';
-      }
-      return '';
-    }).join('');
-    if(atBottom||adminForceScrollOnNext)container.scrollTop=container.scrollHeight;
+    if(container && (atBottom||adminForceScrollOnNext)) container.scrollTop=container.scrollHeight;
     adminForceScrollOnNext=false;
   }catch(err){
     /* fix (2026-05-07): 이전 console.error 만 → 메시지 안 떠도 사용자 모름. 첫 로드 시 UI 에러 + 재시도 */
     console.error('[loadRoomDetail]', err);
+    try { if(window.__messagesStore) window.__messagesStore.setError(err.message||'unknown'); } catch(_){}
     if(container && !container.children.length){
       container.innerHTML='<div style="text-align:center;color:#dc2626;font-size:.85em;padding:30px 0">메시지 불러오기 실패: '+e(err.message||'')+'<br><button onclick="loadRoomDetail()" style="margin-top:10px;background:#3182f6;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:inherit">🔄 재시도</button></div>';
     }
