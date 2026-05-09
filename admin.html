@@ -238,7 +238,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=50', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=51', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -258,7 +258,7 @@ setTimeout(function(){
 <script src="/admin-rooms-list.js?v=6"></script>
 <script src="/admin-rooms-msg.js?v=5"></script>
 <script src="/admin-rooms-misc.js?v=2"></script>
-<script src="/admin-users-tab.js?v=28"></script>
+<script src="/admin-users-tab.js?v=29"></script>
 <!-- Phase 2 (2026-05-07): 신고 검토표 시스템 (사장님 명세) -->
 <script src="/admin-filing-review.js?v=21"></script>
 <!-- Phase #7 적용 (2026-05-06): admin-docs.js lazy load.
@@ -315,7 +315,7 @@ setTimeout(function(){
 
 <!-- Phase #2 적용 (2026-05-07): React entry — admin-role-badge-inline 등 mount points 자동 처리.
      classic script 끝난 후 로드 (defer 효과). 사장님 admin.html 전체 로드 후 React 컴포넌트 렌더. -->
-<script type="module" src="/assets/react.js?v=5"></script>
+<script type="module" src="/assets/react.js?v=6"></script>
 
 </body>
 </html>

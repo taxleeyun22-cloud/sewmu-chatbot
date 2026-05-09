@@ -22,6 +22,8 @@ import { SidebarTrashCount } from './components/SidebarTrashCount';
 /* Phase 2.2 (2026-05-08): 사용자/업체 총합 카운트 React 화 — 두번째 점진 phase */
 import { SidebarUserTotal } from './components/SidebarUserTotal';
 import { SidebarBizTotal } from './components/SidebarBizTotal';
+/* Phase 2.3 (2026-05-08): 사용자 status 별 카운트 React 화 (탭바 7개) */
+import { SidebarStatusCount } from './components/SidebarStatusCount';
 /* sidebar-store import — window.__sidebarStore 자동 활성화 (admin.js refreshSidebarCounts 가 사용) */
 import '../admin/state/sidebar-store';
 
@@ -93,6 +95,15 @@ function bootstrap() {
   /* Phase 2.2 (2026-05-08): 사용자/업체 총합 카운트 — store 자동 reactive */
   mountAt('sb-user-total-mount', () => <SidebarUserTotal />);
   mountAt('sb-biz-total-mount', () => <SidebarBizTotal />);
+
+  /* Phase 2.3 (2026-05-08): 사용자 status 별 카운트 (메인 탭바 7개) */
+  mountAt('c-pending-mount', () => <SidebarStatusCount status="pending" />);
+  mountAt('c-client-mount', () => <SidebarStatusCount status="approvedClient" />);
+  mountAt('c-guest-mount', () => <SidebarStatusCount status="approvedGuest" />);
+  mountAt('c-rejected-mount', () => <SidebarStatusCount status="rejected" />);
+  mountAt('c-terminated-mount', () => <SidebarStatusCount status="terminated" />);
+  mountAt('c-rejoined-mount', () => <SidebarStatusCount status="rejoined" />);
+  mountAt('c-admin-mount', () => <SidebarStatusCount status="admin" />);
 
   /* 거래처 dashboard 매출 차트 — data-user-id 속성 있으면 자동 mount.
    * 없으면 admin-customer-dash.js 가 openCustomerDashboard 시 window.__mountFinanceChart(userId) 호출. */

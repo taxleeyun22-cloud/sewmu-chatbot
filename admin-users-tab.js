@@ -94,14 +94,19 @@ try{
 const r=await fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status='+encodeURIComponent(status));
 const d=await r.json();
 if(d.counts){
-$g('cPending').textContent=d.counts.pending||0;
-$g('cClient').textContent=d.counts.approved_client||0;
-$g('cGuest').textContent=d.counts.approved_guest||0;
-$g('cRejected').textContent=d.counts.rejected||0;
-if($g('cTerminated'))$g('cTerminated').textContent=d.counts.terminated||0;
+/* Phase 2.3 (2026-05-08): React (SidebarStatusCount) 자동 reactive — textContent 조작 제거.
+ * sidebar-store update 1 회 → 7개 컴포넌트 동시 갱신. */
+try { if(window.__sidebarStore) window.__sidebarStore.update({
+  pending: d.counts.pending||0,
+  approvedClient: d.counts.approved_client||0,
+  approvedGuest: d.counts.approved_guest||0,
+  rejected: d.counts.rejected||0,
+  terminated: d.counts.terminated||0,
+  rejoined: d.counts.rejoined||0,
+  admin: d.counts.admin||0,
+}); } catch(_){}
+/* fallback — withdrawn 은 store 컬럼 없음, 그대로 textContent (legacy) */
 if($g('cWithdrawn'))$g('cWithdrawn').textContent=d.counts.withdrawn||0;
-if($g('cRejoined'))$g('cRejoined').textContent=d.counts.rejoined||0;
-if($g('cAdmin'))$g('cAdmin').textContent=d.counts.admin||0;
 }
 if(!d.users||d.users.length===0){el.innerHTML='<div class="empty">해당 상태의 사용자가 없습니다</div>';return}
 el.innerHTML=d.users.map(u=>{
