@@ -6,6 +6,7 @@
   "description": "세무회계 이윤 AI 세무 챗봇 + 사무실 OS",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/export-permissions.mjs",
     "build": "vite build",
     "build:strict": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",

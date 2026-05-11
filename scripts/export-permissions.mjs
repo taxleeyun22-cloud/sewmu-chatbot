@@ -1,0 +1,75 @@
+#!/usr/bin/env node
+/**
+ * Phase Next-Day27 (2026-05-11): permissions.json export.
+ *
+ * 빌드 시 packages/auth/src/rbac.ts 의 PERMISSIONS map 을
+ *   public/permissions.json 으로 export.
+ *
+ * 옛 admin.html / functions/api/_authz.js 가 이 JSON 참조 → SSOT 자동 동기.
+ *
+ * 사용:
+ *   node scripts/export-permissions.mjs
+ *   → public/permissions.json 갱신
+ *
+ * vite build 또는 npm run build 가 자동 호출 (package.json scripts 에 등록 예정).
+ */
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = join(__dirname, '..');
+
+/* rbac.ts 직접 import 는 tsx 필요 — TypeScript 컴파일 우회 위해 정규식 파싱. */
+import { readFileSync } from 'node:fs';
+const rbacSource = readFileSync(
+  join(repoRoot, 'packages/auth/src/rbac.ts'),
+  'utf-8',
+);
+
+/* PERMISSIONS = { 'key': 'role' as Role, ... } 추출 */
+const permissionsMatch = rbacSource.match(
+  /export const PERMISSIONS = \{([\s\S]*?)\} as const;/,
+);
+if (!permissionsMatch) {
+  console.error('❌ PERMISSIONS map not found in rbac.ts');
+  process.exit(1);
+}
+
+const body = permissionsMatch[1];
+const permissions = {};
+
+/* 패턴: 'admin:user:set_admin': 'owner' as Role, */
+const entryPattern = /'([^']+)':\s*'(owner|admin|customer)'\s*as\s*Role/g;
+let match;
+while ((match = entryPattern.exec(body)) !== null) {
+  permissions[match[1]] = match[2];
+}
+
+if (Object.keys(permissions).length === 0) {
+  console.error('❌ no permissions extracted');
+  process.exit(1);
+}
+
+/* 옛 admin.html public/ 으로 export */
+const outputs = [
+  join(repoRoot, 'public/permissions.json'),
+  join(repoRoot, 'functions/api/_permissions.json'),
+];
+
+const json = JSON.stringify(
+  {
+    generated_at: new Date().toISOString(),
+    /* 옛 admin.html 가 변경 감지 — cache busting 필요 시 사용 */
+    version: process.env.GITHUB_SHA?.slice(0, 7) || 'dev',
+    permissions,
+  },
+  null,
+  2,
+);
+
+for (const outPath of outputs) {
+  mkdirSync(dirname(outPath), { recursive: true });
+  writeFileSync(outPath, json);
+  console.log(`✅ ${outPath} (${Object.keys(permissions).length} permissions)`);
+}

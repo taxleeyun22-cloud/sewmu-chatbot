@@ -8,6 +8,7 @@
  */
 import type { Metadata } from 'next';
 import './globals.css';
+import { ClientErrorHookup } from './client-error-hookup';
 
 export const metadata: Metadata = {
   title: '세무회계 이윤 — AI 세무 상담',
@@ -23,7 +24,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body>{children}</body>
+      <body>
+        <ClientErrorHookup source="customer" />
+        {children}
+      </body>
     </html>
   );
 }

@@ -469,15 +469,45 @@ async function _refreshAdminRole(){
     const d = await r.json();
     if(d && d.ok){
       IS_OWNER = !!d.owner;
-      IS_MANAGER = !!d.manager;
-      IS_STAFF = (d.role === 'staff' || d.role === 'manager' || d.role === 'owner');
-      /* IS_OWNER 변동 시 UI 갱신 (오너만 표시되는 버튼들) */
+      /* 사장님 결정 2026-05-11: 매니저/스태프 통합 — 호환 위해 변수만 유지, 모두 동일 */
+      IS_MANAGER = !!d.owner || (d.role === 'admin');
+      IS_STAFF = (d.role === 'admin' || d.role === 'owner');
+      /* IS_OWNER 변동 시 UI 갱신 */
       try{ if(typeof _refreshOwnerUI === 'function') _refreshOwnerUI(); }catch(_){}
-      /* Phase #6 적용: shared store sync */
       try{ if(window.__sharedStore){ window.__sharedStore.$isOwner.set(IS_OWNER); } }catch(_){}
     }
   }catch(_){}
+  /* Phase Next-Day27 (2026-05-11): permissions catalog SSOT load */
+  try{ await _loadPermissionsCatalog(); }catch(_){}
 }
+
+/* Phase Next-Day27 (2026-05-11): 권한 catalog SSOT.
+ * scripts/export-permissions.mjs 가 build 시 packages/auth/rbac.ts 로부터 생성.
+ * 1곳 (rbac.ts) 수정 = 옛 admin.html + 새 Next.js 자동 동기.
+ */
+window.__PERMISSIONS = null;
+async function _loadPermissionsCatalog(){
+  if(window.__PERMISSIONS) return;
+  try{
+    const r = await fetch('/api/permissions');
+    if(!r.ok) return;
+    const d = await r.json();
+    window.__PERMISSIONS = d.permissions || {};
+  }catch(_){}
+}
+
+/* canDo('admin:business:delete') — 프론트 버튼 hide 용.
+ * 백엔드도 같은 catalog 강제 차단 (functions/api/_permissions.js).
+ */
+function canDo(permission){
+  if(!window.__PERMISSIONS) return IS_OWNER; // catalog 로드 전 = owner 만 안전
+  const required = window.__PERMISSIONS[permission];
+  if(!required) return false;
+  const role = IS_OWNER ? 'owner' : (IS_STAFF ? 'admin' : 'customer');
+  const order = ['customer', 'admin', 'owner'];
+  return order.indexOf(role) >= order.indexOf(required);
+}
+window.canDo = canDo;
 (async function(){
   /* staff.html 은 redirect 페이지이므로 진입 즉시 admin.html 로 이동. 이 IIFE 는 admin.html 에서만 작동 */
   /* 보안: 세션 스토리지(탭 수명)만 조회. 과거 localStorage 잔존 키는 정리 */
