@@ -1,19 +1,32 @@
 /**
- * Phase Next-Day28 (2026-05-11): /admin/users 컴팩트 — table 스타일 (옛 admin.html 톤).
- * 사장님 명령: "새 어드민 컴팩트하게 변동 ㄱㄱ"
+ * Phase Next-Day28 (2026-05-11): /admin/users — shadcn/ui 적용.
+ * 사장님 명령 "구글직원처럼 + 모달 팝업 위치까지".
  */
 'use client';
 
 import { useEffect, useState } from 'react';
 import { trpcCall } from '@/lib/trpc';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const STATUS_TABS = [
-  { key: 'pending', label: '대기' },
-  { key: 'approved_client', label: '기장거래처' },
-  { key: 'rejected', label: '거절' },
-  { key: 'terminated', label: '종료' },
-  { key: 'rejoined', label: '재가입' },
-  { key: 'admin', label: '관리자' },
+  { key: 'pending', label: '대기', emoji: '⏳' },
+  { key: 'approved_client', label: '기장거래처', emoji: '⭐' },
+  { key: 'rejected', label: '거절', emoji: '✕' },
+  { key: 'terminated', label: '종료', emoji: '⛔' },
+  { key: 'rejoined', label: '재가입', emoji: '↻' },
+  { key: 'admin', label: '관리자', emoji: '👑' },
 ];
 
 interface User {
@@ -48,7 +61,6 @@ export default function UsersPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(null);
     trpcCall<{ users: User[] }>('users.list', { status, search, limit: 200 })
       .then((d) => {
         if (!cancelled) setUsers(d.users);
@@ -65,166 +77,162 @@ export default function UsersPage() {
   }, [status, search]);
 
   return (
-    <div className="p-3">
-      {/* 헤더 — 컴팩트 */}
-      <div className="flex items-center justify-between mb-2 gap-2">
-        <h1 className="text-base font-bold text-gray-900">사용자</h1>
-        <input
+    <div className="p-4 space-y-3">
+      {/* 헤더 */}
+      <header className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-bold text-gray-900">사용자</h1>
+          <p className="text-xs text-gray-500 mt-0.5">거래처 + admin 관리</p>
+        </div>
+        <Input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="🔍 이름/전화/이메일"
-          className="w-64 px-2.5 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brand-primary"
+          placeholder="🔍 이름·전화·이메일 검색"
+          className="w-72"
         />
-      </div>
+      </header>
 
-      {/* status tabs — 컴팩트 */}
-      <div className="flex flex-wrap gap-1 mb-2">
-        {STATUS_TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setStatus(t.key)}
-            className={`px-2.5 py-0.5 rounded text-xs font-medium transition-colors ${
-              status === t.key
-                ? 'bg-brand-primary text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* status tabs */}
+      <Tabs value={status} onValueChange={setStatus}>
+        <TabsList>
+          {STATUS_TABS.map((t) => (
+            <TabsTrigger key={t.key} value={t.key}>
+              <span className="mr-1">{t.emoji}</span>
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
-      {/* table — 컴팩트 (옛 admin.html 톤) */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        {loading && (
-          <p className="text-center text-gray-400 py-6 text-xs">불러오는 중...</p>
-        )}
-        {error && (
-          <p className="text-center text-red-500 py-6 text-xs">오류: {error}</p>
-        )}
-        {!loading && !error && users.length === 0 && (
-          <p className="text-center text-gray-400 py-6 text-xs">
-            해당 status 의 사용자가 없습니다.
-          </p>
-        )}
-        {!loading && users.length > 0 && (
-          <table className="w-full text-xs">
-            <thead className="bg-gray-50 text-[11px] text-gray-600">
-              <tr>
-                <th className="px-2 py-1.5 text-left w-8">#</th>
-                <th className="px-2 py-1.5 text-left">이름</th>
-                <th className="px-2 py-1.5 text-left">연락처</th>
-                <th className="px-2 py-1.5 text-left">이메일</th>
-                <th className="px-2 py-1.5 text-left w-16">로그인</th>
-                <th className="px-2 py-1.5 text-left w-24">가입일</th>
-                <th className="px-2 py-1.5 text-right w-32">액션</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {users.map((u) => (
-                <tr key={u.id} className="hover:bg-gray-50">
-                  <td className="px-2 py-1 text-gray-400">{u.id}</td>
-                  <td className="px-2 py-1">
-                    <span className="font-medium">
-                      {u.real_name || u.name || '이름없음'}
-                    </span>
-                    {u.is_admin === 1 && (
-                      <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1 py-0 rounded">
-                        👑
+      {/* table card */}
+      <Card>
+        <CardHeader className="pb-1.5">
+          <CardTitle className="text-xs flex items-center justify-between">
+            <span>
+              {STATUS_TABS.find((t) => t.key === status)?.emoji}{' '}
+              {STATUS_TABS.find((t) => t.key === status)?.label} 사용자
+            </span>
+            {!loading && users.length > 0 && (
+              <Badge variant="default">총 {users.length} 건</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-0">
+          {loading && (
+            <p className="text-center text-gray-400 py-6 text-xs">불러오는 중...</p>
+          )}
+          {error && (
+            <p className="text-center text-red-500 py-6 text-xs">오류: {error}</p>
+          )}
+          {!loading && !error && users.length === 0 && (
+            <p className="text-center text-gray-400 py-6 text-xs">
+              해당 status 의 사용자가 없습니다.
+            </p>
+          )}
+          {!loading && users.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">#</TableHead>
+                  <TableHead>이름</TableHead>
+                  <TableHead className="w-32">연락처</TableHead>
+                  <TableHead>이메일</TableHead>
+                  <TableHead className="w-20">로그인</TableHead>
+                  <TableHead className="w-24">가입일</TableHead>
+                  <TableHead className="w-32 text-right">액션</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell className="text-gray-400 font-mono">{u.id}</TableCell>
+                    <TableCell>
+                      <span className="font-medium">
+                        {u.real_name || u.name || '이름없음'}
                       </span>
-                    )}
-                  </td>
-                  <td className="px-2 py-1 text-gray-700 font-mono">
-                    {u.phone || '-'}
-                  </td>
-                  <td className="px-2 py-1 text-gray-600 truncate max-w-[180px]">
-                    {u.email || '-'}
-                  </td>
-                  <td className="px-2 py-1">
-                    {u.provider === 'kakao' && (
-                      <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1 py-0 rounded">
-                        카톡
-                      </span>
-                    )}
-                    {u.provider === 'naver' && (
-                      <span className="text-[10px] bg-green-100 text-green-700 px-1 py-0 rounded">
-                        네이버
-                      </span>
-                    )}
-                    {!u.provider && (
-                      <span className="text-[10px] bg-gray-100 text-gray-600 px-1 py-0 rounded">
-                        수동
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-2 py-1 text-[10px] text-gray-500 font-mono">
-                    {u.created_at ? u.created_at.slice(2, 10) : '-'}
-                  </td>
-                  <td className="px-2 py-1 text-right">
-                    <UserActions user={u} onChanged={refetch} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* 총 N건 */}
-      {!loading && users.length > 0 && (
-        <p className="text-[11px] text-gray-400 mt-1.5 text-right">
-          총 {users.length} 건
-        </p>
-      )}
+                      {u.is_admin === 1 && (
+                        <Badge variant="secondary" className="ml-1.5">
+                          👑 관리자
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-mono text-gray-700">
+                      {u.phone || '-'}
+                    </TableCell>
+                    <TableCell className="text-gray-600 truncate max-w-[180px]">
+                      {u.email || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {u.provider === 'kakao' && <Badge variant="warning">카톡</Badge>}
+                      {u.provider === 'naver' && <Badge variant="success">네이버</Badge>}
+                      {!u.provider && <Badge variant="default">수동</Badge>}
+                    </TableCell>
+                    <TableCell className="text-[10px] text-gray-500 font-mono">
+                      {u.created_at ? u.created_at.slice(2, 10) : '-'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <UserActions user={u} onChanged={refetch} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
 function UserActions({ user, onChanged }: { user: User; onChanged: () => void }) {
-  async function setStatus(status: string) {
+  async function setUserStatus(status: string) {
     if (!confirm(`${user.real_name || user.name} 을(를) ${status} 으로 변경?`)) return;
     await trpcCall('users.setStatus', { userId: user.id, status });
     onChanged();
   }
 
   return (
-    <div className="flex gap-0.5 justify-end">
+    <div className="flex gap-1 justify-end">
       {user.approval_status === 'pending' && (
         <>
-          <button
-            onClick={() => setStatus('approved_client')}
-            className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded"
+          <Button
+            size="xs"
+            variant="default"
+            onClick={() => setUserStatus('approved_client')}
             title="기장거래처 승급"
           >
             ⭐기장
-          </button>
-          <button
-            onClick={() => setStatus('rejected')}
-            className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded"
+          </Button>
+          <Button
+            size="xs"
+            variant="destructive"
+            onClick={() => setUserStatus('rejected')}
             title="거절"
           >
             ✕거절
-          </button>
+          </Button>
         </>
       )}
       {user.approval_status === 'approved_client' && (
-        <button
-          onClick={() => setStatus('terminated')}
-          className="text-[10px] bg-gray-500 text-white px-1.5 py-0.5 rounded"
+        <Button
+          size="xs"
+          variant="secondary"
+          onClick={() => setUserStatus('terminated')}
           title="종료"
         >
           ⛔종료
-        </button>
+        </Button>
       )}
       {user.approval_status === 'rejected' && (
-        <button
-          onClick={() => setStatus('approved_client')}
-          className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded"
+        <Button
+          size="xs"
+          variant="default"
+          onClick={() => setUserStatus('approved_client')}
           title="기장거래처 복구"
         >
           ↻복구
-        </button>
+        </Button>
       )}
     </div>
   );

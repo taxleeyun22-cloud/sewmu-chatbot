@@ -1,0 +1,13 @@
+# Cloudflare Pages SPA fallback (Phase S3a, 2026-05-04)
+#
+# 메타 12종 #7 — 사장님 명령 "뒤로가기 누르면 바로 이전 화면" 실현
+#
+# 동작:
+# - 정적 파일 (admin.html / office.html / business.html / memo-window.html / articles.html / *.js / *.css / *.png 등)
+#   은 정상 fetch (이 규칙은 매칭 안 됨, Cloudflare 정적 우선)
+# - SPA route (예: /admin/users, /chat/123) — 정적 파일 없음 → 마지막 규칙 매칭 → index.html 200
+# - JS 가 path 보고 router.match → 적절한 view 렌더
+#
+# 주의: 200 status 유지 (302 redirect X — URL 그대로, history 정상 작동)
+
+/*  /index.html  200

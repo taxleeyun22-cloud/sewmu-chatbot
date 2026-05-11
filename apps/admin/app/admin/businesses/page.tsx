@@ -1,12 +1,24 @@
 /**
- * Phase Next-Day28 (2026-05-11): /admin/businesses 컴팩트 — table 스타일.
- * 사장님 명령: "새 어드민 컴팩트하게 변동 ㄱㄱ"
+ * Phase Next-Day28 (2026-05-11): /admin/businesses — shadcn/ui.
  */
 'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { trpcCall } from '@/lib/trpc';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Business {
   id: number;
@@ -56,122 +68,112 @@ export default function BusinessesPage() {
   }, [status, search]);
 
   return (
-    <div className="p-3">
-      {/* 헤더 — 컴팩트 */}
-      <div className="flex items-center justify-between mb-2 gap-2">
-        <h1 className="text-base font-bold text-gray-900">업체</h1>
-        <div className="flex gap-1.5">
-          <input
+    <div className="p-4 space-y-3">
+      {/* 헤더 */}
+      <header className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-bold text-gray-900">업체</h1>
+          <p className="text-xs text-gray-500 mt-0.5">기장 거래처 사업장 + 지점</p>
+        </div>
+        <div className="flex gap-2 items-center">
+          <Input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="🔍 업체명/사업자번호/대표자"
-            className="w-72 px-2.5 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brand-primary"
+            placeholder="🔍 업체명·사업자번호·대표자"
+            className="w-72"
           />
-          <button className="bg-brand-success text-white px-2.5 py-1 rounded text-xs font-medium">
+          <Button variant="success" size="sm">
             + 새 업체
-          </button>
+          </Button>
         </div>
-      </div>
+      </header>
 
-      {/* status tabs */}
-      <div className="flex gap-1 mb-2">
-        {STATUS_TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setStatus(t.key)}
-            className={`px-2.5 py-0.5 rounded text-xs font-medium ${
-              status === t.key
-                ? 'bg-brand-primary text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {t.label}
-            <span className="ml-1 opacity-75">
-              {(counts as Record<string, number>)[t.key] ?? 0}
-            </span>
-          </button>
-        ))}
-      </div>
+      {/* status tabs with counts */}
+      <Tabs value={status} onValueChange={setStatus}>
+        <TabsList>
+          {STATUS_TABS.map((t) => (
+            <TabsTrigger key={t.key} value={t.key}>
+              {t.label}
+              <span className="ml-1 opacity-70">{(counts as Record<string, number>)[t.key] ?? 0}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       {/* table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        {loading && (
-          <p className="text-center text-gray-400 py-6 text-xs">불러오는 중...</p>
-        )}
-        {!loading && list.length === 0 && (
-          <p className="text-center text-gray-400 py-6 text-xs">등록된 업체가 없습니다.</p>
-        )}
-        {!loading && list.length > 0 && (
-          <table className="w-full text-xs">
-            <thead className="bg-gray-50 text-[11px] text-gray-600">
-              <tr>
-                <th className="px-2 py-1.5 text-left w-8">#</th>
-                <th className="px-2 py-1.5 text-left">업체명</th>
-                <th className="px-2 py-1.5 text-left w-32">사업자번호</th>
-                <th className="px-2 py-1.5 text-left w-20">대표자</th>
-                <th className="px-2 py-1.5 text-left w-24">업종</th>
-                <th className="px-2 py-1.5 text-left w-16">상태</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {list.map((b) => {
-                const isBranch = !!b.parent_business_id;
-                return (
-                  <tr
-                    key={b.id}
-                    className={`hover:bg-gray-50 cursor-pointer ${isBranch ? 'bg-blue-50/30' : ''}`}
-                  >
-                    <td className="px-2 py-1 text-gray-400">{b.id}</td>
-                    <td className="px-2 py-1">
-                      <Link
-                        href={`/admin/businesses/${b.id}`}
-                        className="font-medium hover:text-brand-primary"
-                      >
-                        <span className="mr-1">{isBranch ? '📍' : '🏢'}</span>
-                        {b.company_name || '(이름없음)'}
-                        {isBranch && (
-                          <span className="ml-1 text-[10px] bg-blue-100 text-blue-700 px-1 py-0 rounded">
-                            지점
-                          </span>
+      <Card>
+        <CardHeader className="pb-1.5">
+          <CardTitle className="text-xs flex items-center justify-between">
+            <span>업체 목록</span>
+            {!loading && list.length > 0 && (
+              <Badge variant="default">총 {list.length} 건</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-0">
+          {loading && <p className="text-center text-gray-400 py-6 text-xs">불러오는 중...</p>}
+          {!loading && list.length === 0 && (
+            <p className="text-center text-gray-400 py-6 text-xs">등록된 업체가 없습니다.</p>
+          )}
+          {!loading && list.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">#</TableHead>
+                  <TableHead>업체명</TableHead>
+                  <TableHead className="w-32">사업자번호</TableHead>
+                  <TableHead className="w-20">대표자</TableHead>
+                  <TableHead className="w-24">업종</TableHead>
+                  <TableHead className="w-20">상태</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {list.map((b) => {
+                  const isBranch = !!b.parent_business_id;
+                  return (
+                    <TableRow key={b.id} className={isBranch ? 'bg-blue-50/30' : ''}>
+                      <TableCell className="text-gray-400 font-mono">{b.id}</TableCell>
+                      <TableCell>
+                        <Link
+                          href={`/admin/businesses/${b.id}`}
+                          className="font-medium hover:text-brand-primary inline-flex items-center gap-1"
+                        >
+                          <span>{isBranch ? '📍' : '🏢'}</span>
+                          {b.company_name || '(이름없음)'}
+                          {isBranch && (
+                            <Badge variant="primary" className="ml-1">
+                              지점
+                            </Badge>
+                          )}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="font-mono text-gray-700">
+                        {b.business_number || '-'}
+                      </TableCell>
+                      <TableCell className="text-gray-700">{b.ceo_name || '-'}</TableCell>
+                      <TableCell className="text-gray-600 truncate max-w-[120px]">
+                        {b.business_type || b.industry || '-'}
+                      </TableCell>
+                      <TableCell>
+                        {b.status === 'closed' && (
+                          <Badge variant="default">📦 종료</Badge>
                         )}
-                      </Link>
-                    </td>
-                    <td className="px-2 py-1 font-mono text-gray-700">
-                      {b.business_number || '-'}
-                    </td>
-                    <td className="px-2 py-1 text-gray-700">{b.ceo_name || '-'}</td>
-                    <td className="px-2 py-1 text-gray-600 truncate max-w-[120px]">
-                      {b.business_type || b.industry || '-'}
-                    </td>
-                    <td className="px-2 py-1">
-                      {b.status === 'closed' && (
-                        <span className="text-[10px] bg-gray-200 text-gray-600 px-1 py-0 rounded">
-                          📦 종료
-                        </span>
-                      )}
-                      {b.status === 'terminated' && (
-                        <span className="text-[10px] bg-red-100 text-red-700 px-1 py-0 rounded">
-                          🚫 이관
-                        </span>
-                      )}
-                      {(!b.status || b.status === 'active') && (
-                        <span className="text-[10px] bg-green-100 text-green-700 px-1 py-0 rounded">
-                          ✓ 활성
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {!loading && list.length > 0 && (
-        <p className="text-[11px] text-gray-400 mt-1.5 text-right">총 {list.length} 건</p>
-      )}
+                        {b.status === 'terminated' && (
+                          <Badge variant="danger">🚫 이관</Badge>
+                        )}
+                        {(!b.status || b.status === 'active') && (
+                          <Badge variant="success">✓ 활성</Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,11 +1,14 @@
 /**
- * Phase Next-Day15 (2026-05-09): /admin/review — AI 답변 검증.
- * CLAUDE.md "🚨 자동 검증 시스템" 룰: flagged-items.json 동기화 → Claude 재검증 사이클.
+ * Phase Next-Day28 (2026-05-11): /admin/review — shadcn/ui.
  */
 'use client';
 
 import { useEffect, useState } from 'react';
 import { trpcCall } from '@/lib/trpc';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ReviewItem {
   id: number;
@@ -22,18 +25,18 @@ interface ReviewItem {
   question: string | null;
 }
 
-const FILTERS: { key: 'pending' | 'low' | 'medium' | 'reported' | 'all'; label: string }[] = [
-  { key: 'pending', label: '🔍 검토 대기' },
-  { key: 'low', label: '🔴 신뢰도 낮음' },
-  { key: 'medium', label: '🟡 신뢰도 보통' },
-  { key: 'reported', label: '🚨 신고됨' },
-  { key: 'all', label: '전체' },
+const FILTERS = [
+  { key: 'pending' as const, label: '🔍 검토 대기' },
+  { key: 'low' as const, label: '🔴 신뢰도 낮음' },
+  { key: 'medium' as const, label: '🟡 신뢰도 보통' },
+  { key: 'reported' as const, label: '🚨 신고됨' },
+  { key: 'all' as const, label: '전체' },
 ];
 
-const CONF_COLOR: Record<string, string> = {
-  높음: 'bg-green-100 text-green-700',
-  보통: 'bg-yellow-100 text-yellow-700',
-  낮음: 'bg-red-100 text-red-700',
+const CONF_VARIANT: Record<string, 'success' | 'warning' | 'danger'> = {
+  높음: 'success',
+  보통: 'warning',
+  낮음: 'danger',
 };
 
 export default function ReviewPage() {
@@ -83,110 +86,96 @@ export default function ReviewPage() {
   }
 
   return (
-    <div className="p-3">
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-base font-bold text-gray-900">✓ AI 답변 검증</h1>
+    <div className="p-4 space-y-3">
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-bold text-gray-900">✓ AI 답변 검증</h1>
+          <p className="text-xs text-gray-500 mt-0.5">자동 검증 파이프라인 → flagged-items.json</p>
+        </div>
         <span className="text-[11px] text-gray-500">
           {loading ? '불러오는 중...' : `${items.length}건`}
         </span>
-      </div>
+      </header>
 
-      <div className="flex gap-1 mb-2 flex-wrap">
-        {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`px-2.5 py-0.5 rounded text-xs font-medium ${
-              filter === f.key
-                ? 'bg-brand-primary text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
+      <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
+        <TabsList>
+          {FILTERS.map((f) => (
+            <TabsTrigger key={f.key} value={f.key}>
+              {f.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         {!loading && items.length === 0 && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 text-center text-gray-400 text-xs">
-            검증 대기 답변이 없습니다 ✨
-          </div>
+          <Card>
+            <CardContent className="py-8 text-center text-gray-400 text-xs">
+              검증 대기 답변이 없습니다 ✨
+            </CardContent>
+          </Card>
         )}
 
         {items.map((item) => (
-          <div key={item.id} className="bg-white rounded-lg border border-gray-200 px-2.5 py-2">
-            {/* 헤더 */}
-            <div className="flex items-center gap-1 text-[10px] text-gray-500 mb-1.5 flex-wrap">
-              <span className="font-medium text-gray-700">
-                {item.user_real_name || item.user_name || '비로그인'}
-              </span>
-              <span>·</span>
-              <span className="font-mono">{item.created_at?.slice(2, 16) || '-'}</span>
-              {item.confidence && (
-                <span
-                  className={`px-1 py-0 rounded ${
-                    CONF_COLOR[item.confidence] || 'bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  {item.confidence}
+          <Card key={item.id}>
+            <CardContent className="py-2.5 px-3">
+              <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-gray-500">
+                <span className="font-medium text-gray-700">
+                  {item.user_real_name || item.user_name || '비로그인'}
                 </span>
-              )}
-              {item.reported === 1 && (
-                <span className="px-1 py-0 rounded bg-red-100 text-red-700">🚨 신고됨</span>
-              )}
-            </div>
+                <span>·</span>
+                <span className="font-mono">{item.created_at?.slice(2, 16) || '-'}</span>
+                {item.confidence && (
+                  <Badge variant={CONF_VARIANT[item.confidence] || 'default'}>
+                    {item.confidence}
+                  </Badge>
+                )}
+                {item.reported === 1 && <Badge variant="danger">🚨 신고됨</Badge>}
+              </div>
 
-            {/* 질문 */}
-            {item.question && (
-              <div className="mb-1.5">
-                <p className="text-[10px] font-medium text-gray-500">❓ 질문</p>
-                <p className="text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 rounded p-1.5 leading-snug">
-                  {item.question}
+              {item.question && (
+                <div className="mt-1.5">
+                  <p className="text-[10px] font-medium text-gray-500">❓ 질문</p>
+                  <p className="text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 rounded p-1.5 leading-snug">
+                    {item.question}
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-1.5">
+                <p className="text-[10px] font-medium text-gray-500">💬 AI 답변</p>
+                <p className="text-xs text-gray-800 whitespace-pre-wrap bg-blue-50 rounded p-1.5 leading-snug">
+                  {item.content || '(빈 답변)'}
                 </p>
               </div>
-            )}
 
-            {/* 답변 */}
-            <div className="mb-1.5">
-              <p className="text-[10px] font-medium text-gray-500">💬 AI 답변</p>
-              <p className="text-xs text-gray-800 whitespace-pre-wrap bg-blue-50 rounded p-1.5 leading-snug">
-                {item.content || '(빈 답변)'}
-              </p>
-            </div>
-
-            {/* 액션 */}
-            <div className="flex gap-1 flex-wrap items-center">
-              <button
-                onClick={() => markReviewed(item.id)}
-                className="text-[10px] bg-green-500 text-white px-1.5 py-0.5 rounded hover:opacity-90"
-              >
-                ✓검토완료
-              </button>
-              <button
-                onClick={() => report(item.id)}
-                className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded hover:opacity-90"
-                disabled={item.reported === 1}
-              >
-                🚨수정필요
-              </button>
-              <span className="text-[10px] text-gray-500 ml-1">신뢰도:</span>
-              {(['높음', '보통', '낮음'] as const).map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setConfidence(item.id, c)}
-                  disabled={item.confidence === c}
-                  className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                    item.confidence === c
-                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                      : 'border-gray-200 hover:bg-gray-50'
-                  }`}
+              <div className="flex gap-1 flex-wrap items-center mt-2">
+                <Button size="xs" variant="success" onClick={() => markReviewed(item.id)}>
+                  ✓검토완료
+                </Button>
+                <Button
+                  size="xs"
+                  variant="destructive"
+                  onClick={() => report(item.id)}
+                  disabled={item.reported === 1}
                 >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
+                  🚨수정필요
+                </Button>
+                <span className="text-[10px] text-gray-500 ml-1">신뢰도:</span>
+                {(['높음', '보통', '낮음'] as const).map((c) => (
+                  <Button
+                    key={c}
+                    size="xs"
+                    variant={item.confidence === c ? 'secondary' : 'outline'}
+                    onClick={() => setConfidence(item.id, c)}
+                    disabled={item.confidence === c}
+                  >
+                    {c}
+                  </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </div>

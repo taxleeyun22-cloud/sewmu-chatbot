@@ -1,0 +1,37 @@
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+/
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/articles.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/admin.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/staff.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/business.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/admin.js
+  Cache-Control: no-cache, must-revalidate
+
+/api/image
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+
+/api/file
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer

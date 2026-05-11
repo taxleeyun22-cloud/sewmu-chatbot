@@ -1,9 +1,11 @@
 /**
- * Phase Next-Day25 (2026-05-09): 사이드바 + 실시간 카운트.
+ * Phase Next-Day28 (2026-05-11): Sidebar — shadcn/ui 패턴 + 실시간 카운트.
+ * 사장님 명령 "구글직원처럼 + UI 예쁘게".
  *
- * 사장님 매일 진입 = 사이드바에서 한눈에 알아야 할 카운트:
- * - 대기 사용자 / 미처리 영수증 / 검증 대기 답변 / D-day 임박 일정
- * tRPC dashboard.counts 30초 polling.
+ * - 30초 polling (dashboard.counts)
+ * - badge color 자동 (status / 심각도)
+ * - active state 명시 (border-l-brand-primary)
+ * - 컴팩트 (w-52, py-1, text-[13px])
  */
 'use client';
 
@@ -12,6 +14,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { trpcCall } from '@/lib/trpc';
 import { badgeClass, type CountKey } from './sidebar-badge';
+import { cn } from '@/lib/utils';
 
 export { badgeClass } from './sidebar-badge';
 
@@ -31,7 +34,6 @@ interface NavItem {
   href: string;
   icon: string;
   label: string;
-  /** key in DashboardCounts — 자동 배지 표시 */
   countKey?: CountKey;
 }
 
@@ -70,7 +72,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
   {
     title: '알림',
     items: [
-      { href: '/admin/todos', icon: '📋', label: '내 일정', countKey: 'urgentTodos' },
+      { href: '/admin/todos', icon: '⏰', label: '내 일정', countKey: 'urgentTodos' },
       { href: '/admin/term-req', icon: '⚠️', label: '종료 요청' },
       { href: '/admin/bulk-send', icon: '📢', label: '단체발송' },
       { href: '/admin/search', icon: '🔍', label: '전역 검색' },
@@ -86,16 +88,14 @@ export function Sidebar() {
 
   useEffect(() => {
     let cancelled = false;
-    const fetch = () =>
+    const fetchCounts = () =>
       trpcCall<DashboardCounts>('dashboard.counts')
         .then((d) => {
           if (!cancelled) setCounts(d);
         })
-        .catch(() => {
-          /* 실패 시 카운트 미표시 (graceful) */
-        });
-    fetch();
-    const t = setInterval(fetch, 30000); // 30초 polling
+        .catch(() => {});
+    fetchCounts();
+    const t = setInterval(fetchCounts, 30000);
     return () => {
       cancelled = true;
       clearInterval(t);
@@ -104,17 +104,24 @@ export function Sidebar() {
 
   return (
     <aside className="w-52 bg-sb-bg border-r border-gray-200 flex flex-col">
-      {/* 로고 / 사장님 — 컴팩트 */}
-      <div className="px-3 py-2.5 border-b border-gray-200">
-        <h1 className="font-bold text-gray-900 text-sm">세무회계 이윤</h1>
-        <p className="text-[11px] text-sb-text-mute mt-0.5">이재윤 대표세무사</p>
+      {/* 로고 영역 — 구글 admin 느낌 */}
+      <div className="px-3 py-3 border-b border-gray-200 bg-white">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md bg-brand-primary text-white flex items-center justify-center text-xs font-bold">
+            세
+          </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-bold text-gray-900 text-xs truncate">세무회계 이윤</h1>
+            <p className="text-[10px] text-sb-text-mute truncate">이재윤 대표세무사</p>
+          </div>
+        </div>
       </div>
 
-      {/* 네비 — 컴팩트 (각 섹션 mb-2, 항목 py-1, 13px) */}
-      <nav className="flex-1 overflow-y-auto py-1.5">
+      {/* 네비 */}
+      <nav className="flex-1 overflow-y-auto py-2">
         {SECTIONS.map((section) => (
-          <div key={section.title} className="mb-1.5">
-            <h2 className="px-3 mb-0.5 mt-1 text-[10px] font-medium text-sb-text-mute uppercase tracking-wide">
+          <div key={section.title} className="mb-2">
+            <h2 className="px-3 mb-0.5 mt-1 text-[10px] font-semibold text-sb-text-mute uppercase tracking-wider">
               {section.title}
             </h2>
             <ul>
@@ -126,17 +133,18 @@ export function Sidebar() {
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      className={`flex items-center gap-1.5 px-3 py-1 text-[13px] leading-tight transition-colors ${
+                      className={cn(
+                        'group flex items-center gap-1.5 px-3 py-1 text-[13px] leading-tight transition-all',
                         active
-                          ? 'bg-sb-active-bg text-sb-active-text font-medium'
-                          : 'text-sb-text hover:bg-gray-100'
-                      }`}
+                          ? 'bg-sb-active-bg text-sb-active-text font-medium border-l-2 border-l-brand-primary'
+                          : 'text-sb-text hover:bg-white hover:text-gray-900 border-l-2 border-l-transparent',
+                      )}
                     >
                       <span className="w-4 text-center text-[13px]">{item.icon}</span>
-                      <span className="flex-1">{item.label}</span>
+                      <span className="flex-1 truncate">{item.label}</span>
                       {count > 0 && (
                         <span
-                          className={`text-[10px] px-1 py-0 rounded-full leading-4 ${cls}`}
+                          className={cn('text-[10px] px-1 py-0 rounded-full leading-4 font-medium', cls)}
                           data-testid={`badge-${item.countKey}`}
                         >
                           {count}
@@ -151,19 +159,17 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* 하단 — 로그아웃 + 거래처 챗봇 link (컴팩트) */}
-      <div className="px-3 py-1.5 border-t border-gray-200 text-[11px] text-sb-text-mute space-y-0.5">
+      {/* 하단 — actions */}
+      <div className="border-t border-gray-200 bg-white px-3 py-2 space-y-1">
         <button
           onClick={async () => {
             if (!confirm('로그아웃 하시겠습니까?')) return;
             try {
               await fetch('/api/admin-logout', { method: 'POST' });
-            } catch {
-              /* graceful */
-            }
+            } catch {}
             window.location.href = '/login';
           }}
-          className="w-full text-left hover:text-red-600 flex items-center gap-1.5 py-0.5"
+          className="w-full text-left text-[11px] text-gray-600 hover:text-red-600 flex items-center gap-1.5 py-1 rounded hover:bg-red-50 px-1 transition-colors"
         >
           <span>⏻</span>
           <span>로그아웃</span>
@@ -172,9 +178,9 @@ export function Sidebar() {
           href="https://sewmu-chatbot.pages.dev"
           target="_blank"
           rel="noreferrer"
-          className="hover:text-brand-primary flex items-center gap-1.5 py-0.5"
+          className="w-full text-[11px] text-gray-600 hover:text-brand-primary flex items-center gap-1.5 py-1 rounded hover:bg-blue-50 px-1 transition-colors"
         >
-          <span>→</span>
+          <span>↗</span>
           <span>거래처 챗봇</span>
         </a>
       </div>
