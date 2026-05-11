@@ -5,7 +5,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { trpcCall } from '@/lib/trpc';
+import { toast } from '@/components/ui/toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -148,9 +150,12 @@ export default function UsersPage() {
                   <TableRow key={u.id}>
                     <TableCell className="text-gray-400 font-mono">{u.id}</TableCell>
                     <TableCell>
-                      <span className="font-medium">
+                      <Link
+                        href={`/admin/users/${u.id}`}
+                        className="font-medium hover:text-brand-primary hover:underline"
+                      >
                         {u.real_name || u.name || '이름없음'}
-                      </span>
+                      </Link>
                       {u.is_admin === 1 && (
                         <Badge variant="secondary" className="ml-1.5">
                           👑 관리자
@@ -187,9 +192,15 @@ export default function UsersPage() {
 
 function UserActions({ user, onChanged }: { user: User; onChanged: () => void }) {
   async function setUserStatus(status: string) {
-    if (!confirm(`${user.real_name || user.name} 을(를) ${status} 으로 변경?`)) return;
-    await trpcCall('users.setStatus', { userId: user.id, status });
-    onChanged();
+    const name = user.real_name || user.name || `#${user.id}`;
+    if (!confirm(`${name} 을(를) ${status} 으로 변경?`)) return;
+    try {
+      await trpcCall('users.setStatus', { userId: user.id, status });
+      toast.success(`${name} → ${status}`);
+      onChanged();
+    } catch (e) {
+      toast.error(`실패: ${(e as Error).message}`);
+    }
   }
 
   return (
