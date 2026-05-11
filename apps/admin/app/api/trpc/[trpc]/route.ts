@@ -28,13 +28,79 @@ function getCfEnv(): any {
   }
 }
 
+/* timing-safe 문자열 비교 (옛 _adminAuth.js 호환) */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 const handler = async (req: Request) => {
   const env = getCfEnv();
+  const url = new URL(req.url);
 
-  /* admin_key cookie 검증 */
-  const cookieHeader = req.headers.get('cookie') || '';
-  const adminCookie = parseCookies(cookieHeader).admin_key_auth;
-  const isOwnerByKey = await verifyAdminKeyToken(adminCookie, env.AUTH_SECRET);
+  /* 인증 — 3가지 경로 (옛 admin + 새 admin 모두 호환) */
+  let auth = {
+    userId: null as number | null,
+    isOwner: false,
+    isAdmin: false,
+  };
+
+  /* 1. URL ?key=ADMIN_KEY (옛 admin.html 방식 — 사장님 빠른 진입) */
+  const urlKey = url.searchParams.get('key');
+  if (urlKey && env.ADMIN_KEY && timingSafeEqual(urlKey, env.ADMIN_KEY)) {
+    auth = {
+      userId: env.OWNER_USER_ID ? Number(env.OWNER_USER_ID) : 1,
+      isOwner: true,
+      isAdmin: true,
+    };
+  }
+
+  /* 2. admin_key_auth cookie (새 admin login → HMAC-signed) */
+  if (!auth.isOwner) {
+    const cookieHeader = req.headers.get('cookie') || '';
+    const cookies = parseCookies(cookieHeader);
+    const adminCookie = cookies.admin_key_auth;
+    if (adminCookie && (await verifyAdminKeyToken(adminCookie, env.AUTH_SECRET))) {
+      auth = {
+        userId: env.OWNER_USER_ID ? Number(env.OWNER_USER_ID) : 1,
+        isOwner: true,
+        isAdmin: true,
+      };
+    }
+  }
+
+  /* 3. 옛 session cookie + users.is_admin=1 (옛 _adminAuth.js 호환) */
+  if (!auth.isOwner) {
+    const cookieHeader = req.headers.get('cookie') || '';
+    const cookies = parseCookies(cookieHeader);
+    const sessionToken = cookies.session;
+    if (sessionToken && env.DB) {
+      try {
+        const row = await env.DB.prepare(`
+          SELECT s.user_id, u.is_admin
+          FROM sessions s
+          JOIN users u ON s.user_id = u.id
+          WHERE s.token = ? AND s.expires_at > datetime('now')
+        `)
+          .bind(sessionToken)
+          .first();
+        if (row && row.is_admin) {
+          const userId = Number(row.user_id);
+          /* 사장님 = user_id=1 (CLAUDE.md 룰 — _adminAuth.js 와 동일 가정) */
+          auth = {
+            userId,
+            isOwner: userId === 1,
+            isAdmin: true,
+          };
+        }
+      } catch {
+        /* graceful */
+      }
+    }
+  }
 
   return fetchRequestHandler({
     endpoint: '/api/trpc',
@@ -44,17 +110,7 @@ const handler = async (req: Request) => {
       db: env.DB,
       bucket: env.MEDIA_BUCKET,
       openaiApiKey: env.OPENAI_API_KEY,
-      auth: isOwnerByKey
-        ? {
-            userId: env.OWNER_USER_ID ? Number(env.OWNER_USER_ID) : null,
-            isOwner: true,
-            isAdmin: true,
-          }
-        : {
-            userId: null,
-            isOwner: false,
-            isAdmin: false,
-          },
+      auth,
     }),
   });
 };
