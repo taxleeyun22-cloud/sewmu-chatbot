@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/auth/[...nextauth]": {},
+    "/api/trpc/[trpc]": {},
+    "/api/filing-pdf/[id]": {},
+    "/api/ocr": {},
+    "/api/cron/filing-deadlines": {}
+  }
+}

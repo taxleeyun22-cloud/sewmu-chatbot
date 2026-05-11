@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "description": "세무회계 이윤 AI 세무 챗봇 + 사무실 OS",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "vite",
     "prebuild": "node scripts/export-permissions.mjs",

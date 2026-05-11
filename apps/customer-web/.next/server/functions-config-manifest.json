@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/auth/[...nextauth]": {},
+    "/api/file/[...key]": {},
+    "/api/chat": {},
+    "/api/upload-doc": {},
+    "/api/trpc/[trpc]": {}
+  }
+}

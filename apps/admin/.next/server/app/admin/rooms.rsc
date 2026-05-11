@@ -1,0 +1,21 @@
+1:"$Sreact.fragment"
+2:I[6223,["177","static/chunks/app/layout-c85ebe3ec55c2133.js"],"ClientErrorHookup"]
+3:I[5341,[],""]
+4:I[25,[],""]
+5:I[5620,["664","static/chunks/664-6d821dc1aacb6b48.js","581","static/chunks/app/admin/layout-2726ff6dad22e446.js"],"Sidebar"]
+6:I[1012,[],"ClientPageRoot"]
+7:I[2019,["261","static/chunks/app/admin/rooms/page-4a56b17545b64ba1.js"],"default"]
+a:I[5104,[],"OutletBoundary"]
+c:I[7158,[],"AsyncMetadataOutlet"]
+e:I[5104,[],"ViewportBoundary"]
+10:I[5104,[],"MetadataBoundary"]
+11:"$Sreact.suspense"
+13:I[4431,[],""]
+:HL["/_next/static/css/0496ecd88087962a.css","style"]
+0:{"P":null,"b":"gmsqtJ_f-yoQEGWr-CDNw","p":"","c":["","admin","rooms"],"i":false,"f":[[["",{"children":["admin",{"children":["rooms",{"children":["__PAGE__",{}]}]}]},"$undefined","$undefined",true],["",["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/_next/static/css/0496ecd88087962a.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]],["$","html",null,{"lang":"ko","children":["$","body",null,{"children":[["$","$L2",null,{"source":"admin"}],["$","$L3",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L4",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":{"fontFamily":"system-ui,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\"","height":"100vh","textAlign":"center","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},"children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":{"display":"inline-block","margin":"0 20px 0 0","padding":"0 23px 0 0","fontSize":24,"fontWeight":500,"verticalAlign":"top","lineHeight":"49px"},"children":404}],["$","div",null,{"style":{"display":"inline-block"},"children":["$","h2",null,{"style":{"fontSize":14,"fontWeight":400,"lineHeight":"49px","margin":0},"children":"This page could not be found."}]}]]}]}]],[]],"forbidden":"$undefined","unauthorized":"$undefined"}]]}]}]]}],{"children":["admin",["$","$1","c",{"children":[null,["$","div",null,{"className":"flex h-screen bg-white","children":[["$","$L5",null,{}],["$","main",null,{"className":"flex-1 overflow-y-auto bg-gray-50","children":["$","$L3",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L4",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]}]]}]]}],{"children":["rooms",["$","$1","c",{"children":[null,["$","$L3",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L4",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]]}],{"children":["__PAGE__",["$","$1","c",{"children":[["$","$L6",null,{"Component":"$7","searchParams":{},"params":{},"promises":["$@8","$@9"]}],null,["$","$La",null,{"children":["$Lb",["$","$Lc",null,{"promise":"$@d"}]]}]]}],{},null,false]},null,false]},null,false]},null,false],["$","$1","h",{"children":[null,[["$","$Le",null,{"children":"$Lf"}],null],["$","$L10",null,{"children":["$","div",null,{"hidden":true,"children":["$","$11",null,{"fallback":null,"children":"$L12"}]}]}]]}],false]],"m":"$undefined","G":["$13",[]],"s":false,"S":true}
+8:{}
+9:"$0:f:0:1:2:children:2:children:2:children:1:props:children:0:props:params"
+f:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]
+b:null
+d:{"metadata":[["$","title","0",{"children":"관리자 — 세무회계 이윤"}],["$","meta","1",{"name":"description","content":"세무회계 이윤 관리자 패널"}]],"error":null,"digest":"$undefined"}
+12:"$d:metadata"

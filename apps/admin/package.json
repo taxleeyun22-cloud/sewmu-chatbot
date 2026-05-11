@@ -8,11 +8,11 @@
     "start": "next start"
   },
   "dependencies": {
-    "@sewmu/db": "workspace:*",
-    "@sewmu/ui": "workspace:*",
-    "@sewmu/auth": "workspace:*",
-    "@sewmu/api": "workspace:*",
-    "@sewmu/types": "workspace:*",
+    "@sewmu/db": "*",
+    "@sewmu/ui": "*",
+    "@sewmu/auth": "*",
+    "@sewmu/api": "*",
+    "@sewmu/types": "*",
     "next": "^15.0.3",
     "next-auth": "5.0.0-beta.25",
     "react": "^19.0.0",

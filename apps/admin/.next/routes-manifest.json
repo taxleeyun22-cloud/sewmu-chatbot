@@ -1,0 +1,210 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/admin/businesses/[id]",
+      "regex": "^/admin/businesses/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/admin/businesses/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/admin/filings/[id]",
+      "regex": "^/admin/filings/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/admin/filings/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/admin/rooms/[roomId]",
+      "regex": "^/admin/rooms/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtProomId": "nxtProomId"
+      },
+      "namedRegex": "^/admin/rooms/(?<nxtProomId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/auth/[...nextauth]",
+      "regex": "^/api/auth/(.+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPnextauth": "nxtPnextauth"
+      },
+      "namedRegex": "^/api/auth/(?<nxtPnextauth>.+?)(?:/)?$"
+    },
+    {
+      "page": "/api/filing-pdf/[id]",
+      "regex": "^/api/filing\\-pdf/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/filing\\-pdf/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/trpc/[trpc]",
+      "regex": "^/api/trpc/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPtrpc": "nxtPtrpc"
+      },
+      "namedRegex": "^/api/trpc/(?<nxtPtrpc>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/admin/analytics",
+      "regex": "^/admin/analytics(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/analytics(?:/)?$"
+    },
+    {
+      "page": "/admin/bulk-send",
+      "regex": "^/admin/bulk\\-send(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/bulk\\-send(?:/)?$"
+    },
+    {
+      "page": "/admin/businesses",
+      "regex": "^/admin/businesses(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/businesses(?:/)?$"
+    },
+    {
+      "page": "/admin/dashboard",
+      "regex": "^/admin/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/dashboard(?:/)?$"
+    },
+    {
+      "page": "/admin/docs",
+      "regex": "^/admin/docs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/docs(?:/)?$"
+    },
+    {
+      "page": "/admin/errors",
+      "regex": "^/admin/errors(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/errors(?:/)?$"
+    },
+    {
+      "page": "/admin/faq",
+      "regex": "^/admin/faq(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/faq(?:/)?$"
+    },
+    {
+      "page": "/admin/filings",
+      "regex": "^/admin/filings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/filings(?:/)?$"
+    },
+    {
+      "page": "/admin/internal",
+      "regex": "^/admin/internal(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/internal(?:/)?$"
+    },
+    {
+      "page": "/admin/memos",
+      "regex": "^/admin/memos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/memos(?:/)?$"
+    },
+    {
+      "page": "/admin/review",
+      "regex": "^/admin/review(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/review(?:/)?$"
+    },
+    {
+      "page": "/admin/rooms",
+      "regex": "^/admin/rooms(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/rooms(?:/)?$"
+    },
+    {
+      "page": "/admin/search",
+      "regex": "^/admin/search(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/search(?:/)?$"
+    },
+    {
+      "page": "/admin/term-req",
+      "regex": "^/admin/term\\-req(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/term\\-req(?:/)?$"
+    },
+    {
+      "page": "/admin/todos",
+      "regex": "^/admin/todos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/todos(?:/)?$"
+    },
+    {
+      "page": "/admin/trash",
+      "regex": "^/admin/trash(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/trash(?:/)?$"
+    },
+    {
+      "page": "/admin/users",
+      "regex": "^/admin/users(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/users(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

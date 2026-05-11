@@ -6,8 +6,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
-    "@sewmu/db": "workspace:*",
-    "@sewmu/types": "workspace:*",
+    "@sewmu/db": "*",
+    "@sewmu/types": "*",
     "openai": "^4.73.0",
     "zod": "^3.23.8"
   },

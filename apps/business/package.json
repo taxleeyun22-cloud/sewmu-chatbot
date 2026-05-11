@@ -7,9 +7,9 @@
     "build": "next build"
   },
   "dependencies": {
-    "@sewmu/db": "workspace:*",
-    "@sewmu/ui": "workspace:*",
-    "@sewmu/api": "workspace:*",
+    "@sewmu/db": "*",
+    "@sewmu/ui": "*",
+    "@sewmu/api": "*",
     "next": "^15.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

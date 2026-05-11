@@ -1,0 +1,166 @@
+{
+  "version": 3,
+  "middleware": {},
+  "functions": {
+    "/api/auth/[...nextauth]/route": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/api/auth/[...nextauth]/route_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/edge-chunks/421.js",
+        "server/edge-chunks/833.js",
+        "server/edge-chunks/192.js",
+        "server/app/api/auth/[...nextauth]/route.js"
+      ],
+      "name": "app/api/auth/[...nextauth]/route",
+      "page": "/api/auth/[...nextauth]/route",
+      "matchers": [
+        {
+          "regexp": "^/api/auth/(?<nextauth>.+?)$",
+          "originalSource": "/api/auth/[...nextauth]"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "vxzxAaSPVDV85O8vb2l4T",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "TejRMIdko2BXZjFEdPVgtF4wU8PBlokULsEm/tZ4CMc=",
+        "__NEXT_PREVIEW_MODE_ID": "8779e02fc22396cf21827a8e352d2bb7",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "e444e34c2e41c96f4b6bbe37acd3e11a0b00f60a32eff354012566206e86b441",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "f92d292c32a871761952e73e4c851f2d902108391e7e5f0f0781e666086fefa4"
+      }
+    },
+    "/api/trpc/[trpc]/route": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/api/trpc/[trpc]/route_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/edge-chunks/421.js",
+        "server/edge-chunks/192.js",
+        "server/app/api/trpc/[trpc]/route.js"
+      ],
+      "name": "app/api/trpc/[trpc]/route",
+      "page": "/api/trpc/[trpc]/route",
+      "matchers": [
+        {
+          "regexp": "^/api/trpc/(?<trpc>[^/]+?)$",
+          "originalSource": "/api/trpc/[trpc]"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "vxzxAaSPVDV85O8vb2l4T",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "TejRMIdko2BXZjFEdPVgtF4wU8PBlokULsEm/tZ4CMc=",
+        "__NEXT_PREVIEW_MODE_ID": "8779e02fc22396cf21827a8e352d2bb7",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "e444e34c2e41c96f4b6bbe37acd3e11a0b00f60a32eff354012566206e86b441",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "f92d292c32a871761952e73e4c851f2d902108391e7e5f0f0781e666086fefa4"
+      }
+    },
+    "/api/file/[...key]/route": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/api/file/[...key]/route_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/edge-chunks/421.js",
+        "server/edge-chunks/833.js",
+        "server/edge-chunks/192.js",
+        "server/app/api/file/[...key]/route.js"
+      ],
+      "name": "app/api/file/[...key]/route",
+      "page": "/api/file/[...key]/route",
+      "matchers": [
+        {
+          "regexp": "^/api/file/(?<key>.+?)$",
+          "originalSource": "/api/file/[...key]"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "vxzxAaSPVDV85O8vb2l4T",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "TejRMIdko2BXZjFEdPVgtF4wU8PBlokULsEm/tZ4CMc=",
+        "__NEXT_PREVIEW_MODE_ID": "8779e02fc22396cf21827a8e352d2bb7",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "e444e34c2e41c96f4b6bbe37acd3e11a0b00f60a32eff354012566206e86b441",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "f92d292c32a871761952e73e4c851f2d902108391e7e5f0f0781e666086fefa4"
+      }
+    },
+    "/api/chat/route": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/api/chat/route_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/edge-chunks/421.js",
+        "server/edge-chunks/833.js",
+        "server/edge-chunks/192.js",
+        "server/app/api/chat/route.js"
+      ],
+      "name": "app/api/chat/route",
+      "page": "/api/chat/route",
+      "matchers": [
+        {
+          "regexp": "^/api/chat$",
+          "originalSource": "/api/chat"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "vxzxAaSPVDV85O8vb2l4T",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "TejRMIdko2BXZjFEdPVgtF4wU8PBlokULsEm/tZ4CMc=",
+        "__NEXT_PREVIEW_MODE_ID": "8779e02fc22396cf21827a8e352d2bb7",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "e444e34c2e41c96f4b6bbe37acd3e11a0b00f60a32eff354012566206e86b441",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "f92d292c32a871761952e73e4c851f2d902108391e7e5f0f0781e666086fefa4"
+      }
+    },
+    "/api/upload-doc/route": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/api/upload-doc/route_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/edge-chunks/421.js",
+        "server/edge-chunks/833.js",
+        "server/edge-chunks/192.js",
+        "server/app/api/upload-doc/route.js"
+      ],
+      "name": "app/api/upload-doc/route",
+      "page": "/api/upload-doc/route",
+      "matchers": [
+        {
+          "regexp": "^/api/upload\\-doc$",
+          "originalSource": "/api/upload-doc"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "vxzxAaSPVDV85O8vb2l4T",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "TejRMIdko2BXZjFEdPVgtF4wU8PBlokULsEm/tZ4CMc=",
+        "__NEXT_PREVIEW_MODE_ID": "8779e02fc22396cf21827a8e352d2bb7",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "e444e34c2e41c96f4b6bbe37acd3e11a0b00f60a32eff354012566206e86b441",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "f92d292c32a871761952e73e4c851f2d902108391e7e5f0f0781e666086fefa4"
+      }
+    }
+  },
+  "sortedMiddleware": []
+}
