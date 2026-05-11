@@ -29,18 +29,10 @@ function LoginContent() {
 
         <button
           onClick={() => signIn('kakao', { callbackUrl })}
-          className="w-full bg-yellow-300 hover:bg-yellow-400 text-gray-900 font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2 mb-3"
+          className="w-full bg-yellow-300 hover:bg-yellow-400 text-gray-900 font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
         >
           <span>💬</span>
           카카오 계정으로 시작
-        </button>
-
-        <button
-          onClick={() => signIn('naver', { callbackUrl })}
-          className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-        >
-          <span>N</span>
-          네이버 계정으로 시작
         </button>
 
         <p className="text-xs text-gray-500 text-center mt-6">

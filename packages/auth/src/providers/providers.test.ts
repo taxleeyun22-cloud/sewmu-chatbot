@@ -15,11 +15,11 @@ describe('kakaoProvider', () => {
     expect(kakaoProvider.type).toBe('oauth');
   });
 
-  it('requested scopes include name + phone (사장님 거래처 식별)', () => {
+  it('requested scopes — 닉네임 + 이메일 (KOE205 fix, 비즈앱 인증 전)', () => {
     const scope = kakaoProvider.authorization.params.scope;
-    expect(scope).toContain('phone_number');
-    expect(scope).toContain('name');
+    expect(scope).toContain('profile_nickname');
     expect(scope).toContain('account_email');
+    /* phone_number / name = 카카오 비즈앱 인증 + 동의항목 등록 필요. 향후 추가. */
   });
 
   describe('profile', () => {

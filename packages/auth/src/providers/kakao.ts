@@ -26,7 +26,10 @@ export const kakaoProvider = {
     url: 'https://kauth.kakao.com/oauth/authorize',
     params: {
       response_type: 'code',
-      scope: 'profile_nickname profile_image account_email phone_number name',
+      /* KOE205 fix (2026-05-11): name / phone_number 는 비즈앱 + 동의항목 등록 필요.
+       * 사장님 카카오 일반앱 우선 → 닉네임 만 (가장 가벼움).
+       * 나중에 비즈앱 인증 후 name/phone 추가 가능 (alimtalk 발송 시 필요). */
+      scope: 'profile_nickname account_email',
     },
   },
   token: 'https://kauth.kakao.com/oauth/token',
