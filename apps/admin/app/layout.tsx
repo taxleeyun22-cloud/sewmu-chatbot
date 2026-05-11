@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { ClientErrorHookup } from './client-error-hookup';
 import { Toaster } from '@/components/ui/toast';
+import { Providers } from '@/components/providers';
 
 export const metadata: Metadata = {
   title: '관리자 — 세무회계 이윤',
@@ -17,7 +18,7 @@ export default function RootLayout({
     <html lang="ko">
       <body>
         <ClientErrorHookup source="admin" />
-        {children}
+        <Providers>{children}</Providers>
         <Toaster />
       </body>
     </html>

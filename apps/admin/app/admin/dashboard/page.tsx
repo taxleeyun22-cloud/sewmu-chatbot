@@ -1,15 +1,31 @@
 /**
- * Phase Next-Day28 (2026-05-11): /admin/dashboard — shadcn/ui 디자인 시스템.
- * 사장님 명령 "구글직원처럼 ㄱㄱ" — shadcn Card / Badge / Button 패턴.
+ * Phase Next-Day28 (2026-05-11): /admin/dashboard — React Query + lucide + Skeleton.
  */
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
+import {
+  Clock,
+  Star,
+  MessageSquare,
+  AlarmClock,
+  FileText,
+  CheckCircle2,
+  ClipboardList,
+  Bug,
+  Search,
+  StickyNote,
+  Megaphone,
+  BookOpen,
+  type LucideIcon,
+} from 'lucide-react';
 
 interface Counts {
   pendingUsers: number;
@@ -51,16 +67,22 @@ interface RecentMemo {
   created_at: string | null;
 }
 
-const KPI_CONFIG = [
-  { key: 'pendingUsers', label: '대기 거래처', href: '/admin/users?status=pending', tone: 'yellow', icon: '⏳' },
-  { key: 'approvedClients', label: '기장거래처', href: '/admin/users?status=approved_client', tone: 'blue', icon: '⭐' },
-  { key: 'activeRooms', label: '활성 상담방', href: '/admin/rooms', tone: 'green', icon: '💬' },
-  { key: 'urgentTodos', label: '임박 일정', href: '/admin/todos', tone: 'orange', icon: '⏰' },
-  { key: 'pendingDocs', label: '미처리 영수증', href: '/admin/docs?status=pending', tone: 'red', icon: '📄' },
-  { key: 'reviewPending', label: '검증 대기', href: '/admin/review', tone: 'purple', icon: '✓' },
-  { key: 'filingsInProgress', label: '진행 신고', href: '/admin/filings', tone: 'indigo', icon: '📋' },
-  { key: 'errorLogs', label: '에러 로그', href: '/admin/errors', tone: 'gray', icon: '🐞' },
-] as const;
+const KPI_CONFIG: {
+  key: keyof Counts;
+  label: string;
+  href: string;
+  tone: string;
+  icon: LucideIcon;
+}[] = [
+  { key: 'pendingUsers', label: '대기 거래처', href: '/admin/users?status=pending', tone: 'yellow', icon: Clock },
+  { key: 'approvedClients', label: '기장거래처', href: '/admin/users?status=approved_client', tone: 'blue', icon: Star },
+  { key: 'activeRooms', label: '활성 상담방', href: '/admin/rooms', tone: 'green', icon: MessageSquare },
+  { key: 'urgentTodos', label: '임박 일정', href: '/admin/todos', tone: 'orange', icon: AlarmClock },
+  { key: 'pendingDocs', label: '미처리 영수증', href: '/admin/docs?status=pending', tone: 'red', icon: FileText },
+  { key: 'reviewPending', label: '검증 대기', href: '/admin/review', tone: 'purple', icon: CheckCircle2 },
+  { key: 'filingsInProgress', label: '진행 신고', href: '/admin/filings', tone: 'indigo', icon: ClipboardList },
+  { key: 'errorLogs', label: '에러 로그', href: '/admin/errors', tone: 'gray', icon: Bug },
+];
 
 const TONE_CLASSES: Record<string, string> = {
   yellow: 'border-yellow-200 bg-yellow-50/60 hover:bg-yellow-50',
@@ -73,63 +95,78 @@ const TONE_CLASSES: Record<string, string> = {
   gray: 'border-gray-200 bg-gray-50 hover:bg-gray-100',
 };
 
-const QUICK_LINKS = [
-  { icon: '🔍', label: '전역 검색', href: '/admin/search' },
-  { icon: '📒', label: '메모', href: '/admin/memos' },
-  { icon: '📢', label: '단체발송', href: '/admin/bulk-send' },
-  { icon: '📋', label: '신고 검토표', href: '/admin/filings' },
-  { icon: '📚', label: 'FAQ', href: '/admin/faq' },
+const TONE_ICON_COLORS: Record<string, string> = {
+  yellow: 'text-yellow-600',
+  blue: 'text-blue-600',
+  orange: 'text-orange-600',
+  green: 'text-green-600',
+  red: 'text-red-600',
+  purple: 'text-purple-600',
+  indigo: 'text-indigo-600',
+  gray: 'text-gray-600',
+};
+
+const QUICK_LINKS: { icon: LucideIcon; label: string; href: string }[] = [
+  { icon: Search, label: '전역 검색', href: '/admin/search' },
+  { icon: StickyNote, label: '메모', href: '/admin/memos' },
+  { icon: Megaphone, label: '단체발송', href: '/admin/bulk-send' },
+  { icon: ClipboardList, label: '신고 검토표', href: '/admin/filings' },
+  { icon: BookOpen, label: 'FAQ', href: '/admin/faq' },
 ];
 
 export default function DashboardPage() {
-  const [counts, setCounts] = useState<Counts | null>(null);
-  const [recent, setRecent] = useState<{
-    recentMessages: RecentMessage[];
-    recentUploads: RecentUpload[];
-    recentMemos: RecentMemo[];
-  } | null>(null);
+  const { data: counts, isLoading: countsLoading } = useQuery({
+    queryKey: ['dashboard.counts'],
+    queryFn: () => trpcCall<Counts>('dashboard.counts'),
+  });
 
-  useEffect(() => {
-    trpcCall<Counts>('dashboard.counts').then(setCounts).catch(() => {});
-    trpcCall<{
-      recentMessages: RecentMessage[];
-      recentUploads: RecentUpload[];
-      recentMemos: RecentMemo[];
-    }>('dashboard.recent')
-      .then(setRecent)
-      .catch(() => {});
-  }, []);
+  const { data: recent, isLoading: recentLoading } = useQuery({
+    queryKey: ['dashboard.recent'],
+    queryFn: () =>
+      trpcCall<{
+        recentMessages: RecentMessage[];
+        recentUploads: RecentUpload[];
+        recentMemos: RecentMemo[];
+      }>('dashboard.recent'),
+  });
 
   return (
     <div className="p-4 space-y-4">
-      {/* 헤더 */}
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold text-gray-900">대시보드</h1>
           <p className="text-xs text-gray-500 mt-0.5">사장님 매일 진입 · 30초 자동 갱신</p>
         </div>
-        <Badge variant="success">실시간</Badge>
+        <Badge variant="success" className="animate-pulse">실시간</Badge>
       </header>
 
-      {/* KPI Grid — 8 cards */}
+      {/* KPI Grid */}
       <section className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
         {KPI_CONFIG.map((kpi) => {
-          const value = counts?.[kpi.key as keyof Counts] ?? '-';
+          const Icon = kpi.icon;
+          const value = counts?.[kpi.key];
           return (
             <Link
               key={kpi.key}
               href={kpi.href}
               className={cn(
-                'block border rounded-lg p-2 transition-all hover:shadow-md group',
+                'block border rounded-lg p-2.5 transition-all hover:shadow-md group',
                 TONE_CLASSES[kpi.tone],
               )}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-base leading-none">{kpi.icon}</span>
-                <span className="text-[10px] text-gray-400 group-hover:text-gray-600 transition-colors">→</span>
-              </div>
-              <p className="text-[10px] text-gray-600 mt-1">{kpi.label}</p>
-              <p className="text-lg font-bold text-gray-900 leading-tight">{value}</p>
+              <Icon
+                size={16}
+                strokeWidth={1.8}
+                className={cn('mb-1', TONE_ICON_COLORS[kpi.tone])}
+              />
+              <p className="text-[10px] text-gray-600">{kpi.label}</p>
+              {countsLoading ? (
+                <Skeleton className="h-5 w-8 mt-0.5" />
+              ) : (
+                <p className="text-lg font-bold text-gray-900 leading-tight">
+                  {value ?? '-'}
+                </p>
+              )}
             </Link>
           );
         })}
@@ -138,22 +175,23 @@ export default function DashboardPage() {
       {/* 빠른 진입 */}
       <Card>
         <CardHeader className="pb-1.5">
-          <CardTitle className="text-xs flex items-center gap-1.5">
-            <span>⚡</span> 빠른 진입
-          </CardTitle>
+          <CardTitle className="text-xs">⚡ 빠른 진입</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-5 gap-1.5">
-            {QUICK_LINKS.map((q) => (
-              <Link
-                key={q.href}
-                href={q.href}
-                className="flex flex-col items-center gap-0.5 py-2 px-1 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
-              >
-                <span className="text-base leading-none">{q.icon}</span>
-                <span className="text-[10px] font-medium text-gray-700">{q.label}</span>
-              </Link>
-            ))}
+            {QUICK_LINKS.map((q) => {
+              const Icon = q.icon;
+              return (
+                <Link
+                  key={q.href}
+                  href={q.href}
+                  className="flex flex-col items-center gap-1 py-2 px-1 bg-gray-50 rounded-md hover:bg-blue-50 hover:text-brand-primary transition-colors text-gray-700"
+                >
+                  <Icon size={16} strokeWidth={1.8} />
+                  <span className="text-[10px] font-medium">{q.label}</span>
+                </Link>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -162,7 +200,7 @@ export default function DashboardPage() {
       <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <RecentSection
           title="💬 최근 대화"
-          empty="대화 없음"
+          loading={recentLoading}
           items={recent?.recentMessages.map((m) => ({
             id: m.id,
             primary: m.user_name || '익명',
@@ -175,7 +213,7 @@ export default function DashboardPage() {
         />
         <RecentSection
           title="📄 최근 업로드"
-          empty="업로드 없음"
+          loading={recentLoading}
           items={recent?.recentUploads.map((u) => ({
             id: u.id,
             primary: u.user_name || '익명',
@@ -190,7 +228,7 @@ export default function DashboardPage() {
         />
         <RecentSection
           title="📒 최근 메모"
-          empty="메모 없음"
+          loading={recentLoading}
           items={recent?.recentMemos.map((m) => ({
             id: m.id,
             primary: m.author_name || '사장님',
@@ -206,9 +244,7 @@ export default function DashboardPage() {
   );
 }
 
-function confidenceBadge(
-  c: string | null,
-): 'success' | 'warning' | 'danger' | 'default' {
+function confidenceBadge(c: string | null): 'success' | 'warning' | 'danger' | 'default' {
   if (c === '높음') return 'success';
   if (c === '보통') return 'warning';
   if (c === '낮음') return 'danger';
@@ -224,11 +260,11 @@ function docBadge(s: string | null): 'success' | 'warning' | 'danger' | 'default
 
 function RecentSection({
   title,
-  empty,
+  loading,
   items,
 }: {
   title: string;
-  empty: string;
+  loading: boolean;
   items?: {
     id: number;
     primary: string;
@@ -245,11 +281,20 @@ function RecentSection({
         <CardTitle className="text-xs">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        {!items && <p className="text-[10px] text-gray-400 py-3 text-center">불러오는 중...</p>}
-        {items && items.length === 0 && (
-          <p className="text-[10px] text-gray-400 py-3 text-center">{empty}</p>
+        {loading && (
+          <ul className="space-y-1">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <li key={i} className="space-y-0.5">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-3 w-full" />
+              </li>
+            ))}
+          </ul>
         )}
-        {items && items.length > 0 && (
+        {!loading && items && items.length === 0 && (
+          <EmptyState title="데이터 없음" className="py-3" />
+        )}
+        {!loading && items && items.length > 0 && (
           <ul className="space-y-0.5">
             {items.slice(0, 5).map((it) => (
               <li key={it.id}>

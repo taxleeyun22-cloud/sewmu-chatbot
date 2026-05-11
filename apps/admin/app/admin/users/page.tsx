@@ -1,17 +1,21 @@
 /**
- * Phase Next-Day28 (2026-05-11): /admin/users — shadcn/ui 적용.
- * 사장님 명령 "구글직원처럼 + 모달 팝업 위치까지".
+ * Phase Next-Day28 (2026-05-11): /admin/users — React Query + Skeleton + lucide.
+ * 구글직원 패턴.
  */
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
 import { toast } from '@/components/ui/toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Avatar } from '@/components/ui/avatar';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Table,
   TableBody,
@@ -21,14 +25,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Users, Star, X, Ban, RotateCcw, Crown, Search } from 'lucide-react';
 
 const STATUS_TABS = [
-  { key: 'pending', label: '대기', emoji: '⏳' },
-  { key: 'approved_client', label: '기장거래처', emoji: '⭐' },
-  { key: 'rejected', label: '거절', emoji: '✕' },
-  { key: 'terminated', label: '종료', emoji: '⛔' },
-  { key: 'rejoined', label: '재가입', emoji: '↻' },
-  { key: 'admin', label: '관리자', emoji: '👑' },
+  { key: 'pending', label: '대기', icon: Users },
+  { key: 'approved_client', label: '기장거래처', icon: Star },
+  { key: 'rejected', label: '거절', icon: X },
+  { key: 'terminated', label: '종료', icon: Ban },
+  { key: 'rejoined', label: '재가입', icon: RotateCcw },
+  { key: 'admin', label: '관리자', icon: Crown },
 ];
 
 interface User {
@@ -47,92 +52,85 @@ interface User {
 export default function UsersPage() {
   const [status, setStatus] = useState('pending');
   const [search, setSearch] = useState('');
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  function refetch() {
-    setLoading(true);
-    setError(null);
-    trpcCall<{ users: User[] }>('users.list', { status, search, limit: 200 })
-      .then((d) => setUsers(d.users))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['users.list', status, search],
+    queryFn: () =>
+      trpcCall<{ users: User[] }>('users.list', { status, search, limit: 200 }),
+  });
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    trpcCall<{ users: User[] }>('users.list', { status, search, limit: 200 })
-      .then((d) => {
-        if (!cancelled) setUsers(d.users);
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status, search]);
+  const users = data?.users || [];
+  const ActiveIcon = STATUS_TABS.find((t) => t.key === status)?.icon || Users;
+  const activeLabel = STATUS_TABS.find((t) => t.key === status)?.label;
 
   return (
     <div className="p-4 space-y-3">
-      {/* 헤더 */}
       <header className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">사용자</h1>
+          <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <Users size={18} strokeWidth={2} className="text-brand-primary" />
+            사용자
+          </h1>
           <p className="text-xs text-gray-500 mt-0.5">거래처 + admin 관리</p>
         </div>
-        <Input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="🔍 이름·전화·이메일 검색"
-          className="w-72"
-        />
+        <div className="relative">
+          <Search
+            size={14}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+          />
+          <Input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="이름·전화·이메일 검색"
+            className="w-72 pl-8"
+          />
+        </div>
       </header>
 
-      {/* status tabs */}
       <Tabs value={status} onValueChange={setStatus}>
         <TabsList>
-          {STATUS_TABS.map((t) => (
-            <TabsTrigger key={t.key} value={t.key}>
-              <span className="mr-1">{t.emoji}</span>
-              {t.label}
-            </TabsTrigger>
-          ))}
+          {STATUS_TABS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <TabsTrigger key={t.key} value={t.key} className="gap-1">
+                <Icon size={12} strokeWidth={1.8} />
+                {t.label}
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
       </Tabs>
 
-      {/* table card */}
       <Card>
         <CardHeader className="pb-1.5">
           <CardTitle className="text-xs flex items-center justify-between">
-            <span>
-              {STATUS_TABS.find((t) => t.key === status)?.emoji}{' '}
-              {STATUS_TABS.find((t) => t.key === status)?.label} 사용자
+            <span className="flex items-center gap-1.5">
+              <ActiveIcon size={12} strokeWidth={2} />
+              {activeLabel} 사용자
             </span>
-            {!loading && users.length > 0 && (
+            {!isLoading && users.length > 0 && (
               <Badge variant="default">총 {users.length} 건</Badge>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent className="px-0">
-          {loading && (
-            <p className="text-center text-gray-400 py-6 text-xs">불러오는 중...</p>
-          )}
+          {isLoading && <UsersTableSkeleton />}
           {error && (
-            <p className="text-center text-red-500 py-6 text-xs">오류: {error}</p>
+            <EmptyState
+              icon="⚠️"
+              title="불러오기 실패"
+              description={(error as Error).message}
+            />
           )}
-          {!loading && !error && users.length === 0 && (
-            <p className="text-center text-gray-400 py-6 text-xs">
-              해당 status 의 사용자가 없습니다.
-            </p>
+          {!isLoading && !error && users.length === 0 && (
+            <EmptyState
+              icon={<Users size={32} strokeWidth={1.5} />}
+              title="사용자 없음"
+              description={`${activeLabel} 상태의 사용자가 없습니다.`}
+            />
           )}
-          {!loading && users.length > 0 && (
+          {!isLoading && users.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -142,44 +140,12 @@ export default function UsersPage() {
                   <TableHead>이메일</TableHead>
                   <TableHead className="w-20">로그인</TableHead>
                   <TableHead className="w-24">가입일</TableHead>
-                  <TableHead className="w-32 text-right">액션</TableHead>
+                  <TableHead className="w-36 text-right">액션</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {users.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="text-gray-400 font-mono">{u.id}</TableCell>
-                    <TableCell>
-                      <Link
-                        href={`/admin/users/${u.id}`}
-                        className="font-medium hover:text-brand-primary hover:underline"
-                      >
-                        {u.real_name || u.name || '이름없음'}
-                      </Link>
-                      {u.is_admin === 1 && (
-                        <Badge variant="secondary" className="ml-1.5">
-                          👑 관리자
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-gray-700">
-                      {u.phone || '-'}
-                    </TableCell>
-                    <TableCell className="text-gray-600 truncate max-w-[180px]">
-                      {u.email || '-'}
-                    </TableCell>
-                    <TableCell>
-                      {u.provider === 'kakao' && <Badge variant="warning">카톡</Badge>}
-                      {u.provider === 'naver' && <Badge variant="success">네이버</Badge>}
-                      {!u.provider && <Badge variant="default">수동</Badge>}
-                    </TableCell>
-                    <TableCell className="text-[10px] text-gray-500 font-mono">
-                      {u.created_at ? u.created_at.slice(2, 10) : '-'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <UserActions user={u} onChanged={refetch} />
-                    </TableCell>
-                  </TableRow>
+                  <UserRow key={u.id} user={u} status={status} search={search} />
                 ))}
               </TableBody>
             </Table>
@@ -190,61 +156,157 @@ export default function UsersPage() {
   );
 }
 
-function UserActions({ user, onChanged }: { user: User; onChanged: () => void }) {
-  async function setUserStatus(status: string) {
+function UserRow({
+  user,
+  status,
+  search,
+}: {
+  user: User;
+  status: string;
+  search: string;
+}) {
+  const queryClient = useQueryClient();
+  const setStatusMutation = useMutation({
+    mutationFn: (newStatus: string) =>
+      trpcCall('users.setStatus', { userId: user.id, status: newStatus }),
+    onSuccess: (_, newStatus) => {
+      const name = user.real_name || user.name || `#${user.id}`;
+      toast.success(`${name} → ${newStatus}`);
+      queryClient.invalidateQueries({ queryKey: ['users.list'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard.counts'] });
+    },
+    onError: (e) => toast.error(`실패: ${(e as Error).message}`),
+  });
+
+  async function doSetStatus(newStatus: string) {
     const name = user.real_name || user.name || `#${user.id}`;
-    if (!confirm(`${name} 을(를) ${status} 으로 변경?`)) return;
-    try {
-      await trpcCall('users.setStatus', { userId: user.id, status });
-      toast.success(`${name} → ${status}`);
-      onChanged();
-    } catch (e) {
-      toast.error(`실패: ${(e as Error).message}`);
-    }
+    if (!confirm(`${name} 을(를) ${newStatus} 으로 변경?`)) return;
+    setStatusMutation.mutate(newStatus);
   }
 
+  const providerVariant =
+    user.provider === 'kakao' ? 'warning' : user.provider === 'naver' ? 'success' : 'default';
+
   return (
-    <div className="flex gap-1 justify-end">
-      {user.approval_status === 'pending' && (
-        <>
-          <Button
+    <TableRow>
+      <TableCell className="text-gray-400 font-mono">{user.id}</TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <Avatar
+            name={user.real_name || user.name || '?'}
             size="xs"
-            variant="default"
-            onClick={() => setUserStatus('approved_client')}
-            title="기장거래처 승급"
+            variant={user.provider === 'kakao' ? 'kakao' : 'primary'}
+          />
+          <Link
+            href={`/admin/users/${user.id}`}
+            className="font-medium hover:text-brand-primary hover:underline"
           >
-            ⭐기장
-          </Button>
-          <Button
-            size="xs"
-            variant="destructive"
-            onClick={() => setUserStatus('rejected')}
-            title="거절"
-          >
-            ✕거절
-          </Button>
-        </>
-      )}
-      {user.approval_status === 'approved_client' && (
-        <Button
-          size="xs"
-          variant="secondary"
-          onClick={() => setUserStatus('terminated')}
-          title="종료"
-        >
-          ⛔종료
-        </Button>
-      )}
-      {user.approval_status === 'rejected' && (
-        <Button
-          size="xs"
-          variant="default"
-          onClick={() => setUserStatus('approved_client')}
-          title="기장거래처 복구"
-        >
-          ↻복구
-        </Button>
-      )}
-    </div>
+            {user.real_name || user.name || '이름없음'}
+          </Link>
+          {user.is_admin === 1 && (
+            <Badge variant="secondary" className="ml-1">
+              <Crown size={9} strokeWidth={2} className="mr-0.5" />
+              관리자
+            </Badge>
+          )}
+        </div>
+      </TableCell>
+      <TableCell className="font-mono text-gray-700">{user.phone || '-'}</TableCell>
+      <TableCell className="text-gray-600 truncate max-w-[180px]">{user.email || '-'}</TableCell>
+      <TableCell>
+        <Badge variant={providerVariant}>
+          {user.provider === 'kakao'
+            ? '카톡'
+            : user.provider === 'naver'
+              ? '네이버'
+              : '수동'}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-[10px] text-gray-500 font-mono">
+        {user.created_at ? user.created_at.slice(2, 10) : '-'}
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex gap-1 justify-end">
+          {user.approval_status === 'pending' && (
+            <>
+              <Button
+                size="xs"
+                onClick={() => doSetStatus('approved_client')}
+                disabled={setStatusMutation.isPending}
+              >
+                <Star size={10} strokeWidth={2} className="mr-0.5" />
+                기장
+              </Button>
+              <Button
+                size="xs"
+                variant="destructive"
+                onClick={() => doSetStatus('rejected')}
+                disabled={setStatusMutation.isPending}
+              >
+                <X size={10} strokeWidth={2} className="mr-0.5" />
+                거절
+              </Button>
+            </>
+          )}
+          {user.approval_status === 'approved_client' && (
+            <Button
+              size="xs"
+              variant="secondary"
+              onClick={() => doSetStatus('terminated')}
+              disabled={setStatusMutation.isPending}
+            >
+              <Ban size={10} strokeWidth={2} className="mr-0.5" />
+              종료
+            </Button>
+          )}
+          {user.approval_status === 'rejected' && (
+            <Button
+              size="xs"
+              onClick={() => doSetStatus('approved_client')}
+              disabled={setStatusMutation.isPending}
+            >
+              <RotateCcw size={10} strokeWidth={2} className="mr-0.5" />
+              복구
+            </Button>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function UsersTableSkeleton() {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-10">#</TableHead>
+          <TableHead>이름</TableHead>
+          <TableHead className="w-32">연락처</TableHead>
+          <TableHead>이메일</TableHead>
+          <TableHead className="w-20">로그인</TableHead>
+          <TableHead className="w-24">가입일</TableHead>
+          <TableHead className="w-36 text-right">액션</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <TableRow key={i}>
+            <TableCell><Skeleton className="h-3 w-6" /></TableCell>
+            <TableCell>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-5 w-5 rounded-full" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </TableCell>
+            <TableCell><Skeleton className="h-3 w-24" /></TableCell>
+            <TableCell><Skeleton className="h-3 w-32" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-10 rounded-full" /></TableCell>
+            <TableCell><Skeleton className="h-3 w-16" /></TableCell>
+            <TableCell><Skeleton className="h-5 w-20 ml-auto" /></TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }
