@@ -1,18 +1,27 @@
 /**
- * Phase Next-Day28 (2026-05-11): admin 로그인 — shadcn/ui.
- *
- * 1. ADMIN_KEY 비번 (사장님 빠른 진입)
- * 2. 카카오 OAuth (직원)
+ * Phase Next-Day28 (2026-05-11): admin 로그인 — react-hook-form + zod + lucide.
+ * 구글직원 패턴.
  */
 'use client';
 
 import { signIn } from 'next-auth/react';
-import { Suspense, useState } from 'react';
+import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { toast } from '@/components/ui/toast';
+import { Crown, MessageCircle, AlertTriangle } from 'lucide-react';
+
+const LoginSchema = z.object({
+  key: z.string().min(1, '비밀번호를 입력하세요'),
+});
+
+type LoginInput = z.infer<typeof LoginSchema>;
 
 function LoginContent() {
   const params = useSearchParams();
@@ -20,36 +29,40 @@ function LoginContent() {
   const callbackUrl = params.get('callbackUrl') || '/admin/dashboard';
   const error = params.get('error');
 
-  const [adminKey, setAdminKey] = useState('');
-  const [keyError, setKeyError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    setError,
+  } = useForm<LoginInput>({
+    resolver: zodResolver(LoginSchema),
+    defaultValues: { key: '' },
+  });
 
-  async function loginWithKey(e: React.FormEvent) {
-    e.preventDefault();
-    setKeyError('');
-    setSubmitting(true);
+  async function onSubmit(data: LoginInput) {
     try {
       const r = await fetch('/api/admin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: adminKey }),
+        body: JSON.stringify({ key: data.key }),
       });
-      const data = (await r.json()) as { ok: boolean; redirect?: string; error?: string };
-      if (!data.ok) {
-        setKeyError(data.error || '로그인 실패');
-        setSubmitting(false);
+      const res = (await r.json()) as { ok: boolean; redirect?: string; error?: string };
+      if (!res.ok) {
+        setError('key', { type: 'manual', message: res.error || '로그인 실패' });
+        toast.error(res.error || '로그인 실패');
         return;
       }
-      router.push(data.redirect || callbackUrl);
+      toast.success('로그인 성공');
+      router.push(res.redirect || callbackUrl);
     } catch (err) {
-      setKeyError((err as Error).message);
-      setSubmitting(false);
+      setError('key', { type: 'manual', message: (err as Error).message });
+      toast.error((err as Error).message);
     }
   }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 via-white to-blue-50 p-6">
-      {/* 브랜드 헤더 */}
+      {/* 브랜드 */}
       <div className="mb-6 text-center">
         <div className="w-16 h-16 mx-auto mb-3 rounded-xl bg-brand-primary text-white flex items-center justify-center text-2xl font-bold shadow-lg shadow-brand-primary/20">
           세
@@ -61,31 +74,39 @@ function LoginContent() {
       <Card className="w-full max-w-sm shadow-xl">
         <CardContent className="p-6 space-y-4">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-md p-2.5">
-              로그인 오류: {error}
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-md p-2.5 flex items-start gap-1.5">
+              <AlertTriangle size={14} strokeWidth={2} className="flex-shrink-0 mt-0.5" />
+              <span>로그인 오류: {error}</span>
             </div>
           )}
 
-          {/* 사장님 비번 진입 */}
-          <form onSubmit={loginWithKey} className="space-y-2">
-            <label className="block text-xs font-medium text-gray-700">
-              <span className="mr-1">👑</span> 사장님 비번
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-2">
+            <label htmlFor="adminKey" className="block text-xs font-medium text-gray-700 flex items-center gap-1.5">
+              <Crown size={12} strokeWidth={2} className="text-yellow-500" />
+              사장님 비번
             </label>
             <div className="flex gap-1.5">
               <Input
+                id="adminKey"
                 type="password"
-                value={adminKey}
-                onChange={(e) => setAdminKey(e.target.value)}
                 placeholder="관리자 비밀번호"
-                disabled={submitting}
-                className="flex-1 h-9"
+                disabled={isSubmitting}
                 autoFocus
+                {...register('key')}
+                className="flex-1 h-9"
+                aria-invalid={!!errors.key}
+                aria-describedby={errors.key ? 'adminKey-error' : undefined}
               />
-              <Button type="submit" disabled={submitting || !adminKey} size="default">
-                {submitting ? '...' : '진입'}
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? '...' : '진입'}
               </Button>
             </div>
-            {keyError && <p className="text-[11px] text-red-600">{keyError}</p>}
+            {errors.key && (
+              <p id="adminKey-error" className="text-[11px] text-red-600 flex items-center gap-1">
+                <AlertTriangle size={10} strokeWidth={2} />
+                {errors.key.message}
+              </p>
+            )}
           </form>
 
           <div className="relative my-3">
@@ -95,17 +116,18 @@ function LoginContent() {
             </span>
           </div>
 
-          {/* 직원 카톡 */}
           <button
+            type="button"
             onClick={() => signIn('kakao', { callbackUrl })}
             className="w-full bg-yellow-300 hover:bg-yellow-400 active:bg-yellow-500 text-gray-900 font-medium py-2.5 rounded-md transition-colors flex items-center justify-center gap-2 text-sm shadow-sm"
           >
-            <span>💬</span>
+            <MessageCircle size={14} strokeWidth={2} fill="currentColor" />
             직원 — 카카오 계정으로 시작
           </button>
 
           <p className="text-[10px] text-gray-500 text-center pt-2 border-t border-gray-100">
-            ⚠️ 관리자 권한이 있어야 진입 가능합니다.
+            <AlertTriangle size={10} strokeWidth={2} className="inline mr-0.5" />
+            관리자 권한이 있어야 진입 가능합니다.
             <br />비번 분실 시 → 사장님께 문의
           </p>
         </CardContent>

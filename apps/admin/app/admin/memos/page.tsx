@@ -1,14 +1,27 @@
 /**
- * Phase Next-Day28 (2026-05-11): /admin/memos — shadcn/ui.
+ * Phase Next-Day28 (2026-05-11): /admin/memos — React Query + lucide + 카톡 톤.
  */
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  StickyNote,
+  Plus,
+  Pin,
+  Phone,
+  Folder,
+  AlertTriangle,
+  Calendar,
+  Pencil,
+} from 'lucide-react';
 
 interface Memo {
   id: number;
@@ -22,78 +35,92 @@ interface Memo {
 }
 
 const CATEGORIES = [
-  { key: '', label: '전체', emoji: '📒' },
-  { key: '할 일', label: '할 일', emoji: '📌' },
-  { key: '전화', label: '전화', emoji: '📞' },
-  { key: '문서', label: '문서', emoji: '📁' },
-  { key: '이슈', label: '이슈', emoji: '⚠️' },
-  { key: '약속', label: '약속', emoji: '📅' },
-  { key: '일반', label: '일반', emoji: '📝' },
+  { key: '', label: '전체', icon: StickyNote },
+  { key: '할 일', label: '할 일', icon: Pin },
+  { key: '전화', label: '전화', icon: Phone },
+  { key: '문서', label: '문서', icon: Folder },
+  { key: '이슈', label: '이슈', icon: AlertTriangle },
+  { key: '약속', label: '약속', icon: Calendar },
+  { key: '일반', label: '일반', icon: Pencil },
 ];
 
 export default function MemosPage() {
   const [category, setCategory] = useState('');
-  const [memos, setMemos] = useState<Memo[]>([]);
-  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    trpcCall<{ memos: Memo[] }>('memos.list', {
-      scope: 'my',
-      category: category || undefined,
-      limit: 200,
-    })
-      .then((d) => {
-        if (!cancelled) setMemos(d.memos || []);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [category]);
+  const { data, isLoading } = useQuery({
+    queryKey: ['memos.list', 'my', category],
+    queryFn: () =>
+      trpcCall<{ memos: Memo[] }>('memos.list', {
+        scope: 'my',
+        category: category || undefined,
+        limit: 200,
+      }),
+  });
+
+  const memos = data?.memos || [];
+  const activeCategory = CATEGORIES.find((c) => c.key === category);
 
   return (
     <div className="p-4 space-y-3">
       <header className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">메모</h1>
+          <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <StickyNote size={18} strokeWidth={2} className="text-brand-primary" />
+            메모
+          </h1>
           <p className="text-xs text-gray-500 mt-0.5">7카테고리 · 첨부 + #태그 + D-day</p>
         </div>
-        <Button size="sm">+ 빠른 메모</Button>
+        <Button size="sm">
+          <Plus size={12} strokeWidth={2} className="mr-1" />
+          빠른 메모
+        </Button>
       </header>
 
       <Tabs value={category} onValueChange={setCategory}>
         <TabsList>
-          {CATEGORIES.map((c) => (
-            <TabsTrigger key={c.key} value={c.key}>
-              <span className="mr-1">{c.emoji}</span>
-              {c.label}
-            </TabsTrigger>
-          ))}
+          {CATEGORIES.map((c) => {
+            const Icon = c.icon;
+            return (
+              <TabsTrigger key={c.key} value={c.key} className="gap-1">
+                <Icon size={11} strokeWidth={1.8} />
+                {c.label}
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
       </Tabs>
 
       <Card>
         <CardHeader className="pb-1.5">
           <CardTitle className="text-xs flex items-center justify-between">
-            <span>
-              {CATEGORIES.find((c) => c.key === category)?.emoji}{' '}
-              {CATEGORIES.find((c) => c.key === category)?.label} 메모
+            <span className="flex items-center gap-1.5">
+              {activeCategory && <activeCategory.icon size={12} strokeWidth={2} />}
+              {activeCategory?.label} 메모
             </span>
-            {!loading && memos.length > 0 && (
+            {!isLoading && memos.length > 0 && (
               <Badge variant="default">총 {memos.length} 건</Badge>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent className="px-0 pb-0">
-          {loading && <p className="text-center text-gray-400 py-6 text-xs">불러오는 중...</p>}
-          {!loading && memos.length === 0 && (
-            <p className="text-center text-gray-400 py-6 text-xs">메모 없음</p>
+          {isLoading && (
+            <ul className="divide-y divide-gray-100 border-t border-gray-100">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <li key={i} className="px-3 py-2 space-y-1">
+                  <Skeleton className="h-3 w-3/4" />
+                  <Skeleton className="h-3 w-1/4" />
+                </li>
+              ))}
+            </ul>
           )}
-          {!loading && memos.length > 0 && (
+          {!isLoading && memos.length === 0 && (
+            <EmptyState
+              icon={<StickyNote size={32} strokeWidth={1.5} />}
+              title="메모 없음"
+              description="+ 빠른 메모 버튼으로 추가하세요"
+            />
+          )}
+          {!isLoading && memos.length > 0 && (
             <ul className="divide-y divide-gray-100 border-t border-gray-100">
               {memos.map((m) => (
                 <li key={m.id} className="px-3 py-1.5 hover:bg-gray-50 transition-colors">
@@ -112,7 +139,8 @@ export default function MemosPage() {
                         {m.category && <Badge variant="default">{m.category}</Badge>}
                         {m.due_date && (
                           <Badge variant={isUrgent(m.due_date) ? 'danger' : 'default'}>
-                            📅 {m.due_date}
+                            <Calendar size={9} strokeWidth={2} className="mr-0.5" />
+                            {m.due_date}
                           </Badge>
                         )}
                         {m.author_name && (
