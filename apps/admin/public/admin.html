@@ -25,7 +25,7 @@ if ('serviceWorker' in navigator) {
 <!-- 사무실 OS 임베드 모드 — ?embedded=1 진입 시 헤더/wrap 패딩 hide, iframe 안에서 콘텐츠만 보임 -->
 <script>try{if(new URLSearchParams(location.search).get('embedded')==='1')document.documentElement.classList.add('embedded');}catch(_){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/admin.css?v=28">
+<link rel="stylesheet" href="/admin.css?v=29">
 <!-- Phase S3c-1 (2026-05-04): office 사이드바 흡수 — office.css 사이드바 스타일 사용 -->
 <link rel="stylesheet" href="/office.css?v=5">
 <!-- Phase T1+T2a (2026-05-04): Tailwind utility + 토큰 통합. Phase D1 (2026-05-05): 사이드바 톤 변경 — 다크 네이비 → 위하고/WEHAGO 밝은 회색. cache bump v=4→v=5. -->
@@ -247,6 +247,51 @@ setTimeout(function(){
       .catch(err => console.error('[admin-modals] fetch fail:', err));
   }
 }, 800);
+
+/* Phase Next-Day28 (2026-05-11): 카톡 UX — 글로벌 모달 close handlers.
+ * 사장님 명령 "ESC 누르면 꺼지는거 / 카톡스럽게 만들어".
+ *
+ * 1. ESC 키 → 가장 최근 열린 .modal-overlay 닫기
+ * 2. 모달 backdrop (overlay 자체) 클릭 → 닫기 (자식 클릭은 무시)
+ * 3. 닫기 함수가 있으면 호출 (close*ModalName*) — 옛 admin 패턴
+ */
+(function(){
+  function getOpenModals(){
+    return Array.from(document.querySelectorAll('.modal-overlay'))
+      .filter(function(m){
+        var s = m.style.display;
+        return s && s !== 'none';
+      });
+  }
+  function closeModal(m){
+    if(!m) return;
+    var id = m.id;
+    /* close 함수 호출 시도 (예: closeCreateRoomModal, closeMemoModal) */
+    var fnName = 'close' + id.charAt(0).toUpperCase() + id.slice(1);
+    if(typeof window[fnName] === 'function'){
+      try{ window[fnName](); return; }catch(_){}
+    }
+    /* fallback: display:none */
+    m.style.display = 'none';
+    try{ document.body.style.overflow = ''; }catch(_){}
+  }
+  /* ESC 키 — 가장 최근 (DOM 마지막) 열린 모달 닫기 */
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Escape') return;
+    var open = getOpenModals();
+    if(open.length === 0) return;
+    var top = open[open.length - 1];
+    closeModal(top);
+    e.stopPropagation();
+  }, true);
+  /* Backdrop 클릭 — overlay 자체 클릭 시만 닫기 (자식 박스 클릭은 무시) */
+  document.addEventListener('mousedown', function(e){
+    var target = e.target;
+    if(!target || !target.classList || !target.classList.contains('modal-overlay')) return;
+    /* 자식 카드 클릭은 stopPropagation 또는 if(target === currentTarget) */
+    closeModal(target);
+  });
+})();
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
