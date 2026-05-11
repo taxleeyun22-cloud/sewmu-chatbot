@@ -151,15 +151,31 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* 하단 — 사장님 정보 */}
-      <div className="px-4 py-3 border-t border-gray-200 text-xs text-sb-text-mute">
+      {/* 하단 — 로그아웃 + 거래처 챗봇 link */}
+      <div className="px-4 py-3 border-t border-gray-200 text-xs text-sb-text-mute space-y-2">
+        <button
+          onClick={async () => {
+            if (!confirm('로그아웃 하시겠습니까?')) return;
+            try {
+              await fetch('/api/admin-logout', { method: 'POST' });
+            } catch {
+              /* graceful */
+            }
+            window.location.href = '/login';
+          }}
+          className="w-full text-left hover:text-red-600 flex items-center gap-2 py-1"
+        >
+          <span>⏻</span>
+          <span>로그아웃</span>
+        </button>
         <a
           href="https://sewmu-chatbot.pages.dev"
           target="_blank"
           rel="noreferrer"
-          className="hover:text-brand-primary"
+          className="hover:text-brand-primary flex items-center gap-2"
         >
-          → 거래처 챗봇
+          <span>→</span>
+          <span>거래처 챗봇</span>
         </a>
       </div>
     </aside>
