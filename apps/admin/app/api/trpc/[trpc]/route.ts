@@ -4,18 +4,32 @@
  * fetch adapter — Cloudflare Pages 호환.
  * 2가지 인증 자동 인식:
  * 1. admin_key_auth cookie (HMAC 검증) → isOwner=true
- * 2. Auth.js session (향후 — getServerSession 호출)
+ * 2. Auth.js session (향후)
+ *
+ * Cloudflare Pages next-on-pages 에서 binding 접근 = getRequestContext().env
  */
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { appRouter } from '@sewmu/api';
 import { verifyAdminKeyToken } from '@/lib/admin-key-auth';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const runtime = 'edge';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+/** Cloudflare Pages binding + env 접근 — runtime 에서만 호출 가능. */
+function getCfEnv(): any {
+  try {
+    const { env } = getRequestContext();
+    return env;
+  } catch {
+    /* dev mode fallback */
+    return (globalThis as any).env || (process as any)?.env || {};
+  }
+}
+
 const handler = async (req: Request) => {
-  const env = (globalThis as any).env || (process as any)?.env || {};
+  const env = getCfEnv();
 
   /* admin_key cookie 검증 */
   const cookieHeader = req.headers.get('cookie') || '';
@@ -32,7 +46,6 @@ const handler = async (req: Request) => {
       openaiApiKey: env.OPENAI_API_KEY,
       auth: isOwnerByKey
         ? {
-            /* 사장님 비번 진입 — user_id 없이도 owner 권한 */
             userId: env.OWNER_USER_ID ? Number(env.OWNER_USER_ID) : null,
             isOwner: true,
             isAdmin: true,

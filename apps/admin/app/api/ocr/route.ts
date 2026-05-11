@@ -43,7 +43,7 @@ const OCR_PROMPT = `
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as { document_id?: number };
     const documentId = Number(body.document_id);
     if (!documentId) {
       return NextResponse.json({ error: 'document_id 필요' }, { status: 400 });

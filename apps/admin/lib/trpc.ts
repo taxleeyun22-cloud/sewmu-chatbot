@@ -25,7 +25,7 @@ export async function trpcCall<T>(
     const txt = await res.text();
     throw new Error(`tRPC error: ${res.status} ${txt.slice(0, 200)}`);
   }
-  const data = await res.json();
+  const data = (await res.json()) as { result?: { data?: T } };
   return data.result?.data as T;
 }
 

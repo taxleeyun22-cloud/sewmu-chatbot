@@ -14,6 +14,7 @@
  */
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const runtime = 'edge';
 
@@ -39,7 +40,13 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const key = (body as { key?: string }).key;
 
-    const env = (globalThis as any).env || (process as any)?.env || {};
+    /* Cloudflare Pages binding 접근 — next-on-pages 표준 */
+    let env: any;
+    try {
+      env = getRequestContext().env;
+    } catch {
+      env = (globalThis as any).env || (process as any)?.env || {};
+    }
     const expectedKey = env.ADMIN_KEY;
     const authSecret = env.AUTH_SECRET;
 

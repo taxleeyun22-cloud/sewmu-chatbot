@@ -146,7 +146,12 @@ function DocActions({
         },
         body: JSON.stringify({ document_id: doc.id }),
       });
-      const data = await r.json();
+      const data = (await r.json()) as {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+        parsed?: { vendor?: string; amount?: number };
+      };
       if (!r.ok) {
         alert(`OCR 실패: ${data.error || data.message}`);
       } else {
