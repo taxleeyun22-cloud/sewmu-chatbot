@@ -52,12 +52,13 @@ function SearchResults({ query }: { query: string }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {data.users.length > 0 && (
         <Section title={`👤 사용자 ${data.users.length}명`}>
           {data.users.map((u) => (
-            <div key={u.id} className="text-sm py-1">
-              {u.real_name || u.name || `#${u.id}`} <span className="text-gray-400">{u.phone}</span>
+            <div key={u.id} className="text-xs py-0.5">
+              {u.real_name || u.name || `#${u.id}`}{' '}
+              <span className="text-gray-400 font-mono">{u.phone}</span>
             </div>
           ))}
         </Section>
@@ -65,21 +66,27 @@ function SearchResults({ query }: { query: string }) {
       {data.rooms.length > 0 && (
         <Section title={`💬 상담방 ${data.rooms.length}개`}>
           {data.rooms.map((r) => (
-            <div key={r.id} className="text-sm py-1">{r.name || r.id}</div>
+            <div key={r.id} className="text-xs py-0.5">
+              {r.name || r.id}
+            </div>
           ))}
         </Section>
       )}
       {data.memos.length > 0 && (
         <Section title={`📒 메모 ${data.memos.length}건`}>
           {data.memos.map((m) => (
-            <div key={m.id} className="text-sm py-1 line-clamp-2">{m.content}</div>
+            <div key={m.id} className="text-xs py-0.5 line-clamp-2">
+              {m.content}
+            </div>
           ))}
         </Section>
       )}
       {data.businesses.length > 0 && (
         <Section title={`🏢 업체 ${data.businesses.length}개`}>
           {data.businesses.map((b) => (
-            <div key={b.id} className="text-sm py-1">{b.company_name || `#${b.id}`}</div>
+            <div key={b.id} className="text-xs py-0.5">
+              {b.company_name || `#${b.id}`}
+            </div>
           ))}
         </Section>
       )}
@@ -90,8 +97,8 @@ function SearchResults({ query }: { query: string }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">{title}</h3>
-      <div className="bg-gray-50 rounded p-3">{children}</div>
+      <h3 className="text-[10px] font-bold text-gray-500 uppercase mb-0.5">{title}</h3>
+      <div className="bg-gray-50 rounded px-2 py-1">{children}</div>
     </div>
   );
 }
@@ -100,8 +107,8 @@ export default function SearchPage() {
   const [query, setQuery] = useState('');
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">전역 검색</h1>
+    <div className="p-3 max-w-4xl mx-auto">
+      <h1 className="text-base font-bold text-gray-900 mb-2">🔍 전역 검색</h1>
 
       <input
         type="text"
@@ -109,12 +116,12 @@ export default function SearchPage() {
         onChange={(e) => setQuery(e.target.value)}
         placeholder="사용자 · 상담방 · 메시지 · 메모 · 업체 · 문서 검색"
         autoFocus
-        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary"
+        className="w-full px-2.5 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brand-primary"
       />
 
-      <div className="mt-6 bg-white rounded-2xl p-6">
+      <div className="mt-2 bg-white rounded-lg border border-gray-200 p-2.5">
         {query.length < 2 ? (
-          <p className="text-center text-gray-400 py-8 text-sm">2자 이상 입력하세요</p>
+          <p className="text-center text-gray-400 py-6 text-xs">2자 이상 입력하세요</p>
         ) : (
           <SearchResults query={query} />
         )}

@@ -17,22 +17,22 @@ export default function InternalPage() {
   }, []);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">🔐 관리자방</h1>
-      <div className="bg-white rounded-2xl p-6">
+    <div className="p-3">
+      <h1 className="text-base font-bold text-gray-900 mb-2">🔐 관리자방</h1>
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {rooms.length === 0 ? (
-          <p className="text-center text-gray-400 py-12 text-sm">
+          <p className="text-center text-gray-400 py-6 text-xs">
             관리자방이 없습니다. (모든 admin 사용자 자동 초대)
           </p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="divide-y divide-gray-100">
             {rooms.map((r) => (
               <li
                 key={r.id}
-                className="p-4 border border-gray-200 rounded-xl hover:border-brand-primary cursor-pointer"
+                className="px-2 py-1.5 hover:bg-gray-50 cursor-pointer"
               >
-                <p className="font-medium">{r.name || `방 ${r.id}`}</p>
-                <p className="text-xs text-gray-500 mt-1">{r.id}</p>
+                <p className="text-xs font-medium">{r.name || `방 ${r.id}`}</p>
+                <p className="text-[10px] text-gray-500 font-mono">{r.id}</p>
               </li>
             ))}
           </ul>

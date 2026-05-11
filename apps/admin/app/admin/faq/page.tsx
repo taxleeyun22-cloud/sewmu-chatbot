@@ -87,28 +87,28 @@ export default function FaqPage() {
   }, [faqs]);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">📚 FAQ</h1>
-        <div className="text-sm text-gray-500">
+    <div className="p-3">
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-base font-bold text-gray-900">📚 FAQ</h1>
+        <div className="text-[11px] text-gray-500">
           {stats.total}건 · 검증 {stats.verified} · 임베딩 {stats.withEmb}
         </div>
       </div>
 
       {/* 검색 + 카테고리 */}
-      <div className="bg-white rounded-2xl p-4 mb-4">
-        <div className="flex gap-2 mb-3">
+      <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 mb-2">
+        <div className="flex gap-1.5 mb-1.5">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="🔍 질문·답변·법령 검색"
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-primary"
+            className="flex-1 px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:border-brand-primary"
           />
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-primary"
+            className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:border-brand-primary"
           >
             <option value="all">전체 카테고리</option>
             {categories.map((c) => (
@@ -119,12 +119,12 @@ export default function FaqPage() {
           </select>
         </div>
 
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-1 flex-wrap">
           {VERIFY_TABS.map((t) => (
             <button
               key={t.key}
               onClick={() => setVerifyFilter(t.key)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+              className={`px-2 py-0.5 rounded text-[11px] font-medium ${
                 verifyFilter === t.key
                   ? 'bg-brand-primary text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -136,32 +136,32 @@ export default function FaqPage() {
         </div>
       </div>
 
-      {/* FAQ 카드 */}
-      <div className="space-y-2">
+      {/* FAQ 카드 — 컴팩트 */}
+      <div className="space-y-1">
         {loading && (
-          <p className="text-center text-gray-400 py-12 text-sm">불러오는 중...</p>
+          <p className="text-center text-gray-400 py-6 text-xs">불러오는 중...</p>
         )}
         {!loading && faqs.length === 0 && (
-          <div className="bg-white rounded-2xl p-12 text-center text-gray-400 text-sm">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 text-center text-gray-400 text-xs">
             FAQ 가 없습니다.
           </div>
         )}
         {faqs.map((f) => (
-          <div key={f.id} className="bg-white rounded-2xl p-4">
-            <div className="flex items-start justify-between gap-2">
+          <div key={f.id} className="bg-white rounded-lg border border-gray-200 px-2 py-1.5">
+            <div className="flex items-start justify-between gap-1.5">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <div className="flex items-center gap-1 flex-wrap text-[10px]">
                   {f.q_number != null && (
-                    <span className="text-xs font-bold text-brand-primary">Q{f.q_number}</span>
+                    <span className="font-bold text-brand-primary">Q{f.q_number}</span>
                   )}
                   {f.category && (
-                    <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                    <span className="bg-blue-50 text-blue-600 px-1 py-0 rounded">
                       {f.category}
                     </span>
                   )}
                   {f.verified_status && (
                     <span
-                      className={`text-xs px-2 py-0.5 rounded-full ${
+                      className={`px-1 py-0 rounded ${
                         VERIFY_COLOR[f.verified_status] || 'bg-gray-100 text-gray-700'
                       }`}
                     >
@@ -169,29 +169,29 @@ export default function FaqPage() {
                     </span>
                   )}
                   {f.has_embedding ? (
-                    <span className="text-xs text-green-600">🧠 임베딩 OK</span>
+                    <span className="text-green-600">🧠</span>
                   ) : (
-                    <span className="text-xs text-red-500">⚠️ 임베딩 없음</span>
+                    <span className="text-red-500">⚠️ 임베딩 없음</span>
                   )}
                   {f.active === 0 && (
-                    <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
+                    <span className="bg-gray-200 text-gray-500 px-1 py-0 rounded">
                       비활성
                     </span>
                   )}
                 </div>
-                <p className="font-medium text-gray-900 mb-1">{f.question}</p>
-                <p className="text-sm text-gray-600 line-clamp-2 whitespace-pre-wrap">
+                <p className="font-medium text-xs text-gray-900 leading-tight">{f.question}</p>
+                <p className="text-[11px] text-gray-600 line-clamp-2 whitespace-pre-wrap leading-snug">
                   {f.answer}
                 </p>
                 {f.law_refs && (
-                  <p className="text-xs text-gray-500 mt-1">📖 {f.law_refs}</p>
+                  <p className="text-[10px] text-gray-500">📖 {f.law_refs}</p>
                 )}
               </div>
               <button
                 onClick={() => setEditing(f)}
-                className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200 flex-shrink-0"
+                className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded hover:bg-gray-200 flex-shrink-0"
               >
-                ✏️ 수정
+                ✏️수정
               </button>
             </div>
           </div>

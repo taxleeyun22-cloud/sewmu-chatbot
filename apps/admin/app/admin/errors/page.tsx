@@ -88,112 +88,113 @@ export default function ErrorsPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">🐞 에러 로그</h1>
-        <span className="text-sm text-gray-500">
+    <div className="p-3">
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-base font-bold text-gray-900">🐞 에러 로그</h1>
+        <span className="text-[11px] text-gray-500">
           {loading ? '불러오는 중...' : `${errors.length}건`}
         </span>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 mb-4 flex gap-3 flex-wrap items-center">
-        <label className="flex items-center gap-2 text-sm">
+      <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 mb-2 flex gap-2 flex-wrap items-center text-xs">
+        <label className="flex items-center gap-1">
           <input
             type="checkbox"
             checked={showResolved}
             onChange={(e) => setShowResolved(e.target.checked)}
+            className="w-3.5 h-3.5"
           />
-          해결된 것 포함
+          해결됨 포함
         </label>
-        <label className="text-sm">
+        <label className="flex items-center gap-1">
           기간:
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
-            className="ml-2 px-2 py-1 border border-gray-200 rounded-lg text-sm"
+            className="px-1.5 py-0.5 border border-gray-200 rounded text-xs"
           >
-            <option value={7}>최근 7일</option>
-            <option value={30}>최근 30일</option>
-            <option value={90}>최근 90일</option>
+            <option value={7}>7일</option>
+            <option value={30}>30일</option>
+            <option value={90}>90일</option>
           </select>
         </label>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex gap-1">
           <button
             onClick={clearOld}
-            className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+            className="text-[11px] px-2 py-0.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
           >
             🗑️ {days}일 지난 거
           </button>
           <button
             onClick={clearAll}
-            className="text-xs px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+            className="text-[11px] px-2 py-0.5 bg-red-100 text-red-700 rounded hover:bg-red-200"
           >
-            🗑️ 전체 비우기 (owner)
+            🗑️ 전체 (owner)
           </button>
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1">
         {!loading && errors.length === 0 && (
-          <div className="bg-white rounded-2xl p-12 text-center text-gray-400 text-sm">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 text-center text-gray-400 text-xs">
             🎉 에러 0건 — 시스템 정상
           </div>
         )}
         {errors.map((e) => (
-          <div key={e.id} className="bg-white rounded-2xl p-4">
-            <div className="flex items-start gap-2">
+          <div key={e.id} className="bg-white rounded-lg border border-gray-200 px-2 py-1.5">
+            <div className="flex items-start gap-1.5">
               <button
                 onClick={() => toggleExpand(e.id)}
-                className="text-gray-400 hover:text-gray-700 px-1"
+                className="text-gray-400 hover:text-gray-700 text-xs"
               >
                 {expanded.has(e.id) ? '▼' : '▶'}
               </button>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <div className="flex items-center gap-1 flex-wrap text-[10px]">
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${
+                    className={`px-1 py-0 rounded ${
                       SOURCE_COLOR[e.source] || 'bg-gray-100 text-gray-700'
                     }`}
                   >
                     {e.source}
                   </span>
-                  <span className="text-xs text-gray-500">
-                    {e.created_at?.slice(0, 16)}
+                  <span className="text-gray-500 font-mono">
+                    {e.created_at?.slice(2, 16)}
                   </span>
-                  {e.user_id && (
-                    <span className="text-xs text-gray-500">user #{e.user_id}</span>
-                  )}
+                  {e.user_id && <span className="text-gray-500">user #{e.user_id}</span>}
                   {e.resolved === 1 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                    <span className="px-1 py-0 rounded bg-green-100 text-green-700">
                       ✓ 해결됨
                     </span>
                   )}
                 </div>
-                <p className="font-mono text-sm text-gray-900 break-all">{e.message}</p>
+                <p className="font-mono text-xs text-gray-900 break-all leading-tight mt-0.5">
+                  {e.message}
+                </p>
                 {e.url && (
-                  <p className="text-xs text-gray-500 mt-1 truncate">📍 {e.url}</p>
+                  <p className="text-[10px] text-gray-500 truncate">📍 {e.url}</p>
                 )}
                 {expanded.has(e.id) && (
-                  <div className="mt-3 space-y-2 text-xs">
+                  <div className="mt-1.5 space-y-1 text-[11px]">
                     {e.stack && (
                       <details open>
                         <summary className="cursor-pointer font-medium text-gray-700">
                           Stack
                         </summary>
-                        <pre className="mt-1 bg-gray-50 p-2 rounded overflow-auto whitespace-pre-wrap break-all font-mono text-[11px]">
+                        <pre className="mt-0.5 bg-gray-50 p-1.5 rounded overflow-auto whitespace-pre-wrap break-all font-mono text-[10px]">
                           {e.stack}
                         </pre>
                       </details>
                     )}
                     {e.user_agent && (
-                      <div className="text-gray-500">UA: {e.user_agent}</div>
+                      <div className="text-gray-500 truncate">UA: {e.user_agent}</div>
                     )}
                     {e.context && (
                       <details>
                         <summary className="cursor-pointer font-medium text-gray-700">
                           Context
                         </summary>
-                        <pre className="mt-1 bg-gray-50 p-2 rounded overflow-auto font-mono text-[11px]">
+                        <pre className="mt-0.5 bg-gray-50 p-1.5 rounded overflow-auto font-mono text-[10px]">
                           {e.context}
                         </pre>
                       </details>
@@ -204,9 +205,9 @@ export default function ErrorsPage() {
               {e.resolved !== 1 && (
                 <button
                   onClick={() => resolve(e.id)}
-                  className="text-xs bg-green-500 text-white px-3 py-1.5 rounded-lg hover:opacity-90 flex-shrink-0"
+                  className="text-[10px] bg-green-500 text-white px-1.5 py-0.5 rounded hover:opacity-90 flex-shrink-0"
                 >
-                  ✓ 해결
+                  ✓해결
                 </button>
               )}
             </div>

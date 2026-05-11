@@ -43,35 +43,37 @@ export default function TrashPage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">🗑️ 휴지통</h1>
-      <div className="bg-white rounded-2xl p-6">
-        {loading && <p className="text-center text-gray-400 py-12 text-sm">불러오는 중...</p>}
+    <div className="p-3 max-w-3xl mx-auto">
+      <h1 className="text-base font-bold text-gray-900 mb-2">🗑️ 휴지통</h1>
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        {loading && <p className="text-center text-gray-400 py-6 text-xs">불러오는 중...</p>}
         {!loading && list.length === 0 && (
-          <p className="text-center text-gray-400 py-12 text-sm">휴지통이 비어있습니다.</p>
+          <p className="text-center text-gray-400 py-6 text-xs">휴지통이 비어있습니다.</p>
         )}
         {!loading && list.length > 0 && (
-          <ul className="space-y-2">
+          <ul className="divide-y divide-gray-100">
             {list.map((m) => (
-              <li key={m.id} className="p-3 border border-gray-200 rounded-xl flex items-center gap-3">
-                <div className="flex-1">
-                  <p className="text-sm">{m.content}</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {m.category && `[${m.category}] `}
+              <li key={m.id} className="px-2 py-1.5 flex items-center gap-1.5 hover:bg-gray-50">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs leading-snug truncate">{m.content}</p>
+                  <p className="text-[10px] text-gray-400">
+                    {m.category && (
+                      <span className="bg-gray-100 px-1 py-0 rounded mr-1">{m.category}</span>
+                    )}
                     삭제: {m.deleted_at?.slice(0, 16)}
                   </p>
                 </div>
                 <button
                   onClick={() => restore(m.id)}
-                  className="text-xs bg-green-500 text-white px-3 py-1 rounded"
+                  className="text-[10px] bg-green-500 text-white px-1.5 py-0.5 rounded"
                 >
-                  ↻ 복원
+                  ↻복원
                 </button>
                 <button
                   onClick={() => purge(m.id)}
-                  className="text-xs bg-red-500 text-white px-3 py-1 rounded"
+                  className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded"
                 >
-                  ✕ 영구
+                  ✕영구
                 </button>
               </li>
             ))}

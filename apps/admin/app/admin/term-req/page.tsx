@@ -4,10 +4,10 @@
  */
 export default function TermReqPage() {
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">⚠️ 종료 요청</h1>
-      <div className="bg-white rounded-2xl p-6">
-        <p className="text-center text-gray-400 py-12 text-sm">
+    <div className="p-3 max-w-3xl mx-auto">
+      <h1 className="text-base font-bold text-gray-900 mb-2">⚠️ 종료 요청</h1>
+      <div className="bg-white rounded-lg border border-gray-200 p-3">
+        <p className="text-center text-gray-400 py-6 text-xs">
           termination_requests 테이블 list — Day 15 본격 (router 추가).
         </p>
       </div>

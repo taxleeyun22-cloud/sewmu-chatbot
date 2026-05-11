@@ -1,6 +1,6 @@
 /**
- * Phase Next-Day8 (2026-05-09): /admin/docs (tRPC + 단순 list).
- * AG-Grid 대신 단순 table — TanStack Table 추가는 후속.
+ * Phase Next-Day28 (2026-05-11): /admin/docs 컴팩트.
+ * 사장님 명령: "새 어드민 컴팩트하게 변동 ㄱㄱ"
  */
 'use client';
 
@@ -49,15 +49,15 @@ export default function DocsPage() {
   }, [status]);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">문서</h1>
+    <div className="p-3">
+      <h1 className="text-base font-bold text-gray-900 mb-2">문서</h1>
 
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-1 mb-2">
         {STATUS_TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setStatus(t.key)}
-            className={`px-4 py-2 rounded-full text-sm font-medium ${
+            className={`px-2.5 py-0.5 rounded text-xs font-medium ${
               status === t.key
                 ? 'bg-brand-primary text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -68,40 +68,52 @@ export default function DocsPage() {
         ))}
       </div>
 
-      <div className="bg-white rounded-2xl overflow-hidden">
-        {loading && <p className="text-center text-gray-400 py-12 text-sm">불러오는 중...</p>}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        {loading && <p className="text-center text-gray-400 py-6 text-xs">불러오는 중...</p>}
         {!loading && docs.length === 0 && (
-          <p className="text-center text-gray-400 py-12 text-sm">문서 없음</p>
+          <p className="text-center text-gray-400 py-6 text-xs">문서 없음</p>
         )}
         {!loading && docs.length > 0 && (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-600">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 text-[11px] text-gray-600">
               <tr>
-                <th className="px-4 py-3 text-left">상태</th>
-                <th className="px-4 py-3 text-left">유형</th>
-                <th className="px-4 py-3 text-left">매입처</th>
-                <th className="px-4 py-3 text-right">금액</th>
-                <th className="px-4 py-3 text-left">날짜</th>
-                <th className="px-4 py-3 text-left">계정</th>
-                <th className="px-4 py-3 text-left">액션</th>
+                <th className="px-2 py-1.5 text-left w-12">상태</th>
+                <th className="px-2 py-1.5 text-left w-16">유형</th>
+                <th className="px-2 py-1.5 text-left">매입처</th>
+                <th className="px-2 py-1.5 text-right w-24">금액</th>
+                <th className="px-2 py-1.5 text-left w-24">날짜</th>
+                <th className="px-2 py-1.5 text-left w-20">계정</th>
+                <th className="px-2 py-1.5 text-left w-44">액션</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {docs.map((d) => (
                 <tr key={d.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    {d.status === 'approved' && '✅'}
-                    {d.status === 'rejected' && '❌'}
-                    {d.status === 'pending' && '⏳'}
+                  <td className="px-2 py-1">
+                    {d.status === 'approved' && (
+                      <span className="text-[10px] bg-green-100 text-green-700 px-1 py-0 rounded">
+                        ✓ 승인
+                      </span>
+                    )}
+                    {d.status === 'rejected' && (
+                      <span className="text-[10px] bg-red-100 text-red-700 px-1 py-0 rounded">
+                        ✕ 반려
+                      </span>
+                    )}
+                    {d.status === 'pending' && (
+                      <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1 py-0 rounded">
+                        ⏳ 대기
+                      </span>
+                    )}
                   </td>
-                  <td className="px-4 py-3">{d.doc_type || '-'}</td>
-                  <td className="px-4 py-3">{d.vendor || '-'}</td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {d.amount ? `${d.amount.toLocaleString()}원` : '-'}
+                  <td className="px-2 py-1">{d.doc_type || '-'}</td>
+                  <td className="px-2 py-1 truncate max-w-[160px]">{d.vendor || '-'}</td>
+                  <td className="px-2 py-1 text-right font-mono">
+                    {d.amount ? `${d.amount.toLocaleString()}` : '-'}
                   </td>
-                  <td className="px-4 py-3">{d.receipt_date || '-'}</td>
-                  <td className="px-4 py-3">{d.category || '-'}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-1 font-mono text-gray-600">{d.receipt_date || '-'}</td>
+                  <td className="px-2 py-1 text-gray-700">{d.category || '-'}</td>
+                  <td className="px-2 py-1">
                     {d.status === 'pending' && (
                       <DocActions doc={d} status={status} onChanged={setDocs} />
                     )}
@@ -112,6 +124,10 @@ export default function DocsPage() {
           </table>
         )}
       </div>
+
+      {!loading && docs.length > 0 && (
+        <p className="text-[11px] text-gray-400 mt-1.5 text-right">총 {docs.length} 건</p>
+      )}
     </div>
   );
 }
@@ -168,12 +184,12 @@ function DocActions({
   }
 
   return (
-    <div className="flex gap-1 flex-wrap">
+    <div className="flex gap-0.5">
       <button
         onClick={runOcr}
         disabled={ocrLoading}
-        className="text-xs bg-purple-500 text-white px-2 py-1 rounded disabled:opacity-50"
-        title="OpenAI gpt-4o-mini Vision 으로 영수증 자동 분석"
+        className="text-[10px] bg-purple-500 text-white px-1.5 py-0.5 rounded disabled:opacity-50"
+        title="OpenAI gpt-4o-mini Vision"
       >
         {ocrLoading ? '...' : '🤖 OCR'}
       </button>
@@ -188,9 +204,9 @@ function DocActions({
           });
           refetch();
         }}
-        className="text-xs bg-green-500 text-white px-2 py-1 rounded"
+        className="text-[10px] bg-green-500 text-white px-1.5 py-0.5 rounded"
       >
-        ✅ 승인
+        ✓승인
       </button>
       <button
         onClick={async () => {
@@ -199,9 +215,9 @@ function DocActions({
           await trpcCall('documents.reject', { id: doc.id, reason });
           refetch();
         }}
-        className="text-xs bg-red-500 text-white px-2 py-1 rounded"
+        className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded"
       >
-        ❌ 반려
+        ✕반려
       </button>
     </div>
   );

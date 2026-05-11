@@ -53,24 +53,24 @@ export default function FilingsPage() {
     : filings.filter((f) => (f.review_status || '작성중') === statusFilter);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">📋 신고 검토표</h1>
+    <div className="p-3">
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-base font-bold text-gray-900">📋 신고 검토표</h1>
         <button
           onClick={() => setShowCreate(true)}
-          className="bg-brand-primary text-white px-4 py-2 rounded-lg font-medium hover:opacity-90"
+          className="bg-brand-primary text-white px-2.5 py-1 rounded text-xs font-medium hover:opacity-90"
         >
           + 새 Case
         </button>
       </div>
 
       {/* 상태 탭 */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-1 mb-2">
         {STATUS_TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setStatusFilter(t.key)}
-            className={`px-4 py-2 rounded-full text-sm font-medium ${
+            className={`px-2.5 py-0.5 rounded text-xs font-medium ${
               statusFilter === t.key
                 ? 'bg-brand-primary text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -81,41 +81,41 @@ export default function FilingsPage() {
         ))}
       </div>
 
-      <div className="bg-white rounded-2xl p-6">
-        {loading && <p className="text-center text-gray-400 py-12 text-sm">불러오는 중...</p>}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        {loading && <p className="text-center text-gray-400 py-6 text-xs">불러오는 중...</p>}
         {!loading && visible.length === 0 && (
-          <p className="text-center text-gray-400 py-12 text-sm">
+          <p className="text-center text-gray-400 py-6 text-xs">
             {statusFilter === 'all'
               ? '신고 Case 가 없습니다. + 새 Case 로 시작하세요.'
               : `"${statusFilter}" 상태의 Case 가 없습니다.`}
           </p>
         )}
         {!loading && visible.length > 0 && (
-          <ul className="space-y-2">
+          <ul className="divide-y divide-gray-100">
             {visible.map((f) => (
               <li key={f.id}>
                 <Link
                   href={`/admin/filings/${f.id}`}
-                  className="block p-4 border border-gray-200 rounded-xl hover:border-brand-primary cursor-pointer"
+                  className="block px-2 py-1.5 hover:bg-gray-50 cursor-pointer"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className="font-medium">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium">
                         [{f.fiscal_year}귀속] {f.type}
                         <span
-                          className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
+                          className={`ml-1 text-[10px] px-1 py-0 rounded ${
                             ST_COLOR[f.review_status || '작성중'] || 'bg-gray-200'
                           }`}
                         >
                           {f.review_status || '작성중'}
                         </span>
                       </p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-[10px] text-gray-500">
                         {f.owner_type} #{f.owner_id}
                         {f.updated_at && ` · ${f.updated_at.slice(0, 10)}`}
                       </p>
                     </div>
-                    <span className="text-brand-primary text-xl">›</span>
+                    <span className="text-brand-primary">›</span>
                   </div>
                 </Link>
               </li>

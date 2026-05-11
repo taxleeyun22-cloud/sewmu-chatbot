@@ -103,18 +103,18 @@ export function Sidebar() {
   }, []);
 
   return (
-    <aside className="w-60 bg-sb-bg border-r border-gray-200 flex flex-col">
-      {/* 로고 / 사장님 */}
-      <div className="px-4 py-5 border-b border-gray-200">
-        <h1 className="font-bold text-gray-900">세무회계 이윤</h1>
-        <p className="text-xs text-sb-text-mute mt-1">이재윤 대표세무사</p>
+    <aside className="w-52 bg-sb-bg border-r border-gray-200 flex flex-col">
+      {/* 로고 / 사장님 — 컴팩트 */}
+      <div className="px-3 py-2.5 border-b border-gray-200">
+        <h1 className="font-bold text-gray-900 text-sm">세무회계 이윤</h1>
+        <p className="text-[11px] text-sb-text-mute mt-0.5">이재윤 대표세무사</p>
       </div>
 
-      {/* 네비 */}
-      <nav className="flex-1 overflow-y-auto py-3">
+      {/* 네비 — 컴팩트 (각 섹션 mb-2, 항목 py-1, 13px) */}
+      <nav className="flex-1 overflow-y-auto py-1.5">
         {SECTIONS.map((section) => (
-          <div key={section.title} className="mb-4">
-            <h2 className="px-4 mb-1 text-xs font-medium text-sb-text-mute uppercase tracking-wide">
+          <div key={section.title} className="mb-1.5">
+            <h2 className="px-3 mb-0.5 mt-1 text-[10px] font-medium text-sb-text-mute uppercase tracking-wide">
               {section.title}
             </h2>
             <ul>
@@ -126,17 +126,17 @@ export function Sidebar() {
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
+                      className={`flex items-center gap-1.5 px-3 py-1 text-[13px] leading-tight transition-colors ${
                         active
                           ? 'bg-sb-active-bg text-sb-active-text font-medium'
                           : 'text-sb-text hover:bg-gray-100'
                       }`}
                     >
-                      <span className="w-5 text-center">{item.icon}</span>
+                      <span className="w-4 text-center text-[13px]">{item.icon}</span>
                       <span className="flex-1">{item.label}</span>
                       {count > 0 && (
                         <span
-                          className={`text-xs px-1.5 py-0.5 rounded-full ${cls}`}
+                          className={`text-[10px] px-1 py-0 rounded-full leading-4 ${cls}`}
                           data-testid={`badge-${item.countKey}`}
                         >
                           {count}
@@ -151,8 +151,8 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* 하단 — 로그아웃 + 거래처 챗봇 link */}
-      <div className="px-4 py-3 border-t border-gray-200 text-xs text-sb-text-mute space-y-2">
+      {/* 하단 — 로그아웃 + 거래처 챗봇 link (컴팩트) */}
+      <div className="px-3 py-1.5 border-t border-gray-200 text-[11px] text-sb-text-mute space-y-0.5">
         <button
           onClick={async () => {
             if (!confirm('로그아웃 하시겠습니까?')) return;
@@ -163,7 +163,7 @@ export function Sidebar() {
             }
             window.location.href = '/login';
           }}
-          className="w-full text-left hover:text-red-600 flex items-center gap-2 py-1"
+          className="w-full text-left hover:text-red-600 flex items-center gap-1.5 py-0.5"
         >
           <span>⏻</span>
           <span>로그아웃</span>
@@ -172,7 +172,7 @@ export function Sidebar() {
           href="https://sewmu-chatbot.pages.dev"
           target="_blank"
           rel="noreferrer"
-          className="hover:text-brand-primary flex items-center gap-2"
+          className="hover:text-brand-primary flex items-center gap-1.5 py-0.5"
         >
           <span>→</span>
           <span>거래처 챗봇</span>

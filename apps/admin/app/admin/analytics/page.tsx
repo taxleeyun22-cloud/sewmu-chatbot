@@ -21,18 +21,18 @@ export default function AnalyticsPage() {
   }, []);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">📈 분석</h1>
+    <div className="p-3">
+      <h1 className="text-base font-bold text-gray-900 mb-2">📈 분석</h1>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-2 mb-2">
         <Stat label="대기 사용자" value={counts?.pendingUsers ?? '--'} />
         <Stat label="기장거래처" value={counts?.approvedClients ?? '--'} />
         <Stat label="활성 상담방" value={counts?.activeRooms ?? '--'} />
         <Stat label="임박 일정 (7일)" value={counts?.urgentTodos ?? '--'} />
       </div>
 
-      <div className="bg-white rounded-2xl p-6">
-        <p className="text-sm text-gray-500">
+      <div className="bg-white rounded-lg border border-gray-200 p-3">
+        <p className="text-xs text-gray-500">
           Day 13+ — Recharts 월별/일별 통계 + 거래처 활동 분석 + 챗봇 신뢰도 분포
         </p>
       </div>
@@ -42,9 +42,9 @@ export default function AnalyticsPage() {
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="bg-white rounded-2xl p-5">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-3xl font-bold mt-2">{value}</p>
+    <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5">
+      <p className="text-[10px] text-gray-500">{label}</p>
+      <p className="text-lg font-bold leading-tight">{value}</p>
     </div>
   );
 }
