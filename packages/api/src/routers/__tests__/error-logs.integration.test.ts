@@ -231,12 +231,11 @@ describe('error_logs router (integration)', () => {
       expect(remaining.c).toBe(0);
     });
 
-    it('manager BLOCKED from clearAll', async () => {
+    it('admin (non-owner) BLOCKED from clearAll (사장님 결정 2026-05-11)', async () => {
       const { caller } = await makeCaller({
         userId: 2,
         isAdmin: true,
         isOwner: false,
-        staffRole: 'manager',
       });
       await expect(caller.errorLogs.clearAll()).rejects.toThrow();
     });

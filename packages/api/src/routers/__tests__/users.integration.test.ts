@@ -125,12 +125,11 @@ describe('users router (integration)', () => {
       expect(u.is_admin).toBe(0);
     });
 
-    it('manager (non-owner admin) BLOCKED by ownerProcedure', async () => {
+    it('admin (non-owner) BLOCKED by ownerProcedure (사장님 결정 2026-05-11)', async () => {
       const { caller, rawDb } = await makeCaller({
         userId: 2,
         isAdmin: true,
         isOwner: false,
-        staffRole: 'manager',
       });
       seedUsers(rawDb);
       await expect(
@@ -138,16 +137,15 @@ describe('users router (integration)', () => {
       ).rejects.toThrow();
     });
 
-    it('staff BLOCKED by ownerProcedure', async () => {
+    it('customer BLOCKED by ownerProcedure', async () => {
       const { caller, rawDb } = await makeCaller({
-        userId: 2,
-        isAdmin: true,
+        userId: 3,
+        isAdmin: false,
         isOwner: false,
-        staffRole: 'staff',
       });
       seedUsers(rawDb);
       await expect(
-        caller.users.setAdmin({ userId: 3, isAdmin: 1 }),
+        caller.users.setAdmin({ userId: 4, isAdmin: 1 }),
       ).rejects.toThrow();
     });
 

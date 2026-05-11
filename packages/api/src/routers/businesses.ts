@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { eq, and, isNull, like, or, desc } from 'drizzle-orm';
 import { adminProcedure, ownerProcedure, router } from '../trpc';
 import { drizzle, schema } from '@sewmu/db/client';
+import { audit } from '../audit';
 
 export const businessesRouter = router({
   list: adminProcedure
@@ -249,10 +250,24 @@ export const businessesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = drizzle(ctx.db);
       const { businesses } = schema;
+
+      const before = await db
+        .select({ company_name: businesses.company_name })
+        .from(businesses)
+        .where(eq(businesses.id, input.id))
+        .limit(1);
+
       await db
         .update(businesses)
         .set({ deleted_at: new Date().toISOString() })
         .where(eq(businesses.id, input.id));
+
+      await audit(ctx, 'admin:business:delete', {
+        target_type: 'business',
+        target_id: input.id,
+        before: { company_name: before[0]?.company_name },
+      });
+
       return { ok: true };
     }),
 });

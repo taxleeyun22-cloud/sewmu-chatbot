@@ -100,22 +100,9 @@ describe('sendAlimtalk', () => {
   });
 
   it('blocks send outside allowed hours when allowAfterHours=false', async () => {
-    /* mock isWithinSendHours via current time — at midnight UTC = 09:00 KST (allowed).
-     * To reliably test BLOCKED case, use allowAfterHours:false + override Date.now */
-    const realDate = global.Date;
-    // 02:00 KST = 17:00 UTC prev day
-    const fakeNow = new Date('2026-05-08T17:00:00Z').getTime();
-    // @ts-expect-error mock Date
-    global.Date = class extends realDate {
-      constructor(...args: unknown[]) {
-        super(...(args as []));
-      }
-      static now() {
-        return fakeNow;
-      }
-    };
-    Object.assign(global.Date, realDate);
-    global.Date.now = () => fakeNow;
+    /* fakeTimer 로 KST 02:00 (UTC 17:00 전날) — 야간 차단 시간. */
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-08T17:00:00Z'));
 
     const r = await sendAlimtalk(
       {
@@ -128,7 +115,7 @@ describe('sendAlimtalk', () => {
     expect(r.ok).toBe(false);
     expect(r.blocked).toBeTruthy();
 
-    global.Date = realDate;
+    vi.useRealTimers();
   });
 
   it('rejects invalid phone', async () => {

@@ -58,13 +58,8 @@ export const customerProcedure = t.procedure.use(async ({ ctx, next }) => {
  */
 export function withPermission(permission: Permission) {
   return t.procedure.use(async ({ ctx, next }) => {
-    const role: Role = ctx.auth.isOwner
-      ? 'owner'
-      : ctx.auth.isAdmin
-        ? ctx.auth.staffRole === 'manager'
-          ? 'manager'
-          : 'staff'
-        : 'customer';
+    /* 사장님 결정 2026-05-11: 3단계 (owner/admin/customer). staffRole deprecated. */
+    const role: Role = ctx.auth.isOwner ? 'owner' : ctx.auth.isAdmin ? 'admin' : 'customer';
     if (!can(role, permission)) {
       throw new TRPCError({
         code: 'FORBIDDEN',

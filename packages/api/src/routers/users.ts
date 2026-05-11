@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { eq, and, isNull, like, or, sql, desc } from 'drizzle-orm';
 import { adminProcedure, ownerProcedure, router } from '../trpc';
 import { drizzle, schema } from '@sewmu/db/client';
+import { audit } from '../audit';
 
 const StatusSchema = z.enum([
   'pending',
@@ -73,6 +74,12 @@ export const usersRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = drizzle(ctx.db);
       const { users } = schema;
+      const before = await db
+        .select({ approval_status: users.approval_status })
+        .from(users)
+        .where(eq(users.id, input.userId))
+        .limit(1);
+
       await db
         .update(users)
         .set({
@@ -80,6 +87,14 @@ export const usersRouter = router({
           approved_at: new Date().toISOString(),
         })
         .where(eq(users.id, input.userId));
+
+      await audit(ctx, 'admin:user:approve', {
+        target_type: 'user',
+        target_id: input.userId,
+        before: { approval_status: before[0]?.approval_status },
+        after: { approval_status: input.status },
+      });
+
       return { ok: true };
     }),
 
@@ -97,10 +112,25 @@ export const usersRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = drizzle(ctx.db);
       const { users } = schema;
+
+      const before = await db
+        .select({ is_admin: users.is_admin })
+        .from(users)
+        .where(eq(users.id, input.userId))
+        .limit(1);
+
       await db
         .update(users)
         .set({ is_admin: input.isAdmin })
         .where(eq(users.id, input.userId));
+
+      await audit(ctx, 'admin:user:set_admin', {
+        target_type: 'user',
+        target_id: input.userId,
+        before: { is_admin: before[0]?.is_admin ?? 0 },
+        after: { is_admin: input.isAdmin },
+      });
+
       return { ok: true };
     }),
 });

@@ -65,29 +65,27 @@ describe('bulk-send router (integration)', () => {
       expect(r.recipients[0].id).toBe(4);
     });
 
-    it('staff (non-manager) BLOCKED — admin:bulk_send is manager+', async () => {
+    it('admin allowed (사장님 결정 2026-05-11: 단체발송 = admin)', async () => {
       const { caller, rawDb } = await makeCaller({
         userId: 2,
         isAdmin: true,
         isOwner: false,
-        staffRole: 'staff',
+      });
+      seedUsers(rawDb);
+      const r = await caller.bulkSend.preview({ target: 'approved_client' });
+      expect(r).toBeDefined();
+    });
+
+    it('customer BLOCKED', async () => {
+      const { caller, rawDb } = await makeCaller({
+        userId: 3,
+        isAdmin: false,
+        isOwner: false,
       });
       seedUsers(rawDb);
       await expect(
         caller.bulkSend.preview({ target: 'approved_client' }),
       ).rejects.toThrow();
-    });
-
-    it('manager allowed', async () => {
-      const { caller, rawDb } = await makeCaller({
-        userId: 2,
-        isAdmin: true,
-        isOwner: false,
-        staffRole: 'manager',
-      });
-      seedUsers(rawDb);
-      const r = await caller.bulkSend.preview({ target: 'approved_client' });
-      expect(r).toBeDefined();
     });
   });
 

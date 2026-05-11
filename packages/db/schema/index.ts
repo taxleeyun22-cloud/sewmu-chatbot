@@ -24,3 +24,4 @@ export * from './auth';
 export * from './documents';
 export * from './business-members';
 export * from './error-logs';
+export * from './audit-logs';

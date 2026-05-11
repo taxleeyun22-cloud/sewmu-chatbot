@@ -16,24 +16,31 @@ export {
   hasRole,
   can,
   PERMISSIONS,
+  ownerOnlyPermissions,
+  exportPermissionsJson,
   type Role,
   type UserContext,
   type Permission,
 } from './rbac';
 
+/**
+ * 인증 context — tRPC ctx.auth 에 inject.
+ *
+ * 사장님 결정 2026-05-11: 3단계 (owner/admin/customer).
+ * staffRole 컬럼은 schema 에 남겨두되 사용 X (legacy).
+ */
 export interface AuthContext {
   userId: number | null;
   isOwner: boolean;
   isAdmin: boolean;
-  staffRole: 'owner' | 'manager' | 'staff' | null;
+  /** @deprecated 2026-05-11 — 매니저/스태프 통합. 호환 위해 남겨둠. */
+  staffRole?: string | null;
 }
 
 export function getAuthContext(): AuthContext {
-  // Week 2 Day 3 본격 — Auth.js session 호출
   return {
     userId: null,
     isOwner: false,
     isAdmin: false,
-    staffRole: null,
   };
 }

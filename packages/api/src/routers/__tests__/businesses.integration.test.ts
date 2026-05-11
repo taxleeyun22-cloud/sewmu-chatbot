@@ -240,23 +240,21 @@ describe('businesses router (integration)', () => {
       expect(row.deleted_at).toBeTruthy();
     });
 
-    it('manager BLOCKED by ownerProcedure', async () => {
+    it('admin (non-owner) BLOCKED by ownerProcedure (사장님 결정 2026-05-11)', async () => {
       const { caller, rawDb } = await makeCaller({
         userId: 2,
         isAdmin: true,
         isOwner: false,
-        staffRole: 'manager',
       });
       seedBusiness(rawDb, { id: 1, company_name: 'X' });
       await expect(caller.businesses.delete({ id: 1 })).rejects.toThrow();
     });
 
-    it('staff BLOCKED', async () => {
+    it('customer BLOCKED', async () => {
       const { caller, rawDb } = await makeCaller({
-        userId: 2,
-        isAdmin: true,
+        userId: 3,
+        isAdmin: false,
         isOwner: false,
-        staffRole: 'staff',
       });
       seedBusiness(rawDb, { id: 1, company_name: 'X' });
       await expect(caller.businesses.delete({ id: 1 })).rejects.toThrow();

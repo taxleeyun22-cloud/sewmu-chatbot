@@ -368,6 +368,21 @@ function applySchema(rawDb: RawDb): void {
       resolved_by INTEGER,
       created_at TEXT
     )`,
+    `CREATE TABLE audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor_user_id INTEGER NOT NULL,
+      actor_role TEXT,
+      action TEXT NOT NULL,
+      target_type TEXT,
+      target_id INTEGER,
+      before TEXT,
+      after TEXT,
+      result TEXT DEFAULT 'success',
+      error_message TEXT,
+      ip TEXT,
+      user_agent TEXT,
+      created_at TEXT
+    )`,
   ];
   for (const ddl of ddls) {
     rawDb.exec(ddl);

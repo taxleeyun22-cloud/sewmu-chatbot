@@ -15,7 +15,8 @@ export interface AuthOverride {
   userId?: number | null;
   isOwner?: boolean;
   isAdmin?: boolean;
-  staffRole?: 'manager' | 'staff' | null;
+  /** @deprecated 2026-05-11 사장님 결정 — 매니저/스태프 통합. 호환만. */
+  staffRole?: string | null;
 }
 
 export interface CallerHandle {

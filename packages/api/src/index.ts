@@ -21,6 +21,7 @@ import { reviewRouter } from './routers/review';
 import { faqRouter } from './routers/faq';
 import { bulkSendRouter } from './routers/bulk-send';
 import { errorLogsRouter } from './routers/error-logs';
+import { auditLogsRouter } from './routers/audit-logs';
 
 export const appRouter = router({
   chat: chatRouter,
@@ -37,7 +38,11 @@ export const appRouter = router({
   faq: faqRouter,
   bulkSend: bulkSendRouter,
   errorLogs: errorLogsRouter,
+  auditLogs: auditLogsRouter,
 });
+
+export { audit } from './audit';
+export type { AuditOptions } from './audit';
 
 export type AppRouter = typeof appRouter;
 
