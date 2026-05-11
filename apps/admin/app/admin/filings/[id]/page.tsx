@@ -7,6 +7,8 @@
  */
 'use client';
 
+export const runtime = 'edge';
+
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { trpcCall } from '@/lib/trpc';
