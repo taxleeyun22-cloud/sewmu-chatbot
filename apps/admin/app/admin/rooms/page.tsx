@@ -4,6 +4,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { trpcCall } from '@/lib/trpc';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -44,19 +45,21 @@ export default function RoomsPage() {
           ) : (
             <ul className="divide-y divide-gray-100">
               {rooms.map((r) => (
-                <li
-                  key={r.id}
-                  onClick={() => setSelectedId(r.id)}
-                  className={cn(
-                    'px-2.5 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors',
-                    selectedId === r.id && 'bg-blue-50 border-l-2 border-l-brand-primary',
-                  )}
-                >
-                  <p className="text-xs font-medium truncate">{r.name || '(이름없음)'}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <p className="text-[10px] text-gray-500 font-mono truncate flex-1">{r.id}</p>
-                    {r.ai_mode && <Badge variant="primary">AI</Badge>}
-                  </div>
+                <li key={r.id}>
+                  <Link
+                    href={`/admin/rooms/${r.id}`}
+                    onClick={() => setSelectedId(r.id)}
+                    className={cn(
+                      'block px-2.5 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors',
+                      selectedId === r.id && 'bg-blue-50 border-l-2 border-l-brand-primary',
+                    )}
+                  >
+                    <p className="text-xs font-medium truncate">{r.name || '(이름없음)'}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <p className="text-[10px] text-gray-500 font-mono truncate flex-1">{r.id}</p>
+                      {r.ai_mode && <Badge variant="primary">AI</Badge>}
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ul>
