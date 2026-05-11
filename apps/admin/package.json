@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@nanostores/react": "^1.1.0",
     "@sewmu/api": "*",
     "@sewmu/auth": "*",
     "@sewmu/db": "*",
@@ -15,6 +16,7 @@
     "@sewmu/ui": "*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "nanostores": "^0.11.4",
     "next": "^15.0.3",
     "next-auth": "5.0.0-beta.25",
     "react": "^19.0.0",
