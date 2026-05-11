@@ -1,0 +1,6 @@
+{
+  "exported_at": null,
+  "total": 0,
+  "items": [],
+  "note": "이 파일은 admin '검증' 탭의 '🚀 Claude 호출' 버튼이 자동 갱신합니다. 검증 대기 답변이 0건이면 items=[]. Claude 처리 후 admin-review API 로 mark_reviewed 마킹 완료."
+}

@@ -1,9 +1,10 @@
 /**
- * Phase Next-Week4 (2026-05-09): apps/admin 진입 페이지 (placeholder).
- * Day 1 = 골격 시작. 실제 dashboard 는 /admin/dashboard.
+ * Phase Next-Day28 (2026-05-11): 옛 admin.html 통째 진입 (사장님 명령 "한 큐에 복사").
+ * 진입: / → /admin.html (옛 admin 그대로)
+ * 새 Next.js admin pages (/admin/dashboard 등) 는 archive 로 유지.
  */
 import { redirect } from 'next/navigation';
 
 export default function HomePage() {
-  redirect('/admin/dashboard');
+  redirect('/admin.html');
 }

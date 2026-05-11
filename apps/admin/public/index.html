@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>세무회계 이윤 - AI 세무 상담</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="theme-color" content="#191f28">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="세무회계 이윤">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<!-- Phase H4 (2026-05-04): 인라인 <style> 4개 블록 → index.css 외부화 -->
+<link rel="stylesheet" href="/index.css?v=2">
+<!-- Phase T1+T2a: Tailwind + 토큰 통합 -->
+<link rel="stylesheet" href="/assets/main.css?v=3">
+<script type="module" src="/assets/main.js?v=1"></script>
+</head>
+<body>
+
+<div class="header">
+    <a href="javascript:void(0)" onclick="switchTab('chat')" id="navChat" class="hdr-back" style="display:none" title="상담">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </a>
+    <img src="logo-icon.png" alt="세무회계 이윤" class="header-logo">
+    <div class="header-title" id="headerTitle">세무회계 이윤</div>
+    <div class="header-right">
+        <a href="javascript:void(0)" onclick="resetChat()" class="hdr-btn" id="resetBtn" style="display:none" title="대화 초기화">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        </a>
+        <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()" title="테마">🌙</button>
+        <a href="javascript:void(0)" onclick="switchTab('mypage')" id="navMypage" class="hdr-btn hdr-mypage" style="display:none" title="내정보">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </a>
+    </div>
+</div>
+
+<!-- 승인 상태 배너 -->
+<div id="approvalBar" style="display:none;padding:10px 16px;font-size:.82em;border-radius:10px;margin:10px 12px 0;text-align:center"></div>
+
+<!-- 세금 기한 알림 -->
+<div id="taxAlertArea" style="display:none;padding-top:8px"></div>
+
+
+
+
+<!-- 로그인 화면 -->
+<div class="login-screen" id="loginScreen" style="display:none">
+    <div class="welcome-logo"><img src="logo-icon.png" alt="세무회계 이윤"></div>
+    <h2>AI 세무 상담</h2>
+    <p>로그인 후 세무 상담을 이용하실 수 있습니다</p>
+    <div class="login-buttons">
+        <a class="login-btn kakao" id="kakaoLoginBtn">
+            <svg viewBox="0 0 24 24"><path fill="#191f28" d="M12 3C6.48 3 2 6.36 2 10.44c0 2.62 1.75 4.93 4.38 6.24l-1.12 4.16c-.1.36.32.65.64.44l4.94-3.26c.38.04.76.06 1.16.06 5.52 0 10-3.36 10-7.64C22 6.36 17.52 3 12 3z"/></svg>
+            카카오 로그인
+        </a>
+    </div>
+</div>
+
+<div class="chat-area" id="chatArea" style="display:none">
+    <div class="welcome">
+        <div class="welcome-logo"><img src="logo-icon.png" alt="세무회계 이윤"></div>
+        <h2>무엇이든 물어보세요</h2>
+        <p>종합소득세, 양도소득세, 상속세, 증여세<br>부가세, 법인세 등 세무 상담을 도와드립니다</p>
+        <p class="ai-notice">AI 기반 세무 상담 서비스</p>
+    </div>
+</div>
+
+<div class="quick" id="quickArea" style="display:none">
+    <button onclick="askQuick(this)">5월 종소세 누가 신고해야 하나요?</button>
+    <button onclick="askQuick(this)">프리랜서 3.3% 환급되나요?</button>
+    <button onclick="askQuick(this)">셀프 신고 vs 세무사 신고 차이?</button>
+    <button onclick="askQuick(this)">종소세 가산세 얼마?</button>
+</div>
+
+<div class="refund-bar" id="refundBar" style="display:none">
+    <a href="https://taxfriends.etaxmate.co.kr/index_default?USERID=taxfriends" target="_blank" class="refund-btn">
+        <div class="refund-icon">💰</div>
+        <div class="refund-text">
+            <span class="refund-title">AI 자동 환급 조회</span>
+            <span class="refund-desc">내가 더 낸 세금, 무료로 확인해보세요</span>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b95a1" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </a>
+</div>
+
+<div class="disclaimer" id="disclaimer" style="display:none">
+    <p>본 서비스는 AI 기반 답변으로, 실제 세법 적용과 차이가 있을 수 있습니다. 정확한 세무 판단은 반드시 전문가와 상담하세요.</p>
+</div>
+
+<div class="cta-bar" id="ctaBar" style="display:none">
+    <a href="tel:053-269-1213">
+        <div class="cta-icon"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg></div>
+        <span class="cta-text">구체적인 적용은 세무회계 이윤에 문의해 주세요</span>
+        <span class="cta-phone">053-269-1213</span>
+    </a>
+</div>
+
+<div class="input-bar" id="inputBar" style="display:none">
+    <textarea id="userInput" rows="1" placeholder="메시지 보내기" style="resize:none;max-height:120px;font-family:inherit;overflow-y:auto" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();sendMessage()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+    <button class="send" id="sendBtn" onclick="sendMessage()">
+        <svg viewBox="0 0 24 24"><path d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a.993.993 0 00-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z"/></svg>
+    </button>
+</div>
+
+<!-- 마이페이지 -->
+<div class="mypage" id="myPageView">
+  <!-- 프로필 카드 -->
+  <div class="mp-profile">
+    <div class="mp-profile-top">
+      <div class="mp-profile-avatar" id="mpAvatar">?</div>
+      <div style="flex:1;min-width:0">
+        <div class="mp-profile-name" id="mpName">-</div>
+        <div class="mp-profile-phone" id="mpPhone">-</div>
+      </div>
+    </div>
+    <div class="mp-profile-status" id="mpStatus">상태 확인 중...</div>
+  </div>
+
+  <!-- 기장거래처 정보 카드 (approved_client만 표시) -->
+  <div class="mp-client-card" id="mpClientCard" style="display:none">
+    <div class="mp-client-title">🏢 세무회계 이윤 기장거래처</div>
+    <div class="mp-client-name" id="mpClientName">-</div>
+    <div class="mp-client-meta" id="mpClientMeta">-</div>
+    <div class="mp-client-notes" id="mpClientNotes" style="display:none"></div>
+  </div>
+
+  <!-- 필수 서류 배너 (미제출 시 재촉) -->
+  <div id="onboardBanner" style="display:none;margin:10px 0;background:linear-gradient(135deg,#fff7ed,#fef3c7);border:1px solid #fcd34d;border-radius:12px;padding:14px 16px;cursor:pointer" onclick="openOnboardModal()">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="font-size:1.6em">📋</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;color:#92400e;font-size:.95em">기장 시작에 필요한 서류를 올려주세요</div>
+        <div style="font-size:.78em;color:#78350f;margin-top:2px" id="onboardBannerDetail">신분증 · 사업자등록증 · 홈택스 ID</div>
+      </div>
+      <div style="color:#92400e;font-size:1.3em">›</div>
+    </div>
+  </div>
+
+  <!-- 내 사업장 (세무사가 등록, 읽기 전용) -->
+  <div class="mp-section" id="mpBusinessesSection" style="display:none">
+    <div class="mp-section-title" style="display:flex;align-items:center;justify-content:space-between;padding-right:14px">
+      <span>🏢 내 사업장 <span id="mpBizCount" style="color:var(--text3);font-weight:500"></span></span>
+      <span style="font-size:.72em;color:var(--text3);font-weight:500">세무사 관리</span>
+    </div>
+    <div id="mpBusinessesList"></div>
+    <div style="padding:10px 18px 14px;font-size:.7em;color:var(--text3);border-top:1px solid var(--border);line-height:1.5">
+      사업장 정보 수정이 필요하시면 카카오톡 채널 또는 053-269-1213으로 문의해 주세요
+    </div>
+  </div>
+
+  <!-- 내 상담방 -->
+  <div class="mp-section" id="mpRoomsSection" style="display:none">
+    <div class="mp-section-title">💬 내 상담방 <span id="mpRoomsCount" style="color:var(--blue);font-weight:700"></span></div>
+    <div id="mpRoomsList"></div>
+  </div>
+
+  <!-- 내 문서함 (기장 거래처 전용) -->
+  <div class="mp-section" id="mpDocsSection" style="display:none">
+    <div class="mp-section-title">📄 내 문서함 <span id="mpDocsCount" style="color:var(--blue);font-weight:700"></span></div>
+    <div class="mp-item" onclick="openMyDocs()">
+      <div class="mp-item-icon">📑</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">문서·영수증 목록</div>
+        <div class="mp-item-value" id="mpDocsSubtitle">업로드 0건 · 대기 0건</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </div>
+  </div>
+
+  <!-- 문서함 풀스크린 뷰 -->
+  <div id="docsView" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:58;flex-direction:column">
+    <div style="background:var(--card);padding:12px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);padding-top:max(12px, env(safe-area-inset-top));flex-shrink:0">
+      <button onclick="closeMyDocs()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--text);padding:4px 8px;font-family:inherit">←</button>
+      <div style="font-weight:700;flex:1">내 문서함</div>
+    </div>
+    <!-- 필터 탭 -->
+    <div style="display:flex;background:var(--card);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0">
+      <button class="docs-filter on" data-status="all" onclick="switchDocsFilter('all')">전체</button>
+      <button class="docs-filter" data-status="pending" onclick="switchDocsFilter('pending')">대기 <span id="docsFiltPending" style="color:#f59e0b;font-weight:700"></span></button>
+      <button class="docs-filter" data-status="approved" onclick="switchDocsFilter('approved')">승인</button>
+      <button class="docs-filter" data-status="rejected" onclick="switchDocsFilter('rejected')">반려</button>
+    </div>
+    <!-- 내 다가오는 D-day 일정 -->
+    <div id="myAlertsBox" style="display:none;margin:12px 16px 0;padding:12px 14px;background:linear-gradient(135deg,#fff7ed,#fef3c7);border:1px solid #fcd34d;border-radius:12px">
+      <div style="font-weight:700;font-size:.9em;color:#92400e;margin-bottom:6px">🔔 다가오는 세무 일정</div>
+      <div id="myAlertsList"></div>
+    </div>
+    <div id="docsList" style="flex:1;overflow-y:auto;padding:14px 16px"></div>
+  </div>
+
+  <!-- 내 정보 -->
+  <div class="mp-section">
+    <div class="mp-section-title">내 정보</div>
+    <div class="mp-item" id="mpInfoItem" onclick="editMyInfo()" style="position:relative">
+      <div class="mp-item-icon">👤</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label" id="mpInfoLabel">이름 · 연락처 수정</div>
+        <div class="mp-item-value" id="mpInfoValue">-</div>
+        <!-- 사장님 명령 (2026-05-07): 거절 사유에 연락처 키워드 있으면 경고 표시 -->
+        <div id="mpInfoWarn" style="display:none;font-size:.74em;color:#dc2626;margin-top:4px;font-weight:600">⚠️ 카카오와 연락처가 다릅니다 — 보정 필요</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </div>
+    <div class="mp-item" onclick="openCompanyRequestModal()">
+      <div class="mp-item-icon">📝</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">업체 등록 요청 (세무사에게)</div>
+        <div class="mp-item-value" id="mpCompanyReqValue">아직 등록 요청 안 함</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </div>
+    <div class="mp-item" id="mpAdminBtn" style="display:none" onclick="location.href='/staff.html'">
+      <div class="mp-item-icon">👑</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">관리자 페이지</div>
+        <div class="mp-item-value">상담방·실시간·거래처</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </div>
+    <div class="mp-item" onclick="switchTab('chat')">
+      <div class="mp-item-icon">💬</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">내 상담 이력</div>
+        <div class="mp-item-value">이전 대화 계속 보기</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </div>
+    <div class="mp-item" onclick="restoreChat()">
+      <div class="mp-item-icon">♻️</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">숨긴 대화 복구</div>
+        <div class="mp-item-value">"대화 초기화" 이전 대화 되돌리기</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </div>
+  </div>
+
+  <!-- 상담방 — 생성은 관리자만. 고객은 기존 방 이용만. -->
+  <div class="mp-section" id="mpMyRoomsSection" style="display:none">
+    <div class="mp-section-title">상담방</div>
+    <div id="mpMyRooms"></div>
+  </div>
+
+  <!-- 세무 칼럼 -->
+  <div class="mp-section">
+    <div class="mp-section-title">더 알아보기</div>
+    <a href="/articles.html" class="mp-item">
+      <div class="mp-item-icon">📚</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">세무 칼럼</div>
+        <div class="mp-item-value">증여·상속·양도·법인세 등 29편</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </a>
+    <a href="tel:053-269-1213" class="mp-item">
+      <div class="mp-item-icon">📞</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">사무실 전화</div>
+        <div class="mp-item-value">053-269-1213 · 평일 09~18시</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </a>
+  </div>
+
+  <!-- 앱 설정 -->
+  <div class="mp-section">
+    <div class="mp-section-title">앱 설정</div>
+    <div class="mp-item" onclick="shareToFriend()">
+      <div class="mp-item-icon" style="background:linear-gradient(135deg,#fef08a,#fbbf24);color:#92400e">🎁</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">친구에게 알리기</div>
+        <div class="mp-item-value">대표님 사장님 친구에게 추천 (카톡·메시지)</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </div>
+    <div class="mp-item" onclick="showInstallGuide()">
+      <div class="mp-item-icon">📱</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">홈 화면에 추가</div>
+        <div class="mp-item-value">카톡처럼 빠르게 여세요</div>
+      </div>
+      <div class="mp-item-arrow">›</div>
+    </div>
+    <div class="mp-item" onclick="toggleTheme()">
+      <div class="mp-item-icon" id="mpThemeIcon">🌙</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">화면 테마</div>
+        <div class="mp-item-value" id="mpThemeValue">라이트 모드</div>
+      </div>
+      <div class="mp-item-toggle">›</div>
+    </div>
+    <div class="mp-item" onclick="togglePushNotification()">
+      <div class="mp-item-icon" id="mpPushIcon">🔔</div>
+      <div class="mp-item-main">
+        <div class="mp-item-label">알림 받기</div>
+        <div class="mp-item-value" id="mpPushValue">허용하면 세무사 답변 시 "띵"</div>
+      </div>
+      <div class="mp-item-toggle" id="mpPushToggle">›</div>
+    </div>
+  </div>
+
+  <!-- 로그아웃 -->
+  <button class="mp-logout-btn" onclick="location.href='/api/auth/logout'">로그아웃</button>
+  <button class="mp-withdraw-btn" onclick="openWithdrawModal()">회원 탈퇴</button>
+
+  <div style="text-align:center;color:var(--text3);font-size:.7em;padding:12px 0">
+    세무회계 이윤 · 대표세무사 이재윤<br>
+    대구 달서구 · 053-269-1213
+  </div>
+</div>
+
+<!-- 상담방 대화창 (풀스크린 오버레이) -->
+<div id="roomChatView" class="room-chat-view">
+  <div class="rc-header">
+    <button onclick="closeRoomChat()" class="rc-back-btn">←</button>
+    <div class="rc-title-wrap">
+      <div id="rcTitle">-</div>
+      <div id="rcMembers"></div>
+    </div>
+    <a id="rcCallLink" href="tel:053-269-1213" class="rc-leave-btn" style="text-decoration:none" title="세무회계 이윤">📞</a>
+    <button onclick="toggleCurrentRoomMute()" id="rcMuteBtn" class="rc-leave-btn" title="알림">🔔</button>
+    <button onclick="openRoomSearch()" class="rc-leave-btn" title="대화 검색">🔍</button>
+    <button onclick="openRoomInfo()" class="rc-leave-btn" title="사진·파일·공지">📂</button>
+    <button onclick="leaveRoom()" class="rc-leave-btn">나가기</button>
+  </div>
+  <div id="rcMessages" class="rc-messages"></div>
+  <div id="rcClosedNotice" class="rc-closed-notice" style="display:none">이 상담방은 종료되었습니다. 대화는 열람만 가능합니다.</div>
+  <!-- 첨부 시트 (+ 버튼 누르면 펼침, 카톡 스타일) -->
+  <div id="rcAttachSheet" class="rc-attach-sheet">
+    <label for="rcFileInput" class="rc-attach-item">
+      <div class="rc-attach-icon" style="background:#fef3c7;color:#b45309">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      </div>
+      <span>사진첩</span>
+    </label>
+    <input id="rcFileInput" type="file" accept="image/*" multiple onchange="sendRoomPhoto(this);closeAttachSheet()" style="display:none">
+    <label for="rcCamInput" class="rc-attach-item">
+      <div class="rc-attach-icon" style="background:#e0f5ec;color:#10b981">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </div>
+      <span>카메라</span>
+    </label>
+    <input id="rcCamInput" type="file" accept="image/*" capture="environment" onchange="sendRoomPhoto(this);closeAttachSheet()" style="display:none">
+    <label for="rcReceiptInput" class="rc-attach-item" id="rcReceiptAttach" style="display:none">
+      <div class="rc-attach-icon" style="background:#fce7f3;color:#be185d">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+      </div>
+      <span>영수증</span>
+    </label>
+    <input id="rcReceiptInput" type="file" accept="image/*" multiple onchange="sendRoomReceiptMulti(this);closeAttachSheet()" style="display:none">
+    <div class="rc-attach-item" id="rcFreelancerAttach" style="display:none;cursor:pointer" onclick="openPayrollModal();closeAttachSheet()">
+      <div class="rc-attach-icon" style="background:#dbeafe;color:#1d4ed8">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <span>급여</span>
+    </div>
+    <label for="rcDocInput" class="rc-attach-item">
+      <div class="rc-attach-icon" style="background:#e8f3ff;color:#3182f6">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+      </div>
+      <span>파일</span>
+    </label>
+    <input id="rcDocInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip,.mp4,.mov,.m4v,.webm,.mp3,.m4a,.wav" onchange="sendRoomDoc(this);closeAttachSheet()" style="display:none">
+  </div>
+  <!-- 답장 프리뷰 바 -->
+  <div id="rcReplyBar">
+    <div class="rc-reply-body">
+      <div class="rc-reply-to">↩︎ <span id="rcReplyToName"></span>에게 답장</div>
+      <div class="rc-reply-txt" id="rcReplyPreview"></div>
+    </div>
+    <button class="rc-reply-close" onclick="cancelReply()" aria-label="답장 취소">✕</button>
+  </div>
+  <div id="rcInputArea" class="rc-input-area">
+    <button onclick="toggleAttachSheet()" id="rcAttachBtn" class="rc-attach-btn" title="첨부">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+    <textarea id="rcInput" rows="1" placeholder="메시지 입력..." autocomplete="off" style="resize:none;max-height:120px;font-family:inherit;overflow-y:auto" oninput="updateSendBtn();this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();sendRoomMsg()}"></textarea>
+    <button onclick="sendRoomMsg()" class="rc-send-btn" id="rcSendBtn">전송</button>
+  </div>
+</div>
+
+
+
+<!-- Phase H5 (2026-05-04): 모달 11개 → index-modals.html 묶음 (admin-modals 패턴, fetch + insertAdjacentHTML) -->
+<div id="indexModalsSlot"></div>
+<script>
+(function loadIndexModals(){
+  function inject(){
+    fetch('/index-modals.html?v=1', {cache: 'no-cache'})
+      .then(r => r.ok ? r.text() : Promise.reject(r.status))
+      .then(html => {
+        var slot = document.getElementById('indexModalsSlot');
+        if(slot) slot.insertAdjacentHTML('beforeend', html);
+      })
+      .catch(err => console.error('[index-modals] fetch fail:', err));
+  }
+  if(document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', inject);
+  else inject();
+})();
+</script>
+
+<!-- Phase H3 (2026-05-04): 인라인 JS 3468줄 → index.js 외부화. 사장님 명령 "html여러개로 쪼개기". -->
+<script src="/index.js?v=7"></script>
+
+</html>

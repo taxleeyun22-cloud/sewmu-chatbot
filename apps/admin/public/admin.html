@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>관리자 - 세무회계 이윤</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<!-- Phase R7 (2026-05-05 사장님 명령: "어드민도 PWA 되게"): 홈화면 추가 + 앱 모드 -->
+<meta name="theme-color" content="#3182f6">
+<link rel="manifest" href="/admin-manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="이윤 관리자">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<!-- Service Worker 등록 — PWA 캐시 + 오프라인 fallback (sw.js 재사용) -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').catch(function(e){ console.warn('sw register fail:', e); });
+  });
+}
+</script>
+<!-- 사무실 OS 임베드 모드 — ?embedded=1 진입 시 헤더/wrap 패딩 hide, iframe 안에서 콘텐츠만 보임 -->
+<script>try{if(new URLSearchParams(location.search).get('embedded')==='1')document.documentElement.classList.add('embedded');}catch(_){}</script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/admin.css?v=28">
+<!-- Phase S3c-1 (2026-05-04): office 사이드바 흡수 — office.css 사이드바 스타일 사용 -->
+<link rel="stylesheet" href="/office.css?v=5">
+<!-- Phase T1+T2a (2026-05-04): Tailwind utility + 토큰 통합. Phase D1 (2026-05-05): 사이드바 톤 변경 — 다크 네이비 → 위하고/WEHAGO 밝은 회색. cache bump v=4→v=5. -->
+<link rel="stylesheet" href="/assets/main.css?v=5">
+<script type="module" src="/assets/main.js?v=14"></script>
+<!-- AG-Grid Community (엑셀 스타일 그리드) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-quartz.css">
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/dist/ag-grid-community.min.js"></script>
+</head>
+<body>
+
+<!-- 로그인 -->
+<div class="login" id="loginView">
+<div class="login-box">
+<h1>관리자</h1>
+<p>세무회계 이윤 챗봇 관리</p>
+<input type="password" id="keyInput" placeholder="관리자 키" onkeydown="if(event.key==='Enter')login()">
+<button onclick="login()">로그인</button>
+<div class="login-err" id="err">키를 확인해주세요</div>
+</div>
+</div>
+
+<!-- 메인 (Phase S3c-1, 2026-05-04): office 사이드바 흡수 — of-app flex layout (좌 사이드바 + 우 mainView) -->
+<div class="of-app hidden" id="mainAppView">
+
+<!-- Phase F2 (2026-05-05): 모바일 햄버거 토글 — viewport <768 에서 사이드바 슬라이드 in/out -->
+<button id="adminSidebarToggle" type="button" onclick="toggleAdminSidebar()" title="메뉴" style="display:none;position:fixed;top:12px;left:12px;z-index:70;background:#191f28;color:#fff;border:0;width:40px;height:40px;border-radius:8px;font-size:18px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);font-family:inherit">☰</button>
+<!-- 사이드바 backdrop — 모바일에서 사이드바 open 시 배경 어둡게, 클릭 시 닫기 -->
+<div id="adminSidebarBackdrop" onclick="toggleAdminSidebar(false)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:55"></div>
+
+<!-- 좌측 사이드바 (office 의 위멤버스 톤 사이드바를 admin 으로 이전) -->
+<aside class="of-sb" id="adminSidebar">
+
+  <div class="of-sb-brand">
+    <div class="logo">🌿</div>
+    <div class="name">세무회계 이윤</div>
+  </div>
+
+  <div class="of-sb-user">
+    <div class="avatar" id="sbAvatar">이</div>
+    <div class="who">
+      <div class="nm" id="sbName">이재윤</div>
+      <div class="role" id="sbRole">세무사 <span id="admin-role-badge-inline" style="margin-left:4px"></span></div>
+    </div>
+    <button class="gear" type="button" title="로그아웃" onclick="logout()">⏻</button>
+  </div>
+
+  <div class="of-sb-scroll">
+
+    <!-- Phase M4 (2026-05-05 사장님 명령): 전역검색 사이드바 최상단 단독 항목 -->
+    <div class="sb-grp" data-grp="quick" style="padding-top:6px;padding-bottom:6px">
+      <button class="of-sb-item" type="button" id="sbSearchBtn" style="font-weight:700">
+        <span class="ic">🔍</span><span class="lb">전역 검색</span>
+      </button>
+    </div>
+
+    <div class="of-sb-divider"></div>
+
+    <!-- ===== 문서·메모 (Phase R2-3 / M18 2026-05-05 사장님: "위로 올리자" — 방 위로 이동) ===== -->
+    <div class="of-sb-section" data-section-key="docsmemo">문서·메모 <span class="arrow">▾</span></div>
+    <div class="sb-grp" data-grp="docsmemo">
+      <button class="of-sb-item" data-admin-tab="docs" type="button">
+        <span class="ic">📄</span><span class="lb">문서</span><span class="cnt" id="sbCntDocs">0</span>
+      </button>
+      <button class="of-sb-item" type="button" id="sbQuickMemoBtn" title="빠른 메모 — 거래처/업체 검색 후 즉시 메모 작성">
+        <span class="ic">📒</span><span class="lb">메모</span>
+      </button>
+    </div>
+
+    <div class="of-sb-divider"></div>
+
+    <!-- ===== 방 ===== -->
+    <div class="of-sb-section" data-section-key="rooms">방 <span class="arrow">▾</span></div>
+    <div class="sb-grp" data-grp="rooms">
+      <button class="of-sb-item" data-admin-tab="rooms" type="button">
+        <span class="ic">💬</span><span class="lb">상담방</span>
+      </button>
+      <button class="of-sb-item" data-admin-tab="internal" type="button">
+        <span class="ic">🔐</span><span class="lb">관리자방</span>
+      </button>
+    </div>
+
+    <!-- ===== 사용자/업체 (Phase M9 2026-05-05 사장님 명령: 5개 status → 2개 토글로 단순화) ===== -->
+    <div class="of-sb-section" data-section-key="users">사용자/업체 <span class="arrow">▾</span></div>
+    <div class="sb-grp" data-grp="users">
+      <button class="of-sb-item" data-admin-tab="users-user" type="button">
+        <span class="ic">👤</span><span class="lb">사용자</span><span class="cnt" id="sbUserTotal"><span id="sb-user-total-mount">0</span></span>
+      </button>
+      <button class="of-sb-item" data-admin-tab="users-biz" type="button">
+        <span class="ic">🏢</span><span class="lb">업체</span><span class="cnt" id="sbBizTotal"><span id="sb-biz-total-mount">0</span></span>
+      </button>
+      <!-- 호환: 기존 sbUserGuest hidden 유지 (admin.js setText 호출 안 깨지게) -->
+      <span id="sbUserGuest" class="hidden">0</span>
+    </div>
+
+    <div class="of-sb-divider"></div>
+
+    <!-- ===== 관리 ===== -->
+    <div class="of-sb-section" data-section-key="admin">관리 <span class="arrow">▾</span></div>
+    <div class="sb-grp" data-grp="admin">
+      <button class="of-sb-item" data-admin-tab="chat" type="button">
+        <span class="ic">💭</span><span class="lb">대화</span>
+      </button>
+      <button class="of-sb-item" data-admin-tab="live" type="button">
+        <span class="ic">📡</span><span class="lb">실시간</span><span class="cnt" id="sbCntLive">0</span>
+      </button>
+      <button class="of-sb-item" data-admin-tab="anal" type="button">
+        <span class="ic">📊</span><span class="lb">분석</span>
+      </button>
+      <button class="of-sb-item" data-admin-tab="review" type="button">
+        <span class="ic">✓</span><span class="lb">검증</span><span class="cnt" id="sbCntReview">0</span>
+      </button>
+      <button class="of-sb-item" data-admin-tab="faq" type="button">
+        <span class="ic">📚</span><span class="lb">FAQ</span>
+      </button>
+    </div>
+
+    <div class="of-sb-divider"></div>
+
+    <!-- ===== 알림 ===== -->
+    <div class="of-sb-section" data-section-key="alerts">알림 <span class="arrow">▾</span></div>
+    <div class="sb-grp" data-grp="alerts">
+      <button class="of-sb-item alert" type="button" id="sbMyTodosBtn" onclick="openMyTodos()">
+        <span class="ic">📋</span><span class="lb">내 일정</span><span class="cnt" id="sbCntTodo"><span id="sb-todo-count-mount">0</span></span>
+      </button>
+      <button class="of-sb-item alert" type="button" id="sbTermReqBtn" onclick="openTerminationRequests()">
+        <span class="ic">⚠️</span><span class="lb">종료 요청</span><span class="cnt" id="sbCntTermReq"><span id="sb-termreq-count-mount">0</span></span>
+      </button>
+      <button class="of-sb-item" type="button" id="sbBulkSendBtn" onclick="openBulkSend()">
+        <span class="ic">📢</span><span class="lb">단체발송</span>
+      </button>
+      <!-- Phase M4 (2026-05-05): 전역검색 → 사이드바 최상단으로 이동 -->
+      <button class="of-sb-item" type="button" id="sbTrashBtn">
+        <span class="ic">🗑️</span><span class="lb">휴지통</span><span class="cnt" id="sbCntTrash"><span id="sb-trash-count-mount">0</span></span>
+      </button>
+      <!-- 사장님 명령 (2026-05-07 정정): 사이드바 합치기 이력 폐기 — 사용자 row 에 직접 분리 버튼 -->
+      <span id="sbCntMerges" class="hidden">0</span>
+      <!-- 사장님 명령 (2026-05-08): 위하고 import 이력 + 롤백 -->
+      <button class="of-sb-item" type="button" id="sbImportBtn" onclick="openImportHistory()" title="위하고 일괄 import 이력 + 롤백 (owner only)">
+        <span class="ic">📥</span><span class="lb">위하고 Import</span><span class="cnt" id="sbCntImport">0</span>
+      </button>
+      <!-- Phase #11 적용 (2026-05-06): 자체 에러 로거 사이드바 진입 — 빨간 점 = 7일 이내 에러 N건 -->
+      <button class="of-sb-item alert" type="button" id="sbErrorLogBtn" onclick="openErrorLog()" title="JS 에러 로그 (자체 수집)">
+        <span class="ic">🐞</span><span class="lb">에러 로그</span><span class="cnt" id="sbCntErrorLog"><span id="sb-errorlog-count-mount">0</span></span>
+      </button>
+    </div>
+
+    <div class="of-sb-divider"></div>
+
+    <!-- ===== 외부 (챗봇 / PC 알림) — Phase S3c-2-fix ===== -->
+    <div class="of-sb-section" data-section-key="ext">외부 <span class="arrow">▾</span></div>
+    <div class="sb-grp" data-grp="ext">
+      <button class="of-sb-item" type="button" id="sbPcNotifyBtn" title="PC 알림 (새 고객 메시지 알림)">
+        <span class="ic">🔕</span><span class="lb">PC 알림</span>
+      </button>
+      <a class="of-sb-item" href="javascript:void(0)" onclick="goToChatbotAsAdmin()" title="카톡 세션 로그아웃 후 챗봇 페이지로" data-spa-skip="1">
+        <span class="ic">🏠</span><span class="lb">챗봇</span>
+      </a>
+    </div>
+
+  </div>
+</aside>
+
+<!-- 메인 view (기존 admin mainView 그대로, of-main 안으로 이동) -->
+<main class="of-main">
+<div class="wrap" id="mainView">
+<!-- Phase S3c-2-fix (2026-05-05): hdr 통째 inline display:none — 사장님 명령 "위에꺼 날리라니까 사이드바만 있으면됨".
+     자식 elements (h1, tabs, action 버튼) 모두 자동 hide. tab() className 토글은 hide 된 채로 무관. -->
+<div class="hdr" style="display:none">
+<!-- Phase S3c-2 (2026-05-04): h1 관리자 + 상단 탭 hide — 사이드바로 통합. h1 은 hidden 으로 SR 만 노출. -->
+<h1 class="hidden">관리자</h1>
+<!-- 상단 탭 9개 — 좌측 사이드바로 통합됨. 호환을 위해 hidden 으로 유지 (admin.js tab() 함수가 className 토글) -->
+<div class="tabs hidden">
+<button class="on" id="tabChat" onclick="tab('chat')">대화</button>
+<button id="tabLive" onclick="tab('live')" style="position:relative">📡 실시간<span id="liveBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
+<button id="tabRooms" onclick="tab('rooms')">💬 상담방</button>
+<button id="tabInternal" onclick="tab('internal')" title="관리자·직원 내부 업무방 (거래처 노출 X)">🔐 관리자방</button>
+<button id="tabDocs" onclick="tab('docs')" style="position:relative">📄 문서<span id="docsPendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
+<button id="tabUsers" onclick="tab('users')">🏢 거래처<span id="pendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
+<button id="tabAnal" onclick="tab('anal')">분석</button>
+<button id="tabReview" onclick="tab('review')">검증 <span id="reviewBadge" style="display:none;background:#f04452;color:#fff;padding:1px 6px;border-radius:10px;font-size:.9em;margin-left:2px"></span></button>
+<button id="tabFaq" onclick="tab('faq')">📚 FAQ</button>
+</div>
+<button id="myTodosBtn" class="logout" onclick="openMyTodos()" style="margin-left:auto" title="내 할 일 대시보드 — 전체 방·개인 일정 통합 보기">📋 할 일 <span id="myTodosBadge" style="display:none;background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:.72em;font-weight:800;margin-left:4px"></span></button>
+<button id="termReqBtn" class="logout" onclick="openTerminationRequests()" title="직원이 올린 거래 종료 요청 (대표 승인 대기)" class="hidden">🚫 종료 요청 <span id="termReqBadge" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:.72em;font-weight:800;margin-left:4px">0</span></button>
+<button class="logout" onclick="openBulkSend()" title="단체발송 — 여러 거래처에 한 번에 메시지">📢 단체발송</button>
+<button class="logout" onclick="openSearch()" title="전역 검색">🔍 검색</button>
+<button id="pcNotifyBtn" class="logout" onclick="togglePcNotify()" title="PC 알림 (새 고객 메시지 알림)">🔕 알림</button>
+<a href="javascript:void(0)" class="logout" style="text-decoration:none;cursor:pointer" title="카톡 세션 로그아웃 후 챗봇 페이지로 — 관리자가 자기 계정에 얽매이지 않게" onclick="goToChatbotAsAdmin()">🏠 챗봇</a>
+<!-- Phase S3c-2 (2026-05-04): 사무실 OS link 제거 — admin 자체가 office 됨 (사이드바 흡수) -->
+<a href="/office.html?role=boss" class="logout hidden" style="text-decoration:none;cursor:pointer" title="사무실 OS — 거래처 중심 CRM (Phase 2 진행 중)">🏢 사무실 OS</a>
+<button class="logout" onclick="logout()">로그아웃</button>
+</div>
+
+<!-- 모달 슬롯 (Phase S3c-2-fix-2 2026-05-05): mainView 안으로 이동 — admin-modals.html 의 view 8개 (chatView/usersView/roomsView/docsView/liveView/analView/reviewView/faqView) 가 of-main 영역에 정상 삽입되도록.
+     모달 26개 + #imgViewer 등은 position:fixed 라 위치 무관 — 같이 들어가도 OK. -->
+<div id="adminModalsSlot"></div>
+
+</div>
+</main>
+</div><!-- /of-app -->
+
+<!-- 모달 lazy load — Phase #1 적용 (2-3 ES module, 2026-05-06):
+     이전 인라인 <script> → src/admin/modal-loader.ts 로 옮김.
+     main.ts 가 startModalLoader() 자동 호출.
+     fallback: window.__loadAdminModals 미존재 시 인라인 fetch 사용. -->
+<script>
+/* Fallback — main.js (ES module) 로딩 실패 시 즉시 fetch */
+setTimeout(function(){
+  if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
+    console.warn('[admin-modals] ES module fallback');
+    fetch('/admin-modals.html?v=53', {cache: 'no-cache'})
+      .then(r => r.ok ? r.text() : Promise.reject(r.status))
+      .then(html => {
+        var slot = document.getElementById('adminModalsSlot');
+        if(slot) slot.insertAdjacentHTML('beforeend', html);
+      })
+      .catch(err => console.error('[admin-modals] fetch fail:', err));
+  }
+}, 800);
+</script>
+
+<script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+<script src="/admin.js?v=186"></script>
+<script src="/admin-memos.js?v=16"></script>
+<script src="/admin-customer-dash.js?v=32"></script>
+<script src="/admin-business-tab.js?v=13"></script>
+<script src="/admin-search-bulk.js?v=5"></script>
+<script src="/admin-rooms-list.js?v=11"></script>
+<script src="/admin-rooms-msg.js?v=7"></script>
+<script src="/admin-rooms-misc.js?v=3"></script>
+<script src="/admin-users-tab.js?v=31"></script>
+<!-- Phase 2 (2026-05-07): 신고 검토표 시스템 (사장님 명세) -->
+<script src="/admin-filing-review.js?v=22"></script>
+<!-- Phase #7 적용 (2026-05-06): admin-docs.js lazy load.
+     문서 탭 클릭 시점에 동적 <script> 추가. 첫 로딩 시 download 0. -->
+<script>
+(function lazyDocs(){
+  var loaded=false;
+  function load(){
+    if(loaded)return; loaded=true;
+    var s=document.createElement('script');
+    s.src='/admin-docs.js?v=2&lazy=1';
+    s.async=false;
+    document.head.appendChild(s);
+    if(typeof console!=='undefined' && console.debug) console.debug('[lazy] admin-docs.js loaded');
+  }
+  function tryHook(){
+    if(typeof window.__onTabChange==='function'){
+      window.__onTabChange(function(t){
+        if(t==='docs') load();
+      });
+    } else {
+      setTimeout(tryHook, 200);
+    }
+  }
+  tryHook();
+})();
+</script>
+<!-- Phase #7 적용 (C 2026-05-06): admin-anal-review-faq.js lazy load 시범.
+     초기 로딩 시 안 받음 → 사장님이 anal/review/faq 탭 클릭 시점에 동적 <script> 추가.
+     classic script 환경 호환 (var + function 선언 그대로) — fetch + eval 안 쓰고 순수 <script src>. -->
+<script>
+(function lazyAnalReviewFaq(){
+  var loaded=false;
+  function load(){
+    if(loaded)return; loaded=true;
+    var s=document.createElement('script');
+    s.src='/admin-anal-review-faq.js?v=2&lazy=1';
+    s.async=false;
+    document.head.appendChild(s);
+    if(typeof console!=='undefined' && console.debug) console.debug('[lazy] admin-anal-review-faq.js loaded');
+  }
+  function tryHook(){
+    if(typeof window.__onTabChange==='function'){
+      window.__onTabChange(function(t){
+        if(t==='anal'||t==='review'||t==='faq') load();
+      });
+    } else {
+      setTimeout(tryHook, 200);
+    }
+  }
+  tryHook();
+})();
+</script>
+
+<!-- Phase #2 적용 (2026-05-07): React entry — admin-role-badge-inline 등 mount points 자동 처리.
+     classic script 끝난 후 로드 (defer 효과). 사장님 admin.html 전체 로드 후 React 컴포넌트 렌더. -->
+<script type="module" src="/assets/react.js?v=22"></script>
+
+</body>
+</html>

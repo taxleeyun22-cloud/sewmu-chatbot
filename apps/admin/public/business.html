@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+<title>거래처 정보</title>
+<!-- Phase H6a (2026-05-04): 인라인 CSS/JS 외부화 -->
+<link rel="stylesheet" href="/business.css?v=1">
+<!-- Phase T1+T2a: Tailwind + 토큰 통합 -->
+<link rel="stylesheet" href="/assets/main.css?v=3">
+<script type="module" src="/assets/main.js?v=2"></script>
+<!-- Phase 3.6 (2026-05-08): React entry — BizRoomList mount -->
+<script type="module" src="/assets/react.js?v=19"></script>
+</head>
+<body>
+<div id="diag">✓ business.html v=8 (본점·지점)</div>
+<div class="container">
+  <div class="topbar">
+    <a href="javascript:history.back()">← 뒤로</a>
+    <span style="color:#9ca3af;font-size:.78em;margin-left:auto" id="topMeta"></span>
+    <!-- Phase M6 (2026-05-05 사장님 명령: 업체 삭제 + 메모 cascade) -->
+    <button id="bizDeleteBtn" onclick="deleteBusinessFromPage()" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:6px 14px;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit;margin-left:10px" title="이 업체 + 모든 메모를 휴지통으로 (되돌릴 수 없음)">🗑️ 업체 삭제</button>
+  </div>
+
+  <div class="header">
+    <h1 id="bizName">불러오는 중...</h1>
+    <div id="bizSub" class="sub"></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">📋 기본 정보 <span style="font-size:.7em;color:#9ca3af;font-weight:500">(위하고 호환)</span>
+      <span style="margin-left:auto" id="basicActions"><button class="btn-ghost" onclick="toggleEdit(true)">✏️ 편집</button></span>
+    </div>
+    <div id="bizBasic"><div class="loading">기본 정보 불러오는 중...</div></div>
+  </div>
+
+  <!-- 사장님 명령 (2026-05-08): "주식회사 옆커폰 본사 업체 쪽에서 들어가면 아래 지점 쫙 깔리는거지?"
+       → 본점 진입 시 지점 list / 지점 진입 시 본점 link 표시 -->
+  <div class="section" id="branchInfoSection" style="display:none">
+    <div class="sec-title">
+      <span id="branchSecTitle">🏢 본점·지점</span>
+      <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px" id="branchSecHint"></span>
+    </div>
+    <div id="branchInfoBody"></div>
+  </div>
+
+  <!-- Phase 6 (2026-05-07 사장님 명세): 신고 검토표 — 법인세 -->
+  <div class="section" id="bizFilingReviewSection">
+    <div class="sec-title">🧾 신고 검토표 — 법인세 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">결재용 검토표 · 작년 vs 올해 비교 · A4 가로 PDF</span>
+    </div>
+    <div id="bdFilingsReview" style="font-size:.85em"><div class="loading">불러오는 중...</div></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">🏢 업체 메모 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">전화·문서·이슈·약속 + #태그 + 📎첨부 — 이 메모는 거래처(사람) dashboard 에도 "🏢 업체명 메모" 로 표시</span>
+      <button onclick="openMemoWindowBiz()" style="margin-left:auto;background:#fff;color:#3182f6;border:1px solid #3182f6;padding:4px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit" title="메모만 별창으로 — 카톡 보면서 동시에 메모">🪟 별창</button>
+      <span style="font-size:.7em;color:#8b95a1">총 <span id="memoCount">0</span>건</span>
+    </div>
+    <!-- 카테고리 탭 -->
+    <div class="memo-tabs" id="memoTabs">
+      <button data-mcat="all" class="on" onclick="memoFilter('all')">전체</button>
+      <button data-mcat="할 일" onclick="memoFilter('할 일')">📌 할 일</button>
+      <button data-mcat="거래처 정보" onclick="memoFilter('거래처 정보')">🏢 거래처 정보</button>
+      <button data-mcat="전화" onclick="memoFilter('전화')">📞 전화</button>
+      <button data-mcat="문서" onclick="memoFilter('문서')">📁 문서</button>
+      <button data-mcat="이슈" onclick="memoFilter('이슈')">⚠️ 이슈</button>
+      <button data-mcat="약속" onclick="memoFilter('약속')">📅 약속</button>
+      <button data-mcat="완료" onclick="memoFilter('완료')">✅ 완료</button>
+    </div>
+    <!-- 메모 카드 리스트 -->
+    <div id="memoList" style="margin-bottom:10px"><div class="loading">메모 불러오는 중...</div></div>
+    <!-- 입력 폼 -->
+    <div class="memo-form">
+      <div class="memo-form-row">
+        <select id="memoNewType">
+          <option value="할 일">📌 할 일</option>
+          <option value="거래처 정보" selected>🏢 거래처 정보</option>
+          <option value="완료">✅ 완료</option>
+        </select>
+        <select id="memoNewCategory">
+          <option value="">카테고리</option>
+          <option value="전화">📞 전화</option>
+          <option value="문서">📁 문서</option>
+          <option value="이슈">⚠️ 이슈</option>
+          <option value="약속">📅 약속</option>
+          <option value="일반">📝 일반</option>
+        </select>
+        <input id="memoNewDue" type="date" title="기한 (선택)">
+        <button type="button" class="file-label" onclick="document.getElementById('memoNewFile').click()">📎 첨부</button>
+        <input id="memoNewFile" type="file" multiple accept="image/*,.pdf,.hwp,.hwpx" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" onchange="onMemoFileSelect(event)">
+        <span id="memoNewFileLabel" style="font-size:.74em;color:#8b95a1"></span>
+      </div>
+      <textarea id="memoNewContent" rows="2" placeholder="예) 사장님 종소세 분납 요청 #종소세&#10;예) 5/15 부가세 매입 영수증 12장 수령 #부가세 #영수증"></textarea>
+      <div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">
+        <span style="font-size:.7em;color:#8b95a1;margin-right:auto">💡 #키워드 자동 태그</span>
+        <button class="btn-primary" onclick="submitMemoNew()">＋ 추가</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">🤖 AI 요약 <button class="btn-success" onclick="runSummary()">✨ 요약 생성</button></div>
+    <div id="summaryBody"><div class="empty">아직 요약 없음. ✨ 버튼으로 생성. (이 업체 모든 상담방 + 메모 통합 GPT 요약)</div></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">📊 재무 <span style="font-size:.72em;color:#9ca3af;font-weight:500">읽기 전용 — 입력 방식 협의 중</span>
+      <button onclick="clearAllFinance()" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;padding:5px 11px;border-radius:6px;font-size:.76em;font-weight:600;cursor:pointer;font-family:inherit;margin-left:auto" title="이 사업장 재무 데이터 모두 삭제">🗑️ 전체 비우기</button>
+    </div>
+    <div id="financeList"><div class="loading">재무 불러오는 중...</div></div>
+    <div style="font-size:.72em;color:#9ca3af;margin-top:6px">💡 챗봇에서 거래처가 "우리 매출?" 물으면 위 데이터로 답변</div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">📋 문서 <span style="font-size:.72em;color:#9ca3af;font-weight:500">최근 5건</span></div>
+    <div id="docList"><div class="loading">문서 불러오는 중...</div></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">📆 일정 (D-day) <button class="btn-primary" onclick="addSchedule()">＋ 일정</button></div>
+    <div id="scheduleList"><div class="loading">일정 불러오는 중...</div></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">👥 구성원</div>
+    <div id="memberList"><div class="loading">구성원 불러오는 중...</div></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">💬 연결된 상담방</div>
+    <!-- Phase 3.6 (2026-05-08): React BizRoomList 자동 mount. id 변경 — admin.html #roomList 와 충돌 방지 -->
+    <div id="bizRoomList"><div class="loading">상담방 불러오는 중...</div></div>
+  </div>
+</div>
+
+<!-- 메모 모달 폐기 — 인라인 입력 폼으로 대체 (메모 빡센 세팅) -->
+<!-- 호환: 기존 호출자가 있을 수 있어 hidden 가드로 유지
+     legacy memoModal / memoInput / memoSaveBtn 은 placeholder 로만 -->
+<input id="memoInput" type="hidden">
+<div id="memoModal" class="hidden"><div id="memoSaveBtn" class="hidden"></div></div>
+
+<!-- 사장님 보고 fix (2026-05-07): "+ 새 법인세 Case 눌러도 아무것도 안뜸"
+     원인: business.html 은 admin-modals.html 미로드 → filingNewModal/filingDetailModal DOM 없음.
+     해결: admin-modals.html 통째 fetch (admin.html 동일 패턴). -->
+<div id="adminModalsSlot"></div>
+<script>
+window.KEY = window.KEY || (new URL(location.href)).searchParams.get('key') || '';
+fetch('/admin-modals.html?v=53', { cache: 'no-cache' })
+  .then(r => r.ok ? r.text() : Promise.reject(r.status))
+  .then(html => {
+    const slot = document.getElementById('adminModalsSlot');
+    if (slot) slot.insertAdjacentHTML('beforeend', html);
+  })
+  .catch(err => console.warn('[admin-modals] fetch fail:', err));
+</script>
+
+<script src="/business.js?v=5"></script>
+<!-- Phase 6 (2026-05-07): 신고 검토표 시스템 (법인세) -->
+<script src="/admin-filing-review.js?v=21"></script>
+<!-- Phase Infra-2 fix (2026-05-09): admin-modals.html 안 backToList() / 등 admin-anal-review-faq.js 함수 사용
+     사장님 보고 (Sentry first error): ReferenceError: backToList is not defined at /business:158:47 -->
+<script src="/admin-anal-review-faq.js?v=2"></script>
+<script>
+/* business.html 페이지 로드 후 — 법인세 검토표 list 표시.
+ * business.js 가 url 의 ?id=N 로 업체 정보 fetch 후 _bdCurrent 같은 변수에 저장.
+ * 우리는 단순 url id 사용 + bizName 보고 호출. */
+(function bizFilingReviewInit(){
+  function init(){
+    var url=new URL(location.href);
+    var bid=Number(url.searchParams.get('id')||0);
+    if(!bid) return;
+    /* 업체 정보 fetch — 법인 / 개인 분기 */
+    fetch('/api/admin-businesses?key='+encodeURIComponent(window.KEY||url.searchParams.get('key')||'')+'&id='+bid)
+      .then(r=>r.json()).then(d=>{
+        var box=document.getElementById('bdFilingsReview');
+        if(!box) return;
+        var biz=d.business||{};
+        var nm=biz.company_name||('#'+bid);
+        var form=biz.company_form||'';
+        var isCorp=/법인/.test(form);
+        if(isCorp){
+          /* 법인사업자 → 법인세 Case list */
+          if(typeof _filRenderListInto==='function'){
+            _filRenderListInto(box, 'Business', bid, nm);
+          } else {
+            box.innerHTML='<div style="color:#9ca3af;padding:8px;font-size:.82em">로딩 중...</div>';
+            setTimeout(()=>{ if(typeof _filRenderListInto==='function') _filRenderListInto(box, 'Business', bid, nm); }, 500);
+          }
+        } else {
+          /* 개인사업자 → 안내 + 대표자 link */
+          var ceo=biz.ceo_name||'대표자';
+          /* business_members 에서 대표자 user_id 찾기 */
+          var rep=(d.members||[]).find(m=>(m.role==='대표자'||m.is_primary===1)&&m.user_id);
+          var link=rep?'<a href="javascript:void(0)" onclick="alert(\'admin 화면에서 사용자 list 의 '+ceo.replace(/[\'\"]/g,'')+' → 거래처정보 → 신고 검토표 섹션 참조\')" style="color:#3182f6;font-weight:600">→ '+ceo+' 종소세 Case 보기 (admin)</a>':'';
+          box.innerHTML='<div style="background:#dbeafe;border-left:3px solid #3b82f6;padding:10px 14px;border-radius:6px;color:#1e3a8a;font-size:.86em">'
+            +'📌 이 업체는 <b>개인사업자</b> 입니다. 법인세 Case 가 아닌, 대표자 ('+ceo+') 의 종소세에 포함됩니다.'
+            +(link?'<div style="margin-top:6px">'+link+'</div>':'')
+            +'</div>';
+        }
+      })
+      .catch(()=>{
+        var box=document.getElementById('bdFilingsReview');
+        if(box) box.innerHTML='<div style="color:#f04452;padding:8px;font-size:.82em">업체 정보 로드 실패</div>';
+      });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
+  else setTimeout(init, 100);
+})();
+</script>
+</body>
+</html>

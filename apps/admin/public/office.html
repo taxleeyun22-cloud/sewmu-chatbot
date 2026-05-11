@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏢 사무실 OS — 세무회계 이윤</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<!--
+  Phase S3c-3 (2026-05-05): office.html 폐기 → admin.html 자동 redirect
+  사장님 명령 (2026-05-04): "ㅇㅇ3-a 로가자 큰작업하자"
+  = office 사이드바 디자인 admin 으로 흡수 완료 (S3c-1) + 상단 탭 hide (S3c-2) + redirect (이번)
+
+  redirect 흐름 (3중 안전망):
+  1) JS location.replace — 가장 빠름 (history 안 쌓임)
+  2) <meta http-equiv="refresh"> — JS 막힌 경우 fallback
+  3) 본문 link — meta 막힌 경우 사용자 직접 클릭
+
+  query string + hash 보존 — /office?key=ABC#tab=users → /admin?key=ABC#tab=users
+-->
+<meta http-equiv="refresh" content="0;url=/admin.html">
+<script>
+try {
+  var q = location.search || '';
+  var h = location.hash || '';
+  location.replace('/admin.html' + q + h);
+} catch(_) {}
+</script>
+<style>body{font-family:'Noto Sans KR',sans-serif;text-align:center;padding:60px 20px;color:#666;background:#f3f4f6}a{color:#3182f6;text-decoration:none;font-weight:600}</style>
+</head>
+<body>
+<p>관리자 페이지로 이동합니다... <a href="/admin.html">바로가기</a></p>
+</body>
+</html>
