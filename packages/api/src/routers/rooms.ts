@@ -33,7 +33,7 @@ export const roomsRouter = router({
         priority: z
           .array(z.union([z.number(), z.literal('none'), z.literal('closed')]))
           .optional(),
-        limit: z.number().int().min(1).max(500).default(200),
+        limit: z.number().int().min(1).max(2000).default(500),
       }),
     )
     .query(async ({ ctx, input }) => {

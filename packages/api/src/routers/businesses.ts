@@ -16,7 +16,7 @@ export const businessesRouter = router({
       z.object({
         status: z.enum(['all', 'active', 'closed', 'terminated']).default('all'),
         search: z.string().optional(),
-        limit: z.number().min(1).max(500).default(200),
+        limit: z.number().min(1).max(2000).default(1000),
       }),
     )
     .query(async ({ ctx, input }) => {

@@ -56,7 +56,7 @@ export default function UsersPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['users.list', status, search],
     queryFn: () =>
-      trpcCall<{ users: User[] }>('users.list', { status, search, limit: 200 }),
+      trpcCall<{ users: User[] }>('users.list', { status, search, limit: 1000 }),
   });
 
   const users = data?.users || [];

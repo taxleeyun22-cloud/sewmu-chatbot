@@ -55,7 +55,7 @@ export default function BusinessesPage() {
       }>('businesses.list', {
         status: status as 'all' | 'active' | 'closed' | 'terminated',
         search,
-        limit: 200,
+        limit: 1000,
       }),
   });
 

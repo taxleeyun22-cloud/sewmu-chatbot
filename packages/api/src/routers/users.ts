@@ -24,7 +24,7 @@ export const usersRouter = router({
       z.object({
         status: StatusSchema.optional(),
         search: z.string().optional(),
-        limit: z.number().min(1).max(200).default(50),
+        limit: z.number().min(1).max(2000).default(500),
       }),
     )
     .query(async ({ ctx, input }) => {

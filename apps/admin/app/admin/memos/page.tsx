@@ -53,7 +53,7 @@ export default function MemosPage() {
       trpcCall<{ memos: Memo[] }>('memos.list', {
         scope: 'my',
         category: category || undefined,
-        limit: 200,
+        limit: 1000,
       }),
   });
 

@@ -21,7 +21,7 @@ export const reviewRouter = router({
     .input(
       z.object({
         filter: FilterSchema.default('pending'),
-        limit: z.number().int().min(1).max(200).default(50),
+        limit: z.number().int().min(1).max(1000).default(500),
       }),
     )
     .query(async ({ ctx, input }) => {

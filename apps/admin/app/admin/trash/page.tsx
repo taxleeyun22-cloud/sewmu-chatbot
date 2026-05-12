@@ -17,7 +17,7 @@ export default function TrashPage() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['memos.list', 'trash_list'],
-    queryFn: () => trpcCall<{ memos: Memo[] }>('memos.list', { scope: 'trash_list', limit: 200 }),
+    queryFn: () => trpcCall<{ memos: Memo[] }>('memos.list', { scope: 'trash_list', limit: 1000 }),
   });
   const list = data?.memos || [];
 

@@ -19,7 +19,7 @@ export const documentsRouter = router({
         status: StatusSchema.default('all'),
         user_id: z.number().int().positive().optional(),
         business_id: z.number().int().positive().optional(),
-        limit: z.number().int().min(1).max(500).default(100),
+        limit: z.number().int().min(1).max(2000).default(500),
       }),
     )
     .query(async ({ ctx, input }) => {

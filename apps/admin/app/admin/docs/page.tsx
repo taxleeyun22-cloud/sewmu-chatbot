@@ -44,7 +44,7 @@ export default function DocsPage() {
     queryFn: () =>
       trpcCall<{ documents: Doc[] }>('documents.list', {
         status: status as 'pending' | 'approved' | 'rejected' | 'all',
-        limit: 200,
+        limit: 1000,
       }),
   });
 

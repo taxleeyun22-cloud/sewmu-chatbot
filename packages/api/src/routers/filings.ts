@@ -19,7 +19,7 @@ export const filingsRouter = router({
         owner_type: z.enum(['Person', 'Business']).optional(),
         owner_id: z.number().int().positive().optional(),
         room_id: z.string().optional(),
-        limit: z.number().int().min(1).max(200).default(100),
+        limit: z.number().int().min(1).max(1000).default(500),
       }),
     )
     .query(async ({ ctx, input }) => {

@@ -58,7 +58,7 @@ export default function CustomerDashboardPage({ params }: { params: Promise<{ us
     setDashboardLoading(userId);
     // tRPC users.list 로 user 정보 fetch (단일 user)
     // 또는 옛 /api/admin-approve?user_id=N
-    trpcCall<{ users: User[] }>('users.list', { search: '', limit: 200 })
+    trpcCall<{ users: User[] }>('users.list', { search: '', limit: 1000 })
       .then((data) => {
         const user = data.users.find((u) => u.id === userId);
         if (!user) {
