@@ -13,6 +13,7 @@ coverage/
 apps/**/.next/
 apps/**/.vercel/
 apps/**/next-env.d.ts
+apps/**/*.tsbuildinfo
 
 # Playwright 검증 임시 스크린샷 (Claude 가 prod 검증 시 자동 생성)
 verify-*.png

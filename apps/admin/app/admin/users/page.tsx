@@ -10,6 +10,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { toast } from '@/components/ui/toast';
+import { confirm } from '@/components/ui/confirm-dialog';
+import { formatUserName } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -176,17 +178,26 @@ function UserRow({
     mutationFn: (newStatus: string) =>
       trpcCall('users.setStatus', { userId: user.id, status: newStatus }),
     onSuccess: (_, newStatus) => {
-      const name = user.real_name || user.name || `#${user.id}`;
-      toast.success(`${name} → ${newStatus}`);
+      toast.success(`${formatUserName(user)} → ${newStatus}`);
       queryClient.invalidateQueries({ queryKey: ['users.list'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard.counts'] });
     },
     onError: (e) => toast.error(`실패: ${(e as Error).message}`),
   });
 
+  /** Phase 11: 브라우저 native `confirm()` → shadcn AlertDialog */
   async function doSetStatus(newStatus: string) {
-    const name = user.real_name || user.name || `#${user.id}`;
-    if (!confirm(`${name} 을(를) ${newStatus} 으로 변경?`)) return;
+    const name = formatUserName(user);
+    const isDestructive =
+      newStatus === 'rejected' || newStatus === 'terminated';
+    const ok = await confirm({
+      title: `상태 변경: ${name}`,
+      description: `${name} 을(를) "${newStatus}" 으로 변경할까요?`,
+      confirmText: '변경',
+      cancelText: '취소',
+      variant: isDestructive ? 'destructive' : 'default',
+    });
+    if (!ok) return;
     setStatusMutation.mutate(newStatus);
   }
 

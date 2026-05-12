@@ -6,6 +6,8 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
+import { formatDateTime } from '@/lib/format';
+import { confidenceBadge, docBadge } from './badge-helpers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -244,20 +246,6 @@ export default function DashboardPage() {
   );
 }
 
-function confidenceBadge(c: string | null): 'success' | 'warning' | 'danger' | 'default' {
-  if (c === '높음') return 'success';
-  if (c === '보통') return 'warning';
-  if (c === '낮음') return 'danger';
-  return 'default';
-}
-
-function docBadge(s: string | null): 'success' | 'warning' | 'danger' | 'default' {
-  if (s === 'approved') return 'success';
-  if (s === 'pending') return 'warning';
-  if (s === 'rejected') return 'danger';
-  return 'default';
-}
-
 function RecentSection({
   title,
   loading,
@@ -316,7 +304,7 @@ function RecentSection({
                     )}
                   </div>
                   <p className="text-[9px] text-gray-400 font-mono mt-0.5">
-                    {it.time?.slice(2, 16)}
+                    {formatDateTime(it.time)}
                   </p>
                 </Link>
               </li>

@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { ClientErrorHookup } from './client-error-hookup';
-import { Toaster } from '@/components/ui/toast';
 import { Providers } from '@/components/providers';
 
 export const metadata: Metadata = {
@@ -18,8 +17,8 @@ export default function RootLayout({
     <html lang="ko">
       <body>
         <ClientErrorHookup source="admin" />
+        {/* Providers 안에 Toaster + ConfirmDialog 가 mount 됨 (Phase 11) */}
         <Providers>{children}</Providers>
-        <Toaster />
       </body>
     </html>
   );

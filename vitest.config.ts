@@ -8,17 +8,23 @@ import { resolve } from 'node:path';
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src'),
+    alias: [
+      /* apps/admin 의 Next.js path alias `@/*` → tsconfig.json 의 `apps/admin/*`.
+       * 길이 순으로 먼저 매칭되도록 명시 (vite alias array 는 순서대로 시도). */
+      { find: /^@\/lib\//, replacement: resolve(__dirname, 'apps/admin/lib/') + '/' },
+      { find: /^@\/components\//, replacement: resolve(__dirname, 'apps/admin/components/') + '/' },
+      { find: /^@\/app\//, replacement: resolve(__dirname, 'apps/admin/app/') + '/' },
       /* monorepo packages — workspaces not installed at root, alias for tests */
-      '@sewmu/db/test-db': resolve(__dirname, 'packages/db/src/test-db.ts'),
-      '@sewmu/db/client': resolve(__dirname, 'packages/db/src/client.ts'),
-      '@sewmu/db': resolve(__dirname, 'packages/db/schema/index.ts'),
-      '@sewmu/types': resolve(__dirname, 'packages/types/src/index.ts'),
-      '@sewmu/ai': resolve(__dirname, 'packages/ai/src/index.ts'),
-      '@sewmu/auth': resolve(__dirname, 'packages/auth/src/index.ts'),
-      '@sewmu/api': resolve(__dirname, 'packages/api/src/index.ts'),
-    },
+      { find: '@sewmu/db/test-db', replacement: resolve(__dirname, 'packages/db/src/test-db.ts') },
+      { find: '@sewmu/db/client', replacement: resolve(__dirname, 'packages/db/src/client.ts') },
+      { find: '@sewmu/db', replacement: resolve(__dirname, 'packages/db/schema/index.ts') },
+      { find: '@sewmu/types', replacement: resolve(__dirname, 'packages/types/src/index.ts') },
+      { find: '@sewmu/ai', replacement: resolve(__dirname, 'packages/ai/src/index.ts') },
+      { find: '@sewmu/auth', replacement: resolve(__dirname, 'packages/auth/src/index.ts') },
+      { find: '@sewmu/api', replacement: resolve(__dirname, 'packages/api/src/index.ts') },
+      /* src/* catch-all — 위 specific 매칭 안 된 `@/*` 는 모두 src/ 로 (기존 동작) */
+      { find: /^@\//, replacement: resolve(__dirname, 'src/') + '/' },
+    ],
   },
   test: {
     /* happy-dom for React; node integration tests use environmentMatchGlobs */

@@ -6,6 +6,8 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ConfirmDialog } from './ui/confirm-dialog';
+import { Toaster } from './ui/toast';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -24,5 +26,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       }),
   );
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      {children}
+      {/* Phase 11: 전역 imperative confirm/toast — 페이지마다 mount 불필요 */}
+      <ConfirmDialog />
+      <Toaster />
+    </QueryClientProvider>
+  );
 }
