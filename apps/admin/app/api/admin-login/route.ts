@@ -15,6 +15,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
+import { rateLimit, clientIp, rateLimited } from '@/lib/rate-limit';
 
 export const runtime = 'edge';
 
@@ -37,9 +38,6 @@ async function signToken(payload: string, secret: string): Promise<string> {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const key = (body as { key?: string }).key;
-
     /* Cloudflare Pages binding 접근 — next-on-pages 표준 */
     let env: any;
     try {
@@ -47,6 +45,18 @@ export async function POST(request: Request) {
     } catch {
       env = (globalThis as any).env || (process as any)?.env || {};
     }
+
+    /* Phase 14 (2026-05-12): brute-force 방어 — IP 당 10/min.
+     * 사장님 정상 사용 (하루 1-2회 로그인) 영향 0. 공격자 봇만 차단. */
+    const ip = clientIp(request);
+    const rl = await rateLimit(env.DB, `admin-login:${ip}`, 10, 60);
+    if (!rl.ok) {
+      return rateLimited(rl.retryAfter || 60, 10);
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const key = (body as { key?: string }).key;
+
     const expectedKey = env.ADMIN_KEY;
     const authSecret = env.AUTH_SECRET;
 

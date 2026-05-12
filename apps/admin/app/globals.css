@@ -2,7 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body {
+html,
+body {
   font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * Phase 14 (2026-05-12): Dark mode CSS variables.
+ * tailwind.config.ts 가 var(--sb-bg) 등으로 참조 → :root / .dark 가 swap.
+ *
+ * 라이트 default (사장님 평소). class="dark" 가 <html> 에 붙으면 자동 swap.
+ * ThemeToggle 컴포넌트가 localStorage + system preference 둘 다 처리.
+ * ───────────────────────────────────────────────────────────── */
+:root {
+  --sb-bg: #f5f6f8;
+  --sb-text: #4e5968;
+  --sb-text-mute: #8b95a1;
+  --sb-active-bg: #e8f3ff;
+  --sb-active-text: #3182f6;
+  --brand-primary: #3182f6;
+  --brand-danger: #dc2626;
+  --brand-warn: #fbbf24;
+  --brand-success: #10b981;
+  /* 표면 배경 (Card / Dialog / Sidebar) */
+  --surface-bg: #ffffff;
+  --surface-fg: #191f28;
+  --surface-border: #e5e8eb;
+  /* 페이지 배경 */
+  --page-bg: #f9fafb;
+}
+
+.dark {
+  --sb-bg: #1f2937;
+  --sb-text: #d1d5db;
+  --sb-text-mute: #9ca3af;
+  --sb-active-bg: #1e3a5f;
+  --sb-active-text: #93c5fd;
+  --brand-primary: #60a5fa; /* 라이트보다 살짝 밝게 — 다크 배경 대비 */
+  --brand-danger: #f87171;
+  --brand-warn: #fbbf24;
+  --brand-success: #34d399;
+  --surface-bg: #1f2937;
+  --surface-fg: #f3f4f6;
+  --surface-border: #374151;
+  --page-bg: #111827;
+}
+
+/* 페이지 + 표면 자동 반응 — Tailwind class 직접 사용하지 않은 곳 안전망 */
+body {
+  background-color: var(--page-bg);
+  color: var(--surface-fg);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+/* 다크모드 시 placeholder / scrollbar 도 어둡게 */
+.dark ::placeholder {
+  color: var(--sb-text-mute);
+}
+.dark ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #4b5563;
+  border-radius: 5px;
+}
+.dark ::-webkit-scrollbar-track {
+  background-color: #1f2937;
 }

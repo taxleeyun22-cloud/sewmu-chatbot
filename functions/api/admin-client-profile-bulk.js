@@ -1,7 +1,7 @@
 // 관리자: CSV 일괄 업로드 (위하고/세무사랑 Export 대응)
 // body: { rows: [ { company_name, business_number, ceo_name, industry, ... }, ... ], auto_approve: true }
 
-import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, checkOriginCsrf } from "./_adminAuth.js";
 
 async function ensureTables(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS client_profiles (
@@ -56,6 +56,9 @@ function normPhone(v) {
 }
 
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request);
+  if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;

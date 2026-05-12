@@ -2,7 +2,7 @@
 // 내용 수정(new_answer/new_law_refs) + 상태 변경 + delete(active=0) 지원
 // 수정 시 자동 재임베딩.
 
-import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
 import { embed, ensureFaqsTable } from "./_rag.js";
 import { REVERIFY_V1 } from "./_faq-reverify-v1.js";
 
@@ -18,6 +18,9 @@ export async function onRequestGet(context) {
 }
 
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request);
+  if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
   if (!auth.owner) return ownerOnly();

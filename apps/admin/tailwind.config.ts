@@ -1,6 +1,8 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  /* Phase 14 (2026-05-12): Dark mode — `class` 전략 (localStorage persistent). */
+  darkMode: 'class',
   content: [
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
@@ -9,16 +11,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // 사장님 admin 디자인 토큰 (admin.css 호환)
-        'sb-bg': '#f5f6f8',
-        'sb-text': '#4e5968',
-        'sb-text-mute': '#8b95a1',
-        'sb-active-bg': '#e8f3ff',
-        'sb-active-text': '#3182f6',
-        'brand-primary': '#3182f6',
-        'brand-danger': '#dc2626',
-        'brand-warn': '#fbbf24',
-        'brand-success': '#10b981',
+        /**
+         * Phase 14 dark mode: CSS variable 기반 — :root / .dark 가 swap.
+         * 값은 globals.css 의 :root 정의. 폴백 hex 는 fail-safe.
+         */
+        'sb-bg': 'var(--sb-bg, #f5f6f8)',
+        'sb-text': 'var(--sb-text, #4e5968)',
+        'sb-text-mute': 'var(--sb-text-mute, #8b95a1)',
+        'sb-active-bg': 'var(--sb-active-bg, #e8f3ff)',
+        'sb-active-text': 'var(--sb-active-text, #3182f6)',
+        'brand-primary': 'var(--brand-primary, #3182f6)',
+        'brand-danger': 'var(--brand-danger, #dc2626)',
+        'brand-warn': 'var(--brand-warn, #fbbf24)',
+        'brand-success': 'var(--brand-success, #10b981)',
       },
       fontFamily: {
         sans: ['Noto Sans KR', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],

@@ -2,7 +2,7 @@
 // POST /api/admin-faq-verify-apply?key=ADMIN_KEY
 // 응답: { ok, applied, skipped, missing_q: [...] }
 
-import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
 import { VERIFY_REPORT } from "./_faq-verify-report.js";
 
 function kst() {
@@ -25,6 +25,9 @@ export async function onRequestGet(context) {
 }
 
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request);
+  if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
   if (!auth.owner) return ownerOnly();

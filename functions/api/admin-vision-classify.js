@@ -2,9 +2,12 @@
 // 세무사가 "🔍 AI 확인" 버튼 눌렀을 때만 호출됨 (수동·유료)
 // 비용 통제: detail:'low' + max_tokens:200
 
-import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, checkOriginCsrf } from "./_adminAuth.js";
 
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request);
+  if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
   const apiKey = context.env.OPENAI_API_KEY;

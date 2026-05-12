@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect } from 'react';
+import { ThemeToggle } from './ThemeToggle';
 
 export { badgeClass } from './sidebar-badge';
 
@@ -246,11 +247,12 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps = {}
       </nav>
 
       {/* 하단 */}
-      <div className="border-t border-gray-200 bg-white px-3 py-2 space-y-0.5">
+      <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 space-y-0.5">
+        <ThemeToggle />
         <button
           type="button"
           onClick={handleLogout}
-          className="w-full text-left text-[11px] text-gray-600 hover:text-red-600 flex items-center gap-1.5 py-1 rounded hover:bg-red-50 px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+          className="w-full text-left text-[11px] text-gray-600 dark:text-gray-300 hover:text-red-600 flex items-center gap-1.5 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/30 px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
         >
           <LogOut size={12} strokeWidth={1.8} aria-hidden="true" />
           <span>로그아웃</span>
@@ -259,7 +261,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps = {}
           href="https://sewmu-chatbot.pages.dev"
           target="_blank"
           rel="noreferrer"
-          className="w-full text-[11px] text-gray-600 hover:text-brand-primary flex items-center gap-1.5 py-1 rounded hover:bg-blue-50 px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+          className="w-full text-[11px] text-gray-600 dark:text-gray-300 hover:text-brand-primary flex items-center gap-1.5 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
         >
           <ExternalLink size={12} strokeWidth={1.8} aria-hidden="true" />
           <span>거래처 챗봇</span>

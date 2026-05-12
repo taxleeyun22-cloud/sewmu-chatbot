@@ -6,6 +6,7 @@
 
 import * as React from 'react';
 import { cn } from '@/lib/utils';
+import { useFocusTrap } from '@/lib/hooks/useFocusTrap';
 
 type DialogContextValue = {
   open: boolean;
@@ -49,16 +50,22 @@ export function DialogContent({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   const ctx = React.useContext(DialogContext);
+  /* Phase 14: focus trap — Tab 키 모달 안에서만 순환 */
+  const trapRef = useFocusTrap<HTMLDivElement>(!!ctx?.open);
   if (!ctx?.open) return null;
   return (
     <>
       <div
         className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-in fade-in-0"
         onClick={() => ctx.onOpenChange(false)}
+        aria-hidden="true"
       />
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
         className={cn(
-          'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-3 border bg-white p-4 shadow-lg rounded-lg',
+          'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-3 border bg-white dark:bg-gray-800 dark:border-gray-700 p-4 shadow-lg rounded-lg',
           className,
         )}
         {...props}
@@ -66,9 +73,10 @@ export function DialogContent({
       >
         {children}
         <button
+          type="button"
           onClick={() => ctx.onOpenChange(false)}
-          className="absolute right-3 top-3 rounded-sm opacity-70 ring-offset-white transition-opacity hover:opacity-100 focus:outline-none"
-          aria-label="Close"
+          className="absolute right-3 top-3 rounded-sm opacity-70 ring-offset-white transition-opacity hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary p-1"
+          aria-label="닫기"
         >
           ✕
         </button>

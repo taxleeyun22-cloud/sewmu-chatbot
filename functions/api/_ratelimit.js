@@ -49,3 +49,60 @@ export function getClientIP(request) {
       || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
       || 'unknown';
 }
+
+/**
+ * Phase 14 (2026-05-12): Response-based wrapper — admin endpoint 표준 패턴.
+ *
+ * 사용:
+ *   const limited = await rateLimitResponse(context, { key: 'admin-mutation', limit: 60, windowSec: 60 });
+ *   if (limited) return limited;  // 429 Response
+ *
+ * @param context Cloudflare Pages function context
+ * @param opts.key 카운터 prefix (client IP 자동 append)
+ * @param opts.limit 윈도우 안 최대 요청 수 (default 60)
+ * @param opts.windowSec 윈도우 초 (default 60)
+ * @param opts.identifier client identifier — default = getClientIP(request)
+ * @returns Response 429 (차단) 또는 null (통과)
+ */
+export async function rateLimitResponse(context, opts = {}) {
+  const limit = opts.limit ?? 60;
+  const windowSec = opts.windowSec ?? 60;
+  const id = opts.identifier || getClientIP(context.request);
+  const key = `${opts.key || 'default'}:${id}`;
+  const db = context.env?.DB;
+  const r = await rateLimit(db, key, limit, windowSec);
+  if (r.ok) return null;
+  return new Response(
+    JSON.stringify({
+      error: 'rate_limit_exceeded',
+      retry_after_seconds: r.retryAfter || windowSec,
+    }),
+    {
+      status: 429,
+      headers: {
+        'Content-Type': 'application/json',
+        'Retry-After': String(r.retryAfter || windowSec),
+        'X-RateLimit-Limit': String(limit),
+        'X-RateLimit-Remaining': '0',
+      },
+    },
+  );
+}
+
+/* 편의 함수 — admin POST mutation 표준 (60 req/min/IP) */
+export async function rateLimitAdminMutation(context) {
+  return rateLimitResponse(context, {
+    key: 'admin-mutation',
+    limit: 60,
+    windowSec: 60,
+  });
+}
+
+/* 편의 함수 — login (brute-force 차단 — 10 req/min/IP) */
+export async function rateLimitAuth(context) {
+  return rateLimitResponse(context, {
+    key: 'auth',
+    limit: 10,
+    windowSec: 60,
+  });
+}

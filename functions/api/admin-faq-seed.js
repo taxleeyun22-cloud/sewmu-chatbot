@@ -2,7 +2,7 @@
 // 시드 파일(_faq-seed-batch-1.js 등)을 읽어서 D1에 INSERT + 임베딩 생성
 // 동일 question 이미 존재 시 스킵
 
-import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
 import { ensureFaqsTable, embed } from "./_rag.js";
 import { SEED_BATCH_1 } from "./_faq-seed-batch-1.js";
 
@@ -27,6 +27,9 @@ export async function onRequestGet(context) {
 }
 
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request);
+  if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
   if (!auth.owner) return ownerOnly();

@@ -10,7 +10,7 @@
  * pending 에서 재가입자 분리 → rejoined 탭으로 이전 */
 const APPROVAL_STATUSES = ['pending', 'approved_client', 'approved_guest', 'rejected', 'terminated', 'rejoined', 'withdrawn', 'deleted'];
 
-import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
 
 async function ensureColumns(db) {
   const addCol = async (sql) => { try { await db.prepare(sql).run(); } catch {} };
@@ -199,6 +199,9 @@ export async function onRequestGet(context) {
 
 // POST: 승인 처리
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request);
+  if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();

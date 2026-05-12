@@ -5,7 +5,7 @@
 // - POST /api/admin-documents?key=&action=reject   body: {id, reason, note?}
 // - GET  /api/admin-documents?key=&action=stats&month=YYYY-MM → 비용·건수 집계
 
-import { checkAdmin, adminUnauthorized } from './_adminAuth.js';
+import { checkAdmin, adminUnauthorized, checkOriginCsrf } from "./_adminAuth.js";
 import { logAudit } from './_audit.js';
 
 function kst() {
@@ -627,6 +627,9 @@ async function getStats(db, url) {
 
 // ============ POST: 승인·반려·일괄처리 ============
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request);
+  if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
 

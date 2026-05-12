@@ -28,6 +28,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from './button';
+import { useFocusTrap } from '@/lib/hooks/useFocusTrap';
 
 export interface ConfirmOptions {
   title: string;
@@ -81,6 +82,8 @@ export function useConfirm() {
 export function ConfirmDialog() {
   const [active, setActiveLocal] = React.useState<ActiveDialog | null>(null);
   const cancelRef = React.useRef<HTMLButtonElement | null>(null);
+  /* Phase 14: focus trap — Tab 가 모달 안에서만 순환, 닫힐 때 trigger 복귀 */
+  const trapRef = useFocusTrap<HTMLDivElement>(active !== null);
 
   React.useEffect(() => {
     const listener = (d: ActiveDialog | null) => setActiveLocal(d);
@@ -144,21 +147,25 @@ export function ConfirmDialog() {
         aria-hidden="true"
       />
       <div
+        ref={trapRef}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={active.description ? descId : undefined}
         className={cn(
           'fixed left-[50%] top-[50%] z-[100] w-full max-w-md translate-x-[-50%] translate-y-[-50%]',
-          'rounded-lg border bg-white p-5 shadow-xl',
+          'rounded-lg border bg-white dark:bg-gray-800 dark:border-gray-700 p-5 shadow-xl',
           'animate-in zoom-in-95 fade-in-0',
         )}
       >
-        <h2 id={titleId} className="text-base font-semibold text-gray-900">
+        <h2 id={titleId} className="text-base font-semibold text-gray-900 dark:text-gray-100">
           {active.title}
         </h2>
         {active.description && (
-          <p id={descId} className="mt-2 text-sm text-gray-600 whitespace-pre-line">
+          <p
+            id={descId}
+            className="mt-2 text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line"
+          >
             {active.description}
           </p>
         )}

@@ -12,6 +12,7 @@ import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { toast } from '@/components/ui/toast';
 import { confirm } from '@/components/ui/confirm-dialog';
 import { formatUserName } from '@/lib/format';
+import { invalidateAfter } from '@/lib/mutation-invalidate';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -179,8 +180,8 @@ function UserRow({
       trpcCall('users.setStatus', { userId: user.id, status: newStatus }),
     onSuccess: (_, newStatus) => {
       toast.success(`${formatUserName(user)} → ${newStatus}`);
-      queryClient.invalidateQueries({ queryKey: ['users.list'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard.counts'] });
+      /* Phase 14: invalidation matrix — users + sidebar 자동 */
+      invalidateAfter(queryClient, { users: true });
     },
     onError: (e) => toast.error(`실패: ${(e as Error).message}`),
   });

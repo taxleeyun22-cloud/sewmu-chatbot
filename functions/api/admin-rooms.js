@@ -10,7 +10,7 @@
 // - POST /api/admin-rooms?action=toggle_ai : { room_id, ai_mode }
 // - DELETE /api/admin-rooms?room_id=XX : 방 + 메시지 전체 삭제 (신중)
 
-import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
 import { checkRole, roleForbidden } from "./_authz.js";
 import { notifyUser } from "./_webpush.js";
 
@@ -434,6 +434,9 @@ export async function onRequestGet(context) {
 
 // POST: 생성/멤버관리/종료/메시지/AI토글
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request);
+  if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
@@ -806,6 +809,9 @@ export async function onRequestPost(context) {
 // DELETE: 방 + 모든 메시지 삭제 (영구) — owner 전용
 // Phase #10 적용 (2026-05-06): checkRole + roleForbidden 통일.
 export async function onRequestDelete(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request);
+  if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   const authz = await checkRole(context, 'owner');
   if (!authz.ok) return roleForbidden(authz);
