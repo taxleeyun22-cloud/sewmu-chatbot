@@ -3,7 +3,7 @@
  * 기존 functions/api/my-rooms.js + my-businesses.js 마이그레이션.
  */
 import { z } from 'zod';
-import { eq, and, isNull, sql } from 'drizzle-orm';
+import { eq, and, isNull, sql, or } from 'drizzle-orm';
 import { customerProcedure, router } from '../trpc';
 import { drizzle, schema } from '@sewmu/db/client';
 
@@ -51,7 +51,7 @@ export const mypageRouter = router({
         and(
           eq(businessMembers.user_id, userId),
           isNull(businessMembers.removed_at),
-          isNull(businesses.deleted_at),
+          or(isNull(businesses.deleted_at), eq(businesses.deleted_at, ''))!,
         ),
       );
 

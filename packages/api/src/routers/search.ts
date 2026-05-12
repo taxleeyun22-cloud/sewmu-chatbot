@@ -40,7 +40,7 @@ export const searchRouter = router({
             .from(users)
             .where(
               and(
-                isNull(users.deleted_at),
+                or(isNull(users.deleted_at), eq(users.deleted_at, ''))!,
                 or(
                   like(users.real_name, pat),
                   like(users.name, pat),
@@ -61,7 +61,7 @@ export const searchRouter = router({
             .from(businesses)
             .where(
               and(
-                isNull(businesses.deleted_at),
+                or(isNull(businesses.deleted_at), eq(businesses.deleted_at, ''))!,
                 or(
                   like(businesses.company_name, pat),
                   like(businesses.business_number, pat),
@@ -96,7 +96,7 @@ export const searchRouter = router({
             .from(memos)
             .where(
               and(
-                isNull(memos.deleted_at),
+                or(isNull(memos.deleted_at), eq(memos.deleted_at, ''))!,
                 or(like(memos.content, pat), like(memos.tags, pat))!,
                 input.category ? eq(memos.category, input.category) : sql`1=1`,
                 input.tag ? like(memos.tags, `%${input.tag}%`) : sql`1=1`,
@@ -117,7 +117,7 @@ export const searchRouter = router({
             })
             .from(conversations)
             .where(
-              and(isNull(conversations.deleted_at), like(conversations.content, pat)),
+              and(or(isNull(conversations.deleted_at), eq(conversations.deleted_at, ''))!, like(conversations.content, pat)),
             )
             .orderBy(desc(conversations.created_at))
             .limit(limit),

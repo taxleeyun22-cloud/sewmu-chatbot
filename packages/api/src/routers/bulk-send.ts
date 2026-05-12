@@ -9,7 +9,7 @@
  * - 발송 결과 audit_log 기록 (실패 추적용)
  */
 import { z } from 'zod';
-import { eq, and, isNull, inArray } from 'drizzle-orm';
+import { eq, and, isNull, inArray, or } from 'drizzle-orm';
 import { router, withPermission } from '../trpc';
 import { drizzle, schema } from '@sewmu/db/client';
 import {
@@ -34,7 +34,7 @@ export const bulkSendRouter = router({
       const { users } = schema;
 
       const conditions = [
-        isNull(users.deleted_at),
+        or(isNull(users.deleted_at), eq(users.deleted_at, ''))!,
       ];
       if (input.target === 'specific' && input.user_ids?.length) {
         conditions.push(inArray(users.id, input.user_ids));
@@ -84,7 +84,7 @@ export const bulkSendRouter = router({
       const { users } = schema;
 
       /* 1. 대상 list 동일 흐름 */
-      const conditions = [isNull(users.deleted_at)];
+      const conditions = [or(isNull(users.deleted_at), eq(users.deleted_at, ''))!];
       if (input.target === 'specific' && input.user_ids?.length) {
         conditions.push(inArray(users.id, input.user_ids));
       } else if (input.target === 'approved_client') {

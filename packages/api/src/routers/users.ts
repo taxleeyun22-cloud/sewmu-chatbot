@@ -31,7 +31,7 @@ export const usersRouter = router({
       const db = drizzle(ctx.db);
       const { users } = schema;
       const conditions = [
-        isNull(users.deleted_at),
+        or(isNull(users.deleted_at), eq(users.deleted_at, ''))!,
         sql`COALESCE(${users.approval_status}, 'pending') NOT IN ('merged', 'deleted', 'withdrawn')`,
         sql`COALESCE(${users.provider}, '') != 'merged'`,
       ];
@@ -39,6 +39,9 @@ export const usersRouter = router({
         conditions.push(eq(users.is_admin, 1));
       } else if (input.status) {
         conditions.push(eq(users.approval_status, input.status));
+        /* 옛 admin admin-approve.js 패턴: status 별 list 에서 is_admin=1 제외
+         * (관리자 겸 거래처는 '👑 관리자' 탭에서만 노출) */
+        conditions.push(sql`COALESCE(${users.is_admin}, 0) = 0`);
       }
       if (input.search) {
         const pat = `%${input.search}%`;

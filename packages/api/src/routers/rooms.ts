@@ -102,7 +102,7 @@ export const roomsRouter = router({
           .where(
             and(
               eq(conversations.room_id, input.roomId),
-              isNull(conversations.deleted_at),
+              or(isNull(conversations.deleted_at), eq(conversations.deleted_at, ''))!,
             ),
           )
           .orderBy(asc(conversations.created_at))

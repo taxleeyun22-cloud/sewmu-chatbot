@@ -6,7 +6,7 @@
  * OCR Vision API 통합은 별도 endpoint (Day 17+).
  */
 import { z } from 'zod';
-import { eq, and, isNull, desc, sql } from 'drizzle-orm';
+import { eq, and, isNull, desc, sql, or } from 'drizzle-orm';
 import { adminProcedure, customerProcedure, router } from '../trpc';
 import { drizzle, schema } from '@sewmu/db/client';
 
@@ -26,7 +26,7 @@ export const documentsRouter = router({
       const db = drizzle(ctx.db);
       const { documents } = schema;
 
-      const conditions = [isNull(documents.deleted_at)];
+      const conditions = [or(isNull(documents.deleted_at), eq(documents.deleted_at, ''))!];
       if (input.status !== 'all') {
         conditions.push(eq(documents.status, input.status));
       }
@@ -51,7 +51,7 @@ export const documentsRouter = router({
           c: sql<number>`COUNT(*)`,
         })
         .from(documents)
-        .where(isNull(documents.deleted_at))
+        .where(or(isNull(documents.deleted_at), eq(documents.deleted_at, ''))!)
         .groupBy(documents.status);
 
       const countMap: Record<string, number> = {};
@@ -178,7 +178,7 @@ export const documentsRouter = router({
 
       const conditions = [
         eq(documents.user_id, ctx.auth.userId),
-        isNull(documents.deleted_at),
+        or(isNull(documents.deleted_at), eq(documents.deleted_at, ''))!,
       ];
       if (input.status && input.status !== 'all') {
         conditions.push(eq(documents.status, input.status));

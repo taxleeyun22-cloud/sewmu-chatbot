@@ -29,13 +29,21 @@ export const dashboardRouter = router({
       db
         .select({ c: sql<number>`count(*)` })
         .from(users)
-        .where(and(eq(users.approval_status, 'pending'), isNull(users.deleted_at)))
+        .where(and(
+          sql`COALESCE(${users.approval_status}, 'pending') = 'pending'`,
+          sql`COALESCE(${users.is_admin}, 0) = 0`,
+          or(isNull(users.deleted_at), eq(users.deleted_at, ''))!,
+        ))
         .then((rows) => rows[0]),
 
       db
         .select({ c: sql<number>`count(*)` })
         .from(users)
-        .where(and(eq(users.approval_status, 'approved_client'), isNull(users.deleted_at)))
+        .where(and(
+          eq(users.approval_status, 'approved_client'),
+          sql`COALESCE(${users.is_admin}, 0) = 0`,
+          or(isNull(users.deleted_at), eq(users.deleted_at, ''))!,
+        ))
         .then((rows) => rows[0]),
 
       db
@@ -49,7 +57,7 @@ export const dashboardRouter = router({
         .from(memos)
         .where(
           and(
-            isNull(memos.deleted_at),
+            or(isNull(memos.deleted_at), eq(memos.deleted_at, ''))!,
             sql`${memos.due_date} IS NOT NULL`,
             sql`date(${memos.due_date}) <= date('now', '+3 days')`,
             sql`date(${memos.due_date}) >= date('now')`,
@@ -61,7 +69,7 @@ export const dashboardRouter = router({
       db
         .select({ c: sql<number>`count(*)` })
         .from(documents)
-        .where(and(eq(documents.status, 'pending'), isNull(documents.deleted_at)))
+        .where(and(eq(documents.status, 'pending'), or(isNull(documents.deleted_at), eq(documents.deleted_at, ''))!))
         .then((rows) => rows[0]),
 
       db
@@ -132,7 +140,7 @@ export const dashboardRouter = router({
         })
         .from(conversations)
         .leftJoin(users, eq(conversations.user_id, users.id))
-        .where(isNull(conversations.deleted_at))
+        .where(or(isNull(conversations.deleted_at), eq(conversations.deleted_at, ''))!)
         .orderBy(desc(conversations.created_at))
         .limit(10),
 
@@ -149,7 +157,7 @@ export const dashboardRouter = router({
         })
         .from(documents)
         .leftJoin(users, eq(documents.user_id, users.id))
-        .where(isNull(documents.deleted_at))
+        .where(or(isNull(documents.deleted_at), eq(documents.deleted_at, ''))!)
         .orderBy(desc(documents.created_at))
         .limit(10),
 
@@ -165,7 +173,7 @@ export const dashboardRouter = router({
           created_at: memos.created_at,
         })
         .from(memos)
-        .where(isNull(memos.deleted_at))
+        .where(or(isNull(memos.deleted_at), eq(memos.deleted_at, ''))!)
         .orderBy(desc(memos.created_at))
         .limit(10),
     ]);
@@ -207,7 +215,7 @@ export const dashboardRouter = router({
       .where(
         and(
           eq(documents.status, 'approved'),
-          isNull(documents.deleted_at),
+          or(isNull(documents.deleted_at), eq(documents.deleted_at, ''))!,
           sql`date(${documents.approved_at}) >= date('now', 'start of month')`,
         ),
       )

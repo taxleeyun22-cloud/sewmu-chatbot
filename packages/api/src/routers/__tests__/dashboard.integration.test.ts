@@ -34,11 +34,13 @@ describe('dashboard router (integration)', () => {
       expect(r.pendingUsers).toBe(1);
     });
 
-    it('approvedClients counts approval_status=approved_client', async () => {
+    it('approvedClients counts approval_status=approved_client AND is_admin=0 (옛 admin 패턴)', async () => {
       const { caller, rawDb } = await makeCaller({ isOwner: true });
-      seedUsers(rawDb); // 1, 2, 3 are approved_client
+      seedUsers(rawDb);
+      /* 옛 admin admin-approve.js: counts 는 is_admin=0 만 (admin 은 별도 탭).
+       * seedUsers: id=1,2 admin, id=3 박승호 만 거래처. → 1 */
       const r = await caller.dashboard.counts();
-      expect(r.approvedClients).toBe(3);
+      expect(r.approvedClients).toBe(1);
     });
 
     it('pendingDocs counts pending documents', async () => {

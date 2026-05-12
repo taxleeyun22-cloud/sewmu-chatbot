@@ -3,7 +3,7 @@
  * 기존 functions/api/memos.js 마이그레이션.
  */
 import { z } from 'zod';
-import { eq, and, isNull, isNotNull, like, desc } from 'drizzle-orm';
+import { eq, and, isNull, isNotNull, like, desc, or } from 'drizzle-orm';
 import { adminProcedure, router } from '../trpc';
 import { drizzle, schema } from '@sewmu/db/client';
 import { NewMemoSchema } from '@sewmu/types';
@@ -29,16 +29,16 @@ export const memosRouter = router({
       const conditions = [];
       if (input.scope === 'my' && ctx.auth.userId) {
         conditions.push(eq(memos.assigned_to_user_id, ctx.auth.userId));
-        conditions.push(isNull(memos.deleted_at));
+        conditions.push(or(isNull(memos.deleted_at), eq(memos.deleted_at, ''))!);
       } else if (input.scope === 'customer_all' && input.user_id) {
         conditions.push(eq(memos.target_user_id, input.user_id));
-        conditions.push(isNull(memos.deleted_at));
+        conditions.push(or(isNull(memos.deleted_at), eq(memos.deleted_at, ''))!);
       } else if (input.scope === 'business_all' && input.business_id) {
         conditions.push(eq(memos.target_business_id, input.business_id));
-        conditions.push(isNull(memos.deleted_at));
+        conditions.push(or(isNull(memos.deleted_at), eq(memos.deleted_at, ''))!);
       } else if (input.scope === 'room_full' && input.room_id) {
         conditions.push(eq(memos.room_id, input.room_id));
-        conditions.push(isNull(memos.deleted_at));
+        conditions.push(or(isNull(memos.deleted_at), eq(memos.deleted_at, ''))!);
       } else if (input.scope === 'trash_count' || input.scope === 'trash_list') {
         conditions.push(isNotNull(memos.deleted_at));
       } else {
