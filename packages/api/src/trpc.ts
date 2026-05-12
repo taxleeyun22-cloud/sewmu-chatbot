@@ -22,7 +22,31 @@ export interface Context {
 const t = initTRPC.context<Context>().create();
 
 export const router = t.router;
-export const publicProcedure = t.procedure;
+
+/**
+ * 전 procedure 공통 — uncaught error 자동 구조화 로깅 (Logpush/Sentry).
+ * 각 라우터에서 반복 try/catch + logger.error 작성 불필요.
+ *
+ * 단, TRPCError (input/unauth/forbidden 등 의도적 throw) 는 비즈니스 흐름이라 log 안 함.
+ */
+const errorLoggingMiddleware = t.middleware(async ({ ctx, next, path, type }) => {
+  try {
+    return await next();
+  } catch (err) {
+    /* TRPCError 는 사장님 결정 흐름 (UNAUTHORIZED 등) — log 안 함, 그대로 throw */
+    if (err instanceof TRPCError) throw err;
+    /* dynamic import 로 logger 순환 의존 회피 */
+    const { logger, logCtx } = await import('./logger');
+    logger.error(
+      `tRPC ${type} uncaught error`,
+      logCtx(ctx, path),
+      err,
+    );
+    throw err;
+  }
+});
+
+export const publicProcedure = t.procedure.use(errorLoggingMiddleware);
 
 /** ctx.auth → role 계산 (admin_role 우선, fallback is_owner/is_admin). */
 function ctxRole(auth: AuthContext): Role {

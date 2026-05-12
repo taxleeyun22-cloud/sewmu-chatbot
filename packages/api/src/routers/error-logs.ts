@@ -65,11 +65,13 @@ export const errorLogsRouter = router({
       } catch (e) {
         /* 로그 저장 자체 실패해도 앱 동작에 영향 X — meta-logger 로는 발송 */
         logger.error(
-          'error_logs.log INSERT failed (meta)',
+          'error_logs.log self-insert failed',
           logCtx(ctx, 'errorLogs.log', { source: input.source }),
           e,
         );
-        return { ok: false, error: (e as Error).message };
+        /* 보안: public procedure 에서 raw e.message 노출 금지 (packages/auth/CLAUDE.md).
+         * 사장님은 Logpush / D1 audit_logs 로 원본 확인 — 클라이언트는 중립 메시지. */
+        return { ok: false, error: 'log_insert_failed' };
       }
     }),
 

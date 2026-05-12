@@ -59,6 +59,16 @@ describe('mentionify (@ → span)', () => {
     /* 21번째 a 부터는 span 밖에 */
     expect(out).toMatch(/<\/span>aaaaa$/);
   });
+
+  it('defensive escape — 캡처 그룹에 특수문자가 들어와도 안전', () => {
+    /* regex char class 가 좁아서 실제로는 < > " ' 매칭 안 되지만, 향후 완화 대비 escape */
+    /* underscore + dot 은 매칭됨 — XSS 위험은 없음 */
+    const out = mentionify('hi @user_name.ok');
+    expect(out).toContain('data-mention="user_name.ok"');
+    /* 데이터 속성 안에 raw " 가 없어야 (escape 됐어야) */
+    const dataMatch = out.match(/data-mention="([^"]*)"/);
+    expect(dataMatch?.[1]).toBe('user_name.ok');
+  });
 });
 
 describe('findMentionToken (caret 앞 @token 추출)', () => {

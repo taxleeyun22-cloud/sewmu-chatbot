@@ -29,9 +29,24 @@ export function createMentionState(): MentionState {
 }
 
 /**
+ * HTML attribute / text 안에 안전하게 삽입할 문자열로 escape.
+ * 사용처는 `mentionify` 의 캡처 그룹 — regex char class 가 이미 좁지만
+ * 향후 char class 가 완화돼도 XSS 안 나도록 defensive.
+ */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
  * 메시지 본문의 `@홍길동` 을 강조 span 으로 변환.
  *
  * 보안: 입력 텍스트는 이미 escape 됐다고 가정 — 호출자가 e()/escAttr() 적용.
+ * 추가로 캡처 그룹도 `escapeHtml` 통과시킴 (defense-in-depth).
  *
  * @param text 이미 HTML escape 된 메시지 본문
  * @param selfName 본인 표시명 — `@홍길동` 또는 `@홍길동대표` 인 경우 노란 강조
@@ -45,8 +60,8 @@ export function mentionify(text: string, selfName?: string | null): string {
       const style = isMe
         ? 'background:#fef08a;color:#854d0e;border-radius:4px;padding:0 3px'
         : 'color:#3182f6';
-      const safeName = name.replace(/"/g, '&quot;');
-      return `${pre}<span style="${style};font-weight:700" data-mention="${safeName}">@${name}</span>`;
+      const safeName = escapeHtml(name);
+      return `${pre}<span style="${style};font-weight:700" data-mention="${safeName}">@${safeName}</span>`;
     },
   );
 }

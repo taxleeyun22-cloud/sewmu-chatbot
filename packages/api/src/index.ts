@@ -46,7 +46,7 @@ export const appRouter = router({
 export { audit } from './audit';
 export type { AuditOptions } from './audit';
 
-export { logger, logCtx, logToD1 } from './logger';
+export { logger, logCtx } from './logger';
 export type { LogLevel, LogContext, LogEntry } from './logger';
 
 export type AppRouter = typeof appRouter;

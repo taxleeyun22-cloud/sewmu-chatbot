@@ -1,12 +1,18 @@
 /**
- * Phase Next-Day29 (2026-05-12): structured logger 단위 테스트.
- * console emit 형식 + error 직렬화 + logCtx 추출 검증.
+ * Phase Next-Day29 + Phase 10 cleanup (2026-05-12): structured logger 단위 테스트.
+ *
+ * 검증 대상:
+ * - emit 형식 (JSON 1줄 + schemaVersion + timestamp)
+ * - Error 직렬화 (name/message/stack/cause)
+ * - circular ref safe (safeStringify)
+ * - level filter (LOG_LEVEL env)
+ * - logCtx 역할 추출 (calculateRole 위임)
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { logger, logCtx, type LogEntry } from '../logger';
 import type { Context } from '../trpc';
 
-describe('logger (구조화 로깅 — Sentry/Datadog/Logpush 호환)', () => {
+describe('logger (구조화 로깅 — Logpush/Sentry/Datadog 호환)', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
   let warnSpy: ReturnType<typeof vi.spyOn>;
   let errSpy: ReturnType<typeof vi.spyOn>;
@@ -15,15 +21,18 @@ describe('logger (구조화 로깅 — Sentry/Datadog/Logpush 호환)', () => {
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    /* default LOG_LEVEL — tests assume debug+ all emit */
+    process.env.LOG_LEVEL = 'debug';
   });
 
   afterEach(() => {
     logSpy.mockRestore();
     warnSpy.mockRestore();
     errSpy.mockRestore();
+    delete process.env.LOG_LEVEL;
   });
 
-  it('info → console.log + JSON 1줄', () => {
+  it('info → console.log + JSON 1줄 + schemaVersion', () => {
     logger.info('user logged in', { userId: 42, procedure: 'users.login' });
     expect(logSpy).toHaveBeenCalledTimes(1);
     const raw = logSpy.mock.calls[0][0] as string;
@@ -33,6 +42,7 @@ describe('logger (구조화 로깅 — Sentry/Datadog/Logpush 호환)', () => {
     expect(parsed.userId).toBe(42);
     expect(parsed.procedure).toBe('users.login');
     expect(parsed.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(parsed.schemaVersion).toBe(1);
   });
 
   it('warn → console.warn', () => {
@@ -53,6 +63,14 @@ describe('logger (구조화 로깅 — Sentry/Datadog/Logpush 호환)', () => {
     expect(parsed.error?.stack).toBeTruthy();
   });
 
+  it('Error.cause 도 직렬화 (Node 16+)', () => {
+    const root = new Error('root cause');
+    const wrapper = new Error('wrapper', { cause: root });
+    logger.error('chained', undefined, wrapper);
+    const parsed = JSON.parse(errSpy.mock.calls[0][0] as string) as LogEntry;
+    expect(parsed.error?.cause).toBe('root cause');
+  });
+
   it('non-Error 값도 직렬화 (NonError name)', () => {
     logger.error('weird throw', undefined, 'string thrown');
     const raw = errSpy.mock.calls[0][0] as string;
@@ -68,22 +86,48 @@ describe('logger (구조화 로깅 — Sentry/Datadog/Logpush 호환)', () => {
     expect(parsed.level).toBe('fatal');
   });
 
-  it('circular ref 도 안 깨짐 (fallback 출력)', () => {
-    const circular: Record<string, unknown> = {};
+  it('circular ref → [Circular] sentinel + 구조 유지', () => {
+    const circular: Record<string, unknown> = { name: 'parent' };
     circular.self = circular;
-    /* meta 가 circular — JSON.stringify 깨짐 → fallback */
     logger.info('test', { meta: { circular } });
     expect(logSpy).toHaveBeenCalled();
-    /* JSON parse 실패해도 fallback string 호출됨 */
     const raw = logSpy.mock.calls[0][0] as string;
-    expect(raw).toBeTruthy();
+    /* 결정적 검증: parse 가능 + level/message/schemaVersion 보존 */
+    const parsed = JSON.parse(raw) as LogEntry;
+    expect(parsed.level).toBe('info');
+    expect(parsed.message).toBe('test');
+    expect(parsed.schemaVersion).toBe(1);
+    expect(raw).toContain('[Circular]');
+  });
+
+  it('bigint 도 안전 직렬화', () => {
+    logger.info('bigint test', { meta: { id: BigInt('123456789012345') } });
+    const parsed = JSON.parse(logSpy.mock.calls[0][0] as string) as LogEntry;
+    expect((parsed.meta as { id: string }).id).toBe('123456789012345');
+  });
+
+  it('LOG_LEVEL=warn → info/debug 억제', () => {
+    process.env.LOG_LEVEL = 'warn';
+    logger.debug('skip me');
+    logger.info('skip me too');
+    logger.warn('keep me');
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('LOG_LEVEL=error → warn 도 억제', () => {
+    process.env.LOG_LEVEL = 'error';
+    logger.warn('skip');
+    logger.error('keep');
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(errSpy).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('logCtx (tRPC ctx → LogContext 추출)', () => {
+describe('logCtx (tRPC ctx → LogContext 추출, calculateRole 위임)', () => {
   it('owner 역할 추출', () => {
     const ctx = {
-      auth: { userId: 1, isOwner: true, isAdmin: false, adminRole: null },
+      auth: { userId: 1, isOwner: true, isAdmin: true, adminRole: null },
     } as unknown as Context;
     const out = logCtx(ctx, 'users.setStatus');
     expect(out.userId).toBe(1);
@@ -97,6 +141,15 @@ describe('logCtx (tRPC ctx → LogContext 추출)', () => {
     } as unknown as Context;
     const out = logCtx(ctx, 'memos.create');
     expect(out.role).toBe('editor');
+  });
+
+  it('adminRole 빈 문자열 → fallback (calculateRole 호출)', () => {
+    const ctx = {
+      auth: { userId: 5, isOwner: false, isAdmin: true, adminRole: '' },
+    } as unknown as Context;
+    const out = logCtx(ctx, 'rooms.list');
+    /* '' 는 ?? 가 무시 → falsy 분기 → admin */
+    expect(out.role).toBe('admin');
   });
 
   it('비로그인 customer fallback', () => {

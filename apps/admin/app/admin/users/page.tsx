@@ -8,6 +8,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
+import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { toast } from '@/components/ui/toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -51,12 +52,16 @@ interface User {
 
 export default function UsersPage() {
   const [status, setStatus] = useState('pending');
-  const [search, setSearch] = useState('');
+  const [searchRaw, setSearchRaw] = useState('');
+  /* Phase 10 cleanup (2026-05-12): 250ms debounce — D1 read 폭주 방지 */
+  const search = useDebouncedValue(searchRaw, 250);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['users.list', status, search],
     queryFn: () =>
       trpcCall<{ users: User[] }>('users.list', { status, search, limit: 1000 }),
+    /* sidebar count 와 같은 데이터 → staleTime 으로 캐시 활용 */
+    staleTime: 5_000,
   });
 
   const users = data?.users || [];
@@ -80,10 +85,11 @@ export default function UsersPage() {
           />
           <Input
             type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchRaw}
+            onChange={(e) => setSearchRaw(e.target.value)}
             placeholder="이름·전화·이메일 검색"
             className="w-72 pl-8"
+            aria-label="사용자 검색"
           />
         </div>
       </header>

@@ -9,8 +9,6 @@
  * - 신규 React 메시지 카드 컴포넌트가 import 해서 동일 결과
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 export interface ParsedMessage {
   /** 답장 [REPLY] payload */
   reply: { s?: string; t?: string; i?: string | number } | null;
