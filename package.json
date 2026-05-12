@@ -22,8 +22,9 @@
     "e2e:install": "playwright install chromium",
     "e2e:ui": "playwright test --ui",
     "ci": "npm run typecheck && npm run test && npm run build",
-    "check-all": "npm run typecheck && npm test && npm run build && node scripts/check-bundle-size.mjs",
+    "check-all": "npm run typecheck && npm test && npm run build && node scripts/check-bundle-size.mjs && node scripts/check-perf-budgets.mjs",
     "bundle:check": "node scripts/check-bundle-size.mjs",
+    "perf:check": "node scripts/check-perf-budgets.mjs",
     "prepare": "husky"
   },
   "engines": {
