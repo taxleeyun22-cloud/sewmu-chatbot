@@ -9,13 +9,41 @@
  * Cloudflare Pages next-on-pages 에서 binding 접근 = getRequestContext().env
  */
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import { appRouter } from '@sewmu/api';
+import {
+  appRouter,
+  addTransport,
+  extractRequestId,
+  sentryTransportFromDsn,
+} from '@sewmu/api';
 import { verifyAdminKeyToken } from '@/lib/admin-key-auth';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const runtime = 'edge';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+/**
+ * Phase 13 (2026-05-12): Sentry transport 등록 — 1회만.
+ * env.SENTRY_DSN 없으면 no-op.
+ */
+let _sentryRegistered = false;
+function ensureSentry(env: any): void {
+  if (_sentryRegistered) return;
+  const dsn = env?.SENTRY_DSN;
+  if (!dsn) {
+    _sentryRegistered = true; // 재시도 방지
+    return;
+  }
+  const t = sentryTransportFromDsn(dsn, {
+    environment: env.CF_PAGES_BRANCH === 'main' ? 'production' : 'preview',
+    release: env.CF_PAGES_COMMIT_SHA || 'unknown',
+    sampleRate: 0.1, // info/debug 는 10% 만 (error/fatal 은 항상)
+  });
+  if (t) {
+    addTransport(t);
+    _sentryRegistered = true;
+  }
+}
 
 /** Cloudflare Pages binding + env 접근 — runtime 에서만 호출 가능. */
 function getCfEnv(): any {
@@ -40,6 +68,12 @@ function timingSafeEqual(a: string, b: string): boolean {
 const handler = async (req: Request) => {
   const env = getCfEnv();
   const url = new URL(req.url);
+
+  /* Phase 13: Sentry transport 1회 등록 (env.SENTRY_DSN 있을 때만) */
+  ensureSentry(env);
+
+  /* Phase 12: requestId 추출 (cf-ray > x-request-id > UUID) — logger 자동 첨부 */
+  const requestId = extractRequestId(req);
 
   /* 인증 — 3가지 경로 (옛 admin + 새 admin 모두 호환) */
   let auth: {
@@ -133,6 +167,7 @@ const handler = async (req: Request) => {
       bucket: env.MEDIA_BUCKET,
       openaiApiKey: env.OPENAI_API_KEY,
       auth,
+      requestId,
     }),
   });
 };

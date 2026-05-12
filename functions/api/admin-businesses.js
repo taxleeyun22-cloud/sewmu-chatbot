@@ -7,7 +7,7 @@
 // PUT    /api/admin-businesses?key=&id=            → 수정
 // DELETE /api/admin-businesses?key=&id=            → 삭제 (owner 전용, 연결된 구성원·상담방 해제)
 
-import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
 import { checkRole, roleForbidden } from "./_authz.js";
 
 function kst() {
@@ -320,6 +320,10 @@ export async function onRequestGet(context) {
 }
 
 export async function onRequestPost(context) {
+  /* Phase 13 (2026-05-12): CSRF Origin/Referer 가드. */
+  const csrf = checkOriginCsrf(context.request);
+  if (csrf) return csrf;
+
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
   const db = context.env.DB;
@@ -657,6 +661,10 @@ export async function onRequestPut(context) {
 }
 
 export async function onRequestDelete(context) {
+  /* Phase 13 (2026-05-12): CSRF 가드 — DELETE 가 가장 위험. */
+  const csrf = checkOriginCsrf(context.request);
+  if (csrf) return csrf;
+
   /* Phase #10 적용 (2026-05-06): 업체 삭제 = owner 전용 (cascade 메모 휴지통).
    * RBAC checkRole 사용 — 일관된 401/403 응답. */
   const authz = await checkRole(context, 'owner');

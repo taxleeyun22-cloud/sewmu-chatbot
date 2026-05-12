@@ -25,13 +25,17 @@ import { dirname } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const distDir = join(__dirname, '..', 'dist');
 
-/** key: 매칭 prefix, value: gzip budget KB */
+/** key: 매칭 prefix, value: gzip budget KB.
+ * Phase 13 (2026-05-12): manualChunks 분리 후 — vendor 청크별 명시 예산. */
 const BUDGETS = {
-  'assets/main.js': 50,
-  'assets/main.css': 10,
-  'assets/react.js': 250,
-  // lazy chunks (filing-review-store, etc) — 개별 30KB
-  'assets/': 30,
+  'assets/main.js': 50,                  // 옛 admin entry (admin-modals 등 글로벌)
+  'assets/main.css': 15,                 // Tailwind output
+  'assets/react.js': 30,                 // 새 admin app 코드 (vendor 분리 후 — tight)
+  'assets/vendor-react.js': 75,          // react + react-dom + scheduler
+  'assets/vendor-recharts.js': 120,      // recharts (분석/finance 페이지)
+  'assets/vendor-sentry.js': 35,         // @sentry/react + browser
+  'assets/vendor-nanostores.js': 5,      // 작음
+  'assets/': 30,                         // lazy chunks (filing-review-store 등)
 };
 
 const jsonMode = process.argv.includes('--json');

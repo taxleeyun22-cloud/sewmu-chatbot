@@ -49,6 +49,9 @@ export type { AuditOptions } from './audit';
 export { logger, logCtx, addTransport, extractRequestId } from './logger';
 export type { LogLevel, LogContext, LogEntry, LogTransport } from './logger';
 
+/* Phase 13 (2026-05-12): Sentry transport (DSN 환경변수 set 시 자동 활성) */
+export { sentryTransportFromDsn, parseSentryDsn } from './transports/sentry';
+
 export type AppRouter = typeof appRouter;
 
 export { router, publicProcedure, adminProcedure, ownerProcedure, customerProcedure, withPermission } from './trpc';

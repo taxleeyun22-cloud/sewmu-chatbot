@@ -112,6 +112,44 @@ export default defineConfig({
         chunkFileNames: 'assets/[name].js',
         // Phase T1 (2026-05-04): Tailwind output (main.css) 파일명 고정 → HTML 에서 ?v=N 으로 cache bust
         assetFileNames: 'assets/[name][extname]',
+        /**
+         * Phase 13 (2026-05-12): manualChunks 분리 — react.js 594KB → 작은 청크 N개.
+         *
+         * 효과 (사장님 admin 첫 진입):
+         *   - 매 commit 시 app 코드만 cache bust → vendor chunk 는 재캐싱 (LCP ↓)
+         *   - recharts (~250KB) 는 분석 페이지만 fetch 가능 (HTTP/2 parallel)
+         *   - sentry 는 DSN 없으면 init 도 skip → vendor-sentry 받아도 idle
+         *
+         * 묶음 기준:
+         *   - vendor-react: react / react-dom / scheduler (가장 stable, 캐싱 효과 최대)
+         *   - vendor-recharts: recharts (CustomerFinanceChart 만 사용)
+         *   - vendor-sentry: @sentry/react / @sentry/browser
+         *   - vendor-nanostores: nanostores / @nanostores/react
+         *   - 그 외 모듈 (lucide-react, drizzle 등) → 기본 react.js 청크
+         */
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('node_modules/recharts/') || id.includes('node_modules/d3-')) {
+            return 'vendor-recharts';
+          }
+          if (id.includes('node_modules/@sentry/')) {
+            return 'vendor-sentry';
+          }
+          if (
+            id.includes('node_modules/nanostores/') ||
+            id.includes('node_modules/@nanostores/')
+          ) {
+            return 'vendor-nanostores';
+          }
+          if (
+            id.includes('node_modules/react/') ||
+            id.includes('node_modules/react-dom/') ||
+            id.includes('node_modules/scheduler/')
+          ) {
+            return 'vendor-react';
+          }
+          return undefined;
+        },
       },
     },
   },

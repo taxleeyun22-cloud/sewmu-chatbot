@@ -1,5 +1,5 @@
 // 관리자 사용자 리스트
-import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, checkOriginCsrf } from "./_adminAuth.js";
 import { checkRole, roleForbidden } from "./_authz.js";
 
 export async function onRequestGet(context) {
@@ -80,6 +80,10 @@ export async function onRequestGet(context) {
 // 사장님(owner)만 다른 사용자의 is_admin / staff_role 플래그 변경 가능.
 // Phase #10 적용 (2026-05-06): _authz.js checkRole('owner') 사용 — 통일된 에러 응답.
 export async function onRequestPost(context) {
+  /* Phase 13 (2026-05-12): CSRF Origin/Referer 가드 — 권한 변경 같은 민감 mutation 우선 적용. */
+  const csrf = checkOriginCsrf(context.request);
+  if (csrf) return csrf;
+
   const authz = await checkRole(context, 'owner');
   if (!authz.ok) return roleForbidden(authz);
 

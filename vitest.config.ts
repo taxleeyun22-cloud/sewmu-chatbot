@@ -38,6 +38,7 @@ export default defineConfig({
       'packages/**/*.test.tsx',
       'apps/**/*.test.ts',
       'apps/**/*.test.tsx',
+      'functions/**/*.test.ts',
     ],
     globals: true,
     setupFiles: ['./src/test-setup.ts'],

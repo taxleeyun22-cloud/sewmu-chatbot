@@ -107,3 +107,89 @@ export function roleForbidden(required) {
     error: `${required} 이상의 권한이 필요합니다`,
   }, { status: 403 });
 }
+
+/**
+ * Phase 13 (2026-05-12): CSRF Origin/Referer 가드.
+ *
+ * 옛 admin POST endpoint 들은 cookie 만 검증 → CSRF 취약. 다른 사이트가
+ * `<form action="https://sewmu-chatbot.pages.dev/api/admin-users?action=set_admin">`
+ * 같은 폼 자동 제출하면 사장님 admin cookie 가 같이 전송되어 권한 변경 가능.
+ *
+ * 방어: HTTP method 가 GET/HEAD 가 아닌 모든 요청에 대해:
+ *   - Origin / Referer 헤더 확인 → 우리 도메인 또는 동일 출처여야 함
+ *   - 없거나 다른 도메인 → 403 (CSRF 차단)
+ *
+ * 화이트리스트:
+ *   - sewmu-chatbot.pages.dev (옛 admin prod)
+ *   - sewmu-admin.pages.dev (새 admin prod)
+ *   - *.pages.dev preview (사장님 브랜치 deploy)
+ *   - localhost (개발)
+ *
+ * 사용 (functions/api/admin-*.js):
+ *   import { checkOriginCsrf } from './_adminAuth.js';
+ *   const csrf = checkOriginCsrf(context.request);
+ *   if (csrf) return csrf;  // 403 응답
+ *
+ * 예외: ADMIN_KEY URL param 인증 (사장님 직접 브라우저 진입) 은 CSRF 무관 — 별도 처리.
+ */
+const ALLOWED_HOSTS = new Set([
+  'sewmu-chatbot.pages.dev',
+  'sewmu-admin.pages.dev',
+  'localhost',
+  '127.0.0.1',
+]);
+
+function isAllowedOrigin(originOrReferer) {
+  if (!originOrReferer) return false;
+  try {
+    const u = new URL(originOrReferer);
+    if (ALLOWED_HOSTS.has(u.hostname)) return true;
+    /* Cloudflare Pages preview branch: <branch>.<project>.pages.dev */
+    if (u.hostname.endsWith('.sewmu-chatbot.pages.dev')) return true;
+    if (u.hostname.endsWith('.sewmu-admin.pages.dev')) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * GET/HEAD 외 모든 method 에 대해 Origin/Referer 검증.
+ * 통과 시 null 반환. 실패 시 Response (403) 반환.
+ */
+export function checkOriginCsrf(request) {
+  const method = (request.method || 'GET').toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+    return null; // safe method
+  }
+  /* ADMIN_KEY URL param 인증은 CSRF 무관 (third-party 가 URL 모름).
+   * 단, 그것도 같은 page 에서 호출이면 Origin 헤더 있음 — 정상 통과. */
+  const url = new URL(request.url);
+  if (url.searchParams.get('key')) {
+    /* ADMIN_KEY 가 URL 에 있으면 third-party 위변조 사실상 불가 — bypass.
+     * (보안: Referer-Policy=same-origin 으로 URL 의 key 가 외부에 새지 않음 — Phase 12) */
+    return null;
+  }
+
+  const origin = request.headers.get('origin');
+  const referer = request.headers.get('referer');
+  /* Origin 있으면 그것 우선 (RFC 6454) */
+  if (origin) {
+    if (isAllowedOrigin(origin)) return null;
+  } else if (referer) {
+    if (isAllowedOrigin(referer)) return null;
+  } else {
+    /* Origin/Referer 둘 다 없음 — 직접 curl / Postman 등.
+     * 사장님이 의도해서 호출했을 가능성 있지만, 브라우저 흐름은 항상 둘 중 하나가
+     * 있음. 안전 default 는 차단. ADMIN_KEY URL 인증은 위에서 이미 통과 처리됨. */
+    return Response.json(
+      { error: 'CSRF: Origin/Referer header required' },
+      { status: 403 },
+    );
+  }
+  return Response.json(
+    { error: 'CSRF: cross-origin request blocked' },
+    { status: 403 },
+  );
+}
+
