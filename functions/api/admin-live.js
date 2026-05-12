@@ -121,7 +121,7 @@ export async function onRequestGet(context) {
 // DELETE: 세션 삭제 (conversations + live_sessions)
 export async function onRequestDelete(context) {
   /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
-  const __csrf = checkOriginCsrf(context.request);
+  const __csrf = checkOriginCsrf(context.request, context.env);
   if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();
@@ -154,7 +154,7 @@ export async function onRequestDelete(context) {
 // POST: 세무사 메시지 전송 or AI 모드 토글
 export async function onRequestPost(context) {
   /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
-  const __csrf = checkOriginCsrf(context.request);
+  const __csrf = checkOriginCsrf(context.request, context.env);
   if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();

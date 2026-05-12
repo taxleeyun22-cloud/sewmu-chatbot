@@ -179,11 +179,11 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps = {}
       )}
       aria-label="네비게이션"
     >
-      {/* 로고 영역 — 모바일 drawer 면 닫기 X 도 같이 */}
-      <div className="px-3 py-3 border-b border-gray-200 bg-white flex items-center gap-2">
+      {/* 로고 영역 — 모바일 drawer 면 닫기 X 도 같이. Phase 15 dark mode 보완. */}
+      <div className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex items-center gap-2">
         <Avatar name="세" variant="primary" size="sm" />
         <div className="flex-1 min-w-0">
-          <h1 className="font-bold text-gray-900 text-xs truncate">세무회계 이윤</h1>
+          <h1 className="font-bold text-gray-900 dark:text-gray-100 text-xs truncate">세무회계 이윤</h1>
           <p className="text-[10px] text-sb-text-mute truncate">이재윤 대표세무사</p>
         </div>
         {onMobileClose && (
@@ -191,7 +191,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps = {}
             type="button"
             onClick={onMobileClose}
             aria-label="메뉴 닫기"
-            className="md:hidden p-1 -mr-1 rounded hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+            className="md:hidden p-1 -mr-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
           >
             <X size={16} strokeWidth={1.8} />
           </button>
@@ -223,7 +223,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps = {}
                         'md:py-1.5 py-2',
                         active
                           ? 'bg-sb-active-bg text-sb-active-text font-medium border-l-2 border-l-brand-primary'
-                          : 'text-sb-text hover:bg-white hover:text-gray-900 border-l-2 border-l-transparent',
+                          : 'text-sb-text hover:bg-white dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 border-l-2 border-l-transparent',
                       )}
                     >
                       <Icon size={14} className="flex-shrink-0" strokeWidth={1.8} aria-hidden="true" />

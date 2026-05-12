@@ -100,7 +100,7 @@ export async function onRequestGet(context) {
 // POST 신규 추가
 export async function onRequestPost(context) {
   /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
-  const __csrf = checkOriginCsrf(context.request);
+  const __csrf = checkOriginCsrf(context.request, context.env);
   if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();
@@ -232,7 +232,7 @@ export async function onRequestPost(context) {
 // PUT 업데이트
 export async function onRequestPut(context) {
   /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
-  const __csrf = checkOriginCsrf(context.request);
+  const __csrf = checkOriginCsrf(context.request, context.env);
   if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();
@@ -304,7 +304,7 @@ export async function onRequestPut(context) {
 // DELETE 삭제
 export async function onRequestDelete(context) {
   /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
-  const __csrf = checkOriginCsrf(context.request);
+  const __csrf = checkOriginCsrf(context.request, context.env);
   if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();

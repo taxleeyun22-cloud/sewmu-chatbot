@@ -56,7 +56,7 @@ function validAtt(att) {
 
 export async function onRequestPost(context) {
   /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
-  const __csrf = checkOriginCsrf(context.request);
+  const __csrf = checkOriginCsrf(context.request, context.env);
   if (__csrf) return __csrf;
   /* Phase #10 적용 (2026-05-06): 단체발송 = manager+ 전용.
    * 도배·정보 노출 위험. staff 직원은 단일 방 메시지만, 단체는 manager 권한 직원만. */
@@ -78,7 +78,9 @@ export async function onRequestPost(context) {
   if (rawAttachments.length && !attachments.length) return Response.json({ error: "유효한 첨부가 없습니다 (내부 프록시 URL만 허용)" }, { status: 400 });
 
   const now = kst();
-  const actorUid = auth.userId || null;
+  /* Phase 15 (2026-05-12) fix: 변수명은 `authz` — `auth` 는 정의 안 됨 (이전 회귀).
+   * checkRole 응답 형식은 { ok, userId, owner, ... } (_authz.js). */
+  const actorUid = authz.userId || null;
 
   /* 실제 대상 방 — active 만 */
   const placeholders = ids.map(() => '?').join(',');

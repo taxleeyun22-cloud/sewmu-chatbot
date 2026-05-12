@@ -159,6 +159,16 @@ describe('Phase 12 — PII redaction (logger.meta)', () => {
     expect((parsed.meta as Record<string, string>).real_name).toBe('[REDACTED]');
   });
 
+  it('Phase 15: `name` 은 PII X (procedure name, action name 등 정상 사용)', () => {
+    logger.info('test', {
+      meta: { name: 'set_admin', userName: 'parksh' },
+    });
+    const parsed = JSON.parse(logSpy.mock.calls[0][0] as string) as LogEntry;
+    /* name / userName 둘 다 PII 아님 — 그대로 보존 */
+    expect((parsed.meta as Record<string, string>).name).toBe('set_admin');
+    expect((parsed.meta as Record<string, string>).userName).toBe('parksh');
+  });
+
   it('password / token / api_key → [REDACTED]', () => {
     logger.info('test', {
       meta: { password: 'secret', token: 'abc', api_key: 'k', authorization: 'Bearer x' },

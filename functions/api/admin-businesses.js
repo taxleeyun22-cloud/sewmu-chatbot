@@ -321,7 +321,7 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   /* Phase 13 (2026-05-12): CSRF Origin/Referer 가드. */
-  const csrf = checkOriginCsrf(context.request);
+  const csrf = checkOriginCsrf(context.request, context.env);
   if (csrf) return csrf;
 
   const auth = await checkAdmin(context);
@@ -619,7 +619,7 @@ export async function onRequestPost(context) {
 
 export async function onRequestPut(context) {
   /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
-  const __csrf = checkOriginCsrf(context.request);
+  const __csrf = checkOriginCsrf(context.request, context.env);
   if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
@@ -665,7 +665,7 @@ export async function onRequestPut(context) {
 
 export async function onRequestDelete(context) {
   /* Phase 13 (2026-05-12): CSRF 가드 — DELETE 가 가장 위험. */
-  const csrf = checkOriginCsrf(context.request);
+  const csrf = checkOriginCsrf(context.request, context.env);
   if (csrf) return csrf;
 
   /* Phase #10 적용 (2026-05-06): 업체 삭제 = owner 전용 (cascade 메모 휴지통).

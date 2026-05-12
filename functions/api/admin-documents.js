@@ -628,7 +628,7 @@ async function getStats(db, url) {
 // ============ POST: 승인·반려·일괄처리 ============
 export async function onRequestPost(context) {
   /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
-  const __csrf = checkOriginCsrf(context.request);
+  const __csrf = checkOriginCsrf(context.request, context.env);
   if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();

@@ -139,6 +139,9 @@ export function _resetTransportsForTest(): void {
  * 모든 entry.meta 와 entry.message 가 이 패스 통과.
  * ───────────────────────────────────────────────────────────── */
 
+/* Phase 15 (2026-05-12) audit fix: `name` 키 제거 — too generic.
+ * meta:{name:'set_admin'} 같은 정상 사용을 [REDACTED] 처리하던 footgun.
+ * 실명 추적은 `real_name` / `realName` 키만. */
 const PII_KEYS = new Set([
   'phone',
   'phone_number',
@@ -146,7 +149,6 @@ const PII_KEYS = new Set([
   'email',
   'real_name',
   'realName',
-  'name',
   'business_number',
   'businessNumber',
   'resident_no',

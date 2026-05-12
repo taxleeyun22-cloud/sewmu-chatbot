@@ -59,9 +59,28 @@ describe('checkOriginCsrf', () => {
     expect(checkOriginCsrf(makeRequest('OPTIONS'))).toBeNull();
   });
 
-  it('POST + ADMIN_KEY URL param → 통과 (third-party 가 key 모름)', () => {
-    const req = makeRequest('POST', 'https://sewmu-chatbot.pages.dev/api/admin-users?key=abc');
-    expect(checkOriginCsrf(req)).toBeNull();
+  it('Phase 15 fix: POST + ?key=garbage (env 없음) → 403 (이전 bypass 우회 제거)', async () => {
+    const req = makeRequest('POST', 'https://sewmu-chatbot.pages.dev/api/admin-users?key=garbage');
+    const res = checkOriginCsrf(req) as Response;
+    expect(res?.status).toBe(403);
+  });
+
+  it('Phase 15 fix: POST + ?key=ADMIN_KEY (env 일치) → 통과', () => {
+    const req = makeRequest(
+      'POST',
+      'https://sewmu-chatbot.pages.dev/api/admin-users?key=real_admin_key',
+    );
+    /* env 전달 + 일치 시 bypass */
+    expect(checkOriginCsrf(req, { ADMIN_KEY: 'real_admin_key' })).toBeNull();
+  });
+
+  it('Phase 15 fix: POST + ?key=wrong + env 있음 → 403 (timing-safe 비교)', () => {
+    const req = makeRequest(
+      'POST',
+      'https://sewmu-chatbot.pages.dev/api/admin-users?key=wrong',
+    );
+    const res = checkOriginCsrf(req, { ADMIN_KEY: 'real_admin_key' }) as Response;
+    expect(res?.status).toBe(403);
   });
 
   it('POST + Origin = sewmu-chatbot prod → 통과', () => {

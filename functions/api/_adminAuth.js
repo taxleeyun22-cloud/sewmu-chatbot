@@ -127,7 +127,7 @@ export function roleForbidden(required) {
  *
  * 사용 (functions/api/admin-*.js):
  *   import { checkOriginCsrf } from './_adminAuth.js';
- *   const csrf = checkOriginCsrf(context.request);
+ *   const csrf = checkOriginCsrf(context.request, context.env);
  *   if (csrf) return csrf;  // 403 응답
  *
  * 예외: ADMIN_KEY URL param 인증 (사장님 직접 브라우저 진입) 은 CSRF 무관 — 별도 처리.
@@ -156,18 +156,24 @@ function isAllowedOrigin(originOrReferer) {
 /**
  * GET/HEAD 외 모든 method 에 대해 Origin/Referer 검증.
  * 통과 시 null 반환. 실패 시 Response (403) 반환.
+ *
+ * @param {Request} request
+ * @param {{ADMIN_KEY?:string}} [env] — Cloudflare Pages env binding (선택).
+ *   전달 시 `?key=` 값이 실제 ADMIN_KEY 와 일치할 때만 bypass.
+ *   미전달 시 모든 `?key=` 가 bypass — Phase 15 audit 에서 발견된 우회 취약점 fix.
  */
-export function checkOriginCsrf(request) {
+export function checkOriginCsrf(request, env) {
   const method = (request.method || 'GET').toUpperCase();
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
     return null; // safe method
   }
-  /* ADMIN_KEY URL param 인증은 CSRF 무관 (third-party 가 URL 모름).
-   * 단, 그것도 같은 page 에서 호출이면 Origin 헤더 있음 — 정상 통과. */
+  /* ADMIN_KEY URL param 인증 — third-party 가 key 값 모르면 위변조 불가.
+   * 단, env 전달돼서 실제 timing-safe 일치 확인까지 됐을 때만 bypass.
+   * env 미전달 시 (테스트 환경 등) 안전 fallback: Origin/Referer 검증으로 진행.
+   * Phase 15 (2026-05-12) audit fix: 이전엔 임의 key 값으로 bypass 됐음. */
   const url = new URL(request.url);
-  if (url.searchParams.get('key')) {
-    /* ADMIN_KEY 가 URL 에 있으면 third-party 위변조 사실상 불가 — bypass.
-     * (보안: Referer-Policy=same-origin 으로 URL 의 key 가 외부에 새지 않음 — Phase 12) */
+  const urlKey = url.searchParams.get('key');
+  if (urlKey && env?.ADMIN_KEY && timingSafeEqual(urlKey, env.ADMIN_KEY)) {
     return null;
   }
 

@@ -81,7 +81,7 @@ export async function onRequestGet(context) {
 // Phase #10 적용 (2026-05-06): _authz.js checkRole('owner') 사용 — 통일된 에러 응답.
 export async function onRequestPost(context) {
   /* Phase 13 (2026-05-12): CSRF Origin/Referer 가드 — 권한 변경 같은 민감 mutation 우선 적용. */
-  const csrf = checkOriginCsrf(context.request);
+  const csrf = checkOriginCsrf(context.request, context.env);
   if (csrf) return csrf;
 
   const authz = await checkRole(context, 'owner');

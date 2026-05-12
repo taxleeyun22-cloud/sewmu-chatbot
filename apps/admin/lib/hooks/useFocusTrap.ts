@@ -71,13 +71,18 @@ export function useFocusTrap<T extends HTMLElement = HTMLDivElement>(active: boo
 
     return () => {
       document.removeEventListener('keydown', onKey);
-      /* 4. 닫힐 때 트리거로 복귀 — element 가 여전히 존재해야 */
+      /* 4. 닫힐 때 트리거로 복귀 — element 가 여전히 존재 + visible + focusable.
+       * Phase 15 audit: nested dialog 시 안쪽 dialog 닫히면 바깥 dialog 안 element 로
+       * 복귀해야 함. 안쪽 dialog 가 바깥의 element 를 unmount 시켰을 가능성도 있음
+       * (e.g., 데이터 갱신으로 button 사라짐). 그 경우 silent fail — 다음 visible
+       * focusable 로 fallback 도 가능하지만, 그건 의도치 않은 포커스 점프 →
+       * 안전하게 body 로 둠 (브라우저 default tab order). */
       const prev = previousFocusRef.current;
-      if (prev && document.contains(prev)) {
+      if (prev && document.contains(prev) && !(prev as HTMLButtonElement).disabled) {
         try {
-          prev.focus();
+          prev.focus({ preventScroll: true });
         } catch {
-          /* element 가 disabled 등 — silent */
+          /* element 가 disabled 또는 detached — silent */
         }
       }
     };

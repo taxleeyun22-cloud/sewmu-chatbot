@@ -77,7 +77,7 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
-  const __csrf = checkOriginCsrf(context.request);
+  const __csrf = checkOriginCsrf(context.request, context.env);
   if (__csrf) return __csrf;
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
@@ -144,7 +144,7 @@ export async function onRequestPost(context) {
 
 export async function onRequestPatch(context) {
   /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
-  const __csrf = checkOriginCsrf(context.request);
+  const __csrf = checkOriginCsrf(context.request, context.env);
   if (__csrf) return __csrf;
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
@@ -185,7 +185,7 @@ export async function onRequestPatch(context) {
 
 export async function onRequestDelete(context) {
   /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
-  const __csrf = checkOriginCsrf(context.request);
+  const __csrf = checkOriginCsrf(context.request, context.env);
   if (__csrf) return __csrf;
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
