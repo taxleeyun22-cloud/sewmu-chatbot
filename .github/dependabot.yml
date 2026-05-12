@@ -1,0 +1,43 @@
+# Phase 12 (2026-05-12): Dependabot — 보안 패치 자동 PR.
+# Google: 의존성 freshness 는 SRE 표준.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: 'Asia/Seoul'
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      # 모든 patch + minor 묶음 → PR 수 폭주 방지
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - 'minor'
+          - 'patch'
+      # 보안 패치 묶음
+      security:
+        applies-to: security-updates
+        patterns:
+          - '*'
+    # major 업데이트 는 차단 — 큰 breaking change 위험
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: 'chore(ci)'

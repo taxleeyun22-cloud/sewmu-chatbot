@@ -1,0 +1,30 @@
+# CODEOWNERS — Phase 12 (2026-05-12)
+#
+# GitHub 가 PR 시 자동 review 요청. 사장님 single-owner repo 라
+# 모든 path 가 taxleeyun22-cloud 소유. 향후 직원이 commit 권한 받으면
+# domain 별 분리.
+#
+# 형식: <path> <owner1> <owner2>...
+# 최하단 매칭 우선 (gitignore 와 반대).
+
+# Default — 모든 변경 사장님 검토
+*                                       @taxleeyun22-cloud
+
+# Backend — packages/api, packages/db, functions/api
+/packages/api/                          @taxleeyun22-cloud
+/packages/db/                           @taxleeyun22-cloud
+/functions/api/                         @taxleeyun22-cloud
+/apps/admin/functions/api/              @taxleeyun22-cloud
+
+# RBAC / Auth — 가장 민감. 별도 review 강조.
+/packages/auth/                         @taxleeyun22-cloud
+/apps/admin/middleware.ts               @taxleeyun22-cloud
+/apps/admin/app/api/trpc/               @taxleeyun22-cloud
+/scripts/export-permissions.mjs         @taxleeyun22-cloud
+
+# CI / 인프라
+/.github/                               @taxleeyun22-cloud
+/wrangler.toml                          @taxleeyun22-cloud
+/vite.config.ts                         @taxleeyun22-cloud
+/vitest.config.ts                       @taxleeyun22-cloud
+/playwright.config.ts                   @taxleeyun22-cloud

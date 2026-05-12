@@ -1,0 +1,79 @@
+name: E2E (Playwright prod smoke)
+
+# Phase 12 (2026-05-12): Google-grade e2e — 정직한 인증 기반.
+#
+# 실행 정책:
+# - schedule: 월요일 09:00 KST (= UTC 00:00 일요일) — 사장님 출근 전 점검
+# - workflow_dispatch: 수동 (PR 머지 후 사장님이 manual trigger)
+# - push 시 자동 실행 X (prod 부하 + Cloudflare 빌드 큐 대기 필요)
+#
+# 필요 secret (Repo settings → Secrets):
+#   E2E_ADMIN_KEY — prod ADMIN_KEY 값 (HMAC cookie 받기용)
+#
+# 미설정 시: 인증 필요한 spec 자동 skip → login/old-admin 만 실행 (의미는 있음).
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # 일요일 UTC 00:00 = 월요일 09:00 KST
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'E2E_BASE_URL (default sewmu-admin.pages.dev)'
+        required: false
+        default: 'https://sewmu-admin.pages.dev'
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  e2e:
+    name: Playwright Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      E2E_BASE_URL: ${{ github.event.inputs.base_url || 'https://sewmu-admin.pages.dev' }}
+      E2E_ADMIN_KEY: ${{ secrets.E2E_ADMIN_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Report E2E_ADMIN_KEY availability
+        run: |
+          if [ -n "$E2E_ADMIN_KEY" ]; then
+            echo "::notice::E2E_ADMIN_KEY set — 인증 필요 spec 모두 실행"
+          else
+            echo "::warning::E2E_ADMIN_KEY 미설정 — dashboard/users/businesses spec skip 됨. Repo Secrets 에 추가 권장."
+          fi
+
+      - name: Run Playwright
+        run: npx playwright test
+
+      - name: Upload Playwright report (HTML)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright traces (only on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 14

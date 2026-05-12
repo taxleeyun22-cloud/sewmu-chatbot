@@ -17,6 +17,13 @@ export interface Context {
   openaiApiKey?: string;
   /** 인증 정보 (adminRole 포함 — 노션 5단계) */
   auth: AuthContext;
+  /**
+   * Phase 12 (2026-05-12): request 추적 ID.
+   * Cloudflare 의 `cf-ray` 헤더 (또는 자체 생성) — fetchHandler 가 inject.
+   * 로그/Sentry 의 모든 entry 에 자동 첨부 → 사장님이 "이 시점에 났어요" 할 때
+   * Cloudflare 대시보드 logs 에서 정확한 trace 찾기 가능.
+   */
+  requestId?: string;
 }
 
 const t = initTRPC.context<Context>().create();

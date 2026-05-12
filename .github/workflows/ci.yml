@@ -6,41 +6,109 @@ on:
   pull_request:
     branches: [main]
 
+# 동일 PR 에서 새 push 가 오면 이전 run 자동 취소 — runner 시간 절약
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
 jobs:
-  ci:
-    name: Lint + TypeCheck + Test + Build
+  # ─────────────────────────────────────────────────────────────
+  # 1. Typecheck — 가장 빠른 게이트. 별도 job 으로 fail-fast.
+  # ─────────────────────────────────────────────────────────────
+  typecheck:
+    name: TypeScript (root + apps/admin)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: tsc --noEmit (root)
+        run: npm run typecheck
+      - name: tsc --noEmit (apps/admin Next.js)
+        run: |
+          cd apps/admin
+          npx tsc --noEmit
+
+  # ─────────────────────────────────────────────────────────────
+  # 2. Test — 1093 unit + integration. Coverage artifact.
+  # ─────────────────────────────────────────────────────────────
+  test:
+    name: Vitest (1000+ tests + coverage)
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-node@v4
         with:
-          fetch-depth: 1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
+      - run: npm ci
+      - name: Run tests
+        run: npm test -- --reporter=default --reporter=junit --outputFile.junit=./test-results.xml
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results.xml
+          retention-days: 7
 
-      - name: Install dependencies
-        run: npm ci
+  # ─────────────────────────────────────────────────────────────
+  # 3. Build + bundle size gate. Lint 도 비차단 으로 동시 실행.
+  # ─────────────────────────────────────────────────────────────
+  build:
+    name: Build + bundle size budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [typecheck] # typecheck 통과 후만 build (낭비 방지)
 
-      - name: TypeScript type check
-        run: npm run typecheck
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
 
-      - name: ESLint
+      - name: ESLint (non-blocking — 점진 마이그레이션)
         run: npm run lint
-        continue-on-error: true # ESLint 경고는 차단하지 않음 (점진 마이그레이션 중)
+        continue-on-error: true
 
-      - name: Vitest unit tests
-        run: npm test
-
-      - name: Vite build
+      - name: Vite build (root)
         run: npm run build
 
-      - name: Upload build artifacts (on failure for debug)
+      - name: Bundle size budget check
+        run: node scripts/check-bundle-size.mjs
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "### Build outputs" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| File | Size | gzip |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|------|" >> $GITHUB_STEP_SUMMARY
+          for f in dist/assets/*.js dist/assets/*.css; do
+            [ -f "$f" ] || continue
+            size=$(wc -c < "$f")
+            gz=$(gzip -c "$f" | wc -c)
+            name=$(basename "$f")
+            echo "| $name | $size B | $gz B |" >> $GITHUB_STEP_SUMMARY
+          done
+
+      - name: Upload build artifacts (on failure)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
