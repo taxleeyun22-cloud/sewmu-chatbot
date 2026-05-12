@@ -6,6 +6,12 @@
 export type CountKey =
   | 'pendingUsers'
   | 'approvedClients'
+  | 'rejectedUsers'
+  | 'terminatedUsers'
+  | 'adminUsers'
+  | 'businesses'
+  | 'memosTotal'
+  | 'trash'
   | 'pendingDocs'
   | 'activeRooms'
   | 'unreadMessages'

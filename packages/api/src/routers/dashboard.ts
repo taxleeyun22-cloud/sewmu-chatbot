@@ -14,7 +14,7 @@ import { drizzle, schema } from '@sewmu/db/client';
 export const dashboardRouter = router({
   counts: adminProcedure.query(async ({ ctx }) => {
     const db = drizzle(ctx.db);
-    const { users, chatRooms, memos, documents, conversations, filings, errorLogs } = schema;
+    const { users, chatRooms, memos, documents, conversations, filings, errorLogs, businesses } = schema;
 
     const [
       pendingUsersRow,
@@ -25,6 +25,12 @@ export const dashboardRouter = router({
       reviewPendingRow,
       filingsInProgressRow,
       errorLogsRow,
+      rejectedUsersRow,
+      terminatedUsersRow,
+      adminUsersRow,
+      businessesRow,
+      memosTotalRow,
+      trashRow,
     ] = await Promise.all([
       db
         .select({ c: sql<number>`count(*)` })
@@ -108,11 +114,71 @@ export const dashboardRouter = router({
           ),
         )
         .then((rows) => rows[0]),
+
+      /* 추가 — 사장님 사이드바 카운트 정확 표시 */
+      db
+        .select({ c: sql<number>`count(*)` })
+        .from(users)
+        .where(and(
+          eq(users.approval_status, 'rejected'),
+          sql`COALESCE(${users.is_admin}, 0) = 0`,
+          or(isNull(users.deleted_at), eq(users.deleted_at, ''))!,
+        ))
+        .then((rows) => rows[0]),
+
+      db
+        .select({ c: sql<number>`count(*)` })
+        .from(users)
+        .where(and(
+          eq(users.approval_status, 'terminated'),
+          sql`COALESCE(${users.is_admin}, 0) = 0`,
+          or(isNull(users.deleted_at), eq(users.deleted_at, ''))!,
+        ))
+        .then((rows) => rows[0]),
+
+      db
+        .select({ c: sql<number>`count(*)` })
+        .from(users)
+        .where(and(
+          eq(users.is_admin, 1),
+          or(isNull(users.deleted_at), eq(users.deleted_at, ''))!,
+        ))
+        .then((rows) => rows[0]),
+
+      db
+        .select({ c: sql<number>`count(*)` })
+        .from(businesses)
+        .where(and(
+          or(isNull(businesses.status), eq(businesses.status, 'active'))!,
+          or(isNull(businesses.deleted_at), eq(businesses.deleted_at, ''))!,
+        ))
+        .then((rows) => rows[0]),
+
+      db
+        .select({ c: sql<number>`count(*)` })
+        .from(memos)
+        .where(or(isNull(memos.deleted_at), eq(memos.deleted_at, ''))!)
+        .then((rows) => rows[0]),
+
+      db
+        .select({ c: sql<number>`count(*)` })
+        .from(memos)
+        .where(and(
+          sql`${memos.deleted_at} IS NOT NULL`,
+          sql`${memos.deleted_at} != ''`,
+        ))
+        .then((rows) => rows[0]),
     ]);
 
     return {
       pendingUsers: Number(pendingUsersRow?.c || 0),
       approvedClients: Number(approvedClientsRow?.c || 0),
+      rejectedUsers: Number(rejectedUsersRow?.c || 0),
+      terminatedUsers: Number(terminatedUsersRow?.c || 0),
+      adminUsers: Number(adminUsersRow?.c || 0),
+      businesses: Number(businessesRow?.c || 0),
+      memosTotal: Number(memosTotalRow?.c || 0),
+      trash: Number(trashRow?.c || 0),
       pendingDocs: Number(pendingDocsRow?.c || 0),
       activeRooms: Number(activeRoomsRow?.c || 0),
       unreadMessages: 0,

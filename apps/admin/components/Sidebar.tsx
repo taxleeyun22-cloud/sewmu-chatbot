@@ -39,6 +39,12 @@ export { badgeClass } from './sidebar-badge';
 interface DashboardCounts {
   pendingUsers: number;
   approvedClients: number;
+  rejectedUsers: number;
+  terminatedUsers: number;
+  adminUsers: number;
+  businesses: number;
+  memosTotal: number;
+  trash: number;
   pendingDocs: number;
   activeRooms: number;
   unreadMessages: number;
@@ -67,14 +73,14 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     title: '사용자/업체',
     items: [
       { href: '/admin/users', icon: User, label: '사용자', countKey: 'pendingUsers' },
-      { href: '/admin/businesses', icon: Building2, label: '업체' },
+      { href: '/admin/businesses', icon: Building2, label: '업체', countKey: 'businesses' },
     ],
   },
   {
     title: '문서·메모',
     items: [
       { href: '/admin/docs', icon: FileText, label: '문서', countKey: 'pendingDocs' },
-      { href: '/admin/memos', icon: StickyNote, label: '메모' },
+      { href: '/admin/memos', icon: StickyNote, label: '메모', countKey: 'memosTotal' },
     ],
   },
   {
@@ -94,7 +100,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
       { href: '/admin/term-req', icon: AlertTriangle, label: '종료 요청' },
       { href: '/admin/bulk-send', icon: Megaphone, label: '단체발송' },
       { href: '/admin/search', icon: Search, label: '전역 검색' },
-      { href: '/admin/trash', icon: Trash2, label: '휴지통' },
+      { href: '/admin/trash', icon: Trash2, label: '휴지통', countKey: 'trash' },
       { href: '/admin/errors', icon: Bug, label: '에러 로그', countKey: 'errorLogs' },
     ],
   },
