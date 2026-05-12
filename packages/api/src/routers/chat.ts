@@ -21,11 +21,12 @@ import {
   formatRagContext,
 } from '@sewmu/ai';
 import { drizzle, schema } from '@sewmu/db/client';
+import { logger, logCtx } from '../logger';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+type DrizzleDb = ReturnType<typeof drizzle>;
 
 /** Top-K FAQ 검색 (RAG) — @sewmu/ai 의 순수 함수 위에서 D1 fetch 만 wrapping. */
-async function retrieveFaqs(db: any, apiKey: string, query: string, k = 3) {
+async function retrieveFaqs(db: DrizzleDb, apiKey: string, query: string, k = 3) {
   const { faqs } = schema;
   const queryVec = await embedQuery(apiKey, query);
 
@@ -122,8 +123,13 @@ export const chatRouter = router({
       try {
         const top = await retrieveFaqs(db, ctx.openaiApiKey, input.message, 3);
         ragContext = formatRagContext(top);
-      } catch {
-        /* RAG 실패해도 chat 자체는 진행 (graceful degrade) */
+      } catch (err) {
+        /* RAG 실패해도 chat 자체는 진행 (graceful degrade). Sentry/Logpush 로는 보냄. */
+        logger.warn(
+          'RAG retrieval failed — graceful degrade',
+          logCtx(ctx, 'chat.send', { messageLen: input.message.length }),
+          err,
+        );
       }
 
       /* 3. OpenAI 호출 */

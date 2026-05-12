@@ -6,15 +6,16 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
-    "@sewmu/db": "*",
-    "@sewmu/auth": "*",
     "@sewmu/ai": "*",
+    "@sewmu/auth": "*",
+    "@sewmu/db": "*",
     "@sewmu/types": "*",
     "@trpc/server": "^11.0.0-rc.660",
     "drizzle-orm": "^0.36.4",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260511.1",
     "typescript": "^5.6.2"
   }
 }

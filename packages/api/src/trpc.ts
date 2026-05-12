@@ -4,14 +4,15 @@
  * Cloudflare Workers 호환 (D1 binding 자동 inject).
  */
 import { initTRPC, TRPCError } from '@trpc/server';
+import type { D1Database, R2Bucket } from '@cloudflare/workers-types';
 import type { AuthContext } from '@sewmu/auth';
 import { calculateRole, can, hasRole, type Role, type Permission } from '@sewmu/auth';
 
 export interface Context {
   /** Cloudflare D1 binding */
-  db: any; // D1Database (workspace 호환)
-  /** Cloudflare R2 binding */
-  bucket?: any;
+  db: D1Database;
+  /** Cloudflare R2 binding (optional — 옛 admin 일부 endpoint 만 사용) */
+  bucket?: R2Bucket;
   /** OpenAI API key */
   openaiApiKey?: string;
   /** 인증 정보 (adminRole 포함 — 노션 5단계) */
