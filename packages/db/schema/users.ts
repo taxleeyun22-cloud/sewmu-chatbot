@@ -33,7 +33,8 @@ export const users = sqliteTable('users', {
   approved_at: text('approved_at'),
   is_admin: integer('is_admin').default(0),         // 0 = 일반, 1 = 관리자
   is_owner: integer('is_owner').default(0),         // 0 = 일반, 1 = 사장님 (Phase Infra-2 후속)
-  staff_role: text('staff_role'),                   // 'manager' | 'staff' | NULL (Phase #10 RBAC)
+  staff_role: text('staff_role'),                   // 'manager' | 'staff' | NULL (Phase #10 RBAC, deprecated 2026-05-12)
+  admin_role: text('admin_role'),                   // 'owner' | 'admin' | 'editor' | 'viewer' | NULL (노션 5단계 권한, 2026-05-12)
 
   // 본인 확인
   name_confirmed: integer('name_confirmed').default(0),

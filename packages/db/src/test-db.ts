@@ -109,6 +109,7 @@ function applySchema(rawDb: RawDb): void {
       is_admin INTEGER DEFAULT 0,
       is_owner INTEGER DEFAULT 0,
       staff_role TEXT,
+      admin_role TEXT,
       name_confirmed INTEGER DEFAULT 0,
       birth_date TEXT,
       company_name TEXT,

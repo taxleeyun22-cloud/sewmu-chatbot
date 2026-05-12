@@ -73,7 +73,7 @@ export async function checkRole(context, requiredRole = 'staff') {
 
   /* owner 는 모든 단계 통과 */
   if (isOwner) {
-    return { ok: true, role: 'owner', userId, owner: true, manager: true };
+    return { ok: true, role: 'owner', userId, owner: true, manager: true, adminRole: 'owner' };
   }
 
   /* manager 조회 (cookie-only 경로에서만 staff_role 의미 있음) */
@@ -100,7 +100,15 @@ export async function checkRole(context, requiredRole = 'staff') {
     return { ok: true, role: 'manager', userId, owner: false, manager: true };
   }
   /* requiredRole === 'staff' (default) — admin 이면 모두 통과 */
-  return { ok: true, role, userId, owner: false, manager: isManager };
+  /* Phase Next-Day29 (2026-05-12) 사장님 명령 "노션 권한": adminRole 포함 */
+  return {
+    ok: true,
+    role,
+    userId,
+    owner: false,
+    manager: isManager,
+    adminRole: auth.adminRole || (isManager ? 'admin' : 'admin'),
+  };
 }
 
 /**
@@ -128,13 +136,16 @@ export function roleForbidden(authResult) {
 export async function whoami(context) {
   const auth = await checkRole(context, 'staff');
   if (!auth.ok) {
-    return { ok: false, role: null, owner: false, manager: false, userId: null };
+    return { ok: false, role: null, owner: false, manager: false, userId: null, adminRole: null };
   }
+  /* Phase Next-Day29 (2026-05-12) 사장님 명령 "노션 권한":
+   * checkAdmin 응답의 adminRole ('owner' | 'admin' | 'editor' | 'viewer') 포함. */
   return {
     ok: true,
     role: auth.role,
     owner: auth.owner,
     manager: auth.manager,
     userId: auth.userId,
+    adminRole: auth.adminRole || (auth.owner ? 'owner' : 'admin'),
   };
 }

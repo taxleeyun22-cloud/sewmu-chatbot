@@ -42,10 +42,16 @@ const handler = async (req: Request) => {
   const url = new URL(req.url);
 
   /* 인증 — 3가지 경로 (옛 admin + 새 admin 모두 호환) */
-  let auth = {
-    userId: null as number | null,
+  let auth: {
+    userId: number | null;
+    isOwner: boolean;
+    isAdmin: boolean;
+    adminRole?: string | null;
+  } = {
+    userId: null,
     isOwner: false,
     isAdmin: false,
+    adminRole: null,
   };
 
   /* 1. URL ?key=ADMIN_KEY (옛 admin.html 방식 — 사장님 빠른 진입) */
@@ -55,6 +61,7 @@ const handler = async (req: Request) => {
       userId: env.OWNER_USER_ID ? Number(env.OWNER_USER_ID) : 1,
       isOwner: true,
       isAdmin: true,
+      adminRole: 'owner',
     };
   }
 
@@ -68,33 +75,48 @@ const handler = async (req: Request) => {
         userId: env.OWNER_USER_ID ? Number(env.OWNER_USER_ID) : 1,
         isOwner: true,
         isAdmin: true,
+        adminRole: 'owner',
       };
     }
   }
 
-  /* 3. 옛 session cookie + users.is_admin=1 (옛 _adminAuth.js 호환) */
+  /* 3. 옛 session cookie + users.is_admin / admin_role (노션 5단계) */
   if (!auth.isOwner) {
     const cookieHeader = req.headers.get('cookie') || '';
     const cookies = parseCookies(cookieHeader);
     const sessionToken = cookies.session;
     if (sessionToken && env.DB) {
       try {
+        /* admin_role 컬럼 lazy migration 보장 */
+        try { await env.DB.prepare(`ALTER TABLE users ADD COLUMN admin_role TEXT`).run(); } catch {}
         const row = await env.DB.prepare(`
-          SELECT s.user_id, u.is_admin
+          SELECT s.user_id, u.is_admin, u.admin_role
           FROM sessions s
           JOIN users u ON s.user_id = u.id
           WHERE s.token = ? AND s.expires_at > datetime('now')
         `)
           .bind(sessionToken)
           .first();
-        if (row && row.is_admin) {
+        if (row && (row.is_admin || row.admin_role)) {
           const userId = Number(row.user_id);
-          /* 사장님 = user_id=1 (CLAUDE.md 룰 — _adminAuth.js 와 동일 가정) */
-          auth = {
-            userId,
-            isOwner: userId === 1,
-            isAdmin: true,
-          };
+          /* admin_role 우선 (노션 5단계), 미지정 시 is_admin / user_id=1 fallback */
+          let adminRole: string | null = null;
+          if (row.admin_role === 'owner' || row.admin_role === 'admin' ||
+              row.admin_role === 'editor' || row.admin_role === 'viewer') {
+            adminRole = row.admin_role as string;
+          } else if (userId === 1 && row.is_admin) {
+            adminRole = 'owner';
+          } else if (row.is_admin) {
+            adminRole = 'admin';
+          }
+          if (adminRole) {
+            auth = {
+              userId,
+              isOwner: adminRole === 'owner',
+              isAdmin: adminRole === 'admin' || adminRole === 'owner',
+              adminRole,
+            };
+          }
         }
       } catch {
         /* graceful */

@@ -26,13 +26,15 @@ export {
 /**
  * 인증 context — tRPC ctx.auth 에 inject.
  *
- * 사장님 결정 2026-05-11: 3단계 (owner/admin/customer).
- * staffRole 컬럼은 schema 에 남겨두되 사용 X (legacy).
+ * 사장님 결정 2026-05-12: 노션 5단계 (owner/admin/editor/viewer/customer).
+ * staffRole 컬럼 deprecated. admin_role 컬럼 우선.
  */
 export interface AuthContext {
   userId: number | null;
   isOwner: boolean;
   isAdmin: boolean;
+  /** 노션 권한 단계 — 'owner' | 'admin' | 'editor' | 'viewer' | null (customer) */
+  adminRole?: string | null;
   /** @deprecated 2026-05-11 — 매니저/스태프 통합. 호환 위해 남겨둠. */
   staffRole?: string | null;
 }

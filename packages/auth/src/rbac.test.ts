@@ -112,13 +112,13 @@ describe('can — 권한 게이트', () => {
 });
 
 describe('PERMISSIONS catalog (SSOT)', () => {
-  it('contains exactly 8 owner-only permissions (사장님 결정 2026-05-11)', () => {
+  it('contains exactly 9 owner-only permissions (사장님 결정 2026-05-12: +set_role 추가)', () => {
     const owners = Object.entries(PERMISSIONS).filter(([, r]) => r === 'owner');
-    expect(owners).toHaveLength(8);
+    expect(owners).toHaveLength(9);
   });
 
-  it('all roles valid (owner / admin / customer)', () => {
-    const validRoles = ['owner', 'admin', 'customer'];
+  it('all roles valid (owner / admin / editor / viewer / customer) — 노션 5단계', () => {
+    const validRoles = ['owner', 'admin', 'editor', 'viewer', 'customer'];
     for (const role of Object.values(PERMISSIONS)) {
       expect(validRoles).toContain(role);
     }
@@ -132,8 +132,8 @@ describe('PERMISSIONS catalog (SSOT)', () => {
 });
 
 describe('ownerOnlyPermissions (helper)', () => {
-  it('returns exactly 8 owner-only keys', () => {
-    expect(ownerOnlyPermissions()).toHaveLength(8);
+  it('returns exactly 9 owner-only keys (2026-05-12 +set_role)', () => {
+    expect(ownerOnlyPermissions()).toHaveLength(9);
   });
 
   it('includes all 8 expected actions', () => {

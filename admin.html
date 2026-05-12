@@ -38,14 +38,26 @@ if ('serviceWorker' in navigator) {
 </head>
 <body>
 
-<!-- 로그인 -->
+<!-- 로그인 (Phase Next-Day29 2026-05-12 사장님 명령: 카톡 로그인 + 노션 권한) -->
 <div class="login" id="loginView">
 <div class="login-box">
-<h1>관리자</h1>
+<h1>👑 관리자</h1>
 <p>세무회계 이윤 챗봇 관리</p>
-<input type="password" id="keyInput" placeholder="관리자 키" onkeydown="if(event.key==='Enter')login()">
-<button onclick="login()">로그인</button>
+<input type="password" id="keyInput" placeholder="사장님 비번" onkeydown="if(event.key==='Enter')login()">
+<button onclick="login()">사장님 비번 진입</button>
 <div class="login-err" id="err">키를 확인해주세요</div>
+<div style="text-align:center;color:#9ca3af;font-size:.78em;margin:14px 0 8px;position:relative">
+  <span style="background:#fff;padding:0 10px;position:relative;z-index:1">또는 직원</span>
+  <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:#e5e8eb"></div>
+</div>
+<button onclick="location.href='/api/auth/start?provider=kakao&from=admin'"
+  style="width:100%;background:#FEE500;color:#191f28;font-weight:700;padding:12px;border:none;border-radius:8px;cursor:pointer;font-size:.92em;display:flex;align-items:center;justify-content:center;gap:8px;font-family:inherit">
+  <span style="font-size:1.1em">💬</span> 카카오 계정으로 로그인
+</button>
+<p style="font-size:.7em;color:#9ca3af;text-align:center;margin-top:10px;line-height:1.5">
+  ⚠️ 관리자 등록된 직원만 진입 가능합니다.<br>
+  권한: owner (사장님) / admin / editor / viewer
+</p>
 </div>
 </div>
 

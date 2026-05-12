@@ -447,13 +447,18 @@ if(_mainAppView){ _mainAppView.style.display='none'; }
 /* 페이지 로드: 저장된 ADMIN_KEY가 있으면 자동 로그인. 없으면 로그인 폼 표시.
    admin.html은 항상 ADMIN_KEY 입력을 기다린다. 직원도 admin.html 진입 (staff.html 은 redirect). */
 let IS_OWNER=true;
-/* Phase #10 메타 (2026-05-06): RBAC 3-tier role 변수.
- *   IS_OWNER  : 사장님 (ADMIN_KEY 또는 user_id=1 + is_admin=1)
- *   IS_MANAGER: 사업장 관리자 (is_admin=1 + staff_role='manager')
- *   IS_STAFF  : 일반 admin (is_admin=1, default)
- * UI 가드 (삭제 버튼·권한 변경 버튼 등) — 후속 phase 에서 점진 적용. */
+/* Phase Next-Day29 (2026-05-12) 사장님 명령 "노션 권한 5단계":
+ *   IS_OWNER  : 사장님 (ADMIN_KEY 또는 admin_role='owner' 또는 user_id=1 + is_admin=1)
+ *   IS_ADMIN  : 일반 관리자 (admin_role='admin' 또는 is_admin=1)
+ *   IS_EDITOR : 편집자 (admin_role='editor') — 메모/문서/메시지 작성, 사용자/업체 status 변경 X
+ *   IS_VIEWER : 뷰어 (admin_role='viewer') — 읽기 전용
+ *   IS_MANAGER / IS_STAFF: deprecated, IS_ADMIN 으로 대체. 호환 위해 남겨둠 */
+let IS_ADMIN=false;
+let IS_EDITOR=false;
+let IS_VIEWER=false;
 let IS_MANAGER=false;
 let IS_STAFF=false;
+let ADMIN_ROLE=null; // 'owner' | 'admin' | 'editor' | 'viewer' | null
 /**
  * /api/admin-whoami 호출 → IS_OWNER / IS_MANAGER / IS_STAFF 갱신.
  * Phase #10 (2026-05-06): RBAC 3-tier role.
@@ -469,9 +474,14 @@ async function _refreshAdminRole(){
     const d = await r.json();
     if(d && d.ok){
       IS_OWNER = !!d.owner;
-      /* 사장님 결정 2026-05-11: 매니저/스태프 통합 — 호환 위해 변수만 유지, 모두 동일 */
-      IS_MANAGER = !!d.owner || (d.role === 'admin');
-      IS_STAFF = (d.role === 'admin' || d.role === 'owner');
+      ADMIN_ROLE = d.adminRole || d.role || null;
+      /* 사장님 결정 2026-05-12: 노션 5단계 (owner > admin > editor > viewer > customer) */
+      IS_ADMIN = ADMIN_ROLE === 'admin' || ADMIN_ROLE === 'owner';
+      IS_EDITOR = ADMIN_ROLE === 'editor' || IS_ADMIN;
+      IS_VIEWER = ADMIN_ROLE === 'viewer' || IS_EDITOR;
+      /* legacy 호환 */
+      IS_MANAGER = IS_ADMIN;
+      IS_STAFF = IS_ADMIN;
       /* IS_OWNER 변동 시 UI 갱신 */
       try{ if(typeof _refreshOwnerUI === 'function') _refreshOwnerUI(); }catch(_){}
       try{ if(window.__sharedStore){ window.__sharedStore.$isOwner.set(IS_OWNER); } }catch(_){}
@@ -503,8 +513,9 @@ function canDo(permission){
   if(!window.__PERMISSIONS) return IS_OWNER; // catalog 로드 전 = owner 만 안전
   const required = window.__PERMISSIONS[permission];
   if(!required) return false;
-  const role = IS_OWNER ? 'owner' : (IS_STAFF ? 'admin' : 'customer');
-  const order = ['customer', 'admin', 'owner'];
+  /* 노션 5단계 (2026-05-12 사장님 명령): owner > admin > editor > viewer > customer */
+  const role = ADMIN_ROLE || (IS_OWNER ? 'owner' : (IS_ADMIN ? 'admin' : 'customer'));
+  const order = ['customer', 'viewer', 'editor', 'admin', 'owner'];
   return order.indexOf(role) >= order.indexOf(required);
 }
 window.canDo = canDo;
