@@ -11,6 +11,7 @@ import type { Context } from './trpc';
 import type { Permission } from '@sewmu/auth';
 import { calculateRole } from '@sewmu/auth';
 import { drizzle, schema } from '@sewmu/db/client';
+import { logger, logCtx } from './logger';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -54,7 +55,12 @@ export async function audit(
       error_message: options.error_message ?? null,
       created_at: new Date().toISOString(),
     });
-  } catch {
-    /* audit 실패 = 본 작업 영향 X. 단, 추후 모니터링 필요. */
+  } catch (err) {
+    /* audit 실패 = 본 작업 영향 X. Logpush 로 발송 — 추후 모니터링. */
+    logger.warn(
+      'audit log INSERT failed (compliance gap)',
+      logCtx(ctx, `audit:${action}`),
+      err,
+    );
   }
 }

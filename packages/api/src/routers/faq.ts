@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { eq, and, or, like, desc, asc, sql, isNull } from 'drizzle-orm';
 import { ownerProcedure, router } from '../trpc';
 import { drizzle, schema } from '@sewmu/db/client';
+import { logger, logCtx } from '../logger';
 
 const VerifiedSchema = z.enum(['unchecked', 'verified', 'wrong', 'suspicious']);
 
@@ -121,8 +122,13 @@ export const faqRouter = router({
         try {
           const vec = await embedText(ctx.openaiApiKey, `${input.question}\n${input.answer}`);
           embeddingJson = JSON.stringify(vec);
-        } catch {
-          /* 임베딩 실패해도 FAQ 자체는 저장 (수동 재시도 가능) */
+        } catch (err) {
+          /* 임베딩 실패해도 FAQ 자체는 저장 (수동 재시도 가능) — Logpush 로는 발송 */
+          logger.warn(
+            'FAQ embedding failed on create — manual re-embed needed',
+            logCtx(ctx, 'faq.create', { q_number: input.q_number ?? null }),
+            err,
+          );
         }
       }
 
@@ -185,8 +191,13 @@ export const faqRouter = router({
         try {
           const vec = await embedText(ctx.openaiApiKey, `${nextQ}\n${nextA}`);
           updates.embedding = JSON.stringify(vec);
-        } catch {
-          /* 임베딩 실패해도 텍스트는 저장 */
+        } catch (err) {
+          /* 임베딩 실패해도 텍스트는 저장 — Logpush 로는 발송 */
+          logger.warn(
+            'FAQ embedding failed on update — manual re-embed needed',
+            logCtx(ctx, 'faq.update', { id: input.id }),
+            err,
+          );
         }
       }
 

@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { eq, and, isNull, desc, sql, gte, or } from 'drizzle-orm';
 import { router, publicProcedure, ownerProcedure } from '../trpc';
 import { drizzle, schema } from '@sewmu/db/client';
+import { logger, logCtx } from '../logger';
 
 const ALLOWED_SOURCES = new Set([
   'admin',
@@ -62,7 +63,12 @@ export const errorLogsRouter = router({
         });
         return { ok: true };
       } catch (e) {
-        /* 로그 저장 자체 실패해도 앱 동작에 영향 X */
+        /* 로그 저장 자체 실패해도 앱 동작에 영향 X — meta-logger 로는 발송 */
+        logger.error(
+          'error_logs.log INSERT failed (meta)',
+          logCtx(ctx, 'errorLogs.log', { source: input.source }),
+          e,
+        );
         return { ok: false, error: (e as Error).message };
       }
     }),
