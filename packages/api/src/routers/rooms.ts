@@ -53,8 +53,10 @@ export const roomsRouter = router({
         ? db.select().from(chatRooms).where(and(...conditions))
         : db.select().from(chatRooms);
 
+      /* Phase 16 fix (2026-05-13): chat_rooms.updated_at 컬럼 prod 에 없을 수 있음 →
+       * created_at 만으로 정렬. 사장님 customer.dashboard 와 같은 회귀 패턴. */
       const rooms = await q
-        .orderBy(desc(chatRooms.updated_at), desc(chatRooms.created_at))
+        .orderBy(desc(chatRooms.created_at))
         .limit(input.limit);
 
       const labels = await db.select().from(roomLabels).orderBy(asc(roomLabels.ord));

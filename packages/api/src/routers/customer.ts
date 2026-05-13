@@ -108,7 +108,11 @@ export const customerRouter = router({
           .orderBy(desc(memos.created_at))
           .limit(50),
 
-        /* 5. 사용자 참여 상담방 — chat_rooms 의 last_message_at 은 lazy column 이라 raw SQL */
+        /* 5. 사용자 참여 상담방.
+         * Phase 16 fix (2026-05-13): chat_rooms.updated_at 컬럼 prod 에 없을 수 있음
+         * (Drizzle migration 안 됐고 lazy ALTER 도 안 했음). created_at 으로 정렬 →
+         * 컬럼 무조건 존재 보장. tRPC 500 에러 사장님 dashboard 진입 시 발생.
+         * 사장님 보고 (2026-05-13): "사람숫자도 없고 또 개판치네". */
         db
           .select({
             id: chatRooms.id,
@@ -116,7 +120,7 @@ export const customerRouter = router({
             status: chatRooms.status,
             priority: chatRooms.priority,
             ai_mode: chatRooms.ai_mode,
-            updated_at: chatRooms.updated_at,
+            updated_at: chatRooms.created_at, // alias — 클라이언트는 updated_at 키 그대로 받음
           })
           .from(roomMembers)
           .innerJoin(chatRooms, eq(chatRooms.id, roomMembers.room_id))
@@ -126,7 +130,7 @@ export const customerRouter = router({
               or(isNull(roomMembers.left_at), eq(roomMembers.left_at, ''))!,
             ),
           )
-          .orderBy(desc(chatRooms.updated_at))
+          .orderBy(desc(chatRooms.created_at))
           .limit(20),
 
         /* 6. 일정 (assigned_to_user_id) */
