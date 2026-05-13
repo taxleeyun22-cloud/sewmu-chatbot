@@ -460,19 +460,19 @@ try{
 }catch{}
 }
 
-/* Phase 16 (2026-05-13): admin login 폼에 "다른 카카오 계정으로 로그인" 옵션.
- * 사장님 보고 (2026-05-13): nested continue URL 은 카카오에서 400 거부.
- * Fix: 카카오 accounts 로그아웃 페이지를 새 탭으로 열기. 사장님이 거기서 로그아웃 →
- *      이 admin 탭으로 돌아와 "카카오 계정으로 로그인" 다시 누르면 다른 계정 입력 가능. */
+/* Phase 16 (2026-05-13) 사장님 명령 "다른 계정 로그인": OAuth prompt=login 활용.
+ * accounts.kakao.com/logout 직접 호출은 카카오 거부 — OAuth start URL 에 prompt=login
+ * 파라미터 추가하면 카카오가 매번 로그인 화면 표시 → 다른 카톡 계정 입력 가능. */
 function loginWithDifferentKakao(){
-  if(!confirm('카카오 로그아웃 페이지를 새 탭으로 엽니다.\n\n1) 새 탭에서 카카오 로그아웃 확인\n2) 새 탭 닫기\n3) 이 admin 탭의 "카카오 계정으로 로그인" 버튼 다시 누르기\n4) 카카오 로그인 화면에서 다른 카톡 계정 입력\n\n진행할까요?')) return;
-  /* 단순 URL — continue 파라미터 없이. 카카오 자체 도메인이라 정상 동작 */
-  window.open('https://accounts.kakao.com/logout', '_blank');
-  /* admin 의 session 도 함께 정리 — 다른 카카오 인증 시 새 session 새로 발급 */
+  /* admin session 먼저 정리 — 다른 카카오 인증 시 새 session 새로 발급 */
   try{
     document.cookie='session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; SameSite=Lax';
     fetch('/api/auth/logout',{method:'POST',credentials:'same-origin'}).catch(function(){});
   }catch{}
+  /* prompt=login → 카카오 자동 로그인 우회, 매번 로그인 화면 표시 */
+  setTimeout(function(){
+    location.href = '/api/auth/start?provider=kakao&from=admin&prompt=login';
+  }, 100);
 }
 window.loginWithDifferentKakao = loginWithDifferentKakao;
 

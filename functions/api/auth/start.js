@@ -28,25 +28,33 @@ export async function onRequestGet(context) {
   const state = await createState(context.env);
   const redirectUri = url.origin + "/api/auth/" + provider;
 
+  /* Phase 16 (2026-05-13) 사장님 명령 "다른 계정 로그인":
+   * prompt=login → 카카오 OAuth 매번 로그인 화면 표시 (자동 로그인 무시) → 다른 카톡 계정 입력 가능.
+   * 카카오 OAuth 2.0 표준 파라미터. accounts.kakao.com/logout 시도 X (잘못된 요청 에러). */
+  const prompt = url.searchParams.get("prompt");
+  const forceLogin = prompt === "login";
+
   let authUrl;
   if (provider === "kakao") {
     const cid = context.env.KAKAO_CLIENT_ID || "";
-    authUrl = "https://kauth.kakao.com/oauth/authorize?"
-      + new URLSearchParams({
-          client_id: cid,
-          redirect_uri: redirectUri,
-          response_type: "code",
-          state,
-        });
+    const params = {
+      client_id: cid,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      state,
+    };
+    if (forceLogin) params.prompt = "login";
+    authUrl = "https://kauth.kakao.com/oauth/authorize?" + new URLSearchParams(params);
   } else {
     const cid = context.env.NAVER_CLIENT_ID || "";
-    authUrl = "https://nid.naver.com/oauth2.0/authorize?"
-      + new URLSearchParams({
-          client_id: cid,
-          redirect_uri: redirectUri,
-          response_type: "code",
-          state,
-        });
+    const params = {
+      client_id: cid,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      state,
+    };
+    if (forceLogin) params.auth_type = "reauthenticate";  /* 네이버 OAuth 표준 */
+    authUrl = "https://nid.naver.com/oauth2.0/authorize?" + new URLSearchParams(params);
   }
 
   /* 10분 유효 쿠키. HttpOnly로 JS에서 접근 불가 */
