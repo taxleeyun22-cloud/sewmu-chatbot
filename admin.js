@@ -588,14 +588,25 @@ window.canDo = canDo;
    * Fix: ADMIN_KEY 없으면 /api/admin-whoami (cookie 인증) 로 fallback 시도.
    *      role 이 owner/admin 이면 KEY=''(cookie-only) 로 자동 로그인. */
   try{
+    var hasSessionCookie = /(?:^|;\s*)session=/.test(document.cookie || '');
+    console.log('[admin.js] cookie fallback start. hasSessionCookie=', hasSessionCookie, 'cookie=', document.cookie);
     var r=await fetch('/api/admin-whoami',{credentials:'same-origin'});
+    console.log('[admin.js] whoami status=', r.status);
     if(r.ok){
       var d=await r.json();
+      console.log('[admin.js] whoami response=', d);
       if(d&&d.ok&&(d.owner||d.adminRole==='owner'||d.adminRole==='admin'||d.adminRole==='editor'||d.adminRole==='viewer')){
+        console.log('[admin.js] doCookieLogin triggered for userId=', d.userId);
         await doCookieLogin(d);
+      } else {
+        console.warn('[admin.js] whoami ok but no role match — login form will show. d=', d);
       }
+    } else {
+      console.warn('[admin.js] whoami failed status=', r.status, '— login form will show. Likely session cookie missing or sessions row deleted.');
     }
-  }catch{}
+  }catch(e){
+    console.error('[admin.js] cookie fallback error:', e);
+  }
   /* Phase 16 (2026-05-13): 새 admin Next.js redirect 가 hash 로 deep-link 정보 전달.
    * #tab=users&open_user=N → 거래처 dashboard 자동 open
    * #tab=users&open_biz=N → 업체 dashboard 자동 open
