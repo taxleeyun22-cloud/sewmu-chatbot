@@ -41,6 +41,16 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  /* Phase 16 (2026-05-13) 사장님 보고: 카카오 로그인 후 새로고침 시 admin 튕김.
+   * 진짜 원인: kakao.js / naver.js callback 이 set 하는 옛 `session` cookie 를
+   * middleware 가 인식 안 함 → /login redirect → 사장님 회귀.
+   * Fix: 4번째 인증 — 옛 session cookie 존재만 체크 (DB 검증은 API endpoint 의
+   *      checkAdmin 이 강제). middleware 는 단순 진입 가드만. */
+  const oldSessionCookie = req.cookies.get('session');
+  if (oldSessionCookie?.value) {
+    return NextResponse.next();
+  }
+
   /* 모두 없으면 → 로그인 페이지 */
   const loginUrl = new URL('/login', req.url);
   loginUrl.searchParams.set('callbackUrl', req.nextUrl.pathname);

@@ -657,8 +657,11 @@ async function doCookieLogin(whoamiData){
   try{ loadList(); }catch(_){}
   try{ refreshPendingBadge(); }catch(_){}
   try{ refreshLiveBadge(); }catch(_){}
+  /* Phase 16 (2026-05-13): cookie 진입자 사이드바 카운트 즉시 갱신 */
+  try{ if(typeof refreshSidebarCounts === 'function') refreshSidebarCounts(); }catch(_){}
   try{ setInterval(refreshPendingBadge,30000); }catch(_){}
   try{ setInterval(refreshLiveBadge,10000); }catch(_){}
+  try{ setInterval(function(){ try{ refreshSidebarCounts(); }catch(_){} }, 30000); }catch(_){}
   try{
     var saved=localStorage.getItem('admin_last_tab');
     if(saved&&['chat','live','rooms','users','anal','review','faq'].indexOf(saved)>=0)tab(saved);
@@ -4059,11 +4062,14 @@ window.addEventListener('storage', function(ev) {
 });
 
 function refreshSidebarCounts(){
-  if(!KEY) return;
+  /* Phase 16 (2026-05-13) 사장님 보고: 카카오 로그인 (KEY='') 시 사이드바 카운트 0.
+   * 진짜 원인: KEY 없으면 즉시 return → fetch 자체 안 함.
+   * Fix: KEY 가드 제거. cookie 인증으로 통과 (모든 endpoint 의 checkAdmin 이 session cookie 받음). */
+  var keyq = KEY ? ('&key=' + encodeURIComponent(KEY)) : '';
   /* 사용자 카운트 (admin-approve 한 번에 모든 status)
    * Phase M9 (2026-05-05): 5개 status 카운트 → 사용자 총합·업체 총합 2개 표시.
    * 메인 영역 탭바에서 status 별 필터 가능. */
-  fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=pending').then(function(r){return r.json()}).then(function(d){
+  fetch('/api/admin-approve?status=pending' + keyq, {credentials:'same-origin'}).then(function(r){return r.json()}).then(function(d){
     var c = d.counts || {};
     /* 사용자 총합 = pending + approved_client + approved_guest + rejected + terminated + admin */
     var userTotal = (c.pending||0) + (c.approved_client||0) + (c.approved_guest||0) + (c.rejected||0) + (c.terminated||0) + (c.admin||0);
@@ -4077,20 +4083,20 @@ function refreshSidebarCounts(){
   }).catch(function(_){});
 
   /* 업체 총합 — Phase 2.2: SidebarBizTotal.tsx 가 store 자동 reactive */
-  fetch('/api/admin-businesses?key='+encodeURIComponent(KEY)).then(function(r){return r.json()}).then(function(d){
+  fetch('/api/admin-businesses' + (KEY ? '?key='+encodeURIComponent(KEY) : ''), {credentials:'same-origin'}).then(function(r){return r.json()}).then(function(d){
     var bizTotal = Array.isArray(d.businesses) ? d.businesses.length : (d.total || 0);
     try { if (window.__sidebarStore) window.__sidebarStore.update({ bizTotal: bizTotal }); } catch(_){}
   }).catch(function(_){});
 
   /* 휴지통 — Phase 2.1 (2026-05-08): React (SidebarTrashCount.tsx) 가 store 자동 reactive 표시.
    * admin.js 는 textContent 조작 X — store 만 갱신. */
-  fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=trash_count').then(function(r){return r.json()}).then(function(d){
+  fetch('/api/memos?scope=trash_count' + keyq, {credentials:'same-origin'}).then(function(r){return r.json()}).then(function(d){
     var trashCount = d.count || 0;
     try { if (window.__sidebarStore) window.__sidebarStore.update({ trash: trashCount }); } catch(_){}
   }).catch(function(_){});
 
   /* 내 일정 — Phase 2.4: SidebarAlertCount(urgentTodos) 자동 reactive */
-  fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my&only_mine=1').then(function(r){return r.json()}).then(function(d){
+  fetch('/api/memos?scope=my&only_mine=1' + keyq, {credentials:'same-origin'}).then(function(r){return r.json()}).then(function(d){
     var arr = (d.memos || []).filter(function(m){
       if(!m.due_date) return false;
       var today = new Date(Date.now() + 9*60*60*1000); today.setHours(0,0,0,0);
@@ -4102,14 +4108,14 @@ function refreshSidebarCounts(){
   }).catch(function(_){});
 
   /* 종료 요청 — Phase 2.4: SidebarAlertCount(termReq) 자동 reactive */
-  fetch('/api/admin-termination-requests?key='+encodeURIComponent(KEY)+'&status=pending').then(function(r){return r.json()}).then(function(d){
+  fetch('/api/admin-termination-requests?status=pending' + keyq, {credentials:'same-origin'}).then(function(r){return r.json()}).then(function(d){
     var n = (d.requests || []).length || 0;
     try { if (window.__sidebarStore) window.__sidebarStore.update({ termReq: n }); } catch(_){}
   }).catch(function(_){});
 
   /* 에러 로그 — Phase 2.4: SidebarAlertCount(errorLog redWhenNonZero) 자동 reactive 빨간 배지.
    * sbErrorLogBtn 의 alert class 만 기존 처리 (사이드바 item 톤 변경) */
-  fetch('/api/admin-error-log?key='+encodeURIComponent(KEY)+'&limit=200').then(function(r){return r.json()}).then(function(d){
+  fetch('/api/admin-error-log?limit=200' + keyq, {credentials:'same-origin'}).then(function(r){return r.json()}).then(function(d){
     var n = Array.isArray(d.errors) ? d.errors.length : 0;
     var btn = document.getElementById('sbErrorLogBtn');
     if(btn){
