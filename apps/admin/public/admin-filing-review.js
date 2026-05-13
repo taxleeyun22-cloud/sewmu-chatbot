@@ -719,10 +719,15 @@ function _filRenderOwnerInfoSync(f) {
       const onclick = readonly ? '' : 'onclick="_filSetBookKeeping(' + bizId + ',\'' + t + '\')"';
       return '<button ' + onclick + ' class="no-print" style="background:' + bg + ';color:' + color + ';border:1px solid ' + border + ';padding:3px 12px;font-size:.78em;cursor:' + (readonly ? 'default' : 'pointer') + ';font-family:inherit;font-weight:' + (active ? '700' : '500') + ';margin:0;border-radius:0" type="button" data-fil-book-biz="' + bizId + '" data-fil-book-type="' + t + '">' + t + '</button>';
     }).join('');
+    /* Phase 16 (2026-05-13) 사장님 명령: 실수 시 ✕ 로 선택 해제 */
+    const clearBtn = (!readonly && current)
+      ? '<button onclick="_filSetBookKeeping(' + bizId + ',\'\')" class="no-print" type="button" title="장부 선택 해제" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:.82em;padding:2px 6px;margin-left:2px;font-family:inherit">✕ 해제</button>'
+      : '';
     const printLabel = current ? current + '장부' : '미선택';
     return '<div style="margin-left:18px;margin-top:4px;font-size:.84em;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
       + '<span style="color:#6b7280">📚 장부:</span>'
       + '<div class="no-print" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #e5e8eb">' + btns + '</div>'
+      + clearBtn
       + '<span class="print-only" style="display:none;font-weight:600">' + printLabel + '</span>'
       + '</div>';
   };
@@ -747,8 +752,11 @@ function _filSetBookKeeping(bizId, type) {
   if (!_filCurrent) return;
   const af = (function() { try { return JSON.parse(_filCurrent.auto_fields || '{}'); } catch { return {}; } })();
   af.book_keeping_types = af.book_keeping_types || {};
-  /* 같은 type 다시 클릭 → 선택 해제 */
-  if (af.book_keeping_types[bizId] === type) {
+  /* Phase 16 (2026-05-13):
+   * - 빈 type ('') = ✕ 해제 버튼 → 무조건 삭제
+   * - 같은 type 다시 클릭 → 토글 해제
+   * - 다른 type → 변경 */
+  if (!type || af.book_keeping_types[bizId] === type) {
     delete af.book_keeping_types[bizId];
   } else {
     af.book_keeping_types[bizId] = type;
