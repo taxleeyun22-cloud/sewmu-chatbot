@@ -304,22 +304,48 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   const ro = readonly ? 'readonly disabled' : '';
   const revenueLabel = isJongSo ? '총수입금액' : '매출액';
 
-  /* 사장님 명령 (2026-05-07): "법인이랑 개인 동일하게 가자" — 10개 항목 단일 list.
-   * 종소세 / 법인세 둘 다 같은 항목·라벨. 사장님 명시:
-   * 결산서상당기순이익 / 익금산입 / 손금산입 / 각사업연도소득금액 / 과세표준 /
-   * 산출세액 / 공제감면세액 / 가산세액 / 기납부세액 / 감면분추가납부세액 */
-  const fields = [
-    { key: 'net_income', label: '결산서상당기순이익' },
-    { key: 'adj_inclusion', label: '익금산입 (+)' },
-    { key: 'adj_exclusion', label: '손금산입 (−)' },
-    { key: 'business_income', label: '각사업연도소득금액' },
-    { key: 'tax_base', label: '과세표준' },
-    { key: 'calculated_tax', label: '산출세액' },
-    { key: 'deduction_total', label: '공제감면세액', autoSum: 'deductions' },
-    { key: 'penalty_total', label: '가산세액', autoSum: 'penalties' },
-    { key: 'prepaid_tax', label: '기납부세액' },
-    { key: 'additional_tax', label: '감면분추가납부세액' },
-  ];
+  /* 사장님 명령 (2026-05-13): 종소세 / 법인세 입력 항목 분리.
+   * 명세서 `신고검토표_시스템_명세.md` 4.1 / 4.2 원래 spec 복원 + 2026-05-07 익금/손금 유지 (법인세 만).
+   *
+   * 종소세 (isJongSo=true) — Person 단위, 소득세 흐름:
+   *   수입금액 → 종합소득금액 → 종합소득공제 → 과세표준 → 산출세액 →
+   *   공제감면세액 → 가산세액 → 결정세액 → 기납부세액 → 납부할세액
+   *   실효세율 = 결정세액 ÷ 수입금액
+   *
+   * 법인세 (isJongSo=false) — Business 단위, 법인세 흐름:
+   *   매출액 → 결산서당기순이익 → 익금산입(+) → 손금산입(−) →
+   *   각사업연도소득금액 → 과세표준 → 산출세액 →
+   *   공제감면세액 → 가산세액 → 결정세액 → 기납부세액 → 감면분추가납부세액 → 납부할세액
+   *   실효세율 = 결정세액 ÷ 매출액
+   */
+  const fields = isJongSo
+    ? [
+        { key: 'revenue', label: '수입금액' },
+        { key: 'total_income', label: '종합소득금액' },
+        { key: 'income_deduction', label: '종합소득공제' },
+        { key: 'tax_base', label: '과세표준' },
+        { key: 'calculated_tax', label: '산출세액' },
+        { key: 'deduction_total', label: '세액공제·감면', autoSum: 'deductions' },
+        { key: 'penalty_total', label: '가산세', autoSum: 'penalties' },
+        { key: 'decisive_tax', label: '결정세액', bold: true },
+        { key: 'prepaid_tax', label: '기납부세액' },
+        { key: 'payable_tax', label: '납부할세액', bold: true },
+      ]
+    : [
+        { key: 'revenue', label: '매출액' },
+        { key: 'net_income', label: '결산서당기순이익' },
+        { key: 'adj_inclusion', label: '익금산입 (+)' },
+        { key: 'adj_exclusion', label: '손금산입 (−)' },
+        { key: 'business_income', label: '각사업연도소득금액' },
+        { key: 'tax_base', label: '과세표준' },
+        { key: 'calculated_tax', label: '산출세액' },
+        { key: 'deduction_total', label: '공제·감면', autoSum: 'deductions' },
+        { key: 'penalty_total', label: '가산세', autoSum: 'penalties' },
+        { key: 'decisive_tax', label: '결정세액', bold: true },
+        { key: 'prepaid_tax', label: '기납부세액' },
+        { key: 'additional_tax', label: '감면분추가납부세액' },
+        { key: 'payable_tax', label: '납부할세액', bold: true },
+      ];
 
   /* 사장님 명령 (2026-05-07): 결재란은 헤더 우상단 (admin-modals.html) 으로 이동.
    * 본문 stamp4 영역 제거 — CHECKLIST 도 사장님 명령 "검토사항 업애자" 로 제거. */

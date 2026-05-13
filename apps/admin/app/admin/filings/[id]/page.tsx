@@ -33,32 +33,69 @@ const ST_COLOR: Record<string, string> = {
   보관완료: 'bg-green-100 text-green-800',
 };
 
-const FIELD_GROUPS: { title: string; fields: { key: string; label: string; placeholder?: string }[] }[] = [
+/**
+ * Phase 16 (2026-05-13) 사장님 명령: 종소세 / 법인세 입력 항목 분리.
+ * 명세서 `신고검토표_시스템_명세.md` 4.1 / 4.2 원래 spec + 익금/손금 (법인세 만).
+ * 옛 admin admin-filing-review.js 와 field key 동일 — D1 auto_fields 호환.
+ */
+interface FieldDef {
+  key: string;
+  label: string;
+  placeholder?: string;
+}
+interface FieldGroup {
+  title: string;
+  fields: FieldDef[];
+}
+
+const FIELD_GROUPS_JONGSO: FieldGroup[] = [
   {
-    title: '🧾 매출·매입 (작년 vs 올해)',
+    title: '🧾 종소세 — 소득 흐름',
     fields: [
-      { key: 'sales_total', label: '매출 합계', placeholder: '원' },
-      { key: 'purchase_total', label: '매입 합계', placeholder: '원' },
-      { key: 'vat_payable', label: '부가세 납부세액', placeholder: '원' },
-      { key: 'taxable_income', label: '과세표준', placeholder: '원' },
+      { key: 'revenue', label: '수입금액', placeholder: '원' },
+      { key: 'total_income', label: '종합소득금액', placeholder: '원' },
+      { key: 'income_deduction', label: '종합소득공제', placeholder: '원' },
+      { key: 'tax_base', label: '과세표준', placeholder: '원' },
     ],
   },
   {
-    title: '💼 인건비',
+    title: '📊 산출·결정',
     fields: [
-      { key: 'payroll_total', label: '인건비 합계', placeholder: '원' },
-      { key: 'withholding_total', label: '원천세 합계', placeholder: '원' },
-    ],
-  },
-  {
-    title: '📊 산출세액',
-    fields: [
-      { key: 'computed_tax', label: '산출세액', placeholder: '원' },
-      { key: 'final_tax', label: '결정세액', placeholder: '원' },
-      { key: 'paid_tax', label: '기납부세액', placeholder: '원' },
+      { key: 'calculated_tax', label: '산출세액', placeholder: '원' },
+      { key: 'decisive_tax', label: '결정세액', placeholder: '원' },
+      { key: 'prepaid_tax', label: '기납부세액', placeholder: '원' },
+      { key: 'payable_tax', label: '납부할세액', placeholder: '원' },
     ],
   },
 ];
+
+const FIELD_GROUPS_BEOPIN: FieldGroup[] = [
+  {
+    title: '🧾 법인세 — 결산·조정',
+    fields: [
+      { key: 'revenue', label: '매출액', placeholder: '원' },
+      { key: 'net_income', label: '결산서당기순이익', placeholder: '원' },
+      { key: 'adj_inclusion', label: '익금산입 (+)', placeholder: '원' },
+      { key: 'adj_exclusion', label: '손금산입 (−)', placeholder: '원' },
+      { key: 'business_income', label: '각사업연도소득금액', placeholder: '원' },
+      { key: 'tax_base', label: '과세표준', placeholder: '원' },
+    ],
+  },
+  {
+    title: '📊 산출·결정',
+    fields: [
+      { key: 'calculated_tax', label: '산출세액', placeholder: '원' },
+      { key: 'decisive_tax', label: '결정세액', placeholder: '원' },
+      { key: 'prepaid_tax', label: '기납부세액', placeholder: '원' },
+      { key: 'additional_tax', label: '감면분추가납부세액', placeholder: '원' },
+      { key: 'payable_tax', label: '납부할세액', placeholder: '원' },
+    ],
+  },
+];
+
+function fieldGroupsForType(type: string | undefined): FieldGroup[] {
+  return type === '종소세' ? FIELD_GROUPS_JONGSO : FIELD_GROUPS_BEOPIN;
+}
 
 export default function FilingDetailPage() {
   const params = useParams<{ id: string }>();
@@ -160,6 +197,9 @@ export default function FilingDetailPage() {
     );
   }
 
+  /* Phase 16 (2026-05-13): type 따라 필드 분기 — 종소세 / 법인세 별도 */
+  const fieldGroups = fieldGroupsForType(filing.type);
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <button onClick={() => router.back()} className="text-sm text-brand-primary mb-4">
@@ -214,8 +254,8 @@ export default function FilingDetailPage() {
         </div>
       </div>
 
-      {/* 필드 그룹 — 작년 vs 올해 비교 */}
-      {FIELD_GROUPS.map((group) => (
+      {/* 필드 그룹 — 작년 vs 올해 비교. Phase 16 type 분기 적용. */}
+      {fieldGroups.map((group) => (
         <div key={group.title} className="bg-white rounded-2xl p-5 mb-4">
           <h2 className="font-bold mb-4">{group.title}</h2>
           <table className="w-full text-sm">
