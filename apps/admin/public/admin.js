@@ -433,11 +433,42 @@ function logout(){
 KEY='';
 try{sessionStorage.removeItem('admin_key')}catch{}
 try{localStorage.removeItem('admin_key')}catch{}
+/* Phase 16 (2026-05-13) 사장님 보고: 로그아웃 후 다시 카카오 로그인하면 같은 계정 자동 진입.
+ * 원인: 카카오 자체 세션 (kauth.kakao.com) 살아있어서 OAuth 재시도 시 즉시 callback.
+ * Fix: session cookie 삭제 + /api/auth/logout 호출 (서버 sessions row + 카카오 토큰 폐기). */
+try{
+  document.cookie='session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; SameSite=Lax';
+  document.cookie='session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+}catch{}
+/* 서버 logout endpoint — sessions row 삭제 + 카카오 unlink/logout redirect URL 받기 */
+try{
+  fetch('/api/auth/logout',{method:'POST',credentials:'same-origin'}).catch(function(){});
+}catch{}
 $g('loginView').style.display='flex';
 $g('mainView').style.display='none';
 var _mainAppView = document.getElementById('mainAppView');
 if(_mainAppView){ _mainAppView.style.display='none'; }
+/* 사이드바 user 정보 default 복원 */
+try{
+  var sbNameEl=document.getElementById('sbName'); if(sbNameEl) sbNameEl.textContent='관리자';
+  var sbAvatarEl=document.getElementById('sbAvatar'); if(sbAvatarEl) sbAvatarEl.textContent='관';
+  var sbRoleEl=document.getElementById('sbRole');
+  if(sbRoleEl){
+    var badge='<span id="admin-role-badge-inline" style="margin-left:4px"></span>';
+    sbRoleEl.innerHTML='미로그인 '+badge;
+  }
+}catch{}
 }
+
+/* Phase 16 (2026-05-13): admin login 폼에 "다른 카카오 계정으로 로그인" 옵션 추가 도우미.
+ * 사장님이 카카오 자체 세션 끊고 다시 OAuth 하고 싶을 때 사용. */
+function loginWithDifferentKakao(){
+  /* 1) 카카오 accounts 로그아웃 → 2) admin 다시 진입 → 3) 카카오 로그인 화면에서 계정 선택 */
+  var ret = encodeURIComponent(location.origin + '/admin');
+  /* 카카오 accounts 로그아웃 + admin 으로 복귀. 카카오는 logout_redirect 미지원 — accounts.kakao.com 도구 사용 */
+  location.href = 'https://accounts.kakao.com/logout?continue=' + encodeURIComponent('https://accounts.kakao.com/login?continue=' + ret);
+}
+window.loginWithDifferentKakao = loginWithDifferentKakao;
 
 /* Phase M5 (2026-05-05) staff.html 폐기 후속 정리 (2026-05-06):
    - tryAdminBySession() 함수 제거 — staff.html 으로 redirect 했지만 호출처 0 (죽은 코드)

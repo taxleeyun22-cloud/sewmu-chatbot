@@ -54,6 +54,11 @@ if ('serviceWorker' in navigator) {
   style="width:100%;background:#FEE500;color:#191f28;font-weight:700;padding:12px;border:none;border-radius:8px;cursor:pointer;font-size:.92em;display:flex;align-items:center;justify-content:center;gap:8px;font-family:inherit">
   <span style="font-size:1.1em">💬</span> 카카오 계정으로 로그인
 </button>
+<!-- Phase 16 (2026-05-13): 다른 카카오 계정으로 로그인 — 카카오 자체 세션 끊고 재인증 -->
+<button onclick="loginWithDifferentKakao()"
+  style="width:100%;background:#fff;color:#6b7280;font-weight:500;padding:8px;border:1px solid #e5e8eb;border-radius:8px;cursor:pointer;font-size:.78em;margin-top:6px;font-family:inherit">
+  🔄 다른 카카오 계정으로 로그인
+</button>
 <p style="font-size:.7em;color:#9ca3af;text-align:center;margin-top:10px;line-height:1.5">
   ⚠️ 관리자 등록된 직원만 진입 가능합니다.<br>
   권한: owner (사장님) / admin / editor / viewer
@@ -262,7 +267,7 @@ setTimeout(function(){
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=188"></script>
+<script src="/admin.js?v=189"></script>
 <script src="/admin-memos.js?v=16"></script>
 <script src="/admin-customer-dash.js?v=32"></script>
 <script src="/admin-business-tab.js?v=13"></script>
