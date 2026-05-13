@@ -432,26 +432,38 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   const prevDeductions = pf.공제감면 || pf.deductions || [];
   const currDeductions = af.공제감면 || af.deductions || [];
 
-  /* 공제·감면 항목 union (작년 + 올해, 순서: 올해 먼저 → 작년 only 추가) */
+  /* 공제·감면 항목 union — Phase 16 (2026-05-13): code 기반 정규화 매칭.
+   * code 동일하면 작년/올해 같은 줄 (글자 미세하게 달라도 OK). code 없으면 name 매칭 fallback. */
   const dedRows = [];
-  const dedSeen = new Set();
+  const dedSeenKeys = new Set();
+  const _filDedKey = (d) => (d.code ? 'C:' + d.code : 'N:' + (d.name || d.종류 || '').trim());
   currDeductions.forEach(d => {
     const nm = (d.name || d.종류 || '').trim();
-    if (!nm || dedSeen.has(nm)) return;
-    dedSeen.add(nm);
-    const prevD = prevDeductions.find(p => (p.name || p.종류 || '').trim() === nm);
+    if (!nm) return;
+    const key = _filDedKey(d);
+    if (dedSeenKeys.has(key)) return;
+    dedSeenKeys.add(key);
+    /* 작년 매칭: code 우선, 없으면 name fallback */
+    const prevD = prevDeductions.find(p => {
+      if (d.code && p.code) return p.code === d.code;
+      return (p.name || p.종류 || '').trim() === nm;
+    });
     dedRows.push({
       name: nm,
+      code: d.code || null,
       curr: Number(d.amount || d.금액 || 0),
       prev: prevD ? Number(prevD.amount || prevD.금액 || 0) : null,
     });
   });
   prevDeductions.forEach(d => {
     const nm = (d.name || d.종류 || '').trim();
-    if (!nm || dedSeen.has(nm)) return;
-    dedSeen.add(nm);
+    if (!nm) return;
+    const key = _filDedKey(d);
+    if (dedSeenKeys.has(key)) return;
+    dedSeenKeys.add(key);
     dedRows.push({
       name: nm,
+      code: d.code || null,
       curr: null,
       prev: Number(d.amount || d.금액 || 0),
     });
@@ -702,14 +714,98 @@ function _filRenderOwnerInfoSync(f) {
   return html;
 }
 
+/* Phase 16 (2026-05-13) 사장님 명령 "공제·감면 자동완성":
+ * - public/filing-tax-credit-catalog.json 에 종소세 세액공제/감면 ~100개 항목.
+ * - 입력 시 매칭 dropdown 표시 → 클릭 → name 자동 채움 + code 저장 + 금액 focus.
+ * - 저장 시 code 도 함께 → 작년 vs 올해 비교 시 글자 다르더라도 같은 줄 (code 정규화). */
+let _filDeductionCatalog = null;
+async function _filLoadDeductionCatalog() {
+  if (_filDeductionCatalog) return _filDeductionCatalog;
+  try {
+    const r = await fetch('/filing-tax-credit-catalog.json', { credentials: 'same-origin' });
+    if (!r.ok) return null;
+    _filDeductionCatalog = await r.json();
+    return _filDeductionCatalog;
+  } catch { return null; }
+}
+/* 첫 모달 열림 시 1회 fetch (모든 row 가 공유) */
+_filLoadDeductionCatalog();
+
 function _filRenderDeductionRow(d, idx, readonly) {
   const ro = readonly ? 'readonly disabled' : '';
   const remBtn = readonly ? '' : '<button onclick="_filRemoveDeductionRow(' + idx + ')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1.1em;padding:0 4px;font-family:inherit">×</button>';
-  return '<div class="fil-deduction-row" data-idx="' + idx + '" style="display:grid;grid-template-columns:1.5fr 1fr auto;gap:6px;margin-bottom:4px">'
-    + '<input type="text" ' + ro + ' value="' + _filEsc(d.name || d.종류 || '') + '" placeholder="항목 (예: 자녀세액공제)" oninput="_filDeductionChanged()" class="filing-text-input fil-ded-name">'
+  const codeAttr = d.code ? ' data-code="' + _filEsc(d.code) + '"' : '';
+  return '<div class="fil-deduction-row" data-idx="' + idx + '"' + codeAttr + ' style="display:grid;grid-template-columns:1.5fr 1fr auto;gap:6px;margin-bottom:4px;position:relative">'
+    + '<div style="position:relative">'
+    +   '<input type="text" ' + ro + ' value="' + _filEsc(d.name || d.종류 || '') + '" placeholder="항목 검색 (예: 중특, 자녀세액공제, 통합고용)" oninput="_filDedNameInput(this,' + idx + ')" onfocus="_filDedNameInput(this,' + idx + ')" onblur="setTimeout(function(){_filDedHideDropdown(' + idx + ')},200)" class="filing-text-input fil-ded-name" autocomplete="off">'
+    +   '<div class="fil-ded-dropdown" data-row-idx="' + idx + '" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e5e8eb;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.08);max-height:240px;overflow-y:auto;z-index:1000;margin-top:2px"></div>'
+    + '</div>'
     + '<input type="text" ' + ro + ' value="' + (d.amount || d.금액 ? _filFormatNum(d.amount || d.금액) : '') + '" placeholder="금액" oninput="_filFormatOnInput(this);_filDeductionChanged()" class="filing-num-input fil-ded-amount">'
     + remBtn
     + '</div>';
+}
+
+/* dropdown 검색 + 표시 */
+function _filDedNameInput(inputEl, idx) {
+  const q = String(inputEl.value || '').trim().toLowerCase();
+  const dd = document.querySelector('.fil-ded-dropdown[data-row-idx="' + idx + '"]');
+  if (!dd) return;
+  /* 카탈로그 미로드 → 비동기 로드 후 재시도 */
+  if (!_filDeductionCatalog) {
+    _filLoadDeductionCatalog().then(() => _filDedNameInput(inputEl, idx));
+    return;
+  }
+  const items = _filDeductionCatalog.items || [];
+  /* 검색: name + alias + code 부분일치 (대소문자 무관) */
+  let matched;
+  if (q === '') {
+    matched = items.slice(0, 30); /* 빈 검색 시 상위 30개 */
+  } else {
+    matched = items.filter(it => {
+      if (it.name && it.name.toLowerCase().includes(q)) return true;
+      if (it.code && it.code.toLowerCase().includes(q)) return true;
+      if (Array.isArray(it.alias) && it.alias.some(a => a.toLowerCase().includes(q))) return true;
+      return false;
+    }).slice(0, 30);
+  }
+  /* row 갱신: 정확히 한 항목 자동완성과 일치하면 code 저장 */
+  const row = document.querySelector('.fil-deduction-row[data-idx="' + idx + '"]');
+  if (row) {
+    const exact = items.find(it => it.name === inputEl.value);
+    if (exact) row.dataset.code = exact.code;
+    else delete row.dataset.code;
+  }
+  /* dropdown 렌더 */
+  if (matched.length === 0) {
+    dd.innerHTML = '<div style="padding:8px 10px;font-size:.78em;color:#9ca3af">매칭 항목 없음 — 직접 입력 가능</div>';
+  } else {
+    dd.innerHTML = matched.map(it => {
+      const safeName = _filEsc(it.name).replace(/'/g, "\\'");
+      const law = it.law ? ' <span style="color:#9ca3af;font-size:.72em">· ' + _filEsc(it.law) + '</span>' : '';
+      return '<div onmousedown="_filDedPickItem(' + idx + ',\'' + it.code + '\',\'' + safeName + '\')" style="padding:6px 10px;cursor:pointer;font-size:.82em;border-bottom:1px solid #f3f4f6" onmouseenter="this.style.background=\'#f9fafb\'" onmouseleave="this.style.background=\'\'">'
+        + _filEsc(it.name) + law + '</div>';
+    }).join('');
+  }
+  dd.style.display = 'block';
+  _filDeductionChanged();
+}
+function _filDedHideDropdown(idx) {
+  const dd = document.querySelector('.fil-ded-dropdown[data-row-idx="' + idx + '"]');
+  if (dd) dd.style.display = 'none';
+}
+function _filDedPickItem(idx, code, name) {
+  const row = document.querySelector('.fil-deduction-row[data-idx="' + idx + '"]');
+  if (!row) return;
+  const nameInput = row.querySelector('.fil-ded-name');
+  const amtInput = row.querySelector('.fil-ded-amount');
+  if (nameInput) nameInput.value = name;
+  if (row) row.dataset.code = code;
+  _filDedHideDropdown(idx);
+  /* 금액 input 으로 자동 focus */
+  if (amtInput && !amtInput.readOnly && !amtInput.disabled) {
+    setTimeout(() => { try { amtInput.focus(); amtInput.select(); } catch {} }, 50);
+  }
+  _filDeductionChanged();
 }
 function _filRenderPenaltyRow(p, idx, readonly) {
   const ro = readonly ? 'readonly disabled' : '';
@@ -802,12 +898,13 @@ async function _filSaveNow() {
     const k = el.dataset.filTextField;
     af[k] = el.value || null;
   });
-  /* 공제감면 */
+  /* 공제감면 — Phase 16 (2026-05-13): code 도 함께 저장 (작년 vs 올해 비교 정규화) */
   af.공제감면 = [];
   document.querySelectorAll('.fil-deduction-row').forEach(row => {
     const name = row.querySelector('.fil-ded-name')?.value.trim() || '';
     const amt = _filParseNum(row.querySelector('.fil-ded-amount')?.value || '');
-    if (name || amt !== null) af.공제감면.push({ name, amount: amt });
+    const code = row.dataset.code || null;
+    if (name || amt !== null) af.공제감면.push({ name, amount: amt, code });
   });
   /* 가산세 */
   af.가산세 = [];
