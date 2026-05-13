@@ -1,45 +1,11 @@
-/** Phase Next-Day28 (2026-05-11): /admin/internal React Query. */
+/**
+ * Phase 16 (2026-05-13) 사장님 명령 "옛으로 통일": /admin/internal → /admin.html#tab=internal.
+ */
 'use client';
-
-import { useQuery } from '@tanstack/react-query';
-import { trpcCall } from '@/lib/trpc';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { EmptyState } from '@/components/ui/empty-state';
-import { Lock } from 'lucide-react';
-
-export default function InternalPage() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['rooms.list', 'internal'],
-    queryFn: () => trpcCall<{ rooms: { id: string; name: string | null }[] }>('rooms.list', { internal: true }),
-  });
-  const rooms = data?.rooms || [];
-
-  return (
-    <div className="p-4 space-y-3">
-      <header>
-        <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <Lock size={18} strokeWidth={2} className="text-brand-primary" />관리자방
-        </h1>
-        <p className="text-xs text-gray-500 mt-0.5">모든 admin 자동 초대</p>
-      </header>
-
-      <Card>
-        <CardContent className="px-0">
-          {isLoading && Array.from({ length: 2 }).map((_, i) => <div key={i} className="px-3 py-2"><Skeleton className="h-8 w-full" /></div>)}
-          {!isLoading && rooms.length === 0 && <EmptyState icon={<Lock size={32} strokeWidth={1.5} />} title="관리자방이 없습니다" />}
-          {!isLoading && rooms.length > 0 && (
-            <ul className="divide-y divide-gray-100">
-              {rooms.map((r) => (
-                <li key={r.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer transition-colors">
-                  <p className="text-xs font-medium">{r.name || `방 ${r.id}`}</p>
-                  <p className="text-[10px] text-gray-500 font-mono mt-0.5">{r.id}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+export default function Page() {
+  const r = useRouter();
+  useEffect(() => { r.replace('/admin.html#tab=internal'); }, [r]);
+  return <div className="min-h-[60vh] flex items-center justify-center text-sm text-gray-500">옛 admin 화면으로 이동 중... <a href="/admin.html#tab=internal" className="ml-2 underline">바로가기</a></div>;
 }

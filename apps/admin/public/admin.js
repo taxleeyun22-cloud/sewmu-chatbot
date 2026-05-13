@@ -596,6 +596,24 @@ window.canDo = canDo;
       }
     }
   }catch{}
+  /* Phase 16 (2026-05-13): 새 admin Next.js redirect 가 hash 로 deep-link 정보 전달.
+   * #tab=users&open_user=N → 거래처 dashboard 자동 open
+   * #tab=users&open_biz=N → 업체 dashboard 자동 open
+   * #tab=rooms&open_room=R → 상담방 자동 open */
+  try{
+    var h=String(location.hash||'').replace(/^#/,'');
+    var params={};
+    h.split('&').forEach(function(kv){ var p=kv.split('='); if(p[0]) params[p[0]]=decodeURIComponent(p[1]||''); });
+    if(params.open_user && typeof openCustomerDashboard==='function'){
+      setTimeout(function(){ try{ openCustomerDashboard(parseInt(params.open_user)); }catch(_){} }, 500);
+    }
+    if(params.open_biz && typeof openBusinessDashboard==='function'){
+      setTimeout(function(){ try{ openBusinessDashboard(parseInt(params.open_biz)); }catch(_){} }, 500);
+    }
+    if(params.open_room && typeof loadRoomDetail==='function'){
+      setTimeout(function(){ try{ tab('rooms'); loadRoomDetail(params.open_room); }catch(_){} }, 500);
+    }
+  }catch{}
 })();
 
 /* Phase 16 (2026-05-13): cookie-only 자동 로그인 — kakao/naver OAuth 후 session cookie 만 있는 경우.
