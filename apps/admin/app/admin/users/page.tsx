@@ -187,6 +187,17 @@ function UserRow({
     onError: (e) => toast.error(`실패: ${(e as Error).message}`),
   });
 
+  /* Phase 16 (2026-05-13): 관리자 승급/해제 — owner 전용 (백엔드 검증). */
+  const setAdminMutation = useMutation({
+    mutationFn: (isAdmin: 0 | 1) =>
+      trpcCall('users.setAdmin', { userId: user.id, isAdmin }),
+    onSuccess: (_, isAdmin) => {
+      toast.success(`${formatUserName(user)} ${isAdmin === 1 ? '관리자 승급' : '관리자 해제'}`);
+      invalidateAfter(queryClient, { users: true });
+    },
+    onError: (e) => toast.error(`실패: ${(e as Error).message}`),
+  });
+
   /** Phase 11: 브라우저 native `confirm()` → shadcn AlertDialog */
   async function doSetStatus(newStatus: string) {
     const name = formatUserName(user);
@@ -246,47 +257,103 @@ function UserRow({
         {formatDate(user.created_at)}
       </TableCell>
       <TableCell className="text-right">
-        <div className="flex gap-1 justify-end">
-          {user.approval_status === 'pending' && (
-            <>
-              <Button
-                size="xs"
-                onClick={() => doSetStatus('approved_client')}
-                disabled={setStatusMutation.isPending}
-              >
-                <Star size={10} strokeWidth={2} className="mr-0.5" />
-                기장
-              </Button>
-              <Button
-                size="xs"
-                variant="destructive"
-                onClick={() => doSetStatus('rejected')}
-                disabled={setStatusMutation.isPending}
-              >
-                <X size={10} strokeWidth={2} className="mr-0.5" />
-                거절
-              </Button>
-            </>
+        {/* Phase 16 fix (2026-05-13) 사장님 보고: "대기로 보내고 거절하고 종료하고
+         * 관리자 승급하고 이것도 없고" — 모든 status 에서 가능 액션 매트릭스 */}
+        <div className="flex gap-1 justify-end flex-wrap">
+          {/* 기장거래처 승급 — pending/rejected/terminated/rejoined 에서 가능 */}
+          {user.approval_status !== 'approved_client' && (
+            <Button
+              size="xs"
+              onClick={() => doSetStatus('approved_client')}
+              disabled={setStatusMutation.isPending}
+              title="기장거래처 승급"
+            >
+              <Star size={10} strokeWidth={2} className="mr-0.5" />
+              기장
+            </Button>
           )}
-          {user.approval_status === 'approved_client' && (
+          {/* 대기로 — approved/rejected/terminated 에서 가능 (사장님 매트릭스) */}
+          {user.approval_status !== 'pending' && (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => doSetStatus('pending')}
+              disabled={setStatusMutation.isPending}
+              title="대기 상태로 되돌리기"
+            >
+              <RotateCcw size={10} strokeWidth={2} className="mr-0.5" />
+              대기
+            </Button>
+          )}
+          {/* 거절 — pending/approved 에서 가능 */}
+          {(user.approval_status === 'pending' || user.approval_status === 'approved_client') && (
+            <Button
+              size="xs"
+              variant="destructive"
+              onClick={() => doSetStatus('rejected')}
+              disabled={setStatusMutation.isPending}
+              title="거절"
+            >
+              <X size={10} strokeWidth={2} className="mr-0.5" />
+              거절
+            </Button>
+          )}
+          {/* 종료 — approved_client 또는 rejoined 에서 가능 */}
+          {(user.approval_status === 'approved_client' ||
+            user.approval_status === 'rejoined') && (
             <Button
               size="xs"
               variant="secondary"
               onClick={() => doSetStatus('terminated')}
               disabled={setStatusMutation.isPending}
+              title="기장 종료"
             >
               <Ban size={10} strokeWidth={2} className="mr-0.5" />
               종료
             </Button>
           )}
-          {user.approval_status === 'rejected' && (
+          {/* 관리자 승급/해제 — owner 만 (UI 가드는 표시. 권한 검증은 백엔드에서 owner-only) */}
+          {user.is_admin !== 1 ? (
             <Button
               size="xs"
-              onClick={() => doSetStatus('approved_client')}
-              disabled={setStatusMutation.isPending}
+              variant="warning"
+              onClick={async () => {
+                const name = user.real_name || user.name || `#${user.id}`;
+                const ok = await confirm({
+                  title: `관리자 승급: ${name}`,
+                  description: `${name} 을(를) 관리자로 승급할까요? owner 권한 필요.`,
+                  confirmText: '승급',
+                  variant: 'default',
+                });
+                if (!ok) return;
+                setAdminMutation.mutate(1);
+              }}
+              disabled={setAdminMutation.isPending}
+              title="관리자 승급 (owner only)"
             >
-              <RotateCcw size={10} strokeWidth={2} className="mr-0.5" />
-              복구
+              <Crown size={10} strokeWidth={2} className="mr-0.5" />
+              관리자
+            </Button>
+          ) : (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={async () => {
+                const name = user.real_name || user.name || `#${user.id}`;
+                const ok = await confirm({
+                  title: `관리자 해제: ${name}`,
+                  description: `${name} 의 관리자 권한을 해제할까요? owner 권한 필요.`,
+                  confirmText: '해제',
+                  variant: 'destructive',
+                });
+                if (!ok) return;
+                setAdminMutation.mutate(0);
+              }}
+              disabled={setAdminMutation.isPending}
+              title="관리자 해제 (owner only)"
+            >
+              <Crown size={10} strokeWidth={2} className="mr-0.5 text-gray-500" />
+              해제
             </Button>
           )}
         </div>

@@ -245,7 +245,9 @@ export const customerRouter = router({
           )
           .orderBy(desc(businessMembers.is_primary)),
 
-        /* 2. 매핑 상담방 (room_businesses JOIN chat_rooms) */
+        /* 2. 매핑 상담방 (room_businesses JOIN chat_rooms).
+         * Phase 16 fix (2026-05-13): updated_at 컬럼 prod 없음 → created_at fallback.
+         * 같은 회귀 위 customer.dashboard 와 동일. */
         db
           .select({
             id: chatRooms.id,
@@ -253,7 +255,7 @@ export const customerRouter = router({
             status: chatRooms.status,
             ai_mode: chatRooms.ai_mode,
             priority: chatRooms.priority,
-            updated_at: chatRooms.updated_at,
+            updated_at: chatRooms.created_at, // alias 키 유지
             is_primary: roomBusinesses.is_primary,
           })
           .from(roomBusinesses)
@@ -264,7 +266,7 @@ export const customerRouter = router({
               or(isNull(roomBusinesses.removed_at), eq(roomBusinesses.removed_at, ''))!,
             ),
           )
-          .orderBy(desc(roomBusinesses.is_primary), desc(chatRooms.updated_at)),
+          .orderBy(desc(roomBusinesses.is_primary), desc(chatRooms.created_at)),
 
         /* 3. 메모 (target_business_id) */
         db
