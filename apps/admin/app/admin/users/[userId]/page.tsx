@@ -9,6 +9,10 @@
  */
 'use client';
 
+/* Phase 16 (2026-05-13) Cloudflare Pages 빌드 fix:
+ * dynamic route 는 edge runtime 필수 (next-on-pages 강제). */
+export const runtime = 'edge';
+
 import { useEffect, use } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
