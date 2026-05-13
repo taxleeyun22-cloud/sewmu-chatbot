@@ -133,19 +133,30 @@ export const customerRouter = router({
           .orderBy(desc(chatRooms.created_at))
           .limit(20),
 
-        /* 6. 일정 (assigned_to_user_id) */
-        db
-          .select()
-          .from(memos)
-          .where(
-            and(
-              eq(memos.assigned_to_user_id, input.userId),
-              eq(memos.is_checked, 0),
-              or(isNull(memos.deleted_at), eq(memos.deleted_at, ''))!,
-            ),
-          )
-          .orderBy(desc(memos.due_date))
-          .limit(20),
+        /* 6. 일정 (assigned_to_user_id).
+         * Phase 16 fix (2026-05-13): memos.is_checked 컬럼 prod 없을 수 있음.
+         * raw SQL + COALESCE 로 NULL safe — 컬럼 없으면 lazy ALTER 후 재시도.
+         * 사장님 보고: \"이재윤 들어가면 이렇게 뜬다\" 500 에러 fix. */
+        (async () => {
+          /* lazy migration — 컬럼 없으면 추가, 있으면 무시 */
+          try {
+            await ctx.db.prepare(`ALTER TABLE memos ADD COLUMN is_checked INTEGER DEFAULT 0`).run();
+          } catch {
+            /* 이미 있음 — 정상 */
+          }
+          return db
+            .select()
+            .from(memos)
+            .where(
+              and(
+                eq(memos.assigned_to_user_id, input.userId),
+                sql`COALESCE(${memos.is_checked}, 0) = 0`,
+                or(isNull(memos.deleted_at), eq(memos.deleted_at, ''))!,
+              ),
+            )
+            .orderBy(desc(memos.due_date))
+            .limit(20);
+        })(),
       ]);
 
       /* 7. 사업장 문서 (매핑 사업장 ID 들의 documents) */
