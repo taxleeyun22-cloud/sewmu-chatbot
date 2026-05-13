@@ -754,8 +754,10 @@ function _filSetBookKeeping(bizId, type) {
     af.book_keeping_types[bizId] = type;
   }
   _filCurrent.auto_fields = JSON.stringify(af);
-  /* 사업체 영역 즉시 다시 렌더 */
-  const ownerEl = _filGet('filingOwnerInfo');
+  /* Phase 16 (2026-05-13) 사장님 보고: 헤더 SECTION 00 에 사업체 정보 중복 표시되는 버그.
+   * 원인: 옛 코드가 'filingOwnerInfo' (헤더 요약) 에 _filRenderOwnerInfoSync 풀 정보 박음.
+   * 정답: 'filingOwnerInfoBody' (SECTION 01 본문) 에 박아야. */
+  const ownerEl = _filGet('filingOwnerInfoBody');
   if (ownerEl && typeof _filRenderOwnerInfoSync === 'function') {
     ownerEl.innerHTML = _filRenderOwnerInfoSync(_filCurrent);
   }
