@@ -202,6 +202,10 @@ export default defineConfig({
         // 검증 데이터 (자동 생성, GitHub 동기화)
         { src: 'flagged-items.json', dest: '.' },
         { src: 'flagged-faqs.json', dest: '.' },
+        // Phase 16 (2026-05-13): 신고검토표 공제·감면 자동완성 카탈로그
+        { src: 'public/filing-tax-credit-catalog.json', dest: '.' },
+        // Phase Next-Day27: 권한 catalog SSOT (rbac.ts → permissions.json)
+        { src: 'public/permissions.json', dest: '.' },
         // 칼럼 29편
         { src: 'articles/**/*', dest: 'articles' },
       ],
