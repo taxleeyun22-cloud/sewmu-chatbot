@@ -147,10 +147,24 @@ export async function onRequestGet(context) {
       `INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)`
     ).bind(sessionToken, user.id, expiresAt).run();
 
+    /* Phase 16 (2026-05-13): from=admin cookie 읽어서 admin redirect 분기 — kakao.js 와 동일 패턴 */
+    const fromCookie = (context.request.headers.get("Cookie") || "")
+      .match(/oauth_from=([^;]+)/)?.[1];
+    let isAdminUser = 0;
+    try {
+      const u = await db.prepare(`SELECT is_admin FROM users WHERE id = ?`).bind(user.id).first();
+      isAdminUser = Number(u?.is_admin || 0);
+    } catch {}
+    let location = url.origin + "/";
+    if (fromCookie === "admin") {
+      location = isAdminUser === 1 ? url.origin + "/admin" : url.origin + "/?login_warn=not_admin";
+    }
+
     const headers = new Headers();
-    headers.append("Location", url.origin + "/");
+    headers.append("Location", location);
     headers.append("Set-Cookie", `session=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`);
     headers.append("Set-Cookie", `oauth_state=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
+    headers.append("Set-Cookie", `oauth_from=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
     headers.append("Cache-Control", "no-store");
     return new Response(null, { status: 302, headers });
   } catch (e) {

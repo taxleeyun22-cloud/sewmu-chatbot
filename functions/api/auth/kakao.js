@@ -236,11 +236,38 @@ export async function onRequestGet(context) {
       `INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)`
     ).bind(sessionToken, user.id, expiresAt).run();
 
-    // 5. 쿠키 설정 후 메인 페이지로 리다이렉트 (+ oauth_state 쿠키 즉시 삭제)
+    /* Phase 16 (2026-05-13): from=admin cookie 읽어서 admin 사용자면 admin 페이지로.
+     * 그 외 거래처 메인 (`/`).
+     * 사장님 보고: 옛 admin login → 카카오 로그인 했더니 거래처 챗봇으로 가서 admin 진입 안 됨.
+     *
+     * 분기:
+     * - oauth_from=admin AND user.is_admin=1  → /admin (관리자 화면)
+     * - oauth_from=admin AND user.is_admin=0  → / 거래처. (관리자 등록 필요 안내 메시지)
+     * - oauth_from 없음                       → / 거래처 (default) */
+    const fromCookie = (context.request.headers.get("Cookie") || "")
+      .match(/oauth_from=([^;]+)/)?.[1];
+    let isAdminUser = 0;
+    try {
+      const u = await db.prepare(`SELECT is_admin FROM users WHERE id = ?`).bind(user.id).first();
+      isAdminUser = Number(u?.is_admin || 0);
+    } catch {}
+
+    let location = url.origin + "/";
+    if (fromCookie === "admin") {
+      if (isAdminUser === 1) {
+        location = url.origin + "/admin";
+      } else {
+        /* 카카오는 인증됐지만 admin 권한 없음 — 거래처 메인으로 + 안내 query */
+        location = url.origin + "/?login_warn=not_admin";
+      }
+    }
+
     const headers = new Headers();
-    headers.append("Location", url.origin + "/");
+    headers.append("Location", location);
     headers.append("Set-Cookie", `session=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`);
     headers.append("Set-Cookie", `oauth_state=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
+    /* oauth_from cookie 도 즉시 삭제 — 한 번 쓰고 폐기 */
+    headers.append("Set-Cookie", `oauth_from=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
     headers.append("Cache-Control", "no-store");
     return new Response(null, { status: 302, headers });
   } catch (e) {

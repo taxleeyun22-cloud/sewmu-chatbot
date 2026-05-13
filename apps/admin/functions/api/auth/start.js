@@ -50,14 +50,21 @@ export async function onRequestGet(context) {
   }
 
   /* 10분 유효 쿠키. HttpOnly로 JS에서 접근 불가 */
-  const cookie = `oauth_state=${encodeURIComponent(state)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`;
+  const stateCookie = `oauth_state=${encodeURIComponent(state)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`;
 
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: authUrl,
-      "Set-Cookie": cookie,
-      "Cache-Control": "no-store",
-    },
-  });
+  /* Phase 16 (2026-05-13): from=admin 파라미터 처리 — admin 페이지에서 카카오 로그인 시
+   * callback 이 admin 페이지로 redirect 해야 함. cookie 로 의도 저장 (10분 TTL). */
+  const from = (url.searchParams.get("from") || "").toLowerCase();
+  const fromCookie =
+    from === "admin"
+      ? `oauth_from=admin; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`
+      : null;
+
+  const headers = new Headers();
+  headers.set("Location", authUrl);
+  headers.append("Set-Cookie", stateCookie);
+  if (fromCookie) headers.append("Set-Cookie", fromCookie);
+  headers.set("Cache-Control", "no-store");
+
+  return new Response(null, { status: 302, headers });
 }
