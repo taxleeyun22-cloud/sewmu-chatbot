@@ -485,6 +485,25 @@ async function _refreshAdminRole(){
       /* IS_OWNER 변동 시 UI 갱신 */
       try{ if(typeof _refreshOwnerUI === 'function') _refreshOwnerUI(); }catch(_){}
       try{ if(window.__sharedStore){ window.__sharedStore.$isOwner.set(IS_OWNER); } }catch(_){}
+      /* Phase 16 (2026-05-13) 사장님 보고: 김영철로 로그인해도 사이드바 "이재윤".
+       * 진짜 원인: admin.html 의 #sbName 하드코딩. whoami 응답의 name/realName 으로 갱신. */
+      try{
+        var displayName = d.realName || d.name || '관리자';
+        var sbNameEl = document.getElementById('sbName');
+        if(sbNameEl) sbNameEl.textContent = displayName;
+        var sbAvatarEl = document.getElementById('sbAvatar');
+        if(sbAvatarEl && displayName) sbAvatarEl.textContent = displayName.charAt(0);
+        var sbRoleEl = document.getElementById('sbRole');
+        if(sbRoleEl){
+          var roleLabel = ADMIN_ROLE === 'owner' ? '사장님' :
+                          ADMIN_ROLE === 'admin' ? '관리자' :
+                          ADMIN_ROLE === 'editor' ? '편집자' :
+                          ADMIN_ROLE === 'viewer' ? '뷰어' : '직원';
+          var badgeSpan = sbRoleEl.querySelector('#admin-role-badge-inline');
+          var badgeHtml = badgeSpan ? badgeSpan.outerHTML : '<span id="admin-role-badge-inline" style="margin-left:4px"></span>';
+          sbRoleEl.innerHTML = roleLabel + ' ' + badgeHtml;
+        }
+      }catch(_){}
     }
   }catch(_){}
   /* Phase Next-Day27 (2026-05-11): permissions catalog SSOT load */
@@ -558,6 +577,24 @@ async function doCookieLogin(whoamiData){
   try{ if(window.__sharedStore){ window.__sharedStore.$key.set(''); window.__sharedStore.$isOwner.set(IS_OWNER); } }catch(_){}
   try{ if(typeof _refreshOwnerUI === 'function') _refreshOwnerUI(); }catch(_){}
   try{ await _loadPermissionsCatalog(); }catch(_){}
+  /* Phase 16 (2026-05-13): cookie 진입자 이름 사이드바 즉시 갱신 (하드코딩 "이재윤" 회피) */
+  try{
+    var displayName = whoamiData.realName || whoamiData.name || '관리자';
+    var sbNameEl = document.getElementById('sbName');
+    if(sbNameEl) sbNameEl.textContent = displayName;
+    var sbAvatarEl = document.getElementById('sbAvatar');
+    if(sbAvatarEl && displayName) sbAvatarEl.textContent = displayName.charAt(0);
+    var sbRoleEl = document.getElementById('sbRole');
+    if(sbRoleEl){
+      var roleLabel = ADMIN_ROLE === 'owner' ? '사장님' :
+                      ADMIN_ROLE === 'admin' ? '관리자' :
+                      ADMIN_ROLE === 'editor' ? '편집자' :
+                      ADMIN_ROLE === 'viewer' ? '뷰어' : '직원';
+      var badgeSpan = sbRoleEl.querySelector('#admin-role-badge-inline');
+      var badgeHtml = badgeSpan ? badgeSpan.outerHTML : '<span id="admin-role-badge-inline" style="margin-left:4px"></span>';
+      sbRoleEl.innerHTML = roleLabel + ' ' + badgeHtml;
+    }
+  }catch(_){}
   $g('loginView').style.display='none';
   var _mainView=$g('mainView'); if(_mainView)_mainView.style.display='block';
   var _mainAppView=document.getElementById('mainAppView');

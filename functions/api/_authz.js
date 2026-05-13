@@ -136,10 +136,22 @@ export function roleForbidden(authResult) {
 export async function whoami(context) {
   const auth = await checkRole(context, 'staff');
   if (!auth.ok) {
-    return { ok: false, role: null, owner: false, manager: false, userId: null, adminRole: null };
+    return { ok: false, role: null, owner: false, manager: false, userId: null, adminRole: null, name: null, realName: null };
   }
   /* Phase Next-Day29 (2026-05-12) 사장님 명령 "노션 권한":
    * checkAdmin 응답의 adminRole ('owner' | 'admin' | 'editor' | 'viewer') 포함. */
+  /* Phase 16 (2026-05-13) 사장님 보고: 김영철로 로그인해도 사이드바 "이재윤" 그대로.
+   * 진짜 원인: admin.html 의 #sbName 가 하드코딩 "이재윤". 진입 user 이름 정보 없음.
+   * Fix: whoami 응답에 name / real_name 추가 → admin.js 가 사이드바 갱신. */
+  let name = null, realName = null;
+  try {
+    if (auth.userId && context.env.DB) {
+      const u = await context.env.DB
+        .prepare(`SELECT name, real_name FROM users WHERE id = ? LIMIT 1`)
+        .bind(auth.userId).first();
+      if (u) { name = u.name || null; realName = u.real_name || null; }
+    }
+  } catch {}
   return {
     ok: true,
     role: auth.role,
@@ -147,5 +159,7 @@ export async function whoami(context) {
     manager: auth.manager,
     userId: auth.userId,
     adminRole: auth.adminRole || (auth.owner ? 'owner' : 'admin'),
+    name,
+    realName,
   };
 }
