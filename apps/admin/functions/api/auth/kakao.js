@@ -201,29 +201,74 @@ export async function onRequestGet(context) {
           ).bind(name, email, phone, profileImage, mergedSurvivorId).run();
           user = { id: mergedSurvivorId };
         } else {
-          /* 4. 진짜 새 user INSERT — legacy provider_id NOT NULL 처리 */
-          let hasProviderUserIdCol = false;
-          try {
-            const info = await db.prepare(`PRAGMA table_info(users)`).all();
-            hasProviderUserIdCol = (info?.results || []).some(c => c.name === 'provider_user_id');
-          } catch {}
-          let r;
-          if (hasProviderUserIdCol) {
-            r = await db.prepare(
-              `INSERT INTO users (provider, provider_id, provider_user_id, name, email, phone, profile_image,
-                                  approval_status, name_confirmed,
-                                  created_at, last_login_at)
-               VALUES ('kakao', ?, ?, ?, ?, ?, ?, 'pending', 0, datetime('now', '+9 hours'), datetime('now', '+9 hours'))`
-            ).bind(kakaoId, kakaoId, name, email, phone, profileImage).run();
-          } else {
-            r = await db.prepare(
-              `INSERT INTO users (provider, provider_id, name, email, phone, profile_image,
-                                  approval_status, name_confirmed,
-                                  created_at, last_login_at)
-               VALUES ('kakao', ?, ?, ?, ?, ?, 'pending', 0, datetime('now', '+9 hours'), datetime('now', '+9 hours'))`
-            ).bind(kakaoId, name, email, phone, profileImage).run();
+          /* 4a. Phase 16 fix (2026-05-13): 신규 INSERT 전에 email/phone 매칭으로
+           * 기존 user link 시도. 사장님 보고: 카카오 로그인 → 관리자 페이지 진입 안 됨.
+           * Root cause: 사장님 이재윤 (is_admin=1) row 의 provider_id 가 사장님 카카오 ID 와 다름
+           * → 신규 row 로 INSERT (is_admin=0) → admin login 화면 회귀.
+           * Fix: email/phone 매칭하는 활성 user 가 있고 provider_id 미설정/다름이면 link 만 (is_admin 변경 X). */
+          let linkedUser = null;
+          if (email || phone) {
+            try {
+              const conditions = [];
+              const params = [];
+              if (email) { conditions.push("LOWER(email) = LOWER(?)"); params.push(email); }
+              if (phone) { conditions.push("REPLACE(phone, '-', '') = REPLACE(?, '-', '')"); params.push(phone); }
+              if (conditions.length) {
+                const candidate = await db.prepare(
+                  `SELECT id, provider_id, is_admin FROM users
+                   WHERE (${conditions.join(' OR ')})
+                     AND (deleted_at IS NULL OR deleted_at = '')
+                     AND COALESCE(approval_status, 'pending') NOT IN ('merged', 'deleted', 'withdrawn')
+                   ORDER BY COALESCE(is_admin, 0) DESC, id ASC
+                   LIMIT 1`
+                ).bind(...params).first();
+                if (candidate?.id) {
+                  /* provider_id update + last_login_at — is_admin 은 그대로 (자동 승급 금지) */
+                  await db.prepare(
+                    `UPDATE users SET
+                       provider = 'kakao', provider_id = ?,
+                       name = COALESCE(NULLIF(name, ''), ?),
+                       email = COALESCE(NULLIF(email, ''), ?),
+                       phone = COALESCE(NULLIF(phone, ''), ?),
+                       profile_image = COALESCE(profile_image, ?),
+                       last_login_at = datetime('now', '+9 hours')
+                     WHERE id = ?`
+                  ).bind(kakaoId, name, email, phone, profileImage, candidate.id).run();
+                  linkedUser = { id: candidate.id };
+                }
+              }
+            } catch {
+              /* 매칭 실패해도 신규 INSERT 로 fallback — 사장님 작업 차단 X */
+            }
           }
-          user = { id: r.meta?.last_row_id };
+
+          if (linkedUser) {
+            user = linkedUser;
+          } else {
+            /* 4b. 진짜 새 user INSERT — legacy provider_id NOT NULL 처리 */
+            let hasProviderUserIdCol = false;
+            try {
+              const info = await db.prepare(`PRAGMA table_info(users)`).all();
+              hasProviderUserIdCol = (info?.results || []).some(c => c.name === 'provider_user_id');
+            } catch {}
+            let r;
+            if (hasProviderUserIdCol) {
+              r = await db.prepare(
+                `INSERT INTO users (provider, provider_id, provider_user_id, name, email, phone, profile_image,
+                                    approval_status, name_confirmed,
+                                    created_at, last_login_at)
+                 VALUES ('kakao', ?, ?, ?, ?, ?, ?, 'pending', 0, datetime('now', '+9 hours'), datetime('now', '+9 hours'))`
+              ).bind(kakaoId, kakaoId, name, email, phone, profileImage).run();
+            } else {
+              r = await db.prepare(
+                `INSERT INTO users (provider, provider_id, name, email, phone, profile_image,
+                                    approval_status, name_confirmed,
+                                    created_at, last_login_at)
+                 VALUES ('kakao', ?, ?, ?, ?, ?, 'pending', 0, datetime('now', '+9 hours'), datetime('now', '+9 hours'))`
+              ).bind(kakaoId, name, email, phone, profileImage).run();
+            }
+            user = { id: r.meta?.last_row_id };
+          }
         }
       }
     }
