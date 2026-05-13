@@ -703,16 +703,66 @@ function _filRenderOwnerInfoSync(f) {
     html += '<div style="margin-bottom:4px">👤 대표 · 사람: <b>' + _filEsc(f._ownerName) + '</b>' + (f._ownerBirth ? ' · 생년월일 ' + _filEsc(f._ownerBirth) : '') + '</div>';
   }
   const businesses = f._businesses || [];
+  /* Phase 16 (2026-05-13) 사장님 명령: 사업체별 장부 구분 segmented button (옵션 C).
+   * auto_fields.book_keeping_types = { bizId: '복식'|'간편'|'기준'|'단순' } */
+  const af = (function() { try { return JSON.parse(f.auto_fields || '{}'); } catch { return {}; } })();
+  const bookMap = af.book_keeping_types || {};
+  const readonly = f.status === '보관완료' && !window.IS_OWNER;
+  const _filBookHtml = (bizId) => {
+    const types = ['복식', '간편', '기준', '단순'];
+    const current = bookMap[bizId] || '';
+    const btns = types.map(t => {
+      const active = current === t;
+      const bg = active ? '#3182f6' : '#fff';
+      const color = active ? '#fff' : '#6b7280';
+      const border = active ? '#3182f6' : '#e5e8eb';
+      const onclick = readonly ? '' : 'onclick="_filSetBookKeeping(' + bizId + ',\'' + t + '\')"';
+      return '<button ' + onclick + ' class="no-print" style="background:' + bg + ';color:' + color + ';border:1px solid ' + border + ';padding:3px 12px;font-size:.78em;cursor:' + (readonly ? 'default' : 'pointer') + ';font-family:inherit;font-weight:' + (active ? '700' : '500') + ';margin:0;border-radius:0" type="button" data-fil-book-biz="' + bizId + '" data-fil-book-type="' + t + '">' + t + '</button>';
+    }).join('');
+    const printLabel = current ? current + '장부' : '미선택';
+    return '<div style="margin-left:18px;margin-top:4px;font-size:.84em;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+      + '<span style="color:#6b7280">📚 장부:</span>'
+      + '<div class="no-print" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #e5e8eb">' + btns + '</div>'
+      + '<span class="print-only" style="display:none;font-weight:600">' + printLabel + '</span>'
+      + '</div>';
+  };
   if (businesses.length) {
     html += '<div style="font-weight:700;margin-top:2px;margin-bottom:3px;color:#191f28">📋 사업체 (' + businesses.length + '개)</div>';
     businesses.forEach((b, i) => {
-      html += '<div style="margin:2px 0;padding:4px 0;border-bottom:1px dashed #e5e8eb">' + fmtBizRow(b, i === 0) + '</div>';
+      html += '<div style="margin:2px 0;padding:4px 0;border-bottom:1px dashed #e5e8eb">'
+        + fmtBizRow(b, i === 0)
+        + _filBookHtml(b.id)
+        + '</div>';
     });
   } else {
     html += '<div style="color:#9ca3af">매핑된 사업체 없음</div>';
   }
   return html;
 }
+
+/* Phase 16 (2026-05-13) 사장님 명령 옵션 C: 장부 구분 segmented button 클릭 핸들러.
+ * - auto_fields.book_keeping_types 에 즉시 저장 (1.5초 디바운스).
+ * - businesses 테이블에 book_keeping_type 컬럼 동기 (자동 기억 — 다음 검토표 default). */
+function _filSetBookKeeping(bizId, type) {
+  if (!_filCurrent) return;
+  const af = (function() { try { return JSON.parse(_filCurrent.auto_fields || '{}'); } catch { return {}; } })();
+  af.book_keeping_types = af.book_keeping_types || {};
+  /* 같은 type 다시 클릭 → 선택 해제 */
+  if (af.book_keeping_types[bizId] === type) {
+    delete af.book_keeping_types[bizId];
+  } else {
+    af.book_keeping_types[bizId] = type;
+  }
+  _filCurrent.auto_fields = JSON.stringify(af);
+  /* 사업체 영역 즉시 다시 렌더 */
+  const ownerEl = _filGet('filingOwnerInfo');
+  if (ownerEl && typeof _filRenderOwnerInfoSync === 'function') {
+    ownerEl.innerHTML = _filRenderOwnerInfoSync(_filCurrent);
+  }
+  /* 자동 저장 트리거 (1.5초 디바운스) */
+  if (typeof _filOnFieldChange === 'function') _filOnFieldChange();
+}
+window._filSetBookKeeping = _filSetBookKeeping;
 
 /* Phase 16 (2026-05-13) 사장님 명령 "공제·감면 자동완성":
  * - public/filing-tax-credit-catalog.json 에 종소세 세액공제/감면 ~100개 항목.
