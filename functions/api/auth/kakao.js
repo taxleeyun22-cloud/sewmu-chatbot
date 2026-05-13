@@ -113,6 +113,37 @@ export async function onRequestGet(context) {
 
     await initTables(db);
 
+    /* Phase 16 (2026-05-13) 사장님 명령 "근본적 이유 해라":
+     * 사장님 카카오 email 매칭 → user_id=1 (이재윤, is_admin=1, admin_role='owner') 으로 강제 link.
+     * 이후 카카오 ID 와 user_id=1 매칭 자동.
+     *
+     * 사장님 카카오 email: wodbs330@daum.net (스크린샷 확인).
+     * 환경변수 OWNER_KAKAO_EMAIL 로 override 가능. */
+    const OWNER_KAKAO_EMAIL = (context.env.OWNER_KAKAO_EMAIL || 'wodbs330@daum.net').toLowerCase();
+    if (email && email.toLowerCase() === OWNER_KAKAO_EMAIL) {
+      try {
+        /* 옛 row 의 provider_id 충돌 방지 — 기존 kakao_id row 가 있으면 null 처리. */
+        await db.prepare(
+          `UPDATE users SET provider_id = NULL WHERE provider = 'kakao' AND provider_id = ? AND id != 1`
+        ).bind(kakaoId).run();
+        await db.prepare(
+          `UPDATE users SET
+             provider = 'kakao',
+             provider_id = ?,
+             is_admin = 1,
+             admin_role = COALESCE(NULLIF(admin_role, ''), 'owner'),
+             approval_status = 'approved_client',
+             email = COALESCE(NULLIF(email, ''), ?),
+             phone = COALESCE(NULLIF(phone, ''), ?),
+             profile_image = COALESCE(profile_image, ?),
+             last_login_at = datetime('now', '+9 hours')
+           WHERE id = 1`
+        ).bind(kakaoId, email, phone, profileImage).run();
+      } catch {
+        /* 사장님 카카오 link 실패해도 일반 흐름 fallback — 작업 차단 X */
+      }
+    }
+
     /* 사장님 대원칙 (2026-05-07): 같은 카톡 ID = 1 user only.
      * 매칭 우선순위:
      * 1. 활성 user (deleted_at NULL, provider_id = KAKAO_ID) → 정상 로그인
