@@ -2401,7 +2401,12 @@ function _csOpenFull(){
 /* ===== 거래처 서류 확인 (신분증·사업자등록증·홈택스 ID) ===== */
 async function openBizDocsPanel(){
   if(!docsSelectedUserId){alert('거래처를 먼저 선택하세요');return}
-  const cust=docsCustomers.find(c=>c.user_id===docsSelectedUserId);
+  /* Phase 16 (2026-05-13) 사장님 Sentry 보고:
+   * admin-docs.js lazy load — 거래처 dashboard 에서 📑 누르면 docsCustomers 미선언.
+   * Fix: typeof 가드 + fallback. cust 못 찾으면 user_id 만 표시. */
+  const cust = (typeof docsCustomers !== 'undefined' && Array.isArray(docsCustomers))
+    ? docsCustomers.find(c=>c.user_id===docsSelectedUserId)
+    : null;
   $g('bdTitle').textContent=cust?(cust.real_name||cust.name||('#'+docsSelectedUserId)):('#'+docsSelectedUserId);
   $g('bizDocsModal').style.display='flex';
   document.body.style.overflow='hidden';
@@ -2498,7 +2503,10 @@ let _finRows=[];
 async function openFinancePanel(){
   if(!docsSelectedUserId){alert('거래처를 먼저 선택하세요');return}
   _finCurrentUserId=docsSelectedUserId;
-  const cust=docsCustomers.find(c=>c.user_id===_finCurrentUserId);
+  /* Phase 16 (2026-05-13): docsCustomers lazy guard — openBizDocsPanel 와 동일 */
+  const cust = (typeof docsCustomers !== 'undefined' && Array.isArray(docsCustomers))
+    ? docsCustomers.find(c=>c.user_id===_finCurrentUserId)
+    : null;
   $g('finCustName').textContent=cust?(cust.real_name||cust.name||('#'+_finCurrentUserId)):('#'+_finCurrentUserId);
   $g('financeModal').style.display='flex';
   document.body.style.overflow='hidden';
