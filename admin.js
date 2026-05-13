@@ -525,9 +525,54 @@ window.canDo = canDo;
   try{localStorage.removeItem('admin_key')}catch{}
   try{
     var saved=sessionStorage.getItem('admin_key');
-    if(saved){IS_OWNER=true;await doLogin(saved,false)}
+    if(saved){IS_OWNER=true;await doLogin(saved,false);return}
+  }catch{}
+  /* Phase 16 (2026-05-13) 사장님 보고: 카카오 로그인 → /admin 이동 후 로그인 폼 회귀.
+   * 근본 원인: 옛 admin.js 는 sessionStorage.admin_key 만 체크, session cookie 무시.
+   * Fix: ADMIN_KEY 없으면 /api/admin-whoami (cookie 인증) 로 fallback 시도.
+   *      role 이 owner/admin 이면 KEY=''(cookie-only) 로 자동 로그인. */
+  try{
+    var r=await fetch('/api/admin-whoami',{credentials:'same-origin'});
+    if(r.ok){
+      var d=await r.json();
+      if(d&&d.ok&&(d.owner||d.adminRole==='owner'||d.adminRole==='admin'||d.adminRole==='editor'||d.adminRole==='viewer')){
+        await doCookieLogin(d);
+      }
+    }
   }catch{}
 })();
+
+/* Phase 16 (2026-05-13): cookie-only 자동 로그인 — kakao/naver OAuth 후 session cookie 만 있는 경우.
+ * doLogin 과 차이: ADMIN_KEY 없이 KEY='' 로 진입. 모든 API 호출 cookie 인증 (checkAdmin 통과).
+ * @param {object} whoamiData - /api/admin-whoami 응답 { ok, owner, adminRole, userId, ... }
+ */
+async function doCookieLogin(whoamiData){
+  KEY='';
+  IS_OWNER=!!whoamiData.owner;
+  ADMIN_ROLE=whoamiData.adminRole||whoamiData.role||null;
+  IS_ADMIN=ADMIN_ROLE==='admin'||ADMIN_ROLE==='owner';
+  IS_EDITOR=ADMIN_ROLE==='editor'||IS_ADMIN;
+  IS_VIEWER=ADMIN_ROLE==='viewer'||IS_EDITOR;
+  IS_MANAGER=IS_ADMIN;
+  IS_STAFF=IS_ADMIN;
+  try{ if(window.__sharedStore){ window.__sharedStore.$key.set(''); window.__sharedStore.$isOwner.set(IS_OWNER); } }catch(_){}
+  try{ if(typeof _refreshOwnerUI === 'function') _refreshOwnerUI(); }catch(_){}
+  try{ await _loadPermissionsCatalog(); }catch(_){}
+  $g('loginView').style.display='none';
+  var _mainView=$g('mainView'); if(_mainView)_mainView.style.display='block';
+  var _mainAppView=document.getElementById('mainAppView');
+  if(_mainAppView){ _mainAppView.classList.remove('hidden'); _mainAppView.style.display='flex'; }
+  try{ loadList(); }catch(_){}
+  try{ refreshPendingBadge(); }catch(_){}
+  try{ refreshLiveBadge(); }catch(_){}
+  try{ setInterval(refreshPendingBadge,30000); }catch(_){}
+  try{ setInterval(refreshLiveBadge,10000); }catch(_){}
+  try{
+    var saved=localStorage.getItem('admin_last_tab');
+    if(saved&&['chat','live','rooms','users','anal','review','faq'].indexOf(saved)>=0)tab(saved);
+    else tab('rooms');
+  }catch{ try{ tab('rooms'); }catch(_){} }
+}
 
 /* 🔐 상담방 목록 모드: 'external'(기본) | 'internal'(관리자방) */
 /* SPA 뒤로가기 지원 — 메타 12종 #7 Phase S3b (2026-05-04, 사장님 명령)

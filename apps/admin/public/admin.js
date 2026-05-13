@@ -447,13 +447,18 @@ if(_mainAppView){ _mainAppView.style.display='none'; }
 /* 페이지 로드: 저장된 ADMIN_KEY가 있으면 자동 로그인. 없으면 로그인 폼 표시.
    admin.html은 항상 ADMIN_KEY 입력을 기다린다. 직원도 admin.html 진입 (staff.html 은 redirect). */
 let IS_OWNER=true;
-/* Phase #10 메타 (2026-05-06): RBAC 3-tier role 변수.
- *   IS_OWNER  : 사장님 (ADMIN_KEY 또는 user_id=1 + is_admin=1)
- *   IS_MANAGER: 사업장 관리자 (is_admin=1 + staff_role='manager')
- *   IS_STAFF  : 일반 admin (is_admin=1, default)
- * UI 가드 (삭제 버튼·권한 변경 버튼 등) — 후속 phase 에서 점진 적용. */
+/* Phase Next-Day29 (2026-05-12) 사장님 명령 "노션 권한 5단계":
+ *   IS_OWNER  : 사장님 (ADMIN_KEY 또는 admin_role='owner' 또는 user_id=1 + is_admin=1)
+ *   IS_ADMIN  : 일반 관리자 (admin_role='admin' 또는 is_admin=1)
+ *   IS_EDITOR : 편집자 (admin_role='editor') — 메모/문서/메시지 작성, 사용자/업체 status 변경 X
+ *   IS_VIEWER : 뷰어 (admin_role='viewer') — 읽기 전용
+ *   IS_MANAGER / IS_STAFF: deprecated, IS_ADMIN 으로 대체. 호환 위해 남겨둠 */
+let IS_ADMIN=false;
+let IS_EDITOR=false;
+let IS_VIEWER=false;
 let IS_MANAGER=false;
 let IS_STAFF=false;
+let ADMIN_ROLE=null; // 'owner' | 'admin' | 'editor' | 'viewer' | null
 /**
  * /api/admin-whoami 호출 → IS_OWNER / IS_MANAGER / IS_STAFF 갱신.
  * Phase #10 (2026-05-06): RBAC 3-tier role.
@@ -469,9 +474,14 @@ async function _refreshAdminRole(){
     const d = await r.json();
     if(d && d.ok){
       IS_OWNER = !!d.owner;
-      /* 사장님 결정 2026-05-11: 매니저/스태프 통합 — 호환 위해 변수만 유지, 모두 동일 */
-      IS_MANAGER = !!d.owner || (d.role === 'admin');
-      IS_STAFF = (d.role === 'admin' || d.role === 'owner');
+      ADMIN_ROLE = d.adminRole || d.role || null;
+      /* 사장님 결정 2026-05-12: 노션 5단계 (owner > admin > editor > viewer > customer) */
+      IS_ADMIN = ADMIN_ROLE === 'admin' || ADMIN_ROLE === 'owner';
+      IS_EDITOR = ADMIN_ROLE === 'editor' || IS_ADMIN;
+      IS_VIEWER = ADMIN_ROLE === 'viewer' || IS_EDITOR;
+      /* legacy 호환 */
+      IS_MANAGER = IS_ADMIN;
+      IS_STAFF = IS_ADMIN;
       /* IS_OWNER 변동 시 UI 갱신 */
       try{ if(typeof _refreshOwnerUI === 'function') _refreshOwnerUI(); }catch(_){}
       try{ if(window.__sharedStore){ window.__sharedStore.$isOwner.set(IS_OWNER); } }catch(_){}
@@ -503,8 +513,9 @@ function canDo(permission){
   if(!window.__PERMISSIONS) return IS_OWNER; // catalog 로드 전 = owner 만 안전
   const required = window.__PERMISSIONS[permission];
   if(!required) return false;
-  const role = IS_OWNER ? 'owner' : (IS_STAFF ? 'admin' : 'customer');
-  const order = ['customer', 'admin', 'owner'];
+  /* 노션 5단계 (2026-05-12 사장님 명령): owner > admin > editor > viewer > customer */
+  const role = ADMIN_ROLE || (IS_OWNER ? 'owner' : (IS_ADMIN ? 'admin' : 'customer'));
+  const order = ['customer', 'viewer', 'editor', 'admin', 'owner'];
   return order.indexOf(role) >= order.indexOf(required);
 }
 window.canDo = canDo;
@@ -514,9 +525,54 @@ window.canDo = canDo;
   try{localStorage.removeItem('admin_key')}catch{}
   try{
     var saved=sessionStorage.getItem('admin_key');
-    if(saved){IS_OWNER=true;await doLogin(saved,false)}
+    if(saved){IS_OWNER=true;await doLogin(saved,false);return}
+  }catch{}
+  /* Phase 16 (2026-05-13) 사장님 보고: 카카오 로그인 → /admin 이동 후 로그인 폼 회귀.
+   * 근본 원인: 옛 admin.js 는 sessionStorage.admin_key 만 체크, session cookie 무시.
+   * Fix: ADMIN_KEY 없으면 /api/admin-whoami (cookie 인증) 로 fallback 시도.
+   *      role 이 owner/admin 이면 KEY=''(cookie-only) 로 자동 로그인. */
+  try{
+    var r=await fetch('/api/admin-whoami',{credentials:'same-origin'});
+    if(r.ok){
+      var d=await r.json();
+      if(d&&d.ok&&(d.owner||d.adminRole==='owner'||d.adminRole==='admin'||d.adminRole==='editor'||d.adminRole==='viewer')){
+        await doCookieLogin(d);
+      }
+    }
   }catch{}
 })();
+
+/* Phase 16 (2026-05-13): cookie-only 자동 로그인 — kakao/naver OAuth 후 session cookie 만 있는 경우.
+ * doLogin 과 차이: ADMIN_KEY 없이 KEY='' 로 진입. 모든 API 호출 cookie 인증 (checkAdmin 통과).
+ * @param {object} whoamiData - /api/admin-whoami 응답 { ok, owner, adminRole, userId, ... }
+ */
+async function doCookieLogin(whoamiData){
+  KEY='';
+  IS_OWNER=!!whoamiData.owner;
+  ADMIN_ROLE=whoamiData.adminRole||whoamiData.role||null;
+  IS_ADMIN=ADMIN_ROLE==='admin'||ADMIN_ROLE==='owner';
+  IS_EDITOR=ADMIN_ROLE==='editor'||IS_ADMIN;
+  IS_VIEWER=ADMIN_ROLE==='viewer'||IS_EDITOR;
+  IS_MANAGER=IS_ADMIN;
+  IS_STAFF=IS_ADMIN;
+  try{ if(window.__sharedStore){ window.__sharedStore.$key.set(''); window.__sharedStore.$isOwner.set(IS_OWNER); } }catch(_){}
+  try{ if(typeof _refreshOwnerUI === 'function') _refreshOwnerUI(); }catch(_){}
+  try{ await _loadPermissionsCatalog(); }catch(_){}
+  $g('loginView').style.display='none';
+  var _mainView=$g('mainView'); if(_mainView)_mainView.style.display='block';
+  var _mainAppView=document.getElementById('mainAppView');
+  if(_mainAppView){ _mainAppView.classList.remove('hidden'); _mainAppView.style.display='flex'; }
+  try{ loadList(); }catch(_){}
+  try{ refreshPendingBadge(); }catch(_){}
+  try{ refreshLiveBadge(); }catch(_){}
+  try{ setInterval(refreshPendingBadge,30000); }catch(_){}
+  try{ setInterval(refreshLiveBadge,10000); }catch(_){}
+  try{
+    var saved=localStorage.getItem('admin_last_tab');
+    if(saved&&['chat','live','rooms','users','anal','review','faq'].indexOf(saved)>=0)tab(saved);
+    else tab('rooms');
+  }catch{ try{ tab('rooms'); }catch(_){} }
+}
 
 /* 🔐 상담방 목록 모드: 'external'(기본) | 'internal'(관리자방) */
 /* SPA 뒤로가기 지원 — 메타 12종 #7 Phase S3b (2026-05-04, 사장님 명령)
