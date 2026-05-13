@@ -121,11 +121,14 @@ export const customerProcedure = t.procedure.use(async ({ ctx, next }) => {
 
 /**
  * permission-based procedure — 특정 권한 필요.
+ *
+ * Phase 15 audit fix (2026-05-12): ctxRole 재사용 — adminRole (Notion 5단계)
+ * 정확 반영. 이전 코드는 isOwner/isAdmin 만 봐서 editor/viewer 사용자가
+ * admin 으로 격상돼 catalog 권한 부정 통과 → 권한 catalog 누설.
  */
 export function withPermission(permission: Permission) {
   return t.procedure.use(async ({ ctx, next }) => {
-    /* 사장님 결정 2026-05-11: 3단계 (owner/admin/customer). staffRole deprecated. */
-    const role: Role = ctx.auth.isOwner ? 'owner' : ctx.auth.isAdmin ? 'admin' : 'customer';
+    const role = ctxRole(ctx.auth);
     if (!can(role, permission)) {
       throw new TRPCError({
         code: 'FORBIDDEN',

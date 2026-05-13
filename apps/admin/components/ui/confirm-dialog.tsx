@@ -29,6 +29,7 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from './button';
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap';
+import { acquireScrollLock } from '@/lib/scroll-lock';
 
 export interface ConfirmOptions {
   title: string;
@@ -100,7 +101,7 @@ export function ConfirmDialog() {
     }
   }, [active]);
 
-  /* ESC / Enter 키 */
+  /* ESC / Enter 키 + scroll lock (Phase 15: reference-counted, nested 안전) */
   React.useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
@@ -113,10 +114,10 @@ export function ConfirmDialog() {
       }
     };
     document.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
+    const releaseLock = acquireScrollLock();
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
+      releaseLock();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);

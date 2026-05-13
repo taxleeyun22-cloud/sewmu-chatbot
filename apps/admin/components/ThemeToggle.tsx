@@ -9,49 +9,80 @@
  */
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { Sun, Moon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type Theme = 'light' | 'dark';
 
 /**
- * SSR-safe — 서버 렌더 시 'light' default.
- * client 에서 hydration 후 즉시 localStorage / system 반영.
+ * Phase 15 audit fix (2026-05-12): useSyncExternalStore 로 SSR/CSR 일관.
  *
- * 깜빡임 (FOUC) 방지를 위해 globals.css 또는 layout 에서 inline script 로
- * 첫 paint 전에 'dark' 클래스 적용하는 것도 가능 (Phase 15 후속).
+ * 이전 사고: useState('light') default → useEffect 에서 dark 적용 → 첫 paint 에
+ * 라이트 모드 button 라벨 표시 → 깜빡임 (FOUC). aria-pressed 도 잠시 false.
+ *
+ * 해결: useSyncExternalStore — SSR snapshot 은 'light' (no localStorage 접근),
+ * 클라이언트 hydration 부터는 즉시 html.dark 클래스 읽기 — layout.tsx 의
+ * inline FOUC 스크립트 가 paint 전에 이미 클래스 추가했으므로 첫 render 부터 정확.
  */
-function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'light';
-  try {
-    const saved = localStorage.getItem('theme');
-    if (saved === 'dark' || saved === 'light') return saved;
-    /* system preference fallback */
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  } catch {
-    return 'light';
-  }
+function getClientSnapshot(): Theme {
+  if (typeof document === 'undefined') return 'light';
+  /* FOUC inline script 가 paint 전 html.dark 추가했으므로 그것을 신뢰 — single source of truth. */
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+}
+
+function getServerSnapshot(): Theme {
+  return 'light';
+}
+
+/* External store — `theme` change 시 subscribe callback 호출. */
+const themeChangeListeners = new Set<() => void>();
+
+function subscribe(callback: () => void): () => void {
+  themeChangeListeners.add(callback);
+  return () => themeChangeListeners.delete(callback);
+}
+
+function notifyThemeChange(): void {
+  for (const cb of themeChangeListeners) cb();
 }
 
 function applyTheme(t: Theme): void {
   const root = document.documentElement;
   if (t === 'dark') root.classList.add('dark');
   else root.classList.remove('dark');
+  notifyThemeChange();
 }
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>('light');
+  const theme = useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot);
 
+  /* layout.tsx 의 inline FOUC script 가 paint 전 dark 적용한다.
+   * 단, FOUC script 가 없는 환경 (테스트 / 일부 SSG path) 에서도 mount 시 한 번 sync.
+   * localStorage 가 dark 인데 class 가 없으면 추가. */
   useEffect(() => {
-    const initial = getInitialTheme();
-    setTheme(initial);
-    applyTheme(initial);
+    if (typeof document === 'undefined') return;
+    try {
+      const saved = localStorage.getItem('theme');
+      const hasClass = document.documentElement.classList.contains('dark');
+      if (saved === 'dark' && !hasClass) {
+        applyTheme('dark');
+      } else if (saved === 'light' && hasClass) {
+        applyTheme('light');
+      } else if (!saved) {
+        /* system preference fallback */
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (prefersDark !== hasClass) {
+          applyTheme(prefersDark ? 'dark' : 'light');
+        }
+      }
+    } catch {
+      /* silent */
+    }
   }, []);
 
   function toggle() {
     const next: Theme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
     applyTheme(next);
     try {
       localStorage.setItem('theme', next);

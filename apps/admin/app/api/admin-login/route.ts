@@ -21,6 +21,19 @@ export const runtime = 'edge';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+/**
+ * Phase 15 audit fix (2026-05-12): timing-safe 문자열 비교.
+ * 이전: `key !== expectedKey` non-constant-time → ADMIN_KEY 길이/prefix 추출 timing attack 가능.
+ * rate-limit (10/min) 만으로는 부족 — 표준은 timing-safe.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 /** HMAC-SHA256 서명 — cookie 위조 방지. */
 async function signToken(payload: string, secret: string): Promise<string> {
   const enc = new TextEncoder();
@@ -67,7 +80,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!key || key !== expectedKey) {
+    if (!key || !timingSafeEqual(key, expectedKey)) {
       return NextResponse.json(
         { ok: false, error: '비번이 일치하지 않습니다' },
         { status: 401 },

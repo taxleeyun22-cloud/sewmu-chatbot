@@ -12,6 +12,41 @@ import { useEffect } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+/* Phase 15 audit fix (2026-05-12): error_logs dedup.
+ * 이전 사고 가능성: render-loop bug → 같은 digest 의 에러가 매 mount 마다 POST → 사장님
+ * 무당벌레 사이드바 가짜 빨간 점 폭주. sessionStorage 로 같은 digest 중복 차단. */
+const reportedDigests = new Set<string>();
+
+function reportOnce(error: Error & { digest?: string }): void {
+  const key = error.digest || `${error.name}:${error.message}`.slice(0, 200);
+  if (reportedDigests.has(key)) return;
+  reportedDigests.add(key);
+  /* 추가 안전망: sessionStorage 도 마킹 (page reload 까지 유효) */
+  try {
+    const seen = JSON.parse(sessionStorage.getItem('_admin_err_seen') || '[]') as string[];
+    if (seen.includes(key)) return;
+    seen.push(key);
+    if (seen.length > 50) seen.shift(); // bound size
+    sessionStorage.setItem('_admin_err_seen', JSON.stringify(seen));
+  } catch {
+    /* private mode — silent */
+  }
+  fetch('/api/admin-error-log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source: 'admin',
+      message: error.message?.slice(0, 500) || 'Unknown error',
+      stack: error.stack?.slice(0, 2000),
+      url: typeof window !== 'undefined' ? window.location.href : '',
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+      context: { digest: error.digest, route_error_boundary: true },
+    }),
+  }).catch(() => {
+    /* 보고 자체 실패해도 fallback UI 는 표시 */
+  });
+}
+
 export default function AdminError({
   error,
   reset,
@@ -20,21 +55,7 @@ export default function AdminError({
   reset: () => void;
 }) {
   useEffect(() => {
-    /* 사장님 무당벌레 화면에 자동 보고 — fire-and-forget */
-    fetch('/api/admin-error-log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        source: 'admin',
-        message: error.message?.slice(0, 500) || 'Unknown error',
-        stack: error.stack?.slice(0, 2000),
-        url: typeof window !== 'undefined' ? window.location.href : '',
-        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
-        context: { digest: error.digest, route_error_boundary: true },
-      }),
-    }).catch(() => {
-      /* 보고 자체 실패해도 fallback UI 는 표시 */
-    });
+    reportOnce(error);
     /* 콘솔에도 — 개발 중 디버그 */
     // eslint-disable-next-line no-console
     console.error('[admin error boundary]', error);

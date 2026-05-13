@@ -7,6 +7,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap';
+import { acquireScrollLock } from '@/lib/scroll-lock';
 
 type DialogContextValue = {
   open: boolean;
@@ -30,10 +31,11 @@ export function Dialog({
       if (e.key === 'Escape') onOpenChange(false);
     };
     document.addEventListener('keydown', onEsc);
-    document.body.style.overflow = 'hidden';
+    /* Phase 15: reference-counted scroll lock — nested Dialog/ConfirmDialog 안전 */
+    const releaseLock = acquireScrollLock();
     return () => {
       document.removeEventListener('keydown', onEsc);
-      document.body.style.overflow = '';
+      releaseLock();
     };
   }, [open, onOpenChange]);
 

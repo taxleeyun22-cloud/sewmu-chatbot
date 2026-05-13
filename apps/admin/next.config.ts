@@ -31,10 +31,18 @@ const SECURITY_HEADERS = [
 ];
 
 /* CSP — new admin 용. Tailwind / shadcn dynamic style → 'unsafe-inline' 불가피.
- * Sentry 도입 시 connect-src 에 *.sentry.io 추가 (이미 포함). */
+ * Sentry 도입 시 connect-src 에 *.sentry.io 추가 (이미 포함).
+ *
+ * Phase 15 audit fix (2026-05-12): `unsafe-eval` 는 개발 환경 (Next.js HMR)
+ * 에서만 필요. prod 에는 제거 — XSS 방어 강화. */
+const IS_PROD = process.env.NODE_ENV === 'production';
+const scriptSrc = IS_PROD
+  ? "script-src 'self' 'unsafe-inline'" /* prod: FOUC inline script 만 */
+  : "script-src 'self' 'unsafe-inline' 'unsafe-eval'"; /* dev: Next.js HMR */
+
 const CSP_NEW_ADMIN = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js inline + React dev
+  scriptSrc,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",

@@ -43,6 +43,7 @@ import {
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import * as React from 'react';
 import { useEffect } from 'react';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -145,11 +146,21 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps = {}
     return () => document.removeEventListener('keydown', onKey);
   }, [mobileOpen, onMobileClose]);
 
-  /* 모바일 — pathname 바뀌면 자동 닫기 (라우팅 후 drawer 사라짐) */
+  /* 모바일 — pathname 변경 시 자동 닫기. Phase 15 audit fix:
+   * 1. usePrev ref 로 실제 pathname 변경 시만 발화 (초기 mount 시 즉시 닫는 버그 차단)
+   * 2. onMobileClose 변경되어도 fresh closure 사용 (ref 패턴) */
+  const prevPathnameRef = React.useRef<string | null>(null);
+  const onCloseRef = React.useRef(onMobileClose);
+  React.useEffect(() => {
+    onCloseRef.current = onMobileClose;
+  }, [onMobileClose]);
   useEffect(() => {
-    if (mobileOpen && onMobileClose) onMobileClose();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+    if (prevPathnameRef.current !== null && prevPathnameRef.current !== pathname) {
+      /* 실제 path 변경 시만 — 초기 mount 는 skip */
+      if (mobileOpen && onCloseRef.current) onCloseRef.current();
+    }
+    prevPathnameRef.current = pathname;
+  }, [pathname, mobileOpen]);
 
   async function handleLogout() {
     const ok = await confirm({
@@ -169,7 +180,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps = {}
   const aside = (
     <aside
       className={cn(
-        'w-52 bg-sb-bg border-r border-gray-200 flex flex-col h-full',
+        'w-52 bg-sb-bg border-r border-gray-200 dark:border-gray-700 flex flex-col h-full',
         /* 데스크탑 (md+): 인라인 / 모바일: drawer */
         'md:static md:translate-x-0',
         mobileOpen

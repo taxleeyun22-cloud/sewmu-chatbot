@@ -97,17 +97,18 @@ export function formatRelative(
 
 /**
  * "1,234,567원" — null 안전.
+ * Phase 15 audit fix: 빈 문자열도 '-' 처리 (Number('') = 0 인데 '0원' 보다 '-' 가 안전).
  */
-export function formatWon(n: number | null | undefined): string {
-  if (n === null || n === undefined || isNaN(Number(n))) return '-';
+export function formatWon(n: number | string | null | undefined): string {
+  if (n === null || n === undefined || n === '' || isNaN(Number(n))) return '-';
   return Number(n).toLocaleString('ko-KR') + '원';
 }
 
 /**
  * "1,234,567" — 단위 없이.
  */
-export function formatNumber(n: number | null | undefined): string {
-  if (n === null || n === undefined || isNaN(Number(n))) return '-';
+export function formatNumber(n: number | string | null | undefined): string {
+  if (n === null || n === undefined || n === '' || isNaN(Number(n))) return '-';
   return Number(n).toLocaleString('ko-KR');
 }
 

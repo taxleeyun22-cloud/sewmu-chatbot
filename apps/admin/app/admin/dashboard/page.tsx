@@ -86,26 +86,35 @@ const KPI_CONFIG: {
   { key: 'errorLogs', label: '에러 로그', href: '/admin/errors', tone: 'gray', icon: Bug },
 ];
 
+/* Phase 15 audit fix (2026-05-12): dark mode coverage — 각 tone 별 dark variant. */
 const TONE_CLASSES: Record<string, string> = {
-  yellow: 'border-yellow-200 bg-yellow-50/60 hover:bg-yellow-50',
-  blue: 'border-blue-200 bg-blue-50/60 hover:bg-blue-50',
-  orange: 'border-orange-200 bg-orange-50/60 hover:bg-orange-50',
-  green: 'border-green-200 bg-green-50/60 hover:bg-green-50',
-  red: 'border-red-200 bg-red-50/60 hover:bg-red-50',
-  purple: 'border-purple-200 bg-purple-50/60 hover:bg-purple-50',
-  indigo: 'border-indigo-200 bg-indigo-50/60 hover:bg-indigo-50',
-  gray: 'border-gray-200 bg-gray-50 hover:bg-gray-100',
+  yellow:
+    'border-yellow-200 bg-yellow-50/60 hover:bg-yellow-50 dark:border-yellow-900/50 dark:bg-yellow-950/40 dark:hover:bg-yellow-900/40',
+  blue:
+    'border-blue-200 bg-blue-50/60 hover:bg-blue-50 dark:border-blue-900/50 dark:bg-blue-950/40 dark:hover:bg-blue-900/40',
+  orange:
+    'border-orange-200 bg-orange-50/60 hover:bg-orange-50 dark:border-orange-900/50 dark:bg-orange-950/40 dark:hover:bg-orange-900/40',
+  green:
+    'border-green-200 bg-green-50/60 hover:bg-green-50 dark:border-green-900/50 dark:bg-green-950/40 dark:hover:bg-green-900/40',
+  red:
+    'border-red-200 bg-red-50/60 hover:bg-red-50 dark:border-red-900/50 dark:bg-red-950/40 dark:hover:bg-red-900/40',
+  purple:
+    'border-purple-200 bg-purple-50/60 hover:bg-purple-50 dark:border-purple-900/50 dark:bg-purple-950/40 dark:hover:bg-purple-900/40',
+  indigo:
+    'border-indigo-200 bg-indigo-50/60 hover:bg-indigo-50 dark:border-indigo-900/50 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40',
+  gray:
+    'border-gray-200 bg-gray-50 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700',
 };
 
 const TONE_ICON_COLORS: Record<string, string> = {
-  yellow: 'text-yellow-600',
-  blue: 'text-blue-600',
-  orange: 'text-orange-600',
-  green: 'text-green-600',
-  red: 'text-red-600',
-  purple: 'text-purple-600',
-  indigo: 'text-indigo-600',
-  gray: 'text-gray-600',
+  yellow: 'text-yellow-600 dark:text-yellow-400',
+  blue: 'text-blue-600 dark:text-blue-400',
+  orange: 'text-orange-600 dark:text-orange-400',
+  green: 'text-green-600 dark:text-green-400',
+  red: 'text-red-600 dark:text-red-400',
+  purple: 'text-purple-600 dark:text-purple-400',
+  indigo: 'text-indigo-600 dark:text-indigo-400',
+  gray: 'text-gray-600 dark:text-gray-300',
 };
 
 const QUICK_LINKS: { icon: LucideIcon; label: string; href: string }[] = [
@@ -136,8 +145,8 @@ export default function DashboardPage() {
     <div className="p-4 space-y-4">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">대시보드</h1>
-          <p className="text-xs text-gray-500 mt-0.5">사장님 매일 진입 · 30초 자동 갱신</p>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">대시보드</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">사장님 매일 진입 · 30초 자동 갱신</p>
         </div>
         <Badge variant="success" className="animate-pulse">실시간</Badge>
       </header>
@@ -161,11 +170,11 @@ export default function DashboardPage() {
                 strokeWidth={1.8}
                 className={cn('mb-1', TONE_ICON_COLORS[kpi.tone])}
               />
-              <p className="text-[10px] text-gray-600">{kpi.label}</p>
+              <p className="text-[10px] text-gray-600 dark:text-gray-300">{kpi.label}</p>
               {countsLoading ? (
                 <Skeleton className="h-5 w-8 mt-0.5" />
               ) : (
-                <p className="text-lg font-bold text-gray-900 leading-tight">
+                <p className="text-lg font-bold text-gray-900 dark:text-gray-100 leading-tight">
                   {value ?? '-'}
                 </p>
               )}
@@ -187,7 +196,7 @@ export default function DashboardPage() {
                 <Link
                   key={q.href}
                   href={q.href}
-                  className="flex flex-col items-center gap-1 py-2 px-1 bg-gray-50 rounded-md hover:bg-blue-50 hover:text-brand-primary transition-colors text-gray-700"
+                  className="flex flex-col items-center gap-1 py-2 px-1 bg-gray-50 dark:bg-gray-800 rounded-md hover:bg-blue-50 dark:hover:bg-gray-700 hover:text-brand-primary transition-colors text-gray-700 dark:text-gray-200"
                 >
                   <Icon size={16} strokeWidth={1.8} />
                   <span className="text-[10px] font-medium">{q.label}</span>
@@ -203,7 +212,7 @@ export default function DashboardPage() {
         <RecentSection
           title="💬 최근 대화"
           loading={recentLoading}
-          items={recent?.recentMessages.map((m) => ({
+          items={recent?.recentMessages?.map((m) => ({
             id: m.id,
             primary: m.user_name || '익명',
             secondary: (m.content || '').slice(0, 50),
@@ -216,11 +225,12 @@ export default function DashboardPage() {
         <RecentSection
           title="📄 최근 업로드"
           loading={recentLoading}
-          items={recent?.recentUploads.map((u) => ({
+          items={recent?.recentUploads?.map((u) => ({
             id: u.id,
             primary: u.user_name || '익명',
+            /* Phase 15 audit fix: u.amount=0 도 정상 (truthy check → '-' 표시 버그). */
             secondary: `${u.doc_type} · ${u.vendor || '-'} · ${
-              u.amount ? `${u.amount.toLocaleString()}원` : '-'
+              u.amount != null ? `${u.amount.toLocaleString()}원` : '-'
             }`,
             badge: u.status || 'pending',
             badgeVariant: docBadge(u.status),
@@ -231,7 +241,7 @@ export default function DashboardPage() {
         <RecentSection
           title="📒 최근 메모"
           loading={recentLoading}
-          items={recent?.recentMemos.map((m) => ({
+          items={recent?.recentMemos?.map((m) => ({
             id: m.id,
             primary: m.author_name || '사장님',
             secondary: m.content.slice(0, 50),
@@ -288,14 +298,16 @@ function RecentSection({
               <li key={it.id}>
                 <Link
                   href={it.href}
-                  className="block px-1.5 py-1 rounded hover:bg-gray-50 transition-colors"
+                  className="block px-1.5 py-1 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-1.5">
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-900 truncate">
+                      <p className="text-[11px] font-medium text-gray-900 dark:text-gray-100 truncate">
                         {it.primary}
                       </p>
-                      <p className="text-[10px] text-gray-500 truncate">{it.secondary}</p>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
+                        {it.secondary}
+                      </p>
                     </div>
                     {it.badge && (
                       <Badge variant={it.badgeVariant || 'default'} className="whitespace-nowrap">
@@ -303,7 +315,7 @@ function RecentSection({
                       </Badge>
                     )}
                   </div>
-                  <p className="text-[9px] text-gray-400 font-mono mt-0.5">
+                  <p className="text-[9px] text-gray-400 dark:text-gray-500 font-mono mt-0.5">
                     {formatDateTime(it.time)}
                   </p>
                 </Link>

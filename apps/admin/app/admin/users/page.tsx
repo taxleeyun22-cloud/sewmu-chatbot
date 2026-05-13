@@ -13,6 +13,7 @@ import { toast } from '@/components/ui/toast';
 import { confirm } from '@/components/ui/confirm-dialog';
 import { formatUserName } from '@/lib/format';
 import { invalidateAfter } from '@/lib/mutation-invalidate';
+import { formatDate } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -75,11 +76,11 @@ export default function UsersPage() {
     <div className="p-4 space-y-3">
       <header className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
             <Users size={18} strokeWidth={2} className="text-brand-primary" />
             사용자
           </h1>
-          <p className="text-xs text-gray-500 mt-0.5">거래처 + admin 관리</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">거래처 + admin 관리</p>
         </div>
         <div className="relative">
           <Search
@@ -207,7 +208,7 @@ function UserRow({
 
   return (
     <TableRow>
-      <TableCell className="text-gray-400 font-mono">{user.id}</TableCell>
+      <TableCell className="text-gray-400 dark:text-gray-500 font-mono">{user.id}</TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
           <Avatar
@@ -229,8 +230,8 @@ function UserRow({
           )}
         </div>
       </TableCell>
-      <TableCell className="font-mono text-gray-700">{user.phone || '-'}</TableCell>
-      <TableCell className="text-gray-600 truncate max-w-[180px]">{user.email || '-'}</TableCell>
+      <TableCell className="font-mono text-gray-700 dark:text-gray-200">{user.phone || '-'}</TableCell>
+      <TableCell className="text-gray-600 dark:text-gray-300 truncate max-w-[180px]">{user.email || '-'}</TableCell>
       <TableCell>
         <Badge variant={providerVariant}>
           {user.provider === 'kakao'
@@ -240,8 +241,9 @@ function UserRow({
               : '수동'}
         </Badge>
       </TableCell>
-      <TableCell className="text-[10px] text-gray-500 font-mono">
-        {user.created_at ? user.created_at.slice(2, 10) : '-'}
+      {/* Phase 15 audit fix: slice(2,10) hack → formatDate (locale + null safe) */}
+      <TableCell className="text-[10px] text-gray-500 dark:text-gray-400 font-mono">
+        {formatDate(user.created_at)}
       </TableCell>
       <TableCell className="text-right">
         <div className="flex gap-1 justify-end">
