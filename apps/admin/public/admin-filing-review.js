@@ -787,15 +787,37 @@ function _filRenderDeductionRow(d, idx, readonly) {
   const ro = readonly ? 'readonly disabled' : '';
   const remBtn = readonly ? '' : '<button onclick="_filRemoveDeductionRow(' + idx + ')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1.1em;padding:0 4px;font-family:inherit">×</button>';
   const codeAttr = d.code ? ' data-code="' + _filEsc(d.code) + '"' : '';
+  /* Phase 16 (2026-05-13) 사장님 명령 "드롭다운 있는거처럼 보이게":
+   * - 🔍 좌측 검색 아이콘 + ▼ 우측 화살표 → select 처럼 시각적 단서
+   * - 클릭 시 dropdown 자동 표시 (focus 이벤트)
+   * - input background 살짝 옅은 회색 → 일반 input 과 구별 */
   return '<div class="fil-deduction-row" data-idx="' + idx + '"' + codeAttr + ' style="display:grid;grid-template-columns:1.5fr 1fr auto;gap:6px;margin-bottom:4px;position:relative">'
-    + '<div style="position:relative">'
-    +   '<input type="text" ' + ro + ' value="' + _filEsc(d.name || d.종류 || '') + '" placeholder="항목 검색 (예: 중특, 자녀세액공제, 통합고용)" oninput="_filDedNameInput(this,' + idx + ')" onfocus="_filDedNameInput(this,' + idx + ')" onblur="setTimeout(function(){_filDedHideDropdown(' + idx + ')},200)" class="filing-text-input fil-ded-name" autocomplete="off">'
-    +   '<div class="fil-ded-dropdown" data-row-idx="' + idx + '" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e5e8eb;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.08);max-height:240px;overflow-y:auto;z-index:1000;margin-top:2px"></div>'
+    + '<div style="position:relative" onclick="this.querySelector(\'input.fil-ded-name\').focus()">'
+    +   '<span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#6b7280;font-size:.86em;z-index:1">🔍</span>'
+    +   '<input type="text" ' + ro + ' value="' + _filEsc(d.name || d.종류 || '') + '" placeholder="클릭해서 검색 (중특, 자녀세액공제, 통합고용...)" oninput="_filDedNameInput(this,' + idx + ')" onfocus="_filDedNameInput(this,' + idx + ')" onblur="setTimeout(function(){_filDedHideDropdown(' + idx + ')},200)" onkeydown="_filDedKeydown(event,this,' + idx + ')" class="filing-text-input fil-ded-name" autocomplete="off" style="padding-left:32px;padding-right:32px;background:#f9fafb;cursor:pointer">'
+    +   '<span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#6b7280;font-size:.72em;z-index:1">▼</span>'
+    +   '<div class="fil-ded-dropdown" data-row-idx="' + idx + '" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #3182f6;border-radius:6px;box-shadow:0 6px 20px rgba(49,130,246,.15);max-height:280px;overflow-y:auto;z-index:1000;margin-top:4px"></div>'
     + '</div>'
-    + '<input type="text" ' + ro + ' value="' + (d.amount || d.금액 ? _filFormatNum(d.amount || d.금액) : '') + '" placeholder="금액" oninput="_filFormatOnInput(this);_filDeductionChanged()" class="filing-num-input fil-ded-amount">'
+    + '<input type="text" ' + ro + ' value="' + (d.amount || d.금액 ? _filFormatNum(d.amount || d.금액) : '') + '" placeholder="금액 (원)" oninput="_filFormatOnInput(this);_filDeductionChanged()" class="filing-num-input fil-ded-amount">'
     + remBtn
     + '</div>';
 }
+
+/* Phase 16 (2026-05-13): 키보드 단축키 — Esc 닫기 / Enter 첫 매칭 선택 */
+function _filDedKeydown(e, inputEl, idx) {
+  if (e.key === 'Escape') {
+    _filDedHideDropdown(idx);
+    return;
+  }
+  if (e.key === 'Enter') {
+    /* 첫 dropdown 항목 클릭 */
+    e.preventDefault();
+    const dd = document.querySelector('.fil-ded-dropdown[data-row-idx="' + idx + '"]');
+    const firstItem = dd ? dd.querySelector('div[onmousedown]') : null;
+    if (firstItem) firstItem.dispatchEvent(new MouseEvent('mousedown'));
+  }
+}
+window._filDedKeydown = _filDedKeydown;
 
 /* dropdown 검색 + 표시 */
 function _filDedNameInput(inputEl, idx) {
