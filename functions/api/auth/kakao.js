@@ -312,31 +312,18 @@ export async function onRequestGet(context) {
       `INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)`
     ).bind(sessionToken, user.id, expiresAt).run();
 
-    /* Phase 16 (2026-05-13): from=admin cookie 읽어서 admin 사용자면 admin 페이지로.
-     * 그 외 거래처 메인 (`/`).
-     * 사장님 보고: 옛 admin login → 카카오 로그인 했더니 거래처 챗봇으로 가서 admin 진입 안 됨.
-     *
-     * 분기:
-     * - oauth_from=admin AND user.is_admin=1  → /admin (관리자 화면)
-     * - oauth_from=admin AND user.is_admin=0  → / 거래처. (관리자 등록 필요 안내 메시지)
-     * - oauth_from 없음                       → / 거래처 (default) */
-    const fromCookie = (context.request.headers.get("Cookie") || "")
-      .match(/oauth_from=([^;]+)/)?.[1];
+    /* Phase 16 (2026-05-13) 사장님 명령 '근본적 이유':
+     * is_admin=1 사용자면 무조건 /admin 으로 redirect. cookie 의존성 제거.
+     * 이유: oauth_from=admin cookie 가 카카오 cross-site redirect 시 SameSite=Lax 으로
+     * 안 보내지는 환경 있음 (사장님 일반 창). cookie 없이도 사장님이 카카오 로그인했고
+     * is_admin=1 이면 admin 의도 명백. 거래처 (is_admin=0) 는 그대로 거래처 메인. */
     let isAdminUser = 0;
     try {
-      const u = await db.prepare(`SELECT is_admin FROM users WHERE id = ?`).bind(user.id).first();
-      isAdminUser = Number(u?.is_admin || 0);
+      const u = await db.prepare(`SELECT is_admin, admin_role FROM users WHERE id = ?`).bind(user.id).first();
+      isAdminUser = (Number(u?.is_admin || 0) === 1 || (u?.admin_role && u.admin_role !== '')) ? 1 : 0;
     } catch {}
 
-    let location = url.origin + "/";
-    if (fromCookie === "admin") {
-      if (isAdminUser === 1) {
-        location = url.origin + "/admin";
-      } else {
-        /* 카카오는 인증됐지만 admin 권한 없음 — 거래처 메인으로 + 안내 query */
-        location = url.origin + "/?login_warn=not_admin";
-      }
-    }
+    let location = isAdminUser === 1 ? url.origin + "/admin" : url.origin + "/";
 
     const headers = new Headers();
     headers.append("Location", location);

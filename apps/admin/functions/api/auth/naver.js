@@ -147,18 +147,16 @@ export async function onRequestGet(context) {
       `INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)`
     ).bind(sessionToken, user.id, expiresAt).run();
 
-    /* Phase 16 (2026-05-13): from=admin cookie 읽어서 admin redirect 분기 — kakao.js 와 동일 패턴 */
-    const fromCookie = (context.request.headers.get("Cookie") || "")
-      .match(/oauth_from=([^;]+)/)?.[1];
+    /* Phase 16 (2026-05-13) 사장님 명령 '근본적 이유':
+     * is_admin=1 사용자면 무조건 /admin 으로 redirect. cookie 의존성 제거 — kakao.js 와 동일 패턴.
+     * 이유: oauth_from=admin cookie 가 OAuth cross-site redirect 시 SameSite=Lax 으로
+     * 안 보내지는 환경 있음. cookie 없이 is_admin=1 이면 admin 의도 명백. */
     let isAdminUser = 0;
     try {
-      const u = await db.prepare(`SELECT is_admin FROM users WHERE id = ?`).bind(user.id).first();
-      isAdminUser = Number(u?.is_admin || 0);
+      const u = await db.prepare(`SELECT is_admin, admin_role FROM users WHERE id = ?`).bind(user.id).first();
+      isAdminUser = (Number(u?.is_admin || 0) === 1 || (u?.admin_role && u.admin_role !== '')) ? 1 : 0;
     } catch {}
-    let location = url.origin + "/";
-    if (fromCookie === "admin") {
-      location = isAdminUser === 1 ? url.origin + "/admin" : url.origin + "/?login_warn=not_admin";
-    }
+    let location = isAdminUser === 1 ? url.origin + "/admin" : url.origin + "/";
 
     const headers = new Headers();
     headers.append("Location", location);
