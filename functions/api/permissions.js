@@ -14,7 +14,9 @@
  *      개별 액션은 백엔드 endpoint 에서 checkPermission() 으로 차단.
  */
 
-import permissionsData from "./_permissions.json" with { type: "json" };
+/* Phase 16 fix (2026-05-13): import ... with { type:"json" } Cloudflare wrangler 미지원.
+ * _permissions-data.js (.js module, export default) 사용 — scripts/export-permissions.mjs 가 생성. */
+import permissionsData from "./_permissions-data.js";
 
 export async function onRequestGet() {
   return Response.json(permissionsData, {

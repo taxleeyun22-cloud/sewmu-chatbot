@@ -8,7 +8,8 @@
  * → 옛+새 자동 반영. "admin/staff 동기화 사고" 패턴 영구 차단.
  */
 
-import permissionsData from "./_permissions.json" with { type: "json" };
+/* Phase 16 fix (2026-05-13): import ... with { type:"json" } Cloudflare wrangler 미지원. */
+import permissionsData from "./_permissions-data.js";
 import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
 
 /** @type {{ permissions: Record<string, 'owner' | 'admin' | 'customer'> }} */
