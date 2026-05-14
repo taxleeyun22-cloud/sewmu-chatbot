@@ -150,6 +150,10 @@ export async function onRequestGet(context) {
     try {
       const uid = Number(userIdParam);
       if (!uid) return Response.json({ ok: false, error: 'user_id 잘못됨' }, { status: 400 });
+      /* Phase 16 (2026-05-13) 사장님 보고: "새 수임처 만들었는데 옛날에 없어진 사업장 이재윤 뜨네 왜이러지?"
+       * 진짜 원인: business_members 매핑은 살아있는데 사업장 deleted_at 처리됨 → dashboard list 에 휴지통 사업장 표시.
+       * Fix: include_deleted=1 query 없으면 active 사업장 (deleted_at NULL) 만. 휴지통 보기는 별도 토글. */
+      const includeDeleted = url.searchParams.get('include_deleted') === '1';
       /* biz_docs 테이블 보장 (admin-biz-docs.js 와 동일 스키마) */
       try {
         await db.prepare(`CREATE TABLE IF NOT EXISTS biz_docs (
@@ -168,6 +172,7 @@ export async function onRequestGet(context) {
           UNIQUE(user_id, business_id)
         )`).run();
       } catch {}
+      const deletedFilter = includeDeleted ? '' : "AND (b.deleted_at IS NULL OR b.deleted_at = '')";
       const { results } = await db.prepare(`
         SELECT b.*,
                bm.id AS member_id, bm.role AS member_role,
@@ -180,6 +185,7 @@ export async function onRequestGet(context) {
           JOIN businesses b ON bm.business_id = b.id
           LEFT JOIN biz_docs bd ON bd.user_id = bm.user_id AND bd.business_id = b.id
          WHERE bm.user_id = ? AND bm.removed_at IS NULL
+           ${deletedFilter}
          ORDER BY bm.is_primary DESC, bm.added_at ASC
       `).bind(uid).all();
       const businesses = (results || []).map(r => ({
