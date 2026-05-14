@@ -753,8 +753,16 @@ function _filRenderOwnerInfoSync(f) {
       + '<div class="print-only" style="display:none;font-weight:600;color:#374151">' + printLabel + '</div>'
       + '</div>';
   };
+  /* Phase 16 (2026-05-13) 사장님 명령: 검토표 안 "+ 사업장 추가" 버튼.
+   * 시나리오: 25년 신고 작성 중 프리랜서 소득 (3.3% 원천징수) 늦게 발견 → 사업장 추가.
+   * Person owner type 만 (Business owner type 은 사업체 1개 고정).
+   * 클릭 → admin-customer-dash.js 의 openAddBizForUser 호출 (기존 모달 재사용). */
+  const isPerson = f.owner_type === 'Person' && f._ownerId;
+  const addBizBtn = (isPerson && !readonly)
+    ? '<button class="no-print" onclick="_filAddBizForFiling(' + f._ownerId + ',\'' + _filEsc(f._ownerName || '').replace(/\'/g,'') + '\',\'' + _filEsc(f._ownerPhone || '').replace(/\'/g,'') + '\')" style="background:#3182f6;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit;margin-left:8px" title="프리랜서 소득 등 사업장 늦게 발견 시 추가">+ 사업장 추가</button>'
+    : '';
   if (businesses.length) {
-    html += '<div style="font-weight:700;margin-top:2px;margin-bottom:3px;color:#191f28">📋 사업체 (' + businesses.length + '개)</div>';
+    html += '<div style="font-weight:700;margin-top:2px;margin-bottom:3px;color:#191f28;display:flex;align-items:center;flex-wrap:wrap">📋 사업체 (' + businesses.length + '개)' + addBizBtn + '</div>';
     businesses.forEach((b, i) => {
       html += '<div style="margin:2px 0;padding:4px 0;border-bottom:1px dashed #e5e8eb">'
         + fmtBizRow(b, i === 0)
@@ -762,10 +770,42 @@ function _filRenderOwnerInfoSync(f) {
         + '</div>';
     });
   } else {
-    html += '<div style="color:#9ca3af">매핑된 사업체 없음</div>';
+    html += '<div style="color:#9ca3af;display:flex;align-items:center">매핑된 사업체 없음' + addBizBtn + '</div>';
   }
   return html;
 }
+
+/* Phase 16 (2026-05-13) 사장님 명령: 검토표 안 사업장 추가 핸들러.
+ * 1) admin-customer-dash.js 의 openAddBizForUser 호출 (기존 사업장 추가 모달)
+ * 2) 모달 닫힌 후 검토표 자동 새로고침 (사업체 list 재 fetch).
+ *
+ * @param {number} userId
+ * @param {string} userName
+ * @param {string} userPhone
+ */
+function _filAddBizForFiling(userId, userName, userPhone) {
+  if (!userId) { alert('사용자 ID 없음'); return; }
+  if (typeof window.openAddBizForUser !== 'function') {
+    alert('사업장 추가 기능 로드 안 됨 — 거래처 dashboard 에서 추가 후 검토표 새로고침 부탁드립니다.');
+    return;
+  }
+  /* 검토표 새로고침 callback — 사업장 추가 후 자동 호출. */
+  window._filReopenAfterBizAdd = function() {
+    try {
+      if (_filCurrent && _filCurrent.id && typeof openFilingDetail === 'function') {
+        openFilingDetail(_filCurrent.id);
+      }
+    } catch (_) {}
+    delete window._filReopenAfterBizAdd;
+  };
+  /* 사업장 추가 모달 — 신규 사업장 만들면 business_members 자동 매핑 */
+  try {
+    window.openAddBizForUser(userId, userName || '', userPhone || '');
+  } catch (e) {
+    alert('사업장 추가 모달 열기 실패: ' + e.message);
+  }
+}
+window._filAddBizForFiling = _filAddBizForFiling;
 
 /* Phase 16 (2026-05-13) 사장님 명령 옵션 C: 장부 구분 segmented button 클릭 핸들러.
  * - auto_fields.book_keeping_types 에 즉시 저장 (1.5초 디바운스).

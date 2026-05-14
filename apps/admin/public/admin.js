@@ -1869,7 +1869,13 @@ async function submitAddBizForUser(userId){
     const cm=$g('custDashModal');
     if(cm){cm.style.display='none'; document.body.style.overflow=''}
     setTimeout(()=>{
-      if(typeof openCustomerDashboard==='function')openCustomerDashboard(Number(userId));
+      /* Phase 16 (2026-05-13) 사장님 명령: 검토표 안에서 사업장 추가 시 검토표 자동 reopen.
+       * window._filReopenAfterBizAdd 가 검토표 컨텍스트 callback. 없으면 default dashboard reopen. */
+      if(typeof window._filReopenAfterBizAdd === 'function'){
+        window._filReopenAfterBizAdd();
+      } else if(typeof openCustomerDashboard==='function'){
+        openCustomerDashboard(Number(userId));
+      }
     }, 100);
   }catch(err){alert('오류: '+err.message)}
   finally{if(btn){btn.disabled=false;btn.style.opacity='1';btn.textContent='🏢 사업장 추가'}}
