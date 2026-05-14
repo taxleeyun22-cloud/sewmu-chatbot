@@ -350,14 +350,38 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   /* 사장님 명령 (2026-05-07): 결재란은 헤더 우상단 (admin-modals.html) 으로 이동.
    * 본문 stamp4 영역 제거 — CHECKLIST 도 사장님 명령 "검토사항 업애자" 로 제거. */
 
+  /* Phase 16 (2026-05-13) 사장님 명령 "한 장 출력": @media print CSS 인라인 박음.
+   * 화면 = 세로 1열 (직원 작업 편함). 인쇄만 2 column grid + 글자 압축 + A4 1장 fit. */
+  let html = '<style>'
+    + '@media print {'
+    + '  @page { size: A4; margin: 8mm 8mm; }'
+    + '  body { font-size: 9.2pt; }'
+    + '  .filing-print-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; align-items: start; }'
+    + '  .filing-print-2col > * { margin-bottom: 0 !important; break-inside: avoid; }'
+    + '  .filing-section-header { font-size: 8pt; margin-bottom: 1px; margin-top: 4mm; }'
+    + '  .filing-section-title { font-size: 10pt; margin-bottom: 3mm; padding-bottom: 1mm; }'
+    + '  .filing-comparison-section, .keep-together { margin-bottom: 4mm !important; }'
+    + '  table { font-size: 9pt; }'
+    + '  table td, table th { padding: 2px 6px !important; }'
+    + '  .filing-text-input, .filing-num-input, textarea { font-size: 9pt !important; padding: 4px 6px !important; }'
+    + '  /* 사업체 카드 압축: 한 줄 1업체 + 주소 작게 */'
+    + '  #filingOwnerInfoBody { font-size: 9pt; line-height: 1.5; }'
+    + '  /* SECTION 04+05 코멘트 박스 컴팩트 */'
+    + '  .print-only { font-size: 8.8pt !important; line-height: 1.4 !important; min-height: 18mm !important; padding: 2mm 3mm !important; }'
+    + '}'
+    + '</style>';
+
   /* SECTION 01: 기본 정보 — 사장님 명령 (2026-05-07): 주업체 회사정보.
    * 회사명 / 사업자번호 / 개업일자 / 사업장주소. 사업체 여러개면 모두 나열.
    * 사장님 보고 fix: "불러오는 중..." 안 사라지던 거 — 동기 렌더로 변경 (openFilingDetail 에서 pre-fetch 후 stash). */
-  let html = '<div class="keep-together" style="margin-bottom:14px">';
+  html += '<div class="keep-together" style="margin-bottom:14px">';
   html += '<div class="filing-section-header">SECTION 01 · BASIC INFO</div>';
   html += '<div class="filing-section-title">기본정보</div>';
   html += '<div id="filingOwnerInfoBody" style="font-size:.88em;color:#374151;line-height:1.6">' + _filRenderOwnerInfoSync(f) + '</div>';
   html += '</div>';
+
+  /* Phase 16 (2026-05-13): SECTION 02 + 03 = 2-column grid (인쇄 시만, 화면은 풀폭) */
+  html += '<div class="filing-print-2col">';
 
   /* SECTION 02: 작년 vs 올해 비교표 — 길어서 자동 분할 허용 (코멘트 박스 보호 위해 keep-together 빼고 별도 클래스) */
   html += '<div class="filing-comparison-section" style="margin-bottom:14px">';
@@ -570,6 +594,10 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   if (!readonly) html += '<button onclick="_filAddPenaltyRow()" class="no-print" style="background:#fff;color:#dc2626;border:1px dashed #dc2626;padding:4px 10px;border-radius:6px;font-size:.74em;cursor:pointer;font-family:inherit;margin-top:6px">+ 가산세 추가</button>';
   /* 가산세 wrapper close 제거 — wrapper 자체가 없음 */
   html += '</div>'; /* SECTION 03 keep-together close */
+  html += '</div>'; /* Phase 16: filing-print-2col (SECTION 02 + 03) close */
+
+  /* Phase 16 (2026-05-13): SECTION 04 + 05 = 2-column grid (작년 리뷰 + 직원 코멘트 좌우) */
+  html += '<div class="filing-print-2col">';
 
   /* SECTION 04: 작년 리뷰 (참조용 — 직원 + 결재자 코멘트, 작년 있을 때만).
    * 사장님 명령: 2장 fit 컴팩트. */
@@ -601,19 +629,11 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   /* 편집용 textarea */
   html += '<textarea class="no-print" data-fil-text-field="employee_note" rows="5" ' + ro + ' placeholder="이번 신고의 특이사항·이슈 — 직원이 작성. 매년 누적되어 다음 해 검토표에 자동 표시.\n예) 카페 신규 오픈으로 매출 급증 / 사업용계좌 12월 매출 누락 가능성 / 청년창업감면 신청 가능 — 재확인 필요" style="width:100%;padding:10px 12px;border:1px solid #f59e0b;border-radius:6px;font-size:.92em;font-family:inherit;box-sizing:border-box;resize:vertical;line-height:1.6;background:#fff7ed">' + _filEsc(af.employee_note || '') + '</textarea>';
   html += '</div>';
+  html += '</div>'; /* Phase 16: filing-print-2col (SECTION 04 + 05) close */
 
-  /* SECTION 07: 결재자 코멘트 — 작은 영역 (사장님 결재 시 작성).
-   * 사장님 명령: 2장 fit 위해 컴팩트. */
-  html += '<div class="keep-together" style="margin-bottom:10px">';
-  html += '<div class="filing-section-header">SECTION 07 · REVIEWER COMMENT</div>';
-  html += '<div class="filing-section-title">✍️ 결재자 코멘트 <span style="font-size:.74em;color:#6b7280;font-weight:500">(사장님 결재 시 작성 — 선택)</span></div>';
-  /* 인쇄용 — 작은 박스 (20mm) */
-  html += '<div class="print-only" style="display:none;border:1px solid #191f28;border-radius:4px;padding:4mm;min-height:20mm;font-size:9.5pt;line-height:1.6;white-space:pre-wrap">';
-  html += _filEsc(f.reviewer_comment || '');
-  html += '</div>';
-  /* 편집용 textarea */
-  html += '<textarea class="no-print" data-fil-field="reviewer_comment" rows="3" ' + ro + ' placeholder="결재자 (사장님) 코멘트 — 결재 시 작성 (선택)" style="width:100%;padding:10px 12px;border:1px solid #e5e8eb;border-radius:6px;font-size:.9em;font-family:inherit;box-sizing:border-box;resize:vertical;line-height:1.6">' + _filEsc(f.reviewer_comment || '') + '</textarea>';
-  html += '</div>';
+  /* SECTION 07 (결재자 코멘트) — Phase 16 (2026-05-13) 사장님 명령 "없애버려도 될거같아":
+   * UI 통째 제거. 1장 출력 배치 + 결재란 (헤더 우상단) 으로 결재 의도 충족.
+   * DB reviewer_comment 컬럼은 옛 데이터 보존 위해 유지 (조회만, 신규 입력 X). */
 
   /* 좌우 2단 폐기 — placeholder div 닫기 */
   html += '</div>'; /* end placeholder */
@@ -995,19 +1015,18 @@ async function _filSaveNow() {
     const amt = _filParseNum(row.querySelector('.fil-pen-amount')?.value || '');
     if (name || amt !== null) af.가산세.push({ name, amount: amt });
   });
-  const reviewerComment = (document.querySelector('[data-fil-field="reviewer_comment"]')?.value || '').trim();
-
+  /* Phase 16 (2026-05-13): SECTION 07 textarea 제거됨. reviewer_comment 옛 값 보존 위해
+   * PATCH body 에서 제외 — DB 컬럼 그대로, 옛 데이터 살아있음 (작년 리뷰 SECTION 04 참조 표시). */
   const st = _filGet('filSaveStatus');
   if (st) { st.textContent = '저장 중...'; st.style.color = '#f59e0b'; }
   try {
     const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(_filGetKey()) + '&id=' + _filCurrent.id, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ auto_fields: af, reviewer_comment: reviewerComment }),
+      body: JSON.stringify({ auto_fields: af }),
     });
     const d = await r.json();
     if (d.ok) {
       _filCurrent.auto_fields = JSON.stringify(af);
-      _filCurrent.reviewer_comment = reviewerComment;
       if (st) { st.textContent = '✓ 자동 저장됨'; st.style.color = '#10b981'; }
     } else {
       if (st) { st.textContent = '저장 실패: ' + (d.error || ''); st.style.color = '#dc2626'; }
