@@ -780,9 +780,13 @@ function _filRenderOwnerInfoSync(f) {
    * 시나리오: 25년 신고 작성 중 프리랜서 소득 (3.3% 원천징수) 늦게 발견 → 사업장 추가.
    * Person owner type 만 (Business owner type 은 사업체 1개 고정).
    * 클릭 → admin-customer-dash.js 의 openAddBizForUser 호출 (기존 모달 재사용). */
-  const isPerson = f.owner_type === 'Person' && f._ownerId;
+  /* Phase 16 (2026-05-13) 사장님 보고: 버튼 안 보임.
+   * 진짜 원인: f._ownerId stash 안 됨 (라인 213-220 _ownerName/_ownerBirth 만 stash).
+   * Fix: DB 컬럼 owner_id 직접 사용. */
+  const ownerId = Number(f.owner_id || 0);
+  const isPerson = f.owner_type === 'Person' && ownerId > 0;
   const addBizBtn = (isPerson && !readonly)
-    ? '<button class="no-print" onclick="_filAddBizForFiling(' + f._ownerId + ',\'' + _filEsc(f._ownerName || '').replace(/\'/g,'') + '\',\'' + _filEsc(f._ownerPhone || '').replace(/\'/g,'') + '\')" style="background:#3182f6;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit;margin-left:8px" title="프리랜서 소득 등 사업장 늦게 발견 시 추가">+ 사업장 추가</button>'
+    ? '<button class="no-print" onclick="_filAddBizForFiling(' + ownerId + ',\'' + _filEsc(f._ownerName || '').replace(/\'/g,'') + '\',\'\')" style="background:#3182f6;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit;margin-left:8px" title="프리랜서 소득 등 사업장 늦게 발견 시 추가">+ 사업장 추가</button>'
     : '';
   if (businesses.length) {
     html += '<div style="font-weight:700;margin-top:2px;margin-bottom:3px;color:#191f28;display:flex;align-items:center;flex-wrap:wrap">📋 사업체 (' + businesses.length + '개)' + addBizBtn + '</div>';
