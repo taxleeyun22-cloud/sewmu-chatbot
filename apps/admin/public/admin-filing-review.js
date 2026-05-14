@@ -364,8 +364,10 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
     + '  table { font-size: 9pt; }'
     + '  table td, table th { padding: 2px 6px !important; }'
     + '  .filing-text-input, .filing-num-input, textarea { font-size: 9pt !important; padding: 4px 6px !important; }'
-    + '  /* 사업체 카드 압축: 한 줄 1업체 + 주소 작게 */'
-    + '  #filingOwnerInfoBody { font-size: 9pt; line-height: 1.5; }'
+    + '  /* 사업체 카드 압축: 한 줄 1업체 + 주소 작게 + 여백 압축 */'
+    + '  #filingOwnerInfoBody { font-size: 9pt; line-height: 1.45; }'
+    + '  .filing-biz-card { padding: 1mm 0 !important; margin: 0 !important; }'
+    + '  .filing-biz-card > div { margin: 0 !important; }'
     + '  /* SECTION 04+05 코멘트 박스 컴팩트 */'
     + '  .print-only { font-size: 8.8pt !important; line-height: 1.4 !important; min-height: 18mm !important; padding: 2mm 3mm !important; }'
     + '}'
@@ -704,11 +706,18 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
 /* 사장님 보고 fix (2026-05-07): owner info 동기 렌더 — _filCurrent._businesses 사용.
  * 인쇄 시 "불러오는 중..." 안 사라지던 사고 해결. */
 function _filRenderOwnerInfoSync(f) {
+  /* Phase 16 (2026-05-13) 사장님 명령: 사업체 카드 인쇄 시 회사명 줄에 장부 라벨 인라인.
+   * 별도 줄 X — 여백 압축. */
+  const af0 = (function() { try { return JSON.parse(f.auto_fields || '{}'); } catch { return {}; } })();
+  const bookMap0 = af0.book_keeping_types || {};
   const fmtBizRow = (b, isPrimary) => {
     const form = b.company_form || '';
     const formShort = /법인/.test(form) ? '법인' : (/개인/.test(form) ? '개인' : (/간이/.test(form) ? '간이' : ''));
     const bn = b.business_number || '';
     const bnFmt = bn && bn.length === 10 ? bn.slice(0,3)+'-'+bn.slice(3,5)+'-'+bn.slice(5) : bn;
+    /* 인쇄용 장부 라벨 — 회사명 줄 끝에 inline */
+    const currentBook = bookMap0[b.id] || '';
+    const printBookLabel = '<span class="print-only" style="display:none;color:#1d4ed8;font-weight:600;margin-left:6px">· 📚 ' + (currentBook ? currentBook + '장부' : '미선택') + '</span>';
     /* 사장님 지적 (2026-05-07): "폐업한지 안한지 니가 어떻게 아는데?".
      * status='closed' 만 보고 "폐업" 단정 X — 거래 종료 / 매핑 해제 등 다른 사유 가능.
      * 모든 사업체 동일 표시 (회색·(폐업) 라벨 폐기). */
@@ -718,6 +727,7 @@ function _filRenderOwnerInfoSync(f) {
       + (b.ceo_name ? ' · 대표 ' + _filEsc(b.ceo_name) : '')
       + (b.establishment_date ? ' · 개업 ' + _filEsc(b.establishment_date.slice(0, 10)) : '')
       + (b.closed_date ? ' · 폐업 ' + _filEsc(b.closed_date.slice(0, 10)) : '')
+      + printBookLabel
       + (b.address ? '<div style="margin-left:18px;color:#6b7280;font-size:.92em">' + _filEsc(b.address) + '</div>' : '');
   };
   let html = '';
@@ -745,15 +755,13 @@ function _filRenderOwnerInfoSync(f) {
     const clearBtn = (!readonly && current)
       ? '<button onclick="_filSetBookKeeping(' + bizId + ',\'\')" class="no-print" type="button" title="장부 선택 해제" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:.82em;padding:2px 6px;margin-left:2px;font-family:inherit">✕ 해제</button>'
       : '';
-    /* Phase 16 (2026-05-13) 사장님 보고: "장부 :복식 이 라인이 안맞는듯".
-     * 원인: .print-only 의 admin-modals.html 룰 (display:block !important) 가 인라인 우선.
-     * 화면 + 인쇄 라벨 분리 → 인쇄 시 통합 div 하나로 (한 줄 표시). */
-    const printLabel = current ? '📚 장부: ' + current + '장부' : '📚 장부: 미선택';
-    return '<div style="margin-left:18px;margin-top:4px;font-size:.84em;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
-      + '<span class="no-print" style="color:#6b7280">📚 장부:</span>'
-      + '<div class="no-print" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #e5e8eb">' + btns + '</div>'
+    /* Phase 16 (2026-05-13) 사장님 명령: 인쇄 시 장부 라벨은 fmtBizRow 안 회사명 줄에 inline.
+     * _filBookHtml 은 화면용 segmented button 만 (인쇄 시 wrapper 통째 no-print 으로 hide).
+     * 결과: 인쇄 시 사업체 카드 = 2줄 (회사명+장부 / 주소). 여백 압축. */
+    return '<div class="no-print" style="margin-left:18px;margin-top:4px;font-size:.84em;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+      + '<span style="color:#6b7280">📚 장부:</span>'
+      + '<div style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #e5e8eb">' + btns + '</div>'
       + clearBtn
-      + '<div class="print-only" style="display:none;font-weight:600;color:#374151">' + printLabel + '</div>'
       + '</div>';
   };
   /* Phase 16 (2026-05-13) 사장님 명령: 검토표 안 "+ 사업장 추가" 버튼.
@@ -771,7 +779,7 @@ function _filRenderOwnerInfoSync(f) {
        * SECTION 01 wrapper 끝에 굵은 단선 (아래) 으로 대체. */
       const isLast = i === businesses.length - 1;
       const sep = isLast ? '' : 'border-bottom:1px dashed #e5e8eb;';
-      html += '<div style="margin:2px 0;padding:4px 0;' + sep + '">'
+      html += '<div class="filing-biz-card" style="margin:2px 0;padding:4px 0;' + sep + '">'
         + fmtBizRow(b, i === 0)
         + _filBookHtml(b.id)
         + '</div>';
