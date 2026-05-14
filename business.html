@@ -160,6 +160,19 @@ fetch('/admin-modals.html?v=53', { cache: 'no-cache' })
 <script src="/admin-filing-review.js?v=21"></script>
 <!-- Phase Infra-2 fix (2026-05-09): admin-modals.html 안 backToList() / 등 admin-anal-review-faq.js 함수 사용
      사장님 보고 (Sentry first error): ReferenceError: backToList is not defined at /business:158:47 -->
+<!-- Phase 16 (2026-05-13) 사장님 Sentry 보고: ReferenceError: $g is not defined at backToList.
+     진짜 원인: admin-anal-review-faq.js 가 admin.js 의 $g/e/escAttr 의존. business.html 은 admin.js 미로드.
+     Fix: 의존성 헬퍼 shim 으로 정의 (admin.js 와 동일 시그니처). -->
+<script>
+window.$g = window.$g || function(id){ return document.getElementById(id); };
+window.e = window.e || function(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, function(m){
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];
+  });
+};
+window.escAttr = window.escAttr || window.e;
+window.KEY = window.KEY || (new URL(location.href).searchParams.get('key') || '');
+</script>
 <script src="/admin-anal-review-faq.js?v=2"></script>
 <script>
 /* business.html 페이지 로드 후 — 법인세 검토표 list 표시.
