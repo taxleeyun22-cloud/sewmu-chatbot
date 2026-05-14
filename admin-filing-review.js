@@ -387,6 +387,9 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   html += '<div class="filing-comparison-section" style="margin-bottom:14px">';
   html += '<div class="filing-section-header">SECTION 02 · COMPARISON</div>';
   html += '<div class="filing-section-title">작년 vs 올해 비교</div>';
+  /* Phase 16 (2026-05-13) 사장님 명령: SECTION 02 의 표 헤더가 SECTION 03 의 "○ 적용 공제·감면"
+   * 라벨 다음 표 헤더와 같은 y 에 위치하도록 — 매칭 라벨 추가. */
+  html += '<div style="font-size:.86em;margin-bottom:6px"><b>○ 비교 항목 (작년 vs 올해)</b></div>';
   if (!prev) {
     html += '<div style="background:#fef3c7;border-left:3px solid #f59e0b;padding:10px 14px;border-radius:6px;font-size:.86em;color:#92400e">📌 작년 Case 없음 — 첫 도입 신고건. 내년부터 자동 비교됩니다.</div>';
   }
@@ -764,7 +767,11 @@ function _filRenderOwnerInfoSync(f) {
   if (businesses.length) {
     html += '<div style="font-weight:700;margin-top:2px;margin-bottom:3px;color:#191f28;display:flex;align-items:center;flex-wrap:wrap">📋 사업체 (' + businesses.length + '개)' + addBizBtn + '</div>';
     businesses.forEach((b, i) => {
-      html += '<div style="margin:2px 0;padding:4px 0;border-bottom:1px dashed #e5e8eb">'
+      /* Phase 16 (2026-05-13) 사장님 명령: 마지막 사업체 카드의 dashed 점선 제거 →
+       * SECTION 01 wrapper 끝에 굵은 단선 (아래) 으로 대체. */
+      const isLast = i === businesses.length - 1;
+      const sep = isLast ? '' : 'border-bottom:1px dashed #e5e8eb;';
+      html += '<div style="margin:2px 0;padding:4px 0;' + sep + '">'
         + fmtBizRow(b, i === 0)
         + _filBookHtml(b.id)
         + '</div>';
@@ -772,6 +779,9 @@ function _filRenderOwnerInfoSync(f) {
   } else {
     html += '<div style="color:#9ca3af;display:flex;align-items:center">매핑된 사업체 없음' + addBizBtn + '</div>';
   }
+  /* Phase 16 (2026-05-13) 사장님 명령: SECTION 01 끝에 굵은 검정 단선
+   * (사장님 mockup 3번째 사진 — SECTION 02·03 시작 전 명확한 구분). */
+  html += '<div style="border-bottom:2px solid #191f28;margin-top:8px"></div>';
   return html;
 }
 
