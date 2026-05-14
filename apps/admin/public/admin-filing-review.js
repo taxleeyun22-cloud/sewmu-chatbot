@@ -596,8 +596,8 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   html += '</div>'; /* SECTION 03 keep-together close */
   html += '</div>'; /* Phase 16: filing-print-2col (SECTION 02 + 03) close */
 
-  /* Phase 16 (2026-05-13): SECTION 04 + 05 = 2-column grid (작년 리뷰 + 직원 코멘트 좌우) */
-  html += '<div class="filing-print-2col">';
+  /* Phase 16 (2026-05-13) 사장님 명령: "작년리뷰랑 올해 직원 코멘트는 양옆말고 세로로".
+   * SECTION 04 + 05 풀폭 (세로 배치) — 2-column wrap 제거. */
 
   /* SECTION 04: 작년 리뷰 (참조용 — 직원 + 결재자 코멘트, 작년 있을 때만).
    * 사장님 명령: 2장 fit 컴팩트. */
@@ -629,7 +629,6 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   /* 편집용 textarea */
   html += '<textarea class="no-print" data-fil-text-field="employee_note" rows="5" ' + ro + ' placeholder="이번 신고의 특이사항·이슈 — 직원이 작성. 매년 누적되어 다음 해 검토표에 자동 표시.\n예) 카페 신규 오픈으로 매출 급증 / 사업용계좌 12월 매출 누락 가능성 / 청년창업감면 신청 가능 — 재확인 필요" style="width:100%;padding:10px 12px;border:1px solid #f59e0b;border-radius:6px;font-size:.92em;font-family:inherit;box-sizing:border-box;resize:vertical;line-height:1.6;background:#fff7ed">' + _filEsc(af.employee_note || '') + '</textarea>';
   html += '</div>';
-  html += '</div>'; /* Phase 16: filing-print-2col (SECTION 04 + 05) close */
 
   /* SECTION 07 (결재자 코멘트) — Phase 16 (2026-05-13) 사장님 명령 "없애버려도 될거같아":
    * UI 통째 제거. 1장 출력 배치 + 결재란 (헤더 우상단) 으로 결재 의도 충족.
@@ -743,12 +742,15 @@ function _filRenderOwnerInfoSync(f) {
     const clearBtn = (!readonly && current)
       ? '<button onclick="_filSetBookKeeping(' + bizId + ',\'\')" class="no-print" type="button" title="장부 선택 해제" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:.82em;padding:2px 6px;margin-left:2px;font-family:inherit">✕ 해제</button>'
       : '';
-    const printLabel = current ? current + '장부' : '미선택';
+    /* Phase 16 (2026-05-13) 사장님 보고: "장부 :복식 이 라인이 안맞는듯".
+     * 원인: .print-only 의 admin-modals.html 룰 (display:block !important) 가 인라인 우선.
+     * 화면 + 인쇄 라벨 분리 → 인쇄 시 통합 div 하나로 (한 줄 표시). */
+    const printLabel = current ? '📚 장부: ' + current + '장부' : '📚 장부: 미선택';
     return '<div style="margin-left:18px;margin-top:4px;font-size:.84em;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
-      + '<span style="color:#6b7280">📚 장부:</span>'
+      + '<span class="no-print" style="color:#6b7280">📚 장부:</span>'
       + '<div class="no-print" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid #e5e8eb">' + btns + '</div>'
       + clearBtn
-      + '<span class="print-only" style="display:none;font-weight:600">' + printLabel + '</span>'
+      + '<div class="print-only" style="display:none;font-weight:600;color:#374151">' + printLabel + '</div>'
       + '</div>';
   };
   if (businesses.length) {
