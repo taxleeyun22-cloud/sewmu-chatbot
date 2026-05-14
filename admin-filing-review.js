@@ -353,6 +353,8 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   /* Phase 16 (2026-05-13) 사장님 명령 "한 장 출력": @media print CSS 인라인 박음.
    * 화면 = 세로 1열 (직원 작업 편함). 인쇄만 2 column grid + 글자 압축 + A4 1장 fit. */
   let html = '<style>'
+    /* 인쇄 전용 inline span (별도 class — admin-modals.html .print-only block !important 우회) */
+    + '.biz-print-inline { display: none; }'
     + '@media print {'
     + '  @page { size: A4; margin: 8mm 8mm; }'
     + '  body { font-size: 9.2pt; }'
@@ -364,10 +366,15 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
     + '  table { font-size: 9pt; }'
     + '  table td, table th { padding: 2px 6px !important; }'
     + '  .filing-text-input, .filing-num-input, textarea { font-size: 9pt !important; padding: 4px 6px !important; }'
-    + '  /* 사업체 카드 압축: 한 줄 1업체 + 주소 작게 + 여백 압축 */'
-    + '  #filingOwnerInfoBody { font-size: 9pt; line-height: 1.45; }'
-    + '  .filing-biz-card { padding: 1mm 0 !important; margin: 0 !important; }'
+    + '  /* 사업체 카드 압축: 한 줄 1업체 (회사명·사업자·대표·주소·장부) + 여백 압축 */'
+    + '  #filingOwnerInfoBody { font-size: 9pt; line-height: 1.35; }'
+    + '  .filing-biz-card { padding: 0.5mm 0 !important; margin: 0 !important; }'
     + '  .filing-biz-card > div { margin: 0 !important; }'
+    + '  /* 인쇄 시: 회사명 줄 끝에 주소·장부 inline (auto wrap) — 별도 줄 안 만듦 */'
+    + '  .biz-print-inline { display: inline !important; color: #374151 !important; }'
+    + '  .biz-print-inline.book { color: #1d4ed8 !important; font-weight: 600 !important; }'
+    + '  /* 화면용 주소 div / 장부 wrapper 인쇄 시 hide */'
+    + '  .biz-addr-screen { display: none !important; }'
     + '  /* SECTION 04+05 코멘트 박스 컴팩트 */'
     + '  .print-only { font-size: 8.8pt !important; line-height: 1.4 !important; min-height: 18mm !important; padding: 2mm 3mm !important; }'
     + '}'
@@ -715,9 +722,13 @@ function _filRenderOwnerInfoSync(f) {
     const formShort = /법인/.test(form) ? '법인' : (/개인/.test(form) ? '개인' : (/간이/.test(form) ? '간이' : ''));
     const bn = b.business_number || '';
     const bnFmt = bn && bn.length === 10 ? bn.slice(0,3)+'-'+bn.slice(3,5)+'-'+bn.slice(5) : bn;
-    /* 인쇄용 장부 라벨 — 회사명 줄 끝에 inline */
+    /* Phase 16 (2026-05-13) 사장님 명령: 인쇄 시 한 줄에 회사명·사업자·대표·주소·장부 통합 (auto wrap).
+     * 화면용 주소 별도 div + 화면용 장부 segmented button 그대로 (직원 작업 편함). */
     const currentBook = bookMap0[b.id] || '';
-    const printBookLabel = '<span class="print-only" style="display:none;color:#1d4ed8;font-weight:600;margin-left:6px">· 📚 ' + (currentBook ? currentBook + '장부' : '미선택') + '</span>';
+    const printAddr = b.address
+      ? '<span class="biz-print-inline"> · ' + _filEsc(b.address) + '</span>'
+      : '';
+    const printBook = '<span class="biz-print-inline book"> · 📚 ' + (currentBook ? currentBook + '장부' : '미선택') + '</span>';
     /* 사장님 지적 (2026-05-07): "폐업한지 안한지 니가 어떻게 아는데?".
      * status='closed' 만 보고 "폐업" 단정 X — 거래 종료 / 매핑 해제 등 다른 사유 가능.
      * 모든 사업체 동일 표시 (회색·(폐업) 라벨 폐기). */
@@ -727,8 +738,9 @@ function _filRenderOwnerInfoSync(f) {
       + (b.ceo_name ? ' · 대표 ' + _filEsc(b.ceo_name) : '')
       + (b.establishment_date ? ' · 개업 ' + _filEsc(b.establishment_date.slice(0, 10)) : '')
       + (b.closed_date ? ' · 폐업 ' + _filEsc(b.closed_date.slice(0, 10)) : '')
-      + printBookLabel
-      + (b.address ? '<div style="margin-left:18px;color:#6b7280;font-size:.92em">' + _filEsc(b.address) + '</div>' : '');
+      + printAddr
+      + printBook
+      + (b.address ? '<div class="biz-addr-screen" style="margin-left:18px;color:#6b7280;font-size:.92em">' + _filEsc(b.address) + '</div>' : '');
   };
   let html = '';
   if (f.owner_type === 'Person' && f._ownerName) {
