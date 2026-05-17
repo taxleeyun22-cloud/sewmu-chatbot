@@ -146,11 +146,24 @@
 <div id="adminModalsSlot"></div>
 <script>
 window.KEY = window.KEY || (new URL(location.href)).searchParams.get('key') || '';
-fetch('/admin-modals.html?v=53', { cache: 'no-cache' })
+fetch('/admin-modals.html?v=54', { cache: 'no-cache' })
   .then(r => r.ok ? r.text() : Promise.reject(r.status))
   .then(html => {
     const slot = document.getElementById('adminModalsSlot');
-    if (slot) slot.insertAdjacentHTML('beforeend', html);
+    if (!slot) return;
+    slot.insertAdjacentHTML('beforeend', html);
+    /* Phase 16 (2026-05-17) 사장님 보고: business.html 좌측하단 검증(reviewView)·
+     * 탭 잔재 노출. admin-modals.html 통째 inject 시 비-모달 탭 영역(.review/.faq 등)이
+     * business.html 에 .review display 룰 없어 그대로 보임.
+     * Fix: 검토표 관련 모달(filing*/roomFilings)만 남기고 slot 직속 비-모달 잔재 hide. */
+    try {
+      slot.querySelectorAll(':scope > *').forEach(function(el){
+        const id = el.id || '';
+        const isModal = /modal|Modal/.test(id) || (el.className && /modal-overlay/.test(el.className));
+        const isFiling = /filing|Filing|roomFilings/i.test(id);
+        if (!isFiling && !isModal) el.style.display = 'none';
+      });
+    } catch(_) {}
   })
   .catch(err => console.warn('[admin-modals] fetch fail:', err));
 </script>
