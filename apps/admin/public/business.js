@@ -121,7 +121,9 @@
           if (title) title.textContent = '📍 지점 (' + branches.length + ')';
           if (hint) hint.textContent = '이 본점에 연결된 지점들 — 클릭하면 지점 dashboard 진입';
           if (body) {
-            body.innerHTML = branches.map(function(br) {
+            /* Phase 16 (2026-05-17) 사장님 명령: 지점 너무 길다 → 3개만 + 전체보기/접기 토글.
+             * 법인 본점 + 개인 본점 둘 다 (branches 있으면 본점 — company_form 무관). */
+            var _rows = branches.map(function(br) {
               try {
                 const nm = e(br.company_name || '#' + br.id);
                 const bn = e(br.business_number || '-');
@@ -137,7 +139,15 @@
                   + '<div style="color:#3182f6;font-size:1.2em">›</div>'
                   + '</div>';
               } catch (_) { return ''; }
-            }).join('');
+            });
+            var _total = _rows.length;
+            if (_total <= 3) {
+              body.innerHTML = _rows.join('');
+            } else {
+              body.innerHTML = _rows.slice(0, 3).join('')
+                + '<div id="branchRestRows" style="display:none">' + _rows.slice(3).join('') + '</div>'
+                + '<button id="branchToggleBtn" onclick="_branchToggle()" style="width:100%;margin-top:8px;padding:9px;background:#f7f9fb;border:1px dashed #93c5fd;border-radius:8px;color:#1e40af;font-size:.84em;font-weight:600;cursor:pointer;font-family:inherit">+ 전체보기 (' + _total + ')</button>';
+            }
           }
         } else {
           if (sec) sec.style.display = 'none';
@@ -738,3 +748,15 @@
   };
 
 })();
+
+/* Phase 16 (2026-05-17) 사장님 명령: 지점 list 3개 + 전체보기/접기 토글 */
+function _branchToggle(){
+  var r=document.getElementById("branchRestRows");
+  var b=document.getElementById("branchToggleBtn");
+  if(!r||!b)return;
+  var open=r.style.display!=="none";
+  r.style.display=open?"none":"";
+  var total=document.querySelectorAll("#branchInfoBody .branch-row").length;
+  b.textContent=open?("+ 전체보기 ("+total+")"):"▲ 접기";
+}
+window._branchToggle=_branchToggle;
