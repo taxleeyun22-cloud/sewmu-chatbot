@@ -201,15 +201,23 @@ window.KEY = window.KEY || (new URL(location.href).searchParams.get('key') || ''
             setTimeout(()=>{ if(typeof _filRenderListInto==='function') _filRenderListInto(box, 'Business', bid, nm); }, 500);
           }
         } else {
-          /* 개인사업자 → 안내 + 대표자 link */
+          /* 개인사업자 → 종소세 안내 (작게) + 부가세 Case (개인사업자도 부가세 신고함).
+           * Phase 16 (2026-05-17) 사장님 보고: "거래처 대시보드에 부가세 검토표 안보임".
+           * 부가세는 개인/법인 무관 사업장 단위 — 개인사업자도 부가세 Case 표시. */
           var ceo=biz.ceo_name||'대표자';
-          /* business_members 에서 대표자 user_id 찾기 */
           var rep=(d.members||[]).find(m=>(m.role==='대표자'||m.is_primary===1)&&m.user_id);
           var link=rep?'<a href="javascript:void(0)" onclick="alert(\'admin 화면에서 사용자 list 의 '+ceo.replace(/[\'\"]/g,'')+' → 거래처정보 → 신고 검토표 섹션 참조\')" style="color:#3182f6;font-weight:600">→ '+ceo+' 종소세 Case 보기 (admin)</a>':'';
-          box.innerHTML='<div style="background:#dbeafe;border-left:3px solid #3b82f6;padding:10px 14px;border-radius:6px;color:#1e3a8a;font-size:.86em">'
-            +'📌 이 업체는 <b>개인사업자</b> 입니다. 법인세 Case 가 아닌, 대표자 ('+ceo+') 의 종소세에 포함됩니다.'
-            +(link?'<div style="margin-top:6px">'+link+'</div>':'')
-            +'</div>';
+          box.innerHTML='<div style="background:#dbeafe;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:6px;color:#1e3a8a;font-size:.82em;margin-bottom:10px">'
+            +'📌 <b>개인사업자</b> — 종소세는 대표자 ('+ceo+') 종소세에 포함. 아래는 <b>부가세 Case</b> (사업장 단위).'
+            +(link?' '+link:'')
+            +'</div><div id="bdVatCaseBox"></div>';
+          var vatBox=document.getElementById('bdVatCaseBox');
+          if(vatBox && typeof _filRenderListInto==='function'){
+            _filRenderListInto(vatBox, 'Business', bid, nm);
+          } else if(vatBox){
+            vatBox.innerHTML='<div style="color:#9ca3af;padding:8px;font-size:.82em">로딩 중...</div>';
+            setTimeout(()=>{ if(typeof _filRenderListInto==='function') _filRenderListInto(vatBox, 'Business', bid, nm); }, 500);
+          }
         }
       })
       .catch(()=>{
