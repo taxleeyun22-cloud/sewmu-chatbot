@@ -1444,6 +1444,27 @@ function _filRenderVatBody(f, prev, af, pf, readonly) {
     + '.vat-sheet table{font-size:8.6pt!important}.vat-sheet td,.vat-sheet th{padding:2px 6px!important}'
     + '.vat-sheet textarea{min-height:38px!important;font-size:8.4pt!important}}</style>';
   html += '<div class="vat-sheet">';
+  /* Phase 16 (2026-05-17) 사장님 보고: "무슨업체인지 대표자가 누군지 업종뭔지 빠진거같다".
+   * 부가세 = 사업장 단위 — f._businesses[0] 정보로 사업자 정보 줄 추가 (전기 전체 박스 위). */
+  (function(){
+    var b = (f._businesses && f._businesses[0]) || {};
+    var form = b.company_form || '';
+    var formShort = /법인/.test(form) ? '법인' : (/개인/.test(form) ? '개인' : (/간이/.test(form) ? '간이' : ''));
+    var bn = b.business_number || '';
+    var bnFmt = (bn && bn.length === 10) ? (bn.slice(0,3)+'-'+bn.slice(3,5)+'-'+bn.slice(5)) : bn;
+    var parts = [];
+    if (formShort) parts.push('<span style="color:#6b7280">('+formShort+')</span>');
+    if (bnFmt) parts.push('사업자 '+_filEsc(bnFmt));
+    if (b.ceo_name) parts.push('대표 '+_filEsc(b.ceo_name));
+    if (b.industry) parts.push('업종 '+_filEsc(b.industry));
+    else if (b.business_category) parts.push('업태 '+_filEsc(b.business_category));
+    if (b.tax_type) parts.push(_filEsc(b.tax_type));
+    html += '<div style="background:#f7f9fb;border:1px solid #d8dde5;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:.88em;color:#374151">'
+      + '🏢 <b style="font-size:1.05em">' + _filEsc(b.company_name || ('#'+f.owner_id)) + '</b>'
+      + (parts.length ? ' · ' + parts.join(' · ') : '')
+      + (b.address ? '<div style="margin-top:3px;color:#6b7280;font-size:.92em">' + _filEsc(b.address) + '</div>' : '')
+      + '</div>';
+  })();
   html += '<div style="margin:6px 0 10px;border:1.5px solid #1a3a5c;border-radius:6px;overflow:hidden">'
     + '<div style="background:#1a3a5c;color:#fff;font-weight:700;font-size:.84em;padding:5px 10px">▌전기 전체 ('+((f.fiscal_year||0)-1)+')</div>'
     + '<table style="width:100%;border-collapse:collapse;font-size:.86em"><thead><tr style="background:#4a5568;color:#fff">'
