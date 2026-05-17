@@ -427,6 +427,7 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
  * Fix: !important 로 강제 + 100vw/100vh 로 viewport 풀 보장.
  *
  * 옛 admin 의 .modal-overlay (main.css)와 호환 — 동일 효과 더 강하게.
+ * (A-3 2026-05-17: apps/admin 전용 분기를 root 로 포팅 → single-source 미러 자동화)
  * ============================================================================ */
 .modal-overlay {
   position: fixed !important;

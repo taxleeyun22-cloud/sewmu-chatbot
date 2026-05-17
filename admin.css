@@ -418,3 +418,39 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
   #memoModal.side-dock,#custSidePanel.side-dock{background:rgba(0,0,0,.3) !important;pointer-events:auto;align-items:flex-end !important;justify-content:center !important;padding:0 !important}
   #memoModal.side-dock .memo-panel,#custSidePanel.side-dock .memo-panel{pointer-events:auto;width:100% !important;max-width:100% !important;height:78vh !important;max-height:78vh !important;border-radius:16px 16px 0 0 !important;box-shadow:0 -8px 22px rgba(0,0,0,.18);margin:0 !important}
 }
+
+/* ============================================================================
+ * P0 FIX (2026-05-11): 모달 위치 강제 — 사장님 명령 "팝업 위치 고려"
+ *
+ * 진단: 사장님 스크린샷에서 모달이 좌측 하단에 떴음.
+ * 원인 추정: 새 admin Pages 의 어떤 CSS 가 .modal-overlay 의 position:fixed 무력화.
+ * Fix: !important 로 강제 + 100vw/100vh 로 viewport 풀 보장.
+ *
+ * 옛 admin 의 .modal-overlay (main.css)와 호환 — 동일 효과 더 강하게.
+ * (A-3 2026-05-17: apps/admin 전용 분기를 root 로 포팅 → single-source 미러 자동화)
+ * ============================================================================ */
+.modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+}
+
+/* admin-modals.html 안 일부 모달은 align-items:flex-start (검색 모달 등) — 보존 */
+#searchModal.modal-overlay,
+#roomInfoModal.modal-overlay,
+#faqFormModal.modal-overlay,
+#bulkSendModal.modal-overlay {
+  align-items: flex-start !important;
+  padding-top: 40px !important;
+}
+
+/* 카톡 UX: ESC 키 자동 닫기 + 외부 클릭 자동 닫기 (옛 admin.js 의 핸들러 보장)
+ * — 이 룰은 visual 만, 실제 ESC 닫기는 admin.js 의 keydown handler 가 처리
+ * — 모달 backdrop 클릭 시 자동 닫기는 admin.js 에서 처리 */
