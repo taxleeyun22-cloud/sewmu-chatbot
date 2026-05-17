@@ -410,10 +410,11 @@ refreshPendingBadge();
 refreshLiveBadge();
 setInterval(refreshPendingBadge,30000);
 setInterval(refreshLiveBadge,10000);
-/* Phase HOME (2026-05-17 사장님: "기본화면 첨에 로그인했을때 — 내 할일메모 위주"):
-   로그인 첫 화면 = 홈 고정 (이전엔 마지막 탭 복원 → 사장님이 아침에 할일 못 봄).
-   딥링크(open_room/cust 등)는 이후 별도 tab() 호출이 덮어씀 — 영향 없음. */
-try{ tab('home'); }catch{}
+/* 이전 탭 복원 (유효한 owner 탭만) */
+try{
+  var saved=localStorage.getItem('admin_last_tab');
+  if(saved&&['chat','live','rooms','users','anal','review','faq'].indexOf(saved)>=0)tab(saved);
+}catch{}
 return true;
 }catch{
 try{sessionStorage.removeItem('admin_key')}catch{}
@@ -672,8 +673,11 @@ async function doCookieLogin(whoamiData){
   try{ setInterval(refreshPendingBadge,30000); }catch(_){}
   try{ setInterval(refreshLiveBadge,10000); }catch(_){}
   try{ setInterval(function(){ try{ refreshSidebarCounts(); }catch(_){} }, 30000); }catch(_){}
-  /* Phase HOME (2026-05-17): cookie-only 로그인도 첫 화면 = 홈 고정 */
-  try{ tab('home'); }catch{ try{ tab('rooms'); }catch(_){} }
+  try{
+    var saved=localStorage.getItem('admin_last_tab');
+    if(saved&&['chat','live','rooms','users','anal','review','faq'].indexOf(saved)>=0)tab(saved);
+    else tab('rooms');
+  }catch{ try{ tab('rooms'); }catch(_){} }
 }
 
 /* 🔐 상담방 목록 모드: 'external'(기본) | 'internal'(관리자방) */
@@ -735,9 +739,6 @@ $g('usersView').style.display=t==='users'?'block':'none';
 $g('analView').style.display=t==='anal'?'block':'none';
 $g('reviewView').style.display=t==='review'?'block':'none';
 $g('faqView').style.display=t==='faq'?'block':'none';
-/* Phase HOME (2026-05-17): 기본화면 — 내 할일메모 위주 */
-if($g('homeView'))$g('homeView').style.display=t==='home'?'block':'none';
-if(t==='home'&&typeof loadHome==='function')loadHome();
 if(t==='anal')loadAnalytics();
 if(t==='users')loadUsers(currentStatus||'pending');
 if(t==='review')loadReview('pending');
@@ -1034,67 +1035,6 @@ async function loadMyTodos(){
     _updateMyTodosBadge();
   }catch(err){list.innerHTML='<div style="color:#f04452;padding:20px 0">오류: '+e(err.message)+'</div>'}
 }
-/* ===== 🏠 홈 (기본화면) — Phase HOME (2026-05-17 사장님: "내가 할일메모한거 위주")
-   로그인 첫 화면. 내 할 일(scope=my) D-day 그룹 + 핵심 알림 strip. 기존 함수 재사용. */
-async function loadHome(){
-  const greet=$g('homeGreet');
-  if(greet){
-    const nm=($g('sbName')?.textContent||'세무사').trim();
-    const now=new Date(Date.now()+9*60*60*1000);
-    const wd=['일','월','화','수','목','금','토'][now.getUTCDay()];
-    greet.textContent='안녕하세요 '+nm+'님 · '+(now.getUTCMonth()+1)+'/'+now.getUTCDate()+'('+wd+') '
-      +String(now.getUTCHours()).padStart(2,'0')+':'+String(now.getUTCMinutes()).padStart(2,'0');
-  }
-  /* 할 일 — scope=my 재사용 (myTodos 와 동일 소스) */
-  const list=$g('homeTodoList');
-  if(list)list.innerHTML='<div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div>';
-  try{
-    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my&only_mine=0');
-    const d=await r.json();
-    if(d.error)throw new Error(d.error);
-    _myTodosCache=(d.memos||[]).map(m=>({...m, _t:_normType(m.memo_type_display||m.memo_type)}));
-    if(list){
-      if(!_myTodosCache.length){
-        list.innerHTML='<div style="text-align:center;padding:46px 20px;color:#8b95a1;font-size:.9em">📭 처리할 일이 없습니다<br><span style="font-size:.85em;color:#adb5bd">상담방 📒 메모나 빠른메모에서 할 일을 작성하면 여기 모입니다</span></div>';
-      }else{
-        const groups={overdue:[],today:[],tomorrow:[],week:[],later:[],none:[]};
-        for(const m of _myTodosCache)groups[_bucketByDue(m.due_date)].push(m);
-        const labels=[['overdue','🔴 지남','#dc2626'],['today','🟠 오늘','#ea580c'],['tomorrow','🟡 내일','#ca8a04'],['week','🟢 이번주','#059669'],['later','🔵 다음주 이후','#2563eb'],['none','⚪ 기한 없음','#6b7280']];
-        let html='';
-        for(const [k,lab,col] of labels){
-          const arr=groups[k];if(!arr.length)continue;
-          html+='<div style="margin-bottom:14px"><div style="font-size:.82em;font-weight:700;color:'+col+';margin-bottom:6px;padding:3px 0;border-bottom:2px solid '+col+'">'+e(lab)+' <span style="font-weight:500;color:#6b7280">('+arr.length+')</span></div>'+arr.map(_todoRow).join('')+'</div>';
-        }
-        list.innerHTML=html;
-      }
-    }
-    const meta=$g('homeTodoMeta');if(meta)meta.textContent='· 총 '+_myTodosCache.length+'건';
-    /* 사이드바 홈 배지 — 지남+오늘 합 */
-    try{
-      const urgent=_myTodosCache.filter(m=>{const b=_bucketByDue(m.due_date);return b==='overdue'||b==='today'}).length;
-      const sb=$g('sbCntHomeTodo');
-      if(sb){ if(urgent>0){sb.textContent=urgent;sb.style.display=''}else{sb.style.display='none'} }
-    }catch(_){}
-  }catch(err){
-    if(list)list.innerHTML='<div style="color:#f04452;padding:20px 0">할 일 불러오기 오류: '+e(err.message)+'</div>';
-  }
-  /* 핵심 알림 strip — 승인대기 / 종료요청 (기존 endpoint 재사용, 병렬) */
-  const strip=$g('homeAlertStrip');
-  if(strip){
-    const chip=(emoji,lab,n,onclick,col)=>'<button onclick="'+onclick+'" style="background:'+(n>0?col:'#f2f4f6')+';color:'+(n>0?'#fff':'#8b95a1')+';border:none;padding:7px 13px;border-radius:9px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit">'+emoji+' '+lab+' '+n+'</button>';
-    Promise.all([
-      fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=pending').then(r=>r.json()).then(d=>(d.users||d.list||[]).length).catch(()=>0),
-      fetch('/api/admin-termination-requests?key='+encodeURIComponent(KEY)+'&status=pending').then(r=>r.json()).then(d=>(d.requests||d.list||[]).length).catch(()=>0),
-    ]).then(([pend,term])=>{
-      strip.innerHTML=
-        chip('⏳','승인대기',pend,"tab('users')","#ea580c")
-        +chip('⚠️','종료요청',term,"if(typeof openTerminationRequests==='function')openTerminationRequests()","#dc2626")
-        +'<button onclick="tab(\'rooms\')" style="background:#3182f6;color:#fff;border:none;padding:7px 13px;border-radius:9px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit">💬 상담방 가기</button>';
-    }).catch(()=>{ strip.innerHTML=''; });
-  }
-}
-window.loadHome=loadHome;
-
 /* 기한 그룹핑: 지남 / 오늘 / 내일 / 이번주(2~7일) / 다음주이후 / 기한없음 */
 function _bucketByDue(due){
   if(!due||!/^\d{4}-\d{2}-\d{2}$/.test(due))return 'none';

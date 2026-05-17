@@ -93,15 +93,8 @@ if ('serviceWorker' in navigator) {
 
   <div class="of-sb-scroll">
 
-    <!-- Phase HOME (2026-05-17 사장님: "기본화면 — 내가 할일메모한거 위주"): 사이드바 최상단 🏠 홈 -->
-    <div class="sb-grp" data-grp="quick" style="padding-top:6px;padding-bottom:0">
-      <button class="of-sb-item" type="button" data-admin-tab="home" style="font-weight:700">
-        <span class="ic">🏠</span><span class="lb">홈</span><span class="cnt" id="sbCntHomeTodo" style="display:none">0</span>
-      </button>
-    </div>
-
     <!-- Phase M4 (2026-05-05 사장님 명령): 전역검색 사이드바 최상단 단독 항목 -->
-    <div class="sb-grp" data-grp="quick" style="padding-top:2px;padding-bottom:6px">
+    <div class="sb-grp" data-grp="quick" style="padding-top:6px;padding-bottom:6px">
       <button class="of-sb-item" type="button" id="sbSearchBtn" style="font-weight:700">
         <span class="ic">🔍</span><span class="lb">전역 검색</span>
       </button>
@@ -247,26 +240,6 @@ if ('serviceWorker' in navigator) {
 
 <!-- 모달 슬롯 (Phase S3c-2-fix-2 2026-05-05): mainView 안으로 이동 — admin-modals.html 의 view 8개 (chatView/usersView/roomsView/docsView/liveView/analView/reviewView/faqView) 가 of-main 영역에 정상 삽입되도록.
      모달 26개 + #imgViewer 등은 position:fixed 라 위치 무관 — 같이 들어가도 OK. -->
-<!-- Phase HOME (2026-05-17 사장님: "기본화면 — 내가 할일메모한거 위주"):
-     로그인 첫 화면. 내 할 일 메모(scope=my) D-day 그룹 + 상단 핵심 알림 strip.
-     admin.js loadHome() 가 채움. 기존 _bucketByDue/_todoRow 재사용. -->
-<div id="homeView" style="display:none">
-  <div style="max-width:920px;margin:0 auto;padding:6px 2px 30px">
-    <div id="homeGreet" style="font-size:1.05em;font-weight:700;color:#191f28;margin:4px 0 12px"></div>
-    <div id="homeAlertStrip" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 8px">
-      <div style="font-size:.95em;font-weight:800;color:#191f28">📋 내 할 일 <span id="homeTodoMeta" style="font-size:.78em;font-weight:500;color:#6b7280"></span></div>
-      <button onclick="openMyTodos()" style="background:none;border:1px solid #e5e8eb;color:#4e5968;padding:4px 10px;border-radius:7px;font-size:.76em;cursor:pointer;font-family:inherit">전체 보기 / 추가</button>
-    </div>
-    <div id="homeTodoList"><div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div></div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:18px">
-      <button onclick="if(typeof openQuickMemoModal==='function')openQuickMemoModal()" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit">📒 빠른 메모</button>
-      <button onclick="if(typeof openSearch==='function')openSearch()" style="background:#fff;color:#4e5968;border:1px solid #e5e8eb;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit">🔍 전역 검색</button>
-      <button onclick="if(typeof openBulkSend==='function')openBulkSend()" style="background:#fff;color:#4e5968;border:1px solid #e5e8eb;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit">📢 단체발송</button>
-    </div>
-  </div>
-</div>
-
 <div id="adminModalsSlot"></div>
 
 </div>
