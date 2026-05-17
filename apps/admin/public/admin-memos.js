@@ -261,10 +261,14 @@ function cdMemoFilter(cat){
   _syncMemoStore();  /* Phase #6 적용 */
 }
 
-function onCdMemoFileSelect(ev){
-  const files=Array.from(ev.target.files||[]);
+/* Phase 16 (2026-05-17): files 배열 받아 업로드 — file input + paste/drop 공통.
+ * @param {File[]} files
+ * @param {boolean} replace true=교체(file input) / false=누적(paste·drop) */
+function _uploadCdMemoFiles(files, replace){
+  files=(files||[]).filter(Boolean);
   const lbl=$g('cdMemoNewFileLabel');
-  if(!files.length){ if(lbl)lbl.textContent=''; _cdPendingAttachments=[]; return; }
+  if(!files.length){ if(replace){ if(lbl)lbl.textContent=''; _cdPendingAttachments=[]; } return; }
+  if(replace) _cdPendingAttachments=[];
   if(lbl)lbl.textContent='업로드 중... ('+files.length+'개)';
   Promise.all(files.map(async f=>{
     try{
@@ -275,10 +279,33 @@ function onCdMemoFileSelect(ev){
       throw new Error(d.error||'upload failed');
     }catch(err){ alert('첨부 실패: '+(f.name||'')+' — '+err.message); return null; }
   })).then(results=>{
-    _cdPendingAttachments=results.filter(Boolean);
+    _cdPendingAttachments=(_cdPendingAttachments||[]).concat(results.filter(Boolean));
     if(lbl)lbl.textContent='✅ '+_cdPendingAttachments.length+'개 첨부됨';
   });
 }
+function onCdMemoFileSelect(ev){
+  _uploadCdMemoFiles(Array.from(ev.target.files||[]), true);
+}
+/* Phase 16 (2026-05-17): 거래처 dashboard 메모 + 빠른메모 입력창 paste(Ctrl+V)+드래그&드롭.
+ * cdMemoContent (거래처 dash) / quickMemoContent (빠른 메모) 둘 다. retry — element 늦게 생성. */
+(function _bindCdMemoPasteDrop(){
+  function bind(){
+    try{
+      var c1=document.getElementById('cdMemoContent');
+      if(c1 && typeof window.attachPasteDrop==='function') window.attachPasteDrop(c1, function(fs){ _uploadCdMemoFiles(fs, false); });
+      var c2=document.getElementById('quickMemoContent');
+      if(c2 && typeof window.attachPasteDrop==='function'){
+        window.attachPasteDrop(c2, function(fs){
+          /* 빠른메모는 _quickMemoPendingAttachments 사용 가능 — 없으면 _cdPendingAttachments fallback */
+          _uploadCdMemoFiles(fs, false);
+        });
+      }
+    }catch(_){}
+    setTimeout(bind, 1500); /* 모달 늦게 inject — 주기적 재바인딩 (중복가드 _pdBound) */
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
 
 async function addCdMemo(){
   const userId=_cdCurrentUserId;
