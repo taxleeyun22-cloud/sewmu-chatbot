@@ -249,6 +249,37 @@ function _renderCdAttachments(arr){
   }).join('')+'</div>';
 }
 
+/* D-3 (2026-05-17): 첨부 대기 썸네일 미리보기 + ✕ 개별삭제 (상담방 _renderPendingAttachments 와 동일 UX).
+ * arr = 업로드 완료 객체 [{key,name,size,mime}]. labelId 요소에 innerHTML 렌더.
+ * removeGlobalFn = 전역 함수명 문자열 (onclick 용). */
+function _renderPendingPreview(arr, labelId, removeGlobalFn){
+  const lbl = $g(labelId);
+  if(!lbl) return;
+  if(!arr || !arr.length){ lbl.textContent=''; return; }
+  const k = (typeof KEY !== 'undefined' && KEY) ? '&key=' + encodeURIComponent(KEY) : '';
+  lbl.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">' + arr.map((a,i)=>{
+    const isImg = String(a.mime||'').startsWith('image/');
+    const url = '/api/'+(isImg?'image':'file')+'?k='+encodeURIComponent(a.key)+(a.name?'&name='+encodeURIComponent(a.name):'')+k;
+    const x = '<button type="button" onclick="'+removeGlobalFn+'('+i+')" title="제거" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#000;color:#fff;border:none;border-radius:50%;font-size:.7em;cursor:pointer;line-height:1;padding:0;display:flex;align-items:center;justify-content:center">×</button>';
+    if(isImg){
+      return '<div style="position:relative;width:64px;height:64px"><img src="'+escAttr(url)+'" alt="'+escAttr(a.name||'')+'" style="width:100%;height:100%;object-fit:cover;border:1px solid #e5e8eb;border-radius:6px" loading="lazy">'+x+'</div>';
+    }
+    const sz=a.size?' ('+(Math.round(a.size/1024))+'KB)':'';
+    return '<div style="position:relative;display:inline-flex;align-items:center;gap:4px;background:#f9fafb;border:1px solid #e5e8eb;border-radius:6px;padding:5px 9px;font-size:.78em;color:#374151;max-width:160px">📄 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(a.name||'파일')+'</span><span style="color:#9ca3af;flex-shrink:0">'+sz+'</span>'+x+'</div>';
+  }).join('') + '</div>';
+}
+function _removeCdPendingAttach(i){
+  if(_cdPendingAttachments && i>=0 && i<_cdPendingAttachments.length) _cdPendingAttachments.splice(i,1);
+  _renderPendingPreview(_cdPendingAttachments, 'cdMemoNewFileLabel', '_removeCdPendingAttach');
+}
+function _removeQuickPendingAttach(i){
+  if(_quickMemoPending && i>=0 && i<_quickMemoPending.length) _quickMemoPending.splice(i,1);
+  _renderPendingPreview(_quickMemoPending, 'quickMemoFileLabel', '_removeQuickPendingAttach');
+}
+window._renderPendingPreview=_renderPendingPreview;
+window._removeCdPendingAttach=_removeCdPendingAttach;
+window._removeQuickPendingAttach=_removeQuickPendingAttach;
+
 function cdMemoFilter(cat){
   _cdMemoCategory=cat;
   /* tab active 갱신 */
@@ -285,7 +316,7 @@ function _uploadCdMemoFiles(files, _legacyReplace){
     }catch(err){ alert('첨부 실패: '+(f.name||'')+' — '+err.message); return null; }
   })).then(results=>{
     _cdPendingAttachments=(_cdPendingAttachments||[]).concat(results.filter(Boolean));
-    if(lbl)lbl.textContent='✅ '+_cdPendingAttachments.length+'개 첨부됨';
+    _renderPendingPreview(_cdPendingAttachments, 'cdMemoNewFileLabel', '_removeCdPendingAttach'); /* D-3 썸네일+✕ */
   }).finally(()=>{ _cdMemoUploading=Math.max(0,_cdMemoUploading-1); });
 }
 function onCdMemoFileSelect(ev){
@@ -311,7 +342,7 @@ function _uploadQuickMemoFiles(files){
     }catch(err){ alert('첨부 실패: '+(f.name||'')+' — '+err.message); return null; }
   })).then(results=>{
     _quickMemoPending=(_quickMemoPending||[]).concat(results.filter(Boolean));
-    if(lbl) lbl.textContent='✅ '+_quickMemoPending.length+'개 첨부됨';
+    _renderPendingPreview(_quickMemoPending, 'quickMemoFileLabel', '_removeQuickPendingAttach'); /* D-3 썸네일+✕ */
   });
 }
 /* 거래처 dashboard 메모 + 빠른메모 입력창 paste(Ctrl+V)+드래그&드롭.

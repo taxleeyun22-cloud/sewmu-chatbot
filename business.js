@@ -437,9 +437,31 @@
       var ok = results.filter(function(x){ return x; });
       /* paste/drop 누적 추가 (기존 + 신규) */
       _memoPendingAttachments = (_memoPendingAttachments || []).concat(ok);
-      if (lbl) lbl.textContent = '✅ ' + _memoPendingAttachments.length + '개 첨부됨';
+      _renderMemoPendingPreview(); /* D-3 썸네일+✕ */
     }).finally(function(){ _memoUploading = Math.max(0, _memoUploading - 1); });
   }
+  /* D-3 (2026-05-17): 업체 메모 첨부 대기 썸네일 + ✕ 개별삭제 (거래처dash/상담방과 동일 UX) */
+  function _renderMemoPendingPreview() {
+    var lbl = $('memoNewFileLabel');
+    if (!lbl) return;
+    var arr = _memoPendingAttachments || [];
+    if (!arr.length) { lbl.textContent = ''; return; }
+    var k = KEY ? '&key=' + encodeURIComponent(KEY) : '';
+    lbl.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">' + arr.map(function(a, i){
+      var isImg = String(a.mime || '').indexOf('image/') === 0;
+      var url = '/api/' + (isImg ? 'image' : 'file') + '?k=' + encodeURIComponent(a.key) + (a.name ? '&name=' + encodeURIComponent(a.name) : '') + k;
+      var x = '<button type="button" onclick="window._removeMemoPendingAttach(' + i + ')" title="제거" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#000;color:#fff;border:none;border-radius:50%;font-size:.7em;cursor:pointer;line-height:1;padding:0;display:flex;align-items:center;justify-content:center">×</button>';
+      if (isImg) {
+        return '<div style="position:relative;width:64px;height:64px"><img src="' + escAttr(url) + '" alt="' + escAttr(a.name || '') + '" style="width:100%;height:100%;object-fit:cover;border:1px solid #e5e8eb;border-radius:6px" loading="lazy">' + x + '</div>';
+      }
+      var sz = a.size ? ' (' + Math.round(a.size / 1024) + 'KB)' : '';
+      return '<div style="position:relative;display:inline-flex;align-items:center;gap:4px;background:#f9fafb;border:1px solid #e5e8eb;border-radius:6px;padding:5px 9px;font-size:.78em;color:#374151;max-width:160px">📄 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + e(a.name || '파일') + '</span><span style="color:#9ca3af;flex-shrink:0">' + sz + '</span>' + x + '</div>';
+    }).join('') + '</div>';
+  }
+  window._removeMemoPendingAttach = function(i) {
+    if (_memoPendingAttachments && i >= 0 && i < _memoPendingAttachments.length) _memoPendingAttachments.splice(i, 1);
+    _renderMemoPendingPreview();
+  };
   var _memoUploading = 0; /* Phase 16 #9: 업로드 in-flight 카운터 */
   window.onMemoFileSelect = function(ev) {
     _uploadMemoFiles(Array.prototype.slice.call(ev.target.files || [])); /* #10: 누적 통일 */

@@ -6,8 +6,12 @@
  *
  * 사용:
  *   attachPasteDrop(inputEl, function(files){ ... 각 영역 업로드 로직 ... });
+ *   attachPasteDrop(inputEl, onFiles, { maxSizeMB: 25 });  // opts 선택
  *   - inputEl: textarea/input 등 입력 element
  *   - files: File[] (이미지/파일). 각 영역이 자기 업로드 endpoint 로 처리.
+ *   - opts.maxSizeMB: 개별 파일 최대 크기 (기본 25MB). 초과분은 제외 + 알림.
+ *   - 타입 필터는 각 소비자 책임 (예: 상담방은 image-only 자체 필터).
+ *     paste-drop 은 공통 크기/빈파일 가드만 (D-3, 2026-05-17).
  *
  * 동작:
  *   - paste: clipboardData 의 file 잡으면 preventDefault + onFiles(files)
@@ -17,9 +21,31 @@
  * ═══════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
-  function attachPasteDrop(el, onFiles) {
+  function attachPasteDrop(el, onFiles, opts) {
     if (!el || el._pdBound || typeof onFiles !== 'function') return;
     el._pdBound = true;
+    var maxBytes = ((opts && opts.maxSizeMB) || 25) * 1024 * 1024;
+
+    /* D-3 (2026-05-17): 공통 크기/빈파일 가드. 초과·빈 파일 제외 + 1회 알림. */
+    function guard(files) {
+      var ok = [], rejected = [];
+      for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        if (!f) continue;
+        if (!f.size) { rejected.push((f.name || '파일') + ' (빈 파일)'); continue; }
+        if (f.size > maxBytes) { rejected.push((f.name || '파일') + ' (' + (f.size / 1048576).toFixed(1) + 'MB > ' + (maxBytes / 1048576) + 'MB)'); continue; }
+        ok.push(f);
+      }
+      if (rejected.length) {
+        try { alert('첨부 제외 ' + rejected.length + '개:\n· ' + rejected.join('\n· ')); } catch (e) {}
+      }
+      return ok;
+    }
+    function deliver(files) {
+      var g = guard(files);
+      if (!g.length) return;
+      try { onFiles(g); } catch (e) { console.warn('[paste-drop] onFiles err:', e); }
+    }
 
     el.addEventListener('paste', function (ev) {
       var cd = ev.clipboardData || window.clipboardData;
@@ -38,7 +64,7 @@
       }
       if (files.length) {
         ev.preventDefault();
-        try { onFiles(files); } catch (e) { console.warn('[paste-drop] onFiles err:', e); }
+        deliver(files);
       }
     });
 
@@ -59,9 +85,7 @@
       var dt = ev.dataTransfer;
       if (!dt) return;
       var files = Array.prototype.slice.call(dt.files || []).filter(function (f) { return f; });
-      if (files.length) {
-        try { onFiles(files); } catch (e) { console.warn('[paste-drop] drop onFiles err:', e); }
-      }
+      if (files.length) deliver(files);
     });
   }
   /* 전역 노출 — classic script 5곳 (business.js / admin-memos.js / admin-rooms-msg.js
