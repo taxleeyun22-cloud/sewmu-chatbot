@@ -620,9 +620,19 @@ function closeCustomerDashboard(opts){
   }
 }
 function cdGotoDocs(){
+  /* Phase 16 (2026-05-17) 전수검토 #3 fix: selectCustomer 는 admin-docs.js (lazy load).
+   * docs 탭 미경유 시 'selectCustomer is not defined' (cdGotoRoom 쌍둥이 버그 — 그땐 누락).
+   * Fix: tab('docs') 가 admin-docs.js 로드 트리거 → 로드 후 selectCustomer 안전 호출 (retry). */
+  var _uid = (typeof _cdCurrentUserId !== 'undefined' && _cdCurrentUserId) ||
+             (typeof docsSelectedUserId !== 'undefined' && docsSelectedUserId) || null;
   closeCustomerDashboard();
-  tab('docs');
-  setTimeout(()=>{if(_cdCurrentUserId||docsSelectedUserId)selectCustomer(docsSelectedUserId||_cdCurrentUserId)},100);
+  if (typeof tab === 'function') tab('docs');
+  if (!_uid) return;
+  var _tries = 0;
+  (function _trySelect(){
+    if (typeof selectCustomer === 'function') { try { selectCustomer(_uid); } catch(_){} return; }
+    if (_tries++ < 25) setTimeout(_trySelect, 200); /* admin-docs.js lazy 로드 대기 (최대 5초) */
+  })();
 }
 function cdGotoRoom(){
   /* Phase 16 (2026-05-13) 사장님 Sentry 보고: openRoomForCurrentCustomer is not defined.

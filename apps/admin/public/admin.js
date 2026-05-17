@@ -2682,9 +2682,19 @@ async function runDocsHealthCheck(){
 }
 
 async function loadDocsTab(){
+  /* Phase 16 (2026-05-17) 전수검토 #2 fix: loadDocsCustomers/loadDocsAlerts 는 admin-docs.js (lazy).
+   * tab('docs') 가 lazy 스크립트 appendChild 와 같은 tick 에 동기 호출 → 첫 진입 시
+   * 'loadDocsCustomers is not defined' 거의 확정. Fix: 정의 전이면 retry (최대 5초). */
+  if (typeof loadDocsCustomers !== 'function' || typeof loadDocsAlerts !== 'function') {
+    if (!loadDocsTab._tries) loadDocsTab._tries = 0;
+    if (loadDocsTab._tries++ < 25) { setTimeout(loadDocsTab, 200); return; }
+    loadDocsTab._tries = 0; /* 5초 초과 — 그래도 진행 (아래에서 자체 가드) */
+  } else {
+    loadDocsTab._tries = 0;
+  }
   // 거래처 목록 항상 로드 (좌측 패널)
-  loadDocsCustomers();
-  loadDocsAlerts();
+  if (typeof loadDocsCustomers === 'function') loadDocsCustomers();
+  if (typeof loadDocsAlerts === 'function') loadDocsAlerts();
 
   const userId=$g('docsFilterUser').value.trim();
   // 거래처 미선택 시 우측 패널 빈 상태

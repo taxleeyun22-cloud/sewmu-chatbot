@@ -685,24 +685,9 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
   html += '<div id="filSaveStatus" style="font-size:.74em;color:#9ca3af;margin-top:10px">자동 저장됨</div>';
   html += '</div>';
 
-  /* SECTION 06: 결재 버튼 */
-  html += '<div class="keep-together no-print" style="display:flex;gap:8px;justify-content:flex-end;padding:14px 0;border-top:1px solid #e5e8eb;margin-top:8px">';
-  if (f.review_status === '작성중') {
-    html += '<button onclick="filingSetStatus(\'결재대기\')" style="background:#f59e0b;color:#fff;border:none;padding:9px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">📋 결재 요청 (→ 결재대기)</button>';
-  } else if (f.review_status === '결재대기') {
-    html += '<button onclick="filingSetStatus(\'작성중\')" style="background:#fff;color:#6b7280;border:1px solid #d1d5db;padding:9px 14px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">← 작성중 으로</button>';
-    if (typeof IS_OWNER !== 'undefined' && IS_OWNER) {
-      html += '<button onclick="filingSetStatus(\'보관완료\')" style="background:#10b981;color:#fff;border:none;padding:9px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">✅ 결재 완료 (보관)</button>';
-    } else {
-      html += '<span style="font-size:.78em;color:#8b95a1;align-self:center">결재 완료는 owner 만 가능</span>';
-    }
-  } else if (f.review_status === '보관완료') {
-    html += '<span style="font-size:.78em;color:#10b981;align-self:center;font-weight:600">✅ 결재 완료 (보관) — read-only</span>';
-    if (typeof IS_OWNER !== 'undefined' && IS_OWNER) {
-      html += '<button onclick="filingSetStatus(\'결재대기\')" style="background:#fff;color:#dc2626;border:1px dashed #dc2626;padding:9px 14px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">↩️ 결재 취소 (Owner)</button>';
-    }
-  }
-  html += '</div>';
+  /* SECTION 06: 결재 버튼 — Phase 16 (2026-05-17) 전수검토 #1·#9: 공통 함수 추출 (DRY).
+   * 종소세/법인세(_filRenderBody) + 부가세(_filRenderVatBody) 공유. */
+  html += _filApprovalButtonsHtml(f);
 
   /* 헤더 owner 요약 (타이틀 아래) — 동기 set */
   if (_filGet('filingOwnerInfo')) {
@@ -756,7 +741,10 @@ function _filRenderOwnerInfoSync(f) {
    * auto_fields.book_keeping_types = { bizId: '복식'|'간편'|'기준'|'단순' } */
   const af = (function() { try { return JSON.parse(f.auto_fields || '{}'); } catch { return {}; } })();
   const bookMap = af.book_keeping_types || {};
-  const readonly = f.status === '보관완료' && !window.IS_OWNER;
+  /* Phase 16 (2026-05-17) 전수검토 #4 fix: f.status 는 존재 안 하는 컬럼 (DB = review_status).
+   * 옛 코드는 항상 readonly=false → 보관완료 검토표에도 장부/✕해제/+사업장 버튼 노출.
+   * _filRenderBody:277 와 동일 패턴으로 통일. */
+  const readonly = f.review_status === '보관완료' && !(typeof IS_OWNER !== 'undefined' && IS_OWNER);
   const _filBookHtml = (bizId) => {
     const types = ['복식', '간편', '기준', '단순'];
     const current = bookMap[bizId] || '';
@@ -1402,6 +1390,28 @@ function _filReloadList(ownerType, ownerId) {
  * 데이터: af.vat = { prev:{s,p,fa,t}, q1p,q1f,q2p,q2f, memo:{q1p,q1f,q2p,q2f} }
  *   s=매출과표 p=매입과표 fa=고정자산 t=납부세액. 부가율=(s-p)/s*100 자동.
  * ═══════════════════════════════════════════════════════════════════════════ */
+/* Phase 16 (2026-05-17) 전수검토 #1·#9: 결재 버튼 공통 (종소세/법인세/부가세 공유 — DRY). */
+function _filApprovalButtonsHtml(f) {
+  let html = '<div class="keep-together no-print" style="display:flex;gap:8px;justify-content:flex-end;padding:14px 0;border-top:1px solid #e5e8eb;margin-top:8px">';
+  if (f.review_status === '작성중') {
+    html += '<button onclick="filingSetStatus(\'결재대기\')" style="background:#f59e0b;color:#fff;border:none;padding:9px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">📋 결재 요청 (→ 결재대기)</button>';
+  } else if (f.review_status === '결재대기') {
+    html += '<button onclick="filingSetStatus(\'작성중\')" style="background:#fff;color:#6b7280;border:1px solid #d1d5db;padding:9px 14px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">← 작성중 으로</button>';
+    if (typeof IS_OWNER !== 'undefined' && IS_OWNER) {
+      html += '<button onclick="filingSetStatus(\'보관완료\')" style="background:#10b981;color:#fff;border:none;padding:9px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">✅ 결재 완료 (보관)</button>';
+    } else {
+      html += '<span style="font-size:.78em;color:#8b95a1;align-self:center">결재 완료는 owner 만 가능</span>';
+    }
+  } else if (f.review_status === '보관완료') {
+    html += '<span style="font-size:.78em;color:#10b981;align-self:center;font-weight:600">✅ 결재 완료 (보관) — read-only</span>';
+    if (typeof IS_OWNER !== 'undefined' && IS_OWNER) {
+      html += '<button onclick="filingSetStatus(\'결재대기\')" style="background:#fff;color:#dc2626;border:1px dashed #dc2626;padding:9px 14px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">↩️ 결재 취소 (Owner)</button>';
+    }
+  }
+  html += '</div>';
+  return html;
+}
+
 function _filRenderVatBody(f, prev, af, pf, readonly) {
   const ro = readonly ? 'readonly disabled' : '';
   const vat = af.vat || {};
@@ -1484,7 +1494,12 @@ function _filRenderVatBody(f, prev, af, pf, readonly) {
   html += '<div style="display:flex;gap:8px;margin-bottom:8px">'+memoBox('q1p','1기 예정')+memoBox('q1f','1기 확정')+'</div>';
   html += '<div style="display:flex;gap:8px">'+memoBox('q2p','2기 예정')+memoBox('q2f','2기 확정')+'</div>';
   html += '</div></div>';
-  setTimeout(function(){ try{ _filVatRecalc(); }catch(_){} }, 30);
+  /* Phase 16 (2026-05-17) 전수검토 #1 fix: 부가세 검토표 결재 버튼 (종소세/법인세와 동일).
+   * 이전엔 부가세에 결재 버튼 없어 영구 '작성중' — 결재대기/보관완료 전환 불가했음. */
+  html += _filApprovalButtonsHtml(f);
+  /* #5 fix: 초기 표시 전용 recalc — _filOnFieldChange(자동저장 타이머) 트리거 방지 위해
+   * 별도 플래그. 사용자 입력 시에만 저장. */
+  setTimeout(function(){ try{ _filVatRecalc(true); }catch(_){} }, 30);
   return html;
 }
 
@@ -1493,7 +1508,7 @@ function _filFmtVat(el) {
   el.value = (n!=null) ? _filFormatNum(n) : '';
 }
 
-function _filVatRecalc() {
+function _filVatRecalc(initial) {
   const get = (key,fld) => {
     const el = document.querySelector('[data-fil-vat="'+key+'.'+fld+'"]');
     return el ? (_filParseNum(el.value)||0) : 0;
@@ -1517,7 +1532,8 @@ function _filVatRecalc() {
   const yP=get('q1p','p')+get('q1f','p')+get('q2p','p')+get('q2f','p');
   const yel = document.querySelector('[data-vat-year="sum"]');
   if(yel) yel.textContent = '매출 '+fmt(yS)+' · 매입 '+fmt(yP)+' · 부가율 '+rate(yS,yP);
-  if(typeof _filOnFieldChange==='function') _filOnFieldChange();
+  /* #5 fix: 초기 표시 recalc (initial=true) 는 자동저장 타이머 트리거 X — 사용자 입력 시에만 */
+  if(!initial && typeof _filOnFieldChange==='function') _filOnFieldChange();
 }
 window._filRenderVatBody = _filRenderVatBody;
 window._filFmtVat = _filFmtVat;
