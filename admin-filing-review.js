@@ -1402,8 +1402,13 @@ function _filRenderVatBody(f, prev, af, pf, readonly) {
   const ro = readonly ? 'readonly disabled' : '';
   const vat = af.vat || {};
   const cell = (k) => (vat[k] || {});
+  /* #6 fix (2026-05-17): 전기 전체 = 자동참조 default + 수기 override 보존.
+   * 이전 버그: prev 레코드 존재 시 항상 pf 에서 재계산 → 저장된 수기보정(af.vat.prev) 덮어씀.
+   *            + 전기칸 readonly span 이라 작년 빈껍데기여도 보정 불가.
+   * 해결: 저장된 override(af.vat.prev) 있으면 그대로, 없을 때만 작년 신고서에서 자동 합산. */
   let prevTot = vat.prev || {};
-  if (prev && pf && pf.vat) {
+  const _hasPrevOverride = prevTot && (prevTot.s != null || prevTot.p != null || prevTot.fa != null || prevTot.t != null);
+  if (!_hasPrevOverride && prev && pf && pf.vat) {
     const pv = pf.vat;
     const sum4 = (fld) => ['q1p','q1f','q2p','q2f'].reduce((a,q)=>a+(Number((pv[q]||{})[fld])||0),0);
     prevTot = { s: sum4('s'), p: sum4('p'), fa: sum4('fa'), t: sum4('t') };
@@ -1462,13 +1467,15 @@ function _filRenderVatBody(f, prev, af, pf, readonly) {
       + '</div>';
   })();
   html += '<div style="margin:6px 0 10px;border:1.5px solid #1a3a5c;border-radius:6px;overflow:hidden">'
-    + '<div style="background:#1a3a5c;color:#fff;font-weight:700;font-size:.84em;padding:5px 10px">▌전기 전체 ('+((f.fiscal_year||0)-1)+')</div>'
+    + '<div style="background:#1a3a5c;color:#fff;font-weight:700;font-size:.84em;padding:5px 10px">▌전기 전체 ('+((f.fiscal_year||0)-1)+')'
+    + (prev && !_hasPrevOverride ? '<span style="font-weight:500;font-size:.85em;opacity:.85"> · 작년 신고서 자동참조 (수정 가능)</span>' : (_hasPrevOverride ? '<span style="font-weight:500;font-size:.85em;opacity:.85"> · 수기 보정됨</span>' : ''))
+    + '</div>'
     + '<table style="width:100%;border-collapse:collapse;font-size:.86em"><thead><tr style="background:#4a5568;color:#fff">'
     + '<th style="padding:5px 8px;text-align:right;width:25%">매출과표</th><th style="padding:5px 8px;text-align:right;width:25%">매입과표</th><th style="padding:5px 8px;text-align:right;width:25%">부가율</th><th style="padding:5px 8px;text-align:right;width:25%">고정자산</th></tr></thead><tbody><tr>'
-    + '<td style="padding:5px 8px">'+(prev?('<span style="font-weight:700">'+FM(N(prevTot.s))+'</span>'):inp('prev','s',prevTot.s))+'</td>'
-    + '<td style="padding:5px 8px">'+(prev?('<span style="font-weight:700">'+FM(N(prevTot.p))+'</span>'):inp('prev','p',prevTot.p))+'</td>'
+    + '<td style="padding:5px 8px">'+inp('prev','s',prevTot.s)+'</td>'
+    + '<td style="padding:5px 8px">'+inp('prev','p',prevTot.p)+'</td>'
     + '<td style="padding:5px 8px;text-align:right;font-weight:700;color:#1a3a5c" data-vat-rate="prev">'+rate(prevTot.s,prevTot.p)+'</td>'
-    + '<td style="padding:5px 8px">'+(prev?('<span style="font-weight:700">'+FM(N(prevTot.fa))+'</span>'):inp('prev','fa',prevTot.fa))+'</td>'
+    + '<td style="padding:5px 8px">'+inp('prev','fa',prevTot.fa)+'</td>'
     + '</tr></tbody></table></div>';
   html += block('1 기','q1p','q1f','sub1');
   html += block('2 기','q2p','q2f','sub2');

@@ -262,14 +262,17 @@ function cdMemoFilter(cat){
 }
 
 /* Phase 16 (2026-05-17): files 배열 받아 업로드 — file input + paste/drop 공통.
+ * #10 정책 통일 (2026-05-17): 5곳 모두 누적(accumulate). file input/paste/drop 모두 추가.
+ *   - 옛: file input = 교체(replace), paste/drop = 누적 → 비일관 (파일 더 고르려고 picker 재오픈 시 기존분 손실)
+ *   - 신: 전부 누적. 비우기는 개별 ✕(D-3) 또는 submit/취소 시 초기화.
+ *   - 빈/취소 file dialog 는 기존 첨부 보존 (절대 wipe X).
  * @param {File[]} files
- * @param {boolean} replace true=교체(file input) / false=누적(paste·drop) */
+ * @param {boolean} _legacyReplace (deprecated — 무시. 누적 통일) */
 var _cdMemoUploading = 0; /* Phase 16 #9: 업로드 in-flight 카운터 — 0 초과면 submit 차단 */
-function _uploadCdMemoFiles(files, replace){
+function _uploadCdMemoFiles(files, _legacyReplace){
   files=(files||[]).filter(Boolean);
   const lbl=$g('cdMemoNewFileLabel');
-  if(!files.length){ if(replace){ if(lbl)lbl.textContent=''; _cdPendingAttachments=[]; } return; }
-  if(replace) _cdPendingAttachments=[];
+  if(!files.length){ return; } /* #10: 빈 선택/취소 — 기존 첨부 보존 */
   if(lbl)lbl.textContent='업로드 중... ('+files.length+'개)';
   _cdMemoUploading++;
   Promise.all(files.map(async f=>{
@@ -286,7 +289,8 @@ function _uploadCdMemoFiles(files, replace){
   }).finally(()=>{ _cdMemoUploading=Math.max(0,_cdMemoUploading-1); });
 }
 function onCdMemoFileSelect(ev){
-  _uploadCdMemoFiles(Array.from(ev.target.files||[]), true);
+  _uploadCdMemoFiles(Array.from(ev.target.files||[]), false); /* #10: 누적 통일 */
+  try{ ev.target.value=''; }catch(_){} /* 같은 파일 재선택 가능하도록 reset */
 }
 /* Phase 16 (2026-05-17) 전수검토 #8 fix: 빠른메모 첨부 전역 충돌.
  * 옛 코드는 빠른메모 paste 가 _cdPendingAttachments(거래처 dash 와 공유) 오염 →

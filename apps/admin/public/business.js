@@ -421,7 +421,7 @@
   function _uploadMemoFiles(files) {
     files = (files || []).filter(function(f){ return f; });
     var lbl = $('memoNewFileLabel');
-    if (!files.length) { if (lbl) lbl.textContent = ''; _memoPendingAttachments = []; return; }
+    if (!files.length) { return; } /* #10 통일: 빈/취소 — 기존 첨부 보존 (wipe X) */
     if (lbl) lbl.textContent = '업로드 중... (' + files.length + '개)';
     _memoUploading++;
     Promise.all(files.map(function(f){
@@ -442,8 +442,8 @@
   }
   var _memoUploading = 0; /* Phase 16 #9: 업로드 in-flight 카운터 */
   window.onMemoFileSelect = function(ev) {
-    _memoPendingAttachments = []; /* file input 선택은 교체 */
-    _uploadMemoFiles(Array.prototype.slice.call(ev.target.files || []));
+    _uploadMemoFiles(Array.prototype.slice.call(ev.target.files || [])); /* #10: 누적 통일 */
+    try { ev.target.value = ''; } catch(_) {} /* 같은 파일 재선택 가능 */
   };
   /* Phase 16 (2026-05-17): 메모 입력창 paste(Ctrl+V) + 드래그&드롭 — 캡처/복사 사진 바로 첨부 */
   try {
