@@ -625,9 +625,14 @@ function cdGotoDocs(){
   setTimeout(()=>{if(_cdCurrentUserId||docsSelectedUserId)selectCustomer(docsSelectedUserId||_cdCurrentUserId)},100);
 }
 function cdGotoRoom(){
-  /* 이 거래처가 멤버인 상담방으로 이동 */
-  openRoomForCurrentCustomer();
+  /* Phase 16 (2026-05-13) 사장님 Sentry 보고: openRoomForCurrentCustomer is not defined.
+   * 진짜 원인: 그 함수는 admin-docs.js 에 정의 — lazy load (docs 탭 클릭 시에만).
+   * 거래처 dashboard 의 💬 상담방 버튼 누르면 미로드 상태 → ReferenceError.
+   * Fix: self-contained — admin-docs.js 의존 제거. 단순 tab('rooms') (admin.js, 항상 로드). */
   closeCustomerDashboard();
+  setTimeout(function(){
+    try { if (typeof tab === 'function') tab('rooms'); } catch(_) {}
+  }, 100);
 }
 function cdExportCsv(){
   exportWehago();
