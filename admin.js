@@ -1639,7 +1639,7 @@ async function openManualClientModal(){
   setTimeout(()=>$g('mcRealName')?.focus(),50);
 }
 function closeManualClientModal(){
-  const m=$g('manualClientModal');if(m)m.style.display='none';
+  const m=$g('manualClientModal');if(m){m.style.display='none';m.style.zIndex='11400';/* 검토표에서 11600 으로 올렸던 것 복원 (2026-05-17) */}
   document.body.style.overflow='';
   /* Phase R2-8 (M19 2026-05-05): mcModeTabs / mcExistArea reset */
   const tabs = $g('mcModeTabs'); if(tabs) tabs.style.display = 'none';

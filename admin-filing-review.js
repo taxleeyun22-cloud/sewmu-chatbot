@@ -814,6 +814,15 @@ function _filAddBizForFiling(userId, userName, userPhone) {
   /* 사업장 추가 모달 — 신규 사업장 만들면 business_members 자동 매핑 */
   try {
     window.openAddBizForUser(userId, userName || '', userPhone || '');
+    /* fix (2026-05-17 사장님 보고 "사업장 추가 눌러도 아무것도 안뜸"):
+     * manualClientModal(z-index:11400) 과 filingDetailModal(z-index:11400) 동률 →
+     * DOM 뒤쪽 filingDetailModal 이 위 덮어 사업장추가 모달이 가려짐.
+     * 검토표에서 띄울 때만 manualClientModal 을 검토표 위로 (11600).
+     * closeManualClientModal 에서 11400 복원. */
+    setTimeout(function () {
+      var mc = document.getElementById('manualClientModal');
+      if (mc) mc.style.zIndex = '11600';
+    }, 90);
   } catch (e) {
     alert('사업장 추가 모달 열기 실패: ' + e.message);
   }
