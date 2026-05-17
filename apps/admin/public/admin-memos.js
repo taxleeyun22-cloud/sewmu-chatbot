@@ -286,20 +286,37 @@ function _uploadCdMemoFiles(files, replace){
 function onCdMemoFileSelect(ev){
   _uploadCdMemoFiles(Array.from(ev.target.files||[]), true);
 }
-/* Phase 16 (2026-05-17): 거래처 dashboard 메모 + 빠른메모 입력창 paste(Ctrl+V)+드래그&드롭.
- * cdMemoContent (거래처 dash) / quickMemoContent (빠른 메모) 둘 다. retry — element 늦게 생성. */
+/* Phase 16 (2026-05-17) 전수검토 #8 fix: 빠른메모 첨부 전역 충돌.
+ * 옛 코드는 빠른메모 paste 가 _cdPendingAttachments(거래처 dash 와 공유) 오염 →
+ * 빠른메모 사진이 다음 거래처 dashboard 메모에 섞임. 전용 변수 _quickMemoPending 분리. */
+var _quickMemoPending = [];
+function _uploadQuickMemoFiles(files){
+  files=(files||[]).filter(Boolean);
+  if(!files.length) return;
+  var lbl=$g('quickMemoFileLabel');
+  if(lbl) lbl.textContent='업로드 중... ('+files.length+'개)';
+  Promise.all(files.map(async f=>{
+    try{
+      const fd=new FormData(); fd.append('file', f);
+      const r=await fetch('/api/upload-memo-attachment?key='+encodeURIComponent(KEY),{ method:'POST', body:fd });
+      const d=await r.json();
+      if(d.ok) return { key:d.key, name:d.name, size:d.size, mime:d.mime };
+      throw new Error(d.error||'upload failed');
+    }catch(err){ alert('첨부 실패: '+(f.name||'')+' — '+err.message); return null; }
+  })).then(results=>{
+    _quickMemoPending=(_quickMemoPending||[]).concat(results.filter(Boolean));
+    if(lbl) lbl.textContent='✅ '+_quickMemoPending.length+'개 첨부됨';
+  });
+}
+/* 거래처 dashboard 메모 + 빠른메모 입력창 paste(Ctrl+V)+드래그&드롭.
+ * cdMemoContent → _cdPendingAttachments / quickMemoContent → _quickMemoPending (분리). */
 (function _bindCdMemoPasteDrop(){
   function bind(){
     try{
       var c1=document.getElementById('cdMemoContent');
       if(c1 && typeof window.attachPasteDrop==='function') window.attachPasteDrop(c1, function(fs){ _uploadCdMemoFiles(fs, false); });
       var c2=document.getElementById('quickMemoContent');
-      if(c2 && typeof window.attachPasteDrop==='function'){
-        window.attachPasteDrop(c2, function(fs){
-          /* 빠른메모는 _quickMemoPendingAttachments 사용 가능 — 없으면 _cdPendingAttachments fallback */
-          _uploadCdMemoFiles(fs, false);
-        });
-      }
+      if(c2 && typeof window.attachPasteDrop==='function') window.attachPasteDrop(c2, function(fs){ _uploadQuickMemoFiles(fs); });
     }catch(_){}
     setTimeout(bind, 1500); /* 모달 늦게 inject — 주기적 재바인딩 (중복가드 _pdBound) */
   }
@@ -427,6 +444,8 @@ function closeQuickMemoModal(){
   const m = $g('quickMemoModal'); if(m) m.style.display = 'none';
   document.body.style.overflow = '';
   _quickMemoTarget = null;
+  _quickMemoPending = []; /* #8: 취소 시도 첨부 초기화 (다음 빠른메모 오염 방지) */
+  var _qfl=$g('quickMemoFileLabel'); if(_qfl) _qfl.textContent='';
 }
 
 function onQuickMemoSearchInput(){
@@ -523,6 +542,8 @@ async function submitQuickMemo(){
     const body = { memo_type: memoType, content: content };
     if(category) body.category = category;
     if(due) body.due_date = due;
+    /* Phase 16 (2026-05-17) #8: 빠른메모 전용 첨부 (전역 _cdPendingAttachments 와 분리) */
+    if(_quickMemoPending && _quickMemoPending.length) body.attachments = _quickMemoPending;
     if(_quickMemoTarget.type === 'business') body.target_business_id = _quickMemoTarget.id;
     else body.target_user_id = _quickMemoTarget.id;
     const r = await fetch('/api/memos?key=' + encodeURIComponent(KEY), {
@@ -531,6 +552,8 @@ async function submitQuickMemo(){
     const d = await r.json();
     if(btn){ btn.disabled = false; btn.textContent = '＋ 메모 추가'; }
     if(!d.ok){ alert('저장 실패: ' + (d.error || 'unknown')); return; }
+    _quickMemoPending=[]; /* #8: 빠른메모 첨부 초기화 (다음 빠른메모에 안 섞이게) */
+    var _qfl=$g('quickMemoFileLabel'); if(_qfl) _qfl.textContent='';
     /* toast + 모달 닫기 */
     if(typeof showAdminToast === 'function') showAdminToast('✅ ' + _quickMemoTarget.name + ' 메모 추가됨');
     else alert('✅ 메모 추가됨');

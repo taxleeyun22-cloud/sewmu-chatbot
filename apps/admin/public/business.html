@@ -146,7 +146,7 @@
 <div id="adminModalsSlot"></div>
 <script>
 window.KEY = window.KEY || (new URL(location.href)).searchParams.get('key') || '';
-fetch('/admin-modals.html?v=54', { cache: 'no-cache' })
+fetch('/admin-modals.html?v=55', { cache: 'no-cache' })
   .then(r => r.ok ? r.text() : Promise.reject(r.status))
   .then(html => {
     const slot = document.getElementById('adminModalsSlot');

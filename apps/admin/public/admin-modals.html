@@ -379,7 +379,7 @@
               <button onclick="openCustomerDashboard(docsSelectedUserId)" style="background:#dbeafe;color:#1e40af;border:none;padding:7px 12px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">🏢 대시보드</button>
               <button onclick="openBizDocsPanel()" style="background:#ecfdf5;color:#065f46;border:none;padding:7px 12px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">📋 서류</button>
               <button onclick="openFinancePanel()" style="background:#fef3c7;color:#92400e;border:none;padding:7px 12px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">📊 재무</button>
-              <button onclick="openRoomForCurrentCustomer()" style="background:#e5e8eb;border:none;padding:7px 12px;border-radius:8px;font-size:.82em;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">💬 상담방</button>
+<!-- Phase 16 (2026-05-17) 전수검토 #7: openRoomForCurrentCustomer 는 admin-docs.js(lazy) — docs 미경유 시 ReferenceError(오늘 Sentry 그 함수). cdGotoRoom() 은 self-contained 안전(c4193a9). 교체. --><button onclick="cdGotoRoom()" style="background:#e5e8eb;border:none;padding:7px 12px;border-radius:8px;font-size:.82em;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">💬 상담방</button>
 <!-- 위하고 CSV 내보내기 버튼 — 사용자 요청으로 일단 숨김 (함수는 유지, 복구 쉬움)
               <button onclick="exportWehago()" style="background:#10b981;color:#fff;border:none;padding:7px 12px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap">📥 CSV</button> -->
             </div>
