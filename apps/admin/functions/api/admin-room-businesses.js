@@ -15,7 +15,7 @@
  *   DELETE /api/admin-room-businesses?room_id=X&business_id=N → 매핑 해제 (soft)
  */
 
-import { checkAdmin } from './_adminAuth.js';
+import { checkAdmin, checkOriginCsrf } from "./_adminAuth.js";
 import { checkRole, roleForbidden } from './_authz.js';
 
 async function ensureTable(db) {
@@ -93,6 +93,9 @@ export async function onRequestGet(context) {
 }
 
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth || !auth.ok) return Response.json({ error: 'unauth' }, { status: 401 });
 
@@ -155,6 +158,9 @@ export async function onRequestPost(context) {
 }
 
 export async function onRequestDelete(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   /* Phase #10 적용 (2026-05-06): 상담방-업체 매핑 해제 = manager+ 전용.
    * 매핑 추가(POST) 는 staff (admin 누구나) 가능. 해제는 위험 액션이라 강화. */
   const authz = await checkRole(context, 'manager');

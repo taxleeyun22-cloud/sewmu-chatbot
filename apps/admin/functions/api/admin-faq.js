@@ -6,7 +6,7 @@
 // - POST /api/admin-faq?action=delete : { id }
 // - POST /api/admin-faq?action=reembed_all : 전체 재임베딩 (모델 변경 시)
 
-import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
 import { checkRole, roleForbidden } from "./_authz.js";
 import { ensureFaqsTable, embed } from "./_rag.js";
 
@@ -101,6 +101,9 @@ export async function onRequestGet(context) {
 }
 
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
   if (!auth.owner) return ownerOnly();

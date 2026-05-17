@@ -10,7 +10,7 @@
 // - POST /api/admin-rooms?action=toggle_ai : { room_id, ai_mode }
 // - DELETE /api/admin-rooms?room_id=XX : 방 + 메시지 전체 삭제 (신중)
 
-import { checkAdmin, adminUnauthorized, ownerOnly } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
 import { checkRole, roleForbidden } from "./_authz.js";
 import { notifyUser } from "./_webpush.js";
 
@@ -434,6 +434,9 @@ export async function onRequestGet(context) {
 
 // POST: 생성/멤버관리/종료/메시지/AI토글
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
@@ -505,12 +508,13 @@ export async function onRequestPost(context) {
       const userId = Number(body.user_id);
       if (!userId) return Response.json({ error: "user_id required" }, { status: 400 });
 
-      // 인원 한도 체크
+      // 인원 한도 체크 — Phase 15 audit fix: maxc NULL 가드 (NULL 비교는 SQL 에서 false → 무한 추가 가능 했음).
       const cnt = await db.prepare(
         `SELECT COUNT(*) as c, (SELECT max_members FROM chat_rooms WHERE id = ?) as maxc
          FROM room_members WHERE room_id = ? AND left_at IS NULL`
       ).bind(roomId, roomId).first();
-      if (cnt && cnt.c >= cnt.maxc) {
+      const maxMembers = (cnt && cnt.maxc != null) ? Number(cnt.maxc) : 100; // default 100명
+      if (cnt && Number(cnt.c) >= maxMembers) {
         return Response.json({ error: "정원이 가득찼습니다" }, { status: 400 });
       }
 
@@ -540,11 +544,20 @@ export async function onRequestPost(context) {
           role = CASE WHEN room_members.role = 'admin' THEN 'admin' ELSE excluded.role END
       `).bind(roomId, userId, now, visibleSince).run();
 
-      /* 📣 초대 시스템 메시지 — "xxx님이 초대되었습니다" 카톡 스타일 */
+      /* 📣 초대 시스템 메시지 — "xxx님이 초대되었습니다" 카톡 스타일.
+       * Phase 15 audit fix: checkAdmin 응답에는 name/realName 필드 없음
+       * (userId / owner / adminRole 만). users 테이블에서 직접 조회. */
       try {
         const u = await db.prepare(`SELECT real_name, name FROM users WHERE id = ?`).bind(userId).first();
         const whoName = (u && (u.real_name || u.name)) || '구성원';
-        const inviterName = auth.name || auth.realName || (auth.owner ? '대표' : '담당자');
+        let inviterName;
+        if (auth.userId) {
+          const inv = await db.prepare(`SELECT real_name, name FROM users WHERE id = ?`).bind(auth.userId).first();
+          inviterName = (inv && (inv.real_name || inv.name)) || (auth.owner ? '대표' : '담당자');
+        } else {
+          /* ADMIN_KEY URL 진입 — auth.userId=null. 사장님 의도. */
+          inviterName = '대표';
+        }
         const sysMsg = `[ALERT]${JSON.stringify({
           t: '👋 초대',
           m: `${whoName}님이 ${inviterName}에 의해 초대되었습니다.`,
@@ -615,8 +628,16 @@ export async function onRequestPost(context) {
       if (raw !== null && raw !== undefined && raw !== '') {
         const n = Number(raw);
         if (!Number.isInteger(n) || n <= 0) return Response.json({ error: 'business_id 는 양수 또는 null' }, { status: 400 });
-        const chk = await db.prepare(`SELECT id FROM businesses WHERE id = ?`).bind(n).first();
+        /* Phase 15 audit fix: deleted_at + status 체크 — 삭제된 업체에 link 못 하도록.
+         * 이전 코드: 존재만 확인 → soft-deleted 업체 mapping 가능했음. */
+        const chk = await db.prepare(
+          `SELECT id, status, deleted_at FROM businesses WHERE id = ?`,
+        ).bind(n).first();
         if (!chk) return Response.json({ error: 'business 없음' }, { status: 404 });
+        if (chk.deleted_at) return Response.json({ error: '삭제된 업체에 연결 불가' }, { status: 400 });
+        if (chk.status === 'deleted' || chk.status === 'closed') {
+          return Response.json({ error: `업체 상태 (${chk.status}) — 연결 불가` }, { status: 400 });
+        }
         bid = n;
       }
       await db.prepare(`UPDATE chat_rooms SET business_id = ? WHERE id = ?`).bind(bid, roomId).run();
@@ -806,6 +827,9 @@ export async function onRequestPost(context) {
 // DELETE: 방 + 모든 메시지 삭제 (영구) — owner 전용
 // Phase #10 적용 (2026-05-06): checkRole + roleForbidden 통일.
 export async function onRequestDelete(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   const authz = await checkRole(context, 'owner');
   if (!authz.ok) return roleForbidden(authz);

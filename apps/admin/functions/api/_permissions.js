@@ -8,7 +8,9 @@
  * → 옛+새 자동 반영. "admin/staff 동기화 사고" 패턴 영구 차단.
  */
 
-/* Phase 16 fix (2026-05-13): import ... with { type:"json" } Cloudflare wrangler 미지원. */
+/* Phase 16 fix (2026-05-13): `import ... with { type: "json" }` 신문법 Cloudflare
+ * wrangler esbuild 미지원 → 빌드 실패 (사장님 보여준 로그 04:12:05).
+ * scripts/export-permissions.mjs 가 같은 데이터를 .js 모듈로도 export → 그것을 import. */
 import permissionsData from "./_permissions-data.js";
 import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
 

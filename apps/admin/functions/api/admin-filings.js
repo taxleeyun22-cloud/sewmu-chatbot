@@ -13,7 +13,7 @@
 // - filings 테이블 (신규)
 // - 기존 tax_filings (체크리스트) 와 완전 별도
 
-import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, checkOriginCsrf } from "./_adminAuth.js";
 
 const FILING_TYPES = ['종소세', '법인세'];
 const REVIEW_STATUSES = ['작성중', '결재대기', '보관완료'];
@@ -149,6 +149,9 @@ export async function onRequestGet(context) {
 }
 
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
   const db = context.env.DB;
@@ -229,6 +232,9 @@ export async function onRequestPost(context) {
 
 /* PATCH — auto_fields / reviewer_comment / included_business_ids 수정 (자동 저장) */
 export async function onRequestPatch(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
   const db = context.env.DB;
@@ -285,6 +291,9 @@ export async function onRequestPatch(context) {
 
 /* DELETE — soft delete (owner only) */
 export async function onRequestDelete(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
   if (!auth.owner) return Response.json({ error: 'owner only' }, { status: 403 });

@@ -4,7 +4,7 @@
 // - PUT  /api/admin-client-businesses?id=XX : 업데이트
 // - DELETE /api/admin-client-businesses?id=XX : 삭제
 
-import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, checkOriginCsrf } from "./_adminAuth.js";
 
 async function ensureTable(db) {
   // 신규 테이블 (복수 사업장 지원)
@@ -99,6 +99,9 @@ export async function onRequestGet(context) {
 
 // POST 신규 추가
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
@@ -228,6 +231,9 @@ export async function onRequestPost(context) {
 
 // PUT 업데이트
 export async function onRequestPut(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
@@ -297,6 +303,9 @@ export async function onRequestPut(context) {
 
 // DELETE 삭제
 export async function onRequestDelete(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;

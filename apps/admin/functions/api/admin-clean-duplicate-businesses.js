@@ -24,7 +24,7 @@
 //   - POST execute 는 body.confirm=true 필수
 //   - keeper 가 모든 필드 비어있으면(예: 둘 다 빈 row) 해당 그룹 skip
 
-import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, checkOriginCsrf } from "./_adminAuth.js";
 
 function normBiz(s) { return String(s || '').replace(/\D/g, ''); }
 function normName(s) { return String(s || '').replace(/\s+/g, '').toLowerCase(); }
@@ -127,6 +127,9 @@ export async function onRequestGet(context) {
 }
 
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
   const db = context.env.DB;

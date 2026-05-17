@@ -1,7 +1,7 @@
 // 관리자: 거래처 정보(client_profiles) 조회/저장/삭제
 // CSV 일괄 업로드는 admin-client-profile-bulk.js 로 분리
 
-import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, checkOriginCsrf } from "./_adminAuth.js";
 
 async function ensureTable(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS client_profiles (
@@ -54,6 +54,9 @@ export async function onRequestGet(context) {
 
 // POST /api/admin-client-profile  (저장/업데이트, upsert)
 export async function onRequestPost(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
@@ -125,6 +128,9 @@ export async function onRequestPost(context) {
 
 // DELETE /api/admin-client-profile?user_id=123
 export async function onRequestDelete(context) {
+  /* Phase 14 (2026-05-12): CSRF Origin/Referer 가드 — 일괄 적용. */
+  const __csrf = checkOriginCsrf(context.request, context.env);
+  if (__csrf) return __csrf;
   const url = new URL(context.request.url);
   if (!(await checkAdmin(context))) return adminUnauthorized();
   const db = context.env.DB;
