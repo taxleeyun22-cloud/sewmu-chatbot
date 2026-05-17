@@ -152,16 +152,17 @@ fetch('/admin-modals.html?v=54', { cache: 'no-cache' })
     const slot = document.getElementById('adminModalsSlot');
     if (!slot) return;
     slot.insertAdjacentHTML('beforeend', html);
-    /* Phase 16 (2026-05-17) 사장님 보고: business.html 좌측하단 검증(reviewView)·
-     * 탭 잔재 노출. admin-modals.html 통째 inject 시 비-모달 탭 영역(.review/.faq 등)이
-     * business.html 에 .review display 룰 없어 그대로 보임.
-     * Fix: 검토표 관련 모달(filing*/roomFilings)만 남기고 slot 직속 비-모달 잔재 hide. */
+    /* Phase 16 (2026-05-17) 사장님 보고: business.html 좌측하단 검증(reviewView)·탭 잔재 노출.
+     * admin-modals.html 통째 inject 시 비-모달 탭 영역이 .review display 룰 없어 노출.
+     * Fix: 명시적 비-모달 id 만 hide (모달·filing 절대 제외 — 부가세 모달 안 깨지게).
+     * forEach 동적 방식 폐기 → 알려진 탭 view id 만 정밀 hide. */
     try {
-      slot.querySelectorAll(':scope > *').forEach(function(el){
-        const id = el.id || '';
-        const isModal = /modal|Modal/.test(id) || (el.className && /modal-overlay/.test(el.className));
-        const isFiling = /filing|Filing|roomFilings/i.test(id);
-        if (!isFiling && !isModal) el.style.display = 'none';
+      var hideIds = ['chatView','list','msgs','usersView','userModeView','userList',
+        'bizModeView','custSidePanel','pmListView','pmEditView','docsView','roomsView',
+        'roomsLayout','amList','liveView','reviewView','reviewList','faqView','faqList'];
+      hideIds.forEach(function(hid){
+        var el = document.getElementById(hid);
+        if (el && !/filing|Filing|roomFilings|[Mm]odal/.test(hid)) el.style.display = 'none';
       });
     } catch(_) {}
   })
