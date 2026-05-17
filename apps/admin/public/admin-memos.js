@@ -161,21 +161,29 @@ if(typeof window!=='undefined') window.__buildCdMemosListHtml = _buildCdMemosLis
 
 function _renderCdMemos(){
   /* Phase 3.3.B (2026-05-08): React CdMemoList 가 store 자동 reactive 표시.
-   * React 사용 시 list.innerHTML 조작 skip — store trigger increment 만.
-   * Fallback: React 미로드 시 helper 호출해서 직접 DOM 조작. */
-  /* React mount 됐으면 trigger increment → React 자동 갱신 */
+   * Phase 16 (2026-05-13) 사장님 보고: "메모장 불러오는중 ㅇㅈㄹ하면서 개박살".
+   *
+   * 진짜 원인: 옛 코드는 window.__memoStore 존재(항상 true — main.ts init)면
+   * 무조건 React path (trigger + return, innerHTML 안 건드림). 그런데 React 컴포넌트가
+   * 실제 mount 안 된 경우 (cdMemoList 가 10초 후 DOM 진입 → mountAtWithRetry 실패)
+   * → React 안 그림 + fallback 도 안 탐 → "불러오는 중..." 영원.
+   *
+   * Fix: React trigger 는 그대로 (mount 됐으면 React 가 자동 갱신),
+   * fallback innerHTML 도 항상 실행. React 작동 시 React re-render 가 최종 덮어씀
+   * (dangerouslySetInnerHTML 패턴 — 충돌 0, 회귀 0). React 미mount 시 이 fallback 표시. */
   try {
     const s = window.__memoStore;
-    if(s && s.$cdMemoListTrigger && window.__buildCdMemosListHtml){
+    if(s && s.$cdMemoListTrigger){
       s.$cdMemoListTrigger.set(s.$cdMemoListTrigger.get() + 1);
-      /* 헤더만 별도 렌더 (list element 외부 — React 영향 X) */
-      try { _renderCdMemoHeader(_cdMemosCache.length); } catch(_){}
-      return;
     }
   } catch(_){}
-  /* === fallback (React 미로드) === */
-  const list=$g('cdMemoList'); if(!list) return;
-  list.innerHTML = _buildCdMemosListHtml();
+  /* 헤더 별도 렌더 (list element 외부 — React 영향 X) */
+  try { _renderCdMemoHeader(_cdMemosCache.length); } catch(_){}
+  /* fallback innerHTML — 항상 실행 (React mount 실패 시 이게 표시) */
+  const list=$g('cdMemoList');
+  if(list && typeof _buildCdMemosListHtml === 'function'){
+    try { list.innerHTML = _buildCdMemosListHtml(); } catch(_){}
+  }
 }
 
 /* 헤더 영역 (카테고리 탭 위) — active tag pill + 정렬 select + 일괄 액션 바 */
