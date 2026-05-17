@@ -106,13 +106,8 @@
     <div id="summaryBody"><div class="empty">아직 요약 없음. ✨ 버튼으로 생성. (이 업체 모든 상담방 + 메모 통합 GPT 요약)</div></div>
   </div>
 
-  <div class="section">
-    <div class="sec-title">📊 재무 <span style="font-size:.72em;color:#9ca3af;font-weight:500">읽기 전용 — 입력 방식 협의 중</span>
-      <button onclick="clearAllFinance()" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;padding:5px 11px;border-radius:6px;font-size:.76em;font-weight:600;cursor:pointer;font-family:inherit;margin-left:auto" title="이 사업장 재무 데이터 모두 삭제">🗑️ 전체 비우기</button>
-    </div>
-    <div id="financeList"><div class="loading">재무 불러오는 중...</div></div>
-    <div style="font-size:.72em;color:#9ca3af;margin-top:6px">💡 챗봇에서 거래처가 "우리 매출?" 물으면 위 데이터로 답변</div>
-  </div>
+  <!-- 재무 섹션 제거 (2026-05-17 사장님: "재무 싹날리자 — 신고검토표 작성하며 그걸 토대로").
+       재무는 신고검토표 워크플로로 일원화. /api/admin-finance 는 비파괴 위해 유지(미사용). -->
 
   <div class="section">
     <div class="sec-title">📋 문서 <span style="font-size:.72em;color:#9ca3af;font-weight:500">최근 5건</span></div>

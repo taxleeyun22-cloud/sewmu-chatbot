@@ -514,116 +514,12 @@
   };
 
   loadMemos();
-  /* Phase 2 — 재무·문서·일정 비동기 로드. 각 섹션 독립적으로 try/catch 격리. */
-  setTimeout(loadFinance, 100);
+  /* Phase 2 — 문서·일정 비동기 로드. 재무 제거 (2026-05-17 사장님: "재무 싹날리자" — 신고검토표 워크플로로 일원화). */
   setTimeout(loadDocs, 150);
   setTimeout(loadSchedule, 200);
 
-  /* 📊 재무 로드 */
-  function loadFinance() {
-    fetchJson('/api/admin-finance?business_id=' + bid + '&action=summary')
-      .then(function(d){
-        if (d.error) { $('financeList').innerHTML = '<div class="err">' + e(d.error) + '</div>'; return; }
-        if (!d.has_data || !d.rows || !d.rows.length) {
-          $('financeList').innerHTML = '<div class="empty">재무 데이터 없음. ＋ 새 기간 버튼으로 추가 또는 PDF 업로드 후 Claude 처리 요청.</div>';
-          return;
-        }
-        const fmt = function(v){ return v == null ? '—' : Number(v).toLocaleString('ko-KR'); };
-        let html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.82em;min-width:600px">';
-        html += '<thead><tr style="background:#f3f4f6;color:#374151"><th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d1d5db">기간</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">매출</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">매입</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">부가세</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">소득세</th><th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d1d5db">인건비</th><th style="padding:6px 8px;text-align:center;border-bottom:1px solid #d1d5db;width:40px"></th></tr></thead><tbody>';
-        d.rows.slice(0, 12).forEach(function(r){
-          try {
-            html += '<tr>'
-              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;font-weight:600;color:#1e40af">' + e(r.period || '') + '</td>'
-              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:right">' + fmt(r.revenue) + '</td>'
-              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:right">' + fmt(r.cost) + '</td>'
-              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:right">' + fmt(r.vat_payable) + '</td>'
-              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:right">' + fmt(r.income_tax) + '</td>'
-              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:right">' + fmt(r.payroll_total) + '</td>'
-              + '<td style="padding:6px 8px;border-bottom:1px solid #f2f4f6;text-align:center"><button onclick="deleteFinance(' + (r.id || 'null') + ',\'' + escAttr(r.period || '') + '\')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.95em;padding:2px 5px" title="이 행 삭제">🗑️</button></td>'
-              + '</tr>';
-          } catch(_) {}
-        });
-        html += '</tbody></table></div>';
-        $('financeList').innerHTML = html;
-      })
-      .catch(function(err){ $('financeList').innerHTML = '<div class="err">⚠️ 재무 로드 실패: ' + e(err && err.message || 'unknown') + '</div>'; });
-  }
-
-  /* 단건 삭제 */
-  window.deleteFinance = function(rowId, period) {
-    if (!rowId) { alert('이 행은 ID 없어 삭제 불가'); return; }
-    if (!confirm('재무 기간 "' + period + '" 삭제하시겠습니까?\n되돌릴 수 없습니다.')) return;
-    fetch('/api/admin-finance?action=delete&key=' + encodeURIComponent(KEY), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: rowId })
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if (!d.ok) { alert('삭제 실패: ' + (d.error || 'unknown')); return; }
-      loadFinance();
-    })
-    .catch(function(err){ alert('오류: ' + err.message); });
-  };
-
-  /* 전체 비우기 — 이 사업장의 모든 재무 데이터 */
-  window.clearAllFinance = function() {
-    if (!_curBiz) { alert('데이터 로드 안됨'); return; }
-    const name = _curBiz.company_name || ('사업장 #' + bid);
-    if (!confirm('"' + name + '" 의 재무 데이터 모두 삭제\n되돌릴 수 없습니다. 진행하시겠습니까?')) return;
-    if (!confirm('정말 모두 삭제? 이 작업은 복구 불가합니다.')) return;
-    fetch('/api/admin-finance?action=clear&key=' + encodeURIComponent(KEY), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business_id: bid })
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if (!d.ok) { alert('삭제 실패: ' + (d.error || 'unknown')); return; }
-      alert('✅ ' + (d.deleted || 0) + '건 삭제됨');
-      loadFinance();
-    })
-    .catch(function(err){ alert('오류: ' + err.message); });
-  };
-
-  /* 재무 새 기간 추가 — prompt 시리즈 */
-  window.addFinance = function() {
-    const period = prompt('기간 (예: 2025-1기, 2025-2기, 2025-12, 2025)', '');
-    if (!period || !period.trim()) return;
-    const periodType = prompt('기간 타입 (vat / monthly / quarterly / yearly)', 'vat');
-    if (!periodType) return;
-    const num = function(label){
-      const v = prompt(label + ' (숫자만, 비우면 skip)', '');
-      if (v == null || v === '') return null;
-      const n = Number(String(v).replace(/,/g, ''));
-      return Number.isFinite(n) ? n : null;
-    };
-    const revenue = num('매출');
-    const cost = num('매입');
-    const vatPayable = num('부가세');
-    const incomeTax = num('소득세');
-    const payroll = num('인건비');
-    const notes = prompt('노트 (선택)', '') || null;
-    if (!_curBiz) { alert('데이터 로드 안 됨'); return; }
-    /* user_id 자동: business_members 의 대표자 또는 첫 매핑된 사용자 */
-    fetchJson('/api/admin-businesses?id=' + bid)
-      .then(function(d){
-        const members = (d && d.members) || [];
-        const rep = members.find(function(m){ return m.role === '대표자'; }) || members[0];
-        if (!rep || !rep.user_id) { alert('이 업체에 매핑된 사용자가 없어 재무 등록 불가. 먼저 구성원 추가.'); return null; }
-        const body = {
-          user_id: rep.user_id, business_id: bid, period: period.trim(), period_type: periodType.trim(),
-          revenue: revenue, cost: cost, vat_payable: vatPayable, income_tax: incomeTax, payroll_total: payroll, notes: notes
-        };
-        return fetch('/api/admin-finance?action=upsert&key=' + encodeURIComponent(KEY), {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-        }).then(function(r){ return r.json(); });
-      })
-      .then(function(d){
-        if (!d) return;
-        if (!d.ok) { alert('저장 실패: ' + (d.error || 'unknown')); return; }
-        alert(d.updated ? '✅ 갱신' : '✅ 추가');
-        loadFinance();
-      })
-      .catch(function(err){ alert('오류: ' + (err && err.message || err)); });
-  };
+  /* 재무 (loadFinance/deleteFinance/clearAllFinance/addFinance) 제거 — 2026-05-17 사장님 "재무 싹날리자".
+   * 재무는 신고검토표(admin-filing-review.js) 워크플로로 일원화. /api/admin-finance 는 비파괴 유지(미사용). */
 
   /* 📋 문서 로드 */
   function loadDocs() {

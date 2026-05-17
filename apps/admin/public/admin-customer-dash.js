@@ -42,9 +42,8 @@ async function openCustomerDashboard(userId, opts){
   docsSelectedUserId=userId; /* 다른 모달과 컨텍스트 공유 */
   /* Phase 3.4.A (2026-05-08): dashboard-store loading 시작 — UI 변화 0 (인프라만) */
   try { if(window.__dashboardStore) window.__dashboardStore.setLoading(Number(userId)); } catch(_){}
-  /* Phase #2 React (2026-05-07): 매출 차트 + AI 인사이트 자동 mount/re-mount */
-  try{ if(typeof window.__mountFinanceChart === 'function') window.__mountFinanceChart(Number(userId)); }catch(_){}
-  try{ if(typeof window.__mountInsights === 'function') window.__mountInsights(Number(userId)); }catch(_){}
+  /* 매출 차트 + AI 인사이트 mount 제거 (2026-05-17 사장님: "재무 싹날리자") —
+   * cust-finance-chart / cust-insights-card div 폐기됨. 재무는 신고검토표 워크플로로 일원화. */
   /* Phase #7 적용 (2026-05-06): SPA deep link — URL 에 cust=N 추가.
    * 사장님이 거래처 dashboard 본 후 다른 데 갔다가 뒤로가기 → 그 거래처 자동 복원.
    * popstate 호출 시 (opts.fromPopstate) 는 pushState skip — 무한 루프 방지. */
@@ -77,16 +76,16 @@ async function openCustomerDashboard(userId, opts){
     $g('cdSub').textContent='';
     $g('cdBasic').innerHTML='…';
     $g('cdDocs').innerHTML='…';
-    $g('cdFinance').innerHTML='…';
+    /* cdFinance 제거 (2026-05-17 사장님: "재무 싹날리자") — DOM 없음, placeholder 불필요 */
     $g('cdBizDocs').innerHTML='…';
     $g('cdRecentChat').innerHTML='…';
   }
-  /* 병렬 조회: 거래처 기본·재무·서류(시스템A)·상담방·문서·매핑사업장(시스템B) */
+  /* 병렬 조회: 거래처 기본·서류(시스템A)·상담방·문서·매핑사업장(시스템B).
+   * 재무 fetch 제거 (2026-05-17 사장님: "재무 싹날리자" — 신고검토표 워크플로로 일원화) */
   const q=(p)=>'/api/'+p+(p.includes('?')?'&':'?')+'key='+encodeURIComponent(KEY);
   try{
-    const [custRes, finRes, bizDocsRes, docsRes, roomsRes, mappedBizRes] = await Promise.all([
+    const [custRes, bizDocsRes, docsRes, roomsRes, mappedBizRes] = await Promise.all([
       fetch(q('admin-approve?status=all')).then(r=>r.json()).catch(()=>({users:[]})),
-      fetch(q('admin-finance?user_id='+userId+'&action=summary')).then(r=>r.json()).catch(()=>({})),
       fetch(q('admin-biz-docs?user_id='+userId)).then(r=>r.json()).catch(()=>({businesses:[]})),
       fetch(q('admin-documents?user_id='+userId+'&limit=5')).then(r=>r.json()).catch(()=>({documents:[],counts:{}})),
       fetch(q('admin-rooms')).then(r=>r.json()).catch(()=>({rooms:[]})),
@@ -111,7 +110,6 @@ async function openCustomerDashboard(userId, opts){
           mappedBusinesses: (mappedBizRes.businesses)||[],
           legacyBusinesses: (bizDocsRes.businesses)||[],
           docCounts: docsRes.counts || {},
-          finance: { has_data: !!finRes.has_data, rows: (finRes.rows||[]).slice(0,3) },
           priority: pri,
           recentRoom: userRoom || null,
         });
@@ -149,17 +147,7 @@ async function openCustomerDashboard(userId, opts){
         +'<div style="padding:8px 10px;background:#fee2e2;border-radius:6px"><div style="font-size:.72em;color:#991b1b">❌ 반려</div><div style="font-weight:800;font-size:1.1em">'+(counts.rejected||0)+'</div></div>'
         +'<div style="padding:8px 10px;background:#e0f2fe;border-radius:6px"><div style="font-size:.72em;color:#075985">📊 총</div><div style="font-weight:800;font-size:1.1em">'+((counts.pending||0)+(counts.approved||0)+(counts.rejected||0))+'</div></div>'
         +'</div>';
-      if(finRes.has_data && finRes.rows){
-        const rows=finRes.rows.slice(0,3);
-        $g('cdFinance').innerHTML=rows.map(r=>{
-          const parts=[];
-          if(r.revenue!=null)parts.push('매출 '+fmt(r.revenue));
-          if(r.vat_payable!=null)parts.push('부가세 '+fmt(r.vat_payable));
-          return '<div style="padding:6px 0;border-bottom:1px dashed #e5e8eb"><b>'+e(r.period)+'</b> '+parts.join(' · ')+'</div>';
-        }).join('')+'<div style="font-size:.72em;color:#8b95a1;margin-top:6px">최근 3건 (편집 → 버튼)</div>';
-      } else {
-        $g('cdFinance').innerHTML='<div style="color:#8b95a1">재무 데이터 없음. 편집 → 버튼으로 추가하거나 PDF 업로드 후 Claude에게 처리 요청.</div>';
-      }
+      /* 재무 렌더 제거 (2026-05-17 사장님: "재무 싹날리자") — cdFinance DOM·finRes 폐기. */
     }
     /* 🏢 연결된 사업장 — 시스템 B (businesses + business_members) 우선, 시스템 A (client_businesses) 는 fallback.
      * Phase 3.4.D (2026-05-08): React CdBizDocs 가 store 자동 reactive 표시 — innerHTML 조작 skip if mount. */
