@@ -399,7 +399,10 @@
 
   function renderAttachments(arr) {
     return arr.map(function(a){
-      var url = '/api/' + (String(a.mime || '').indexOf('image/') === 0 ? 'image' : 'file') + '?k=' + encodeURIComponent(a.key) + (a.name ? '&name=' + encodeURIComponent(a.name) : '');
+      /* Phase 16 (2026-05-17) 사장님 보고: 메모 첨부 사진 깨짐.
+       * 원인: image.js 가 memos/ prefix 에 checkAdmin 인증 필수인데 img src 에 ADMIN_KEY 없어 401.
+       * Fix: &key=ADMIN_KEY 추가 (checkAdmin query.key 통과). */
+      var url = '/api/' + (String(a.mime || '').indexOf('image/') === 0 ? 'image' : 'file') + '?k=' + encodeURIComponent(a.key) + (a.name ? '&name=' + encodeURIComponent(a.name) : '') + (KEY ? '&key=' + encodeURIComponent(KEY) : '');
       if (String(a.mime || '').indexOf('image/') === 0) {
         return '<a class="img" href="' + escAttr(url) + '" target="_blank" rel="noopener"><img src="' + escAttr(url) + '" alt="' + escAttr(a.name || '') + '" loading="lazy"></a>';
       }
