@@ -1232,6 +1232,48 @@ function _buildFilingReviewListHtml() {
 }
 try { window.__buildFilingReviewListHtml = _buildFilingReviewListHtml; } catch(_){}
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Phase 16 (2026-05-17) 사장님 명령: "신고검토표 부가세랑 법인세랑 두개 분리".
+ * _filRenderTypeInto — type 별 별도 박스 렌더 (store 무관 — business.html 법인사업자가
+ * 법인세 박스 / 부가세 박스 2개 분리 표시용). 기존 _filRenderListInto/store 회귀 0.
+ * @param {string} elId      컨테이너 element id
+ * @param {string} ownerType 'Business' | 'Person'
+ * @param {number} ownerId
+ * @param {string} ownerName
+ * @param {string} filingType '법인세' | '부가세' | '종소세'
+ * ═══════════════════════════════════════════════════════════════════════════ */
+async function _filRenderTypeInto(elId, ownerType, ownerId, ownerName, filingType) {
+  const box = document.getElementById(elId);
+  if (!box) return;
+  box.innerHTML = '<div style="color:#9ca3af;padding:8px 0;font-size:.85em">불러오는 중...</div>';
+  const _nm = _filEsc(ownerName || '').replace(/\'/g, '');
+  const btnColor = filingType === '부가세' ? '#1a3a5c' : '#3182f6';
+  let html = '<button onclick="openFilingNew(\'' + ownerType + '\',' + ownerId + ',\'' + _nm + '\',\'' + filingType + '\')" style="background:' + btnColor + ';color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">+ 새 ' + filingType + ' Case</button>';
+  try {
+    const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(_filGetKey()) + '&owner_type=' + ownerType + '&owner_id=' + ownerId);
+    const d = await r.json();
+    const list = (d.filings || []).filter(f => f.type === filingType);
+    if (!list.length) {
+      html += '<div style="color:#9ca3af;padding:8px 0;font-size:.85em">' + filingType + ' Case 가 없습니다.</div>';
+    } else {
+      html += list.map(f => {
+        const af = (function () { try { return JSON.parse(f.auto_fields || '{}'); } catch { return {}; } })();
+        const stColor = { '작성중': '#9ca3af', '결재대기': '#f59e0b', '보관완료': '#10b981' }[f.review_status] || '#9ca3af';
+        const rev = af.revenue || 0;
+        const dec = af.decisive_tax || 0;
+        return '<div onclick="openFilingDetail(' + f.id + ')" style="padding:10px 12px;background:#fff;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;justify-content:space-between" onmouseenter="this.style.background=\'#f0f9ff\'" onmouseleave="this.style.background=\'#fff\'">'
+          + '<div style="flex:1;min-width:0"><div style="font-size:.86em;font-weight:600">[' + f.fiscal_year + '귀속] <span style="background:' + stColor + ';color:#fff;font-size:.74em;padding:2px 8px;border-radius:99px;font-weight:700;margin-left:4px">' + _filEsc(f.review_status) + '</span></div>'
+          + '<div style="font-size:.74em;color:#6b7280;margin-top:3px">' + _filEsc(f.type) + (rev ? ' · 수입 ' + _filFormatNum(rev) + '원' : '') + (dec ? ' · 결정세액 ' + _filFormatNum(dec) + '원' : '') + '</div></div>'
+          + '<span style="color:#3182f6;font-size:1.2em">›</span></div>';
+      }).join('');
+    }
+    box.innerHTML = html;
+  } catch (err) {
+    box.innerHTML = '<div style="color:#f04452;padding:8px;font-size:.82em">오류: ' + _filEsc(err.message) + '</div>';
+  }
+}
+try { window._filRenderTypeInto = _filRenderTypeInto; } catch(_){}
+
 async function _filRenderListInto(containerEl, ownerType, ownerId, ownerName) {
   if (!containerEl) return;
   /* Phase 3.14 (2026-05-09): store loading 시작 */
