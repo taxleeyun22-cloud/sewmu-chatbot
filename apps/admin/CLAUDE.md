@@ -135,6 +135,28 @@ if (d.ok) {
 - ✅ admin.js 안 직접 함수 추가 시 JSDoc + // @ts-check
 - ⚠️ admin.js 본체 통째 .ts 변환은 별도 phase (4500줄, 1-2주)
 
+## 🧬 B: classic script → ESM 전환 (Phase B-1 · 2026-05-17)
+
+**사장님 결정 "점진 (인프라+leaf 1개부터)"** — strangler 패턴. live admin 무파괴 최우선.
+
+진행:
+- B-1 ✅ `paste-drop.js` → `src/lib/paste-drop.ts` (leaf 1개, 6 tests, Playwright PASS)
+- B-2+ ⏳ 다음 leaf — **사장님 확인(checkpoint) 받고 1개씩** (big-bang 금지)
+
+**룰** (classic → ESM 전환 시 반드시):
+- ✅ leaf 우선: 의존 적은 모듈부터 (남이 import 안 하는 것 → window.* 만 노출하던 것)
+- ✅ `src/lib/<name>.ts` (strict TS) + `src/lib/<name>.test.ts` (Vitest, happy-dom)
+- ✅ **classic 호환 bridge 필수**: 모듈이 `window.<fn> = <fn>` self-register
+  → classic 소비자(admin-*.js 등) 무수정 그대로 작동. 소비자가 ESM import 로
+  전환 완료되면 그때 bridge 제거.
+- ✅ `src/main.ts` 에서 `import './lib/<name>'` (main 번들 흡수)
+  → admin/business/memo-window.html 모두 `<script type=module src=assets/main.js>` 로드
+- ✅ classic 파일 `git rm` + `vite.config.ts` viteStaticCopy + `scripts/sync-mirror.mjs`
+  FILES + `.husky/pre-commit` git add 목록에서 동시 제거 (4곳 누락 시 빌드/미러 깨짐)
+- ✅ 전환하며 발견한 잠재버그 동시 fix OK (B-1: dragover outline 문자열비교 → 불리언)
+- ✅ 각 leaf push 후 Playwright prod 회귀검증 (window.<fn> 'function' + 소비자 + 콘솔 401만)
+- ⚠️ admin.js/index.js 등 강결합 monolith(전역심볼 68~151)는 leaf 아님 — 후순위
+
 ## 🎨 Tailwind 활성화 (Phase T1 · 2026-05-04)
 
 **메타 12종 #5**:
