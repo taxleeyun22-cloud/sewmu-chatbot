@@ -51,23 +51,9 @@ function _filParseNum(s) {
   const num = Number(String(s).replace(/[^\d.-]/g, ''));
   return isNaN(num) ? null : num;
 }
-function _filDiff(prev, curr) {
-  if (prev === null || prev === undefined || curr === null || curr === undefined) return '';
-  const p = Number(prev), c = Number(curr);
-  if (!p || isNaN(p)) return '';
-  const pct = ((c - p) / p) * 100;
-  const sign = pct >= 0 ? '+' : '';
-  return sign + pct.toFixed(1) + '%';
-}
 function _filEffRate(decisive, revenue) {
   if (!revenue || revenue === 0) return '0.00%';
   return ((Number(decisive || 0) / Number(revenue)) * 100).toFixed(2) + '%';
-}
-function _filTrimLines(s, n) {
-  if (!s) return '';
-  const lines = String(s).split('\n');
-  if (lines.length <= n) return s;
-  return lines.slice(0, n).join('\n') + '\n... (별첨 P.2 참조)';
 }
 
 /* ==================== 새 Case 모달 ==================== */

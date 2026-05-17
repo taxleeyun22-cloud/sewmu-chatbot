@@ -261,7 +261,7 @@ function toggleDocsCustFilter(key){
 
 function renderCustomerList(){
   const el=$g('docsCustItems');
-  if(!el||!el.innerHTML===undefined)return;
+  if(!el)return;
   let list=docsCustomers.slice();
   /* 우선순위 필터 */
   const priFlt=_docsCustFilterGet();

@@ -209,11 +209,6 @@
   function renderBasic(editMode) {
     if (!_curBiz) return '<div class="loading">데이터 없음</div>';
     if (!editMode) {
-      const items = FIELDS.map(function(f){
-        let v = _curBiz[f.k];
-        if (f.k === 'company_form') return kv(f.label, v);
-        return kv(f.label, v);
-      }).filter(Boolean);
       /* 회계기간 합쳐서 한 줄 */
       const fyStart = _curBiz.fiscal_year_start;
       const fyEnd = _curBiz.fiscal_year_end;
