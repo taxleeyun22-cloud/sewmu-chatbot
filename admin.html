@@ -268,8 +268,8 @@ setTimeout(function(){
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script src="/admin.js?v=197"></script>
-<!-- Phase 16 (2026-05-17): 공통 paste(Ctrl+V)+드래그&드롭 첨부 헬퍼 (admin-memos·rooms 사용) -->
-<script src="/paste-drop.js?v=1"></script>
+<!-- Phase B-1 (2026-05-17): paste-drop classic 제거 → src/lib/paste-drop.ts (assets/main.js 번들).
+     window.attachPasteDrop self-register 로 classic 소비자(admin-memos 등) 호환 -->
 <script src="/admin-memos.js?v=20"></script>
 <script src="/admin-customer-dash.js?v=34"></script>
 <script src="/admin-business-tab.js?v=13"></script>

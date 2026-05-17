@@ -45,7 +45,7 @@ const FILES = [
   'business.js',
   'index.js',
   'office.js',
-  'paste-drop.js',
+  // 'paste-drop.js' — B-1 (2026-05-17): src/lib/paste-drop.ts (main 번들) 로 전환, classic 파일 폐기
   'sw.js',
   // HTML
   'admin.html',

@@ -14,6 +14,9 @@ import './styles/globals.css';
 /* Phase Infra-1 (2026-05-09): Sentry 자동 init (VITE_SENTRY_DSN 있을 때만) */
 import { initSentry } from './lib/sentry';
 initSentry();
+/* Phase B-1 (2026-05-17): paste-drop classic → ESM leaf 전환.
+ * import 만으로 window.attachPasteDrop self-register (classic 소비자 호환). */
+import './lib/paste-drop';
 import { defineRoute, navigate, start, back, onNavigate, getCurrent } from './router';
 import {
   $roomMemoCache,
