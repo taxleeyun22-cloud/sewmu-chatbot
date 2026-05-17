@@ -184,6 +184,44 @@ window.e = window.e || function(s){
 };
 window.escAttr = window.escAttr || window.e;
 window.KEY = window.KEY || (new URL(location.href).searchParams.get('key') || '');
+/* Sentry fix (2026-05-17): ReferenceError: closeImgViewer is not defined @ /business.
+ * 원인: business.html 이 admin-modals.html 의 #imgViewer 를 inject 하나
+ *       openImgViewer/closeImgViewer/imgViewerNav 는 admin-docs.js 정의 — business.html 미로드.
+ * Fix: admin-docs.js 와 동일 동작 self-contained shim (backToList/$g shim 과 동일 패턴). */
+(function(){
+  if (window.openImgViewer) return;
+  var ivState = { srcs: [], idx: 0 };
+  function renderIvImg(){
+    var img = document.getElementById('ivImg'); if(!img) return;
+    img.src = ivState.srcs[ivState.idx] || '';
+    var c = document.getElementById('ivCounter');
+    if (c) c.textContent = (ivState.idx+1) + ' / ' + ivState.srcs.length;
+  }
+  window.openImgViewer = function(src, srcs){
+    if (!Array.isArray(srcs) || srcs.length===0) srcs = [src];
+    var i = srcs.indexOf(src); if (i<0) i = 0;
+    ivState.srcs = srcs; ivState.idx = i;
+    var v = document.getElementById('imgViewer'); if(!v) return;
+    v.classList.add('open'); v.classList.toggle('has-multiple', srcs.length>1);
+    document.body.style.overflow = 'hidden';
+    renderIvImg();
+  };
+  window.closeImgViewer = function(){
+    var v = document.getElementById('imgViewer');
+    if (!v || !v.classList.contains('open')) return;
+    v.classList.remove('open'); document.body.style.overflow = '';
+  };
+  window.imgViewerNav = function(d){
+    if (ivState.srcs.length < 2) return;
+    var next = ivState.idx + d;
+    if (next < 0 || next >= ivState.srcs.length) return;
+    ivState.idx = next; renderIvImg();
+  };
+  window.saveImgViewer = window.saveImgViewer || function(){
+    var src = ivState.srcs[ivState.idx]; if(!src) return;
+    try { window.open(src, '_blank', 'noopener'); } catch(_){}
+  };
+})();
 </script>
 <script src="/admin-anal-review-faq.js?v=2"></script>
 <script>
