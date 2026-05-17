@@ -467,13 +467,20 @@
     _uploadMemoFiles(Array.prototype.slice.call(ev.target.files || [])); /* #10: 누적 통일 */
     try { ev.target.value = ''; } catch(_) {} /* 같은 파일 재선택 가능 */
   };
-  /* Phase 16 (2026-05-17): 메모 입력창 paste(Ctrl+V) + 드래그&드롭 — 캡처/복사 사진 바로 첨부 */
-  try {
-    var _mc = $('memoNewContent');
-    if (_mc && typeof window.attachPasteDrop === 'function') {
-      window.attachPasteDrop(_mc, function(files){ _uploadMemoFiles(files); });
-    }
-  } catch(_) {}
+  /* 메모 입력창 paste(Ctrl+V) + 드래그&드롭 — 캡처/복사 사진 바로 첨부.
+   * fix (2026-05-17): B-1 회귀 — paste-drop 이 deferred main.js(ESM)로 이동 →
+   * classic business.js 가 먼저 실행돼 window.attachPasteDrop 이 아직 undefined →
+   * one-shot 바인딩 영구 skip(업체 메모 paste/drag 사망). admin-memos.js 처럼
+   * 재시도 루프로 변경 (attachPasteDrop 준비 + 모달 늦게 inject 둘 다 대응. _pdBound 중복가드). */
+  (function _bindMemoPasteDropRetry(){
+    try {
+      var _mc = $('memoNewContent');
+      if (_mc && typeof window.attachPasteDrop === 'function') {
+        window.attachPasteDrop(_mc, function(files){ _uploadMemoFiles(files); });
+      }
+    } catch(_) {}
+    setTimeout(_bindMemoPasteDropRetry, 1500);
+  })();
 
   window.submitMemoNew = function() {
     /* Phase 16 (2026-05-17) 전수검토 #9: 첨부 업로드 진행 중 제출 → 첨부 누락 방지 */
