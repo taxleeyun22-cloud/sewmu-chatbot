@@ -255,7 +255,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=55', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=56', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -278,59 +278,13 @@ setTimeout(function(){
 <script src="/admin-rooms-msg.js?v=7"></script>
 <script src="/admin-rooms-misc.js?v=3"></script>
 <script src="/admin-users-tab.js?v=31"></script>
+<!-- Phase 16 (2026-05-17) A 부채정리: admin-docs / admin-anal-review-faq lazy 근본제거.
+     사장님 명령 "lazy 의존 근본제거". 오늘 lazy 사고 4건(docsCustomers/$g/openRoomForCurrentCustomer/loadDocsTab)
+     근본 원인 = 이 두 파일이 lazy 인데 cross-module 함수 노출. 다른 admin-*.js 처럼 항상 로드. -->
+<script src="/admin-docs.js?v=3"></script>
+<script src="/admin-anal-review-faq.js?v=3"></script>
 <!-- Phase 2 (2026-05-07): 신고 검토표 시스템 (사장님 명세) -->
 <script src="/admin-filing-review.js?v=35"></script>
-<!-- Phase #7 적용 (2026-05-06): admin-docs.js lazy load.
-     문서 탭 클릭 시점에 동적 <script> 추가. 첫 로딩 시 download 0. -->
-<script>
-(function lazyDocs(){
-  var loaded=false;
-  function load(){
-    if(loaded)return; loaded=true;
-    var s=document.createElement('script');
-    s.src='/admin-docs.js?v=2&lazy=1';
-    s.async=false;
-    document.head.appendChild(s);
-    if(typeof console!=='undefined' && console.debug) console.debug('[lazy] admin-docs.js loaded');
-  }
-  function tryHook(){
-    if(typeof window.__onTabChange==='function'){
-      window.__onTabChange(function(t){
-        if(t==='docs') load();
-      });
-    } else {
-      setTimeout(tryHook, 200);
-    }
-  }
-  tryHook();
-})();
-</script>
-<!-- Phase #7 적용 (C 2026-05-06): admin-anal-review-faq.js lazy load 시범.
-     초기 로딩 시 안 받음 → 사장님이 anal/review/faq 탭 클릭 시점에 동적 <script> 추가.
-     classic script 환경 호환 (var + function 선언 그대로) — fetch + eval 안 쓰고 순수 <script src>. -->
-<script>
-(function lazyAnalReviewFaq(){
-  var loaded=false;
-  function load(){
-    if(loaded)return; loaded=true;
-    var s=document.createElement('script');
-    s.src='/admin-anal-review-faq.js?v=2&lazy=1';
-    s.async=false;
-    document.head.appendChild(s);
-    if(typeof console!=='undefined' && console.debug) console.debug('[lazy] admin-anal-review-faq.js loaded');
-  }
-  function tryHook(){
-    if(typeof window.__onTabChange==='function'){
-      window.__onTabChange(function(t){
-        if(t==='anal'||t==='review'||t==='faq') load();
-      });
-    } else {
-      setTimeout(tryHook, 200);
-    }
-  }
-  tryHook();
-})();
-</script>
 
 <!-- Phase #2 적용 (2026-05-07): React entry — admin-role-badge-inline 등 mount points 자동 처리.
      classic script 끝난 후 로드 (defer 효과). 사장님 admin.html 전체 로드 후 React 컴포넌트 렌더. -->
