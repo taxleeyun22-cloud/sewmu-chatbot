@@ -5,30 +5,15 @@
 # - Vitest 단위 테스트 (전체, ~7초)
 # 실패 시 commit 차단
 
-# 0. 미러 동기화 (root 정본 → apps/admin/public) + 변경분 자동 stage
-node scripts/sync-mirror.mjs
+# 0. 미러 동기화 + 변경분 자동 stage (단일 소스: sync-mirror.mjs 의 FILES).
+#    --stage 모드가 FILES 기준 명시 경로만 git add (git add -A 금지 룰 준수).
+#    옛: hook 에 30경로 하드코딩 → FILES 와 dual-maintenance drift 약점. DRY 로 제거.
+node scripts/sync-mirror.mjs --stage
 MIRROR_RC=$?
 if [ $MIRROR_RC -ne 0 ]; then
   echo "❌ sync-mirror 실패. commit 차단."
   exit 1
 fi
-# 동기화된 미러 파일을 이번 commit 에 포함 (명시 경로만 — git add -A 금지 룰 준수)
-git add apps/admin/public/admin.js apps/admin/public/admin-anal-review-faq.js \
-  apps/admin/public/admin-business-tab.js apps/admin/public/admin-customer-dash.js \
-  apps/admin/public/admin-docs.js apps/admin/public/admin-filing-review.js \
-  apps/admin/public/admin-memos.js apps/admin/public/admin-rooms-list.js \
-  apps/admin/public/admin-rooms-misc.js apps/admin/public/admin-rooms-msg.js \
-  apps/admin/public/admin-search-bulk.js apps/admin/public/admin-users-tab.js \
-  apps/admin/public/business.js apps/admin/public/index.js apps/admin/public/office.js \
-  apps/admin/public/sw.js \
-  apps/admin/public/admin.html apps/admin/public/admin-modals.html \
-  apps/admin/public/articles.html apps/admin/public/business.html \
-  apps/admin/public/index.html apps/admin/public/index-modals.html \
-  apps/admin/public/memo-window.html apps/admin/public/office.html \
-  apps/admin/public/staff.html apps/admin/public/admin.css \
-  apps/admin/public/business.css apps/admin/public/index.css apps/admin/public/office.css \
-  2>/dev/null || true
-# (위 git add 는 일부 경로 부재해도 commit 막지 않음 — || true. 미러는 sync-mirror 가 정본)
 
 # 1. Type check (전체)
 npx tsc --noEmit

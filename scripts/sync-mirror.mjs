@@ -20,6 +20,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -100,4 +101,22 @@ if (copied === 0) {
 if (process.argv.includes('--check') && copied > 0) {
   console.error('❌ sync-mirror --check: 미러 드리프트 감지 (' + synced.join(', ') + ')');
   process.exit(1);
+}
+
+/* --stage 모드: pre-commit hook 용. FILES 단일 소스 기준으로만 명시 git add.
+ * (옛: hook 에 30경로 하드코딩 → sync-mirror FILES 와 dual-maintenance drift.
+ *  B-1 에서 paste-drop 제거 시 한쪽 빠뜨려 commit 깨졌던 약점 — DRY 로 근본 제거.)
+ * git add -A 금지 룰 준수: FILES 에서 파생된 명시 경로만 stage. */
+if (process.argv.includes('--stage')) {
+  const paths = FILES
+    .map((f) => join(MIRROR, f))
+    .filter((p) => existsSync(p))
+    .map((p) => p.replace(ROOT + (process.platform === 'win32' ? '\\' : '/'), '').replace(/\\/g, '/'));
+  if (paths.length) {
+    try {
+      execFileSync('git', ['add', ...paths], { cwd: ROOT, stdio: 'ignore' });
+    } catch (e) {
+      console.error('⚠️  sync-mirror --stage: git add 실패 (commit 은 계속) — ' + (e && e.message));
+    }
+  }
 }
