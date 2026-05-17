@@ -422,8 +422,9 @@
     renderMemos();
   };
 
-  window.onMemoFileSelect = function(ev) {
-    var files = Array.prototype.slice.call(ev.target.files || []);
+  /* Phase 16 (2026-05-17): files 배열 받아 업로드 — onMemoFileSelect + paste/drop 공통. */
+  function _uploadMemoFiles(files) {
+    files = (files || []).filter(function(f){ return f; });
     var lbl = $('memoNewFileLabel');
     if (!files.length) { if (lbl) lbl.textContent = ''; _memoPendingAttachments = []; return; }
     if (lbl) lbl.textContent = '업로드 중... (' + files.length + '개)';
@@ -437,10 +438,23 @@
         })
         .catch(function(err){ alert('첨부 실패: ' + (f.name || '') + ' — ' + err.message); return null; });
     })).then(function(results){
-      _memoPendingAttachments = results.filter(function(x){ return x; });
+      var ok = results.filter(function(x){ return x; });
+      /* paste/drop 누적 추가 (기존 + 신규) */
+      _memoPendingAttachments = (_memoPendingAttachments || []).concat(ok);
       if (lbl) lbl.textContent = '✅ ' + _memoPendingAttachments.length + '개 첨부됨';
     });
+  }
+  window.onMemoFileSelect = function(ev) {
+    _memoPendingAttachments = []; /* file input 선택은 교체 */
+    _uploadMemoFiles(Array.prototype.slice.call(ev.target.files || []));
   };
+  /* Phase 16 (2026-05-17): 메모 입력창 paste(Ctrl+V) + 드래그&드롭 — 캡처/복사 사진 바로 첨부 */
+  try {
+    var _mc = $('memoNewContent');
+    if (_mc && typeof window.attachPasteDrop === 'function') {
+      window.attachPasteDrop(_mc, function(files){ _uploadMemoFiles(files); });
+    }
+  } catch(_) {}
 
   window.submitMemoNew = function() {
     var content = ($('memoNewContent').value || '').trim();

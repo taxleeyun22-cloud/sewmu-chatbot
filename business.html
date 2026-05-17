@@ -169,7 +169,9 @@ fetch('/admin-modals.html?v=54', { cache: 'no-cache' })
   .catch(err => console.warn('[admin-modals] fetch fail:', err));
 </script>
 
-<script src="/business.js?v=7"></script>
+<!-- Phase 16 (2026-05-17): 공통 paste(Ctrl+V)+드래그&드롭 첨부 헬퍼 -->
+<script src="/paste-drop.js?v=1"></script>
+<script src="/business.js?v=8"></script>
 <!-- Phase 6 (2026-05-07): 신고 검토표 시스템 (법인세) -->
 <script src="/admin-filing-review.js?v=21"></script>
 <!-- Phase Infra-2 fix (2026-05-09): admin-modals.html 안 backToList() / 등 admin-anal-review-faq.js 함수 사용

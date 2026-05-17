@@ -199,6 +199,8 @@ export default defineConfig({
         { src: 'admin.js', dest: '.' },
         { src: 'admin-*.js', dest: '.' },
         { src: 'admin.css', dest: '.' },
+        // Phase 16 (2026-05-17): 공통 paste(Ctrl+V)+드래그&드롭 첨부 헬퍼 (5곳 공통)
+        { src: 'paste-drop.js', dest: '.' },
         // 검증 데이터 (자동 생성, GitHub 동기화)
         { src: 'flagged-items.json', dest: '.' },
         { src: 'flagged-faqs.json', dest: '.' },
