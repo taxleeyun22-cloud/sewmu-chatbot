@@ -75,7 +75,7 @@ var _filNewOwnerType = null;
 var _filNewOwnerId = null;
 var _filNewOwnerName = '';
 
-async function openFilingNew(ownerType, ownerId, ownerName) {
+async function openFilingNew(ownerType, ownerId, ownerName, presetType) {
   _filNewOwnerType = ownerType;
   _filNewOwnerId = ownerId;
   _filNewOwnerName = ownerName || '';
@@ -83,9 +83,10 @@ async function openFilingNew(ownerType, ownerId, ownerName) {
   if (!m) return;
   _filGet('filingNewOwnerInfo').innerHTML = (ownerType === 'Person' ? '👤 ' : '🏢 ') + _filEsc(ownerName) + ' (#' + ownerId + ')';
 
-  /* 종소세 default = Person, 법인세 default = Business */
+  /* 종소세 default = Person, 법인세/부가세 default = Business.
+   * Phase 16 (2026-05-17): presetType 인자 — '+ 부가세 Case' 버튼에서 '부가세' 전달. */
   const typeSel = _filGet('filingNewType');
-  if (typeSel) typeSel.value = (ownerType === 'Business') ? '법인세' : '종소세';
+  if (typeSel) typeSel.value = presetType || ((ownerType === 'Business') ? '법인세' : '종소세');
 
   /* 귀속연도 default = 작년 */
   const yearInp = _filGet('filingNewYear');
@@ -285,9 +286,13 @@ function _filRender() {
   stBadge.style.background = stColor;
   stBadge.style.color = '#fff';
 
-  /* 본문 렌더 */
+  /* 본문 렌더 — Phase 16 (2026-05-17): 부가세는 별도 렌더 (5열 블록 + 부가율 + 소계/합계 + 멘트4분할) */
   const body = _filGet('filingBody');
-  body.innerHTML = _filRenderBody(f, prev, af, pf, isJongSo, readonly);
+  if (f.type === '부가세') {
+    body.innerHTML = _filRenderVatBody(f, prev, af, pf, readonly);
+  } else {
+    body.innerHTML = _filRenderBody(f, prev, af, pf, isJongSo, readonly);
+  }
 
   /* 자동 저장 핸들러 바인딩 */
   document.querySelectorAll('[data-fil-field]').forEach(el => {
@@ -1076,6 +1081,23 @@ async function _filSaveNow() {
     const k = el.dataset.filTextField;
     af[k] = el.value || null;
   });
+  /* Phase 16 (2026-05-17): 부가세 vat 데이터 수집 (data-fil-vat="key.fld" + data-fil-vat-memo) */
+  if (_filCurrent && _filCurrent.type === '부가세') {
+    const v = af.vat || {};
+    document.querySelectorAll('[data-fil-vat]').forEach(el => {
+      const parts = String(el.dataset.filVat || '').split('.');
+      if (parts.length !== 2) return;
+      const key = parts[0], fld = parts[1];
+      if (!v[key]) v[key] = {};
+      const n = _filParseNum(el.value);
+      v[key][fld] = (n == null) ? null : n;
+    });
+    v.memo = v.memo || {};
+    document.querySelectorAll('[data-fil-vat-memo]').forEach(el => {
+      v.memo[el.dataset.filVatMemo] = el.value || '';
+    });
+    af.vat = v;
+  }
   /* 공제감면 — Phase 16 (2026-05-13): code 도 함께 저장 (작년 vs 올해 비교 정규화) */
   af.공제감면 = [];
   document.querySelectorAll('.fil-deduction-row').forEach(row => {
@@ -1180,8 +1202,14 @@ function _buildFilingReviewListHtml() {
   const ownerName = s.ownerName || '';
   const list = s.filings || [];
   let html = '';
-  /* 신규 버튼 */
-  html += '<button onclick="openFilingNew(\'' + ownerType + '\',' + ownerId + ',\'' + _filEsc(ownerName).replace(/\'/g, '') + '\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">+ 새 ' + (ownerType === 'Person' ? '종소세' : '법인세') + ' Case</button>';
+  /* 신규 버튼 — Phase 16 (2026-05-17): Business 는 법인세 + 부가세 둘 다, Person 은 종소세 */
+  const _nm = _filEsc(ownerName).replace(/\'/g, '');
+  if (ownerType === 'Person') {
+    html += '<button onclick="openFilingNew(\'Person\',' + ownerId + ',\'' + _nm + '\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">+ 새 종소세 Case</button>';
+  } else {
+    html += '<button onclick="openFilingNew(\'Business\',' + ownerId + ',\'' + _nm + '\',\'법인세\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px;margin-right:6px">+ 새 법인세 Case</button>';
+    html += '<button onclick="openFilingNew(\'Business\',' + ownerId + ',\'' + _nm + '\',\'부가세\')" style="background:#1a3a5c;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">+ 새 부가세 Case</button>';
+  }
   if (!list.length) {
     html += '<div style="color:#9ca3af;padding:8px 0;font-size:.85em">신고 Case 가 없습니다.</div>';
   } else {
@@ -1325,3 +1353,109 @@ function _filReloadList(ownerType, ownerId) {
     }
   });
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Phase 16 (2026-05-17) 사장님 명령: 부가세 신고검토표 (mockup 1번 확정).
+ * 전기전체 박스 + 1기/2기 블록 + 연합계 + 멘트4분할. 새로 톤 + A4 세로 1장.
+ * 데이터: af.vat = { prev:{s,p,fa,t}, q1p,q1f,q2p,q2f, memo:{q1p,q1f,q2p,q2f} }
+ *   s=매출과표 p=매입과표 fa=고정자산 t=납부세액. 부가율=(s-p)/s*100 자동.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+function _filRenderVatBody(f, prev, af, pf, readonly) {
+  const ro = readonly ? 'readonly disabled' : '';
+  const vat = af.vat || {};
+  const cell = (k) => (vat[k] || {});
+  let prevTot = vat.prev || {};
+  if (prev && pf && pf.vat) {
+    const pv = pf.vat;
+    const sum4 = (fld) => ['q1p','q1f','q2p','q2f'].reduce((a,q)=>a+(Number((pv[q]||{})[fld])||0),0);
+    prevTot = { s: sum4('s'), p: sum4('p'), fa: sum4('fa'), t: sum4('t') };
+  }
+  const N = (v) => (v==null||v===''||isNaN(Number(v))) ? null : Number(v);
+  const FM = (v) => (v==null) ? '—' : _filFormatNum(v);
+  const rate = (s,p) => { const sn=N(s); const pn=N(p); if(!sn) return '—'; return ((sn-(pn||0))/sn*100).toFixed(2)+'%'; };
+  const inp = (key,fld,val) => '<input type="text" '+ro+' data-fil-vat="'+key+'.'+fld+'" value="'+(val!=null&&val!==''?_filFormatNum(val):'')+'" oninput="_filFmtVat(this);_filVatRecalc()" class="vat-inp" style="width:100%;padding:3px 6px;border:1px solid #d8dde5;border-radius:4px;font-size:.86em;text-align:right;font-family:inherit;box-sizing:border-box">';
+  const block = (label, pKey, fKey, subId) => {
+    const p = cell(pKey), q = cell(fKey);
+    let h = '<div style="background:#1a3a5c;color:#fff;font-weight:700;font-size:.82em;padding:5px 10px;margin-top:8px;border-radius:5px 5px 0 0">▌'+label+'</div>';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:.84em;border:1px solid #d8dde5">';
+    h += '<thead><tr style="background:#4a5568;color:#fff"><th style="padding:5px 8px;text-align:left;width:22%">구 분</th><th style="padding:5px 8px;text-align:right;width:26%">'+label+' 예정</th><th style="padding:5px 8px;text-align:right;width:26%">'+label+' 확정</th><th style="padding:5px 8px;text-align:right;width:26%">'+label+' 소계</th></tr></thead><tbody>';
+    [['s','매출과표'],['p','매입과표'],['fa','고정자산'],['t','납부세액']].forEach((row,i)=>{
+      const fld=row[0], nm=row[1], bg=i%2?'#f7f9fb':'#fff';
+      h += '<tr style="background:'+bg+'"><td style="padding:3px 8px;font-weight:600">'+nm+'</td>'
+        + '<td style="padding:3px 6px">'+inp(pKey,fld,p[fld])+'</td>'
+        + '<td style="padding:3px 6px">'+inp(fKey,fld,q[fld])+'</td>'
+        + '<td style="padding:3px 8px;text-align:right;font-weight:700" data-vat-sub="'+subId+'.'+fld+'">'+FM((N(p[fld])||0)+(N(q[fld])||0))+'</td></tr>';
+    });
+    h += '<tr style="background:#eef3f8"><td style="padding:3px 8px;font-weight:700;color:#1a3a5c">부가율</td>'
+      + '<td style="padding:3px 8px;text-align:right;font-weight:700;color:#1a3a5c" data-vat-rate="'+pKey+'">'+rate(p.s,p.p)+'</td>'
+      + '<td style="padding:3px 8px;text-align:right;font-weight:700;color:#1a3a5c" data-vat-rate="'+fKey+'">'+rate(q.s,q.p)+'</td>'
+      + '<td style="padding:3px 8px;text-align:right;font-weight:700;color:#1a3a5c" data-vat-rate-sub="'+subId+'">'+rate((N(p.s)||0)+(N(q.s)||0),(N(p.p)||0)+(N(q.p)||0))+'</td></tr>';
+    h += '</tbody></table>';
+    return h;
+  };
+  const memo = vat.memo || {};
+  const memoBox = (key,label) => '<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:.78em;color:#1a3a5c;margin-bottom:3px">'+label+'</div>'
+    + '<textarea '+ro+' data-fil-vat-memo="'+key+'" oninput="_filOnFieldChange()" placeholder="· '+label+' 검토 멘트" style="width:100%;min-height:46px;padding:5px 8px;border:1px solid #d8dde5;border-radius:4px;font-size:.82em;font-family:inherit;box-sizing:border-box;resize:vertical;background:#fffdf0;line-height:1.5">'+_filEsc(memo[key]||'')+'</textarea></div>';
+
+  let html = '<style>@media print{@page{size:A4 portrait;margin:8mm 10mm}'
+    + '.vat-inp{border:none!important;background:transparent!important;padding:1px 4px!important}'
+    + '.vat-sheet table{font-size:8.6pt!important}.vat-sheet td,.vat-sheet th{padding:2px 6px!important}'
+    + '.vat-sheet textarea{min-height:38px!important;font-size:8.4pt!important}}</style>';
+  html += '<div class="vat-sheet">';
+  html += '<div style="margin:6px 0 10px;border:1.5px solid #1a3a5c;border-radius:6px;overflow:hidden">'
+    + '<div style="background:#1a3a5c;color:#fff;font-weight:700;font-size:.84em;padding:5px 10px">▌전기 전체 ('+((f.fiscal_year||0)-1)+')</div>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:.86em"><thead><tr style="background:#4a5568;color:#fff">'
+    + '<th style="padding:5px 8px;text-align:right;width:25%">매출과표</th><th style="padding:5px 8px;text-align:right;width:25%">매입과표</th><th style="padding:5px 8px;text-align:right;width:25%">부가율</th><th style="padding:5px 8px;text-align:right;width:25%">고정자산</th></tr></thead><tbody><tr>'
+    + '<td style="padding:5px 8px">'+(prev?('<span style="font-weight:700">'+FM(N(prevTot.s))+'</span>'):inp('prev','s',prevTot.s))+'</td>'
+    + '<td style="padding:5px 8px">'+(prev?('<span style="font-weight:700">'+FM(N(prevTot.p))+'</span>'):inp('prev','p',prevTot.p))+'</td>'
+    + '<td style="padding:5px 8px;text-align:right;font-weight:700;color:#1a3a5c" data-vat-rate="prev">'+rate(prevTot.s,prevTot.p)+'</td>'
+    + '<td style="padding:5px 8px">'+(prev?('<span style="font-weight:700">'+FM(N(prevTot.fa))+'</span>'):inp('prev','fa',prevTot.fa))+'</td>'
+    + '</tr></tbody></table></div>';
+  html += block('1 기','q1p','q1f','sub1');
+  html += block('2 기','q2p','q2f','sub2');
+  html += '<div style="background:#1a3a5c;color:#fff;font-weight:700;font-size:.86em;padding:7px 12px;margin-top:8px;border-radius:5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">'
+    + '<span>▌'+(f.fiscal_year||'')+'년 연 합계</span>'
+    + '<span data-vat-year="sum">매출 — · 매입 — · 부가율 —</span></div>';
+  html += '<div style="background:#1a3a5c;color:#fff;font-weight:700;font-size:.8em;padding:5px 10px;margin-top:10px;border-radius:5px 5px 0 0">📝 검토 멘트</div>';
+  html += '<div style="border:1px solid #d8dde5;border-top:none;padding:8px;border-radius:0 0 5px 5px">';
+  html += '<div style="display:flex;gap:8px;margin-bottom:8px">'+memoBox('q1p','1기 예정')+memoBox('q1f','1기 확정')+'</div>';
+  html += '<div style="display:flex;gap:8px">'+memoBox('q2p','2기 예정')+memoBox('q2f','2기 확정')+'</div>';
+  html += '</div></div>';
+  setTimeout(function(){ try{ _filVatRecalc(); }catch(_){} }, 30);
+  return html;
+}
+
+function _filFmtVat(el) {
+  const n = _filParseNum(el.value);
+  el.value = (n!=null) ? _filFormatNum(n) : '';
+}
+
+function _filVatRecalc() {
+  const get = (key,fld) => {
+    const el = document.querySelector('[data-fil-vat="'+key+'.'+fld+'"]');
+    return el ? (_filParseNum(el.value)||0) : 0;
+  };
+  const rate = (s,p) => { if(!s) return '—'; return ((s-p)/s*100).toFixed(2)+'%'; };
+  const fmt = (v) => v ? _filFormatNum(v) : '—';
+  ['q1p','q1f','q2p','q2f','prev'].forEach(k=>{
+    const rEl = document.querySelector('[data-vat-rate="'+k+'"]');
+    if(rEl) rEl.textContent = rate(get(k,'s'),get(k,'p'));
+  });
+  [['sub1','q1p','q1f'],['sub2','q2p','q2f']].forEach(arr=>{
+    const sub=arr[0], a=arr[1], b=arr[2];
+    ['s','p','fa','t'].forEach(fld=>{
+      const c = document.querySelector('[data-vat-sub="'+sub+'.'+fld+'"]');
+      if(c) c.textContent = fmt(get(a,fld)+get(b,fld));
+    });
+    const sr = document.querySelector('[data-vat-rate-sub="'+sub+'"]');
+    if(sr) sr.textContent = rate(get(a,'s')+get(b,'s'), get(a,'p')+get(b,'p'));
+  });
+  const yS=get('q1p','s')+get('q1f','s')+get('q2p','s')+get('q2f','s');
+  const yP=get('q1p','p')+get('q1f','p')+get('q2p','p')+get('q2f','p');
+  const yel = document.querySelector('[data-vat-year="sum"]');
+  if(yel) yel.textContent = '매출 '+fmt(yS)+' · 매입 '+fmt(yP)+' · 부가율 '+rate(yS,yP);
+  if(typeof _filOnFieldChange==='function') _filOnFieldChange();
+}
+window._filRenderVatBody = _filRenderVatBody;
+window._filFmtVat = _filFmtVat;
+window._filVatRecalc = _filVatRecalc;

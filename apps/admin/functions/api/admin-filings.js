@@ -15,7 +15,10 @@
 
 import { checkAdmin, adminUnauthorized, checkOriginCsrf } from "./_adminAuth.js";
 
-const FILING_TYPES = ['종소세', '법인세'];
+/* Phase 16 (2026-05-17) 사장님 명령: 부가세 검토표 추가.
+ * 부가세 = 1 사업장 × 1년 = 1 검토표 (4기수 1예정/1확정/2예정/2확정 + 멘트 누적, auto_fields.vat 에 저장).
+ * 중복 방지·작년 자동 참조 로직은 종소세와 동일 (type+fiscal_year+owner 기준). */
+const FILING_TYPES = ['종소세', '법인세', '부가세'];
 const REVIEW_STATUSES = ['작성중', '결재대기', '보관완료'];
 
 function kst() {
