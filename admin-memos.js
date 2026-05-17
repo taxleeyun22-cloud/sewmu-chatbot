@@ -264,12 +264,14 @@ function cdMemoFilter(cat){
 /* Phase 16 (2026-05-17): files 배열 받아 업로드 — file input + paste/drop 공통.
  * @param {File[]} files
  * @param {boolean} replace true=교체(file input) / false=누적(paste·drop) */
+var _cdMemoUploading = 0; /* Phase 16 #9: 업로드 in-flight 카운터 — 0 초과면 submit 차단 */
 function _uploadCdMemoFiles(files, replace){
   files=(files||[]).filter(Boolean);
   const lbl=$g('cdMemoNewFileLabel');
   if(!files.length){ if(replace){ if(lbl)lbl.textContent=''; _cdPendingAttachments=[]; } return; }
   if(replace) _cdPendingAttachments=[];
   if(lbl)lbl.textContent='업로드 중... ('+files.length+'개)';
+  _cdMemoUploading++;
   Promise.all(files.map(async f=>{
     try{
       const fd=new FormData(); fd.append('file', f);
@@ -281,7 +283,7 @@ function _uploadCdMemoFiles(files, replace){
   })).then(results=>{
     _cdPendingAttachments=(_cdPendingAttachments||[]).concat(results.filter(Boolean));
     if(lbl)lbl.textContent='✅ '+_cdPendingAttachments.length+'개 첨부됨';
-  });
+  }).finally(()=>{ _cdMemoUploading=Math.max(0,_cdMemoUploading-1); });
 }
 function onCdMemoFileSelect(ev){
   _uploadCdMemoFiles(Array.from(ev.target.files||[]), true);
@@ -313,7 +315,10 @@ function _uploadQuickMemoFiles(files){
 (function _bindCdMemoPasteDrop(){
   function bind(){
     try{
-      var c1=document.getElementById('cdMemoContent');
+      /* Phase 16 (2026-05-17) 전수검토 추가발견: 실제 textarea id 는 cdMemoNewContent
+       * (admin-modals.html / memo-window.html). 옛 b08c401 이 cdMemoContent(오타)라
+       * 거래처 dash 메모 + 메모별창 paste/drop 영영 안 됐음. id 정정. */
+      var c1=document.getElementById('cdMemoNewContent');
       if(c1 && typeof window.attachPasteDrop==='function') window.attachPasteDrop(c1, function(fs){ _uploadCdMemoFiles(fs, false); });
       var c2=document.getElementById('quickMemoContent');
       if(c2 && typeof window.attachPasteDrop==='function') window.attachPasteDrop(c2, function(fs){ _uploadQuickMemoFiles(fs); });
@@ -327,6 +332,8 @@ function _uploadQuickMemoFiles(files){
 async function addCdMemo(){
   const userId=_cdCurrentUserId;
   if(!userId){alert('거래처가 선택되지 않았습니다');return}
+  /* Phase 16 (2026-05-17) 전수검토 #9: 첨부 업로드 진행 중 제출 → 첨부 누락 방지 */
+  if(_cdMemoUploading>0){ alert('첨부 업로드 중입니다. 잠시 후 다시 추가해주세요.'); return; }
   const content=($g('cdMemoNewContent')?.value||'').trim();
   if(!content){alert('내용을 입력하세요');return}
   const memoType=$g('cdMemoNewType')?.value||'거래처 정보';

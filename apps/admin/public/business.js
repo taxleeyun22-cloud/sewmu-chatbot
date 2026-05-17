@@ -428,6 +428,7 @@
     var lbl = $('memoNewFileLabel');
     if (!files.length) { if (lbl) lbl.textContent = ''; _memoPendingAttachments = []; return; }
     if (lbl) lbl.textContent = '업로드 중... (' + files.length + '개)';
+    _memoUploading++;
     Promise.all(files.map(function(f){
       var fd = new FormData(); fd.append('file', f);
       return fetch('/api/upload-memo-attachment?key=' + encodeURIComponent(KEY), { method: 'POST', body: fd })
@@ -442,8 +443,9 @@
       /* paste/drop 누적 추가 (기존 + 신규) */
       _memoPendingAttachments = (_memoPendingAttachments || []).concat(ok);
       if (lbl) lbl.textContent = '✅ ' + _memoPendingAttachments.length + '개 첨부됨';
-    });
+    }).finally(function(){ _memoUploading = Math.max(0, _memoUploading - 1); });
   }
+  var _memoUploading = 0; /* Phase 16 #9: 업로드 in-flight 카운터 */
   window.onMemoFileSelect = function(ev) {
     _memoPendingAttachments = []; /* file input 선택은 교체 */
     _uploadMemoFiles(Array.prototype.slice.call(ev.target.files || []));
@@ -457,6 +459,8 @@
   } catch(_) {}
 
   window.submitMemoNew = function() {
+    /* Phase 16 (2026-05-17) 전수검토 #9: 첨부 업로드 진행 중 제출 → 첨부 누락 방지 */
+    if (_memoUploading > 0) { alert('첨부 업로드 중입니다. 잠시 후 다시 추가해주세요.'); return; }
     var content = ($('memoNewContent').value || '').trim();
     if (!content) { alert('내용을 입력하세요'); return; }
     var memoType = $('memoNewType').value || '거래처 정보';
