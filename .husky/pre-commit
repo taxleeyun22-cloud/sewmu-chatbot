@@ -5,7 +5,17 @@
 # - Vitest 단위 테스트 (전체, ~7초)
 # 실패 시 commit 차단
 
-# 0. 미러 동기화 + 변경분 자동 stage (단일 소스: sync-mirror.mjs 의 FILES).
+# 0a. 모듈화 #1 (2026-05-18): admin-modals.html 은 modals/*.html 파티션의 생성물.
+#     concat 빌드 후 stage (직접 수정 금지 — modals/ 만 편집). byte-identical 보장.
+node scripts/build-modals.mjs
+BM_RC=$?
+if [ $BM_RC -ne 0 ]; then
+  echo "❌ build-modals 실패. commit 차단."
+  exit 1
+fi
+git add admin-modals.html modals/ 2>/dev/null || true
+
+# 0b. 미러 동기화 + 변경분 자동 stage (단일 소스: sync-mirror.mjs 의 FILES).
 #    --stage 모드가 FILES 기준 명시 경로만 git add (git add -A 금지 룰 준수).
 #    옛: hook 에 30경로 하드코딩 → FILES 와 dual-maintenance drift 약점. DRY 로 제거.
 node scripts/sync-mirror.mjs --stage

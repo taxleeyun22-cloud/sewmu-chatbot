@@ -1,0 +1,25 @@
+<!--
+  admin-modals.html — admin/staff/office 의 모든 모달 마크업 통합 (Phase H2, 2026-05-04)
+
+  사장님 명령 (2026-05-04): "어드민이나 이런거 html여러개로 쪼개기 다했음?" + "메타처럼 안전하고 화면 변화 없는 거"
+
+  로딩 패턴:
+  - admin.html (또는 staff.html / office.html) 의 DOMContentLoaded 시점에
+    fetch('/admin-modals.html?v=N') → text() → adminModalsSlot.insertAdjacentHTML('beforeend', html)
+  - 모든 모달 함수 (window.openCustomerDashboard 등) 가 호출 시점 document.getElementById(...)
+    호출 → fetch 끝나기 전 호출되어도 차후 재시도 또는 사용자 첫 클릭 전 fetch 완료 가정
+
+  분리 범위 (admin.html 라인 57-823 + 838-1458, 총 26개 모달 + #imgViewer + msgCtxMenu):
+  - searchModal / labelManageModal / newFilingModal / manualClientModal / profileModal
+  - addMemberModal / roomInfoModal / noticeFormModal / createRoomModal / faqFormModal
+  - imgViewer / msgCtxMenu (모달 아니지만 묶음)
+  - custDashModal / bizDocsModal / roomSummaryModal  (financeModal/finRowModal 제거 2026-05-17)
+  - bulkSendModal / myTodosModal / trashModal / memoModal / scheduleSendModal
+  - roomMembersModal / approveBizModal / termReqModal / businessDashboardModal / newBusinessModal / bdMemoModal
+
+  화면 변화 0 — 모든 z-index / position:fixed / 모달 마크업 그대로.
+
+  의존: admin.css 의 모달 관련 CSS 그대로 적용 (Phase H1 완료).
+        admin.js + 10개 모듈의 함수들 (openCustomerDashboard 등) 호출 시점에 DOM 접근.
+-->
+

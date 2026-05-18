@@ -1,0 +1,141 @@
+<!-- 거래처 재무 데이터 모달 -->
+<!-- 거래처 종합 대시보드 모달 (C안 — 한 화면에 모든 정보) -->
+<div id="custDashModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11300;padding:0;overflow-y:auto">
+  <div style="background:#f2f4f6;min-height:100vh">
+    <!-- 헤더 -->
+    <div style="background:#fff;padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10">
+      <button onclick="closeCustomerDashboard()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#191f28">←</button>
+      <div style="flex:1;min-width:0">
+        <div id="cdName" style="font-weight:800;font-size:1.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span id="cd-name-mount">-</span></div>
+        <div id="cdSub" style="font-size:.75em;color:#8b95a1;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span id="cd-sub-mount">-</span></div>
+      </div>
+      <button onclick="openCustomerSummary()" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0" title="이 거래처 단위 AI 요약 (모든 방 대화 + 메모 통합)">📝 요약</button>
+      <div id="cdPriority" style="flex-shrink:0"><span id="cd-priority-mount"></span></div>
+    </div>
+    <!-- 본문 그리드 -->
+    <div style="padding:14px;max-width:1200px;margin:0 auto">
+      <!-- 사장님 명령 (2026-05-07 정정): 합치기 이력 배너 폐기 — 사용자 list row 끝에 분리 버튼 -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+        <!-- 기본 정보 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+          <div style="font-weight:700;font-size:.92em;margin-bottom:10px">🏢 기본 정보</div>
+          <div id="cdBasic" style="font-size:.85em;color:#555"></div>
+          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+            <button onclick="cdGotoDocs()" style="background:#e5e8eb;border:none;padding:6px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">📄 문서 탭</button>
+            <button onclick="cdGotoRoom()" style="background:#dbeafe;color:#1e40af;border:none;padding:6px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">💬 상담방</button>
+<!-- 위하고 CSV 내보내기 — 사용자 요청으로 일단 숨김
+            <button onclick="cdExportCsv()" style="background:#d1fae5;color:#065f46;border:none;padding:6px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">📥 CSV</button> -->
+          </div>
+        </div>
+        <!-- 문서 요약 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-weight:700;font-size:.92em">📄 문서 현황</div>
+            <button onclick="cdGotoDocs()" style="background:none;border:none;color:#3182f6;font-size:.75em;cursor:pointer;font-family:inherit">전체 보기 →</button>
+          </div>
+          <div id="cdDocs" style="font-size:.85em"></div>
+        </div>
+        <!-- 재무 요약 제거 (2026-05-17 사장님: "재무 싹날리자"). 재무는 신고검토표 워크플로로 일원화 — 별도 재무 입력/차트 폐기. -->
+        <!-- 서류 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-weight:700;font-size:.92em">📋 필수 서류 (신분증·사업자등록증·홈택스)</div>
+          </div>
+          <div id="cdBizDocs" style="font-size:.85em"></div>
+        </div>
+        <!-- 📅 신고 Case (세무 업무 단위) -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+            <div style="font-weight:700;font-size:.92em">📅 신고 Case <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:4px">거래처 × 신고종류 × 기간 단위 업무 묶음</span></div>
+            <button onclick="openNewFilingModal()" style="background:#10b981;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">+ 새 Case</button>
+          </div>
+          <div id="cdFilings" style="font-size:.85em"></div>
+        </div>
+        <!-- Phase 3 (사장님 명세 2026-05-07): 신고 검토표 — 종소세 결재용 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+            <div style="font-weight:700;font-size:.92em">🧾 신고 검토표 — 종소세 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:4px">결재용 검토표 · 작년 vs 올해 비교 · A4 가로 PDF</span></div>
+          </div>
+          <div id="cdFilingsReview" style="font-size:.85em"></div>
+        </div>
+        <!-- 🏢 거래처 통합 메모 (영구·인수인계용 + 카테고리·태그·첨부 — 메모 빡센 세팅) -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+            <div style="font-weight:700;font-size:.92em">📒 통합 메모 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:4px">이 거래처(👤) + 매핑된 업체(🏢) 메모 모두 표시 · 전화·문서·이슈·약속 + #태그 + 📎첨부</span></div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <button onclick="cdOpenMemoWindow()" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:4px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit" title="메모만 별창으로 띄우기 — 카톡 상담방 보면서 동시에 메모">🪟 별창</button>
+              <span style="font-size:.7em;color:#8b95a1">총 <span id="cdMemoCount"><span id="cd-memo-count-mount">0</span></span>건</span>
+            </div>
+          </div>
+          <!-- 카테고리 탭 -->
+          <div id="cdMemoTabs" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #f1f3f5">
+            <button data-cdmcat="all" class="on" onclick="cdMemoFilter('all')" style="background:#191f28;color:#fff;border:none;padding:5px 11px;border-radius:99px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit">전체</button>
+            <button data-cdmcat="할 일" onclick="cdMemoFilter('할 일')" style="background:#fff;color:#4e5968;border:1px solid #e5e8eb;padding:5px 11px;border-radius:99px;font-size:.74em;font-weight:500;cursor:pointer;font-family:inherit">📌 할 일</button>
+            <button data-cdmcat="거래처 정보" onclick="cdMemoFilter('거래처 정보')" style="background:#fff;color:#4e5968;border:1px solid #e5e8eb;padding:5px 11px;border-radius:99px;font-size:.74em;font-weight:500;cursor:pointer;font-family:inherit">🏢 거래처 정보</button>
+            <button data-cdmcat="전화" onclick="cdMemoFilter('전화')" style="background:#fff;color:#4e5968;border:1px solid #e5e8eb;padding:5px 11px;border-radius:99px;font-size:.74em;font-weight:500;cursor:pointer;font-family:inherit">📞 전화</button>
+            <button data-cdmcat="문서" onclick="cdMemoFilter('문서')" style="background:#fff;color:#4e5968;border:1px solid #e5e8eb;padding:5px 11px;border-radius:99px;font-size:.74em;font-weight:500;cursor:pointer;font-family:inherit">📁 문서</button>
+            <button data-cdmcat="이슈" onclick="cdMemoFilter('이슈')" style="background:#fff;color:#4e5968;border:1px solid #e5e8eb;padding:5px 11px;border-radius:99px;font-size:.74em;font-weight:500;cursor:pointer;font-family:inherit">⚠️ 이슈</button>
+            <button data-cdmcat="약속" onclick="cdMemoFilter('약속')" style="background:#fff;color:#4e5968;border:1px solid #e5e8eb;padding:5px 11px;border-radius:99px;font-size:.74em;font-weight:500;cursor:pointer;font-family:inherit">📅 약속</button>
+            <button data-cdmcat="완료" onclick="cdMemoFilter('완료')" style="background:#fff;color:#4e5968;border:1px solid #e5e8eb;padding:5px 11px;border-radius:99px;font-size:.74em;font-weight:500;cursor:pointer;font-family:inherit">✅ 완료</button>
+          </div>
+          <!-- 메모 리스트 (시간순 desc) -->
+          <div id="cdMemoList" style="font-size:.85em;max-height:280px;overflow-y:auto;margin-bottom:10px"></div>
+          <!-- 입력 폼 -->
+          <div style="background:#f9fafb;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <select id="cdMemoNewType" style="background:#fff;border:1px solid #e5e8eb;border-radius:6px;padding:6px 8px;font-size:.8em;font-family:inherit;cursor:pointer">
+                <option value="할 일">📌 할 일</option>
+                <option value="거래처 정보" selected>🏢 거래처 정보</option>
+                <option value="완료">✅ 완료</option>
+              </select>
+              <select id="cdMemoNewCategory" style="background:#fff;border:1px solid #e5e8eb;border-radius:6px;padding:6px 8px;font-size:.8em;font-family:inherit;cursor:pointer">
+                <option value="">카테고리</option>
+                <option value="전화">📞 전화</option>
+                <option value="문서">📁 문서</option>
+                <option value="이슈">⚠️ 이슈</option>
+                <option value="약속">📅 약속</option>
+                <option value="일반">📝 일반</option>
+              </select>
+              <input id="cdMemoNewDue" type="date" style="background:#fff;border:1px solid #e5e8eb;border-radius:6px;padding:6px 8px;font-size:.8em;font-family:inherit" title="기한 (선택)">
+              <button type="button" onclick="document.getElementById('cdMemoNewFile').click()" style="background:#fff;color:#3182f6;border:1px dashed #3182f6;padding:6px 10px;border-radius:6px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit">📎 첨부</button>
+              <input id="cdMemoNewFile" type="file" multiple accept="image/*,.pdf,.hwp,.hwpx" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" onchange="onCdMemoFileSelect(event)">
+              <span id="cdMemoNewFileLabel" style="font-size:.74em;color:#8b95a1"></span>
+            </div>
+            <textarea id="cdMemoNewContent" rows="2" placeholder="예) 음식점 / 현금 매출 많음 #일반&#10;예) 5/15 부가세 매입 영수증 12장 수령 #부가세 #영수증" style="width:100%;padding:7px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;outline:none;resize:vertical;min-height:48px"></textarea>
+            <div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">
+              <span style="font-size:.7em;color:#8b95a1;margin-right:auto">💡 #키워드 자동 태그</span>
+              <button onclick="addCdMemo()" style="background:#3182f6;color:#fff;border:none;padding:7px 18px;border-radius:7px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit">＋ 추가</button>
+            </div>
+          </div>
+          <!-- 호환: 기존 cdCustomerInfo / cdInfoNew 가드 (혹시 다른 코드가 참조해도 안 깨지도록) -->
+          <div id="cdCustomerInfo" class="hidden"></div>
+          <input id="cdInfoNew" type="hidden">
+        </div>
+        <!-- 📋 이 거래처 관련 할 일 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-weight:700;font-size:.92em">📋 할 일 <span id="cdTodoCount" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:4px"></span></div>
+            <button onclick="openMyTodos()" style="background:none;border:none;color:#3182f6;font-size:.72em;cursor:pointer;font-family:inherit">전체 대시보드 →</button>
+          </div>
+          <div id="cdTodos" style="font-size:.85em;max-height:180px;overflow-y:auto"></div>
+        </div>
+        <!-- 📝 최근 AI 요약 이력 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-weight:700;font-size:.92em">📝 최근 AI 요약 <span id="cdSummaryCount" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:4px"></span></div>
+          </div>
+          <div id="cdSummaries" style="font-size:.85em;max-height:180px;overflow-y:auto"></div>
+        </div>
+        <!-- 최근 대화 -->
+        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-weight:700;font-size:.92em">💬 최근 상담</div>
+            <button onclick="cdGotoRoom()" style="background:none;border:none;color:#3182f6;font-size:.75em;cursor:pointer;font-family:inherit">상담방 열기 →</button>
+          </div>
+          <div id="cdRecentChat" style="font-size:.85em;max-height:240px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

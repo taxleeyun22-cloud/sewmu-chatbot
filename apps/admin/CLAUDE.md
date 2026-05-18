@@ -3,6 +3,14 @@
 세무회계 이윤 admin 사이트. `sewmu-admin.pages.dev` 진입.
 **현재 모드**: 옛 admin.html / admin-*.js / functions/api/*.js 를 Next.js wrapper 로 import (2026-05-11 cutover).
 
+## 🧩 admin-modals.html = 생성 아티팩트 (모듈화 #1, 2026-05-18)
+**`admin-modals.html` 직접 수정 금지.** `modals/*.html` 파티션의 concat 생성물.
+- 소스 = `modals/00-header.html` … `60-filing-misc.html` (기능 그룹별, 정렬순=concat순)
+- 빌드 = `scripts/build-modals.mjs` (Buffer concat, CRLF 보존 → byte-identical)
+- pre-commit + prebuild 가 자동 재생성 + stage. `--check` 모드로 CI 검증 가능
+- 모달 추가/수정 시 해당 `modals/*.html` 만 편집 → 빌드가 admin-modals.html 재생성
+- 검증: 빌드 후 `git diff admin-modals.html` 비어야 정상 (런타임 0 변화)
+
 ## 🔁 미러 자동화 (A-3, 2026-05-17 — 수동 cp 폐지)
 **`apps/admin/public/` 은 repo-root 정적 자산의 자동 미러.** 직접 편집·수동 `cp` 금지.
 - 정본 = repo root 의 `admin*.js` / `*.html` / `admin.css` 등 (31개, `scripts/sync-mirror.mjs` FILES 목록)

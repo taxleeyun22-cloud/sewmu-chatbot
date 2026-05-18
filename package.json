@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/export-permissions.mjs",
+    "prebuild": "node scripts/export-permissions.mjs && node scripts/build-modals.mjs",
     "build": "vite build",
     "build:strict": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",
