@@ -17,6 +17,10 @@ initSentry();
 /* Phase B-1 (2026-05-17): paste-drop classic → ESM leaf 전환.
  * import 만으로 window.attachPasteDrop self-register (classic 소비자 호환). */
 import './lib/paste-drop';
+/* 모듈화 #2 (2026-05-18): img-viewer classic(admin-docs.js) → ESM leaf.
+ * import 만으로 window.openImgViewer 등 self-register → admin·business.html 둘 다 제공
+ * (closeImgViewer 근본 fix: admin-docs.js 복사본 + business.html shim 동시 제거). */
+import './lib/img-viewer';
 import { defineRoute, navigate, start, back, onNavigate, getCurrent } from './router';
 import {
   $roomMemoCache,
