@@ -268,6 +268,8 @@ setTimeout(function(){
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script src="/admin.js?v=197"></script>
+<!-- 모듈화 #3 Step9 (2026-05-18): PC 알림 admin.js 에서 분리 (classic, admin.js 다음 로드) -->
+<script src="/admin-pc-notify.js?v=1"></script>
 <!-- Phase B-1 (2026-05-17): paste-drop classic 제거 → src/lib/paste-drop.ts (assets/main.js 번들).
      window.attachPasteDrop self-register 로 classic 소비자(admin-memos 등) 호환 -->
 <script src="/admin-memos.js?v=20"></script>

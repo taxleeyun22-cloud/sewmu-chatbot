@@ -42,6 +42,7 @@ const FILES = [
   'admin-rooms-msg.js',
   'admin-search-bulk.js',
   'admin-users-tab.js',
+  'admin-pc-notify.js',
   // 거래처/공통
   'business.js',
   'index.js',
