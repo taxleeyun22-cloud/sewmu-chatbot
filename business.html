@@ -166,6 +166,58 @@ fetch('/admin-modals.html?v=55', { cache: 'no-cache' })
   .catch(err => console.warn('[admin-modals] fetch fail:', err));
 </script>
 
+<!-- 개선-A 안전망 (2026-05-18 사장님 "예방해보자"): business.html 은 admin-modals.html
+     통째 주입하나 admin.js/admin-docs.js/admin-memos.js 미로드 → 주입된 모달 버튼 중
+     상당수 onclick 함수가 미정의. 도달 시 raw ReferenceError(closeImgViewer 사고가 그것).
+     이 가드: 미정의 onclick 클릭을 capture 단계에서 가로채 →
+       ① raw 크래시 차단  ② 사장님께 토스트(조용한 실패 X)  ③ 에러로거 기록(관측성 유지)
+     = 죽은 모달은 무해 처리, 진짜 필요한 함수가 미정의면 로그로 우리가 즉시 인지. -->
+<script>
+(function(){
+  'use strict';
+  function guardToast(msg){
+    try{
+      var t=document.getElementById('__bizGuardToast');
+      if(!t){
+        t=document.createElement('div'); t.id='__bizGuardToast';
+        t.style.cssText='position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#191f28;color:#fff;padding:10px 18px;border-radius:10px;font-size:.86em;z-index:99999;box-shadow:0 4px 16px rgba(0,0,0,.25);font-family:inherit;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center';
+        document.body.appendChild(t);
+      }
+      t.textContent=msg;
+      requestAnimationFrame(function(){ t.style.opacity='1'; });
+      clearTimeout(t._h);
+      t._h=setTimeout(function(){ t.style.opacity='0'; }, 2600);
+    }catch(_){}
+  }
+  document.addEventListener('click', function(ev){
+    try{
+      var el = ev.target && ev.target.closest ? ev.target.closest('[onclick]') : null;
+      if(!el) return;
+      var oc = el.getAttribute('onclick') || '';
+      /* 단순 호출 패턴만 가드 (onclick="fn(...)"). if(...)·event.·복합식은 통과
+       * — 대개 방어적으로 작성됐거나 typeof 가드 포함, 죽은 모달은 단순 close/open 형태. */
+      var m = oc.match(/^\s*([A-Za-z_$][\w$]*)\s*\(/);
+      if(!m) return;
+      var fn = m[1];
+      if(fn==='if'||fn==='return'||fn==='window'||fn==='alert') return;
+      if(typeof window[fn] === 'function') return; /* 정의됨 → 정상 실행 */
+      /* 미정의 → graceful */
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      guardToast('이 화면에서는 지원되지 않는 기능입니다.');
+      try{
+        fetch('/api/admin-error-log?key='+encodeURIComponent(window.KEY||''),{
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ source:'business-guard',
+            message:'undefined onclick fn: '+fn+' ('+oc.slice(0,80)+')',
+            url: location.href })
+        }).catch(function(){});
+      }catch(_){}
+    }catch(_){}
+  }, true);
+})();
+</script>
+
 <!-- Phase B-1 (2026-05-17): paste-drop → src/lib/paste-drop.ts (assets/main.js 번들, self-register) -->
 <script src="/business.js?v=9"></script>
 <!-- Phase 6 (2026-05-07): 신고 검토표 시스템 (법인세) -->
