@@ -119,14 +119,18 @@ export async function onRequestGet(context) {
     // 6) 사업장 (회사명/사업자번호/대표자명)
     let businessesR = { results: [] };
     try {
+      /* 사장님 보고 (2026-05-18): "유킹" 검색 시 전역검색은 5개뿐, 업체탭은 312개 정상.
+       * 원인: 전역검색 businesses 쿼리가 업체탭(/api/admin-businesses)보다 (1) phone 필드 누락
+       *       (2) LIMIT 20 으로 과도 제한. 업체탭 검증 쿼리와 parity 맞춤 (phone 추가, LIMIT 300).
+       * 그룹(예: 옝커폰/유킹지점) 처럼 회사명에 키워드 포함된 다수 사업장이 다 떠야 함. */
       businessesR = await db.prepare(`
         SELECT id, company_name, business_number, ceo_name, company_form,
                business_category, industry, status
           FROM businesses
-         WHERE company_name LIKE ? OR business_number LIKE ? OR ceo_name LIKE ?
+         WHERE company_name LIKE ? OR business_number LIKE ? OR ceo_name LIKE ? OR phone LIKE ?
          ORDER BY id DESC
-         LIMIT 20
-      `).bind(pat, pat, pat).all();
+         LIMIT 500
+      `).bind(pat, pat, pat, pat).all();
     } catch {}
 
     // 7) 문서 (vendor / note / category)
