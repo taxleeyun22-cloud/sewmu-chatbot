@@ -58,6 +58,7 @@ const FILES = [
   'index.html',
   'index-modals.html',
   'memo-window.html',
+  'cust-dash-preview.html',
   'office.html',
   'staff.html',
   // CSS
