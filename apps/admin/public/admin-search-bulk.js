@@ -644,7 +644,9 @@ async function _fetchSearchDropdown(q){
     if(_searchDropdownLastQ!==q) return;  /* 더 최신 q 입력됐으면 스킵 */
     const users=(d.users||[]).slice(0,8);
     const memos=(d.memos||[]).slice(0,12);
-    const businesses=(d.businesses||[]).slice(0,5);
+    /* 사장님 보고 (2026-05-18): "유킹" 검색 시 업체 5개만 — 옝커폰/유킹지점 그룹 312개 다 떠야.
+     * 옛: .slice(0,5) 하드캡 → 제거. API(admin-search) LIMIT 500 까지 받은 전부 표시. */
+    const businesses=(d.businesses||[]);
     const total=users.length+memos.length+businesses.length;
     if(!total){
       dd.innerHTML='<div style="padding:14px;color:#8b95a1;font-size:.84em;text-align:center">"'+e(q)+'" 결과 없음</div>';
