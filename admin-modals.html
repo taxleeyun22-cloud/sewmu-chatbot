@@ -847,6 +847,22 @@
 <!-- 거래처 재무 데이터 모달 -->
 <!-- 거래처 종합 대시보드 모달 (C안 — 한 화면에 모든 정보) -->
 <div id="custDashModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:11300;padding:0;overflow-y:auto">
+  <!-- 본적용 (2026-05-18 사장님 "본적용 ㄱㄱ"): 거래처(사람) 대시보드 시안 톤.
+       CSS-only 스코프 — 마크업·ID·onclick 0 변경 (기능 회귀 0). business.html 증분1 과 동일 톤.
+       인라인 스타일 대응 위해 #custDashModal 스코프 + 필요한 곳만 !important. -->
+  <style>
+    #custDashModal,#custDashModal *{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif}
+    #custDashModal > div{background:#FAFAFA!important}
+    /* 헤더 (sticky 첫 div) — 깔끔 흰 + navy 텍스트 */
+    #custDashModal > div > div:first-child{border-bottom:1px solid #ECEEF1!important}
+    #custDashModal #cdName{color:#0B1F3A!important;letter-spacing:-0.02em;font-size:1.15em!important}
+    /* 카드 (인라인 border-radius:12px 공유) — 시안 카드 톤 */
+    #custDashModal [style*="border-radius:12px"]{border:1px solid #ECEEF1!important;border-radius:14px!important;box-shadow:0 1px 3px rgba(0,0,0,.03)!important}
+    /* 카드 제목 (font-weight:700 공유) navy */
+    #custDashModal [style*="font-weight:700"]{color:#111827;letter-spacing:-0.01em}
+    /* 메모 탭 active / primary 버튼 navy 통일 */
+    #custDashModal #cdMemoTabs button.on{background:#0B1F3A!important;border-color:#0B1F3A!important;color:#fff!important}
+  </style>
   <div style="background:#f2f4f6;min-height:100vh">
     <!-- 헤더 -->
     <div style="background:#fff;padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10">
