@@ -12,21 +12,54 @@
 <script type="module" src="/assets/main.js?v=2"></script>
 <!-- Phase 3.6 (2026-05-08): React entry — BizRoomList mount -->
 <script type="module" src="/assets/react.js?v=19"></script>
+<!-- 본적용 증분1 (2026-05-18 사장님 "프리뷰 확인 → 본적용"): 시안 톤(navy/Pretendard/Hero/카드)
+     shell 만 입힘. bz- 네임스페이스 — business.css(.section/.sec-title 등) 무충돌·기능 0변경.
+     섹션·ID·onclick·스크립트 전부 그대로. 2컬럼 재배치는 증분2(검증 후). -->
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif!important;background:#FAFAFA!important;letter-spacing:-0.01em;-webkit-font-smoothing:antialiased}
+  .bz-nav{background:#fff;border-bottom:1px solid #ECEEF1;padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20}
+  .bz-nav a{color:#9CA3AF;font-size:13px;font-weight:500;text-decoration:none}
+  .bz-nav a:hover{color:#111827}
+  .bz-bc{color:#9CA3AF;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px}
+  .bz-mark{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:#0B1F3A;color:#fff;font-size:11px;font-weight:700}
+  .bz-nav-r{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .bz-hero{max-width:1180px;margin:24px auto 8px;padding:0 28px}
+  .bz-hero-label{font-size:11px;font-weight:600;color:#9CA3AF;letter-spacing:.08em;text-transform:uppercase}
+  .bz-hero h1,.bz-hero #bizName{font-size:34px!important;font-weight:700;letter-spacing:-0.04em;color:#111827;margin:8px 0 6px!important;border:none!important;padding:0!important}
+  .bz-hero #bizSub,.bz-hero .sub{font-size:13px;color:#4B5563}
+  .bz-wrap{max-width:1180px;margin:0 auto;padding:18px 28px 60px}
+  /* 기존 .section 을 시안 카드 톤으로 (border-radius/그림자/spacing — 내부 렌더 출력 무손상) */
+  .bz-wrap .section{background:#fff;border:1px solid #ECEEF1;border-radius:14px;padding:20px 22px;margin-bottom:18px;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+  .bz-wrap .sec-title{font-size:16px!important;font-weight:700;letter-spacing:-0.02em;color:#111827;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .bz-wrap .memo-tabs button.on{background:#0B1F3A!important;border-color:#0B1F3A!important}
+  .bz-wrap .btn-primary{background:#0B1F3A!important}
+  .bz-wrap .btn-success{background:#10B981!important}
+  .bz-act{padding:7px 14px;font-size:13px;font-weight:500;border:1px solid #E5E7EB;border-radius:8px;background:#fff;color:#111827;cursor:pointer;font-family:inherit}
+  .bz-act:hover{background:#F5F6F8}
+  .bz-act.primary{background:#0B1F3A;color:#fff;border-color:#0B1F3A}
+  @media(max-width:720px){.bz-hero h1,.bz-hero #bizName{font-size:26px!important}.bz-nav,.bz-hero,.bz-wrap{padding-left:16px;padding-right:16px}}
+</style>
 </head>
 <body>
 <div id="diag">✓ business.html v=8 (본점·지점)</div>
-<div class="container">
-  <div class="topbar">
+<nav class="bz-nav">
     <a href="javascript:history.back()">← 뒤로</a>
-    <span style="color:#9ca3af;font-size:.78em;margin-left:auto" id="topMeta"></span>
-    <!-- Phase M6 (2026-05-05 사장님 명령: 업체 삭제 + 메모 cascade) -->
-    <button id="bizDeleteBtn" onclick="deleteBusinessFromPage()" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:6px 14px;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit;margin-left:10px" title="이 업체 + 모든 메모를 휴지통으로 (되돌릴 수 없음)">🗑️ 업체 삭제</button>
-  </div>
+    <span class="bz-bc"><span class="bz-mark">이</span><span style="margin-left:6px">세무회계 이윤</span><span style="color:#E5E7EB;margin:0 8px">/</span><span>업체</span></span>
+    <span class="bz-nav-r">
+      <span style="color:#9ca3af;font-size:.78em" id="topMeta"></span>
+      <!-- Phase M6 (2026-05-05 사장님 명령: 업체 삭제 + 메모 cascade) — ID·onclick 보존 -->
+      <button id="bizDeleteBtn" onclick="deleteBusinessFromPage()" class="bz-act" style="color:#dc2626;border-color:#dc2626" title="이 업체 + 모든 메모를 휴지통으로 (되돌릴 수 없음)">🗑️ 업체 삭제</button>
+    </span>
+  </nav>
 
-  <div class="header">
+  <div class="bz-hero">
+    <div class="bz-hero-label">업체</div>
     <h1 id="bizName">불러오는 중...</h1>
     <div id="bizSub" class="sub"></div>
   </div>
+
+  <div class="bz-wrap">
 
   <div class="section">
     <div class="sec-title">📋 기본 정보 <span style="font-size:.7em;color:#9ca3af;font-weight:500">(위하고 호환)</span>
