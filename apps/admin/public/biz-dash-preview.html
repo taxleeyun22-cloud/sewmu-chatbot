@@ -95,7 +95,18 @@
   .tl-content{flex:1;min-width:0}
   .tl-text{font-size:13px;color:var(--text);line-height:1.5}
   .tl-time{font-size:11px;color:var(--text-3);margin-top:2px}
+  #bmTabs button{background:#fff;color:var(--text-2);border:1px solid var(--border-2);padding:5px 11px;border-radius:99px;font-size:.78em;font-weight:500;cursor:pointer;font-family:inherit}
+  #bmTabs button.on{background:var(--navy);color:#fff;border:none;font-weight:600}
   #bizMemoList{font-size:.9em;padding:8px 18px;max-height:380px;overflow-y:auto}
+  .memo-item{position:relative}
+  .memo-card-del{position:absolute;top:8px;right:0;background:none;border:none;color:var(--text-3);font-size:13px;cursor:pointer;padding:2px 4px}
+  .memo-card-del:hover{color:var(--red)}
+  .dday{display:inline-block;padding:1px 7px;border-radius:5px;font-size:11px;font-weight:600}
+  .dday.over{background:#FEE2E2;color:#B91C1C}.dday.today{background:#FEF3C7;color:#92400E}.dday.soon{background:#DBEAFE;color:#1E40AF}.dday.far{background:var(--soft);color:var(--text-2)}
+  .bm-pend{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .bm-pend .pi{position:relative;width:60px;height:60px}
+  .bm-pend .pi img{width:100%;height:100%;object-fit:cover;border:1px solid var(--border);border-radius:6px}
+  .bm-pend .px{position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#000;color:#fff;border:none;border-radius:50%;font-size:.7em;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center}
   .memo-item{padding:10px 0;border-bottom:1px dashed var(--border);font-size:13px}
   .memo-item:last-child{border-bottom:none}
   .memo-item .mt{color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word}
@@ -175,6 +186,16 @@
           <div class="section-action" onclick="loadBizMemos()">🔄 새로고침</div>
         </div>
         <div class="side-card" style="margin-bottom:0">
+          <div id="bmTabs" style="display:flex;flex-wrap:wrap;gap:5px;padding:12px 18px 10px;border-bottom:1px solid var(--border)">
+            <button class="on" data-bmcat="all" onclick="bmFilter('all')">전체</button>
+            <button data-bmcat="할 일" onclick="bmFilter('할 일')">📌 할 일</button>
+            <button data-bmcat="거래처 정보" onclick="bmFilter('거래처 정보')">🏢 거래처 정보</button>
+            <button data-bmcat="전화" onclick="bmFilter('전화')">📞 전화</button>
+            <button data-bmcat="문서" onclick="bmFilter('문서')">📁 문서</button>
+            <button data-bmcat="이슈" onclick="bmFilter('이슈')">⚠️ 이슈</button>
+            <button data-bmcat="약속" onclick="bmFilter('약속')">📅 약속</button>
+            <button data-bmcat="완료" onclick="bmFilter('완료')">✅ 완료</button>
+          </div>
           <div id="bizMemoList"><div style="padding:24px 18px;text-align:center;color:var(--text-3);font-size:13px">불러오는 중…</div></div>
           <div class="memo-compose">
             <div class="row1">
@@ -191,6 +212,7 @@
                 <option value="약속">📅 약속</option>
                 <option value="일반">📝 일반</option>
               </select>
+              <input id="bmDue" type="date" title="기한 (선택)" style="border:1px solid var(--border-2);border-radius:7px;padding:6px 9px;font-size:.78em;font-family:inherit;background:#fff;color:var(--text);outline:none">
               <button type="button" class="file-btn" onclick="document.getElementById('bmFile').click()">📎 첨부</button>
               <input id="bmFile" type="file" multiple accept="image/*,.pdf,.hwp,.hwpx" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" onchange="bmOnFile(event)">
               <span id="bmFileLabel" style="font-size:.74em;color:var(--text-3)"></span>
@@ -343,42 +365,93 @@
     }, 350);
   });
 
-  /* 업체 메모 (scope=business_all) — 본적용 시 business.js memo 풀세트 연결 */
-  var _bmPending=[];
+  /* 업체 메모 풀기능 (scope=business_all) — business.js memo 와 기능 동등:
+   * 필터탭·기한(due)·첨부 썸네일+✕·삭제·업로드 인플라이트 가드·D-day 뱃지. */
+  var _bmPending=[], _bmUploading=0, _bmCat='all', _bmAll=[];
+  function ddayBadge(due){
+    if(!due) return '';
+    try{
+      var t=new Date(due+'T00:00:00'), now=new Date(); now.setHours(0,0,0,0);
+      var diff=Math.round((t-now)/86400000);
+      var cls=diff<0?'over':(diff===0?'today':(diff<=3?'soon':'far'));
+      var txt=diff<0?('D+'+(-diff)):(diff===0?'D-day':('D-'+diff));
+      return '<span class="dday '+cls+'">'+txt+' · '+E(due)+'</span>';
+    }catch(_){ return '<span>📅 '+E(due)+'</span>'; }
+  }
+  function _bmRenderPend(){
+    var lbl=$('bmFileLabel'); if(!lbl) return;
+    if(!_bmPending.length){ lbl.textContent=''; return; }
+    var k=KEY?'&key='+encodeURIComponent(KEY):'';
+    lbl.innerHTML='<div class="bm-pend">'+_bmPending.map(function(a,i){
+      var im=String(a.mime||'').indexOf('image/')===0;
+      var u='/api/'+(im?'image':'file')+'?k='+encodeURIComponent(a.key)+k;
+      var x='<button class="px" onclick="_bmRemovePend('+i+')" title="제거">×</button>';
+      return im?('<div class="pi"><img src="'+u+'">'+x+'</div>')
+        :('<div class="pi" style="width:auto;display:flex;align-items:center;gap:4px;background:var(--soft);border:1px solid var(--border);border-radius:6px;padding:5px 9px;font-size:11px">📄 '+E(a.name||'파일')+x+'</div>');
+    }).join('')+'</div>';
+  }
+  window._bmRemovePend=function(i){ if(i>=0&&i<_bmPending.length)_bmPending.splice(i,1); _bmRenderPend(); };
   window.bmOnFile=function(ev){ _bmUpload(Array.prototype.slice.call(ev.target.files||[])); try{ev.target.value='';}catch(_){} };
   function _bmUpload(files){
     files=(files||[]).filter(Boolean); if(!files.length)return;
     var lbl=$('bmFileLabel'); if(lbl)lbl.textContent='업로드 중...('+files.length+')';
-    Promise.all(files.map(function(f){var fd=new FormData();fd.append('file',f);return fetch('/api/upload-memo-attachment?key='+encodeURIComponent(KEY),{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){return d.ok?{key:d.key,name:d.name,size:d.size,mime:d.mime}:null;}).catch(function(){return null;});})).then(function(rs){_bmPending=_bmPending.concat(rs.filter(Boolean));if(lbl)lbl.textContent='✅ '+_bmPending.length+'개 첨부';});
+    _bmUploading++;
+    Promise.all(files.map(function(f){var fd=new FormData();fd.append('file',f);return fetch('/api/upload-memo-attachment?key='+encodeURIComponent(KEY),{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){return d.ok?{key:d.key,name:d.name,size:d.size,mime:d.mime}:null;}).catch(function(){return null;});}))
+      .then(function(rs){ _bmPending=_bmPending.concat(rs.filter(Boolean)); _bmRenderPend(); })
+      .finally(function(){ _bmUploading=Math.max(0,_bmUploading-1); });
   }
+  window.bmFilter=function(cat){
+    _bmCat=cat;
+    var btns=document.querySelectorAll('#bmTabs button');
+    for(var i=0;i<btns.length;i++){ btns[i].classList.toggle('on', btns[i].getAttribute('data-bmcat')===cat); }
+    _bmRender();
+  };
+  function _bmRender(){
+    var box=$('bizMemoList'); if(!box) return;
+    var ms=_bmAll.filter(function(m){
+      if(_bmCat==='all') return true;
+      if(_bmCat==='완료') return (m.memo_type==='완료');
+      if(_bmCat==='할 일') return (m.memo_type==='할 일');
+      if(_bmCat==='거래처 정보') return (m.memo_type==='거래처 정보');
+      return (m.category===_bmCat);
+    });
+    if(!ms.length){ box.innerHTML='<div style="padding:24px 18px;text-align:center;color:var(--text-3);font-size:13px">'+(_bmCat==='all'?'아직 메모 없음. 첫 메모를 남겨보세요.':'해당 분류 메모 없음')+'</div>'; return; }
+    var k=KEY?'&key='+encodeURIComponent(KEY):'';
+    box.innerHTML=ms.map(function(m){
+      var at='';try{var a=typeof m.attachments==='string'?JSON.parse(m.attachments):(m.attachments||[]);at=(a||[]).map(function(x){var im=String(x.mime||'').indexOf('image/')===0;var u='/api/'+(im?'image':'file')+'?k='+encodeURIComponent(x.key)+k;return im?'<img class="att" src="'+u+'" onclick="openImgViewer(\''+u+'\',[\''+u+'\'])">':'<a href="'+u+'" target="_blank" style="font-size:12px;color:var(--blue)">📄 '+E(x.name||'파일')+'</a>';}).join('');}catch(_){}
+      return '<div class="memo-item"><button class="memo-card-del" onclick="bmDelete('+m.id+')" title="삭제">🗑️</button>'
+        +'<div class="mt" style="padding-right:22px">'+E(m.content||'').replace(/#([\w가-힣]+)/g,'<span style="color:var(--blue);font-weight:600">#$1</span>')+'</div>'
+        +(at?'<div>'+at+'</div>':'')
+        +'<div class="mm"><span>'+E(m.memo_type||'')+(m.category?' · '+E(m.category):'')+'</span><span>'+E((m.created_at||'').substring(0,16).replace('T',' '))+'</span>'+(m.due_date?ddayBadge(m.due_date):'')+'</div></div>';
+    }).join('');
+  }
+  window.bmDelete=function(id){
+    if(!confirm('이 메모를 삭제할까요?')) return;
+    fetch('/api/memos?action=delete&id='+id+'&key='+encodeURIComponent(KEY),{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+      if(!d||!d.ok){alert('삭제 실패: '+((d&&d.error)||'unknown'));return;}
+      window.loadBizMemos();
+    }).catch(function(e){alert('오류: '+e.message);});
+  };
   window.loadBizMemos=function(){
     api('memos?scope=business_all&business_id='+BID).then(function(d){
-      var ms=(d&&d.memos)||[]; $('memoCount').textContent=ms.length;
-      var box=$('bizMemoList');
-      if(!ms.length){ box.innerHTML='<div style="padding:24px 18px;text-align:center;color:var(--text-3);font-size:13px">아직 메모 없음. 첫 메모를 남겨보세요.</div>'; }
-      else {
-        var k=KEY?'&key='+encodeURIComponent(KEY):'';
-        box.innerHTML=ms.map(function(m){
-          var at='';try{var a=typeof m.attachments==='string'?JSON.parse(m.attachments):(m.attachments||[]);at=(a||[]).map(function(x){var im=String(x.mime||'').indexOf('image/')===0;var u='/api/'+(im?'image':'file')+'?k='+encodeURIComponent(x.key)+k;return im?'<img class="att" src="'+u+'" onclick="openImgViewer(\''+u+'\',[\''+u+'\'])">':'<a href="'+u+'" target="_blank" style="font-size:12px;color:var(--blue)">📄 '+E(x.name||'파일')+'</a>';}).join('');}catch(_){}
-          return '<div class="memo-item"><div class="mt">'+E(m.content||'').replace(/#([\w가-힣]+)/g,'<span style="color:var(--blue);font-weight:600">#$1</span>')+'</div>'+(at?'<div>'+at+'</div>':'')+'<div class="mm"><span>'+E(m.memo_type||m.category||'')+'</span><span>'+E((m.created_at||'').substring(0,16).replace('T',' '))+'</span>'+(m.due_date?'<span>📅 '+E(m.due_date)+'</span>':'')+'</div></div>';
-        }).join('');
-      }
-      /* 활동 합성 */
-      ms.slice(0,5).forEach(function(m){ pushAct('메모: '+String(m.content||'').slice(0,24), m.created_at); });
+      _bmAll=(d&&d.memos)||[]; $('memoCount').textContent=_bmAll.length;
+      _bmRender();
+      _bmAll.slice(0,5).forEach(function(m){ pushAct('메모: '+String(m.content||'').slice(0,24), m.created_at); });
       renderAct();
     });
   };
   window.bmSubmit=function(){
+    if(_bmUploading>0){ alert('첨부 업로드 중입니다. 잠시 후 다시 추가해주세요.'); return; }
     var c=($('bmContent').value||'').trim(); if(!c){alert('내용을 입력하세요');return;}
-    var body={memo_type:$('bmType').value||'거래처 정보',content:c,target_business_id:BID,category:$('bmCategory').value||undefined};
+    var body={memo_type:$('bmType').value||'거래처 정보',content:c,target_business_id:BID,
+      category:$('bmCategory').value||undefined, due_date:($('bmDue')&&$('bmDue').value)||undefined};
     if(_bmPending.length) body.attachments=_bmPending;
     fetch('/api/memos?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(d){
       if(!d||!d.ok){alert('저장 실패: '+((d&&d.error)||'unknown'));return;}
-      $('bmContent').value=''; _bmPending=[]; var lb=$('bmFileLabel'); if(lb)lb.textContent='';
+      $('bmContent').value=''; if($('bmDue'))$('bmDue').value=''; _bmPending=[]; var lb=$('bmFileLabel'); if(lb)lb.textContent='';
       window.loadBizMemos();
     }).catch(function(e){alert('오류: '+e.message);});
   };
-  /* 메모 입력창 paste/drag (main.js attachPasteDrop self-register 대기) */
   (function bindPD(){ try{ var el=$('bmContent'); if(el&&typeof window.attachPasteDrop==='function'){ window.attachPasteDrop(el,function(fs){_bmUpload(fs);}); } }catch(_){} setTimeout(bindPD,1500); })();
   window.loadBizMemos();
 })();
