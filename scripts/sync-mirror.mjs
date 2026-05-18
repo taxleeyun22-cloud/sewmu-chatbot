@@ -43,6 +43,7 @@ const FILES = [
   'admin-search-bulk.js',
   'admin-users-tab.js',
   'admin-pc-notify.js',
+  'admin-owner-export.js',
   // 거래처/공통
   'business.js',
   'index.js',
