@@ -12,6 +12,7 @@
     "dev": "vite",
     "prebuild": "node scripts/export-permissions.mjs && node scripts/build-modals.mjs",
     "build": "vite build",
+    "postbuild": "node scripts/sync-assets.mjs",
     "build:strict": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",
     "pages:dev": "wrangler pages dev dist --compatibility-date=2025-01-01",

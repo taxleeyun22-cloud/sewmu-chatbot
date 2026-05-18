@@ -25,6 +25,11 @@ if [ $MIRROR_RC -ne 0 ]; then
   exit 1
 fi
 
+# 0c. vite 빌드산출 동기화 (2026-05-18): dist/assets → apps/admin/public/assets.
+#     sewmu-admin(Next.js)이 stale main.js 서빙하던 갭 차단. dist 없으면 스킵.
+node scripts/sync-assets.mjs
+git add apps/admin/public/assets 2>/dev/null || true
+
 # 1. Type check (전체)
 npx tsc --noEmit
 TSC_RC=$?
