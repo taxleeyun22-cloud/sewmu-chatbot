@@ -927,14 +927,11 @@
           </div>
           <div id="cdBizDocs" style="font-size:.85em"></div>
         </div>
-        <!-- 📅 신고 Case (세무 업무 단위) -->
-        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
-            <div style="font-weight:700;font-size:.92em">📅 신고 Case <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:4px">거래처 × 신고종류 × 기간 단위 업무 묶음</span></div>
-            <button onclick="openNewFilingModal()" style="background:#10b981;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;font-weight:700;cursor:pointer;font-family:inherit">+ 새 Case</button>
-          </div>
-          <div id="cdFilings" style="font-size:.85em"></div>
-        </div>
+        <!-- 📅 신고 Case 영역 폐기 (2026-05-19 사장님 "개인쪽 신고 케이스 전체 다 날리자").
+             신고 검토표(아래 cdFilingsReview)로 일원화. 안전 제거: 카드만 없애고
+             #cdFilings 숨김 가드 유지 → _loadCdFilings(innerHTML) / React mountAtWithRetry('cdFilings')
+             둘 다 숨겨진 노드에 정상 동작 (throw 0). cdCustomerInfo/cdInfoNew 와 동일 패턴. -->
+        <div id="cdFilings" class="hidden"></div>
         <!-- Phase 3 (사장님 명세 2026-05-07): 신고 검토표 — 종소세 결재용 -->
         <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.03);grid-column:1/-1">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
