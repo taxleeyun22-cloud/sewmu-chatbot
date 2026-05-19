@@ -17,7 +17,7 @@
  *   - admin.html: <script>window.__loadAdminModals?.();</script> 1줄로 호출
  */
 
-const MODAL_VERSION = 'v=17';
+const MODAL_VERSION = 'v=18';
 
 export interface ModalLoadResult {
   ok: boolean;
