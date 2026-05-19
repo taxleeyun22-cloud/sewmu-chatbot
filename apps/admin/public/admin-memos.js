@@ -459,64 +459,9 @@ function closeTrash(){
   const all = $g('trashSelectAll'); if(all && all.checked !== undefined) all.checked = false;
 }
 
-/* ============================================================
- * 📒 메모 모아보기 (2026-05-19 사장님 본적용 #1)
- * 적은 메모 전부 한 표에. 기존 memos 데이터 읽기 전용 — 추가형, 기존 기능 0 삭제.
- * ============================================================ */
-function openMemoAll(){
-  const m = $g('memoAllModal'); if(!m){ alert('메모 모아보기 모달 element 없음'); return; }
-  m.style.display = 'flex';
-  document.body.style.overflow = 'hidden';
-  loadMemoAll();
-}
-function closeMemoAll(){
-  const m = $g('memoAllModal'); if(m) m.style.display = 'none';
-  document.body.style.overflow = '';
-}
-var _memoAllTimer = null;
-function _memoAllDebounce(){ clearTimeout(_memoAllTimer); _memoAllTimer = setTimeout(loadMemoAll, 280); }
-async function loadMemoAll(){
-  const box = $g('memoAllList'); if(!box) return;
-  const k = (typeof KEY !== 'undefined' && KEY) ? '&key=' + encodeURIComponent(KEY) : '';
-  const q = ($g('memoAllSearch') && $g('memoAllSearch').value || '').trim();
-  const tgt = ($g('memoAllTarget') && $g('memoAllTarget').value) || '';
-  const cat = ($g('memoAllCat') && $g('memoAllCat').value) || '';
-  const qs = '?scope=all_list' + k
-    + (q ? '&q=' + encodeURIComponent(q) : '')
-    + (tgt ? '&target=' + encodeURIComponent(tgt) : '')
-    + (cat ? '&category=' + encodeURIComponent(cat) : '');
-  box.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:#9CA3AF">불러오는 중…</td></tr>';
-  try{
-    const r = await fetch('/api/memos' + qs);
-    const d = await r.json();
-    if(!d.ok){ box.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:#dc2626">불러오기 실패: ' + e(d.error||'unknown') + '</td></tr>'; return; }
-    _renderMemoAll(d.memos || []);
-  }catch(err){
-    box.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:#dc2626">오류: ' + e(err.message) + '</td></tr>';
-  }
-}
-function _renderMemoAll(memos){
-  const box = $g('memoAllList'); if(!box) return;
-  const meta = $g('memoAllMeta'); if(meta) meta.textContent = '총 ' + memos.length + '건';
-  if(!memos.length){ box.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:#9CA3AF">메모가 없습니다</td></tr>'; return; }
-  box.innerHTML = memos.map(function(m){
-    var isBiz = !!m.target_business_id;
-    var nm = isBiz ? (m.target_business_name || '업체 #' + m.target_business_id)
-                   : (m.target_user_real_name || m.target_user_name || (m.target_user_id ? '거래처 #' + m.target_user_id : (m.room_name || '담당자 메모')));
-    var icon = isBiz ? '🏢' : (m.target_user_id ? '👤' : '📝');
-    var cat = m.category || (m.memo_type_display || m.memo_type || '');
-    var dt = (m.created_at || '').slice(2,10).replace(/-/g,'.');
-    var oc = isBiz
-      ? "if(typeof openBusinessDashboard==='function'){closeMemoAll();setTimeout(function(){openBusinessDashboard(" + m.target_business_id + ")},150)}"
-      : (m.target_user_id ? "if(typeof openCustomerDashboard==='function'){closeMemoAll();setTimeout(function(){openCustomerDashboard(" + m.target_user_id + ")},150)}" : "");
-    return '<tr onclick="' + oc + '">'
-      + '<td><span class="ma-tg">' + icon + ' ' + e(nm) + '</span></td>'
-      + '<td>' + e(m.content || '') + '</td>'
-      + '<td>' + (cat ? '<span class="ma-chip">#' + e(cat) + '</span>' : '<span style="color:#cbd5e1">—</span>') + '</td>'
-      + '<td style="white-space:nowrap;color:#6b7280">' + e(dt) + '</td>'
-      + '</tr>';
-  }).join('');
-}
+/* 📒 메모 모아보기: 모달 함수 폐기 → 독립 페이지 /memo-all.html 로 이전
+ * (2026-05-19 사장님: "팝업말고 새 창 + 삭제 기능"). 백엔드 scope=all_list 는
+ * 그 페이지가 그대로 재사용. admin 측엔 sbMemoAllBtn → window.open 만. */
 
 /* ============================================================
  * Phase M15 (2026-05-05 사장님 명령): 빠른 메모 — 사이드바 📒 클릭 → 거래처/업체 검색 → 메모 작성

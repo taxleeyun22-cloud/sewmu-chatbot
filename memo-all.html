@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>메모 모아보기 — 세무회계 이윤</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--navy:#0B1F3A;--line:#ECEEF1;--ink:#111827;--sub:#4B5563;--mut:#9CA3AF}
+  body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#FAFAFA;color:var(--ink);-webkit-font-smoothing:antialiased}
+  .nav{background:#fff;border-bottom:1px solid var(--line);padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20}
+  .mark{width:24px;height:24px;border-radius:6px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+  .nav b{font-size:14px;letter-spacing:-.02em}
+  .nav .bc{color:var(--mut);font-size:13px;font-weight:500}
+  .nav .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .btn{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:8px;padding:7px 13px;background:#fff;color:var(--ink);cursor:pointer}
+  .btn:hover{background:#F3F4F6}
+  .wrap{max-width:1180px;margin:0 auto;padding:26px 28px 70px}
+  .hl{font-size:11px;font-weight:600;color:var(--mut);letter-spacing:.08em;text-transform:uppercase}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.04em;margin:7px 0 6px}
+  .sub{font-size:13px;color:var(--sub)}
+  .fbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:20px 0 14px}
+  .fbar .sch{flex:1;min-width:200px;border:1px solid #E5E7EB;border-radius:9px;padding:9px 13px;font-size:13.5px;font-family:inherit}
+  .f{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:9px;padding:8px 12px;background:#fff;color:var(--ink);cursor:pointer}
+  .cnt{margin-left:auto;font-size:12.5px;color:var(--mut)}.cnt b{color:var(--ink)}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+  th{text-align:left;font-size:11.5px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:13px 18px;background:#FAFBFC;border-bottom:1px solid var(--line)}
+  td{padding:14px 18px;font-size:13.6px;color:var(--sub);border-bottom:1px solid #F3F4F6;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover td{background:#FAFBFC}
+  .tg{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--ink)}
+  .lnk{color:#1D4ED8;cursor:pointer;text-decoration:none}.lnk:hover{text-decoration:underline}
+  .chip{font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:99px;background:#EEF2F7;color:var(--navy)}
+  .ct{font-size:11.5px;color:#9CA3AF;margin-top:3px}
+  .del{background:#fff;color:#DC2626;border:1px solid #FCA5A5;border-radius:7px;padding:5px 11px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit}
+  .del:hover{background:#FEF2F2}
+  .empty,.load{text-align:center;padding:46px 0;color:var(--mut);font-size:14px}
+  .auth{max-width:520px;margin:80px auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:30px;text-align:center;color:var(--sub);font-size:14px;line-height:1.7}
+  .auth code{background:#F3F4F6;padding:2px 7px;border-radius:5px;font-size:12.5px}
+  body[data-auth="false"] .wrap{display:none}
+  body:not([data-auth="false"]) #authBox{display:none}
+  @media(max-width:640px){.nav,.wrap{padding-left:14px;padding-right:14px}h1{font-size:24px}}
+</style>
+</head>
+<body>
+<div class="nav">
+  <span class="mark">이</span><b>세무회계 이윤</b>
+  <span class="bc">/ 메모 모아보기</span>
+  <span class="r">
+    <button class="btn" onclick="loadMemoAll()">🔄 새로고침</button>
+    <button class="btn" onclick="window.close()">✕ 닫기</button>
+  </span>
+</div>
+
+<div id="authBox" class="auth">
+  🔐 인증이 필요합니다.<br>
+  URL 에 <code>?key=비밀번호</code> 를 붙이거나, 관리자 화면에서 <b>🗂️ 메모 모아보기</b> 버튼으로 열어주세요.
+</div>
+
+<div class="wrap">
+  <div class="hl">모아보기</div>
+  <h1>📒 메모 모아보기</h1>
+  <div class="sub">적은 메모 전부 한 곳에 — 업체는 클릭 시 업체 화면으로, 행마다 삭제(휴지통 이동) 가능</div>
+
+  <div class="fbar">
+    <input id="q" class="sch" placeholder="🔍 대상·내용 검색…" oninput="_deb()">
+    <select id="tgt" class="f" onchange="loadMemoAll()">
+      <option value="">대상 · 전체</option><option value="user">👤 사람</option><option value="business">🏢 업체</option>
+    </select>
+    <select id="cat" class="f" onchange="loadMemoAll()">
+      <option value="">카테고리 · 전체</option><option value="전화">전화</option><option value="문서">문서</option>
+      <option value="이슈">이슈</option><option value="약속">약속</option><option value="일반">일반</option>
+    </select>
+    <span class="cnt">총 <b id="cnt">0</b>건</span>
+  </div>
+
+  <table>
+    <thead><tr><th style="width:22%">대상</th><th>내용</th><th style="width:11%">분류</th><th style="width:11%">일자</th><th style="width:9%">관리</th></tr></thead>
+    <tbody id="list"><tr><td colspan="5" class="load">불러오는 중…</td></tr></tbody>
+  </table>
+</div>
+
+<script>
+/* 메모 모아보기 — 독립 페이지 (2026-05-19 사장님: "팝업말고 새 창 + 삭제").
+ * memo-window.html 인증 패턴 동일. 기존 API 재사용 (scope=all_list / DELETE).
+ * 삭제 = soft delete (휴지통 이동) — 기존 메모 삭제와 동일 = 복원 가능, 안전. */
+var KEY = new URLSearchParams(location.search).get('key') || (function(){ try{return sessionStorage.getItem('admin_key')||''}catch(_){return ''} })();
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
+var _t=null;
+function _deb(){ clearTimeout(_t); _t=setTimeout(loadMemoAll,280); }
+function openBiz(id){ window.open('/business.html?id='+id+'&key='+encodeURIComponent(KEY),'_blank','noopener'); }
+async function delMemo(id, ev){
+  if(ev) ev.stopPropagation();
+  if(!confirm('이 메모를 삭제할까요?\n\n휴지통으로 이동합니다 (관리자 화면 휴지통에서 복원 가능).')) return;
+  try{
+    const r = await fetch('/api/memos?id='+id+'&key='+encodeURIComponent(KEY), { method:'DELETE' });
+    const d = await r.json().catch(function(){return{}});
+    if(!r.ok || d.error){ alert('삭제 실패: '+(d.error||r.status)); return; }
+    loadMemoAll();
+  }catch(e){ alert('오류: '+e.message); }
+}
+async function loadMemoAll(){
+  if(!KEY){ document.body.dataset.auth='false'; return; }
+  const box=document.getElementById('list'); if(!box) return;
+  const q=document.getElementById('q').value.trim();
+  const tgt=document.getElementById('tgt').value;
+  const cat=document.getElementById('cat').value;
+  const qs='?scope=all_list&key='+encodeURIComponent(KEY)
+    +(q?'&q='+encodeURIComponent(q):'')+(tgt?'&target='+encodeURIComponent(tgt):'')+(cat?'&category='+encodeURIComponent(cat):'');
+  box.innerHTML='<tr><td colspan="5" class="load">불러오는 중…</td></tr>';
+  try{
+    const r=await fetch('/api/memos'+qs);
+    if(r.status===401){ document.body.dataset.auth='false'; return; }
+    const d=await r.json();
+    if(!d.ok){ box.innerHTML='<tr><td colspan="5" class="empty" style="color:#dc2626">불러오기 실패: '+esc(d.error||'unknown')+'</td></tr>'; return; }
+    render(d.memos||[]);
+  }catch(e){ box.innerHTML='<tr><td colspan="5" class="empty" style="color:#dc2626">오류: '+esc(e.message)+'</td></tr>'; }
+}
+function render(memos){
+  document.getElementById('cnt').textContent=memos.length;
+  const box=document.getElementById('list');
+  if(!memos.length){ box.innerHTML='<tr><td colspan="5" class="empty">메모가 없습니다</td></tr>'; return; }
+  box.innerHTML=memos.map(function(m){
+    var isBiz=!!m.target_business_id;
+    var nm=isBiz?(m.target_business_name||'업체 #'+m.target_business_id)
+                :(m.target_user_real_name||m.target_user_name||(m.target_user_id?'거래처 #'+m.target_user_id:(m.room_name||'담당자 메모')));
+    var icon=isBiz?'🏢':(m.target_user_id?'👤':'📝');
+    var tg=isBiz
+      ? '<span class="tg">'+icon+' <a class="lnk" onclick="openBiz('+m.target_business_id+')">'+esc(nm)+'</a></span>'
+      : '<span class="tg">'+icon+' '+esc(nm)+'</span>';
+    var cat=m.category||(m.memo_type_display||m.memo_type||'');
+    var dt=(m.created_at||'').slice(2,10).replace(/-/g,'.');
+    return '<tr>'
+      +'<td>'+tg+'</td>'
+      +'<td style="white-space:pre-wrap;word-break:break-word">'+esc(m.content||'')
+        +(m.author_name?'<div class="ct">— '+esc(m.author_name)+'</div>':'')+'</td>'
+      +'<td>'+(cat?'<span class="chip">#'+esc(cat)+'</span>':'<span style="color:#cbd5e1">—</span>')+'</td>'
+      +'<td style="white-space:nowrap;color:#6b7280">'+esc(dt)+'</td>'
+      +'<td><button class="del" onclick="delMemo('+m.id+',event)">🗑 삭제</button></td>'
+      +'</tr>';
+  }).join('');
+}
+loadMemoAll();
+</script>
+</body>
+</html>

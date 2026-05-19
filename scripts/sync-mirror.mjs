@@ -62,6 +62,7 @@ const FILES = [
   'cust-dash-preview.html',
   'biz-dash-preview.html',
   'home-preview.html',
+  'memo-all.html',
   'office.html',
   'staff.html',
   // CSS

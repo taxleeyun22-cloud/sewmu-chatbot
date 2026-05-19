@@ -3588,11 +3588,12 @@ function _adminSidebarClick(e){
     return;
   }
 
-  /* 본적용 #1 (2026-05-19): 📒 메모 모아보기 — 추가형, 기존 분기 0 변경 */
+  /* 본적용 #1 (2026-05-19): 📒 메모 모아보기 — 독립 새 창 (사장님: "팝업말고 새 창 + 삭제").
+     기존 별창(memo-window) 과 동일 패턴. 추가형 — 기존 분기 0 변경. */
   if(it.id === 'sbMemoAllBtn'){
     document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
     it.classList.add('on');
-    if(typeof openMemoAll === 'function') openMemoAll();
+    window.open('/memo-all.html?key=' + encodeURIComponent((typeof KEY!=='undefined'&&KEY)||''), '_blank', 'noopener');
     return;
   }
 

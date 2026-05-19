@@ -1173,47 +1173,8 @@
     <div id="trashList" style="flex:1;overflow-y:auto;padding:10px 16px 18px;background:#fff"></div>
   </div>
 </div>
-<!-- ===== 📒 메모 모아보기 (2026-05-19 사장님 본적용 #1) — 적은 메모 전부 한 곳에.
-     기존 memos 데이터 읽기 전용 모아보기. 추가형 모달 (기존 기능 0 삭제). 업체 시안 톤. -->
-<div id="memoAllModal" class="modal-overlay" style="z-index:11400;display:none">
-  <style>
-    #memoAllModal,#memoAllModal *{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif}
-    #memoAllModal .modal-card{max-width:1080px;width:96vw}
-    #memoAllModal table{width:100%;border-collapse:collapse}
-    #memoAllModal th{text-align:left;font-size:11.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:.04em;padding:11px 14px;background:#FAFBFC;border-bottom:1px solid #ECEEF1;position:sticky;top:0}
-    #memoAllModal td{padding:12px 14px;font-size:13.6px;color:#374151;border-bottom:1px solid #F3F4F6}
-    #memoAllModal tr:hover td{background:#FAFBFC;cursor:pointer}
-    #memoAllModal .ma-tg{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:#111827}
-    #memoAllModal .ma-chip{font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:99px;background:#EEF2F7;color:#0B1F3A}
-    #memoAllModal .ma-f{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:8px;padding:7px 11px;background:#fff;color:#111827;cursor:pointer}
-    #memoAllModal .ma-sch{flex:1;min-width:180px;border:1px solid #E5E7EB;border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit}
-  </style>
-  <div class="modal-card">
-    <div class="modal-header flex-wrap gap-2">
-      <div class="font-bold">📒 메모 모아보기 <span id="memoAllMeta" class="ml-1.5 text-xs font-medium text-of-text-mute"></span></div>
-      <div class="flex items-center gap-1.5">
-        <button onclick="loadMemoAll()" class="btn-ghost btn-sm">🔄</button>
-        <button onclick="closeMemoAll()" class="modal-close">✕</button>
-      </div>
-    </div>
-    <div style="padding:10px 16px;border-bottom:1px solid #ECEEF1;display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff">
-      <input id="memoAllSearch" class="ma-sch" placeholder="🔍 대상·내용 검색…" oninput="_memoAllDebounce()">
-      <select id="memoAllTarget" class="ma-f" onchange="loadMemoAll()">
-        <option value="">대상 · 전체</option><option value="user">👤 사람</option><option value="business">🏢 업체</option>
-      </select>
-      <select id="memoAllCat" class="ma-f" onchange="loadMemoAll()">
-        <option value="">카테고리 · 전체</option><option value="전화">전화</option><option value="문서">문서</option>
-        <option value="이슈">이슈</option><option value="약속">약속</option><option value="일반">일반</option>
-      </select>
-      <span style="margin-left:auto;font-size:12.5px;color:#9CA3AF">행 클릭 → 해당 거래처/업체 대시보드</span>
-    </div>
-    <div style="flex:1;overflow-y:auto;background:#fff">
-      <table><thead><tr><th>대상</th><th>내용</th><th>분류</th><th>일자</th></tr></thead>
-        <tbody id="memoAllList"><tr><td colspan="4" style="text-align:center;padding:30px;color:#9CA3AF">불러오는 중…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-</div>
+<!-- 📒 메모 모아보기: 모달 폐기 → 독립 페이지 /memo-all.html (2026-05-19 사장님:
+     "팝업말고 새 창"). 사이드바 sbMemoAllBtn 이 window.open 으로 띄움. -->
 <!-- Phase #11 + #5 적용 (2026-05-06): 에러 로그 모달 — Tailwind utility class 사용
      이전 inline style 27개 → Tailwind utility + .modal-overlay / .modal-card / .modal-header / .modal-close
      z-index 11400 만 inline (다른 모달 stack 순서 유지) -->
