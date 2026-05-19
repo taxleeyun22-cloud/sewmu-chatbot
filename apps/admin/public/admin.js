@@ -756,9 +756,9 @@ if(t==='rooms'){
 } else stopRoomsPolling();
 }
 
-/* PC |�  L�  admin-pc-notify.js (��T #3 Step9, 2026-05-18) \ ��.
+/* PC |�  L�  admin-pc-notify.js (��T #3 Step9, 2026-05-18) \ ��.
  * _pcNotifyEnabled / _pcNotifySet / _updatePcNotifyBtn / togglePcNotify /
- * _detectNewMessagesForNotify � |� t. classic global �| ّ. */
+ * _detectNewMessagesForNotify � |� t. classic global �| ّ. */
 
 async function setRoomPriority(roomId, value){
   const n = Number(value);
@@ -828,8 +828,8 @@ function applyPopupLayout(roomId){
 }
 
 
-/* owner � � ���0  admin-owner-export.js (��T #3 Step10, 2026-05-18) \ ��.
- * _refreshOwnerExportBtn / openOwnerExport t. classic global �| ّ. (��: ��ܤ� �<) */
+/* owner � � ���0  admin-owner-export.js (��T #3 Step10, 2026-05-18) \ ��.
+ * _refreshOwnerExportBtn / openOwnerExport t. classic global �| ّ. (��: ��ܤ� �<) */
 /* ===== 📋 내 할 일 대시보드 — 전체 방 + 개인 일정 통합 뷰 =====
    Purpose: 방 150개 일일이 클릭 안 해도 오늘·내일·이번주 할 일 한 번에 파악
    Data source: /api/memos?scope=my (미완료 할 일만, 방 정보 JOIN) */
@@ -3585,6 +3585,14 @@ function _adminSidebarClick(e){
     document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
     it.classList.add('on');
     if(typeof openQuickMemoModal === 'function') openQuickMemoModal();
+    return;
+  }
+
+  /* 본적용 #1 (2026-05-19): 📒 메모 모아보기 — 추가형, 기존 분기 0 변경 */
+  if(it.id === 'sbMemoAllBtn'){
+    document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
+    it.classList.add('on');
+    if(typeof openMemoAll === 'function') openMemoAll();
     return;
   }
 

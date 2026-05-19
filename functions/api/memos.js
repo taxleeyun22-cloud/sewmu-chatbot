@@ -231,6 +231,48 @@ export async function onRequestGet(context) {
     }
   }
 
+  /* === 전체 메모 모아보기 (2026-05-19 사장님 명령) — 삭제 안 된 모든 메모 한 목록 ===
+     기존 데이터 읽기 전용. trash_list 와 동일 SELECT/JOIN, deleted_at IS NULL.
+     선택 필터: q(내용 LIKE) / category / target(user|business). 기능 추가형 — 회귀 0. */
+  if (scope === 'all_list') {
+    const q = (url.searchParams.get('q') || '').trim();
+    const catF = (url.searchParams.get('category') || '').trim();
+    const tgtF = (url.searchParams.get('target') || '').trim();
+    try {
+      const where = ['m.deleted_at IS NULL'];
+      const binds = [];
+      if (q) { where.push('m.content LIKE ?'); binds.push('%' + q + '%'); }
+      if (catF) { where.push('m.category = ?'); binds.push(catF); }
+      if (tgtF === 'user') where.push('m.target_user_id IS NOT NULL');
+      else if (tgtF === 'business') where.push('m.target_business_id IS NOT NULL');
+      const { results } = await db.prepare(
+        `SELECT m.id, m.room_id, m.target_user_id, m.target_business_id,
+                m.author_user_id, m.author_name, m.assigned_to_user_id,
+                m.memo_type, m.content, m.is_edited, m.due_date, m.linked_message_id,
+                m.category, m.tags, m.attachments,
+                m.created_at, m.updated_at,
+                r.name AS room_name,
+                u.real_name AS target_user_real_name, u.name AS target_user_name,
+                b.company_name AS target_business_name
+           FROM memos m
+           LEFT JOIN chat_rooms r ON m.room_id = r.id AND m.room_id != '__none__'
+           LEFT JOIN users u ON m.target_user_id = u.id
+           LEFT JOIN businesses b ON m.target_business_id = b.id
+          WHERE ${where.join(' AND ')}
+          ORDER BY m.created_at DESC LIMIT 500`
+      ).bind(...binds).all();
+      const normalized = (results || []).map(r => ({
+        ...r,
+        memo_type_display: LEGACY_MAP[r.memo_type] || r.memo_type,
+        tags: r.tags ? safeParseJson(r.tags) : [],
+        attachments: r.attachments ? safeParseJson(r.attachments) : [],
+      }));
+      return Response.json({ ok: true, memos: normalized });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   /* === 거래처 정보 메모 (영구·user_id 기반) === */
   if (scope === 'customer_info') {
     if (!userIdParam) return Response.json({ error: "user_id required" }, { status: 400 });
