@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>홈 재편 시안 프리뷰 — 세무회계 이윤</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--navy:#0B1F3A;--line:#ECEEF1;--bg:#FAFAFA;--ink:#111827;--sub:#4B5563;--mut:#9CA3AF}
+  body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  .app{display:flex;min-height:100vh}
+  /* ===== 사이드바 ===== */
+  .sb{width:228px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .sb-brand{padding:18px 20px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--line)}
+  .sb-mark{width:26px;height:26px;border-radius:7px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  .sb-brand b{font-size:14px;letter-spacing:-.02em}
+  .sb-nav{flex:1;overflow-y:auto;padding:10px 10px 20px}
+  .sb-sec{font-size:11px;font-weight:600;color:var(--mut);letter-spacing:.06em;padding:14px 10px 6px;text-transform:uppercase}
+  .sb-i{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:8px;font-size:13.5px;color:var(--sub);cursor:pointer;font-weight:500;border:none;background:none;width:100%;text-align:left;font-family:inherit}
+  .sb-i:hover{background:#F3F4F6}
+  .sb-i.on{background:#E8F0FE;color:var(--navy);font-weight:700}
+  .sb-i .cnt{margin-left:auto;font-size:11px;color:var(--mut);font-weight:600}
+  .sb-i.on .cnt{color:var(--navy)}
+  .sb-new{background:#0B1F3A;color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:auto}
+  .sb-owner{padding:14px 16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--sub);display:flex;align-items:center;gap:9px}
+  .sb-av{width:28px;height:28px;border-radius:50%;background:#E8F0FE;color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+  /* ===== 메인 ===== */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{background:#fff;border-bottom:1px solid var(--line);padding:13px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+  .tb-bc{color:var(--mut);font-size:13px;font-weight:500}
+  .tb-r{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .tb-lbl{font-size:12px;color:var(--mut);font-weight:600}
+  select,.flt{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:8px;padding:7px 11px;background:#fff;color:var(--ink);cursor:pointer}
+  .wrap{max-width:1180px;margin:0 auto;padding:26px 28px 70px;width:100%}
+  .view{display:none}.view.on{display:block}
+  /* hero */
+  .h-lbl{font-size:11px;font-weight:600;color:var(--mut);letter-spacing:.08em;text-transform:uppercase}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.04em;margin:7px 0 6px}
+  .h-sub{font-size:13px;color:var(--sub)}
+  .h-sub b{color:var(--navy)}
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:22px 0}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+  .kpi .t{font-size:12.5px;color:var(--sub);display:flex;align-items:center;justify-content:space-between}
+  .kpi .v{font-size:28px;font-weight:700;letter-spacing:-.03em;margin:6px 0 3px}
+  .kpi .v.warn{color:#DC2626}
+  .kpi .s{font-size:11.5px;color:var(--mut)}
+  .ico{width:24px;height:24px;border-radius:7px;background:#F3F4F6;display:flex;align-items:center;justify-content:center;font-size:13px}
+  /* grid 2col */
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.03);margin-bottom:16px}
+  .c-h{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+  .c-h .ti{font-size:16px;font-weight:700;letter-spacing:-.02em}
+  .c-h .badge{background:#0B1F3A;color:#fff;font-size:11px;font-weight:700;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+  .c-h .more{margin-left:auto;font-size:12px;color:#2563EB;cursor:pointer;font-weight:600;background:none;border:none;font-family:inherit}
+  .row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #F3F4F6;font-size:13.6px;color:var(--sub)}
+  .row:first-of-type{border-top:none}
+  .av{width:30px;height:30px;border-radius:50%;background:#EEF2F7;color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+  .row .nm{font-weight:600;color:var(--ink)}
+  .row .meta{margin-left:auto;font-size:12px;color:var(--mut);white-space:nowrap}
+  .row .meta.hot{color:#DC2626;font-weight:700}
+  .todo3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .todo{background:#FAFBFC;border:1px solid var(--line);border-radius:10px;padding:14px;position:relative}
+  .todo .n{font-size:22px;font-weight:700}.todo .l{font-size:12px;color:var(--sub);margin-top:2px}
+  .todo .dot{position:absolute;top:12px;right:12px;width:7px;height:7px;border-radius:50%;background:#F59E0B}
+  .pill{display:inline-flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+  .pill b{background:#F3F4F6;color:var(--sub);font-size:12px;font-weight:600;padding:3px 9px;border-radius:99px}
+  /* table */
+  .fbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0 12px}
+  .fbar .sch{flex:1;min-width:200px;border:1px solid #E5E7EB;border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  th{text-align:left;font-size:11.5px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:12px 16px;background:#FAFBFC;border-bottom:1px solid var(--line)}
+  td{padding:13px 16px;font-size:13.6px;color:var(--sub);border-bottom:1px solid #F3F4F6}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:#FAFBFC;cursor:pointer}
+  .tg{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--ink)}
+  .chip{font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:99px;background:#EEF2F7;color:var(--navy)}
+  .chip.issue{background:#FEF2F2;color:#B91C1C}.chip.call{background:#EFF6FF;color:#1D4ED8}
+  .chip.doc{background:#F0FDF4;color:#15803D}.chip.appt{background:#FFF7ED;color:#C2410C}
+  .st{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:99px}
+  .st.wait{background:#FEF3C7;color:#92400E}.st.ing{background:#E0F2FE;color:#075985}.st.done{background:#DCFCE7;color:#166534}
+  .seld{border:1px solid #E5E7EB;border-radius:7px;padding:4px 8px;font-size:12.5px;font-family:inherit;background:#fff;color:var(--navy);font-weight:600;cursor:pointer}
+  .tabs{display:flex;gap:8px;margin:18px 0 14px}
+  .tab{border:1px solid #E5E7EB;background:#fff;border-radius:99px;padding:8px 18px;font-size:13px;font-weight:600;color:var(--sub);cursor:pointer;font-family:inherit}
+  .tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .tab .c{opacity:.7;margin-left:5px;font-size:12px}
+  .togl{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--sub)}
+  .note{background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;font-size:12.5px;padding:10px 14px;border-radius:10px;margin-bottom:16px;line-height:1.5}
+  .asgn{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-top:10px}
+  .asgn .who{flex:1}.asgn .who b{font-size:15px}.asgn .who span{font-size:12.5px;color:var(--mut);display:block;margin-top:2px}
+  @media(max-width:980px){.kpis{grid-template-columns:repeat(2,1fr)}.g2{grid-template-columns:1fr}.sb{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===== 사이드바 ===== -->
+  <aside class="sb">
+    <div class="sb-brand"><span class="sb-mark">이</span><b>세무회계 이윤</b></div>
+    <nav class="sb-nav">
+      <button class="sb-i on" onclick="nav('home',this)">🏠 홈</button>
+      <div class="sb-sec">거래처</div>
+      <button class="sb-i" onclick="nav('home',this)">👤 거래처 <span class="cnt">262</span></button>
+      <button class="sb-i" onclick="nav('home',this)">🏢 업체 <span class="cnt">312</span></button>
+      <button class="sb-i" onclick="nav('home',this)">💬 상담방 <span class="cnt">2</span></button>
+      <div class="sb-sec">모아보기 (신설)</div>
+      <button class="sb-i" onclick="nav('memos',this)">📒 메모 모아보기 <span class="sb-new">NEW</span></button>
+      <button class="sb-i" onclick="nav('reviews',this)">🧾 검토표 모아보기 <span class="sb-new">NEW</span></button>
+      <div class="sb-sec">관리</div>
+      <button class="sb-i" onclick="nav('home',this)">📄 문서</button>
+      <button class="sb-i" onclick="nav('home',this)">📊 분석</button>
+      <button class="sb-i" onclick="nav('home',this)">✓ 검증</button>
+    </nav>
+    <div class="sb-owner"><span class="sb-av">이</span><div><b>이재윤</b> 사장님<br><span style="font-size:11px;color:var(--mut)">대표세무사 · owner</span></div></div>
+  </aside>
+
+  <!-- ===== 메인 ===== -->
+  <div class="main">
+    <div class="topbar">
+      <span class="tb-bc" id="bc">홈</span>
+      <div class="tb-r">
+        <span class="tb-lbl">담당자</span>
+        <select class="flt" id="staffFilter" onchange="applyStaff()">
+          <option value="">전체</option>
+          <option>이재윤</option><option>정은</option><option>민지</option><option>영철</option>
+        </select>
+      </div>
+    </div>
+    <div class="wrap">
+
+      <!-- ========== 홈 ========== -->
+      <section class="view on" id="v-home">
+        <div class="h-lbl">관리자 대시보드</div>
+        <h1>사장님, 오늘도 좋은 하루 보내세요</h1>
+        <div class="h-sub">미답변 상담 <b>2건</b> · 본인미확인 거래처 <b>12건</b> · 이번 주 메모 <b>27건</b> · 검토표 <b>4건</b></div>
+
+        <div class="kpis">
+          <div class="kpi"><div class="t">기장거래처 <span class="ico">👤</span></div><div class="v">255</div><div class="s">사용자 262 · 업체 312</div></div>
+          <div class="kpi"><div class="t">미답변 상담 <span class="ico">💬</span></div><div class="v warn">2</div><div class="s">최근 답변 1시간 전</div></div>
+          <div class="kpi"><div class="t">이번 주 메모 <span class="ico">📝</span></div><div class="v">27</div><div class="s">+8 · 지난주 대비</div></div>
+          <div class="kpi"><div class="t">이번 주 검토표 <span class="ico">📋</span></div><div class="v">4</div><div class="s">소득세 4건</div></div>
+        </div>
+
+        <div class="g2">
+          <div>
+            <div class="card">
+              <div class="c-h"><span class="ti">오늘 처리할 항목</span><span class="badge">3</span><button class="more">전체 →</button></div>
+              <div class="todo3">
+                <div class="todo"><span class="dot"></span><div class="n">2</div><div class="l">미답변 상담</div></div>
+                <div class="todo"><span class="dot"></span><div class="n">1</div><div class="l">대기 거래처 승인</div></div>
+                <div class="todo"><span class="dot"></span><div class="n">12</div><div class="l">본인미확인 거래처</div></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="c-h"><span class="ti">미답변 상담방</span><span class="badge">2</span><button class="more">상담방 전체 →</button></div>
+              <div class="row"><span class="av">김</span><div><div class="nm">김유남</div><div style="font-size:12.5px">"이번에 종소세 신고 자료 어디로 보내드리면 될까요?"</div></div><span class="meta hot">3시간</span></div>
+              <div class="row"><span class="av">하</span><div><div class="nm">하주성</div><div style="font-size:12.5px">"사업자등록증 첨부드렸어요. 확인부탁드립니다"</div></div><span class="meta hot">1시간</span></div>
+            </div>
+            <div class="card">
+              <div class="c-h"><span class="ti">거래처 담당자 지정</span><button class="more">샘플</button></div>
+              <div style="font-size:12.5px;color:var(--mut);margin-bottom:8px">거래처 대시보드 헤더에서 바로 담당자 배정 → 아래 전 화면이 담당자별로 필터됩니다</div>
+              <div class="asgn"><span class="av">김</span><div class="who"><b>김다정</b><span>헤이데이 · 기장거래처</span></div>
+                <select class="seld"><option>담당자 — 정은</option><option>이재윤</option><option>민지</option><option>영철</option><option>미지정</option></select></div>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <div class="c-h"><span class="ti">최근 메모</span><button class="more" onclick="nav('memos')">📒 모아보기 →</button></div>
+              <div class="row"><span class="ico">📝</span><div><span class="nm">박수현</span> · 2024 대비 매출 -61.5%, 사유 확인 필요<div style="font-size:11.5px;color:var(--mut)">방금 전 · #이슈 · 담당 정은</div></div></div>
+              <div class="row"><span class="ico">💬</span><div><span class="nm">김유남</span> · 종소세 신고 자료 송부처 안내 필요<div style="font-size:11.5px;color:var(--mut)">3시간 전 · #전화 · 담당 민지</div></div></div>
+              <div class="row"><span class="ico">📄</span><div><span class="nm">하주성</span> · 사업자등록증 수령 완료<div style="font-size:11.5px;color:var(--mut)">1시간 전 · #문서 · 담당 정은</div></div></div>
+              <div class="row"><span class="ico">📅</span><div><span class="nm">이경식</span> · 5/22 14시 방문 예정<div style="font-size:11.5px;color:var(--mut)">어제 · #약속 · 담당 영철</div></div></div>
+            </div>
+            <div class="card">
+              <div class="c-h"><span class="ti">검토표 진행</span><button class="more" onclick="nav('reviews')">🧾 모아보기 →</button></div>
+              <div class="pill"><b>소득세 4</b><b>법인세 0</b><b>부가세 0</b></div>
+              <div class="row" style="margin-top:8px"><span class="av">박</span><div><div class="nm">박수현</div><div style="font-size:12px;color:var(--mut)">2025귀속 종소세 검토표</div></div><span class="st wait" style="margin-left:auto">결재대기</span></div>
+              <div class="row"><span class="av">김</span><div><div class="nm">김다정</div><div style="font-size:12px;color:var(--mut)">2025귀속 종소세</div></div><span class="st ing" style="margin-left:auto">작성중</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== 메모 모아보기 ========== -->
+      <section class="view" id="v-memos">
+        <div class="h-lbl">모아보기</div>
+        <h1>📒 메모 모아보기</h1>
+        <div class="h-sub">적은 메모 전부 한 곳에 — 행 클릭 시 해당 거래처 대시보드로 이동 + 그 메모 하이라이트</div>
+        <div class="fbar">
+          <input class="sch" placeholder="🔍 대상·내용 검색…">
+          <select class="flt"><option>대상 ▾ 전체</option><option>🏢 업체</option><option>👤 사람</option></select>
+          <select class="flt"><option>카테고리 ▾ 전체</option><option>이슈</option><option>전화</option><option>문서</option><option>약속</option></select>
+          <select class="flt"><option>담당자 ▾ 전체</option><option>이재윤</option><option>정은</option><option>민지</option><option>영철</option></select>
+          <select class="flt"><option>기간 ▾ 전체</option><option>이번 주</option><option>이번 달</option></select>
+          <span style="margin-left:auto;font-size:12.5px;color:var(--mut)">총 <b style="color:var(--ink)">312</b>건</span>
+        </div>
+        <table><thead><tr><th>대상</th><th>내용</th><th>분류</th><th>일자</th><th>담당자</th></tr></thead><tbody id="memoBody"></tbody></table>
+      </section>
+
+      <!-- ========== 검토표 모아보기 ========== -->
+      <section class="view" id="v-reviews">
+        <div class="h-lbl">모아보기</div>
+        <h1>🧾 검토표 모아보기</h1>
+        <div class="h-sub">대분류 검토표 → 중분류 소득세·법인세·부가세 → 세분류 각 업체·기장거래처 사람</div>
+        <div class="tabs" id="rvTabs">
+          <button class="tab on" onclick="rvTab('소득세',this)">소득세 <span class="c">12</span></button>
+          <button class="tab" onclick="rvTab('법인세',this)">법인세 <span class="c">8</span></button>
+          <button class="tab" onclick="rvTab('부가세',this)">부가세 <span class="c">15</span></button>
+          <label class="togl"><input type="checkbox" id="doneTgl" onchange="renderReviews()"> 완료 포함</label>
+        </div>
+        <div class="note" id="rvNote">▸ <b>소득세</b> · 2025귀속 · 진행중 검토표 (작성중·결재대기). 행 클릭 → 검토표 바로 열기 / A4 PDF</div>
+        <table><thead><tr><th>세분류 (대상)</th><th>구분</th><th>상태</th><th>수입금액</th><th>담당자</th></tr></thead><tbody id="rvBody"></tbody></table>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== 목업 데이터 (프리뷰 전용 — 백엔드 무관) ===== */
+var STAFF=['이재윤','정은','민지','영철'];
+var MEMOS=[
+ {t:'🏢',nm:'세무회계이윤',c:'영수증 줬음 — 5월 매입분 원본 수령',cat:'문서',k:'doc',d:'26.05.19',s:'이재윤'},
+ {t:'👤',nm:'박수현',c:'2024 대비 매출 -61.5%, 사유 확인 필요',cat:'이슈',k:'issue',d:'26.05.19',s:'정은'},
+ {t:'👤',nm:'김유남',c:'종소세 신고 자료 송부처 안내 필요',cat:'전화',k:'call',d:'26.05.19',s:'민지'},
+ {t:'🏢',nm:'헤이데이',c:'사업자등록증 수령 완료',cat:'문서',k:'doc',d:'26.05.18',s:'정은'},
+ {t:'👤',nm:'이경식',c:'5/22 14시 사무실 방문 예정',cat:'약속',k:'appt',d:'26.05.18',s:'영철'},
+ {t:'👤',nm:'편민우',c:'본인확인 보류 — 차주 재연락',cat:'할일',k:'',d:'26.05.18',s:'민지'},
+ {t:'🏢',nm:'(주)고성산업개발',c:'법인세 신고 자료 미수령 — 독촉 1차',cat:'이슈',k:'issue',d:'26.05.17',s:'이재윤'},
+ {t:'👤',nm:'하주성',c:'사업자등록증 수령 완료, 검토표 작성 시작',cat:'문서',k:'doc',d:'26.05.17',s:'정은'},
+ {t:'👤',nm:'김다정',c:'신규 등록 시 연락처 확인 완료',cat:'거래처정보',k:'',d:'26.05.17',s:'영철'}
+];
+var REVIEWS={
+ '소득세':[
+  {t:'👤',nm:'박수현',g:'기장',st:'wait',stl:'결재대기',amt:'83,869,910',s:'정은'},
+  {t:'👤',nm:'김다정',g:'기장',st:'ing',stl:'작성중',amt:'—',s:'민지'},
+  {t:'👤',nm:'하주성',g:'기장',st:'ing',stl:'작성중',amt:'52,140,000',s:'정은'},
+  {t:'👤',nm:'이경식',g:'기장',st:'wait',stl:'결재대기',amt:'118,500,000',s:'영철'},
+  {t:'👤',nm:'편민우',g:'기장',st:'done',stl:'완료',amt:'47,200,000',s:'민지'}
+ ],
+ '법인세':[
+  {t:'🏢',nm:'(주)고성산업개발',g:'업체',st:'ing',stl:'작성중',amt:'—',s:'이재윤'},
+  {t:'🏢',nm:'주식회사 온나플러스',g:'업체',st:'wait',stl:'결재대기',amt:'412,000,000',s:'이재윤'},
+  {t:'🏢',nm:'다이렉트에스케이비',g:'업체',st:'done',stl:'완료',amt:'205,300,000',s:'정은'}
+ ],
+ '부가세':[
+  {t:'🏢',nm:'헤이데이',g:'업체',st:'ing',stl:'작성중',amt:'—',s:'정은'},
+  {t:'👤',nm:'김유남',g:'기장',st:'wait',stl:'결재대기',amt:'31,900,000',s:'민지'},
+  {t:'🏢',nm:'대구 마케팅 옆커팅',g:'업체',st:'done',stl:'완료',amt:'88,400,000',s:'영철'}
+ ]
+};
+var curRvCat='소득세';
+
+function nav(v,el){
+  document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));
+  document.getElementById('v-'+v).classList.add('on');
+  if(el){document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));el.classList.add('on');}
+  document.getElementById('bc').textContent={home:'홈',memos:'모아보기 / 메모',reviews:'모아보기 / 검토표'}[v];
+  if(v==='memos')renderMemos();if(v==='reviews')renderReviews();
+  window.scrollTo(0,0);
+}
+function staffSel(cur){return '<select class="seld" onchange="event.stopPropagation()">'+
+  STAFF.map(s=>'<option'+(s===cur?' selected':'')+'>담당자 — '+s+'</option>').join('')+'<option>미지정</option></select>';}
+function renderMemos(){
+  document.getElementById('memoBody').innerHTML=MEMOS.map(m=>
+   '<tr><td><span class="tg">'+m.t+' '+m.nm+'</span></td><td style="color:#374151">'+m.c+'</td>'+
+   '<td><span class="chip '+m.k+'">#'+m.cat+'</span></td><td>'+m.d+'</td><td>'+staffSel(m.s)+'</td></tr>').join('');
+}
+function rvTab(cat,el){curRvCat=cat;document.querySelectorAll('#rvTabs .tab').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderReviews();}
+function renderReviews(){
+  var inclDone=document.getElementById('doneTgl').checked;
+  var list=REVIEWS[curRvCat].filter(r=>inclDone||r.st!=='done');
+  document.getElementById('rvNote').innerHTML='▸ <b>'+curRvCat+'</b> · 2025귀속 · '+(inclDone?'전체(완료 포함)':'진행중(작성중·결재대기)')+' 검토표. 행 클릭 → 검토표 바로 열기 / A4 PDF';
+  document.getElementById('rvBody').innerHTML=list.map(r=>
+   '<tr><td><span class="tg">'+r.t+' '+r.nm+'</span></td><td>'+r.g+'</td>'+
+   '<td><span class="st '+r.st+'">'+r.stl+'</span></td><td>'+r.amt+'</td><td>'+staffSel(r.s)+'</td></tr>').join('');
+}
+function applyStaff(){/* 프리뷰: 전역 담당자 필터 자리 (실제 적용 시 모든 목록 필터) */}
+renderMemos();renderReviews();
+</script>
+</body>
+</html>

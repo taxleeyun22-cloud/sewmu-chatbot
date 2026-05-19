@@ -169,6 +169,7 @@ export default defineConfig({
         // 거래처/업체 상세 신디자인 시안 프리뷰 (2026-05-18) — prod 무영향 독립 페이지
         { src: 'cust-dash-preview.html', dest: '.' },
         { src: 'biz-dash-preview.html', dest: '.' },
+        { src: 'home-preview.html', dest: '.' },
         // Phase H2 (2026-05-04): admin/staff/office 모달 통합 묶음 (fetch + insertAdjacentHTML 패턴)
         { src: 'admin-modals.html', dest: '.' },
         // Phase H3 (2026-05-04): index.html 인라인 JS 3468줄 외부화

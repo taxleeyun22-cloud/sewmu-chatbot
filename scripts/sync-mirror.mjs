@@ -61,6 +61,7 @@ const FILES = [
   'memo-window.html',
   'cust-dash-preview.html',
   'biz-dash-preview.html',
+  'home-preview.html',
   'office.html',
   'staff.html',
   // CSS
