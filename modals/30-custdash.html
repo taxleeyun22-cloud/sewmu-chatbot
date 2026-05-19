@@ -26,6 +26,13 @@
     #custDashModal button[style*="background: #3182f6"],
     #custDashModal button[style*="--brand-primary"],
     #custDashModal #cdMemoTabs button.on{background:#0B1F3A!important;border-color:#0B1F3A!important;color:#fff!important}
+    /* 본문 내용 = 업체(business.css .grid: .85em≈13.6px / #374151) 와 동일 크기·색 통일.
+       지금은 일부 16px·일부 .78em 으로 제각각 + 흐린 회색 → "글자 크기 다르고 안 찐함" 원인.
+       내용 컨테이너 base 통일 (제목 .92em→16px 룰은 위에서 !important 라 영향 0). */
+    #custDashModal #cdBasic,#custDashModal #cdDocs,#custDashModal #cdBizDocs,
+    #custDashModal #cdFilings,#custDashModal #cdFilingsReview,#custDashModal #cdMemoList,
+    #custDashModal #cdTodos,#custDashModal #cdSummaries,#custDashModal #cdRecentChat{
+      font-size:13.6px!important;color:#374151!important;line-height:1.55}
     /* 2컬럼 그리드 (admin-custdash-grid.js 가 cd-grid/cd-main/cd-side 생성) */
     #custDashModal .cd-grid{display:grid!important;grid-template-columns:1fr 340px;gap:22px;align-items:start}
     #custDashModal .cd-main,#custDashModal .cd-side{min-width:0;display:flex;flex-direction:column;gap:18px}
