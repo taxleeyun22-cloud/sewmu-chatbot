@@ -854,10 +854,21 @@
   <style>
     #custDashModal,#custDashModal *{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif}
     #custDashModal > div{background:#FAFAFA!important}
-    /* Hero 헤더 (sticky 첫 div) — 깔끔 흰 + navy 큰 타이틀 */
-    #custDashModal > div > div:first-child{border-bottom:1px solid #ECEEF1!important;padding:22px 28px!important}
-    #custDashModal #cdName{color:#0B1F3A!important;letter-spacing:-0.03em;font-size:1.55em!important;font-weight:700!important}
-    #custDashModal #cdSub{font-size:.78em!important;color:#4B5563!important;margin-top:4px!important}
+    /* 헤더 = 업체(business.html) .bz-nav + .bz-hero 와 픽셀 동일.
+       .cd-head 는 단일 children[0] 유지 (admin-custdash-grid.js reflow 호환). */
+    #custDashModal .cd-head{background:#fff!important;padding:0!important;display:block!important}
+    #custDashModal .cd-nav{background:#fff;border-bottom:1px solid #ECEEF1;padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20}
+    #custDashModal .cd-back{background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:500;color:#111827;cursor:pointer;font-family:inherit}
+    #custDashModal .cd-bc{color:#9CA3AF;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #custDashModal .cd-mark{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:#0B1F3A;color:#fff;font-size:11px;font-weight:700;flex-shrink:0}
+    #custDashModal .cd-bc-sep{color:#D1D5DB}
+    #custDashModal .cd-nav-r{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}
+    #custDashModal .cd-sumbtn{background:#10B981;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+    #custDashModal .cd-hero2{max-width:1180px;margin:24px auto 8px;padding:0 28px}
+    #custDashModal .cd-hero-label{font-size:11px;font-weight:600;color:#9CA3AF;letter-spacing:.08em;text-transform:uppercase}
+    #custDashModal .cd-hero2 #cdName{font-size:34px!important;font-weight:700!important;letter-spacing:-0.04em!important;color:#111827!important;margin:8px 0 6px!important;white-space:normal!important;overflow:visible!important}
+    #custDashModal .cd-hero2 #cdSub{font-size:13px!important;color:#4B5563!important;margin-top:0!important;white-space:normal!important;overflow:visible!important}
+    @media(max-width:720px){#custDashModal .cd-hero2 #cdName{font-size:26px!important}#custDashModal .cd-nav,#custDashModal .cd-hero2{padding-left:16px;padding-right:16px}}
     /* 본문 wrap */
     #custDashModal .cd-body{max-width:1180px!important;padding:22px 28px 60px!important}
     /* 카드 = .bz-wrap .section 동일 (여백 업체와 통일: padding 20px 22px) */
@@ -886,15 +897,23 @@
     @media(max-width:920px){#custDashModal .cd-grid{grid-template-columns:1fr}}
   </style>
   <div style="background:#f2f4f6;min-height:100vh">
-    <!-- 헤더 -->
-    <div style="background:#fff;padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10">
-      <button onclick="closeCustomerDashboard()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#191f28">←</button>
-      <div style="flex:1;min-width:0">
-        <div id="cdName" style="font-weight:800;font-size:1.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span id="cd-name-mount">-</span></div>
-        <div id="cdSub" style="font-size:.75em;color:#8b95a1;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span id="cd-sub-mount">-</span></div>
+    <!-- 헤더 = 업체(business.html) nav+hero 동일 구조 (2026-05-19 사장님 "업체쪽으로 디자인 맞추자").
+         단일 .cd-head = children[0] 유지 → admin-custdash-grid.js reflow 호환.
+         ID(cdName/cdSub/cdPriority)·onclick(closeCustomerDashboard/openCustomerSummary) 전부 보존 = 회귀 0. -->
+    <div class="cd-head">
+      <div class="cd-nav">
+        <button type="button" onclick="closeCustomerDashboard()" class="cd-back">← 뒤로</button>
+        <span class="cd-bc"><span class="cd-mark">이</span> 세무회계 이윤 <span class="cd-bc-sep">/</span> 거래처</span>
+        <span class="cd-nav-r">
+          <button type="button" onclick="openCustomerSummary()" class="cd-sumbtn" title="이 거래처 단위 AI 요약 (모든 방 대화 + 메모 통합)">📝 요약</button>
+          <span id="cdPriority"><span id="cd-priority-mount"></span></span>
+        </span>
       </div>
-      <button onclick="openCustomerSummary()" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0" title="이 거래처 단위 AI 요약 (모든 방 대화 + 메모 통합)">📝 요약</button>
-      <div id="cdPriority" style="flex-shrink:0"><span id="cd-priority-mount"></span></div>
+      <div class="cd-hero2">
+        <div class="cd-hero-label">거래처</div>
+        <div id="cdName"><span id="cd-name-mount">-</span></div>
+        <div id="cdSub"><span id="cd-sub-mount">-</span></div>
+      </div>
     </div>
     <!-- 본문 그리드 -->
     <div style="padding:14px;max-width:1200px;margin:0 auto">
