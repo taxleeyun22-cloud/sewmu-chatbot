@@ -121,7 +121,7 @@
     <div class="topbar">
       <span class="tb-bc" id="bc">홈</span>
       <div class="tb-r">
-        <span class="tb-lbl">담당자</span>
+        <span class="tb-lbl">담당자 <span style="font-weight:500;color:#9CA3AF">(관리자만)</span></span>
         <select class="flt" id="staffFilter" onchange="applyStaff()">
           <option value="">전체</option>
           <option>이재윤</option><option>정은</option><option>민지</option><option>영철</option>
@@ -160,8 +160,9 @@
             </div>
             <div class="card">
               <div class="c-h"><span class="ti">거래처 담당자 지정</span><button class="more">샘플</button></div>
-              <div style="font-size:12.5px;color:var(--mut);margin-bottom:8px">거래처 대시보드 헤더에서 바로 담당자 배정 → 아래 전 화면이 담당자별로 필터됩니다</div>
-              <div class="asgn"><span class="av">김</span><div class="who"><b>김다정</b><span>헤이데이 · 기장거래처</span></div>
+              <div style="font-size:12.5px;color:var(--mut);margin-bottom:4px">헤더에서 1번 지정 → 그 <b>사람 + 매핑 업체 + 상담방</b> 담당자 자동 동일 (단일 진실)</div>
+              <div style="font-size:11.5px;color:#1D4ED8;background:#EFF6FF;border:1px solid #BFDBFE;padding:6px 10px;border-radius:8px;margin-bottom:8px">선택지 = <b>관리자(is_admin) 계정만</b> · 거래처/일반 사용자·우선순위 라벨은 안 뜸</div>
+              <div class="asgn"><span class="av">김</span><div class="who"><b>김다정</b><span>👤 사람 + 🏢 헤이데이 + 💬 상담방 = 한 담당자</span></div>
                 <select class="seld"><option>담당자 — 정은</option><option>이재윤</option><option>민지</option><option>영철</option><option>미지정</option></select></div>
             </div>
           </div>
@@ -188,6 +189,7 @@
         <div class="h-lbl">모아보기</div>
         <h1>📒 메모 모아보기</h1>
         <div class="h-sub">적은 메모 전부 한 곳에 — 행 클릭 시 해당 거래처 대시보드로 이동 + 그 메모 하이라이트</div>
+        <div class="note">담당자 칸 = <b>관리자(is_admin) 계정만</b> 선택 가능. 사람·업체·상담방이 한 담당자로 묶여 표시됩니다 (단일 진실).</div>
         <div class="fbar">
           <input class="sch" placeholder="🔍 대상·내용 검색…">
           <select class="flt"><option>대상 ▾ 전체</option><option>🏢 업체</option><option>👤 사람</option></select>
@@ -219,7 +221,9 @@
 </div>
 
 <script>
-/* ===== 목업 데이터 (프리뷰 전용 — 백엔드 무관) ===== */
+/* ===== 목업 데이터 (프리뷰 전용 — 백엔드 무관) =====
+   STAFF = 담당자 후보 = is_admin=1 관리자 계정만 (거래처/일반 사용자·우선순위 라벨 제외).
+   사람·업체·상담방이 같은 관리자 1명으로 묶임 = 단일 진실. */
 var STAFF=['이재윤','정은','민지','영철'];
 var MEMOS=[
  {t:'🏢',nm:'세무회계이윤',c:'영수증 줬음 — 5월 매입분 원본 수령',cat:'문서',k:'doc',d:'26.05.19',s:'이재윤'},
