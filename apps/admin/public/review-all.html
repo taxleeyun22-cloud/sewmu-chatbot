@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>검토표 모아보기 — 세무회계 이윤</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--navy:#0B1F3A;--line:#ECEEF1;--ink:#111827;--sub:#4B5563;--mut:#9CA3AF}
+  body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#FAFAFA;color:var(--ink);-webkit-font-smoothing:antialiased}
+  .nav{background:#fff;border-bottom:1px solid var(--line);padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20}
+  .mark{width:24px;height:24px;border-radius:6px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+  .nav b{font-size:14px;letter-spacing:-.02em}
+  .nav .bc{color:var(--mut);font-size:13px;font-weight:500}
+  .nav .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .btn{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:8px;padding:7px 13px;background:#fff;color:var(--ink);cursor:pointer}
+  .btn:hover{background:#F3F4F6}
+  .wrap{max-width:1180px;margin:0 auto;padding:26px 28px 70px}
+  .hl{font-size:11px;font-weight:600;color:var(--mut);letter-spacing:.08em;text-transform:uppercase}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.04em;margin:7px 0 6px}
+  .sub{font-size:13px;color:var(--sub)}
+  .tabs{display:flex;gap:8px;margin:20px 0 14px;flex-wrap:wrap;align-items:center}
+  .tab{border:1px solid #E5E7EB;background:#fff;border-radius:99px;padding:9px 20px;font-size:13.5px;font-weight:600;color:var(--sub);cursor:pointer;font-family:inherit}
+  .tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .tab .c{opacity:.7;margin-left:6px;font-size:12px}
+  .fbar{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .f{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:9px;padding:8px 12px;background:#fff;color:var(--ink);cursor:pointer}
+  .sch{border:1px solid #E5E7EB;border-radius:9px;padding:9px 13px;font-size:13.5px;font-family:inherit;min-width:200px}
+  .note{background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;font-size:12.5px;padding:11px 15px;border-radius:10px;margin-bottom:14px;line-height:1.5}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+  th{text-align:left;font-size:11.5px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:13px 18px;background:#FAFBFC;border-bottom:1px solid var(--line)}
+  td{padding:14px 18px;font-size:13.6px;color:var(--sub);border-bottom:1px solid #F3F4F6}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover td{background:#FAFBFC}
+  .tg{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--ink)}
+  .lnk{color:#1D4ED8;cursor:pointer;text-decoration:none}.lnk:hover{text-decoration:underline}
+  .st{font-size:11.5px;font-weight:700;padding:3px 11px;border-radius:99px}
+  .st.ing{background:#E0F2FE;color:#075985}.st.wait{background:#FEF3C7;color:#92400E}
+  .st.done{background:#DCFCE7;color:#166534}.st.rej{background:#FEE2E2;color:#991B1B}.st.etc{background:#F3F4F6;color:#4B5563}
+  .empty,.load{text-align:center;padding:46px 0;color:var(--mut);font-size:14px}
+  .auth{max-width:520px;margin:80px auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:30px;text-align:center;color:var(--sub);font-size:14px;line-height:1.7}
+  .auth code{background:#F3F4F6;padding:2px 7px;border-radius:5px;font-size:12.5px}
+  body[data-auth="false"] .wrap{display:none}
+  body:not([data-auth="false"]) #authBox{display:none}
+  @media(max-width:640px){.nav,.wrap{padding-left:14px;padding-right:14px}h1{font-size:24px}.fbar{margin-left:0;flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<div class="nav">
+  <span class="mark">이</span><b>세무회계 이윤</b>
+  <span class="bc">/ 검토표 모아보기</span>
+  <span class="r">
+    <button class="btn" onclick="loadReviews()">🔄 새로고침</button>
+    <button class="btn" onclick="window.close()">✕ 닫기</button>
+  </span>
+</div>
+
+<div id="authBox" class="auth">
+  🔐 인증이 필요합니다.<br>
+  URL 에 <code>?key=비밀번호</code> 를 붙이거나, 관리자 화면에서 <b>🧾 검토표 모아보기</b> 버튼으로 열어주세요.
+</div>
+
+<div class="wrap">
+  <div class="hl">모아보기</div>
+  <h1>🧾 검토표 모아보기</h1>
+  <div class="sub">대분류 검토표 → 중분류 종소세·법인세·부가세 → 세분류 각 업체·기장거래처 사람</div>
+
+  <div class="tabs">
+    <button class="tab on" data-t="종소세" onclick="pick(this)">종소세 <span class="c" id="c-종소세">0</span></button>
+    <button class="tab" data-t="법인세" onclick="pick(this)">법인세 <span class="c" id="c-법인세">0</span></button>
+    <button class="tab" data-t="부가세" onclick="pick(this)">부가세 <span class="c" id="c-부가세">0</span></button>
+    <span class="fbar">
+      <input id="q" class="sch" placeholder="🔍 대상 검색…" oninput="_deb()">
+      <select id="st" class="f" onchange="render()">
+        <option value="">상태 · 전체</option><option value="작성중">작성중</option>
+        <option value="결재대기">결재대기</option><option value="완료">완료</option><option value="반려">반려</option>
+      </select>
+    </span>
+  </div>
+  <div class="note" id="note">▸ <b>종소세</b> 검토표 — 행의 업체는 클릭 시 업체 화면으로 이동. 작성중·결재대기·완료 상태별 확인.</div>
+
+  <table>
+    <thead><tr><th style="width:30%">세분류 (대상)</th><th style="width:12%">구분</th><th style="width:12%">귀속연도</th><th style="width:16%">상태</th><th>검토 메모</th></tr></thead>
+    <tbody id="list"><tr><td colspan="5" class="load">불러오는 중…</td></tr></tbody>
+  </table>
+</div>
+
+<script>
+/* 검토표 모아보기 — 독립 페이지 (2026-05-19 사장님 본적용 #2).
+ * memo-all.html 패턴 동일. 기존 admin-filings API 재사용 (?all=1). 읽기 전용. */
+var KEY = new URLSearchParams(location.search).get('key') || (function(){ try{return sessionStorage.getItem('admin_key')||''}catch(_){return ''} })();
+var ALL = [];               /* 전체 filings */
+var curType = '종소세';
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
+var _t=null; function _deb(){ clearTimeout(_t); _t=setTimeout(render,250); }
+function openBiz(id){ window.open('/business.html?id='+id+'&key='+encodeURIComponent(KEY),'_blank','noopener'); }
+function stClass(s){ if(s==='완료')return'done'; if(s==='결재대기')return'wait'; if(s==='작성중')return'ing'; if(s==='반려')return'rej'; return'etc'; }
+function pick(el){
+  document.querySelectorAll('.tab').forEach(function(b){b.classList.remove('on')});
+  el.classList.add('on'); curType=el.dataset.t;
+  document.getElementById('note').innerHTML='▸ <b>'+esc(curType)+'</b> 검토표 — 행의 업체는 클릭 시 업체 화면으로 이동. 작성중·결재대기·완료 상태별 확인.';
+  render();
+}
+async function loadReviews(){
+  if(!KEY){ document.body.dataset.auth='false'; return; }
+  var box=document.getElementById('list'); box.innerHTML='<tr><td colspan="5" class="load">불러오는 중…</td></tr>';
+  try{
+    var r=await fetch('/api/admin-filings?all=1&key='+encodeURIComponent(KEY));
+    if(r.status===401){ document.body.dataset.auth='false'; return; }
+    var d=await r.json();
+    if(!d.ok){ box.innerHTML='<tr><td colspan="5" class="empty" style="color:#dc2626">불러오기 실패: '+esc(d.error||'unknown')+'</td></tr>'; return; }
+    ALL=d.filings||[];
+    ['종소세','법인세','부가세'].forEach(function(t){
+      var n=ALL.filter(function(f){return f.type===t}).length;
+      var el=document.getElementById('c-'+t); if(el) el.textContent=n;
+    });
+    render();
+  }catch(e){ box.innerHTML='<tr><td colspan="5" class="empty" style="color:#dc2626">오류: '+esc(e.message)+'</td></tr>'; }
+}
+function render(){
+  var q=(document.getElementById('q').value||'').trim();
+  var sf=document.getElementById('st').value;
+  var rows=ALL.filter(function(f){
+    if(f.type!==curType) return false;
+    if(sf && f.review_status!==sf) return false;
+    if(q){
+      var nm=f.owner_type==='Business'?(f.business_name||''):(f.person_real_name||f.person_name||'');
+      if(nm.indexOf(q)<0) return false;
+    }
+    return true;
+  });
+  var box=document.getElementById('list');
+  if(!rows.length){ box.innerHTML='<tr><td colspan="5" class="empty">'+esc(curType)+' 검토표가 없습니다</td></tr>'; return; }
+  box.innerHTML=rows.map(function(f){
+    var isBiz=f.owner_type==='Business';
+    var nm=isBiz?(f.business_name||'업체 #'+f.owner_id):(f.person_real_name||f.person_name||'거래처 #'+f.owner_id);
+    var icon=isBiz?'🏢':'👤';
+    var tg=isBiz
+      ? '<span class="tg">'+icon+' <a class="lnk" onclick="openBiz('+f.owner_id+')">'+esc(nm)+'</a></span>'
+      : '<span class="tg">'+icon+' '+esc(nm)+'</span>';
+    var stv=f.review_status||'작성중';
+    return '<tr>'
+      +'<td>'+tg+'</td>'
+      +'<td>'+(isBiz?'업체':'기장')+'</td>'
+      +'<td style="color:#6b7280">'+esc(String(f.fiscal_year||'—'))+'귀속</td>'
+      +'<td><span class="st '+stClass(stv)+'">'+esc(stv)+'</span></td>'
+      +'<td style="white-space:pre-wrap;word-break:break-word;color:#6b7280">'+esc(f.reviewer_comment||'—')+'</td>'
+      +'</tr>';
+  }).join('');
+}
+loadReviews();
+</script>
+</body>
+</html>

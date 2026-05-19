@@ -171,6 +171,7 @@ export default defineConfig({
         { src: 'biz-dash-preview.html', dest: '.' },
         { src: 'home-preview.html', dest: '.' },
         { src: 'memo-all.html', dest: '.' },
+        { src: 'review-all.html', dest: '.' },
         // Phase H2 (2026-05-04): admin/staff/office 모달 통합 묶음 (fetch + insertAdjacentHTML 패턴)
         { src: 'admin-modals.html', dest: '.' },
         // Phase H3 (2026-05-04): index.html 인라인 JS 3468줄 외부화

@@ -889,7 +889,10 @@
     #custDashModal #cdBasic,#custDashModal #cdDocs,#custDashModal #cdBizDocs,
     #custDashModal #cdFilings,#custDashModal #cdFilingsReview,#custDashModal #cdMemoList,
     #custDashModal #cdTodos,#custDashModal #cdSummaries,#custDashModal #cdRecentChat{
-      font-size:13.6px!important;color:#374151!important;line-height:1.55}
+      font-size:15px!important;color:#374151!important;line-height:1.65!important}
+    /* 글자 작고 깨짐 대응 (2026-05-19 사장님) — 본문 base 키움(13.6→15) + 카드 여백 ↑.
+       배지·버튼 등 em 자식은 그대로 비례 확대 (와일드카드 강제 X — 레이아웃 보존). */
+    #custDashModal [style*="border-radius:12px"]{padding:22px 24px!important}
     /* 2컬럼 그리드 (admin-custdash-grid.js 가 cd-grid/cd-main/cd-side 생성) */
     #custDashModal .cd-grid{display:grid!important;grid-template-columns:1fr 340px;gap:22px;align-items:start}
     #custDashModal .cd-main,#custDashModal .cd-side{min-width:0;display:flex;flex-direction:column;gap:18px}

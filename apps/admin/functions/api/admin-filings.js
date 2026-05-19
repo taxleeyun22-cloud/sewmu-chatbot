@@ -129,6 +129,36 @@ export async function onRequestGet(context) {
     }
   }
 
+  /* 검토표 모아보기 (2026-05-19 사장님 본적용 #2) — 전체 Filing 한 목록.
+     기존 데이터 읽기 전용. owner 명 LEFT JOIN. 필터: type / status / year. 추가형 — 회귀 0. */
+  if (url.searchParams.get('all') === '1') {
+    const tF = (url.searchParams.get('type') || '').trim();
+    const sF = (url.searchParams.get('status') || '').trim();
+    const yF = Number(url.searchParams.get('year') || 0);
+    try {
+      const where = ["(f.deleted_at IS NULL OR f.deleted_at = '')"];
+      const binds = [];
+      if (tF) { where.push('f.type = ?'); binds.push(tF); }
+      if (sF) { where.push('f.review_status = ?'); binds.push(sF); }
+      if (yF) { where.push('f.fiscal_year = ?'); binds.push(yF); }
+      const { results } = await db.prepare(`
+        SELECT f.id, f.type, f.fiscal_year, f.owner_type, f.owner_id,
+               f.review_status, f.reviewer_comment, f.created_at, f.updated_at,
+               u.real_name AS person_real_name, u.name AS person_name,
+               b.company_name AS business_name
+          FROM filings f
+          LEFT JOIN users u ON f.owner_type = 'Person' AND f.owner_id = u.id
+          LEFT JOIN businesses b ON f.owner_type = 'Business' AND f.owner_id = b.id
+         WHERE ${where.join(' AND ')}
+         ORDER BY f.fiscal_year DESC, f.type ASC, f.updated_at DESC
+         LIMIT 800
+      `).bind(...binds).all();
+      return Response.json({ ok: true, filings: results || [] });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   /* list — 그 owner 의 모든 Case */
   const ownerType = url.searchParams.get('owner_type');
   const ownerId = Number(url.searchParams.get('owner_id') || 0);
