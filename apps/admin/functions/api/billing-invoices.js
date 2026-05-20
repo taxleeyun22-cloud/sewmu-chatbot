@@ -28,6 +28,24 @@ function safeStr(v, max) {
   return max ? s.slice(0, max) : s;
 }
 
+/* s2_items: array of {name, val, qty} → JSON string. 활증업무 — 양식 선택 + 직접 입력. */
+function normalizeS2Items(input) {
+  if (!input) return null;
+  let arr = input;
+  if (typeof input === 'string') {
+    try { arr = JSON.parse(input); } catch { return null; }
+  }
+  if (!Array.isArray(arr)) return null;
+  const safe = arr.filter(a => a && typeof a === 'object' && a.name)
+    .slice(0, 50)
+    .map(a => ({
+      name: String(a.name).slice(0, 200),
+      val: Number(a.val) || 0,
+      qty: Number(a.qty) || 1,
+    }));
+  return safe.length ? JSON.stringify(safe) : null;
+}
+
 /* s3_items: array of {code, name, amt, billable, rule, addition} → JSON string */
 function normalizeS3Items(input) {
   if (!input) return null;
@@ -82,6 +100,9 @@ async function ensureTable(db) {
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_billing_status ON billing_invoices(status, created_at DESC)`).run(); } catch {}
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_billing_staff ON billing_invoices(staff_user_id, status)`).run(); } catch {}
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_billing_year ON billing_invoices(year, tax_type)`).run(); } catch {}
+  /* Phase X Step 4 (2026-05-20): Section 2 (활증업무) — lazy ALTER */
+  try { await db.prepare(`ALTER TABLE billing_invoices ADD COLUMN s2_addition INTEGER DEFAULT 0`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE billing_invoices ADD COLUMN s2_items TEXT`).run(); } catch {}
 
   await db.prepare(`CREATE TABLE IF NOT EXISTS billing_template (
     id INTEGER PRIMARY KEY,
@@ -150,7 +171,7 @@ export async function onRequestGet(context) {
   const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const { results } = await db.prepare(`
     SELECT i.id, i.business_id, i.user_id, i.filing_id, i.year, i.tax_type,
-           i.revenue, i.base_fee, i.s3_addition, i.discount, i.total_fee,
+           i.revenue, i.base_fee, i.s2_addition, i.s3_addition, i.discount, i.total_fee,
            i.staff_user_id, i.staff_override, i.status, i.sent_at, i.paid_at, i.paid_amount,
            i.created_at, i.updated_at,
            b.company_name AS business_name,
@@ -241,9 +262,11 @@ export async function onRequestPost(context) {
     biz_type: safeStr(body.biz_type, 100),
     basic_type: safeStr(body.basic_type, 100),
     base_fee: safeNum(body.base_fee, 0),
+    s2_addition: safeNum(body.s2_addition, 0),
     s3_addition: safeNum(body.s3_addition, 0),
     discount: safeNum(body.discount, 0),
     total_fee: safeNum(body.total_fee, 0),
+    s2_items: normalizeS2Items(body.s2_items),
     s3_items: normalizeS3Items(body.s3_items),
     staff_user_id: safeNum(body.staff_user_id),
     staff_override: body.staff_override ? 1 : 0,
@@ -256,14 +279,14 @@ export async function onRequestPost(context) {
     INSERT INTO billing_invoices (
       business_id, user_id, filing_id, year, tax_type,
       revenue, asset, biz_type, basic_type,
-      base_fee, s3_addition, discount, total_fee, s3_items,
+      base_fee, s2_addition, s3_addition, discount, total_fee, s2_items, s3_items,
       staff_user_id, staff_override, status, note, created_by_user_id,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     row.business_id, row.user_id, row.filing_id, row.year, row.tax_type,
     row.revenue, row.asset, row.biz_type, row.basic_type,
-    row.base_fee, row.s3_addition, row.discount, row.total_fee, row.s3_items,
+    row.base_fee, row.s2_addition, row.s3_addition, row.discount, row.total_fee, row.s2_items, row.s3_items,
     row.staff_user_id, row.staff_override, row.status, row.note, row.created_by_user_id,
     now, now,
   ).run();
@@ -301,6 +324,8 @@ export async function onRequestPatch(context) {
   if ('s3_addition' in body) setField('s3_addition', safeNum(body.s3_addition, 0));
   if ('discount' in body) setField('discount', safeNum(body.discount, 0));
   if ('total_fee' in body) setField('total_fee', safeNum(body.total_fee, 0));
+  if ('s2_addition' in body) setField('s2_addition', safeNum(body.s2_addition, 0));
+  if ('s2_items' in body) setField('s2_items', normalizeS2Items(body.s2_items));
   if ('s3_items' in body) setField('s3_items', normalizeS3Items(body.s3_items));
   if ('staff_user_id' in body) setField('staff_user_id', safeNum(body.staff_user_id));
   if ('staff_override' in body) setField('staff_override', body.staff_override ? 1 : 0);

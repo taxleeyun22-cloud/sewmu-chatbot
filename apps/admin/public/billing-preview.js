@@ -40,18 +40,11 @@ var selectedBizId=null;
 var INV_S2=[];  /* 현재 청구서 적용 Section 2 (활증업무) — {name, val, qty} */
 var INV_S3=[];  /* 현재 선택된 거래처의 Section 3 적용분 (검토표 자동흐름 후 사장님 편집) */
 
-var INVOICES=[
-  {id:1,cust:'박수현 컨설팅(주)',taxType:'법인세',yr:2025,iDate:'2025-03-15',due:'2025-04-30',amount:3278000,sent:true,paid:false,paidAt:'',staff:'민지',override:false},
-  {id:2,cust:'박수현 베이커리(주)',taxType:'법인세',yr:2024,iDate:'2025-03-20',due:'2025-04-30',amount:4100000,sent:true,paid:false,paidAt:'',staff:'정은',override:true},
-  {id:3,cust:'박수현',taxType:'종소세',yr:2024,iDate:'2025-05-01',due:'2025-05-31',amount:1800000,sent:true,paid:false,paidAt:'',staff:'민지',override:false},
-  {id:4,cust:'김다정',taxType:'종소세',yr:2024,iDate:'2025-04-22',due:'2025-05-31',amount:980000,sent:true,paid:true,paidAt:'2025-05-12',staff:'정은',override:false},
-  {id:5,cust:'헤이데이',taxType:'부가세',yr:2025,iDate:'2025-04-25',due:'2025-05-10',amount:520000,sent:true,paid:false,paidAt:'',staff:'정은',override:false},
-  {id:6,cust:'김유남 법인',taxType:'법인세',yr:2024,iDate:'2025-03-10',due:'2025-04-30',amount:2900000,sent:true,paid:true,paidAt:'2025-04-25',staff:'민지',override:false},
-  {id:7,cust:'하주성 카페',taxType:'종소세',yr:2024,iDate:'2025-05-08',due:'2025-05-31',amount:1450000,sent:true,paid:false,paidAt:'',staff:'영철',override:false},
-  {id:8,cust:'(주)고성산업개발',taxType:'법인세',yr:2025,iDate:'2025-03-18',due:'2025-04-30',amount:5800000,sent:true,paid:false,paidAt:'',staff:'예슬',override:false},
-  {id:9,cust:'이경식',taxType:'종소세',yr:2024,iDate:'2025-04-30',due:'2025-05-31',amount:2100000,sent:true,paid:true,paidAt:'2025-05-18',staff:'영철',override:false},
-  {id:10,cust:'편민우',taxType:'종소세',yr:2024,iDate:'2025-05-05',due:'2025-05-31',amount:680000,sent:false,paid:false,paidAt:'',staff:'민지',override:false}
-];
+/* Phase X Step 4 (2026-05-20): mock INVOICES 폐기 → /api/billing-invoices fetch (실제 D1).
+ * 진입 시 loadInvoiceList() 호출 → 응답으로 INVOICES 채움 (빈 list 시작).
+ * publish() → POST → 응답 받아 unshift. invPay/Unpay/Staff → PATCH. */
+var INVOICES=[];
+var INVOICES_LOADED=false;
 
 var curTplForm='corp', TODAY=new Date('2025-05-20');
 
@@ -64,7 +57,7 @@ function catLabel(c){return{general:'일반',special:'특별공제',credit_inves
 function calcBase(amount,form){var t=TARIFF[form];var row=t[0];for(var i=0;i<t.length;i++){if(amount>=t[i][0])row=t[i];else break}return Math.floor((row[1]+(amount-row[0])*((row[2]||0)/100))/1000)*1000}
 function calcGain(amt,rule){if(rule==='flat_5')return Math.floor(amt*0.05);if(rule==='progressive_u'){var g=0;if(amt<=5000000)g=amt*0.20;else if(amt<=10000000)g=amt*0.10;else g=amt*0.20;return Math.floor(g)}return 0}
 
-function nav(el){document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));el.classList.add('on');var v=el.dataset.v;document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));$('v-'+v).classList.add('on');$('bc').textContent={tpl:'청구서 양식 (템플릿)',list:'청구서 모아보기',cust:'거래처 dashboard — 청구서 발행',manual:'수기 청구서 발행'}[v];if(v==='tpl')renderTpl();if(v==='list')renderList();if(v==='cust')renderCust();if(v==='manual')renderManual();window.scrollTo(0,0)}
+function nav(el){document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));el.classList.add('on');var v=el.dataset.v;document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));$('v-'+v).classList.add('on');$('bc').textContent={tpl:'청구서 양식 (템플릿)',list:'청구서 모아보기',cust:'거래처 dashboard — 청구서 발행',manual:'수기 청구서 발행'}[v];if(v==='tpl')renderTpl();if(v==='list'){loadInvoiceList();renderList();}if(v==='cust')renderCust();if(v==='manual')renderManual();window.scrollTo(0,0)}
 function filterStaff(){renderList();refreshAlert()}
 function pickTpl(el){document.querySelectorAll('#tplTabs .tab').forEach(b=>b.classList.remove('on'));el.classList.add('on');curTplForm=el.dataset.t;$('tplFormLabel').textContent=curTplForm==='corp'?'법인':'개인';renderTpl()}
 
@@ -130,6 +123,62 @@ function syncSamplePreview(){
 function saveTpl(){showToast('✅ 양식(템플릿) 저장 — 모든 청구서 즉시 반영')}
 
 /* ===== 2. 청구서 모아보기 ===== */
+/* Phase X Step 4 (2026-05-20): /api/billing-invoices GET — D1 의 실제 청구서 list */
+async function loadInvoiceList(force){
+  if(!force && INVOICES_LOADED) return;
+  try{
+    var r=await fetch('/api/billing-invoices'+adminKeyQS('?'),{credentials:'include'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var d=await r.json();
+    INVOICES=(d.invoices||[]).map(serverRowToInvoice);
+    INVOICES_LOADED=true;
+    renderList();
+  }catch(e){
+    _billingError('loadInvoiceList', e);
+    showToast('⚠️ 청구서 list 로드 실패 — '+(e&&e.message));
+  }
+}
+
+/* Phase X Step 5 (2026-05-20): 통합 에러 로깅 — console.error + error-logs API 1회 (rate-limit) */
+var _billingErrorCount={};
+function _billingError(op, err){
+  console.error('[billing] '+op+' 실패:', err);
+  /* op 별 1회만 보고 (스팸 방지) */
+  if(_billingErrorCount[op]) return;
+  _billingErrorCount[op]=1;
+  try{
+    fetch('/api/admin-error-log'+adminKeyQS('?'),{
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        source:'billing-preview',
+        message:op+' failed: '+(err&&err.message||String(err)),
+        level:'error',
+        url:location.href,
+      }),
+    }).catch(()=>{});
+  }catch(_){}
+}
+/* D1 row → 클라이언트 invoice 객체 (UI 호환) */
+function serverRowToInvoice(row){
+  return {
+    id: row.id,
+    cust: row.business_name || row.user_name || '(이름없음)',
+    business_id: row.business_id,
+    user_id: row.user_id,
+    taxType: row.tax_type || '종소세',
+    yr: row.year || new Date().getFullYear(),
+    iDate: (row.created_at||'').slice(0,10),
+    due: row.sent_at ? (row.sent_at.slice(0,10)) : '',
+    amount: row.total_fee || 0,
+    sent: row.status==='sent' || row.status==='paid',
+    paid: row.status==='paid',
+    paidAt: (row.paid_at||'').slice(0,10),
+    staff: row.staff_name || personStaff,
+    override: !!row.staff_override,
+    _server: row
+  };
+}
 function refreshAlert(){var gs=$('globStaff').value;var mis=INVOICES.filter(i=>{if(gs&&i.staff!==gs)return false;return statusOf(i).code==='r'});var t=mis.reduce((a,i)=>a+i.amount,0);$('alertN').textContent=mis.length;$('alertW').textContent=W(t);$('alertBox').style.display=mis.length?'flex':'none';$('cnt-mis').textContent=mis.length}
 function renderList(){refreshAlert();var yr=$('lYr').value,tax=$('lTax').value,staff=$('lStaff').value,state=$('lState').value,q=($('lQ').value||'').trim(),gs=$('globStaff').value;
   var filt=INVOICES.filter(i=>{if(yr&&String(i.yr)!==yr)return false;if(tax&&i.taxType!==tax)return false;if(staff&&i.staff!==staff)return false;if(gs&&i.staff!==gs)return false;if(q&&i.cust.indexOf(q)<0)return false;if(state&&statusOf(i).code!==state)return false;return true});
@@ -156,9 +205,54 @@ function renderList(){refreshAlert();var yr=$('lYr').value,tax=$('lTax').value,s
   if(!filt.length)html='<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--mut)">조건 없음</td></tr>';
   $('listBody').innerHTML=html;
 }
-function invPay(e,id){e.stopPropagation();var i=INVOICES.find(x=>x.id===id);if(i){i.paid=true;i.paidAt='2025-05-20';renderList();showToast('🟢 '+i.cust+' 수금')}}
-function invUnpay(e,id){e.stopPropagation();var i=INVOICES.find(x=>x.id===id);if(i){i.paid=false;i.paidAt='';renderList();showToast('미수로')}}
-function invStaffChange(e,id,v){e.stopPropagation();var i=INVOICES.find(x=>x.id===id);if(i){i.staff=v;i.override=true;renderList();showToast('💡 '+i.cust+' 담당자 → '+v)}}
+/* Phase X Step 4 (2026-05-20): 상태 변경 — PATCH /api/billing-invoices?id=N */
+async function patchInvoice(id, body, optimisticFn, optimisticUndoFn){
+  /* optimistic UI 갱신 */
+  if(typeof optimisticFn==='function') optimisticFn();
+  renderList();
+  try{
+    var r=await fetch('/api/billing-invoices?id='+id+adminKeyQS('&'),{
+      method:'PATCH', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body),
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var d=await r.json();
+    if(!d.ok) throw new Error(d.error||'PATCH failed');
+  }catch(e){
+    _billingError('PATCH', e);
+    showToast('⚠️ 저장 실패 (rollback) — '+(e&&e.message));
+    if(typeof optimisticUndoFn==='function') optimisticUndoFn();
+    renderList();
+  }
+}
+function invPay(e,id){
+  e.stopPropagation();
+  var i=INVOICES.find(x=>x.id===id); if(!i) return;
+  if(i._manual){ i.paid=true; i.paidAt=new Date().toISOString().slice(0,10); renderList(); showToast('🟢 '+i.cust+' 수금 (수기, in-memory)'); return; }
+  var prev={paid:i.paid, paidAt:i.paidAt};
+  patchInvoice(id, {status:'paid'},
+    ()=>{ i.paid=true; i.paidAt=new Date().toISOString().slice(0,10); showToast('🟢 '+i.cust+' 수금'); },
+    ()=>{ i.paid=prev.paid; i.paidAt=prev.paidAt; });
+}
+function invUnpay(e,id){
+  e.stopPropagation();
+  var i=INVOICES.find(x=>x.id===id); if(!i) return;
+  if(i._manual){ i.paid=false; i.paidAt=''; renderList(); showToast('미수로 (수기)'); return; }
+  var prev={paid:i.paid, paidAt:i.paidAt};
+  patchInvoice(id, {status:'sent', paid_at:''},
+    ()=>{ i.paid=false; i.paidAt=''; showToast('미수로'); },
+    ()=>{ i.paid=prev.paid; i.paidAt=prev.paidAt; });
+}
+function invStaffChange(e,id,v){
+  e.stopPropagation();
+  var i=INVOICES.find(x=>x.id===id); if(!i) return;
+  if(i._manual){ i.staff=v; i.override=true; renderList(); showToast('💡 '+i.cust+' 담당자 → '+v+' (수기)'); return; }
+  var prev={staff:i.staff, override:i.override};
+  patchInvoice(id, {staff_override:true, note:'staff:'+v},
+    ()=>{ i.staff=v; i.override=true; showToast('💡 '+i.cust+' 담당자 → '+v); },
+    ()=>{ i.staff=prev.staff; i.override=prev.override; });
+}
 function openCustFromList(){nav(document.querySelector('[data-v=cust]'));showToast('📂 거래처 dashboard 로 — 거기서 청구서 발행')}
 
 /* ===== 3. 거래처 dashboard — 청구서 발행 (C1: 진짜 거래처 fetch) ===== */
@@ -608,17 +702,55 @@ function syncCustPreview(){
   $('cpv-s3-sum').textContent=W(INV_S3.reduce((a,s)=>a+(s.gain||0),0));
 }
 
-function publish(){
+/* Phase X Step 4 (2026-05-20): publish — POST /api/billing-invoices (D1 저장) */
+async function publish(){
   var b=BIZS.find(x=>x.id===selectedBizId)||BIZS[0];
   if(!b){ showToast('⚠️ 사업장 먼저 선택'); return; }
   var yr=$('i-yr').value, bt=$('i-bt').value;
   var tt=bt.includes('법인')?'법인세':'종소세';
+  var rev=parseFloat($('i-rev').value)||0;
+  var asset=parseFloat($('i-asset').value)||0;
+  var disc=parseFloat($('i-disc').value)||0;
   var amt=parseFloat(($('cpv-total').textContent||'0').replace(/[^0-9]/g,''))||0;
-  var nid=Math.max.apply(null,INVOICES.map(i=>i.id))+1;
-  var staff=b.override?b.staff:personStaff;
-  INVOICES.unshift({id:nid,cust:b.name,taxType:tt,yr:+yr,iDate:$('i-date').value,due:$('i-due').value,amount:amt,sent:true,paid:false,paidAt:'',staff:staff,override:b.override});
-  showToast('💾 '+b.name+' '+yr+'년 청구서 발행 → 모아보기 ('+W(amt)+'원, '+staff+' 담당) — C3 에서 진짜 POST /api/billing-invoices');
-  setTimeout(()=>nav(document.querySelector('[data-v=list]')),900);
+  var baseFee=parseFloat(($('cpv-base').textContent||'0').replace(/[^0-9]/g,''))||0;
+  var extra=parseFloat(($('cpv-extra').textContent||'0').replace(/[^0-9]/g,''))||0;
+  var s2Total=INV_S2.reduce((a,s)=>a+((s.val||0)*(s.qty||1)),0);
+  var s3Tot=INV_S3.reduce((a,s)=>a+(s.gain||0),0);
+  var body={
+    business_id: b.id,
+    user_id: SELECTED_PERSON ? SELECTED_PERSON.id : null,
+    year: +yr,
+    tax_type: tt,
+    revenue: rev,
+    asset: asset,
+    biz_type: $('i-bizup').value || null,
+    basic_type: bt || null,
+    base_fee: baseFee,
+    s2_addition: s2Total,
+    s3_addition: s3Tot,
+    discount: disc,
+    total_fee: amt,
+    s2_items: INV_S2,
+    s3_items: INV_S3,
+    staff_override: b.override?1:0,
+    status: 'pending',
+  };
+  try{
+    var r=await fetch('/api/billing-invoices'+adminKeyQS('?'),{
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body),
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var d=await r.json();
+    if(!d.ok) throw new Error(d.error||'POST failed');
+    showToast('💾 '+b.name+' '+yr+'년 청구서 발행 ('+W(amt)+'원) — D1 저장 OK (id '+d.id+')');
+    await loadInvoiceList(true);  /* 모아보기 갱신 */
+    setTimeout(()=>nav(document.querySelector('[data-v=list]')),900);
+  }catch(e){
+    _billingError('publish', e);
+    showToast('⚠️ 발행 실패 — '+(e&&e.message)+' (다시 시도)');
+  }
 }
 function custStaffChange(){
   personStaff=$('custStaff').value;
@@ -752,16 +884,21 @@ function syncManualPreview(){
   if(disc>0){$('mpv-disc-row').style.display='flex';$('mpv-disc').textContent='▼ '+W(disc)+'원'}else{$('mpv-disc-row').style.display='none'}
   $('mpv-total').textContent=total?W(total)+'원':'—';
 }
+/* Phase X Step 4 (2026-05-20): 수기 발행 — D1 미저장 (in-memory only).
+ * 사장님 수기 모드 = 검토표 X, business_id/user_id 매핑 X. 1회성 PDF 출력만.
+ * 향후 본적용 시 manual_label 컬럼 추가 시 D1 저장 가능. */
 function publishManual(){
   var cn=$('m-cn').value.trim();
   if(!cn){alert('거래처명 필수');return}
   var yr=$('m-yr').value,bt=$('m-bt').value;
   var tt=bt.includes('법인')?'법인세':bt.includes('부가')?'부가세':bt.includes('개인')?'종소세':'기타';
   var amt=parseFloat(($('mpv-total').textContent||'0').replace(/[^0-9]/g,''))||0;
-  var nid=Math.max.apply(null,INVOICES.map(i=>i.id))+1;
+  /* in-memory id (실제 D1 저장 X) — 진짜 id 와 충돌 방지 위해 negative */
+  var nid=-Date.now();
   var staff=$('m-staff').value;
-  INVOICES.unshift({id:nid,cust:cn,taxType:tt,yr:+yr,iDate:$('m-date').value,due:$('m-due').value,amount:amt,sent:true,paid:false,paidAt:'',staff:staff,override:false});
-  showToast('💾 '+cn+' '+yr+'년 수기 발행 → 모아보기 ('+W(amt)+'원, '+staff+' 담당)');
+  INVOICES.unshift({id:nid,cust:cn,taxType:tt,yr:+yr,iDate:$('m-date').value,due:$('m-due').value,amount:amt,sent:true,paid:false,paidAt:'',staff:staff,override:false,_manual:true});
+  showToast('💾 '+cn+' '+yr+'년 수기 발행 ('+W(amt)+'원) — 임시 in-memory (D1 미저장)');
+  renderList();
   setTimeout(()=>nav(document.querySelector('[data-v=list]')),900);
 }
 function bizStaffChange(id,v){var b=BIZS.find(x=>x.id===id);if(!b)return;if(v===personStaff&&!b.override)return;b.staff=v;b.override=true;showToast('⚙ '+b.name+' → '+v);renderCust()}
