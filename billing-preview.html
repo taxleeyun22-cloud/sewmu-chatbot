@@ -538,6 +538,15 @@
               <div style="font-size:10.5px;color:#92400E;margin-top:2px;padding-left:4px">📝 검토표 데이터(수입금액·공제감면)는 자동 prefill 되지만, <b>할인액만은 항상 사장님 수기 입력</b>입니다.</div>
             </div>
 
+            <!-- 이 청구서 Section 2 적용분 (활증업무 — 사장님 명령 2026-05-20: 직접 추가) -->
+            <div class="card">
+              <div class="c-h"><span class="ti">📞 Section 2 — 이 청구서 적용 활증업무</span><span class="badge" id="i-s2Cnt">0</span>
+                <span class="right-act"><button class="btn" style="font-size:11.5px" onclick="openS2Picker('cust')">+ 항목 추가</button></span>
+              </div>
+              <div class="help" style="background:#EFF6FF;border-color:#BFDBFE;color:#1E40AF">💡 양식에 등록된 활증업무 (4대보험·부가세 수정신고·신용카드 검토 등) 에서 골라 거래처별 추가. 단가 + 건수 입력 → 자동 계산.</div>
+              <table class="ftbl"><thead><tr><th style="width:38%">항목</th><th style="width:18%">단가</th><th style="width:14%">건수</th><th style="width:18%">가산액</th><th style="width:8%"></th></tr></thead><tbody id="i-s2Body"></tbody></table>
+            </div>
+
             <!-- 이 청구서 Section 3 적용분 -->
             <div class="card">
               <div class="c-h"><span class="ti">💸 Section 3 — 이 거래처 적용 세액공제·감면</span><span class="badge" id="i-s3Cnt">0</span>
@@ -687,6 +696,15 @@
               </div>
             </div>
 
+            <!-- 수기 Section 2 -->
+            <div class="card">
+              <div class="c-h"><span class="ti">📞 Section 2 적용 (활증업무 — 직접 추가)</span><span class="badge" id="m-s2Cnt">0</span>
+                <span class="right-act"><button class="btn" style="font-size:11.5px" onclick="openS2Picker('manual')">+ 항목</button></span>
+              </div>
+              <div class="help" style="background:#EFF6FF;border-color:#BFDBFE;color:#1E40AF">📝 양식에 등록된 활증업무에서 골라 직접 추가. 단가 × 건수 = 가산액.</div>
+              <table class="ftbl"><thead><tr><th style="width:38%">항목</th><th style="width:18%">단가</th><th style="width:14%">건수</th><th style="width:18%">가산액</th><th style="width:8%"></th></tr></thead><tbody id="m-s2Body"></tbody></table>
+            </div>
+
             <div class="card">
               <div class="c-h"><span class="ti">💸 Section 3 적용 (직접 추가)</span><span class="badge" id="m-s3Cnt">0</span>
                 <span class="right-act"><button class="btn" style="font-size:11.5px" onclick="addS3Manual()">+ 항목</button></span>
@@ -750,6 +768,35 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- S2 항목 추가 모달 (Section 2 활증업무 — 양식 SECTIONS[form].s2 에서 선택) -->
+<div id="s2Modal" class="s3-modal-overlay" style="display:none" onclick="if(event.target===this)closeS2Picker()">
+  <div class="s3-modal-card" onclick="event.stopPropagation()">
+    <div class="s3-modal-h">
+      <div><b>📞 활증업무 항목 추가</b> <span class="mut" id="s2ModalSub"></span></div>
+      <button onclick="closeS2Picker()" class="btn-x" type="button">✕</button>
+    </div>
+    <div class="s3-modal-body">
+      <input type="text" id="s2PickSearch" oninput="renderS2Picks()" placeholder="🔍 검색 (양식의 활증업무 항목)">
+      <div class="s3-pick-cnt"><b id="s2PickCnt">0</b>개 항목 표시 · 양식 (Section 2) 에 등록된 활증업무</div>
+      <div id="s2PickResults" class="s3-picks-grid"></div>
+    </div>
+    <div class="s3-modal-amt" id="s2PickInputArea" style="display:none">
+      <div class="s3-pick-selected">선택: <b id="s2PickSelectedName">—</b> <span class="s3-pick-selected-meta" id="s2PickSelectedMeta"></span></div>
+      <div class="s3-amt-row">
+        <label>단가 (원)</label>
+        <input type="number" id="s2PickVal" oninput="updateS2PickGain()" placeholder="양식 단가">
+        <label style="min-width:50px;margin-left:8px">건수</label>
+        <input type="number" id="s2PickQty" oninput="updateS2PickGain()" placeholder="1" style="flex:0 0 100px">
+        <span class="unit">= 가산 <b id="s2PickGain" style="color:#0B1F3A">—</b></span>
+      </div>
+      <div class="s3-modal-actions">
+        <button onclick="closeS2Picker()" class="btn" type="button">취소</button>
+        <button onclick="confirmS2Pick()" class="btn-primary" type="button">+ 추가</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- S3 항목 추가 모달 (사장님 명령 2026-05-20: prompt() 대신 깔끔한 모달) -->
 <div id="s3Modal" class="s3-modal-overlay" style="display:none" onclick="if(event.target===this)closeS3Picker()">
   <div class="s3-modal-card" onclick="event.stopPropagation()">
@@ -803,6 +850,7 @@ var BIZS=[];              /* 발행 대상 사업장 list (사람 모드: 매핑
 var custMode='person';    /* 'person' | 'business' */
 var personStaff='민지';
 var selectedBizId=null;
+var INV_S2=[];  /* 현재 청구서 적용 Section 2 (활증업무) — {name, val, qty} */
 var INV_S3=[];  /* 현재 선택된 거래처의 Section 3 적용분 (검토표 자동흐름 후 사장님 편집) */
 
 var INVOICES=[
@@ -1147,8 +1195,127 @@ function selectBiz(id){
   $('bizPicker').querySelectorAll('button').forEach((btn,idx)=>{
     btn.classList.toggle('on', BIZS[idx] && BIZS[idx].id===id);
   });
-  renderS3(); syncCustPreview();
+  renderS2(); renderS3(); syncCustPreview();
 }
+/* Section 2 (활증업무) — INV_S2 (거래처) / MAN_S2 (수기) */
+function renderS2(){
+  $('i-s2Cnt').textContent=INV_S2.length;
+  $('i-s2Body').innerHTML=INV_S2.map((s2,idx)=>{
+    var gain=(s2.val||0)*(s2.qty||1);
+    return '<tr><td style="font-size:12px;font-weight:600">'+esc(s2.name)+'</td>'
+      +'<td><input type="number" value="'+(s2.val||0)+'" onchange="setS2('+idx+',\'val\',+this.value)"></td>'
+      +'<td><input type="number" value="'+(s2.qty||1)+'" onchange="setS2('+idx+',\'qty\',+this.value)"></td>'
+      +'<td style="font-weight:700;color:#1E40AF">'+W(gain)+'원</td>'
+      +'<td><button class="btn-x" onclick="rmS2('+idx+')">✕</button></td></tr>';
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--mut);padding:14px">+ 항목 추가로 양식의 활증업무에서 선택</td></tr>';
+  syncCustPreview();
+}
+function setS2(i,f,v){ INV_S2[i][f]=v; renderS2(); }
+function rmS2(i){ var n=INV_S2[i].name; INV_S2.splice(i,1); showToast('✕ '+n+' 제거'); renderS2(); }
+function renderManS2(){
+  $('m-s2Cnt').textContent=MAN_S2.length;
+  $('m-s2Body').innerHTML=MAN_S2.map((s2,idx)=>{
+    var gain=(s2.val||0)*(s2.qty||1);
+    return '<tr><td style="font-size:12px;font-weight:600">'+esc(s2.name)+'</td>'
+      +'<td><input type="number" value="'+(s2.val||0)+'" onchange="setManS2('+idx+',\'val\',+this.value)"></td>'
+      +'<td><input type="number" value="'+(s2.qty||1)+'" onchange="setManS2('+idx+',\'qty\',+this.value)"></td>'
+      +'<td style="font-weight:700;color:#1E40AF">'+W(gain)+'원</td>'
+      +'<td><button class="btn-x" onclick="rmManS2('+idx+')">✕</button></td></tr>';
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--mut);padding:14px">+ 항목 추가로 양식의 활증업무에서 선택</td></tr>';
+  syncManualPreview();
+}
+function setManS2(i,f,v){ MAN_S2[i][f]=v; renderManS2(); }
+function rmManS2(i){ var n=MAN_S2[i].name; MAN_S2.splice(i,1); showToast('✕ '+n); renderManS2(); }
+
+/* S2 picker 모달 — 양식(SECTIONS[form].s2)에서 활증업무 선택 */
+var _s2PickMode=null, _s2PickIdx=null;
+function _s2CurrentForm(){
+  if(_s2PickMode==='cust'){
+    var b=BIZS.find(x=>x.id===selectedBizId);
+    return (b && b.form==='법인') ? 'corp' : 'indv';
+  }
+  /* manual: m-bt 업무구분으로 form 결정 */
+  try{
+    var bt=$('m-bt').value||'';
+    if(bt.indexOf('법인')>=0) return 'corp';
+    if(bt.indexOf('개인')>=0) return 'indv';
+  }catch(_){}
+  return 'corp';
+}
+function openS2Picker(mode){
+  _s2PickMode=mode; _s2PickIdx=null;
+  $('s2Modal').style.display='flex';
+  $('s2ModalSub').textContent=(mode==='cust'?'(거래처 발행 — INV_S2)':'(수기 청구서 — MAN_S2)')+' · '+_s2CurrentForm();
+  $('s2PickSearch').value='';
+  $('s2PickSelectedName').textContent='—';
+  $('s2PickSelectedMeta').textContent='';
+  $('s2PickVal').value=''; $('s2PickQty').value='1';
+  $('s2PickGain').textContent='—';
+  $('s2PickInputArea').style.display='none';
+  renderS2Picks();
+  setTimeout(function(){ var el=$('s2PickSearch'); if(el)el.focus(); },50);
+}
+function closeS2Picker(){ $('s2Modal').style.display='none'; _s2PickMode=null; }
+function renderS2Picks(){
+  var q=($('s2PickSearch').value||'').trim().toLowerCase();
+  var src=SECTIONS[_s2CurrentForm()].s2 || [];
+  var list=src.map((it,i)=>({...it,_idx:i})).filter(c=>{
+    if(!q) return true;
+    var h=(c.name+' '+(c.desc||'')).toLowerCase();
+    return h.indexOf(q)>=0;
+  });
+  $('s2PickCnt').textContent=list.length+'/'+src.length;
+  if(!list.length){
+    $('s2PickResults').innerHTML='<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--mut);font-size:12.5px">'+(src.length?'검색 결과 없음':'양식 Section 2 가 비어있음 — 청구서 양식에서 먼저 추가하세요')+'</div>';
+    return;
+  }
+  $('s2PickResults').innerHTML=list.map(c=>{
+    var sel=c._idx===_s2PickIdx;
+    var typeLbl=c.type==='rate'?'기본보수×%':c.type==='unit'?'건당':'직접 입력';
+    return '<button class="s3-pick'+(sel?' on':'')+'" onclick="selectS2Pick('+c._idx+')" type="button">'
+      +'<div class="s3-pick-nm">'+esc(c.name)+'</div>'
+      +'<div class="s3-pick-meta"><span class="s3-pick-cat">'+typeLbl+'</span><span class="s3-pick-rule u">'+W(c.val||0)+(c.type==='rate'?'%':'원')+'</span><span class="s3-pick-code">'+esc(c.desc||'')+'</span></div>'
+      +'</button>';
+  }).join('');
+}
+function selectS2Pick(idx){
+  _s2PickIdx=idx;
+  var it=SECTIONS[_s2CurrentForm()].s2[idx]; if(!it) return;
+  $('s2PickSelectedName').textContent=it.name;
+  $('s2PickSelectedMeta').textContent=(it.type==='rate'?'기본보수×%':it.type==='unit'?'건당':'직접 입력')+' · '+(it.desc||'');
+  /* type=rate 면 기본보수 기준 자동 — base 추정해서 prefill, 사장님이 수정 가능 */
+  var defaultVal=it.val||0;
+  if(it.type==='rate'){
+    /* 거래처 모드면 현재 미리보기의 base 추정, 수기면 0 */
+    var base=0;
+    try{ base=parseFloat($('cpv-base').textContent.replace(/[^0-9]/g,''))||0; }catch(_){}
+    defaultVal=Math.floor(base*(it.val||0)/100/1000)*1000;
+  }
+  $('s2PickVal').value=defaultVal;
+  $('s2PickQty').value='1';
+  $('s2PickInputArea').style.display='block';
+  updateS2PickGain();
+  renderS2Picks();
+  setTimeout(function(){ var el=$('s2PickVal'); if(el)el.focus(); },30);
+}
+function updateS2PickGain(){
+  var val=parseFloat($('s2PickVal').value)||0;
+  var qty=parseFloat($('s2PickQty').value)||1;
+  $('s2PickGain').textContent=val>0?W(val*qty)+'원':'—';
+}
+function confirmS2Pick(){
+  if(_s2PickIdx===null){ showToast('항목을 먼저 선택하세요'); return; }
+  var val=parseFloat($('s2PickVal').value)||0;
+  var qty=parseFloat($('s2PickQty').value)||1;
+  if(val<=0){ showToast('단가를 입력하세요'); var el=$('s2PickVal'); if(el)el.focus(); return; }
+  var src=SECTIONS[_s2CurrentForm()].s2[_s2PickIdx];
+  var row={name:src.name, val:val, qty:qty};
+  if(_s2PickMode==='cust'){ INV_S2.push(row); renderS2(); }
+  else { MAN_S2.push(row); renderManS2(); }
+  showToast('+ '+src.name);
+  closeS2Picker();
+}
+
 function renderS3(){
   $('i-s3Cnt').textContent=INV_S3.length;
   $('i-s3Body').innerHTML=INV_S3.map((s3,idx)=>{
@@ -1178,8 +1345,9 @@ function syncCustPreview(){
   var ket=bt.includes('장부')?Math.floor(base*0.2/1000)*1000:0;
   var cst=base>0?Math.floor((base+ket)*0.1/1000)*1000:0;
   var s1Extra=0; SECTIONS[form].s1.forEach(it=>{if(it.type==='rate')s1Extra+=Math.floor(base*(it.val||0)/100/1000)*1000});
+  var s2Tot=INV_S2.reduce((a,s)=>a+((s.val||0)*(s.qty||1)),0);
   var s3Tot=INV_S3.reduce((a,s)=>a+(s.gain||0),0);
-  var extra=s1Extra+s3Tot;
+  var extra=s1Extra+s2Tot+s3Tot;
   var supply=base+ket+cst+extra;
   var disc=parseFloat($('i-disc').value)||0;
   var supplyDisc=supply-disc;
@@ -1240,8 +1408,9 @@ function custStaffChange(){
 }
 
 /* ===== 4. 수기 청구서 발행 ===== */
+var MAN_S2=[];  /* 수기 청구서 Section 2 (활증업무) */
 var MAN_S3=[];
-function renderManual(){renderManS3();syncManualPreview()}
+function renderManual(){renderManS2();renderManS3();syncManualPreview()}
 function renderManS3(){
   $('m-s3Cnt').textContent=MAN_S3.length;
   $('m-s3Body').innerHTML=MAN_S3.map((s3,idx)=>{
@@ -1335,8 +1504,9 @@ function syncManualPreview(){
   var ket=bt.includes('장부')?Math.floor(base*0.2/1000)*1000:0;
   var cst=base>0?Math.floor((base+ket)*0.1/1000)*1000:0;
   var s1Extra=0;SECTIONS[form].s1.forEach(it=>{if(it.type==='rate')s1Extra+=Math.floor(base*(it.val||0)/100/1000)*1000});
+  var s2Tot=MAN_S2.reduce((a,s)=>a+((s.val||0)*(s.qty||1)),0);
   var s3Tot=MAN_S3.reduce((a,s)=>a+(s.gain||0),0);
-  var extra=s1Extra+s3Tot;
+  var extra=s1Extra+s2Tot+s3Tot;
   var supply=base+ket+cst+extra;
   var disc=parseFloat($('m-disc').value)||0;
   var supplyDisc=supply-disc,vat=Math.round(supplyDisc*0.1),total=supplyDisc+vat;
