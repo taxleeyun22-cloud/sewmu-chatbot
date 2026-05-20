@@ -495,7 +495,7 @@
               <!-- 할인액 — 사장님 명령 (2026-05-20): "할인액은 무조건 수기" — 검토표 자동 prefill 흐름에서도 자동화 절대 X -->
               <div class="frow" style="background:#FEF3C7;padding:8px 10px;border-radius:8px;border:1px solid #FDE68A;margin-top:4px">
                 <label style="color:#92400E;font-weight:700">✏️ 할인액</label>
-                <input id="i-disc" type="number" value="0" oninput="syncCustPreview()" placeholder="0 (수기 입력 — 거래처별 사장님 직접 결정)" style="background:#fff;border-color:#FDE68A">
+                <input id="i-disc" type="number" oninput="syncCustPreview()" placeholder="비워두면 청구서에 표시 X (수기 입력 — 거래처별 사장님 직접 결정)" style="background:#fff;border-color:#FDE68A">
               </div>
               <div style="font-size:10.5px;color:#92400E;margin-top:2px;padding-left:4px">📝 검토표 데이터(수입금액·공제감면)는 자동 prefill 되지만, <b>할인액만은 항상 사장님 수기 입력</b>입니다.</div>
             </div>
@@ -645,7 +645,7 @@
               <!-- 할인액 — 수기 청구서도 동일하게 강조 -->
               <div class="frow" style="background:#FEF3C7;padding:8px 10px;border-radius:8px;border:1px solid #FDE68A;margin-top:4px">
                 <label style="color:#92400E;font-weight:700">✏️ 할인액</label>
-                <input id="m-disc" type="number" value="0" oninput="syncManualPreview()" placeholder="0 (수기 입력)" style="background:#fff;border-color:#FDE68A">
+                <input id="m-disc" type="number" oninput="syncManualPreview()" placeholder="비워두면 청구서에 표시 X (수기 입력)" style="background:#fff;border-color:#FDE68A">
               </div>
             </div>
 
