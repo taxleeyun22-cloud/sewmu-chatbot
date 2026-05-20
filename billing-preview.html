@@ -53,7 +53,13 @@
   td{padding:12px 14px;font-size:13.6px;color:var(--sub);border-bottom:1px solid #F3F4F6;vertical-align:middle}
   tr:last-child td{border-bottom:none}
   tbody tr:hover td{background:#FAFBFC}
-  .ftbl input[type=number],.ftbl input[type=text]{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:6px;padding:5px 8px;width:100%;background:#fff}
+  /* 컴팩트 ftbl — 누진표·Section 행 띄엄띄엄 X */
+  .ftbl input[type=number],.ftbl input[type=text]{font-family:inherit;font-size:12.5px;border:1px solid #E5E7EB;border-radius:5px;padding:4px 7px;width:100%;background:#fff;height:28px}
+  .ftbl th{padding:7px 8px;font-size:10.5px}
+  .ftbl td{padding:4px 8px}
+  .ftbl .inl{display:flex;align-items:center;gap:5px}
+  .ftbl .inl input{flex:1;min-width:0}
+  .ftbl .inl .unit{font-size:10.5px;color:#9CA3AF;white-space:nowrap}
   .btn{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:8px;padding:7px 13px;background:#fff;color:var(--ink);cursor:pointer;font-weight:500}
   .btn:hover{background:#F3F4F6}
   .btn-primary{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:700}
@@ -198,13 +204,17 @@
         </div>
 
         <div class="card">
-          <div class="c-h"><span class="ti">📌 Section 1 — 업종별 추가업무</span><span class="badge" id="s1Cnt">0</span></div>
-          <table class="ftbl"><thead><tr><th style="width:34%">항목명</th><th style="width:18%">유형</th><th style="width:22%">값</th><th>설명</th><th style="width:8%"></th></tr></thead><tbody id="s1Body"></tbody></table>
+          <div class="c-h"><span class="ti">📌 Section 1 — 업종별 추가업무</span><span class="badge" id="s1Cnt">0</span>
+            <span class="right"><button class="btn" style="font-size:12px" onclick="addSec('s1')">+ 항목 추가</button></span>
+          </div>
+          <table class="ftbl"><thead><tr><th style="width:34%">항목명</th><th style="width:14%">유형</th><th style="width:18%">값</th><th>설명</th><th style="width:8%"></th></tr></thead><tbody id="s1Body"></tbody></table>
         </div>
 
         <div class="card">
-          <div class="c-h"><span class="ti">📞 Section 2 — 활증업무</span><span class="badge" id="s2Cnt">0</span></div>
-          <table class="ftbl"><thead><tr><th style="width:34%">항목명</th><th style="width:18%">유형</th><th style="width:22%">값</th><th>설명</th><th style="width:8%"></th></tr></thead><tbody id="s2Body"></tbody></table>
+          <div class="c-h"><span class="ti">📞 Section 2 — 활증업무</span><span class="badge" id="s2Cnt">0</span>
+            <span class="right"><button class="btn" style="font-size:12px" onclick="addSec('s2')">+ 항목 추가</button></span>
+          </div>
+          <table class="ftbl"><thead><tr><th style="width:34%">항목명</th><th style="width:14%">유형</th><th style="width:18%">값</th><th>설명</th><th style="width:8%"></th></tr></thead><tbody id="s2Body"></tbody></table>
         </div>
 
         <div class="card">
@@ -227,9 +237,10 @@
             </span>
           </div>
           <div class="help">
-            <b>자동 흐름:</b> 검토표 입력 → 청구서 자동 흐름. 카탈로그 <code>billable: true</code> 인 항목만 가산. 신고서 본문 공제(general·special) = 기본 false. 사장님 노력 가산(R&D·투자·고용·감면) = 기본 true.<br>
+            <b>🔗 단일 진실 (쪼개기):</b> 이 카탈로그는 <code>sewmu/public/filing-tax-credit-catalog.json</code> 에서 fetch — <b>검토표 드롭다운이 쓰는 그 파일 그대로</b>. JSON 1개만 수정 → 검토표·청구서 양식·청구서 본체 양쪽 즉시 반영 (DRY).<br>
+            <b>적용 분류:</b> <span class="chip chip-both">법인+개인</span> 대부분 (통합투자·환경·R&D·고용·감면 다 양쪽 가능) · <span class="chip chip-indv">개인만</span> 종소세 신고서 본문 15개 (자녀·근로·연금·의료·교육·기부 등) · <b style="color:#0B1F3A">법인만 박힌 항목 0개</b><br>
             <b>가산율:</b> <span class="chip chip-u">U자 20·10·20</span> 기본 / <span class="chip chip-flat">flat 5%</span> 중특만<br>
-            <b>청구서 본체에서</b> 사장님이 [✕] 클릭으로 행 단위 삭제 / 신규 추가 가능 (인스턴스 override)
+            <b>자동 흐름:</b> 검토표 입력 → 청구서 자동 흐름. <code>billable: true</code> 만 가산. 청구서 본체에서 [✕] 행 삭제·+ 추가 가능 (인스턴스 override)
           </div>
           <div style="max-height:600px;overflow-y:auto;border:1px solid var(--line);border-radius:14px;background:#fff">
             <table style="border:none;border-radius:0">
@@ -667,10 +678,10 @@ function renderForm(){
   /* 누진표 */
   $('tariffBody').innerHTML=TARIFF[curForm].map((r,i)=>(
     '<tr>'
-    +'<td><input type="number" value="'+(r[0]/1000000)+'" onchange="setTariff('+i+',0,this.value*1000000)"> <span style="font-size:11px;color:#9CA3AF">백만원</span></td>'
+    +'<td><div class="inl"><input type="number" value="'+(r[0]/1000000)+'" onchange="setTariff('+i+',0,this.value*1000000)"><span class="unit">백만원</span></div></td>'
     +'<td><input type="number" value="'+r[1]+'" onchange="setTariff('+i+',1,+this.value)"></td>'
-    +'<td><input type="number" step="0.01" value="'+r[2]+'" onchange="setTariff('+i+',2,+this.value)"></td>'
-    +'<td><button class="btn-x" onclick="rmTariff('+i+')">✕ 삭제</button></td>'
+    +'<td><div class="inl"><input type="number" step="0.01" value="'+r[2]+'" onchange="setTariff('+i+',2,+this.value)"><span class="unit">%</span></div></td>'
+    +'<td><button class="btn-x" onclick="rmTariff('+i+')">✕</button></td>'
     +'</tr>'
   )).join('');
   ['s1','s2'].forEach(function(key){
@@ -696,6 +707,11 @@ function addTariff(){TARIFF[curForm].push([0,0,0]);renderForm()}
 function rmTariff(i){TARIFF[curForm].splice(i,1);renderForm()}
 function setSec(k,i,f,v){SECTIONS[curForm][k][i][f]=v;showToast(k.toUpperCase()+' 저장')}
 function rmSec(k,i){SECTIONS[curForm][k].splice(i,1);renderForm()}
+function addSec(k){
+  var defaultDesc=k==='s1'?'업종/회사별 추가업무 (rate=기본보수%, unit=건당 단가)':'활증업무 (direct=직접입력 / unit=건당)';
+  SECTIONS[curForm][k].push({name:'새 항목',type:'unit',val:0,desc:defaultDesc});
+  renderForm(); showToast('+ '+(k==='s1'?'Section 1':'Section 2')+' 항목 추가됨');
+}
 function renderCatalog(){
   var q=($('catSearch').value||'').trim().toLowerCase();
   var ft=$('catFilt').value, catF=$('catCatF').value;
@@ -713,10 +729,11 @@ function renderCatalog(){
   $('catCnt').textContent=list.length;
   $('catBody').innerHTML=list.map(c=>{
     var ruleChip=c.rule==='flat_5'?'<span class="chip chip-flat">flat 5%</span>':c.rule==='progressive_u'?'<span class="chip chip-u">U자 20·10·20</span>':'<span class="chip chip-none">none</span>';
+    var appChip=c.applies.length===2?'<span class="chip chip-both">법인+개인</span>':c.applies[0]==='corp'?'<span class="chip chip-biz">법인만</span>':'<span class="chip chip-indv">개인만</span>';
     return '<tr>'
       +'<td><div style="font-weight:600;color:'+(c.billable?'#0B1F3A':'#9CA3AF')+'">'+esc(c.name)+'</div><div style="font-size:11px;color:#9CA3AF;margin-top:2px">'+esc(c.code)+' · '+(c.alias||[]).map(a=>esc(a)).join(', ')+'</div></td>'
       +'<td style="font-size:12px;color:#6B7280">'+esc(c.law||'')+'</td>'
-      +'<td><span class="cat-cat">'+catLabel(c.cat)+'</span></td>'
+      +'<td><span class="cat-cat">'+catLabel(c.cat)+'</span> '+appChip+'</td>'
       +'<td><label class="tg"><input type="checkbox" '+(c.billable?'checked':'')+' onchange="catBill(\''+c.code+'\',this.checked)"><span class="tg-s"></span></label></td>'
       +'<td><select class="seld" onchange="catRule(\''+c.code+'\',this.value)" '+(c.billable?'':'disabled')+'><option value="none"'+(c.rule==='none'?' selected':'')+'>none</option><option value="flat_5"'+(c.rule==='flat_5'?' selected':'')+'>flat 5%</option><option value="progressive_u"'+(c.rule==='progressive_u'?' selected':'')+'>U자 20·10·20</option></select> '+ruleChip+'</td>'
       +'</tr>';
@@ -888,6 +905,26 @@ function emitInvoice(){
 
 /* ========== 부팅 ========== */
 renderForm(); refreshAlert(); renderInvoice();
+
+/* 🔗 진짜 쪼개기 — sewmu/public/filing-tax-credit-catalog.json 을 직접 fetch.
+   = 검토표 드롭다운이 쓰는 그 파일 그대로. 사장님이 그 JSON 1개만 수정하면
+     검토표 + 청구서 양식 + 청구서 본체 = 양쪽 동시 반영 (단일 진실, DRY).
+   네트워크 실패 시 인라인 임베드 fallback (오프라인 시연 가능). */
+fetch('/filing-tax-credit-catalog.json').then(function(r){return r.ok?r.json():Promise.reject(r.status)}).then(function(j){
+  var arr=Array.isArray(j)?j.find(function(x){return Array.isArray(x)}):null;
+  if(!arr) throw new Error('format');
+  /* 종소세 신고서 본문 자연발생 공제만 indv-only (사장님 명시 — 사진 17개 항목 기준).
+   * 나머지 (조특법 투자·R&D·고용·감면 등) = 모두 법인+개인 양쪽 가능 — 통합투자 포함. */
+  var indvOnly=['SOD_56','JTL_56_2','SOD_59','SOD_59_2','SOD_59_2_B','SOD_59_3_A','SOD_59_3_B','JTL_91_5','JTL_91_18','SOD_59_4_A','SOD_59_4_B','SOD_59_4_C','SOD_59_4_D','SOD_59_4_E','SOD_59_4_F'];
+  CATALOG = arr.map(function(c){
+    var b=(c.cat==='general'||c.cat==='special')?false:true;
+    var rl=b?'progressive_u':'none';
+    if(c.code==='JTL_7' || (c.name||'').indexOf('중소기업특별세액감면')>=0) rl='flat_5';
+    return Object.assign({}, c, {applies: indvOnly.indexOf(c.code)>=0?['indv']:['indv','corp'], billable:b, rule:rl});
+  });
+  showToast('✅ 카탈로그 ['+CATALOG.length+'개] sewmu JSON fetch — 검토표와 단일 진실');
+  renderCatalog();
+}).catch(function(e){console.warn('catalog fetch fail (fallback 임베드):',e)});
 </script>
 </body>
 </html>
