@@ -91,7 +91,7 @@ var KEY = new URLSearchParams(location.search).get('key') || (function(){ try{re
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
 var _t=null;
 function _deb(){ clearTimeout(_t); _t=setTimeout(loadMemoAll,280); }
-function openBiz(id){ window.open('/business.html?id='+id+'&key='+encodeURIComponent(KEY),'_blank','noopener'); }
+function bizUrl(id){ return '/business.html?id='+id+'&key='+encodeURIComponent(KEY); }
 async function delMemo(id, ev){
   if(ev) ev.stopPropagation();
   if(!confirm('이 메모를 삭제할까요?\n\n휴지통으로 이동합니다 (관리자 화면 휴지통에서 복원 가능).')) return;
@@ -128,8 +128,9 @@ function render(memos){
     var nm=isBiz?(m.target_business_name||'업체 #'+m.target_business_id)
                 :(m.target_user_real_name||m.target_user_name||(m.target_user_id?'거래처 #'+m.target_user_id:(m.room_name||'담당자 메모')));
     var icon=isBiz?'🏢':(m.target_user_id?'👤':'📝');
+    /* 클릭→업체 이동: <a href target> 로 popup-blocker 우회 + Ctrl/middle-click 정상 */
     var tg=isBiz
-      ? '<span class="tg">'+icon+' <a class="lnk" onclick="openBiz('+m.target_business_id+')">'+esc(nm)+'</a></span>'
+      ? '<span class="tg">'+icon+' <a class="lnk" href="'+bizUrl(m.target_business_id)+'" target="_blank" rel="noopener">'+esc(nm)+'</a></span>'
       : '<span class="tg">'+icon+' '+esc(nm)+'</span>';
     var cat=m.category||(m.memo_type_display||m.memo_type||'');
     var dt=(m.created_at||'').slice(2,10).replace(/-/g,'.');

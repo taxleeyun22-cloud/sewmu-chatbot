@@ -74,6 +74,7 @@
     <button class="tab" data-t="부가세" onclick="pick(this)">부가세 <span class="c" id="c-부가세">0</span></button>
     <span class="fbar">
       <input id="q" class="sch" placeholder="🔍 대상 검색…" oninput="_deb()">
+      <select id="yr" class="f" onchange="render()"><option value="">귀속연도 · 전체</option></select>
       <select id="st" class="f" onchange="render()">
         <option value="">상태 · 전체</option><option value="작성중">작성중</option>
         <option value="결재대기">결재대기</option><option value="완료">완료</option><option value="반려">반려</option>
@@ -96,7 +97,7 @@ var ALL = [];               /* 전체 filings */
 var curType = '종소세';
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
 var _t=null; function _deb(){ clearTimeout(_t); _t=setTimeout(render,250); }
-function openBiz(id){ window.open('/business.html?id='+id+'&key='+encodeURIComponent(KEY),'_blank','noopener'); }
+function bizUrl(id){ return '/business.html?id='+id+'&key='+encodeURIComponent(KEY); }
 function stClass(s){ if(s==='완료')return'done'; if(s==='결재대기')return'wait'; if(s==='작성중')return'ing'; if(s==='반려')return'rej'; return'etc'; }
 function pick(el){
   document.querySelectorAll('.tab').forEach(function(b){b.classList.remove('on')});
@@ -117,15 +118,27 @@ async function loadReviews(){
       var n=ALL.filter(function(f){return f.type===t}).length;
       var el=document.getElementById('c-'+t); if(el) el.textContent=n;
     });
+    /* 귀속연도 옵션 — distinct(fiscal_year) desc */
+    var years={}; ALL.forEach(function(f){ if(f.fiscal_year) years[f.fiscal_year]=1; });
+    var ySel=document.getElementById('yr');
+    if(ySel){
+      var keep=ySel.value;
+      ySel.innerHTML='<option value="">귀속연도 · 전체</option>'
+        + Object.keys(years).map(Number).sort(function(a,b){return b-a}).map(function(y){
+            return '<option value="'+y+'"'+(String(keep)===String(y)?' selected':'')+'>'+y+'귀속</option>';
+          }).join('');
+    }
     render();
   }catch(e){ box.innerHTML='<tr><td colspan="5" class="empty" style="color:#dc2626">오류: '+esc(e.message)+'</td></tr>'; }
 }
 function render(){
   var q=(document.getElementById('q').value||'').trim();
   var sf=document.getElementById('st').value;
+  var yf=document.getElementById('yr').value;
   var rows=ALL.filter(function(f){
     if(f.type!==curType) return false;
     if(sf && f.review_status!==sf) return false;
+    if(yf && String(f.fiscal_year)!==String(yf)) return false;
     if(q){
       var nm=f.owner_type==='Business'?(f.business_name||''):(f.person_real_name||f.person_name||'');
       if(nm.indexOf(q)<0) return false;
@@ -138,8 +151,9 @@ function render(){
     var isBiz=f.owner_type==='Business';
     var nm=isBiz?(f.business_name||'업체 #'+f.owner_id):(f.person_real_name||f.person_name||'거래처 #'+f.owner_id);
     var icon=isBiz?'🏢':'👤';
+    /* 클릭→업체 이동: <a href target> 로 popup-blocker 우회 + Ctrl/middle-click 정상 작동 */
     var tg=isBiz
-      ? '<span class="tg">'+icon+' <a class="lnk" onclick="openBiz('+f.owner_id+')">'+esc(nm)+'</a></span>'
+      ? '<span class="tg">'+icon+' <a class="lnk" href="'+bizUrl(f.owner_id)+'" target="_blank" rel="noopener">'+esc(nm)+'</a></span>'
       : '<span class="tg">'+icon+' '+esc(nm)+'</span>';
     var stv=f.review_status||'작성중';
     return '<tr>'
