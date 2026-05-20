@@ -1029,7 +1029,7 @@ fetch('/filing-tax-credit-catalog.json',{cache:'no-store'}).then(r=>r.ok?r.json(
   var arr=(j&&j.items)||(Array.isArray(j)?j.find(x=>Array.isArray(x)):null);
   if(!arr)throw new Error('format');
   var indvOnly=['SOD_56','JTL_56_2','SOD_59','SOD_59_2','SOD_59_2_B','SOD_59_3_A','SOD_59_3_B','JTL_91_5','JTL_91_18','SOD_59_4_A','SOD_59_4_B','SOD_59_4_C','SOD_59_4_D','SOD_59_4_E','SOD_59_4_F'];
-  CATALOG=arr.map(c=>{var b=(c.cat==='general'||c.cat==='special')?false:true;var rl=b?'progressive_u':'none';if(c.code==='JTL_7'||(c.name||'').indexOf('중소기업특별세액감면')>=0)rl='flat_5';return Object.assign({},c,{applies:indvOnly.indexOf(c.code)>=0?['indv']:['indv','corp'],billable:b,rule:rl})});
+  CATALOG=arr.map(c=>{var b=(c.cat==='general'||c.cat==='special')?false:true;var rl=b?'progressive_u':'none';if(c.code==='JTL_7'||c.code==='112'||(c.name||'').indexOf('특별세액감면')>=0||(c.alias||[]).indexOf('중특')>=0)rl='flat_5';return Object.assign({},c,{applies:indvOnly.indexOf(c.code)>=0?['indv']:['indv','corp'],billable:b,rule:rl})});
   showToast('✅ 카탈로그 ['+CATALOG.length+'개] sewmu JSON fetch — 단일 진실');
   renderCatalog();
 }).catch(e=>{
