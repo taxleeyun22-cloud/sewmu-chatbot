@@ -858,21 +858,24 @@ function renderCust(){
   }
 }
 
-/* C1: 거래처(approved_client) list fetch — 같은 도메인 cookie 인증 자동 */
+/* C1: 거래처 fetch — URL 의 ?key= 자동 첨부 + same-origin cookie. 사장님 admin.html?key=X 흐름 호환. */
+function adminKeyQS(prefix){
+  try{ var k=new URLSearchParams(location.search).get('key'); return k?(prefix||'&')+'key='+encodeURIComponent(k):''; }catch(_){return ''}
+}
 async function loadCustList(force){
   if(!force && PERSONS.length) return;
   var cnt=$('custLoadCnt'); if(cnt) cnt.textContent='거래처 로드 중…';
   try{
     /* approved_client (기장거래처) + admin 직원 제외 = 진짜 기장거래처 */
-    var r=await fetch('/api/admin-approve?status=approved_client',{credentials:'include'});
+    var r=await fetch('/api/admin-approve?status=approved_client'+adminKeyQS('&'),{credentials:'include'});
     if(!r.ok) throw new Error('HTTP '+r.status);
     var d=await r.json();
     PERSONS=(d.users||[]).filter(u=>Number(u.is_admin)!==1);
     if(cnt) cnt.textContent='기장거래처 '+PERSONS.length+'명';
     searchCustList();
   }catch(e){
-    if(cnt) cnt.textContent='⚠️ 로드 실패 ('+e.message+') — admin 로그인 후 새로고침';
-    $('custResults').innerHTML='<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--mut);font-size:12.5px">/api/admin-approve 응답 실패. <br>admin.html 로그인 후 다시 시도하거나 ?key=ADMIN_KEY 로 진입.</div>';
+    if(cnt) cnt.textContent='⚠️ 로드 실패 ('+e.message+')';
+    $('custResults').innerHTML='<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--mut);font-size:13px;line-height:1.6">/api/admin-approve 응답 실패 ('+esc(e.message)+').<br><br>👉 <b>URL 끝에 <code>?key=YOUR_ADMIN_KEY</code> 붙여서 진입</b><br><span style="font-size:11.5px">예: /billing-preview.html?key=1111</span></div>';
   }
 }
 
@@ -909,7 +912,7 @@ async function pickCust(uid){
   renderCustHeader();
   /* 매핑 사업장 fetch */
   try{
-    var r=await fetch('/api/admin-businesses?user_id='+uid,{credentials:'include'});
+    var r=await fetch('/api/admin-businesses?user_id='+uid+adminKeyQS('&'),{credentials:'include'});
     if(!r.ok) throw new Error('HTTP '+r.status);
     var d=await r.json();
     BIZS=(d.businesses||[]).filter(b=>!b.deleted_at).map(b=>({
