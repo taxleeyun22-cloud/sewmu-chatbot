@@ -64,6 +64,7 @@ const FILES = [
   'home-preview.html',
   'memo-all.html',
   'review-all.html',
+  'billing-preview.html',
   'office.html',
   'staff.html',
   // CSS

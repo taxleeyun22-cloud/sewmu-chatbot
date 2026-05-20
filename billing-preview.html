@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>청구서 양식 + 모아보기 + 담당자 — 통합 프리뷰</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--navy:#0B1F3A;--line:#ECEEF1;--bg:#FAFAFA;--ink:#111827;--sub:#4B5563;--mut:#9CA3AF;
+    --r:#DC2626;--rb:#FEF2F2;--g:#16A34A;--gb:#DCFCE7;--y:#CA8A04;--yb:#FEF3C7}
+  body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  .app{display:flex;min-height:100vh}
+  /* ===== 사이드바 ===== */
+  .sb{width:236px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .sb-brand{padding:18px 20px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--line)}
+  .sb-mark{width:26px;height:26px;border-radius:7px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  .sb-brand b{font-size:14px;letter-spacing:-.02em}
+  .sb-nav{flex:1;overflow-y:auto;padding:10px 10px 20px}
+  .sb-sec{font-size:11px;font-weight:600;color:var(--mut);letter-spacing:.06em;padding:14px 10px 6px;text-transform:uppercase}
+  .sb-i{display:flex;align-items:center;gap:9px;padding:10px 12px;border-radius:8px;font-size:13.5px;color:var(--sub);cursor:pointer;font-weight:500;border:none;background:none;width:100%;text-align:left;font-family:inherit}
+  .sb-i:hover{background:#F3F4F6}
+  .sb-i.on{background:#E8F0FE;color:var(--navy);font-weight:700}
+  .sb-i .cnt{margin-left:auto;font-size:11px;color:var(--mut);font-weight:700;background:#F3F4F6;padding:1px 7px;border-radius:99px}
+  .sb-i.on .cnt{background:var(--navy);color:#fff}
+  .sb-new{background:#0B1F3A;color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:auto}
+  .sb-owner{padding:14px 16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--sub);display:flex;align-items:center;gap:9px}
+  .sb-av{width:28px;height:28px;border-radius:50%;background:#E8F0FE;color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+  /* ===== 메인 ===== */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{background:#fff;border-bottom:1px solid var(--line);padding:13px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+  .tb-bc{color:var(--mut);font-size:13px;font-weight:500}
+  .tb-r{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .tb-lbl{font-size:12px;color:var(--mut);font-weight:600}
+  .f{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:8px;padding:7px 11px;background:#fff;color:var(--ink);cursor:pointer}
+  .wrap{max-width:1240px;margin:0 auto;padding:26px 28px 70px;width:100%}
+  .view{display:none}.view.on{display:block}
+  /* hero */
+  .h-lbl{font-size:11px;font-weight:600;color:var(--mut);letter-spacing:.08em;text-transform:uppercase}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.04em;margin:7px 0 6px}
+  .h-sub{font-size:13px;color:var(--sub)}
+  .h-sub b{color:var(--navy)}
+  /* 카드 */
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.03);margin-bottom:16px}
+  .c-h{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+  .c-h .ti{font-size:16px;font-weight:700;letter-spacing:-.02em}
+  .c-h .badge{background:#0B1F3A;color:#fff;font-size:11px;font-weight:700;min-width:22px;height:22px;padding:0 7px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center}
+  .c-h .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+  /* tabs */
+  .tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;align-items:center}
+  .tab{border:1px solid #E5E7EB;background:#fff;border-radius:99px;padding:9px 20px;font-size:13.5px;font-weight:600;color:var(--sub);cursor:pointer;font-family:inherit}
+  .tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .tab .c{opacity:.7;margin-left:5px;font-size:12px}
+  /* table */
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  th{text-align:left;font-size:11.5px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:11px 14px;background:#FAFBFC;border-bottom:1px solid var(--line)}
+  td{padding:12px 14px;font-size:13.6px;color:var(--sub);border-bottom:1px solid #F3F4F6;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover td{background:#FAFBFC}
+  /* form-table (편집 가능 표) */
+  .ftbl input[type=number],.ftbl input[type=text]{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:6px;padding:5px 8px;width:100%;background:#fff}
+  .btn{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:8px;padding:7px 13px;background:#fff;color:var(--ink);cursor:pointer;font-weight:500}
+  .btn:hover{background:#F3F4F6}
+  .btn-primary{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:700}
+  .btn-primary:hover{opacity:.92;background:var(--navy)}
+  .btn-x{background:#fff;color:#DC2626;border:1px dashed #FCA5A5;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;font-family:inherit}
+  /* status badge */
+  .st{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:99px;white-space:nowrap}
+  .st-r{background:var(--rb);color:var(--r)}
+  .st-y{background:var(--yb);color:var(--y)}
+  .st-g{background:var(--gb);color:var(--g)}
+  .st-gr{background:#F3F4F6;color:#6B7280}
+  /* seld */
+  .seld{font-family:inherit;font-size:12.5px;border:1px solid #E5E7EB;border-radius:6px;padding:4px 8px;background:#fff;color:var(--ink);cursor:pointer;font-weight:600}
+  .seld.over{background:#FEF3C7;border-color:#F59E0B;color:#92400E}
+  /* chips */
+  .chip{font-size:11px;font-weight:600;padding:2px 7px;border-radius:99px;background:#EEF2F7;color:var(--navy);margin-right:3px}
+  .chip-biz{background:#FCE7F3;color:#9D174D}
+  .chip-indv{background:#DBEAFE;color:#1E3A8A}
+  .chip-both{background:#FEF3C7;color:#92400E}
+  .chip-flat{background:#DCFCE7;color:#166534}
+  .chip-u{background:#FFEDD5;color:#9A3412}
+  .chip-none{background:#F3F4F6;color:#6B7280}
+  /* toggle */
+  .tg{position:relative;display:inline-block;width:38px;height:22px}
+  .tg input{opacity:0;width:0;height:0}
+  .tg-s{position:absolute;cursor:pointer;inset:0;background:#CBD5E1;border-radius:99px;transition:.2s}
+  .tg-s:before{content:'';position:absolute;height:16px;width:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+  .tg input:checked+.tg-s{background:var(--navy)}
+  .tg input:checked+.tg-s:before{transform:translateX(16px)}
+  /* search */
+  .sch{border:1px solid #E5E7EB;border-radius:9px;padding:9px 13px;font-size:13.5px;font-family:inherit;flex:1;min-width:200px}
+  .fbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+  .cnt-r{margin-left:auto;font-size:12.5px;color:var(--mut)}.cnt-r b{color:var(--ink)}
+  /* group header */
+  .gh{background:#F8FAFC;padding:10px 16px;font-size:13px;font-weight:700;color:var(--navy);border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .gh .gh-cnt{color:var(--mut);font-weight:500;font-size:12px}
+  .gh .gh-sum{margin-left:auto;font-weight:600}
+  /* assigned section */
+  .as-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #F3F4F6}
+  .as-row:last-child{border:none}
+  .as-row .av{width:32px;height:32px;border-radius:50%;background:#EEF2F7;color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
+  .as-row .nm{font-weight:600;color:var(--ink);font-size:14px}
+  .as-row .meta{font-size:12px;color:var(--mut)}
+  .as-row .r{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .alert{background:#FEF2F2;border:1px solid #FECACA;color:#B91C1C;font-size:13px;padding:11px 15px;border-radius:10px;margin-bottom:14px;font-weight:600;display:flex;align-items:center;gap:10px}
+  .alert b{font-size:14px}
+  .help{background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;font-size:12.5px;padding:10px 14px;border-radius:10px;margin-bottom:14px;line-height:1.5}
+  /* toast */
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);background:#0F172A;color:#fff;padding:11px 22px;border-radius:99px;font-size:13.5px;font-weight:600;z-index:100;opacity:0;transition:all .25s;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  @media(max-width:980px){.sb{display:none}.wrap{padding:20px 16px 60px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sb">
+    <div class="sb-brand"><span class="sb-mark">이</span><b>세무회계 이윤</b></div>
+    <nav class="sb-nav">
+      <div class="sb-sec">조정료 청구</div>
+      <button class="sb-i on" data-v="form" onclick="nav(this)">💼 청구서 양식 <span class="sb-new">NEW</span></button>
+      <button class="sb-i" data-v="list" onclick="nav(this)">💰 청구서 모아보기 <span class="cnt" id="cnt-mis">0</span></button>
+      <div class="sb-sec">시연용</div>
+      <button class="sb-i" data-v="cust" onclick="nav(this)">👤 거래처 담당자 (예: 박수현)</button>
+      <div class="sb-sec">참고</div>
+      <button class="sb-i" disabled style="opacity:.5">🧾 검토표 모아보기 (이미 만듦)</button>
+      <button class="sb-i" disabled style="opacity:.5">📒 메모 모아보기 (이미 만듦)</button>
+    </nav>
+    <div class="sb-owner"><span class="sb-av">이</span><div><b>이재윤</b> 사장님<br><span style="font-size:11px;color:var(--mut)">owner · 4직원 관리자</span></div></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <span class="tb-bc" id="bc">청구서 양식</span>
+      <div class="tb-r">
+        <span class="tb-lbl">담당자 <span style="font-weight:500;color:#9CA3AF">(관리자만)</span></span>
+        <select class="f" id="globStaff" onchange="filterStaff()">
+          <option value="">전체</option>
+          <option>정은</option><option>민지</option><option>영철</option><option>예슬</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="wrap">
+
+      <!-- ============== 1. 💼 청구서 양식 (정책 owner) ============== -->
+      <section class="view on" id="v-form">
+        <div class="h-lbl">정책 owner</div>
+        <h1>💼 청구서 양식</h1>
+        <div class="h-sub">여기서 한 번 세팅 → 검토표·청구서·모아보기 <b>전체 동시 반영</b>. 누진표·Section·세액공제 카탈로그 단일 진실</div>
+
+        <div class="tabs" id="formTabs">
+          <button class="tab on" data-t="corp" onclick="pickForm(this)">🏢 법인</button>
+          <button class="tab" data-t="indv" onclick="pickForm(this)">👤 개인</button>
+        </div>
+        <div class="help">현재 탭: <b id="curFormLabel">법인</b> · 누진표 · Section 1·2 · 세액공제 카탈로그 (탭별로 적용 항목만 표시됨)</div>
+
+        <!-- 누진표 -->
+        <div class="card">
+          <div class="c-h"><span class="ti">📊 누진표 — 수입금액 구간별 기준보수</span>
+            <span class="right"><span style="font-size:12px;color:var(--mut)">결산가산 <b id="ket">20</b>% · 원가가산 <b id="cst">10</b>%</span></span>
+          </div>
+          <table class="ftbl"><thead><tr><th style="width:34%">수입금액 구간</th><th style="width:26%">기준보수 (원)</th><th style="width:22%">초과단가 (%)</th><th style="width:18%"></th></tr></thead><tbody id="tariffBody"></tbody></table>
+          <button class="btn" style="margin-top:10px;font-size:12px" onclick="addTariff()">+ 구간 추가</button>
+        </div>
+
+        <!-- Section 1 -->
+        <div class="card">
+          <div class="c-h"><span class="ti">📌 Section 1 — 업종별 추가업무</span><span class="badge" id="s1Cnt">0</span></div>
+          <table class="ftbl"><thead><tr><th style="width:34%">항목명</th><th style="width:18%">유형</th><th style="width:22%">값</th><th>설명</th><th style="width:8%"></th></tr></thead><tbody id="s1Body"></tbody></table>
+        </div>
+
+        <!-- Section 2 -->
+        <div class="card">
+          <div class="c-h"><span class="ti">📞 Section 2 — 활증업무</span><span class="badge" id="s2Cnt">0</span></div>
+          <table class="ftbl"><thead><tr><th style="width:34%">항목명</th><th style="width:18%">유형</th><th style="width:22%">값</th><th>설명</th><th style="width:8%"></th></tr></thead><tbody id="s2Body"></tbody></table>
+        </div>
+
+        <!-- Section 3 카탈로그 -->
+        <div class="card">
+          <div class="c-h"><span class="ti">💸 Section 3 — 세액공제·감면 카탈로그</span><span class="badge" id="catCnt">0</span>
+            <span class="right">
+              <input class="sch" id="catSearch" placeholder="🔍 검색 (이름·법조문·별칭)" style="min-width:240px;flex:0" oninput="renderCatalog()">
+              <select class="f" id="catFilt" onchange="renderCatalog()">
+                <option value="">전체</option><option value="billable">청구 가산만</option><option value="excluded">제외만</option>
+              </select>
+            </span>
+          </div>
+          <div class="help" style="margin:0 0 12px">
+            <b>자동 흐름 룰:</b> 검토표에서 사장님이 어떤 공제·감면 입력 → 청구서에 자동 흐름 → 카탈로그 메타 <code>billable: true</code> 인 것만 가산 대상. false 면 자동 제외 (배당·자녀·근로 등 신고서 본문 공제는 전부 false).<br>
+            <b>가산율 룰:</b> <span class="chip chip-flat">flat_5</span> = 중특 무조건 5% / <span class="chip chip-u">U자</span> = 500↓ 20% · 500~1000 10% · 1000↑ 20%
+          </div>
+          <table><thead><tr><th style="width:30%">항목</th><th style="width:18%">법조문</th><th style="width:11%">적용</th><th style="width:12%">가산</th><th>가산율 룰</th><th style="width:12%"></th></tr></thead><tbody id="catBody"></tbody></table>
+          <button class="btn" style="margin-top:10px;font-size:12px" onclick="addCatItem()">+ 카탈로그 항목 추가 (신규 세법 개정 대응)</button>
+        </div>
+
+        <button class="btn-primary btn" onclick="saveForm()">💾 저장 (검토표·청구서 양쪽 즉시 반영)</button>
+      </section>
+
+      <!-- ============== 2. 💰 청구서 모아보기 ============== -->
+      <section class="view" id="v-list">
+        <div class="h-lbl">조정료 청구 모아보기</div>
+        <h1>💰 청구서 모아보기</h1>
+        <div class="h-sub">담당자별 자동 분류 · 미수=빨강 / 입금=초록 / 발송=노랑 · 행 클릭하면 invoice 새 탭 / 수금 버튼 1클릭으로 완료 전환</div>
+
+        <div class="alert" id="alertBox">🚨 <b id="alertN">0</b>건 미수금 · <b id="alertW">0</b>원 (납기 지남)</div>
+
+        <div class="fbar">
+          <select class="f" id="lYr" onchange="renderList()">
+            <option value="">연도 · 전체</option><option>2025</option><option>2024</option><option>2023</option>
+          </select>
+          <select class="f" id="lTax" onchange="renderList()">
+            <option value="">세금 · 전체</option><option>법인세</option><option>종소세</option><option>부가세</option>
+          </select>
+          <select class="f" id="lStaff" onchange="renderList()">
+            <option value="">담당자 · 전체</option><option>정은</option><option>민지</option><option>영철</option><option>예슬</option>
+          </select>
+          <select class="f" id="lState" onchange="renderList()">
+            <option value="">상태 · 전체</option><option value="r">🔴 미수금만</option><option value="y">🟡 발송완료</option><option value="g">🟢 수금완료</option>
+          </select>
+          <input class="sch" id="lQ" placeholder="🔍 거래처 검색…" oninput="renderList()">
+          <span class="cnt-r">총 <b id="listCnt">0</b>건</span>
+        </div>
+
+        <div style="background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden">
+          <table>
+            <thead><tr>
+              <th style="width:24%">거래처</th><th style="width:9%">세금</th><th style="width:9%">청구일</th>
+              <th style="width:9%">납기</th><th style="width:11%">금액</th><th style="width:12%">상태</th>
+              <th style="width:9%">입금일</th><th style="width:9%">담당자</th><th style="width:8%"></th>
+            </tr></thead>
+            <tbody id="listBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============== 3. 거래처 담당자 시연 ============== -->
+      <section class="view" id="v-cust">
+        <div class="h-lbl">담당자 시연</div>
+        <h1>👤 거래처 담당자 — 상속 + override</h1>
+        <div class="h-sub">사람 = 민지 담당 → 매핑된 모든 업체(개인·법인) 자동 민지 상속. <b>업체별 수동 override 가능</b> (병법인 = 정은으로 따로)</div>
+
+        <div class="card">
+          <div class="c-h">
+            <span class="av" style="width:46px;height:46px;border-radius:50%;background:#EEF2F7;color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px">박</span>
+            <div style="margin-left:4px"><div style="font-size:18px;font-weight:700">박수현</div><div style="font-size:12px;color:var(--mut)">기장거래처 · 010-XXXX-1234</div></div>
+            <span class="right">
+              <span class="tb-lbl">담당자</span>
+              <select class="seld" id="custStaff" onchange="custStaffChange()" style="font-size:14px;padding:6px 12px">
+                <option>정은</option><option selected>민지</option><option>영철</option><option>예슬</option>
+              </select>
+              <button class="btn-primary btn" onclick="emitInvoice()">💰 청구서 발행</button>
+            </span>
+          </div>
+          <div class="help">상단 담당자 변경 → 아래 매핑 업체 중 <b>override 안 된 것만 자동 상속</b>. override 된 업체는 사장님 수동 지정 유지.</div>
+        </div>
+
+        <div class="card" style="padding:0">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--line);font-weight:700;font-size:14px">📂 매핑된 사업장 (3건)</div>
+          <div id="bizList"></div>
+        </div>
+
+        <div class="card">
+          <div class="c-h"><span class="ti">📜 이 거래처의 청구서 이력 (3건)</span></div>
+          <table>
+            <thead><tr><th>대상</th><th>세금</th><th>청구일</th><th>금액</th><th>상태</th><th>담당자</th></tr></thead>
+            <tbody id="psHist"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ========== 데이터 (in-memory, 인터랙션 시 실제 변경) ========== */
+
+/* 누진표 (법인 10단계 / 종소 7단계) */
+var TARIFF = {
+  corp: [
+    [0,400000,0],[100000000,400000,.25],[300000000,900000,.18],[500000000,1260000,.10],
+    [1000000000,1760000,.06],[3000000000,2960000,.03],[5000000000,3560000,.02],
+    [10000000000,4160000,.015],[30000000000,7160000,.01],[100000000000,14160000,.01]
+  ],
+  indv: [
+    [0,300000,0],[100000000,300000,.25],[300000000,800000,.18],[500000000,1160000,.12],
+    [1000000000,1760000,.06],[2000000000,2360000,.04],[3000000000,2760000,.025]
+  ]
+};
+
+/* Section 1·2 (법인·개인 별도) */
+var SECTIONS = {
+  corp: {
+    s1:[
+      {name:'제조원가명세서 작성',type:'rate',val:20,desc:'기본보수 × %'},
+      {name:'법인지점 결산 및 합산신고',type:'rate',val:10,desc:'지점당 기본보수 × %'},
+      {name:'주식변동상황명세서',type:'unit',val:50000,desc:'변동인원 1인당'},
+      {name:'해외현지법인 명세서',type:'unit',val:300000,desc:'건당'},
+    ],
+    s2:[
+      {name:'신용카드 내역 검토',type:'direct',val:0,desc:'직접 입력'},
+      {name:'4대보험 취득·상실 신고',type:'unit',val:10000,desc:'건당'},
+      {name:'연말정산',type:'unit',val:20000,desc:'인당'},
+      {name:'부가세 수정신고',type:'unit',val:50000,desc:'건당'},
+    ]
+  },
+  indv: {
+    s1:[
+      {name:'복식부기 작성',type:'rate',val:30,desc:'기본보수 × %'},
+      {name:'성실신고 자료 검토',type:'rate',val:15,desc:'기본보수 × %'},
+    ],
+    s2:[
+      {name:'신용카드 내역 검토',type:'direct',val:0,desc:'직접 입력'},
+      {name:'4대보험 (자영업자)',type:'unit',val:10000,desc:'건당'},
+      {name:'프리랜서 인적용역 신고',type:'unit',val:30000,desc:'건당'},
+    ]
+  }
+};
+
+/* 세액공제 카탈로그 (실제 약 20개 — 100개의 대표 표본) */
+var CATALOG = [
+  /* 자연발생 공제 (사장님 명시: 청구 가산 X) */
+  {code:'SOD_56', name:'배당세액공제',         law:'소득세법 56조',     applies:['indv'],         billable:false, rule:'none'},
+  {code:'JTL_56_2', name:'기장세액공제',       law:'조특법 56조의2',    applies:['indv'],         billable:false, rule:'none'},
+  {code:'JTL_104_8', name:'전자계산서 발급전송세액공제', law:'조특법 104조의8', applies:['indv','corp'], billable:false, rule:'none'},
+  {code:'SOD_57', name:'외국납부세액공제',     law:'소득세법 57조',     applies:['indv','corp'],  billable:false, rule:'none'},
+  {code:'SOD_58', name:'재해손실세액공제',     law:'소득세법 58조',     applies:['indv','corp'],  billable:false, rule:'none'},
+  {code:'SOD_59', name:'근로소득세액공제',     law:'소득세법 59조',     applies:['indv'],         billable:false, rule:'none'},
+  {code:'SOD_59_2', name:'자녀세액공제',       law:'소득세법 59조의2',  applies:['indv'],         billable:false, rule:'none'},
+  {code:'SOD_59_2B', name:'출산입양자녀세액공제', law:'소득세법 59조의2', applies:['indv'],       billable:false, rule:'none'},
+  {code:'PEN_274', name:'연금계좌세액공제 (과학기술인)', law:'조특법 91조의5', applies:['indv'],   billable:false, rule:'none'},
+  {code:'PEN_275', name:'연금계좌세액공제 (퇴직연금)',   law:'소득세법 59조의3', applies:['indv'], billable:false, rule:'none'},
+  {code:'INS_277', name:'보장성보험료 (일반)', law:'소득세법 59조의4',  applies:['indv'],         billable:false, rule:'none'},
+  {code:'MED_278', name:'의료비',              law:'소득세법 59조의4',  applies:['indv'],         billable:false, rule:'none'},
+  {code:'EDU_279', name:'교육비',              law:'소득세법 59조의4',  applies:['indv'],         billable:false, rule:'none'},
+  {code:'DON_282', name:'기부금 (특례·일반)',  law:'소득세법 59조의4',  applies:['indv','corp'],  billable:false, rule:'none'},
+  {code:'STD_284', name:'표준세액공제',         law:'소득세법 59조의4',  applies:['indv'],         billable:false, rule:'none'},
+
+  /* 사장님 노력 가산 (billable: true) */
+  {code:'JTL_TOX_7',  name:'중소기업특별세액감면', law:'조특법 7조',      applies:['indv','corp'], billable:true,  rule:'flat_5'},
+  {code:'JTL_TOX_6',  name:'창업중소기업 세액감면', law:'조특법 6조',      applies:['indv','corp'], billable:true,  rule:'progressive_u'},
+  {code:'JTL_29_5',   name:'고용증대세액공제',     law:'조특법 29조의5',  applies:['indv','corp'], billable:true,  rule:'progressive_u'},
+  {code:'JTL_30',     name:'사회보험료 세액공제',  law:'조특법 30조의4',  applies:['indv','corp'], billable:true,  rule:'progressive_u'},
+  {code:'JTL_10',     name:'연구·인력개발비 세액공제', law:'조특법 10조',  applies:['indv','corp'], billable:true,  rule:'progressive_u'},
+  {code:'JTL_24',     name:'통합투자세액공제',     law:'조특법 24조',     applies:['corp'],        billable:true,  rule:'progressive_u'},
+  {code:'JTL_25_3',   name:'환경보전시설 투자세액공제', law:'조특법 25조의3', applies:['corp'],   billable:true,  rule:'progressive_u'},
+];
+
+/* 직원 명단 */
+var STAFF = ['정은','민지','영철','예슬'];
+
+/* 박수현 매핑 사업장 (담당자 상속 + override 시연) */
+var BIZS = [
+  {id:1, name:'박수현 개인사업자',  form:'개인사업자', taxType:'종소세', staff:null, override:false}, // staff=null 면 상속
+  {id:2, name:'박수현 컨설팅(주)',  form:'법인',     taxType:'법인세', staff:null, override:false},
+  {id:3, name:'박수현 베이커리(주)', form:'법인',     taxType:'법인세', staff:'정은', override:true}, // 사장님이 정은으로 override
+];
+var personStaff = '민지';  // 박수현 사람의 담당자
+
+/* 청구서 모아보기 데이터 (인터랙션 인메모리) */
+var INVOICES = [
+  {id:1,cust:'박수현 컨설팅(주)',  taxType:'법인세',yr:2025,iDate:'2025-03-15',due:'2025-04-30',amount:3250000, sent:true, paid:false, paidAt:'', staff:'민지', override:false},
+  {id:2,cust:'박수현 베이커리(주)',taxType:'법인세',yr:2024,iDate:'2025-03-20',due:'2025-04-30',amount:4100000, sent:true, paid:false, paidAt:'', staff:'정은', override:true},
+  {id:3,cust:'박수현',             taxType:'종소세',yr:2024,iDate:'2025-05-01',due:'2025-05-31',amount:1800000, sent:true, paid:false, paidAt:'', staff:'민지', override:false},
+  {id:4,cust:'김다정',             taxType:'종소세',yr:2024,iDate:'2025-04-22',due:'2025-05-31',amount:980000,  sent:true, paid:true,  paidAt:'2025-05-12', staff:'정은', override:false},
+  {id:5,cust:'헤이데이',           taxType:'부가세',yr:2025,iDate:'2025-04-25',due:'2025-05-10',amount:520000,  sent:true, paid:false, paidAt:'', staff:'정은', override:false},
+  {id:6,cust:'김유남 법인',        taxType:'법인세',yr:2024,iDate:'2025-03-10',due:'2025-04-30',amount:2900000, sent:true, paid:true,  paidAt:'2025-04-25', staff:'민지', override:false},
+  {id:7,cust:'하주성 카페',        taxType:'종소세',yr:2024,iDate:'2025-05-08',due:'2025-05-31',amount:1450000, sent:true, paid:false, paidAt:'', staff:'영철', override:false},
+  {id:8,cust:'(주)고성산업개발',   taxType:'법인세',yr:2025,iDate:'2025-03-18',due:'2025-04-30',amount:5800000, sent:true, paid:false, paidAt:'', staff:'예슬', override:false},
+  {id:9,cust:'이경식',             taxType:'종소세',yr:2024,iDate:'2025-04-30',due:'2025-05-31',amount:2100000, sent:true, paid:true,  paidAt:'2025-05-18', staff:'영철', override:false},
+  {id:10,cust:'편민우',            taxType:'종소세',yr:2024,iDate:'2025-05-05',due:'2025-05-31',amount:680000,  sent:false,paid:false, paidAt:'', staff:'민지', override:false},
+  {id:11,cust:'문성혁 디자인스튜디오',taxType:'종소세',yr:2024,iDate:'2025-04-28',due:'2025-05-31',amount:950000, sent:true, paid:true,  paidAt:'2025-05-20', staff:'예슬', override:false},
+  {id:12,cust:'다이렉트에스케이비',taxType:'법인세',yr:2025,iDate:'2025-03-12',due:'2025-04-30',amount:2300000, sent:true, paid:true,  paidAt:'2025-04-29', staff:'민지', override:false},
+];
+
+/* 박수현 청구 이력 (시연용 — INVOICES 의 1·2·3) */
+
+var curForm = 'corp';  /* corp / indv */
+var TODAY = new Date('2025-05-20');  /* 시연용 고정 today */
+
+/* ========== 유틸 ========== */
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function W(n){return (n||0).toLocaleString('ko-KR')}
+function showToast(m){var t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._tm);t._tm=setTimeout(function(){t.classList.remove('show')},2500)}
+function statusOf(inv){
+  if(!inv.sent) return {cls:'st-gr',label:'발행 안 됨',code:'gr'};
+  if(inv.paid) return {cls:'st-g',label:'🟢 수금완료',code:'g'};
+  var d=new Date(inv.due);
+  if(d<TODAY) return {cls:'st-r',label:'🔴 미수 ('+Math.floor((TODAY-d)/86400000)+'일)',code:'r'};
+  return {cls:'st-y',label:'🟡 발송완료',code:'y'};
+}
+function effStaff(inv){return inv.override? inv.staff: inv.staff;}  /* 미래: 거래처상속 룰 — 여기선 staff 그대로 */
+
+/* ========== 네비 ========== */
+function nav(el){
+  document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  var v=el.dataset.v;
+  document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));
+  $('v-'+v).classList.add('on');
+  $('bc').textContent={form:'청구서 양식',list:'청구서 모아보기',cust:'거래처 담당자 시연 (박수현)'}[v];
+  if(v==='form') renderForm();
+  if(v==='list') renderList();
+  if(v==='cust') renderCust();
+  window.scrollTo(0,0);
+}
+function filterStaff(){ renderList(); refreshAlert(); }
+function pickForm(el){
+  document.querySelectorAll('#formTabs .tab').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  curForm=el.dataset.t;
+  $('curFormLabel').textContent=curForm==='corp'?'법인':'개인';
+  renderForm();
+}
+
+/* ========== 청구서 양식 화면 ========== */
+function renderForm(){
+  /* 누진표 */
+  var rows=TARIFF[curForm].map((r,i)=>(
+    '<tr>'
+    +'<td><input type="number" value="'+(r[0]/1000000)+'" onchange="setTariff('+i+',0,this.value*1000000)"> <span style="font-size:11px;color:#9CA3AF">백만원</span></td>'
+    +'<td><input type="number" value="'+r[1]+'" onchange="setTariff('+i+',1,+this.value)"></td>'
+    +'<td><input type="number" step="0.01" value="'+r[2]+'" onchange="setTariff('+i+',2,+this.value)"></td>'
+    +'<td><button class="btn-x" onclick="rmTariff('+i+')">✕ 삭제</button></td>'
+    +'</tr>'
+  )).join('');
+  $('tariffBody').innerHTML=rows;
+
+  /* Section 1·2 */
+  ['s1','s2'].forEach(function(key){
+    var arr=SECTIONS[curForm][key];
+    $(key+'Cnt').textContent=arr.length;
+    $(key+'Body').innerHTML=arr.map((it,i)=>(
+      '<tr>'
+      +'<td><input type="text" value="'+esc(it.name)+'" onchange="setSec(\''+key+'\','+i+',\'name\',this.value)"></td>'
+      +'<td><select class="seld" onchange="setSec(\''+key+'\','+i+',\'type\',this.value)">'
+      +  '<option value="rate"'+(it.type==='rate'?' selected':'')+'>rate (%)</option>'
+      +  '<option value="unit"'+(it.type==='unit'?' selected':'')+'>unit (건당)</option>'
+      +  '<option value="direct"'+(it.type==='direct'?' selected':'')+'>direct (직접)</option>'
+      +'</select></td>'
+      +'<td><input type="number" value="'+it.val+'" onchange="setSec(\''+key+'\','+i+',\'val\',+this.value)"></td>'
+      +'<td style="font-size:12px;color:#6B7280">'+esc(it.desc)+'</td>'
+      +'<td><button class="btn-x" onclick="rmSec(\''+key+'\','+i+')">✕</button></td>'
+      +'</tr>'
+    )).join('');
+  });
+
+  renderCatalog();
+}
+function setTariff(i,col,v){ TARIFF[curForm][i][col]=v; showToast('누진표 저장 (in-memory)') }
+function addTariff(){ TARIFF[curForm].push([0,0,0]); renderForm() }
+function rmTariff(i){ TARIFF[curForm].splice(i,1); renderForm() }
+function setSec(k,i,f,v){ SECTIONS[curForm][k][i][f]=v; showToast(k.toUpperCase()+' 저장') }
+function rmSec(k,i){ SECTIONS[curForm][k].splice(i,1); renderForm() }
+function renderCatalog(){
+  var q=($('catSearch').value||'').trim().toLowerCase();
+  var ft=$('catFilt').value;
+  var list=CATALOG.filter(c=>{
+    if(!c.applies.includes(curForm)) return false;
+    if(q && !(c.name.toLowerCase().includes(q)||c.code.toLowerCase().includes(q)||(c.law||'').toLowerCase().includes(q))) return false;
+    if(ft==='billable' && !c.billable) return false;
+    if(ft==='excluded' && c.billable) return false;
+    return true;
+  });
+  $('catCnt').textContent=list.length;
+  $('catBody').innerHTML=list.map(c=>{
+    var ruleChip=c.rule==='flat_5'?'<span class="chip chip-flat">flat 5%</span>'
+               :c.rule==='progressive_u'?'<span class="chip chip-u">U자 20·10·20</span>'
+               :'<span class="chip chip-none">none</span>';
+    var appChip=c.applies.length===2?'<span class="chip chip-both">법·개 공용</span>'
+              :c.applies[0]==='corp'?'<span class="chip chip-biz">법인만</span>'
+              :'<span class="chip chip-indv">개인만</span>';
+    return '<tr>'
+    +'<td><div style="font-weight:600;color:'+(c.billable?'#0B1F3A':'#9CA3AF')+'">'+esc(c.name)+'</div><div style="font-size:11px;color:#9CA3AF;margin-top:2px">'+esc(c.code)+'</div></td>'
+    +'<td style="font-size:12px;color:#6B7280">'+esc(c.law||'')+'</td>'
+    +'<td>'+appChip+'</td>'
+    +'<td><label class="tg"><input type="checkbox" '+(c.billable?'checked':'')+' onchange="catBill(\''+c.code+'\',this.checked)"><span class="tg-s"></span></label></td>'
+    +'<td><select class="seld" onchange="catRule(\''+c.code+'\',this.value)" '+(c.billable?'':'disabled')+'>'
+    +  '<option value="none"'+(c.rule==='none'?' selected':'')+'>none</option>'
+    +  '<option value="flat_5"'+(c.rule==='flat_5'?' selected':'')+'>flat 5%</option>'
+    +  '<option value="progressive_u"'+(c.rule==='progressive_u'?' selected':'')+'>U자 20·10·20</option>'
+    +'</select> '+ruleChip+'</td>'
+    +'<td><button class="btn-x" onclick="catDel(\''+c.code+'\')">✕</button></td>'
+    +'</tr>';
+  }).join('');
+}
+function catBill(code,v){ var c=CATALOG.find(x=>x.code===code); if(c){c.billable=v;if(!v)c.rule='none';showToast(c.name+' billable='+v);renderCatalog();} }
+function catRule(code,v){ var c=CATALOG.find(x=>x.code===code); if(c){c.rule=v;showToast(c.name+' rule='+v);} }
+function catDel(code){ if(!confirm('카탈로그에서 삭제?'))return; var i=CATALOG.findIndex(x=>x.code===code); if(i>=0){CATALOG.splice(i,1);renderCatalog();showToast('삭제됨')} }
+function addCatItem(){
+  var name=prompt('새 항목명 (예: 청년채용증대세액공제)'); if(!name)return;
+  var law=prompt('법조문 (예: 조특법 29조의7)','조특법');
+  CATALOG.push({code:'NEW_'+Date.now(),name:name,law:law||'',applies:[curForm],billable:true,rule:'progressive_u'});
+  renderCatalog(); showToast('카탈로그 항목 추가됨 (검토표 드롭다운에도 즉시 검색됨)');
+}
+function saveForm(){ showToast('✅ 청구서 양식 저장됨 — 검토표·청구서·모아보기 양쪽 즉시 반영 (시뮬)') }
+
+/* ========== 청구서 모아보기 ========== */
+function refreshAlert(){
+  var globS=$('globStaff').value;
+  var mis=INVOICES.filter(i=>{
+    if(globS && i.staff!==globS) return false;
+    return statusOf(i).code==='r';
+  });
+  var total=mis.reduce((a,i)=>a+i.amount,0);
+  $('alertN').textContent=mis.length;
+  $('alertW').textContent=W(total);
+  $('alertBox').style.display=mis.length?'flex':'none';
+  $('cnt-mis').textContent=mis.length;
+}
+function renderList(){
+  refreshAlert();
+  var yr=$('lYr').value, tax=$('lTax').value, staff=$('lStaff').value, state=$('lState').value;
+  var q=($('lQ').value||'').trim();
+  var globS=$('globStaff').value;
+  var filt=INVOICES.filter(i=>{
+    if(yr && String(i.yr)!==yr) return false;
+    if(tax && i.taxType!==tax) return false;
+    if(staff && i.staff!==staff) return false;
+    if(globS && i.staff!==globS) return false;
+    if(q && i.cust.indexOf(q)<0) return false;
+    if(state && statusOf(i).code!==state) return false;
+    return true;
+  });
+  $('listCnt').textContent=filt.length;
+  /* 담당자별 그룹화 — 자동 분류 */
+  var byS={};
+  filt.forEach(i=>{(byS[i.staff]=byS[i.staff]||[]).push(i)});
+  var order=Object.keys(byS).sort((a,b)=>byS[b].length-byS[a].length);
+  var html='';
+  order.forEach(s=>{
+    var arr=byS[s];
+    var misN=arr.filter(i=>statusOf(i).code==='r').length;
+    var sum=arr.reduce((a,i)=>a+i.amount,0);
+    html+='<tr><td colspan="9" class="gh">👤 <b>'+esc(s)+'</b> 담당 <span class="gh-cnt">('+arr.length+'건'+(misN?' · 미수 '+misN+'건':'')+')</span><span class="gh-sum">합계 '+W(sum)+'원</span></td></tr>';
+    arr.forEach(i=>{
+      var st=statusOf(i);
+      var oc='showToast(\'(시뮬) invoice 새 탭으로 이동 — '+i.cust+'\')';
+      html+='<tr onclick="'+oc+'" style="cursor:pointer">'
+        +'<td><b style="color:var(--ink)">'+esc(i.cust)+'</b></td>'
+        +'<td><span class="chip '+(i.taxType==='법인세'?'chip-biz':i.taxType==='종소세'?'chip-indv':'chip-flat')+'">'+esc(i.taxType)+'</span></td>'
+        +'<td style="color:#6B7280">'+esc(i.iDate.slice(2).replace(/-/g,'.'))+'</td>'
+        +'<td style="color:#6B7280">'+esc(i.due.slice(2).replace(/-/g,'.'))+'</td>'
+        +'<td style="font-weight:700;color:var(--ink)">'+W(i.amount)+'원</td>'
+        +'<td><span class="st '+st.cls+'">'+st.label+'</span></td>'
+        +'<td style="color:#6B7280">'+(i.paidAt?esc(i.paidAt.slice(2).replace(/-/g,'.')):'—')+'</td>'
+        +'<td><select class="seld '+(i.override?'over':'')+'" onchange="invStaffChange(event,'+i.id+',this.value)" onclick="event.stopPropagation()">'
+          +STAFF.map(s2=>'<option'+(s2===i.staff?' selected':'')+'>'+s2+'</option>').join('')
+        +'</select>'+(i.override?'<div style="font-size:10px;color:#92400E;font-weight:600;margin-top:2px">⚙ override</div>':'')+'</td>'
+        +'<td>'+(i.paid?'<button class="btn-x" style="border-color:#10B981;color:#10B981;border-style:solid" onclick="invUnpay(event,'+i.id+')">↶ 미수로</button>':'<button class="btn-primary btn" style="font-size:12px;padding:5px 10px" onclick="invPay(event,'+i.id+')">✓ 수금</button>')+'</td>'
+        +'</tr>';
+    });
+  });
+  if(!filt.length) html='<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--mut)">조건에 맞는 청구서가 없습니다</td></tr>';
+  $('listBody').innerHTML=html;
+}
+function invPay(e,id){ e.stopPropagation(); var i=INVOICES.find(x=>x.id===id); if(i){i.paid=true;i.paidAt='2025-05-20';renderList();showToast('🟢 '+i.cust+' 수금완료')} }
+function invUnpay(e,id){ e.stopPropagation(); var i=INVOICES.find(x=>x.id===id); if(i){i.paid=false;i.paidAt='';renderList();showToast('미수로 되돌림')} }
+function invStaffChange(e,id,v){
+  e.stopPropagation();
+  var i=INVOICES.find(x=>x.id===id);
+  if(i){i.staff=v;i.override=true;renderList();showToast('💡 '+i.cust+' 담당자 → '+v+' (override)');}
+}
+
+/* ========== 거래처 담당자 시연 ========== */
+function renderCust(){
+  $('custStaff').value=personStaff;
+  var rows=BIZS.map(b=>{
+    var eff= b.override? b.staff: personStaff;
+    var formChip=b.form==='법인'?'<span class="chip chip-biz">법인</span>':'<span class="chip chip-indv">개인사업자</span>';
+    return '<div class="as-row">'
+      +'<span class="av">'+(b.form==='법인'?'🏢':'👤')+'</span>'
+      +'<div><div class="nm">'+esc(b.name)+' '+formChip+'</div><div class="meta">예상 세금 '+esc(b.taxType)+(b.override?' · ⚙ 담당자 수동 override 됨':' · 사람 담당자에서 상속')+'</div></div>'
+      +'<div class="r">'
+        +'<select class="seld '+(b.override?'over':'')+'" onchange="bizStaffChange('+b.id+',this.value)">'
+          +STAFF.map(s=>'<option'+(s===eff?' selected':'')+'>'+s+'</option>').join('')
+        +'</select>'
+        +(b.override?'<button class="btn-x" onclick="bizResetOverride('+b.id+')">↶ 상속으로</button>':'')
+      +'</div></div>';
+  }).join('');
+  $('bizList').innerHTML=rows;
+
+  /* 청구 이력 */
+  var hist=INVOICES.filter(i=>i.cust.startsWith('박수현'));
+  $('psHist').innerHTML=hist.map(i=>{
+    var st=statusOf(i);
+    return '<tr>'
+      +'<td><b>'+esc(i.cust)+'</b></td>'
+      +'<td><span class="chip '+(i.taxType==='법인세'?'chip-biz':'chip-indv')+'">'+esc(i.taxType)+'</span></td>'
+      +'<td style="color:#6B7280">'+esc(i.iDate.slice(2).replace(/-/g,'.'))+'</td>'
+      +'<td style="font-weight:700">'+W(i.amount)+'원</td>'
+      +'<td><span class="st '+st.cls+'">'+st.label+'</span></td>'
+      +'<td><b>'+esc(i.staff)+'</b>'+(i.override?' <span class="chip" style="background:#FEF3C7;color:#92400E">override</span>':'')+'</td>'
+      +'</tr>';
+  }).join('');
+}
+function custStaffChange(){
+  personStaff=$('custStaff').value;
+  /* 상속 룰: override 안 된 업체만 자동 추종 */
+  showToast('👤 박수현 담당자 → '+personStaff+' · override 안 된 사업장 자동 상속');
+  renderCust();
+}
+function bizStaffChange(id,v){
+  var b=BIZS.find(x=>x.id===id); if(!b)return;
+  if(v===personStaff && !b.override){ /* 상속과 같음 */ return; }
+  b.staff=v; b.override=true;
+  showToast('⚙ '+b.name+' 담당자 → '+v+' (override 됨)');
+  renderCust();
+}
+function bizResetOverride(id){
+  var b=BIZS.find(x=>x.id===id); if(!b)return;
+  b.override=false; b.staff=null;
+  showToast('↶ '+b.name+' override 해제 · 사람 담당자('+personStaff+')에서 상속');
+  renderCust();
+}
+function emitInvoice(){
+  showToast('💰 (시뮬) invoice 새 탭 → 박수현 데이터 자동 prefill · S3 카탈로그 billable 항목만 가산 적용');
+}
+
+/* ========== 부팅 ========== */
+renderForm();
+refreshAlert();
+</script>
+</body>
+</html>
