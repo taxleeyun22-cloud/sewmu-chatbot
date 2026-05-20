@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>청구서 시스템 통합 프리뷰 v2 — 세무회계 이윤</title>
+<title>청구서 시스템 v4 — 양식·인삿말·실시간 미리보기 통합</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
@@ -14,7 +14,7 @@
     --r:#DC2626;--rb:#FEF2F2;--g:#16A34A;--gb:#DCFCE7;--y:#CA8A04;--yb:#FEF3C7}
   body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
   .app{display:flex;min-height:100vh}
-  .sb{width:240px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .sb{width:236px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
   .sb-brand{padding:18px 20px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--line)}
   .sb-mark{width:26px;height:26px;border-radius:7px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
   .sb-brand b{font-size:14px;letter-spacing:-.02em}
@@ -34,125 +34,136 @@
   .tb-r{margin-left:auto;display:flex;align-items:center;gap:10px}
   .tb-lbl{font-size:12px;color:var(--mut);font-weight:600}
   .f{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:8px;padding:7px 11px;background:#fff;color:var(--ink);cursor:pointer}
-  .wrap{max-width:1240px;margin:0 auto;padding:26px 28px 70px;width:100%}
+  .wrap{max-width:1500px;margin:0 auto;padding:20px 24px 70px;width:100%}
   .view{display:none}.view.on{display:block}
   .h-lbl{font-size:11px;font-weight:600;color:var(--mut);letter-spacing:.08em;text-transform:uppercase}
-  h1{font-size:30px;font-weight:700;letter-spacing:-.04em;margin:7px 0 6px}
-  .h-sub{font-size:13px;color:var(--sub)}
+  h1{font-size:28px;font-weight:700;letter-spacing:-.04em;margin:5px 0 6px}
+  .h-sub{font-size:13px;color:var(--sub);margin-bottom:14px}
   .h-sub b{color:var(--navy)}
-  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.03);margin-bottom:16px}
-  .c-h{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-  .c-h .ti{font-size:16px;font-weight:700;letter-spacing:-.02em}
+
+  /* 좌우 2열 레이아웃 */
+  .split{display:grid;grid-template-columns:1fr 480px;gap:18px;align-items:start}
+  .left{min-width:0}
+  .right{position:sticky;top:80px;align-self:flex-start;max-height:calc(100vh - 100px);overflow-y:auto;border-radius:12px}
+  @media(max-width:1200px){.split{grid-template-columns:1fr}.right{position:static;max-height:none}}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.03);margin-bottom:14px}
+  .c-h{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .c-h .ti{font-size:15px;font-weight:700;letter-spacing:-.02em}
   .c-h .badge{background:#0B1F3A;color:#fff;font-size:11px;font-weight:700;min-width:22px;height:22px;padding:0 7px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center}
-  .c-h .right{margin-left:auto;display:flex;gap:8px;align-items:center}
-  .tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;align-items:center}
-  .tab{border:1px solid #E5E7EB;background:#fff;border-radius:99px;padding:9px 20px;font-size:13.5px;font-weight:600;color:var(--sub);cursor:pointer;font-family:inherit}
+  .c-h .right-act{margin-left:auto;display:flex;gap:6px;align-items:center}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .tab{border:1px solid #E5E7EB;background:#fff;border-radius:99px;padding:7px 16px;font-size:13px;font-weight:600;color:var(--sub);cursor:pointer;font-family:inherit}
   .tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
-  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
-  th{text-align:left;font-size:11.5px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:11px 14px;background:#FAFBFC;border-bottom:1px solid var(--line)}
-  td{padding:12px 14px;font-size:13.6px;color:var(--sub);border-bottom:1px solid #F3F4F6;vertical-align:middle}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th{text-align:left;font-size:11px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;background:#FAFBFC;border-bottom:1px solid var(--line)}
+  td{padding:8px 10px;font-size:13px;color:var(--sub);border-bottom:1px solid #F3F4F6;vertical-align:middle}
   tr:last-child td{border-bottom:none}
   tbody tr:hover td{background:#FAFBFC}
-  /* 컴팩트 ftbl — 누진표·Section 행 띄엄띄엄 X */
-  .ftbl input[type=number],.ftbl input[type=text]{font-family:inherit;font-size:12.5px;border:1px solid #E5E7EB;border-radius:5px;padding:4px 7px;width:100%;background:#fff;height:28px}
-  .ftbl th{padding:7px 8px;font-size:10.5px}
-  .ftbl td{padding:4px 8px}
-  .ftbl .inl{display:flex;align-items:center;gap:5px}
+
+  /* 입력 폼 */
+  .frow{display:grid;grid-template-columns:90px 1fr;gap:8px;align-items:center;margin-bottom:8px}
+  .frow label{font-size:11.5px;color:var(--mut);font-weight:600}
+  .frow input,.frow select,.frow textarea{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:6px;padding:6px 9px;width:100%;background:#fff;outline:none}
+  .frow input:focus,.frow select:focus,.frow textarea:focus{border-color:#3b82f6}
+  .frow textarea{resize:vertical;line-height:1.55}
+  .frow2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+  .ftbl input[type=number],.ftbl input[type=text]{font-family:inherit;font-size:12px;border:1px solid #E5E7EB;border-radius:5px;padding:3px 6px;width:100%;background:#fff;height:26px}
+  .ftbl th{padding:6px 7px;font-size:10.5px}
+  .ftbl td{padding:3px 7px}
+  .ftbl .inl{display:flex;align-items:center;gap:4px}
   .ftbl .inl input{flex:1;min-width:0}
   .ftbl .inl .unit{font-size:10.5px;color:#9CA3AF;white-space:nowrap}
-  .btn{font-family:inherit;font-size:13px;border:1px solid #E5E7EB;border-radius:8px;padding:7px 13px;background:#fff;color:var(--ink);cursor:pointer;font-weight:500}
+
+  .btn{font-family:inherit;font-size:12.5px;border:1px solid #E5E7EB;border-radius:7px;padding:6px 12px;background:#fff;color:var(--ink);cursor:pointer;font-weight:500}
   .btn:hover{background:#F3F4F6}
   .btn-primary{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:700}
   .btn-primary:hover{opacity:.92;background:var(--navy)}
-  .btn-x{background:#fff;color:#DC2626;border:1px dashed #FCA5A5;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;font-family:inherit}
-  .st{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:99px;white-space:nowrap}
+  .btn-x{background:#fff;color:#DC2626;border:1px dashed #FCA5A5;border-radius:5px;padding:2px 7px;font-size:11px;cursor:pointer;font-family:inherit}
+  .btn-g{background:#16A34A;color:#fff;border-color:#16A34A;font-weight:700}
+
+  .st{font-size:11px;font-weight:700;padding:2px 9px;border-radius:99px;white-space:nowrap}
   .st-r{background:var(--rb);color:var(--r)}.st-y{background:var(--yb);color:var(--y)}.st-g{background:var(--gb);color:var(--g)}.st-gr{background:#F3F4F6;color:#6B7280}
-  .seld{font-family:inherit;font-size:12.5px;border:1px solid #E5E7EB;border-radius:6px;padding:4px 8px;background:#fff;color:var(--ink);cursor:pointer;font-weight:600}
+  .seld{font-family:inherit;font-size:12px;border:1px solid #E5E7EB;border-radius:6px;padding:3px 7px;background:#fff;color:var(--ink);cursor:pointer;font-weight:600}
   .seld.over{background:#FEF3C7;border-color:#F59E0B;color:#92400E}
-  .chip{font-size:11px;font-weight:600;padding:2px 7px;border-radius:99px;background:#EEF2F7;color:var(--navy);margin-right:3px;display:inline-block}
+  .chip{font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:99px;background:#EEF2F7;color:var(--navy);margin-right:2px;display:inline-block}
   .chip-biz{background:#FCE7F3;color:#9D174D}
   .chip-indv{background:#DBEAFE;color:#1E3A8A}
   .chip-both{background:#FEF3C7;color:#92400E}
   .chip-flat{background:#DCFCE7;color:#166534}
   .chip-u{background:#FFEDD5;color:#9A3412}
   .chip-none{background:#F3F4F6;color:#6B7280}
-  .cat-cat{font-size:10px;color:#9CA3AF;background:#F3F4F6;padding:1px 6px;border-radius:4px;margin-left:4px}
-  .tg{position:relative;display:inline-block;width:38px;height:22px}
+  .cat-cat{font-size:10px;color:#9CA3AF;background:#F3F4F6;padding:1px 5px;border-radius:4px;margin-left:3px}
+  .tg{position:relative;display:inline-block;width:36px;height:20px}
   .tg input{opacity:0;width:0;height:0}
   .tg-s{position:absolute;cursor:pointer;inset:0;background:#CBD5E1;border-radius:99px;transition:.2s}
-  .tg-s:before{content:'';position:absolute;height:16px;width:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+  .tg-s:before{content:'';position:absolute;height:14px;width:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
   .tg input:checked+.tg-s{background:var(--navy)}
   .tg input:checked+.tg-s:before{transform:translateX(16px)}
-  .sch{border:1px solid #E5E7EB;border-radius:9px;padding:9px 13px;font-size:13.5px;font-family:inherit;flex:1;min-width:200px}
-  .fbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px}
-  .cnt-r{margin-left:auto;font-size:12.5px;color:var(--mut)}.cnt-r b{color:var(--ink)}
+  .sch{border:1px solid #E5E7EB;border-radius:8px;padding:7px 11px;font-size:12.5px;font-family:inherit;flex:1;min-width:160px}
+  .fbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0 0 10px}
+  .cnt-r{margin-left:auto;font-size:12px;color:var(--mut)}.cnt-r b{color:var(--ink)}
   .gh{background:#F8FAFC;padding:10px 16px;font-size:13px;font-weight:700;color:var(--navy);border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
   .gh .gh-cnt{color:var(--mut);font-weight:500;font-size:12px}
   .gh .gh-sum{margin-left:auto;font-weight:600}
-  .as-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #F3F4F6}
+  .as-row{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid #F3F4F6}
   .as-row:last-child{border:none}
-  .as-row .av{width:32px;height:32px;border-radius:50%;background:#EEF2F7;color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
-  .as-row .nm{font-weight:600;color:var(--ink);font-size:14px}
-  .as-row .meta{font-size:12px;color:var(--mut)}
+  .as-row .av{width:30px;height:30px;border-radius:50%;background:#EEF2F7;color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+  .as-row .nm{font-weight:600;color:var(--ink);font-size:13.5px}
+  .as-row .meta{font-size:11.5px;color:var(--mut)}
   .as-row .r{margin-left:auto;display:flex;align-items:center;gap:8px}
-  .alert{background:#FEF2F2;border:1px solid #FECACA;color:#B91C1C;font-size:13px;padding:11px 15px;border-radius:10px;margin-bottom:14px;font-weight:600;display:flex;align-items:center;gap:10px}
-  .alert b{font-size:14px}
-  .help{background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;font-size:12.5px;padding:10px 14px;border-radius:10px;margin-bottom:14px;line-height:1.5}
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);background:#0F172A;color:#fff;padding:11px 22px;border-radius:99px;font-size:13.5px;font-weight:600;z-index:100;opacity:0;transition:all .25s;pointer-events:none}
+  .alert{background:#FEF2F2;border:1px solid #FECACA;color:#B91C1C;font-size:13px;padding:10px 14px;border-radius:9px;margin-bottom:12px;font-weight:600;display:flex;align-items:center;gap:10px}
+  .help{background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;font-size:11.5px;padding:9px 12px;border-radius:8px;margin-bottom:12px;line-height:1.5}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);background:#0F172A;color:#fff;padding:10px 20px;border-radius:99px;font-size:13px;font-weight:600;z-index:100;opacity:0;transition:all .25s;pointer-events:none}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-  /* ========= 청구서 본체 (A4) ========= */
-  .invwrap{background:#e5e7eb;margin:-26px -28px 0;padding:24px;min-height:100vh}
-  .invtools{display:flex;justify-content:space-between;align-items:center;max-width:210mm;margin:0 auto 18px;padding:12px 18px;background:#0f172a;color:#fff;border-radius:10px;font-size:12px}
-  .invtools .tb{display:flex;gap:8px}
-  .invtools .tb button{background:rgba(255,255,255,.1);color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600}
-  .invtools .tb button.green{background:#059669}
-  .page{width:210mm;background:#fff;box-shadow:0 4px 20px rgba(0,0,0,.12);padding:18mm 20mm;margin:0 auto 20px;color:#1e293b;font-size:13px;font-family:'Pretendard','Noto Sans KR','Malgun Gothic',sans-serif}
-  .page .hd{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:13px;border-bottom:2px solid #0f172a;margin-bottom:12px}
-  .page .hd-logo{display:flex;align-items:center;gap:10px}
-  .page .hd-mark{width:50px;height:50px;border-radius:10px;background:linear-gradient(135deg,#0B1F3A,#1e3a8a);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px}
-  .page .hd-name{font-size:24px;font-weight:900;letter-spacing:-.04em;color:#0f172a;line-height:1}
-  .page .hd-sub{font-size:8.5px;color:#94a3b8;letter-spacing:.2em;text-transform:uppercase;font-weight:600;margin-top:4px}
-  .page .hd-meta{text-align:right;font-size:10.5px;color:#64748b;line-height:1.8}
-  .itbl{width:100%;border-collapse:collapse;margin-bottom:22px;font-size:12.5px}
-  .itbl th{width:9%;background:#f8fafc;border:1px solid #e2e8f0;padding:12px 8px;text-align:center;font-weight:700;color:#475569;white-space:nowrap}
-  .itbl td{border:1px solid #e2e8f0;padding:12px 15px}
+  /* ===== 우측 청구서 본체 미리보기 ===== */
+  .preview-shell{background:#e5e7eb;border-radius:12px;padding:14px}
+  .preview-tools{display:flex;justify-content:space-between;align-items:center;background:#0f172a;color:#fff;padding:8px 14px;border-radius:8px;margin-bottom:12px;font-size:11.5px}
+  .preview-tools b{font-size:12.5px}
+  .preview-tools .tb{display:flex;gap:6px}
+  .preview-tools .tb button{background:rgba(255,255,255,.1);color:#fff;border:none;padding:5px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600}
+  .preview-tools .tb button.green{background:#059669}
+  .page{background:#fff;box-shadow:0 4px 18px rgba(0,0,0,.1);padding:18px 20px;color:#1e293b;font-size:11px;font-family:'Pretendard',sans-serif;border-radius:5px;min-height:600px}
+  .page .hd{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:9px;border-bottom:2px solid #0f172a;margin-bottom:10px}
+  .page .hd-logo{display:flex;align-items:center;gap:8px}
+  .page .hd-mark{width:34px;height:34px;border-radius:7px;background:linear-gradient(135deg,#0B1F3A,#1e3a8a);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px}
+  .page .hd-name{font-size:16px;font-weight:900;letter-spacing:-.04em;color:#0f172a;line-height:1}
+  .page .hd-sub{font-size:6.5px;color:#94a3b8;letter-spacing:.2em;text-transform:uppercase;font-weight:600;margin-top:2px}
+  .page .hd-meta{text-align:right;font-size:8.5px;color:#64748b;line-height:1.7}
+  .itbl{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:10px;border:none;border-radius:0}
+  .itbl th{width:9%;background:#f8fafc;border:1px solid #e2e8f0;padding:7px 6px;text-align:center;font-weight:700;color:#475569;white-space:nowrap;font-size:10px}
+  .itbl td{border:1px solid #e2e8f0;padding:7px 10px;font-size:10px}
   .itbl td.b{font-weight:700}
-  .editable{background:#fffbeb;padding:2px 4px;border-radius:3px;outline:none;border:1px dashed transparent;cursor:text}
-  .editable:hover{border-color:#f59e0b}
-  .editable:focus{border-color:#3b82f6;background:#fff}
-  .greet{font-size:13px;color:#334155;margin-bottom:20px;line-height:2.0}
-  .greet p{margin-bottom:11px}
-  .cards{margin-bottom:22px;display:flex;flex-direction:column;gap:9px}
-  .ccard{border:1px solid #cbd5e1;border-radius:7px;padding:16px 22px;min-height:56px;display:flex;justify-content:space-between;align-items:center}
-  .ccard-l{font-size:11px;font-weight:700;color:#64748b}
-  .ccard-v{font-size:14px;font-weight:800;color:#1e293b}
-  .ccard.final{border:2px solid #0f172a;background:#f8fafc;padding:18px 22px;min-height:58px}
-  .ccard.final .ccard-l{font-size:11.5px;color:#0f172a;font-weight:900}
-  .ccard.final .ccard-v{font-size:19px;color:#0f172a}
-  .pay{border:1.5px dashed #cbd5e1;border-radius:8px;padding:7px 18px;text-align:center;margin-bottom:8px}
-  .pay .pl{font-size:9.5px;font-weight:800;color:#64748b;display:block;margin-bottom:4px}
-  .pay .pa{font-size:17px;font-weight:900;color:#0f172a;letter-spacing:.02em}
-  .pay .ph{font-size:11px;color:#475569;margin-top:3px}
-  .pay .pd{font-size:9.5px;color:#94a3b8;margin-top:5px}
-  .ft{border-top:2px solid #0f172a;padding-top:6px;font-size:10.5px;color:#1e293b;margin-top:20px}
-  .ft-sign{font-size:14px;font-weight:700;color:#0f172a;white-space:nowrap}
-  .ft-sign .nm{font-family:'Nanum Brush Script',cursive;font-size:28px;font-weight:400;letter-spacing:.05em;vertical-align:middle;display:inline-block;transform:rotate(-1deg)}
-  .ft-addr{color:#475569;font-size:10px;margin-bottom:1px}
-  .ft-tel{display:flex;gap:20px;color:#475569;font-size:11px}
-  .stitle{font-size:11px;font-weight:800;color:#0f172a;padding:6px 10px;border-bottom:1px solid #e2e8f0;margin-bottom:6px}
-  .dtbl{width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:10px}
-  .dtbl th{background:#f8fafc;border:1px solid #e2e8f0;padding:5px 9px;text-align:center;font-weight:700;color:#1e293b;font-size:9.5px}
-  .dtbl td{border:1px solid #e2e8f0;padding:5px 9px;color:#94a3b8}
+  .greet{font-size:10.5px;color:#334155;margin-bottom:13px;line-height:1.85}
+  .greet p{margin-bottom:8px}
+  .cards{margin-bottom:14px;display:flex;flex-direction:column;gap:6px}
+  .ccard{border:1px solid #cbd5e1;border-radius:5px;padding:9px 14px;display:flex;justify-content:space-between;align-items:center}
+  .ccard-l{font-size:9.5px;font-weight:700;color:#64748b}
+  .ccard-v{font-size:11.5px;font-weight:800;color:#1e293b}
+  .ccard.final{border:2px solid #0f172a;background:#f8fafc;padding:12px 14px}
+  .ccard.final .ccard-l{font-size:10px;color:#0f172a;font-weight:900}
+  .ccard.final .ccard-v{font-size:14px;color:#0f172a}
+  .pay{border:1.5px dashed #cbd5e1;border-radius:5px;padding:5px 12px;text-align:center;margin-bottom:6px}
+  .pay .pl{font-size:8px;font-weight:800;color:#64748b;display:block;margin-bottom:2px}
+  .pay .pa{font-size:12px;font-weight:900;color:#0f172a;letter-spacing:.02em}
+  .pay .ph{font-size:8.5px;color:#475569;margin-top:2px}
+  .pay .pd{font-size:7.5px;color:#94a3b8;margin-top:3px}
+  .ft{border-top:2px solid #0f172a;padding-top:5px;font-size:8.5px;color:#1e293b;margin-top:12px;display:flex;justify-content:space-between;align-items:flex-end}
+  .ft-sign{font-size:10px;font-weight:700;color:#0f172a;white-space:nowrap}
+  .ft-sign .nm{font-family:'Nanum Brush Script',cursive;font-size:20px;font-weight:400;letter-spacing:.04em;vertical-align:middle;display:inline-block;transform:rotate(-1deg)}
+  .ft-addr{color:#475569;font-size:7.5px;margin-bottom:1px}
+  .ft-tel{display:flex;gap:14px;color:#475569;font-size:8.5px}
+  .dtbl{width:100%;border-collapse:collapse;font-size:8.5px;margin-bottom:8px;border:none;border-radius:0}
+  .dtbl th{background:#f8fafc;border:1px solid #e2e8f0;padding:4px 7px;text-align:center;font-weight:700;color:#1e293b;font-size:8px}
+  .dtbl td{border:1px solid #e2e8f0;padding:4px 7px;color:#94a3b8;font-size:8.5px}
   .dtbl td:first-child{color:#1e293b;font-weight:600}
   .dtbl td:nth-child(3){text-align:right;font-weight:700;color:#1e293b}
   .dtbl tr.sub td{background:#f1f5f9;font-weight:800;color:#0f172a;border-top:1.5px solid #9ca3af}
-  .rm-cell{width:30px;text-align:center}
-  .rm-btn{background:#fff;color:#dc2626;border:1px solid #fca5a5;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;font-family:inherit}
-  .add-row{margin:8px 0;padding:8px;border:1px dashed #94a3b8;border-radius:6px;text-align:center;color:#64748b;font-size:11px;cursor:pointer}
-  .add-row:hover{background:#f8fafc;color:#0f172a}
 
-  @media(max-width:980px){.sb{display:none}.wrap{padding:20px 16px 60px}.invwrap{margin:-20px -16px 0;padding:18px}.page{width:100%;padding:14mm 12mm}}
+  @media(max-width:980px){.sb{display:none}.wrap{padding:14px 12px 60px}}
 </style>
 </head>
 <body>
@@ -163,8 +174,6 @@
       <div class="sb-sec">조정료 청구 시스템</div>
       <button class="sb-i on" data-v="form" onclick="nav(this)">💼 청구서 양식 <span class="sb-new">NEW</span></button>
       <button class="sb-i" data-v="list" onclick="nav(this)">💰 청구서 모아보기 <span class="cnt" id="cnt-mis">0</span></button>
-      <button class="sb-i" data-v="invoice" onclick="nav(this)">📄 청구서 본체 (샘플)</button>
-      <button class="sb-i" data-v="greet" onclick="nav(this)">✏️ 인삿말 편집</button>
       <div class="sb-sec">시연용</div>
       <button class="sb-i" data-v="cust" onclick="nav(this)">👤 거래처 담당자 (박수현)</button>
     </nav>
@@ -177,87 +186,207 @@
       <div class="tb-r">
         <span class="tb-lbl">담당자 <span style="font-weight:500;color:#9CA3AF">(관리자만)</span></span>
         <select class="f" id="globStaff" onchange="filterStaff()">
-          <option value="">전체</option>
-          <option>정은</option><option>민지</option><option>영철</option><option>예슬</option>
+          <option value="">전체</option><option>정은</option><option>민지</option><option>영철</option><option>예슬</option>
         </select>
       </div>
     </div>
 
     <div class="wrap">
 
-      <!-- ============== 1. 💼 청구서 양식 ============== -->
+      <!-- ============== 💼 청구서 양식 (편집 + 실시간 미리보기 통합) ============== -->
       <section class="view on" id="v-form">
-        <div class="h-lbl">정책 owner</div>
+        <div class="h-lbl">정책 + 인삿말 + 실시간 미리보기 (통합)</div>
         <h1>💼 청구서 양식</h1>
-        <div class="h-sub">한 번 세팅 → 검토표·청구서·모아보기 <b>전체 동시 반영</b>. 카탈로그 <b id="catTotal">0</b>개 풀세트</div>
-        <div class="tabs" id="formTabs">
+        <div class="h-sub">좌측 편집 → 우측 청구서 본체 <b>즉시 반영</b>. 카탈로그 <b id="catTotal">0</b>개 <code>filing-tax-credit-catalog.json</code> fetch 단일진실. <span style="margin-left:6px">[<button class="btn-primary btn" style="padding:5px 12px" onclick="publish()">💾 저장 + 발행 (모아보기 행 생성)</button>]</span></div>
+        <div class="tabs" id="formTabs" style="margin-bottom:12px">
           <button class="tab on" data-t="corp" onclick="pickForm(this)">🏢 법인</button>
           <button class="tab" data-t="indv" onclick="pickForm(this)">👤 개인</button>
+          <span style="margin-left:auto;font-size:11px;color:var(--mut)">탭 = 누진표·Section 1·2·카탈로그 필터 (인삿말·거래처는 공용)</span>
         </div>
 
-        <div class="card">
-          <div class="c-h"><span class="ti">📊 누진표 — 수입금액 구간별 기준보수</span>
-            <span class="right"><span style="font-size:12px;color:var(--mut)">결산가산 20% · 원가가산 10%</span></span>
-          </div>
-          <table class="ftbl"><thead><tr><th style="width:34%">수입금액 구간</th><th style="width:26%">기준보수 (원)</th><th style="width:22%">초과단가 (%)</th><th style="width:18%"></th></tr></thead><tbody id="tariffBody"></tbody></table>
-          <button class="btn" style="margin-top:10px;font-size:12px" onclick="addTariff()">+ 구간 추가</button>
-        </div>
+        <div class="split">
 
-        <div class="card">
-          <div class="c-h"><span class="ti">📌 Section 1 — 업종별 추가업무</span><span class="badge" id="s1Cnt">0</span>
-            <span class="right"><button class="btn" style="font-size:12px" onclick="addSec('s1')">+ 항목 추가</button></span>
-          </div>
-          <table class="ftbl"><thead><tr><th style="width:34%">항목명</th><th style="width:14%">유형</th><th style="width:18%">값</th><th>설명</th><th style="width:8%"></th></tr></thead><tbody id="s1Body"></tbody></table>
-        </div>
+          <!-- ===== 좌측 편집 ===== -->
+          <div class="left">
 
-        <div class="card">
-          <div class="c-h"><span class="ti">📞 Section 2 — 활증업무</span><span class="badge" id="s2Cnt">0</span>
-            <span class="right"><button class="btn" style="font-size:12px" onclick="addSec('s2')">+ 항목 추가</button></span>
-          </div>
-          <table class="ftbl"><thead><tr><th style="width:34%">항목명</th><th style="width:14%">유형</th><th style="width:18%">값</th><th>설명</th><th style="width:8%"></th></tr></thead><tbody id="s2Body"></tbody></table>
-        </div>
+            <!-- 거래처 정보 -->
+            <div class="card">
+              <div class="c-h"><span class="ti">📇 거래처 정보 (수신·기준)</span>
+                <span class="right-act"><button class="btn" style="font-size:11.5px" onclick="prefillSample()">📂 박수현 컨설팅(주) 샘플 로드</button></span>
+              </div>
+              <div class="frow"><label>거래처명</label><input id="iv-cn" value="박수현 컨설팅(주)" oninput="syncPreview()"></div>
+              <div class="frow"><label>대표자</label><input id="iv-rn" value="박수현" oninput="syncPreview()"></div>
+              <div class="frow"><label>귀속연도</label><input id="iv-yr" value="2025" oninput="syncPreview()"></div>
+              <div class="frow"><label>발행일자</label><input id="iv-date" value="2025-05-20" oninput="syncPreview()"></div>
+              <div class="frow"><label>납부기한</label><input id="iv-due" value="2025-06-30" oninput="syncPreview()"></div>
+              <div class="frow"><label>업무구분</label>
+                <select id="iv-bt" onchange="syncPreview()">
+                  <option>법인장부대행 및 법인조정</option><option>법인조정</option>
+                  <option>개인장부대행 및 개인조정</option><option>개인조정</option>
+                </select>
+              </div>
+              <div class="frow frow2" style="grid-template-columns:90px 1fr 1fr;align-items:center">
+                <label>수입금액</label>
+                <input id="iv-rev" type="number" value="850000000" oninput="syncPreview()" placeholder="원">
+                <input id="iv-asset" type="number" value="1200000000" oninput="syncPreview()" placeholder="자산총액 (옵션)">
+              </div>
+              <div class="frow"><label>업종</label>
+                <select id="iv-bizup" onchange="syncPreview()">
+                  <option>제조</option><option>도소매업</option><option>건설</option><option>운수</option><option>금융보험업</option><option>부동산임대</option><option>전문과학기술</option><option>교육서비스</option><option>보건의료</option><option>개인서비스</option><option>기타</option>
+                </select>
+              </div>
+              <div class="frow frow2" style="grid-template-columns:90px 1fr 1fr">
+                <label>할인 / 절사</label>
+                <input id="iv-disc" type="number" value="0" oninput="syncPreview()" placeholder="할인액 (원)">
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);cursor:pointer"><input type="checkbox" id="iv-trunc" onchange="syncPreview()"> 천원 절사</label>
+              </div>
+            </div>
 
-        <div class="card">
-          <div class="c-h"><span class="ti">💸 Section 3 — 세액공제·감면 카탈로그 (118개 풀)</span><span class="badge" id="catCnt">0</span>
-            <span class="right">
-              <input class="sch" id="catSearch" placeholder="🔍 검색 (이름·법조문·별칭 — 중특, R&D, 통합고용…)" style="min-width:280px;flex:0" oninput="renderCatalog()">
-              <select class="f" id="catFilt" onchange="renderCatalog()">
-                <option value="">전체</option><option value="billable">청구 가산만</option><option value="excluded">제외만</option>
-              </select>
-              <select class="f" id="catCatF" onchange="renderCatalog()">
-                <option value="">카테고리 전체</option>
-                <option value="general">일반(신고서 본문)</option>
-                <option value="special">특별공제</option>
-                <option value="credit_invest">투자 세액공제</option>
-                <option value="credit_rnd">R&D 세액공제</option>
-                <option value="credit_employee">고용 세액공제</option>
-                <option value="credit_general">일반 세액공제</option>
-                <option value="exemption">감면</option>
-              </select>
-            </span>
-          </div>
-          <div class="help">
-            <b>🔗 단일 진실 (쪼개기):</b> 이 카탈로그는 <code>sewmu/public/filing-tax-credit-catalog.json</code> 에서 fetch — <b>검토표 드롭다운이 쓰는 그 파일 그대로</b>. JSON 1개만 수정 → 검토표·청구서 양식·청구서 본체 양쪽 즉시 반영 (DRY).<br>
-            <b>적용 분류:</b> <span class="chip chip-both">법인+개인</span> 대부분 (통합투자·환경·R&D·고용·감면 다 양쪽 가능) · <span class="chip chip-indv">개인만</span> 종소세 신고서 본문 15개 (자녀·근로·연금·의료·교육·기부 등) · <b style="color:#0B1F3A">법인만 박힌 항목 0개</b><br>
-            <b>가산율:</b> <span class="chip chip-u">U자 20·10·20</span> 기본 / <span class="chip chip-flat">flat 5%</span> 중특만<br>
-            <b>자동 흐름:</b> 검토표 입력 → 청구서 자동 흐름. <code>billable: true</code> 만 가산. 청구서 본체에서 [✕] 행 삭제·+ 추가 가능 (인스턴스 override)
-          </div>
-          <div style="max-height:600px;overflow-y:auto;border:1px solid var(--line);border-radius:14px;background:#fff">
-            <table style="border:none;border-radius:0">
-              <thead style="position:sticky;top:0;z-index:1"><tr><th style="width:32%">항목</th><th style="width:18%">법조문</th><th style="width:10%">카테고리</th><th style="width:10%">가산</th><th>가산율 룰</th></tr></thead>
-              <tbody id="catBody"></tbody>
-            </table>
-          </div>
-        </div>
+            <!-- 누진표 -->
+            <div class="card">
+              <div class="c-h"><span class="ti">📊 누진표 — <span id="formLabel">법인</span> · 수입금액 구간별</span>
+                <span class="right-act"><span style="font-size:11px;color:var(--mut)">결산 20% · 원가 10%</span><button class="btn" style="font-size:11.5px" onclick="addTariff()">+ 구간</button></span>
+              </div>
+              <table class="ftbl"><thead><tr><th style="width:34%">수입금액 구간</th><th style="width:26%">기준보수 (원)</th><th style="width:22%">초과단가</th><th style="width:18%"></th></tr></thead><tbody id="tariffBody"></tbody></table>
+            </div>
 
-        <button class="btn-primary btn" onclick="saveForm()">💾 저장 (검토표·청구서 양쪽 즉시 반영)</button>
+            <!-- Section 1 -->
+            <div class="card">
+              <div class="c-h"><span class="ti">📌 Section 1 — 업종별 추가업무</span><span class="badge" id="s1Cnt">0</span>
+                <span class="right-act"><button class="btn" style="font-size:11.5px" onclick="addSec('s1')">+ 항목</button></span>
+              </div>
+              <table class="ftbl"><thead><tr><th style="width:34%">항목명</th><th style="width:14%">유형</th><th style="width:18%">값</th><th>설명</th><th style="width:8%"></th></tr></thead><tbody id="s1Body"></tbody></table>
+            </div>
+
+            <!-- Section 2 -->
+            <div class="card">
+              <div class="c-h"><span class="ti">📞 Section 2 — 활증업무</span><span class="badge" id="s2Cnt">0</span>
+                <span class="right-act"><button class="btn" style="font-size:11.5px" onclick="addSec('s2')">+ 항목</button></span>
+              </div>
+              <table class="ftbl"><thead><tr><th style="width:34%">항목명</th><th style="width:14%">유형</th><th style="width:18%">값</th><th>설명</th><th style="width:8%"></th></tr></thead><tbody id="s2Body"></tbody></table>
+            </div>
+
+            <!-- Section 3 카탈로그 -->
+            <div class="card">
+              <div class="c-h"><span class="ti">💸 Section 3 — 세액공제·감면 카탈로그</span><span class="badge" id="catCnt">0</span></div>
+              <div class="help">
+                <b>🔗 단일 진실:</b> <code>sewmu/public/filing-tax-credit-catalog.json</code> fetch — 검토표 드롭다운이 쓰는 그 파일 그대로. JSON 1개 수정 → 양쪽 즉시 반영.<br>
+                <b>적용:</b> <span class="chip chip-both">법인+개인</span> 대부분(통합투자·R&D·환경·고용 다 양쪽) · <span class="chip chip-indv">개인만</span> 종소세 본문 12개 · <b style="color:#0B1F3A">법인만 0개</b><br>
+                <b>가산율:</b> <span class="chip chip-u">U자 20·10·20</span> 기본 / <span class="chip chip-flat">flat 5%</span> 중특만
+              </div>
+              <div class="fbar">
+                <input class="sch" id="catSearch" placeholder="🔍 검색 (이름·법조문·별칭 — 중특, R&D, 통합고용…)" oninput="renderCatalog()">
+                <select class="f" id="catFilt" onchange="renderCatalog()"><option value="">전체</option><option value="billable">청구 가산만</option><option value="excluded">제외만</option></select>
+                <select class="f" id="catCatF" onchange="renderCatalog()">
+                  <option value="">카테고리 전체</option><option value="general">일반(본문)</option><option value="special">특별공제</option>
+                  <option value="credit_invest">투자</option><option value="credit_rnd">R&D</option><option value="credit_employee">고용</option><option value="credit_general">일반세액</option><option value="exemption">감면</option>
+                </select>
+              </div>
+              <div style="max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;background:#fff">
+                <table style="border:none;border-radius:0">
+                  <thead style="position:sticky;top:0;z-index:1"><tr><th style="width:36%">항목</th><th style="width:16%">법조문</th><th style="width:18%">분류</th><th style="width:11%">가산</th><th>가산율</th></tr></thead>
+                  <tbody id="catBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Section 3 이 청구서 적용분 -->
+            <div class="card">
+              <div class="c-h"><span class="ti">💰 이 청구서 Section 3 적용분</span><span class="badge" id="s3Cnt">0</span>
+                <span class="right-act"><button class="btn" style="font-size:11.5px" onclick="addS3Row()">+ 항목 추가</button></span>
+              </div>
+              <table class="ftbl"><thead><tr><th style="width:42%">항목</th><th style="width:18%">감면액</th><th style="width:18%">가산율</th><th style="width:14%">가산액</th><th style="width:8%"></th></tr></thead><tbody id="s3Body"></tbody></table>
+              <div style="font-size:11.5px;color:var(--mut);margin-top:8px">💡 검토표에 이 거래처의 공제·감면 입력되어 있으면 자동 prefill (billable: true 인 항목만). 행마다 [✕] 삭제 가능 (이 청구서에만 적용 = snapshot)</div>
+            </div>
+
+            <!-- 인삿말 편집 -->
+            <div class="card">
+              <div class="c-h"><span class="ti">✏️ 인삿말 편집 (청구서 본체 4문단 + 제목)</span>
+                <span class="right-act"><span style="font-size:11px;color:var(--mut)">{yn}=연도, {taxType}=세금</span></span>
+              </div>
+              <div class="frow"><label>문서 제목</label><input id="g-title" placeholder="자동: {yn}년 귀속 {taxType} 신고 및 세무조정 수수료 청구의 건" oninput="syncPreview()"></div>
+              <div class="frow frow2" style="grid-template-columns:90px 1fr 1fr">
+                <label>발신처</label>
+                <input id="g-firm" value="세무회계 이윤" oninput="syncPreview()">
+                <input id="g-cpa" value="이재윤" oninput="syncPreview()" placeholder="담당 세무사명">
+              </div>
+              <div class="frow"><label>① 인삿말</label><textarea id="g-p1" rows="2" oninput="syncPreview()">귀 사의 무궁한 발전을 진심으로 기원합니다.</textarea></div>
+              <div class="frow"><label>② 감사</label><textarea id="g-p2" rows="2" oninput="syncPreview()">평소 저희 사무소에 보내주신 따뜻한 성원과 변함없는 신뢰에 진심으로 감사드립니다.</textarea></div>
+              <div class="frow"><label>③ 본문</label><textarea id="g-p3" rows="3" oninput="syncPreview()">저희 세무회계 이윤은 귀사로부터 위임받은 세무대리인으로서, 귀사의 세무 리스크를 선제적으로 관리하고 합법적인 조세 혜택을 최대한 활용할 수 있도록 성실히 직무에 임하고 있습니다.</textarea></div>
+              <div class="frow"><label>④ 마무리</label><textarea id="g-pEnd" rows="2" oninput="syncPreview()">항상 최선을 다하는 세무회계 이윤이 되겠습니다. 감사합니다.</textarea></div>
+            </div>
+
+          </div>
+
+          <!-- ===== 우측 청구서 본체 (실시간 미리보기) ===== -->
+          <div class="right">
+            <div class="preview-shell">
+              <div class="preview-tools">
+                <div><b id="pv-title">📄 미리보기</b> <span style="color:#94a3b8;margin-left:6px" id="pv-sub"></span></div>
+                <div class="tb">
+                  <button class="green" onclick="alert('(시뮬) PDF 생성 + 카톡 URL')">📤 발행</button>
+                  <button onclick="window.print()">🖨️ PDF</button>
+                </div>
+              </div>
+              <div class="page" id="invoice-page">
+                <div class="hd">
+                  <div class="hd-logo">
+                    <div class="hd-mark">이</div>
+                    <div><div class="hd-name" id="pv-firm">세무회계 이윤</div><div class="hd-sub">TAX STRATEGY &amp; ADVISORY</div></div>
+                  </div>
+                  <div class="hd-meta">발행일자 : <span id="pv-date">2025. 05. 20</span></div>
+                </div>
+                <table class="itbl">
+                  <tr><th>수 신</th><td class="b" style="width:60%"><span id="pv-cn">박수현 컨설팅(주)</span>&nbsp;&nbsp;<span id="pv-rn">박수현</span> 대표이사 귀하</td><th>귀속</th><td><span id="pv-yr">2025</span>년</td></tr>
+                  <tr><th>제 목</th><td colspan="3" class="b" id="pv-subj">2025년 귀속 법인세 신고 및 세무조정 수수료 청구의 건</td></tr>
+                </table>
+                <div class="greet">
+                  <p id="pv-p1">…</p>
+                  <p id="pv-p2">…</p>
+                  <p id="pv-p3">…</p>
+                  <p id="pv-pEnd">…</p>
+                </div>
+                <div class="cards">
+                  <div class="ccard"><span class="ccard-l">산출기준 수입금액</span><span class="ccard-v" id="pv-rev">—</span></div>
+                  <div class="ccard"><span class="ccard-l">기본 세무조정료</span><span class="ccard-v" id="pv-base">—</span></div>
+                  <div class="ccard"><span class="ccard-l">추가 용역 소계 (S1·S2·S3)</span><span class="ccard-v" id="pv-extra">—</span></div>
+                  <div class="ccard" id="pv-disc-row" style="display:none"><span class="ccard-l">할인액</span><span class="ccard-v" id="pv-disc">—</span></div>
+                  <div class="ccard final"><span class="ccard-l">최종 청구 (VAT 포함)</span><span class="ccard-v" id="pv-total">—</span></div>
+                </div>
+                <div class="pay">
+                  <span class="pl">※ 수수료 입금 계좌</span>
+                  <div class="pa">하나은행 010-5531-7625</div>
+                  <div class="ph">(예금주 : 세무사 이재윤 사무소)</div>
+                  <div class="pd">납부기한 : <span id="pv-due">—</span>까지</div>
+                </div>
+                <div class="ft">
+                  <div>
+                    <div class="ft-addr">우 42633 대구광역시 달서구 와룡로 221 4층</div>
+                    <div class="ft-tel"><span>TEL (053) 269-1213</span><span>FAX (053) 267-1213</span></div>
+                  </div>
+                  <div class="ft-sign">대표세무사&nbsp;<span class="nm" id="pv-cpa">이 재 윤</span></div>
+                </div>
+
+                <!-- 산출근거 (Section 3) -->
+                <div style="margin-top:12px;padding-top:10px;border-top:1px dashed #cbd5e1">
+                  <div style="font-size:10px;font-weight:800;color:#0f172a;margin-bottom:6px">📋 Section 3 산출근거 (이 청구서 적용분)</div>
+                  <table class="dtbl">
+                    <thead><tr><th style="text-align:left">항목</th><th style="text-align:left">산출 내역</th><th>금액 (원)</th></tr></thead>
+                    <tbody id="pv-s3-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
       </section>
 
-      <!-- ============== 2. 💰 청구서 모아보기 ============== -->
+      <!-- ============== 💰 청구서 모아보기 ============== -->
       <section class="view" id="v-list">
         <div class="h-lbl">조정료 청구 모아보기</div>
         <h1>💰 청구서 모아보기</h1>
-        <div class="h-sub">담당자별 자동 분류 · 🔴미수 / 🟡발송 / 🟢수금 · 행 클릭 → <b>청구서 본체로 이동</b></div>
+        <div class="h-sub">담당자별 자동 분류 · 🔴미수 / 🟡발송 / 🟢수금 · 행 클릭 → 청구서 양식 prefill</div>
         <div class="alert" id="alertBox">🚨 <b id="alertN">0</b>건 미수금 · <b id="alertW">0</b>원 (납기 지남)</div>
         <div class="fbar">
           <select class="f" id="lYr" onchange="renderList()"><option value="">연도 · 전체</option><option>2025</option><option>2024</option><option>2023</option></select>
@@ -267,7 +396,7 @@
           <input class="sch" id="lQ" placeholder="🔍 거래처 검색…" oninput="renderList()">
           <span class="cnt-r">총 <b id="listCnt">0</b>건</span>
         </div>
-        <div style="background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden">
+        <div style="background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden">
           <table>
             <thead><tr><th style="width:22%">거래처</th><th style="width:9%">세금</th><th style="width:9%">청구일</th><th style="width:9%">납기</th><th style="width:11%">금액</th><th style="width:13%">상태</th><th style="width:9%">입금일</th><th style="width:9%">담당자</th><th style="width:9%"></th></tr></thead>
             <tbody id="listBody"></tbody>
@@ -275,177 +404,28 @@
         </div>
       </section>
 
-      <!-- ============== 3. 📄 청구서 본체 (A4 + 편집) ============== -->
-      <section class="view" id="v-invoice">
-        <div class="invwrap">
-          <div class="invtools">
-            <div><b id="invTitle">거래처 청구서</b> <span style="color:#94a3b8;margin-left:8px" id="invSubt"></span></div>
-            <div class="tb">
-              <button onclick="toggleEdit()" id="editBtn">✏️ 편집 모드</button>
-              <button class="green" onclick="alert('(시뮬) PDF 생성 + 카톡 공유 URL 받기')">📤 발행 + 카톡 URL</button>
-              <button onclick="window.print()">🖨️ 인쇄/PDF 저장</button>
-              <button onclick="nav(document.querySelector('[data-v=list]'))">← 모아보기로</button>
-            </div>
-          </div>
-
-          <!-- A4 1장 -->
-          <div class="page" id="page1">
-            <div class="hd">
-              <div class="hd-logo">
-                <div class="hd-mark">이</div>
-                <div>
-                  <div class="hd-name">세무회계 이윤</div>
-                  <div class="hd-sub">TAX STRATEGY &amp; ADVISORY</div>
-                </div>
-              </div>
-              <div class="hd-meta">발행일자 : <span class="editable" id="iv-date">2025. 05. 20</span></div>
-            </div>
-            <table class="itbl">
-              <tr>
-                <th>수 신</th>
-                <td class="b" style="width:60%"><span class="editable" id="iv-cn">박수현 컨설팅(주)</span>&nbsp;&nbsp;<span class="editable" id="iv-rn">박수현</span> 대표이사 귀하</td>
-                <th>귀속연도</th><td><span class="editable" id="iv-yr">2025</span>년</td>
-              </tr>
-              <tr><th>제 목</th><td colspan="3" class="b"><span class="editable" id="iv-subj">2025년 귀속 법인세 신고 및 세무조정 수수료 청구의 건</span></td></tr>
-            </table>
-            <div class="greet">
-              <p><span class="editable" id="g-p1">귀 사의 무궁한 발전을 진심으로 기원합니다.</span></p>
-              <p><span class="editable" id="g-p2">평소 저희 사무소에 보내주신 따뜻한 성원과 변함없는 신뢰에 진심으로 감사드립니다.</span></p>
-              <p><span class="editable" id="g-p3">저희 세무회계 이윤은 귀사로부터 위임받은 세무대리인으로서, 귀사의 세무 리스크를 선제적으로 관리하고 합법적인 조세 혜택을 최대한 활용할 수 있도록 성실히 직무에 임하고 있습니다.</span></p>
-              <p><span class="editable" id="g-pEnd">항상 최선을 다하는 세무회계 이윤이 되겠습니다. 감사합니다.</span></p>
-            </div>
-            <div class="cards">
-              <div class="ccard"><span class="ccard-l">산출기준 수입금액</span><span class="ccard-v" id="iv-rev">850,000,000원</span></div>
-              <div class="ccard"><span class="ccard-l">기본 세무조정료 (공급가액)</span><span class="ccard-v" id="iv-base">1,560,000원</span></div>
-              <div class="ccard"><span class="ccard-l">추가 용역 소계 (Section 1·2·3)</span><span class="ccard-v" id="iv-extra">1,420,000원</span></div>
-              <div class="ccard"><span class="ccard-l">할 인 액</span><span class="ccard-v" id="iv-disc">—</span></div>
-              <div class="ccard final"><span class="ccard-l">최종 청구 금액 (부가가치세 포함)</span><span class="ccard-v" id="iv-total">3,278,000원</span></div>
-            </div>
-            <div class="pay">
-              <span class="pl">※ 수수료 입금 계좌 안내</span>
-              <div class="pa">하나은행&nbsp;&nbsp;010-5531-7625</div>
-              <div class="ph">(예금주 : 세무사 이재윤 사무소)</div>
-              <div class="pd">납부기한 : <span class="editable" id="iv-due">2025. 06. 30</span>까지 | 입금 확인 후 전자세금계산서 즉시 발행</div>
-            </div>
-            <div class="ft">
-              <div style="display:flex;justify-content:space-between;align-items:flex-end">
-                <div>
-                  <div class="ft-addr">우 42633 대구광역시 달서구 와룡로 221 4층</div>
-                  <div class="ft-tel"><span>TEL : (053) 269-1213</span><span>FAX : (053) 267-1213</span></div>
-                </div>
-                <div class="ft-sign">대표세무사&nbsp;&nbsp;<span class="nm">이 재 윤</span></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- A4 2장 — 산출근거 -->
-          <div class="page" id="page2">
-            <div class="hd">
-              <div class="hd-logo"><div class="hd-mark">이</div><div><div class="hd-name">세무회계 이윤</div><div class="hd-sub">TAX STRATEGY &amp; ADVISORY</div></div></div>
-              <div class="hd-meta">산출근거 명세</div>
-            </div>
-            <table class="itbl" style="margin-bottom:14px">
-              <tr><th>상 호</th><td id="iv2-cn">박수현 컨설팅(주)</td><th>귀속연도</th><td id="iv2-yr">2025년</td></tr>
-              <tr><th>기준수입금액</th><td id="iv2-rev">850,000,000원</td><th>업무구분</th><td id="iv2-bt">법인장부대행 및 법인조정</td></tr>
-              <tr><th>업 종</th><td id="iv2-bizup">제조업</td><th>자산총액</th><td id="iv2-asset">1,200,000,000원</td></tr>
-            </table>
-
-            <div id="iv-base-section">
-              <div class="stitle">기본 수수료</div>
-              <table class="dtbl">
-                <tr><th style="width:36%;text-align:left">항  목</th><th style="text-align:left">산출 내역</th><th style="width:22%">금액 (원)</th></tr>
-                <tr><td>기본정보보수표</td><td style="color:#64748b;font-style:italic">수입금액 850,000,000원 기준</td><td>1,260,000</td></tr>
-                <tr><td>결산 업무</td><td style="color:#64748b;font-style:italic">기본보수 × 20%</td><td>252,000</td></tr>
-                <tr><td>원가계산 가산</td><td style="color:#64748b;font-style:italic">기본보수 × 10%</td><td>126,000</td></tr>
-                <tr class="sub"><td colspan="2">소    계</td><td>1,638,000</td></tr>
-              </table>
-            </div>
-
-            <!-- Section 3 — 사장님이 행마다 X 클릭으로 삭제 가능 -->
-            <div id="iv-s3-section">
-              <div class="stitle" style="display:flex;align-items:center;gap:8px">Section 3 · 세액공제·감면 가산
-                <span style="margin-left:auto;font-size:9.5px;color:#94a3b8;font-weight:500">행마다 [✕]로 삭제 가능 (이 청구서에만 적용)</span>
-              </div>
-              <table class="dtbl">
-                <thead><tr><th style="width:34%;text-align:left">항  목</th><th style="text-align:left">산출 내역</th><th style="width:22%">금액 (원)</th><th class="rm-cell"></th></tr></thead>
-                <tbody id="iv-s3-body"></tbody>
-                <tr class="sub"><td colspan="2">Section 3 소계</td><td id="iv-s3-sum">0</td><td></td></tr>
-              </table>
-              <div class="add-row" onclick="addS3Row()">+ 항목 추가 (카탈로그에서 골라서)</div>
-            </div>
-
-            <table class="dtbl" style="margin-top:14px">
-              <tr><td colspan="2" style="font-weight:700;color:#475569;padding-top:8px">공  급  가  액</td><td style="font-size:12px;font-weight:700;color:#475569;padding-top:8px" id="iv-supply">2,980,000 원</td></tr>
-              <tr><td colspan="2" style="color:#94a3b8">부가가치세 (10%)</td><td style="color:#94a3b8" id="iv-vat">298,000 원</td></tr>
-              <tr style="background:#0f172a;color:#fff"><td colspan="2" style="padding:10px 9px;color:#fff;font-weight:800">청  구  합  계 (VAT 포함)</td><td style="font-size:15px;padding:10px 9px;color:#fff;font-weight:800" id="iv-total2">3,278,000 원</td></tr>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- ============== 4. ✏️ 인삿말 편집 ============== -->
-      <section class="view" id="v-greet">
-        <div class="h-lbl">청구서 인삿말</div>
-        <h1>✏️ 인삿말 편집</h1>
-        <div class="h-sub">청구서 본체에 들어가는 4문단 인삿말 · 문서제목 · 발신처 · 담당자명 — 사장님 사무소 표준</div>
-        <div class="help">📌 변경 후 [💾 저장] 누르면 청구서 본체에 즉시 반영. <code>{yn}</code>=귀속연도, <code>{taxType}</code>=세금구분 자동 치환</div>
-
-        <div class="card">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-            <div>
-              <label style="font-size:11px;color:var(--mut);font-weight:600">문서 제목 (비워두면 자동)</label>
-              <input class="sch" id="g-title" placeholder="자동: '{yn}년 귀속 {taxType} 신고 및 세무조정 수수료 청구의 건'" style="margin-top:4px;width:100%">
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--mut);font-weight:600">발신처 상호</label>
-              <input class="sch" id="g-firm" value="세무회계 이윤" style="margin-top:4px;width:100%">
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--mut);font-weight:600">담당 세무사명</label>
-              <input class="sch" id="g-cpa" value="이재윤" style="margin-top:4px;width:100%">
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--mut);font-weight:600">계좌 (자동 표시)</label>
-              <input class="sch" value="하나은행 010-5531-7625 (예금주: 세무사 이재윤 사무소)" readonly style="margin-top:4px;width:100%;background:#f9fafb">
-            </div>
-          </div>
-          <div style="font-size:13px;font-weight:700;margin:14px 0 6px">인삿말 4문단</div>
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <textarea class="sch" id="gv-p1" rows="2" style="font-family:inherit;resize:vertical">귀 사의 무궁한 발전을 진심으로 기원합니다.</textarea>
-            <textarea class="sch" id="gv-p2" rows="2" style="font-family:inherit;resize:vertical">평소 저희 사무소에 보내주신 따뜻한 성원과 변함없는 신뢰에 진심으로 감사드립니다.</textarea>
-            <textarea class="sch" id="gv-p3" rows="3" style="font-family:inherit;resize:vertical">저희 세무회계 이윤은 귀사로부터 위임받은 세무대리인으로서, 귀사의 세무 리스크를 선제적으로 관리하고 합법적인 조세 혜택을 최대한 활용할 수 있도록 성실히 직무에 임하고 있습니다.</textarea>
-            <textarea class="sch" id="gv-pEnd" rows="2" style="font-family:inherit;resize:vertical">항상 최선을 다하는 세무회계 이윤이 되겠습니다. 감사합니다.</textarea>
-          </div>
-          <button class="btn-primary btn" style="margin-top:14px" onclick="saveGreet()">💾 저장 (청구서 본체에 즉시 반영)</button>
-          <button class="btn" style="margin-top:14px;margin-left:8px" onclick="nav(document.querySelector('[data-v=invoice]'))">📄 청구서 본체에서 확인 →</button>
-        </div>
-      </section>
-
-      <!-- ============== 5. 거래처 담당자 시연 ============== -->
+      <!-- ============== 거래처 담당자 시연 ============== -->
       <section class="view" id="v-cust">
         <div class="h-lbl">담당자 시연</div>
         <h1>👤 거래처 담당자 — 상속 + override</h1>
-        <div class="h-sub">사람 = 민지 담당 → 매핑 업체 자동 상속. 업체별 수동 override 가능. <b>[💰 청구서 발행]</b> → 청구서 본체로</div>
-
+        <div class="h-sub">사람 = 민지 담당 → 매핑 업체 자동 상속. 업체별 수동 override 가능. <b>[💰 청구서 발행]</b> → 청구서 양식 prefill</div>
         <div class="card">
           <div class="c-h">
-            <span class="av" style="width:46px;height:46px;border-radius:50%;background:#EEF2F7;color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px">박</span>
-            <div style="margin-left:4px"><div style="font-size:18px;font-weight:700">박수현</div><div style="font-size:12px;color:var(--mut)">기장거래처 · 010-XXXX-1234</div></div>
-            <span class="right">
+            <span class="av" style="width:42px;height:42px;border-radius:50%;background:#EEF2F7;color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px">박</span>
+            <div style="margin-left:4px"><div style="font-size:17px;font-weight:700">박수현</div><div style="font-size:11.5px;color:var(--mut)">기장거래처 · 010-XXXX-1234</div></div>
+            <span class="right-act">
               <span class="tb-lbl">담당자</span>
-              <select class="seld" id="custStaff" onchange="custStaffChange()" style="font-size:14px;padding:6px 12px"><option>정은</option><option selected>민지</option><option>영철</option><option>예슬</option></select>
-              <button class="btn-primary btn" onclick="emitInvoice()">💰 청구서 발행 → 본체로</button>
+              <select class="seld" id="custStaff" onchange="custStaffChange()" style="font-size:13px;padding:5px 11px"><option>정은</option><option selected>민지</option><option>영철</option><option>예슬</option></select>
+              <button class="btn-primary btn" onclick="emitInvoice()">💰 청구서 발행 → 양식 prefill</button>
             </span>
           </div>
         </div>
-
         <div class="card" style="padding:0">
-          <div style="padding:14px 18px;border-bottom:1px solid var(--line);font-weight:700;font-size:14px">📂 매핑된 사업장 (3건)</div>
+          <div style="padding:12px 16px;border-bottom:1px solid var(--line);font-weight:700;font-size:13.5px">📂 매핑된 사업장 (3건)</div>
           <div id="bizList"></div>
         </div>
-
         <div class="card">
-          <div class="c-h"><span class="ti">📜 이 거래처의 청구서 이력 (3건)</span></div>
+          <div class="c-h"><span class="ti">📜 이 거래처의 청구서 이력</span></div>
           <table>
             <thead><tr><th>대상</th><th>세금</th><th>청구일</th><th>금액</th><th>상태</th><th>담당자</th></tr></thead>
             <tbody id="psHist"></tbody>
@@ -460,158 +440,19 @@
 <div class="toast" id="toast"></div>
 
 <script>
-/* ========== 누진표 / Section 1·2 ========== */
-var TARIFF = {
-  corp: [[0,400000,0],[100000000,400000,.25],[300000000,900000,.18],[500000000,1260000,.10],[1000000000,1760000,.06],[3000000000,2960000,.03],[5000000000,3560000,.02],[10000000000,4160000,.015],[30000000000,7160000,.01],[100000000000,14160000,.01]],
-  indv: [[0,300000,0],[100000000,300000,.25],[300000000,800000,.18],[500000000,1160000,.12],[1000000000,1760000,.06],[2000000000,2360000,.04],[3000000000,2760000,.025]]
+/* ========== 데이터 ========== */
+var TARIFF={
+  corp:[[0,400000,0],[100000000,400000,.25],[300000000,900000,.18],[500000000,1260000,.10],[1000000000,1760000,.06],[3000000000,2960000,.03],[5000000000,3560000,.02],[10000000000,4160000,.015],[30000000000,7160000,.01],[100000000000,14160000,.01]],
+  indv:[[0,300000,0],[100000000,300000,.25],[300000000,800000,.18],[500000000,1160000,.12],[1000000000,1760000,.06],[2000000000,2360000,.04],[3000000000,2760000,.025]]
 };
-var SECTIONS = {
-  corp:{ s1:[{name:'제조원가명세서 작성',type:'rate',val:20,desc:'기본보수 × %'},{name:'법인지점 결산 및 합산신고',type:'rate',val:10,desc:'지점당 기본보수 × %'},{name:'주식변동상황명세서',type:'unit',val:50000,desc:'변동인원 1인당'},{name:'해외현지법인 명세서',type:'unit',val:300000,desc:'건당'}], s2:[{name:'신용카드 내역 검토',type:'direct',val:0,desc:'직접 입력'},{name:'4대보험 취득·상실',type:'unit',val:10000,desc:'건당'},{name:'연말정산',type:'unit',val:20000,desc:'인당'},{name:'부가세 수정신고',type:'unit',val:50000,desc:'건당'}]},
-  indv:{ s1:[{name:'복식부기 작성',type:'rate',val:30,desc:'기본보수 × %'},{name:'성실신고 자료 검토',type:'rate',val:15,desc:'기본보수 × %'}], s2:[{name:'신용카드 내역 검토',type:'direct',val:0,desc:'직접 입력'},{name:'4대보험 (자영업자)',type:'unit',val:10000,desc:'건당'},{name:'프리랜서 인적용역',type:'unit',val:30000,desc:'건당'}]}
+var SECTIONS={
+  corp:{s1:[{name:'제조원가명세서 작성',type:'rate',val:20,desc:'기본보수 × %'},{name:'법인지점 결산 및 합산신고',type:'rate',val:10,desc:'지점당 ×%'},{name:'주식변동상황명세서',type:'unit',val:50000,desc:'변동인원 1인당'},{name:'해외현지법인 명세서',type:'unit',val:300000,desc:'건당'}],s2:[{name:'신용카드 내역 검토',type:'direct',val:0,desc:'직접 입력'},{name:'4대보험 취득·상실',type:'unit',val:10000,desc:'건당'},{name:'연말정산',type:'unit',val:20000,desc:'인당'},{name:'부가세 수정신고',type:'unit',val:50000,desc:'건당'}]},
+  indv:{s1:[{name:'복식부기 작성',type:'rate',val:30,desc:'기본보수 × %'},{name:'성실신고 자료 검토',type:'rate',val:15,desc:'기본보수 × %'}],s2:[{name:'신용카드 내역 검토',type:'direct',val:0,desc:'직접 입력'},{name:'4대보험 (자영업자)',type:'unit',val:10000,desc:'건당'},{name:'프리랜서 인적용역',type:'unit',val:30000,desc:'건당'}]}
 };
-
-/* ========== 카탈로그 118개 — sewmu/public/filing-tax-credit-catalog.json 풀세트 임베드 ========== */
-var CATALOG_RAW = [
-{"code":"SOD_56","name":"배당세액공제","alias":["배당"],"law":"소득세법 56조","cat":"general"},
-{"code":"JTL_56_2","name":"기장세액공제","alias":["기장"],"law":"조특법 56조의2","cat":"general"},
-{"code":"JTL_104_8","name":"전자계산서 발급전송세액공제","alias":["전자계산서"],"law":"조특법 104조의8","cat":"general"},
-{"code":"SOD_57","name":"외국납부세액공제","alias":["외국납부"],"law":"소득세법 57조","cat":"general"},
-{"code":"SOD_58","name":"재해손실세액공제","alias":["재해손실"],"law":"소득세법 58조","cat":"general"},
-{"code":"SOD_59","name":"근로소득세액공제","alias":["근로소득"],"law":"소득세법 59조","cat":"general"},
-{"code":"SOD_59_2","name":"자녀세액공제","alias":["자녀"],"law":"소득세법 59조의2","cat":"general"},
-{"code":"SOD_59_2_B","name":"출산입양자녀세액공제","alias":["출산","입양"],"law":"소득세법 59조의2","cat":"general"},
-{"code":"JTL_91_5","name":"연금계좌세액공제(과학기술인공제)","alias":["연금","과학기술인"],"law":"조특법 91조의5","cat":"general"},
-{"code":"SOD_59_3_A","name":"연금계좌세액공제(퇴직연금)","alias":["퇴직연금","연금"],"law":"소득세법 59조의3","cat":"general"},
-{"code":"SOD_59_3_B","name":"연금계좌세액공제(연금저축)","alias":["연금저축","연금"],"law":"소득세법 59조의3","cat":"general"},
-{"code":"JTL_91_18","name":"연금계좌세액공제(ISA만기 연금계좌납입)","alias":["ISA","연금"],"law":"조특법 91조의18","cat":"general"},
-{"code":"SOD_59_4_A","name":"보장성보험료 세액공제(일반)","alias":["보험","보장성"],"law":"소득세법 59조의4","cat":"special"},
-{"code":"SOD_59_4_B","name":"보장성보험료 세액공제(장애인)","alias":["보험","장애인"],"law":"소득세법 59조의4","cat":"special"},
-{"code":"SOD_59_4_C","name":"의료비 세액공제","alias":["의료비"],"law":"소득세법 59조의4","cat":"special"},
-{"code":"SOD_59_4_D","name":"교육비 세액공제","alias":["교육비"],"law":"소득세법 59조의4","cat":"special"},
-{"code":"SOD_59_4_E","name":"기부금 세액공제","alias":["기부","기부금"],"law":"소득세법 59조의4","cat":"special"},
-{"code":"SOD_59_4_F","name":"표준세액공제","alias":["표준"],"law":"소득세법 59조의4","cat":"special"},
-{"code":"131","name":"중소기업투자세액공제","alias":["중소기업투자"],"law":"조특법 5조","cat":"credit_invest"},
-{"code":"14Z","name":"상생결제 지급금액 세액공제","alias":["상생결제"],"law":"조특법 7조의4","cat":"credit_invest"},
-{"code":"14M","name":"대·중소기업 상생협력기금 출연 세액공제","alias":["상생협력기금"],"law":"조특법 8조의3","cat":"credit_invest"},
-{"code":"18D","name":"협력중소기업 유형고정자산 무상임대 세액공제","alias":["무상임대"],"law":"조특법 8조의3","cat":"credit_invest"},
-{"code":"18L","name":"수탁기업 설치 시설 세액공제","alias":["수탁기업"],"law":"조특법 8조의3","cat":"credit_invest"},
-{"code":"18R","name":"교육기관 무상기증 중고자산 세액공제","alias":["무상기증"],"law":"조특법 8조의3","cat":"credit_invest"},
-{"code":"13L","name":"신성장·원천기술 연구개발비 세액공제(최저한세 적용대상)","alias":["신성장","R&D"],"law":"조특법 10조","cat":"credit_rnd"},
-{"code":"10E","name":"국가전략기술 연구개발비 세액공제(최저한세 적용대상)","alias":["국가전략","R&D"],"law":"조특법 10조","cat":"credit_rnd"},
-{"code":"13M","name":"일반연구 및 인력개발비 세액공제(최저한세 적용대상)","alias":["일반연구","R&D"],"law":"조특법 10조","cat":"credit_rnd"},
-{"code":"16A","name":"신성장·원천기술 연구개발비 세액공제(최저한세 적용제외)","alias":["신성장","R&D"],"law":"조특법 10조","cat":"credit_rnd"},
-{"code":"10D","name":"국가전략기술 연구개발비 세액공제(최저한세 적용제외)","alias":["국가전략","R&D"],"law":"조특법 10조","cat":"credit_rnd"},
-{"code":"16B","name":"일반연구 및 인력개발비 세액공제(최저한세 적용제외)","alias":["일반연구","R&D"],"law":"조특법 10조","cat":"credit_rnd"},
-{"code":"176","name":"기술취득 세액공제","alias":["기술취득"],"law":"조특법 12조","cat":"credit_rnd"},
-{"code":"14T","name":"기술혁신형 합병 세액공제","alias":["기술혁신","합병"],"law":"조특법 12조의3","cat":"credit_rnd"},
-{"code":"14U","name":"기술혁신형 주식취득 세액공제","alias":["기술혁신","주식취득"],"law":"조특법 12조의4","cat":"credit_rnd"},
-{"code":"18E","name":"벤처기업 등 출자 세액공제","alias":["벤처","출자"],"law":"조특법 13조의2","cat":"credit_invest"},
-{"code":"18N","name":"소재·부품·장비 수요기업 공동출자 세액공제","alias":["소부장"],"law":"조특법 13조의3","cat":"credit_invest"},
-{"code":"19P","name":"소재·부품·장비 외국법인 인수 세액공제","alias":["소부장"],"law":"조특법 13조의3","cat":"credit_invest"},
-{"code":"18H","name":"성과공유 중소기업 경영성과급 세액공제","alias":["성과공유"],"law":"조특법 19조","cat":"credit_employee"},
-{"code":"13W","name":"통합투자세액공제(일반)","alias":["통합투자"],"law":"조특법 24조","cat":"credit_invest"},
-{"code":"13X","name":"통합투자세액공제(신성장사업화시설)","alias":["통합투자","신성장"],"law":"조특법 24조","cat":"credit_invest"},
-{"code":"13Y","name":"통합투자세액공제(국가전략기술사업화시설)","alias":["통합투자","국가전략"],"law":"조특법 24조","cat":"credit_invest"},
-{"code":"1B1","name":"임시 통합투자세액공제(일반)","alias":["임시통합투자"],"law":"조특법 24조","cat":"credit_invest"},
-{"code":"1B2","name":"임시 통합투자세액공제(신성장사업화시설)","alias":["임시통합투자","신성장"],"law":"조특법 24조","cat":"credit_invest"},
-{"code":"1B3","name":"임시 통합투자세액공제(국가전략기술사업화시설)","alias":["임시통합투자","국가전략"],"law":"조특법 24조","cat":"credit_invest"},
-{"code":"18I","name":"초연결네트워크 투자 세액공제","alias":["초연결네트워크"],"law":"조특법 25조의5","cat":"credit_invest"},
-{"code":"134","name":"연구 및 인력개발설비투자 세액공제","alias":["연구","인력개발설비"],"law":"조특법 25조","cat":"credit_rnd"},
-{"code":"177","name":"에너지절약시설투자 세액공제","alias":["에너지절약"],"law":"조특법 25조의2","cat":"credit_invest"},
-{"code":"14A","name":"환경보전시설투자 세액공제","alias":["환경보전"],"law":"조특법 25조의3","cat":"credit_invest"},
-{"code":"142","name":"근로자복지증진설비투자 세액공제","alias":["근로자복지"],"law":"조특법 25조의4","cat":"credit_employee"},
-{"code":"136","name":"안전설비투자 세액공제","alias":["안전설비"],"law":"조특법 25조의5","cat":"credit_invest"},
-{"code":"135","name":"생산성향상시설투자 세액공제","alias":["생산성향상"],"law":"조특법 25조의6","cat":"credit_invest"},
-{"code":"14B","name":"의약품품질관리개선시설투자 세액공제","alias":["의약품"],"law":"조특법 25조의8","cat":"credit_invest"},
-{"code":"18B","name":"신성장기술 사업화 시설투자 세액공제","alias":["신성장기술"],"law":"조특법 25조의9","cat":"credit_invest"},
-{"code":"18C","name":"영상콘텐츠제작비용 세액공제(기본)","alias":["영상콘텐츠"],"law":"조특법 25조의10","cat":"credit_invest"},
-{"code":"1B8","name":"영상콘텐츠제작비용 세액공제(추가)","alias":["영상콘텐츠"],"law":"조특법 25조의10","cat":"credit_invest"},
-{"code":"1B7","name":"문화산업전문회사 출자 세액공제","alias":["문화산업"],"law":"조특법 25조의11","cat":"credit_invest"},
-{"code":"14N","name":"고용창출투자세액공제","alias":["고용창출투자"],"law":"조특법 26조","cat":"credit_employee"},
-{"code":"14S","name":"산업수요맞춤형고교 졸업자 병역이행 후 복직 중소기업 세액공제","alias":["병역이행","복직"],"law":"조특법 29조의2","cat":"credit_employee"},
-{"code":"14X","name":"경력단절여성 고용기업 인건비 세액공제","alias":["경력단절","여성"],"law":"조특법 29조의3","cat":"credit_employee"},
-{"code":"18J","name":"육아휴직 후 고용유지 인건비 세액공제","alias":["육아휴직"],"law":"조특법 29조의3","cat":"credit_employee"},
-{"code":"14Y","name":"근로소득 증대 기업 세액공제","alias":["근로소득증대"],"law":"조특법 29조의4","cat":"credit_employee"},
-{"code":"18A","name":"청년고용증대 세액공제","alias":["청년고용"],"law":"조특법 29조의5","cat":"credit_employee"},
-{"code":"18F","name":"고용증대 세액공제","alias":["고용증대"],"law":"조특법 29조의7","cat":"credit_employee"},
-{"code":"18S","name":"통합고용세액공제","alias":["통합고용"],"law":"조특법 29조의8","cat":"credit_employee"},
-{"code":"1B4","name":"통합고용세액공제(정규직전환)","alias":["통합고용","정규직"],"law":"조특법 29조의8","cat":"credit_employee"},
-{"code":"1B5","name":"통합고용세액공제(육아휴직복귀)","alias":["통합고용","육아휴직"],"law":"조특법 29조의8","cat":"credit_employee"},
-{"code":"18K","name":"고용유지 중소기업 세액공제","alias":["고용유지"],"law":"조특법 30조","cat":"credit_employee"},
-{"code":"14H","name":"정규직근로자 전환 세액공제","alias":["정규직전환"],"law":"조특법 30조의2","cat":"credit_employee"},
-{"code":"14Q","name":"중소기업 고용증가인원 사회보험료 세액공제","alias":["사회보험료","고용증가"],"law":"조특법 30조의4","cat":"credit_employee"},
-{"code":"18G","name":"중소기업(고용증가인원) 사회보험료 세액공제","alias":["사회보험료"],"law":"조특법 30조의4","cat":"credit_employee"},
-{"code":"10B","name":"상가임대료 인하 임대사업자 세액공제","alias":["상가임대","인하"],"law":"조특법 96조의3","cat":"credit_invest"},
-{"code":"18Q","name":"선결제금액 세액공제","alias":["선결제"],"law":"조특법 99조의11","cat":"credit_invest"},
-{"code":"184","name":"전자신고세액공제(납세의무자)","alias":["전자신고"],"law":"조특법 104조의5","cat":"credit_general"},
-{"code":"14J","name":"전자신고세액공제(세무대리인)","alias":["전자신고","세무대리"],"law":"조특법 104조의5","cat":"credit_general"},
-{"code":"14E","name":"제3자물류비용 세액공제","alias":["제3자물류"],"law":"조특법 104조의14","cat":"credit_invest"},
-{"code":"1B6","name":"해외자원개발투자 과세특례","alias":["해외자원개발"],"law":"조특법 104조의15","cat":"credit_invest"},
-{"code":"14O","name":"기업의 경기부 설치운영 세액공제","alias":["경기부"],"law":"조특법 104조의20","cat":"credit_invest"},
-{"code":"14P","name":"석유제품 전자상거래 세액공제","alias":["석유제품"],"law":"조특법 104조의22","cat":"credit_invest"},
-{"code":"14I","name":"대학 맞춤형 교육비용 세액공제","alias":["대학","맞춤형교육"],"law":"조특법 104조의18","cat":"credit_general"},
-{"code":"14K","name":"대학 등 기부 설비 세액공제","alias":["대학기부"],"law":"조특법 104조의18","cat":"credit_general"},
-{"code":"14R","name":"산업수요맞춤형고교 재학생 현장훈련 세액공제","alias":["현장훈련"],"law":"조특법 104조의18","cat":"credit_general"},
-{"code":"18M","name":"우수 발명품 우선구매 세액공제","alias":["우수발명"],"law":"조특법 104조의25","cat":"credit_general"},
-{"code":"18O","name":"폐자원 등 활용 사업 세액공제","alias":["폐자원"],"law":"조특법 104조의26","cat":"credit_general"},
-{"code":"18P","name":"용역제공자에 관한 자료 제출 세액공제","alias":["용역제공자"],"law":"조특법 104조의29","cat":"credit_general"},
-{"code":"18T","name":"성과배분 세액공제","alias":["성과배분"],"law":"조특법 30조의6","cat":"credit_employee"},
-{"code":"JTL_6_A","name":"창업중소기업 등에 대한 세액감면 (창업감면)","alias":["창업감면","창업"],"law":"조특법 6조","cat":"exemption"},
-{"code":"JTL_6_B","name":"창업벤처중소기업 세액감면","alias":["창업벤처"],"law":"조특법 6조","cat":"exemption"},
-{"code":"JTL_6_C","name":"청년창업중소기업 세액감면","alias":["청년창업"],"law":"조특법 6조","cat":"exemption"},
-{"code":"JTL_7","name":"중소기업특별세액감면 (중특)","alias":["중특","중소기업특별"],"law":"조특법 7조","cat":"exemption"},
-{"code":"JTL_12_2","name":"연구개발특구 입주기업 세액감면","alias":["연구개발특구"],"law":"조특법 12조의2","cat":"exemption"},
-{"code":"JTL_30_3","name":"고용유지중소기업 등에 대한 과세특례","alias":["고용유지중소기업"],"law":"조특법 30조의3","cat":"exemption"},
-{"code":"JTL_31","name":"중소기업 간 통합 세액감면","alias":["통합감면"],"law":"조특법 31조","cat":"exemption"},
-{"code":"JTL_32","name":"법인전환에 대한 양도세 이월과세","alias":["법인전환"],"law":"조특법 32조","cat":"exemption"},
-{"code":"JTL_60","name":"농공단지 입주기업 등에 대한 세액감면","alias":["농공단지"],"law":"조특법 60조","cat":"exemption"},
-{"code":"JTL_62","name":"위기지역 창업기업 세액감면","alias":["위기지역"],"law":"조특법 62조","cat":"exemption"},
-{"code":"JTL_63","name":"수도권과밀억제권역 외 지역 이전 중소기업 감면","alias":["수도권이전","이전감면"],"law":"조특법 63조","cat":"exemption"},
-{"code":"JTL_64","name":"공장의 지방 이전 세액감면","alias":["공장지방이전"],"law":"조특법 64조","cat":"exemption"},
-{"code":"JTL_65","name":"본사의 수도권과밀억제권역 외 지역 이전 세액감면","alias":["본사이전"],"law":"조특법 65조","cat":"exemption"},
-{"code":"JTL_99_11_A","name":"전통시장 세액감면","alias":["전통시장"],"law":"조특법 99조의11","cat":"exemption"},
-{"code":"JTL_99_9","name":"고용유지중소기업의 임금삭감액 추가 손금산입","alias":["임금삭감"],"law":"조특법 99조의9","cat":"exemption"},
-{"code":"JTL_121_22","name":"외국인투자기업 세액감면","alias":["외국인투자"],"law":"조특법 121조의22","cat":"exemption"},
-{"code":"JTL_121_8","name":"제주첨단과학기술단지 입주기업 세액감면","alias":["제주첨단"],"law":"조특법 121조의8","cat":"exemption"},
-{"code":"JTL_121_9","name":"제주투자진흥지구 입주기업 세액감면","alias":["제주투자진흥"],"law":"조특법 121조의9","cat":"exemption"},
-{"code":"JTL_121_17","name":"기업도시개발구역 입주기업 세액감면","alias":["기업도시"],"law":"조특법 121조의17","cat":"exemption"},
-{"code":"JTL_121_20","name":"아시아문화중심도시 투자진흥지구 입주기업 세액감면","alias":["아시아문화"],"law":"조특법 121조의20","cat":"exemption"},
-{"code":"JTL_121_21","name":"금융중심지 창업기업 세액감면","alias":["금융중심지"],"law":"조특법 121조의21","cat":"exemption"},
-{"code":"JTL_99_4","name":"농공단지 등 입주기업 농어업인 세액감면","alias":["농공단지","농어업인"],"law":"조특법 99조의4","cat":"exemption"},
-{"code":"JTL_99_5","name":"수도권과밀억제권역 외 지역으로 이전하는 법인의 세액감면","alias":["수도권이전"],"law":"조특법 99조의5","cat":"exemption"},
-{"code":"JTL_85_6","name":"국제선박 등록 세액감면","alias":["국제선박"],"law":"조특법 85조의6","cat":"exemption"},
-{"code":"JTL_104_24","name":"해외진출기업의 국내복귀 세액감면","alias":["국내복귀","유턴"],"law":"조특법 104조의24","cat":"exemption"},
-{"code":"JTL_100_28","name":"산림개발소득 세액감면","alias":["산림개발"],"law":"조특법 100조의28","cat":"exemption"},
-{"code":"JTL_85_10","name":"국제금융거래 이자소득 면제 등","alias":["국제금융"],"law":"조특법 85조의10","cat":"exemption"},
-{"code":"INT_TRADE_C","name":"국가핵심기술 등 침해 행위 시 세액 세액공제","alias":["국가핵심기술"],"law":"조특법 28조의2","cat":"credit_general"},
-{"code":"18U","name":"디지털 자산 거래 세액공제","alias":["디지털자산"],"law":"조특법 신설","cat":"credit_general"},
-{"code":"18V","name":"가족친화 인증기업 인증 유지 세액공제","alias":["가족친화"],"law":"조특법 신설","cat":"credit_employee"},
-{"code":"18W","name":"여성기업 우선 구매 세액공제","alias":["여성기업"],"law":"조특법 신설","cat":"credit_general"},
-{"code":"18X","name":"중소기업 청년 고용 인센티브 세액공제","alias":["청년고용"],"law":"조특법 신설","cat":"credit_employee"},
-{"code":"18Z","name":"디지털 전환 시설 투자 세액공제","alias":["디지털전환"],"law":"조특법 신설","cat":"credit_invest"},
-{"code":"19A","name":"탄소중립 시설 투자 세액공제","alias":["탄소중립"],"law":"조특법 신설","cat":"credit_invest"}
-];
-
-/* 메타 자동 분류 — cat 기반 + 중특 특별 처리.
- * general·special = false (자연발생). 나머지(투자·R&D·고용·일반세액·감면) = true. 중특만 flat_5. */
-var CATALOG = CATALOG_RAW.map(function(c){
-  var billable=false, rule='none';
-  if(c.cat==='general' || c.cat==='special'){ billable=false; rule='none'; }
-  else { billable=true; rule='progressive_u'; }
-  if(c.code==='JTL_7' || c.name.includes('중소기업특별세액감면')){ rule='flat_5'; }
-  /* 적용 추정: 법인(corp) / 개인(indv) — credit_invest·credit_rnd 는 주로 법인, special·일부 general 은 개인 위주 */
-  var applies=['indv','corp'];
-  if(['SOD_59','SOD_59_2','SOD_59_2_B','SOD_59_3_A','SOD_59_3_B','JTL_91_5','JTL_91_18','SOD_59_4_A','SOD_59_4_B','SOD_59_4_C','SOD_59_4_D','SOD_59_4_F'].includes(c.code)) applies=['indv'];
-  return Object.assign({}, c, {applies:applies, billable:billable, rule:rule});
-});
-
-/* ========== 직원 / 거래처 / 청구서 ========== */
+var CATALOG=[]; /* fetch 후 채워짐. 실패 시 폴백 = 빈 (UI 처리) */
+var CATALOG_FALLBACK=[{code:'JTL_7',name:'중소기업특별세액감면',law:'조특법 7조',cat:'exemption'},{code:'18F',name:'고용증대 세액공제',law:'조특법 29조의7',cat:'credit_employee'},{code:'13M',name:'일반연구 및 인력개발비 세액공제',law:'조특법 10조',cat:'credit_rnd'},{code:'14Q',name:'중소기업 고용증가인원 사회보험료 세액공제',law:'조특법 30조의4',cat:'credit_employee'},{code:'13W',name:'통합투자세액공제',law:'조특법 24조',cat:'credit_invest'}];
 var STAFF=['정은','민지','영철','예슬'];
-var BIZS=[
-  {id:1,name:'박수현 개인사업자',form:'개인사업자',taxType:'종소세',staff:null,override:false},
-  {id:2,name:'박수현 컨설팅(주)',form:'법인',taxType:'법인세',staff:null,override:false},
-  {id:3,name:'박수현 베이커리(주)',form:'법인',taxType:'법인세',staff:'정은',override:true}
-];
+var BIZS=[{id:1,name:'박수현 개인사업자',form:'개인사업자',taxType:'종소세',staff:null,override:false},{id:2,name:'박수현 컨설팅(주)',form:'법인',taxType:'법인세',staff:null,override:false},{id:3,name:'박수현 베이커리(주)',form:'법인',taxType:'법인세',staff:'정은',override:true}];
 var personStaff='민지';
 var INVOICES=[
   {id:1,cust:'박수현 컨설팅(주)',taxType:'법인세',yr:2025,iDate:'2025-03-15',due:'2025-04-30',amount:3278000,sent:true,paid:false,paidAt:'',staff:'민지',override:false},
@@ -623,59 +464,31 @@ var INVOICES=[
   {id:7,cust:'하주성 카페',taxType:'종소세',yr:2024,iDate:'2025-05-08',due:'2025-05-31',amount:1450000,sent:true,paid:false,paidAt:'',staff:'영철',override:false},
   {id:8,cust:'(주)고성산업개발',taxType:'법인세',yr:2025,iDate:'2025-03-18',due:'2025-04-30',amount:5800000,sent:true,paid:false,paidAt:'',staff:'예슬',override:false},
   {id:9,cust:'이경식',taxType:'종소세',yr:2024,iDate:'2025-04-30',due:'2025-05-31',amount:2100000,sent:true,paid:true,paidAt:'2025-05-18',staff:'영철',override:false},
-  {id:10,cust:'편민우',taxType:'종소세',yr:2024,iDate:'2025-05-05',due:'2025-05-31',amount:680000,sent:false,paid:false,paidAt:'',staff:'민지',override:false},
-  {id:11,cust:'문성혁 디자인스튜디오',taxType:'종소세',yr:2024,iDate:'2025-04-28',due:'2025-05-31',amount:950000,sent:true,paid:true,paidAt:'2025-05-20',staff:'예슬',override:false},
-  {id:12,cust:'다이렉트에스케이비',taxType:'법인세',yr:2025,iDate:'2025-03-12',due:'2025-04-30',amount:2300000,sent:true,paid:true,paidAt:'2025-04-29',staff:'민지',override:false}
+  {id:10,cust:'편민우',taxType:'종소세',yr:2024,iDate:'2025-05-05',due:'2025-05-31',amount:680000,sent:false,paid:false,paidAt:'',staff:'민지',override:false}
 ];
-
-/* 현재 청구서 본체에 표시되는 Section 3 항목 — 행마다 삭제 가능 */
+/* 이 청구서 (현재 양식에서 편집 중) Section 3 적용분 */
 var INV_S3=[
-  {code:'JTL_7',  name:'중소기업특별세액감면',  amt:3200000, rule:'flat_5',         gain:160000},
-  {code:'18F',    name:'고용증대 세액공제',     amt:4800000, rule:'progressive_u',  gain:580000},
-  {code:'13M',    name:'일반연구 및 인력개발비 세액공제(최저한세 적용대상)', amt:1300000, rule:'progressive_u', gain:195000},
-  {code:'14Q',    name:'중소기업 고용증가인원 사회보험료 세액공제', amt:800000, rule:'progressive_u', gain:160000}
+  {code:'JTL_7',name:'중소기업특별세액감면',amt:3200000,rule:'flat_5'},
+  {code:'18F',name:'고용증대 세액공제',amt:4800000,rule:'progressive_u'},
+  {code:'13M',name:'일반연구 및 인력개발비 세액공제',amt:1300000,rule:'progressive_u'}
 ];
 
-var curForm='corp';
-var TODAY=new Date('2025-05-20');
-var editMode=false;
-var INV_GREET={p1:null,p2:null,p3:null,pEnd:null,title:null,firmName:'세무회계 이윤',cpaName:'이재윤'};
+var curForm='corp', TODAY=new Date('2025-05-20');
 
-/* ========== 유틸 ========== */
 function $(id){return document.getElementById(id)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function W(n){return (n||0).toLocaleString('ko-KR')}
-function showToast(m){var t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._tm);t._tm=setTimeout(function(){t.classList.remove('show')},2500)}
-function statusOf(inv){
-  if(!inv.sent) return {cls:'st-gr',label:'발행 안 됨',code:'gr'};
-  if(inv.paid) return {cls:'st-g',label:'🟢 수금완료',code:'g'};
-  var d=new Date(inv.due);
-  if(d<TODAY) return {cls:'st-r',label:'🔴 미수 ('+Math.floor((TODAY-d)/86400000)+'일)',code:'r'};
-  return {cls:'st-y',label:'🟡 발송완료',code:'y'};
-}
-function catLabel(cat){return {general:'일반',special:'특별공제',credit_invest:'투자',credit_rnd:'R&D',credit_employee:'고용',credit_general:'일반세액',exemption:'감면'}[cat]||cat}
+function showToast(m){var t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove('show'),2500)}
+function statusOf(inv){if(!inv.sent)return{cls:'st-gr',label:'발행X',code:'gr'};if(inv.paid)return{cls:'st-g',label:'🟢 수금',code:'g'};var d=new Date(inv.due);if(d<TODAY)return{cls:'st-r',label:'🔴 미수('+Math.floor((TODAY-d)/86400000)+'일)',code:'r'};return{cls:'st-y',label:'🟡 발송',code:'y'}}
+function catLabel(c){return{general:'일반',special:'특별공제',credit_invest:'투자',credit_rnd:'R&D',credit_employee:'고용',credit_general:'일반세액',exemption:'감면'}[c]||c}
 
-/* ========== 네비 ========== */
-function nav(el){
-  document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));
-  el.classList.add('on');
-  var v=el.dataset.v;
-  document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));
-  $('v-'+v).classList.add('on');
-  $('bc').textContent={form:'청구서 양식',list:'청구서 모아보기',invoice:'청구서 본체',greet:'인삿말 편집',cust:'거래처 담당자 시연 (박수현)'}[v];
-  if(v==='form') renderForm();
-  if(v==='list') renderList();
-  if(v==='invoice') renderInvoice();
-  if(v==='cust') renderCust();
-  window.scrollTo(0,0);
-}
+function nav(el){document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));el.classList.add('on');var v=el.dataset.v;document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));$('v-'+v).classList.add('on');$('bc').textContent={form:'청구서 양식',list:'청구서 모아보기',cust:'거래처 담당자 시연'}[v];if(v==='form')renderForm();if(v==='list')renderList();if(v==='cust')renderCust();window.scrollTo(0,0)}
 function filterStaff(){renderList();refreshAlert()}
-function pickForm(el){document.querySelectorAll('#formTabs .tab').forEach(b=>b.classList.remove('on'));el.classList.add('on');curForm=el.dataset.t;renderForm()}
+function pickForm(el){document.querySelectorAll('#formTabs .tab').forEach(b=>b.classList.remove('on'));el.classList.add('on');curForm=el.dataset.t;$('formLabel').textContent=curForm==='corp'?'법인':'개인';renderForm();syncPreview()}
 
-/* ========== 청구서 양식 ========== */
+/* ========== 청구서 양식 (좌측 편집) ========== */
 function renderForm(){
   $('catTotal').textContent=CATALOG.length;
-  /* 누진표 */
   $('tariffBody').innerHTML=TARIFF[curForm].map((r,i)=>(
     '<tr>'
     +'<td><div class="inl"><input type="number" value="'+(r[0]/1000000)+'" onchange="setTariff('+i+',0,this.value*1000000)"><span class="unit">백만원</span></div></td>'
@@ -684,94 +497,138 @@ function renderForm(){
     +'<td><button class="btn-x" onclick="rmTariff('+i+')">✕</button></td>'
     +'</tr>'
   )).join('');
-  ['s1','s2'].forEach(function(key){
-    var arr=SECTIONS[curForm][key];$(key+'Cnt').textContent=arr.length;
-    $(key+'Body').innerHTML=arr.map((it,i)=>(
-      '<tr>'
-      +'<td><input type="text" value="'+esc(it.name)+'" onchange="setSec(\''+key+'\','+i+',\'name\',this.value)"></td>'
-      +'<td><select class="seld" onchange="setSec(\''+key+'\','+i+',\'type\',this.value)">'
-      +  '<option value="rate"'+(it.type==='rate'?' selected':'')+'>rate (%)</option>'
-      +  '<option value="unit"'+(it.type==='unit'?' selected':'')+'>unit (건당)</option>'
-      +  '<option value="direct"'+(it.type==='direct'?' selected':'')+'>direct (직접)</option>'
-      +'</select></td>'
-      +'<td><input type="number" value="'+it.val+'" onchange="setSec(\''+key+'\','+i+',\'val\',+this.value)"></td>'
-      +'<td style="font-size:12px;color:#6B7280">'+esc(it.desc)+'</td>'
-      +'<td><button class="btn-x" onclick="rmSec(\''+key+'\','+i+')">✕</button></td>'
-      +'</tr>'
-    )).join('');
-  });
-  renderCatalog();
+  ['s1','s2'].forEach(key=>{var arr=SECTIONS[curForm][key];$(key+'Cnt').textContent=arr.length;$(key+'Body').innerHTML=arr.map((it,i)=>(
+    '<tr><td><input type="text" value="'+esc(it.name)+'" onchange="setSec(\''+key+'\','+i+',\'name\',this.value)"></td>'
+    +'<td><select class="seld" onchange="setSec(\''+key+'\','+i+',\'type\',this.value)"><option value="rate"'+(it.type==='rate'?' selected':'')+'>rate</option><option value="unit"'+(it.type==='unit'?' selected':'')+'>unit</option><option value="direct"'+(it.type==='direct'?' selected':'')+'>direct</option></select></td>'
+    +'<td><input type="number" value="'+it.val+'" onchange="setSec(\''+key+'\','+i+',\'val\',+this.value)"></td>'
+    +'<td style="font-size:11px;color:#6B7280">'+esc(it.desc)+'</td>'
+    +'<td><button class="btn-x" onclick="rmSec(\''+key+'\','+i+')">✕</button></td></tr>'
+  )).join('')});
+  renderCatalog(); renderS3();
 }
-function setTariff(i,col,v){TARIFF[curForm][i][col]=v;showToast('누진표 저장 (in-memory)')}
+function setTariff(i,col,v){TARIFF[curForm][i][col]=v;showToast('누진표 저장');syncPreview()}
 function addTariff(){TARIFF[curForm].push([0,0,0]);renderForm()}
-function rmTariff(i){TARIFF[curForm].splice(i,1);renderForm()}
-function setSec(k,i,f,v){SECTIONS[curForm][k][i][f]=v;showToast(k.toUpperCase()+' 저장')}
-function rmSec(k,i){SECTIONS[curForm][k].splice(i,1);renderForm()}
-function addSec(k){
-  var defaultDesc=k==='s1'?'업종/회사별 추가업무 (rate=기본보수%, unit=건당 단가)':'활증업무 (direct=직접입력 / unit=건당)';
-  SECTIONS[curForm][k].push({name:'새 항목',type:'unit',val:0,desc:defaultDesc});
-  renderForm(); showToast('+ '+(k==='s1'?'Section 1':'Section 2')+' 항목 추가됨');
-}
+function rmTariff(i){TARIFF[curForm].splice(i,1);renderForm();syncPreview()}
+function setSec(k,i,f,v){SECTIONS[curForm][k][i][f]=v;showToast(k.toUpperCase()+' 저장');syncPreview()}
+function rmSec(k,i){SECTIONS[curForm][k].splice(i,1);renderForm();syncPreview()}
+function addSec(k){var d=k==='s1'?'업종/회사별 추가':'활증업무';SECTIONS[curForm][k].push({name:'새 항목',type:'unit',val:0,desc:d});renderForm();showToast('+ '+k.toUpperCase()+' 항목 추가')}
+
 function renderCatalog(){
-  var q=($('catSearch').value||'').trim().toLowerCase();
-  var ft=$('catFilt').value, catF=$('catCatF').value;
-  var list=CATALOG.filter(c=>{
-    if(!c.applies.includes(curForm)) return false;
-    if(catF && c.cat!==catF) return false;
-    if(q){
-      var hay=(c.name+' '+c.code+' '+(c.law||'')+' '+(c.alias||[]).join(' ')).toLowerCase();
-      if(!hay.includes(q)) return false;
-    }
-    if(ft==='billable' && !c.billable) return false;
-    if(ft==='excluded' && c.billable) return false;
-    return true;
-  });
+  var q=($('catSearch').value||'').trim().toLowerCase();var ft=$('catFilt').value,catF=$('catCatF').value;
+  var list=CATALOG.filter(c=>{if(!c.applies||!c.applies.includes(curForm))return false;if(catF&&c.cat!==catF)return false;if(q){var h=(c.name+' '+c.code+' '+(c.law||'')+' '+(c.alias||[]).join(' ')).toLowerCase();if(!h.includes(q))return false}if(ft==='billable'&&!c.billable)return false;if(ft==='excluded'&&c.billable)return false;return true});
   $('catCnt').textContent=list.length;
   $('catBody').innerHTML=list.map(c=>{
-    var ruleChip=c.rule==='flat_5'?'<span class="chip chip-flat">flat 5%</span>':c.rule==='progressive_u'?'<span class="chip chip-u">U자 20·10·20</span>':'<span class="chip chip-none">none</span>';
-    var appChip=c.applies.length===2?'<span class="chip chip-both">법인+개인</span>':c.applies[0]==='corp'?'<span class="chip chip-biz">법인만</span>':'<span class="chip chip-indv">개인만</span>';
+    var rc=c.rule==='flat_5'?'<span class="chip chip-flat">5%</span>':c.rule==='progressive_u'?'<span class="chip chip-u">U자</span>':'<span class="chip chip-none">none</span>';
+    var ac=c.applies.length===2?'<span class="chip chip-both">법·개</span>':c.applies[0]==='corp'?'<span class="chip chip-biz">법인만</span>':'<span class="chip chip-indv">개인만</span>';
     return '<tr>'
-      +'<td><div style="font-weight:600;color:'+(c.billable?'#0B1F3A':'#9CA3AF')+'">'+esc(c.name)+'</div><div style="font-size:11px;color:#9CA3AF;margin-top:2px">'+esc(c.code)+' · '+(c.alias||[]).map(a=>esc(a)).join(', ')+'</div></td>'
-      +'<td style="font-size:12px;color:#6B7280">'+esc(c.law||'')+'</td>'
-      +'<td><span class="cat-cat">'+catLabel(c.cat)+'</span> '+appChip+'</td>'
+      +'<td><div style="font-weight:600;color:'+(c.billable?'#0B1F3A':'#9CA3AF')+';font-size:12px">'+esc(c.name)+'</div><div style="font-size:10px;color:#9CA3AF">'+esc(c.code)+'</div></td>'
+      +'<td style="font-size:11px;color:#6B7280">'+esc(c.law||'')+'</td>'
+      +'<td><span class="cat-cat">'+catLabel(c.cat)+'</span> '+ac+'</td>'
       +'<td><label class="tg"><input type="checkbox" '+(c.billable?'checked':'')+' onchange="catBill(\''+c.code+'\',this.checked)"><span class="tg-s"></span></label></td>'
-      +'<td><select class="seld" onchange="catRule(\''+c.code+'\',this.value)" '+(c.billable?'':'disabled')+'><option value="none"'+(c.rule==='none'?' selected':'')+'>none</option><option value="flat_5"'+(c.rule==='flat_5'?' selected':'')+'>flat 5%</option><option value="progressive_u"'+(c.rule==='progressive_u'?' selected':'')+'>U자 20·10·20</option></select> '+ruleChip+'</td>'
+      +'<td><select class="seld" onchange="catRule(\''+c.code+'\',this.value)" '+(c.billable?'':'disabled')+'><option value="none"'+(c.rule==='none'?' selected':'')+'>none</option><option value="flat_5"'+(c.rule==='flat_5'?' selected':'')+'>5%</option><option value="progressive_u"'+(c.rule==='progressive_u'?' selected':'')+'>U자</option></select> '+rc+'</td>'
       +'</tr>';
-  }).join('');
+  }).join('') || '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--mut)">카탈로그 fetch 중…</td></tr>';
 }
 function catBill(code,v){var c=CATALOG.find(x=>x.code===code);if(c){c.billable=v;if(!v)c.rule='none';else if(c.rule==='none')c.rule='progressive_u';showToast(c.name+' billable='+v);renderCatalog()}}
-function catRule(code,v){var c=CATALOG.find(x=>x.code===code);if(c){c.rule=v;showToast(c.name+' rule='+v)}}
-function saveForm(){showToast('✅ 청구서 양식 저장됨 — 양쪽 즉시 반영 (시뮬)')}
+function catRule(code,v){var c=CATALOG.find(x=>x.code===code);if(c){c.rule=v;showToast(c.name+' rule='+v);syncPreview()}}
 
-/* ========== 청구서 모아보기 ========== */
-function refreshAlert(){
-  var globS=$('globStaff').value;
-  var mis=INVOICES.filter(i=>{if(globS&&i.staff!==globS)return false;return statusOf(i).code==='r'});
-  var total=mis.reduce((a,i)=>a+i.amount,0);
-  $('alertN').textContent=mis.length;$('alertW').textContent=W(total);
-  $('alertBox').style.display=mis.length?'flex':'none';
-  $('cnt-mis').textContent=mis.length;
+/* ========== Section 3 (이 청구서) ========== */
+function renderS3(){
+  $('s3Cnt').textContent=INV_S3.length;
+  $('s3Body').innerHTML=INV_S3.map((s3,idx)=>{
+    var gain= s3.rule==='flat_5'? Math.floor(s3.amt*0.05): Math.floor(s3.amt*0.15);
+    s3.gain=gain;
+    return '<tr><td style="font-size:12px;font-weight:600">'+esc(s3.name)+'</td>'
+      +'<td><input type="number" value="'+s3.amt+'" onchange="setS3('+idx+',\'amt\',+this.value)"></td>'
+      +'<td><select class="seld" onchange="setS3('+idx+',\'rule\',this.value)"><option value="flat_5"'+(s3.rule==='flat_5'?' selected':'')+'>5%</option><option value="progressive_u"'+(s3.rule==='progressive_u'?' selected':'')+'>U자</option></select></td>'
+      +'<td style="font-weight:700;color:#0B1F3A">'+W(gain)+'원</td>'
+      +'<td><button class="btn-x" onclick="rmS3('+idx+')">✕</button></td></tr>';
+  }).join('');
+  syncPreview();
 }
-function renderList(){
-  refreshAlert();
-  var yr=$('lYr').value,tax=$('lTax').value,staff=$('lStaff').value,state=$('lState').value;
-  var q=($('lQ').value||'').trim();var globS=$('globStaff').value;
-  var filt=INVOICES.filter(i=>{
-    if(yr&&String(i.yr)!==yr)return false;if(tax&&i.taxType!==tax)return false;
-    if(staff&&i.staff!==staff)return false;if(globS&&i.staff!==globS)return false;
-    if(q&&i.cust.indexOf(q)<0)return false;
-    if(state&&statusOf(i).code!==state)return false;return true;
-  });
+function setS3(i,f,v){INV_S3[i][f]=v;renderS3()}
+function rmS3(i){var n=INV_S3[i].name;INV_S3.splice(i,1);showToast('✕ '+n+' 제거');renderS3()}
+function addS3Row(){var bill=CATALOG.filter(c=>c.billable);if(!bill.length){showToast('billable 카탈로그 fetch 대기');return}var pick=prompt('항목명 검색:\n예: 중특, 통합고용, R&D, 환경보전','중특');if(!pick)return;var h=bill.find(c=>c.name.includes(pick)||(c.alias||[]).some(a=>a.includes(pick)));if(!h){showToast('일치 없음');return}var amt=parseFloat(prompt('감면액 (원):','1000000'))||0;INV_S3.push({code:h.code,name:h.name,amt:amt,rule:h.rule});renderS3();showToast('+ '+h.name)}
+
+/* ========== 실시간 미리보기 ========== */
+function syncPreview(){
+  /* 좌측 form → 우측 page */
+  var cn=$('iv-cn').value||'(거래처)', rn=$('iv-rn').value||'대표', yr=$('iv-yr').value||'____';
+  var date=($('iv-date').value||'').replace(/-/g,'. '); var due=($('iv-due').value||'').replace(/-/g,'. ');
+  var bt=$('iv-bt').value; var taxType=bt.includes('법인')?'법인세':'종소세';
+  var rev=parseFloat($('iv-rev').value)||0; var asset=parseFloat($('iv-asset').value)||0;
+  var base=calcBase(Math.max(rev,asset));
+  var ket=bt.includes('장부')?Math.floor(base*0.2/1000)*1000:0;
+  var cst=base>0?Math.floor((base+ket)*0.1/1000)*1000:0;
+  var s1Extra=0;
+  SECTIONS[curForm].s1.forEach(it=>{if(it.type==='rate')s1Extra+=Math.floor(base*(it.val||0)/100/1000)*1000});
+  var s2Tot=0;SECTIONS[curForm].s2.forEach(it=>{s2Tot+=(it.val||0)});
+  var s3Tot=INV_S3.reduce((a,s)=>a+(s.gain||0),0);
+  var extra=s1Extra+s2Tot+s3Tot;
+  var supply=base+ket+cst+extra;
+  var disc=parseFloat($('iv-disc').value)||0;
+  var supplyDisc=supply-disc;
+  var vat=Math.round(supplyDisc*0.1);
+  var total=supplyDisc+vat;
+  if($('iv-trunc').checked) total=Math.floor(total/1000)*1000;
+  /* 우측 반영 */
+  $('pv-title').textContent=cn+' '+yr+'년 '+taxType+' 청구서';
+  $('pv-sub').textContent='실시간 미리보기';
+  $('pv-firm').textContent=$('g-firm').value||'세무회계 이윤';
+  $('pv-cpa').textContent=($('g-cpa').value||'이재윤').split('').join(' ');
+  $('pv-date').textContent=date; $('pv-due').textContent=due;
+  $('pv-cn').textContent=cn; $('pv-rn').textContent=rn; $('pv-yr').textContent=yr;
+  var subj=$('g-title').value||(yr+'년 귀속 '+taxType+' 신고 및 세무조정 수수료 청구의 건');
+  $('pv-subj').textContent=subj;
+  $('pv-p1').textContent=$('g-p1').value||'';
+  $('pv-p2').textContent=$('g-p2').value||'';
+  var p3=($('g-p3').value||'').replace(/{yn}/g,yr).replace(/{taxType}/g,taxType);
+  $('pv-p3').textContent=p3;
+  $('pv-pEnd').textContent=$('g-pEnd').value||'';
+  $('pv-rev').textContent=rev?W(rev)+'원':'—';
+  $('pv-base').textContent=base?W(base+ket+cst)+'원':'—';
+  $('pv-extra').textContent=extra?W(extra)+'원':'—';
+  if(disc>0){$('pv-disc-row').style.display='flex';$('pv-disc').textContent='▼ '+W(disc)+'원'}else{$('pv-disc-row').style.display='none'}
+  $('pv-total').textContent=total?W(total)+'원':'—';
+  /* Section 3 산출표 */
+  $('pv-s3-body').innerHTML=INV_S3.map(s3=>{
+    var rt=s3.rule==='flat_5'?'5%':'U자 20·10·20%';
+    return '<tr><td>'+esc(s3.name)+'</td><td style="color:#94a3b8;font-style:italic">감면 '+W(s3.amt)+' × '+rt+'</td><td>'+W(s3.gain||0)+'</td></tr>';
+  }).join('') || '<tr><td colspan="3" style="text-align:center;color:#cbd5e1">—</td></tr>';
+}
+function calcBase(amount){var t=TARIFF[curForm];var row=t[0];for(var i=0;i<t.length;i++){if(amount>=t[i][0])row=t[i];else break}return Math.floor((row[1]+(amount-row[0])*((row[2]||0)/100))/1000)*1000}
+
+/* ========== 발행 시뮬 ========== */
+function publish(){
+  var cn=$('iv-cn').value,yr=$('iv-yr').value,bt=$('iv-bt').value;
+  var tt=bt.includes('법인')?'법인세':'종소세';
+  var amt=parseFloat(($('pv-total').textContent||'0').replace(/[^0-9]/g,''))||0;
+  var nid=Math.max.apply(null,INVOICES.map(i=>i.id))+1;
+  INVOICES.unshift({id:nid,cust:cn,taxType:tt,yr:+yr,iDate:$('iv-date').value,due:$('iv-due').value,amount:amt,sent:true,paid:false,paidAt:'',staff:personStaff,override:false});
+  showToast('💾 '+cn+' '+yr+'년 청구서 발행 → 모아보기에 추가됨 ('+W(amt)+'원)');
+  setTimeout(()=>nav(document.querySelector('[data-v=list]')),900);
+}
+function prefillSample(){
+  $('iv-cn').value='박수현 컨설팅(주)'; $('iv-rn').value='박수현'; $('iv-yr').value='2025';
+  $('iv-date').value='2025-05-20'; $('iv-due').value='2025-06-30';
+  $('iv-bt').value='법인장부대행 및 법인조정';
+  $('iv-rev').value='850000000'; $('iv-asset').value='1200000000'; $('iv-bizup').value='제조';
+  $('iv-disc').value='0'; $('iv-trunc').checked=false;
+  syncPreview(); showToast('📂 박수현 컨설팅(주) 샘플 로드');
+}
+
+/* ========== 모아보기 ========== */
+function refreshAlert(){var gs=$('globStaff').value;var mis=INVOICES.filter(i=>{if(gs&&i.staff!==gs)return false;return statusOf(i).code==='r'});var t=mis.reduce((a,i)=>a+i.amount,0);$('alertN').textContent=mis.length;$('alertW').textContent=W(t);$('alertBox').style.display=mis.length?'flex':'none';$('cnt-mis').textContent=mis.length}
+function renderList(){refreshAlert();var yr=$('lYr').value,tax=$('lTax').value,staff=$('lStaff').value,state=$('lState').value,q=($('lQ').value||'').trim(),gs=$('globStaff').value;
+  var filt=INVOICES.filter(i=>{if(yr&&String(i.yr)!==yr)return false;if(tax&&i.taxType!==tax)return false;if(staff&&i.staff!==staff)return false;if(gs&&i.staff!==gs)return false;if(q&&i.cust.indexOf(q)<0)return false;if(state&&statusOf(i).code!==state)return false;return true});
   $('listCnt').textContent=filt.length;
   var byS={};filt.forEach(i=>{(byS[i.staff]=byS[i.staff]||[]).push(i)});
   var order=Object.keys(byS).sort((a,b)=>byS[b].length-byS[a].length);
   var html='';
-  order.forEach(s=>{
-    var arr=byS[s];var misN=arr.filter(i=>statusOf(i).code==='r').length;var sum=arr.reduce((a,i)=>a+i.amount,0);
-    html+='<tr><td colspan="9" class="gh">👤 <b>'+esc(s)+'</b> 담당 <span class="gh-cnt">('+arr.length+'건'+(misN?' · 미수 '+misN+'건':'')+')</span><span class="gh-sum">합계 '+W(sum)+'원</span></td></tr>';
-    arr.forEach(i=>{
-      var st=statusOf(i);
-      html+='<tr onclick="openInv('+i.id+')" style="cursor:pointer">'
+  order.forEach(s=>{var arr=byS[s];var misN=arr.filter(i=>statusOf(i).code==='r').length;var sum=arr.reduce((a,i)=>a+i.amount,0);
+    html+='<tr><td colspan="9" class="gh">👤 <b>'+esc(s)+'</b> 담당 <span class="gh-cnt">('+arr.length+'건'+(misN?' · 미수 '+misN:'')+')</span><span class="gh-sum">합계 '+W(sum)+'원</span></td></tr>';
+    arr.forEach(i=>{var st=statusOf(i);
+      html+='<tr onclick="openFromList('+i.id+')" style="cursor:pointer">'
         +'<td><b style="color:var(--ink)">'+esc(i.cust)+'</b></td>'
         +'<td><span class="chip '+(i.taxType==='법인세'?'chip-biz':i.taxType==='종소세'?'chip-indv':'chip-flat')+'">'+esc(i.taxType)+'</span></td>'
         +'<td style="color:#6B7280">'+esc(i.iDate.slice(2).replace(/-/g,'.'))+'</td>'
@@ -779,152 +636,71 @@ function renderList(){
         +'<td style="font-weight:700;color:var(--ink)">'+W(i.amount)+'원</td>'
         +'<td><span class="st '+st.cls+'">'+st.label+'</span></td>'
         +'<td style="color:#6B7280">'+(i.paidAt?esc(i.paidAt.slice(2).replace(/-/g,'.')):'—')+'</td>'
-        +'<td><select class="seld '+(i.override?'over':'')+'" onchange="invStaffChange(event,'+i.id+',this.value)" onclick="event.stopPropagation()">'
-          +STAFF.map(s2=>'<option'+(s2===i.staff?' selected':'')+'>'+s2+'</option>').join('')
-        +'</select></td>'
-        +'<td>'+(i.paid?'<button class="btn-x" style="border-color:#10B981;color:#10B981;border-style:solid" onclick="invUnpay(event,'+i.id+')">↶</button>':'<button class="btn-primary btn" style="font-size:12px;padding:5px 10px" onclick="invPay(event,'+i.id+')">✓ 수금</button>')+'</td>'
+        +'<td><select class="seld '+(i.override?'over':'')+'" onchange="invStaffChange(event,'+i.id+',this.value)" onclick="event.stopPropagation()">'+STAFF.map(s2=>'<option'+(s2===i.staff?' selected':'')+'>'+s2+'</option>').join('')+'</select></td>'
+        +'<td>'+(i.paid?'<button class="btn-x" style="border-color:#10B981;color:#10B981;border-style:solid" onclick="invUnpay(event,'+i.id+')">↶</button>':'<button class="btn-primary btn" style="font-size:11px;padding:4px 8px" onclick="invPay(event,'+i.id+')">✓ 수금</button>')+'</td>'
         +'</tr>';
     });
   });
-  if(!filt.length) html='<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--mut)">조건 없음</td></tr>';
+  if(!filt.length)html='<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--mut)">조건 없음</td></tr>';
   $('listBody').innerHTML=html;
 }
-function invPay(e,id){e.stopPropagation();var i=INVOICES.find(x=>x.id===id);if(i){i.paid=true;i.paidAt='2025-05-20';renderList();showToast('🟢 '+i.cust+' 수금완료')}}
-function invUnpay(e,id){e.stopPropagation();var i=INVOICES.find(x=>x.id===id);if(i){i.paid=false;i.paidAt='';renderList();showToast('미수로 되돌림')}}
-function invStaffChange(e,id,v){e.stopPropagation();var i=INVOICES.find(x=>x.id===id);if(i){i.staff=v;i.override=true;renderList();showToast('💡 '+i.cust+' 담당자 → '+v+' (override)')}}
-function openInv(id){
+function invPay(e,id){e.stopPropagation();var i=INVOICES.find(x=>x.id===id);if(i){i.paid=true;i.paidAt='2025-05-20';renderList();showToast('🟢 '+i.cust+' 수금')}}
+function invUnpay(e,id){e.stopPropagation();var i=INVOICES.find(x=>x.id===id);if(i){i.paid=false;i.paidAt='';renderList();showToast('미수로')}}
+function invStaffChange(e,id,v){e.stopPropagation();var i=INVOICES.find(x=>x.id===id);if(i){i.staff=v;i.override=true;renderList();showToast('💡 '+i.cust+' 담당자 → '+v)}}
+function openFromList(id){
   var i=INVOICES.find(x=>x.id===id);if(!i)return;
-  /* 청구서 본체 view 로 데이터 prefill */
-  $('iv-cn').textContent=i.cust; $('iv2-cn').textContent=i.cust;
-  $('iv-yr').textContent=i.yr; $('iv2-yr').textContent=i.yr+'년';
-  $('iv-date').textContent=i.iDate.replace(/-/g,'. ');
-  $('iv-due').textContent=i.due.replace(/-/g,'. ');
-  $('iv-subj').textContent=i.yr+'년 귀속 '+i.taxType+' 신고 및 세무조정 수수료 청구의 건';
-  $('iv2-bt').textContent=i.taxType==='법인세'?'법인장부대행 및 법인조정':i.taxType==='종소세'?'개인장부대행 및 개인조정':'부가세 신고';
-  $('invTitle').textContent=i.cust+' '+i.yr+'년 '+i.taxType+' 청구서';
-  $('invSubt').textContent='담당 '+i.staff;
-  nav(document.querySelector('[data-v=invoice]'));
+  /* 청구서 양식으로 prefill */
+  $('iv-cn').value=i.cust; $('iv-yr').value=i.yr;
+  $('iv-date').value=i.iDate; $('iv-due').value=i.due;
+  $('iv-bt').value=i.taxType==='법인세'?'법인장부대행 및 법인조정':'개인장부대행 및 개인조정';
+  curForm=i.taxType==='법인세'?'corp':'indv';
+  document.querySelectorAll('#formTabs .tab').forEach(b=>b.classList.toggle('on', b.dataset.t===curForm));
+  $('formLabel').textContent=curForm==='corp'?'법인':'개인';
+  renderForm(); syncPreview();
+  nav(document.querySelector('[data-v=form]'));
+  showToast('📂 '+i.cust+' 데이터 prefill 됨 → 청구서 양식');
 }
 
-/* ========== 청구서 본체 ========== */
-function renderInvoice(){
-  /* Section 3 행마다 렌더 */
-  var html='';
-  INV_S3.forEach(function(s3,idx){
-    var rate=s3.rule==='flat_5'?'5%':s3.rule==='progressive_u'?'U자 20·10·20%':'—';
-    html+='<tr><td>'+esc(s3.name)+'</td>'
-      +'<td style="color:#64748b;font-style:italic">감면액 '+W(s3.amt)+'원 × '+esc(rate)+'</td>'
-      +'<td>'+W(s3.gain)+'</td>'
-      +'<td class="rm-cell"><button class="rm-btn" onclick="removeS3('+idx+')">✕</button></td></tr>';
-  });
-  $('iv-s3-body').innerHTML=html;
-  var sum=INV_S3.reduce((a,s)=>a+s.gain,0);
-  $('iv-s3-sum').textContent=W(sum);
-  /* 합계 자동 계산 (1638000 + Section 3 sum) */
-  var base=1638000; var s3sum=sum;
-  var supply=base+s3sum; var vat=Math.round(supply*0.1); var total=supply+vat;
-  $('iv-supply').textContent=W(supply)+' 원';
-  $('iv-vat').textContent=W(vat)+' 원';
-  $('iv-total2').textContent=W(total)+' 원';
-  $('iv-extra').textContent=W(s3sum)+'원';
-  $('iv-base').textContent=W(base)+'원';
-  $('iv-total').textContent=W(total)+'원';
-  /* 인삿말 반영 */
-  if(INV_GREET.p1!==null) $('g-p1').textContent=INV_GREET.p1;
-  if(INV_GREET.p2!==null) $('g-p2').textContent=INV_GREET.p2;
-  if(INV_GREET.p3!==null) $('g-p3').textContent=INV_GREET.p3;
-  if(INV_GREET.pEnd!==null) $('g-pEnd').textContent=INV_GREET.pEnd;
-}
-function removeS3(idx){
-  var item=INV_S3[idx]; if(!confirm('이 항목을 청구서에서 제거?\n'+item.name))return;
-  INV_S3.splice(idx,1); renderInvoice(); showToast('✕ '+item.name+' 제거됨');
-}
-function addS3Row(){
-  /* 카탈로그에서 billable: true 인 것 prompt */
-  var billables=CATALOG.filter(c=>c.billable);
-  var pick=prompt('추가할 항목명 (검색):\n'+billables.slice(0,6).map(c=>'· '+c.name).join('\n')+'\n... 외 '+(billables.length-6)+'개','중특');
-  if(!pick)return;
-  var hit=billables.find(c=>c.name.toLowerCase().includes(pick.toLowerCase())||(c.alias||[]).some(a=>a.includes(pick)));
-  if(!hit){showToast('일치 항목 없음');return}
-  var amt=parseFloat(prompt('감면액 입력 (원):','1000000'))||0;
-  var gain= hit.rule==='flat_5'? Math.floor(amt*0.05): Math.floor(amt*0.15);  /* U자 평균 ~15% */
-  INV_S3.push({code:hit.code,name:hit.name,amt:amt,rule:hit.rule,gain:gain});
-  renderInvoice(); showToast('+ '+hit.name+' 추가됨');
-}
-function toggleEdit(){
-  editMode=!editMode;
-  $('editBtn').textContent=editMode?'✅ 편집 종료':'✏️ 편집 모드';
-  document.querySelectorAll('.editable').forEach(el=>{el.setAttribute('contenteditable',editMode?'true':'false')});
-  if(editMode) showToast('편집 모드 ON — 텍스트 클릭해서 직접 수정');
-}
-
-/* ========== 인삿말 편집 ========== */
-function saveGreet(){
-  INV_GREET.p1=$('gv-p1').value;
-  INV_GREET.p2=$('gv-p2').value;
-  INV_GREET.p3=$('gv-p3').value;
-  INV_GREET.pEnd=$('gv-pEnd').value;
-  showToast('✅ 인삿말 저장 — 청구서 본체 즉시 반영');
-}
-
-/* ========== 거래처 담당자 시연 ========== */
+/* ========== 거래처 담당자 ========== */
 function renderCust(){
   $('custStaff').value=personStaff;
-  $('bizList').innerHTML=BIZS.map(b=>{
-    var eff=b.override?b.staff:personStaff;
-    var formChip=b.form==='법인'?'<span class="chip chip-biz">법인</span>':'<span class="chip chip-indv">개인사업자</span>';
-    return '<div class="as-row">'
-      +'<span class="av">'+(b.form==='법인'?'🏢':'👤')+'</span>'
-      +'<div><div class="nm">'+esc(b.name)+' '+formChip+'</div><div class="meta">예상 세금 '+esc(b.taxType)+(b.override?' · ⚙ 담당자 수동 override 됨':' · 사람 담당자에서 상속')+'</div></div>'
-      +'<div class="r">'
-        +'<select class="seld '+(b.override?'over':'')+'" onchange="bizStaffChange('+b.id+',this.value)">'+STAFF.map(s=>'<option'+(s===eff?' selected':'')+'>'+s+'</option>').join('')+'</select>'
-        +(b.override?'<button class="btn-x" onclick="bizResetOverride('+b.id+')">↶ 상속으로</button>':'')
-      +'</div></div>';
+  $('bizList').innerHTML=BIZS.map(b=>{var eff=b.override?b.staff:personStaff;var fc=b.form==='법인'?'<span class="chip chip-biz">법인</span>':'<span class="chip chip-indv">개인사업자</span>';
+    return '<div class="as-row"><span class="av">'+(b.form==='법인'?'🏢':'👤')+'</span><div><div class="nm">'+esc(b.name)+' '+fc+'</div><div class="meta">예상 '+esc(b.taxType)+(b.override?' · ⚙ override':' · 상속')+'</div></div><div class="r"><select class="seld '+(b.override?'over':'')+'" onchange="bizStaffChange('+b.id+',this.value)">'+STAFF.map(s=>'<option'+(s===eff?' selected':'')+'>'+s+'</option>').join('')+'</select>'+(b.override?'<button class="btn-x" onclick="bizResetOverride('+b.id+')">↶ 상속</button>':'')+'</div></div>';
   }).join('');
   var hist=INVOICES.filter(i=>i.cust.startsWith('박수현'));
-  $('psHist').innerHTML=hist.map(i=>{
-    var st=statusOf(i);
-    return '<tr onclick="openInv('+i.id+')" style="cursor:pointer">'
-      +'<td><b>'+esc(i.cust)+'</b></td>'
-      +'<td><span class="chip '+(i.taxType==='법인세'?'chip-biz':'chip-indv')+'">'+esc(i.taxType)+'</span></td>'
-      +'<td style="color:#6B7280">'+esc(i.iDate.slice(2).replace(/-/g,'.'))+'</td>'
-      +'<td style="font-weight:700">'+W(i.amount)+'원</td>'
-      +'<td><span class="st '+st.cls+'">'+st.label+'</span></td>'
-      +'<td><b>'+esc(i.staff)+'</b>'+(i.override?' <span class="chip" style="background:#FEF3C7;color:#92400E">override</span>':'')+'</td>'
-      +'</tr>';
-  }).join('');
+  $('psHist').innerHTML=hist.map(i=>{var st=statusOf(i);return '<tr onclick="openFromList('+i.id+')" style="cursor:pointer"><td><b>'+esc(i.cust)+'</b></td><td><span class="chip '+(i.taxType==='법인세'?'chip-biz':'chip-indv')+'">'+esc(i.taxType)+'</span></td><td style="color:#6B7280">'+esc(i.iDate.slice(2).replace(/-/g,'.'))+'</td><td style="font-weight:700">'+W(i.amount)+'원</td><td><span class="st '+st.cls+'">'+st.label+'</span></td><td><b>'+esc(i.staff)+'</b>'+(i.override?' <span class="chip chip-both">override</span>':'')+'</td></tr>'}).join('');
 }
-function custStaffChange(){personStaff=$('custStaff').value;showToast('👤 박수현 → '+personStaff+' · override 안 된 사업장 자동 상속');renderCust()}
-function bizStaffChange(id,v){var b=BIZS.find(x=>x.id===id);if(!b)return;if(v===personStaff&&!b.override)return;b.staff=v;b.override=true;showToast('⚙ '+b.name+' → '+v+' (override)');renderCust()}
+function custStaffChange(){personStaff=$('custStaff').value;showToast('👤 박수현 → '+personStaff);renderCust()}
+function bizStaffChange(id,v){var b=BIZS.find(x=>x.id===id);if(!b)return;if(v===personStaff&&!b.override)return;b.staff=v;b.override=true;showToast('⚙ '+b.name+' → '+v);renderCust()}
 function bizResetOverride(id){var b=BIZS.find(x=>x.id===id);if(!b)return;b.override=false;b.staff=null;showToast('↶ '+b.name+' override 해제');renderCust()}
 function emitInvoice(){
-  /* 박수현 컨설팅(주) 청구서로 이동 (시뮬 prefill) */
-  showToast('💰 prefill → 청구서 본체로 이동');
-  setTimeout(()=>openInv(1),400);
+  /* 박수현 컨설팅(주) 데이터 prefill 후 양식으로 이동 */
+  $('iv-cn').value='박수현 컨설팅(주)'; $('iv-rn').value='박수현'; $('iv-yr').value='2025';
+  $('iv-date').value='2025-05-20'; $('iv-due').value='2025-06-30';
+  $('iv-bt').value='법인장부대행 및 법인조정'; $('iv-rev').value='850000000'; $('iv-asset').value='1200000000';
+  curForm='corp'; document.querySelectorAll('#formTabs .tab').forEach(b=>b.classList.toggle('on', b.dataset.t==='corp'));
+  $('formLabel').textContent='법인';
+  renderForm(); syncPreview();
+  nav(document.querySelector('[data-v=form]'));
+  showToast('💰 prefill → 청구서 양식 (좌측 편집 + 우측 미리보기)');
 }
 
-/* ========== 부팅 ========== */
-renderForm(); refreshAlert(); renderInvoice();
-
-/* 🔗 진짜 쪼개기 — sewmu/public/filing-tax-credit-catalog.json 을 직접 fetch.
-   = 검토표 드롭다운이 쓰는 그 파일 그대로. 사장님이 그 JSON 1개만 수정하면
-     검토표 + 청구서 양식 + 청구서 본체 = 양쪽 동시 반영 (단일 진실, DRY).
-   네트워크 실패 시 인라인 임베드 fallback (오프라인 시연 가능). */
-fetch('/filing-tax-credit-catalog.json').then(function(r){return r.ok?r.json():Promise.reject(r.status)}).then(function(j){
-  var arr=Array.isArray(j)?j.find(function(x){return Array.isArray(x)}):null;
-  if(!arr) throw new Error('format');
-  /* 종소세 신고서 본문 자연발생 공제만 indv-only (사장님 명시 — 사진 17개 항목 기준).
-   * 나머지 (조특법 투자·R&D·고용·감면 등) = 모두 법인+개인 양쪽 가능 — 통합투자 포함. */
+/* ========== 카탈로그 fetch (단일 진실) ========== */
+fetch('/filing-tax-credit-catalog.json').then(r=>r.ok?r.json():Promise.reject(r.status)).then(j=>{
+  var arr=Array.isArray(j)?j.find(x=>Array.isArray(x)):null;
+  if(!arr)throw new Error('format');
   var indvOnly=['SOD_56','JTL_56_2','SOD_59','SOD_59_2','SOD_59_2_B','SOD_59_3_A','SOD_59_3_B','JTL_91_5','JTL_91_18','SOD_59_4_A','SOD_59_4_B','SOD_59_4_C','SOD_59_4_D','SOD_59_4_E','SOD_59_4_F'];
-  CATALOG = arr.map(function(c){
-    var b=(c.cat==='general'||c.cat==='special')?false:true;
-    var rl=b?'progressive_u':'none';
-    if(c.code==='JTL_7' || (c.name||'').indexOf('중소기업특별세액감면')>=0) rl='flat_5';
-    return Object.assign({}, c, {applies: indvOnly.indexOf(c.code)>=0?['indv']:['indv','corp'], billable:b, rule:rl});
-  });
-  showToast('✅ 카탈로그 ['+CATALOG.length+'개] sewmu JSON fetch — 검토표와 단일 진실');
+  CATALOG=arr.map(c=>{var b=(c.cat==='general'||c.cat==='special')?false:true;var rl=b?'progressive_u':'none';if(c.code==='JTL_7'||(c.name||'').indexOf('중소기업특별세액감면')>=0)rl='flat_5';return Object.assign({},c,{applies:indvOnly.indexOf(c.code)>=0?['indv']:['indv','corp'],billable:b,rule:rl})});
+  showToast('✅ 카탈로그 ['+CATALOG.length+'개] sewmu JSON fetch — 단일 진실');
   renderCatalog();
-}).catch(function(e){console.warn('catalog fetch fail (fallback 임베드):',e)});
+}).catch(e=>{
+  console.warn('catalog fetch fail, fallback:',e);
+  CATALOG=CATALOG_FALLBACK.map(c=>Object.assign({},c,{applies:['indv','corp'],billable:true,rule:c.code==='JTL_7'?'flat_5':'progressive_u'}));
+  renderCatalog();
+});
+
+/* 부팅 */
+renderForm(); refreshAlert(); syncPreview();
 </script>
 </body>
 </html>
