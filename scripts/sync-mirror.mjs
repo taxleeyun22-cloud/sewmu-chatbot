@@ -65,6 +65,8 @@ const FILES = [
   'memo-all.html',
   'review-all.html',
   'billing-preview.html',
+  'billing-preview.css',
+  'billing-preview.js',
   'office.html',
   'staff.html',
   // CSS

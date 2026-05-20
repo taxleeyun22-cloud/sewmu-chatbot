@@ -173,6 +173,9 @@ export default defineConfig({
         { src: 'memo-all.html', dest: '.' },
         { src: 'review-all.html', dest: '.' },
         { src: 'billing-preview.html', dest: '.' },
+        // Phase X (2026-05-20): billing-preview CSS/JS 분리
+        { src: 'billing-preview.css', dest: '.' },
+        { src: 'billing-preview.js', dest: '.' },
         // Phase H2 (2026-05-04): admin/staff/office 모달 통합 묶음 (fetch + insertAdjacentHTML 패턴)
         { src: 'admin-modals.html', dest: '.' },
         // Phase H3 (2026-05-04): index.html 인라인 JS 3468줄 외부화
