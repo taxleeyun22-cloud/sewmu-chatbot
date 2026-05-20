@@ -43,6 +43,16 @@
   body[data-auth="false"] .wrap{display:none}
   body:not([data-auth="false"]) #authBox{display:none}
   @media(max-width:640px){.nav,.wrap{padding-left:14px;padding-right:14px}h1{font-size:24px}}
+  /* 🖨️ 인쇄/PDF — 브라우저 인쇄 다이얼로그 "PDF로 저장" */
+  @media print {
+    .nav, .fbar, .auth, .del { display:none !important; }
+    body{ background:#fff }
+    .wrap{ padding:14px 18px; max-width:100% }
+    table{ box-shadow:none }
+    a.lnk{ color:#111 !important; text-decoration:none !important }
+    h1{ font-size:22px }
+    @page{ size:A4 landscape; margin:12mm }
+  }
 </style>
 </head>
 <body>
@@ -50,6 +60,8 @@
   <span class="mark">이</span><b>세무회계 이윤</b>
   <span class="bc">/ 메모 모아보기</span>
   <span class="r">
+    <button class="btn" onclick="exportCsv()" title="현재 필터된 메모를 엑셀(CSV)로 저장">📥 엑셀</button>
+    <button class="btn" onclick="window.print()" title="인쇄 다이얼로그 → 'PDF로 저장'">🖨️ 인쇄/PDF</button>
     <button class="btn" onclick="loadMemoAll()">🔄 새로고침</button>
     <button class="btn" onclick="window.close()">✕ 닫기</button>
   </span>
@@ -89,9 +101,34 @@
  * 삭제 = soft delete (휴지통 이동) — 기존 메모 삭제와 동일 = 복원 가능, 안전. */
 var KEY = new URLSearchParams(location.search).get('key') || (function(){ try{return sessionStorage.getItem('admin_key')||''}catch(_){return ''} })();
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
-var _t=null;
+var _t=null, LAST_MEMOS=[];
 function _deb(){ clearTimeout(_t); _t=setTimeout(loadMemoAll,280); }
 function bizUrl(id){ return '/business.html?id='+id+'&key='+encodeURIComponent(KEY); }
+/* 📥 엑셀(CSV) — 한글 BOM 포함. 라이브러리 0. 현재 필터 적용된 메모 = 최근 fetch 결과 */
+function exportCsv(){
+  if(!LAST_MEMOS.length){ alert('내보낼 메모가 없습니다'); return; }
+  function q(v){ return '"'+String(v==null?'':v).replace(/"/g,'""').replace(/\r?\n/g,' ')+'"'; }
+  var hdr=['대상 구분','대상명','내용','분류','일자','작성자'];
+  var lines=[hdr.map(q).join(',')];
+  LAST_MEMOS.forEach(function(m){
+    var isBiz=!!m.target_business_id;
+    var nm=isBiz?(m.target_business_name||'업체 #'+m.target_business_id)
+                :(m.target_user_real_name||m.target_user_name||(m.target_user_id?'거래처 #'+m.target_user_id:(m.room_name||'담당자 메모')));
+    var cat=m.category||(m.memo_type_display||m.memo_type||'');
+    lines.push([
+      isBiz?'업체':(m.target_user_id?'사람':'기타'), nm,
+      m.content||'', cat, (m.created_at||'').slice(0,10), m.author_name||''
+    ].map(q).join(','));
+  });
+  var csv='﻿'+lines.join('\r\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  var d=new Date(); function pad(n){return String(n).padStart(2,'0')}
+  var name='메모_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'.csv';
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },120);
+}
 async function delMemo(id, ev){
   if(ev) ev.stopPropagation();
   if(!confirm('이 메모를 삭제할까요?\n\n휴지통으로 이동합니다 (관리자 화면 휴지통에서 복원 가능).')) return;
@@ -116,7 +153,7 @@ async function loadMemoAll(){
     if(r.status===401){ document.body.dataset.auth='false'; return; }
     const d=await r.json();
     if(!d.ok){ box.innerHTML='<tr><td colspan="5" class="empty" style="color:#dc2626">불러오기 실패: '+esc(d.error||'unknown')+'</td></tr>'; return; }
-    render(d.memos||[]);
+    LAST_MEMOS=d.memos||[]; render(LAST_MEMOS);
   }catch(e){ box.innerHTML='<tr><td colspan="5" class="empty" style="color:#dc2626">오류: '+esc(e.message)+'</td></tr>'; }
 }
 function render(memos){

@@ -46,6 +46,19 @@
   body[data-auth="false"] .wrap{display:none}
   body:not([data-auth="false"]) #authBox{display:none}
   @media(max-width:640px){.nav,.wrap{padding-left:14px;padding-right:14px}h1{font-size:24px}.fbar{margin-left:0;flex-wrap:wrap}}
+  /* 🖨️ 인쇄/PDF — 브라우저 인쇄 다이얼로그에서 "PDF로 저장" 선택 가능. nav/필터/탭(비활성)/검색 박스 숨김 */
+  @media print {
+    .nav, .fbar, .auth { display:none !important; }
+    .tab:not(.on){ display:none !important }
+    .tab.on{ background:#fff !important; color:#0B1F3A !important; border:1px solid #0B1F3A !important }
+    body{ background:#fff }
+    .wrap{ padding:14px 18px; max-width:100% }
+    .note{ background:#fff; border:1px solid #ddd; color:#0B1F3A }
+    table{ box-shadow:none }
+    a.lnk{ color:#111 !important; text-decoration:none !important }
+    h1{ font-size:22px }
+    @page{ size:A4 landscape; margin:12mm }
+  }
 </style>
 </head>
 <body>
@@ -53,6 +66,8 @@
   <span class="mark">이</span><b>세무회계 이윤</b>
   <span class="bc">/ 검토표 모아보기</span>
   <span class="r">
+    <button class="btn" onclick="exportCsv()" title="현재 필터된 행을 엑셀(CSV)로 저장">📥 엑셀</button>
+    <button class="btn" onclick="window.print()" title="인쇄 다이얼로그 → 'PDF로 저장' 선택">🖨️ 인쇄/PDF</button>
     <button class="btn" onclick="loadReviews()">🔄 새로고침</button>
     <button class="btn" onclick="window.close()">✕ 닫기</button>
   </span>
@@ -105,6 +120,46 @@ function pick(el){
   document.getElementById('note').innerHTML='▸ <b>'+esc(curType)+'</b> 검토표 — 행의 업체는 클릭 시 업체 화면으로 이동. 작성중·결재대기·완료 상태별 확인.';
   render();
 }
+/* 현재 탭+필터 적용된 행 — render·exportCsv 공용 */
+function getFiltered(){
+  var q=(document.getElementById('q').value||'').trim();
+  var sf=document.getElementById('st').value;
+  var yf=document.getElementById('yr').value;
+  return ALL.filter(function(f){
+    if(f.type!==curType) return false;
+    if(sf && f.review_status!==sf) return false;
+    if(yf && String(f.fiscal_year)!==String(yf)) return false;
+    if(q){
+      var nm=f.owner_type==='Business'?(f.business_name||''):(f.person_real_name||f.person_name||'');
+      if(nm.indexOf(q)<0) return false;
+    }
+    return true;
+  });
+}
+/* 📥 엑셀(CSV) — 한글 BOM, Excel 바로 열림. 라이브러리 0 */
+function exportCsv(){
+  var rows=getFiltered();
+  if(!rows.length){ alert('내보낼 행이 없습니다'); return; }
+  function q(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; }
+  var hdr=['대분류','중분류','세분류(대상)','구분','귀속연도','상태','검토 메모'];
+  var lines=[hdr.map(q).join(',')];
+  rows.forEach(function(f){
+    var isBiz=f.owner_type==='Business';
+    var nm=isBiz?(f.business_name||'업체 #'+f.owner_id):(f.person_real_name||f.person_name||'거래처 #'+f.owner_id);
+    lines.push([
+      '검토표', f.type, nm, isBiz?'업체':'기장',
+      (f.fiscal_year||'')+'귀속', f.review_status||'', f.reviewer_comment||''
+    ].map(q).join(','));
+  });
+  var csv='﻿'+lines.join('\r\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  var d=new Date(); function pad(n){return String(n).padStart(2,'0')}
+  var name='검토표_'+curType+'_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'.csv';
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },120);
+}
 async function loadReviews(){
   if(!KEY){ document.body.dataset.auth='false'; return; }
   var box=document.getElementById('list'); box.innerHTML='<tr><td colspan="5" class="load">불러오는 중…</td></tr>';
@@ -132,19 +187,7 @@ async function loadReviews(){
   }catch(e){ box.innerHTML='<tr><td colspan="5" class="empty" style="color:#dc2626">오류: '+esc(e.message)+'</td></tr>'; }
 }
 function render(){
-  var q=(document.getElementById('q').value||'').trim();
-  var sf=document.getElementById('st').value;
-  var yf=document.getElementById('yr').value;
-  var rows=ALL.filter(function(f){
-    if(f.type!==curType) return false;
-    if(sf && f.review_status!==sf) return false;
-    if(yf && String(f.fiscal_year)!==String(yf)) return false;
-    if(q){
-      var nm=f.owner_type==='Business'?(f.business_name||''):(f.person_real_name||f.person_name||'');
-      if(nm.indexOf(q)<0) return false;
-    }
-    return true;
-  });
+  var rows=getFiltered();
   var box=document.getElementById('list');
   if(!rows.length){ box.innerHTML='<tr><td colspan="5" class="empty">'+esc(curType)+' 검토표가 없습니다</td></tr>'; return; }
   box.innerHTML=rows.map(function(f){
