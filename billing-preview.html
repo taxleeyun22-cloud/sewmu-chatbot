@@ -120,6 +120,44 @@
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);background:#0F172A;color:#fff;padding:10px 20px;border-radius:99px;font-size:13px;font-weight:600;z-index:100;opacity:0;transition:all .25s;pointer-events:none}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+  /* S3 항목 추가 모달 (사장님 명령 2026-05-20: prompt() → 깔끔 모달) */
+  .s3-modal-overlay{position:fixed;inset:0;background:rgba(11,31,58,.55);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;backdrop-filter:blur(2px)}
+  .s3-modal-card{background:#fff;border-radius:14px;max-width:720px;width:100%;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.25)}
+  .s3-modal-h{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;font-size:14.5px;background:#FAFAFA;flex-shrink:0}
+  .s3-modal-h .mut{color:var(--mut);font-size:11.5px;margin-left:6px;font-weight:500}
+  .s3-modal-h .btn-x{border:1px solid var(--line);background:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;color:var(--mut);display:flex;align-items:center;justify-content:center;font-family:inherit}
+  .s3-modal-h .btn-x:hover{background:#FEE2E2;border-color:#FCA5A5;color:#DC2626}
+  .s3-modal-body{padding:14px 18px;overflow:hidden;flex:1;min-height:0;display:flex;flex-direction:column}
+  .s3-modal-body input[type=text]{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;font-family:inherit;margin-bottom:8px;box-sizing:border-box}
+  .s3-modal-body input[type=text]:focus{outline:none;border-color:#3B82F6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+  .s3-pick-cnt{font-size:11.5px;color:var(--mut);margin-bottom:8px;flex-shrink:0}
+  .s3-pick-cnt b{color:var(--ink);font-weight:700}
+  .s3-picks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;overflow-y:auto;flex:1;min-height:0;padding-right:4px}
+  .s3-pick{display:flex;flex-direction:column;gap:4px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;text-align:left;font-family:inherit;transition:all .12s}
+  .s3-pick:hover{background:#F3F4F6;border-color:#94A3B8}
+  .s3-pick.on{background:#E8F0FE;border-color:#3B82F6;box-shadow:0 0 0 2px rgba(59,130,246,.12)}
+  .s3-pick-nm{font-weight:700;font-size:12.5px;color:var(--ink);line-height:1.3}
+  .s3-pick-meta{font-size:10px;color:var(--mut);display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+  .s3-pick-cat{padding:1px 6px;border-radius:99px;background:#EEF2F7;font-weight:600;color:#475569}
+  .s3-pick-rule{padding:1px 6px;border-radius:99px;background:#FEF3C7;font-weight:600;color:#92400E}
+  .s3-pick-rule.u{background:#DBEAFE;color:#1E40AF}
+  .s3-pick-code{color:#9CA3AF;font-family:'SF Mono',Menlo,monospace;font-size:9.5px}
+  .s3-modal-amt{padding:14px 18px;border-top:1px solid var(--line);background:#FAFAFA;flex-shrink:0}
+  .s3-pick-selected{font-size:12.5px;margin-bottom:10px;color:var(--sub)}
+  .s3-pick-selected b{color:var(--ink);font-size:13.5px}
+  .s3-pick-selected-meta{margin-left:8px;color:var(--mut);font-size:11px}
+  .s3-amt-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+  .s3-amt-row label{font-size:12.5px;color:var(--sub);font-weight:600;min-width:80px}
+  .s3-amt-row input{flex:0 0 180px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;font-family:inherit}
+  .s3-amt-row input:focus{outline:none;border-color:#3B82F6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+  .s3-amt-row .unit{font-size:12.5px;color:var(--sub)}
+  .s3-amt-row .unit b{color:var(--ink);font-weight:700}
+  .s3-modal-actions{display:flex;gap:8px;justify-content:flex-end}
+  .s3-modal-actions .btn{padding:9px 18px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;color:var(--sub);font-weight:600}
+  .s3-modal-actions .btn:hover{background:#F3F4F6}
+  .s3-modal-actions .btn-primary{padding:9px 18px;background:var(--navy);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700}
+  .s3-modal-actions .btn-primary:hover{background:#1E3A8A}
+
   /* ===== 청구서 본체 미리보기 ===== */
   .preview-shell{background:#e5e7eb;border-radius:12px;padding:14px}
   .preview-tools{display:flex;justify-content:space-between;align-items:center;background:#0f172a;color:#fff;padding:8px 14px;border-radius:8px;margin-bottom:12px;font-size:11.5px}
@@ -712,6 +750,33 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- S3 항목 추가 모달 (사장님 명령 2026-05-20: prompt() 대신 깔끔한 모달) -->
+<div id="s3Modal" class="s3-modal-overlay" style="display:none" onclick="if(event.target===this)closeS3Picker()">
+  <div class="s3-modal-card" onclick="event.stopPropagation()">
+    <div class="s3-modal-h">
+      <div><b>💸 세액공제·감면 항목 추가</b> <span class="mut" id="s3ModalSub"></span></div>
+      <button onclick="closeS3Picker()" class="btn-x" type="button">✕</button>
+    </div>
+    <div class="s3-modal-body">
+      <input type="text" id="s3PickSearch" oninput="renderS3Picks()" placeholder="🔍 검색 (이름·코드·별칭, 예: 중특, 통합고용, R&D, 환경보전)">
+      <div class="s3-pick-cnt"><b id="s3PickCnt">0</b>개 항목 표시 · billable=true 만</div>
+      <div id="s3PickResults" class="s3-picks-grid"></div>
+    </div>
+    <div class="s3-modal-amt" id="s3PickAmtArea" style="display:none">
+      <div class="s3-pick-selected">선택: <b id="s3PickSelectedName">—</b> <span class="s3-pick-selected-meta" id="s3PickSelectedMeta"></span></div>
+      <div class="s3-amt-row">
+        <label>감면액 (원)</label>
+        <input type="number" id="s3PickAmt" oninput="updateS3PickGain()" placeholder="검토표 입력값 그대로">
+        <span class="unit">× <b id="s3PickRuleLbl">U자</b> = 가산 <b id="s3PickGain" style="color:#0B1F3A">—</b></span>
+      </div>
+      <div class="s3-modal-actions">
+        <button onclick="closeS3Picker()" class="btn" type="button">취소</button>
+        <button onclick="confirmS3Pick()" class="btn-primary" type="button">+ 추가</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ========== 데이터 ========== */
 var TARIFF={
@@ -1098,7 +1163,7 @@ function renderS3(){
 }
 function setS3(i,f,v){INV_S3[i][f]=v;renderS3()}
 function rmS3(i){var n=INV_S3[i].name;INV_S3.splice(i,1);showToast('✕ '+n+' 제거');renderS3()}
-function addS3Row(){var bill=CATALOG.filter(c=>c.billable);if(!bill.length){showToast('카탈로그 fetch 대기');return}var pick=prompt('항목명 검색:\n예: 중특, 통합고용, R&D','중특');if(!pick)return;var h=bill.find(c=>c.name.includes(pick)||(c.alias||[]).some(a=>a.includes(pick)));if(!h){showToast('일치 없음');return}var amt=parseFloat(prompt('감면액 (원):','1000000'))||0;INV_S3.push({code:h.code,name:h.name,amt:amt,rule:h.rule});renderS3();showToast('+ '+h.name)}
+function addS3Row(){ openS3Picker('cust'); }
 
 function syncCustPreview(){
   var b=BIZS.find(x=>x.id===selectedBizId)||BIZS[0];
@@ -1191,7 +1256,75 @@ function renderManS3(){
 }
 function setManS3(i,f,v){MAN_S3[i][f]=v;renderManS3()}
 function rmManS3(i){var n=MAN_S3[i].name;MAN_S3.splice(i,1);showToast('✕ '+n);renderManS3()}
-function addS3Manual(){var bill=CATALOG.filter(c=>c.billable);if(!bill.length){showToast('카탈로그 fetch 대기');return}var pick=prompt('항목명 검색:\n예: 중특, 통합고용, R&D, 환경보전','중특');if(!pick)return;var h=bill.find(c=>c.name.includes(pick)||(c.alias||[]).some(a=>a.includes(pick)));if(!h){showToast('일치 없음');return}var amt=parseFloat(prompt('감면액 (원):','1000000'))||0;MAN_S3.push({code:h.code,name:h.name,amt:amt,rule:h.rule});renderManS3();showToast('+ '+h.name)}
+function addS3Manual(){ openS3Picker('manual'); }
+
+/* S3 picker 모달 — 사장님 명령 (2026-05-20): prompt() 짜침 → 깔끔 모달 */
+var _s3PickMode=null, _s3PickCode=null, _s3PickName='', _s3PickRule='progressive_u';
+function openS3Picker(mode){
+  if(!CATALOG||!CATALOG.length){ showToast('카탈로그 fetch 대기 중…'); return; }
+  if(!CATALOG.filter(c=>c.billable).length){ showToast('billable 항목 없음'); return; }
+  _s3PickMode=mode; _s3PickCode=null; _s3PickName=''; _s3PickRule='progressive_u';
+  $('s3Modal').style.display='flex';
+  $('s3ModalSub').textContent=mode==='cust'?'(거래처 발행 — INV_S3)':'(수기 청구서 — MAN_S3)';
+  $('s3PickSearch').value='';
+  $('s3PickSelectedName').textContent='—';
+  $('s3PickSelectedMeta').textContent='';
+  $('s3PickAmt').value='';
+  $('s3PickGain').textContent='—';
+  $('s3PickRuleLbl').textContent='U자';
+  $('s3PickAmtArea').style.display='none';
+  renderS3Picks();
+  setTimeout(function(){ var el=$('s3PickSearch'); if(el)el.focus(); },50);
+}
+function closeS3Picker(){ $('s3Modal').style.display='none'; _s3PickMode=null; }
+function renderS3Picks(){
+  var q=($('s3PickSearch').value||'').trim().toLowerCase();
+  var bill=CATALOG.filter(c=>c.billable);
+  var list=bill.filter(c=>{
+    if(!q) return true;
+    var h=(c.name+' '+c.code+' '+(c.alias||[]).join(' ')+' '+(c.law||'')).toLowerCase();
+    return h.indexOf(q)>=0;
+  }).slice(0,200);
+  $('s3PickCnt').textContent=list.length+'/'+bill.length;
+  if(!list.length){
+    $('s3PickResults').innerHTML='<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--mut);font-size:12.5px">검색 결과 없음</div>';
+    return;
+  }
+  $('s3PickResults').innerHTML=list.map(c=>{
+    var sel=c.code===_s3PickCode;
+    var ru=c.rule==='flat_5'?'<span class="s3-pick-rule">5%</span>':c.rule==='progressive_u'?'<span class="s3-pick-rule u">U자</span>':'';
+    return '<button class="s3-pick'+(sel?' on':'')+'" onclick="selectS3Pick(\''+c.code+'\')" type="button">'
+      +'<div class="s3-pick-nm">'+esc(c.name)+'</div>'
+      +'<div class="s3-pick-meta"><span class="s3-pick-cat">'+catLabel(c.cat)+'</span>'+ru+'<span class="s3-pick-code">'+esc(c.code)+'</span></div>'
+      +'</button>';
+  }).join('');
+}
+function selectS3Pick(code){
+  var c=CATALOG.find(x=>x.code===code); if(!c) return;
+  _s3PickCode=code; _s3PickName=c.name; _s3PickRule=c.rule||'progressive_u';
+  $('s3PickSelectedName').textContent=c.name;
+  $('s3PickSelectedMeta').textContent=catLabel(c.cat)+' · '+(c.law||'');
+  $('s3PickRuleLbl').textContent=_s3PickRule==='flat_5'?'5%':_s3PickRule==='progressive_u'?'U자(20·10·20%)':'없음';
+  $('s3PickAmtArea').style.display='block';
+  updateS3PickGain();
+  renderS3Picks();
+  setTimeout(function(){ var el=$('s3PickAmt'); if(el)el.focus(); },30);
+}
+function updateS3PickGain(){
+  var amt=parseFloat($('s3PickAmt').value)||0;
+  var gain=calcGain(amt,_s3PickRule);
+  $('s3PickGain').textContent=amt>0?W(gain)+'원':'—';
+}
+function confirmS3Pick(){
+  if(!_s3PickCode){ showToast('항목을 먼저 선택하세요'); return; }
+  var amt=parseFloat($('s3PickAmt').value)||0;
+  if(amt<=0){ showToast('감면액을 입력하세요'); var el=$('s3PickAmt'); if(el)el.focus(); return; }
+  var row={code:_s3PickCode, name:_s3PickName, amt:amt, rule:_s3PickRule};
+  if(_s3PickMode==='cust'){ INV_S3.push(row); renderS3(); }
+  else { MAN_S3.push(row); renderManS3(); }
+  showToast('+ '+_s3PickName);
+  closeS3Picker();
+}
 function syncManualPreview(){
   var cn=$('m-cn').value||'(거래처명)',rn=$('m-rn').value||'(대표)',yr=$('m-yr').value||'____';
   var bt=$('m-bt').value,taxType=bt.includes('법인')?'법인세':bt.includes('부가')?'부가세':bt.includes('개인')?'종소세':'기타';
