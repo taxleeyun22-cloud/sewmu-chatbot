@@ -180,6 +180,7 @@
       <button class="sb-i" data-v="list" onclick="nav(this)">💰 청구서 모아보기 <span class="cnt" id="cnt-mis">0</span></button>
       <div class="sb-sec">개인 발행 (인스턴스)</div>
       <button class="sb-i" data-v="cust" onclick="nav(this)">👤 거래처 dashboard (박수현)</button>
+      <button class="sb-i" data-v="manual" onclick="nav(this)">✍️ 수기 청구서 발행 <span class="sb-new">+1건</span></button>
     </nav>
     <div class="sb-owner"><span class="sb-av">이</span><div><b>이재윤</b> 사장님<br><span style="font-size:11px;color:var(--mut)">owner · 4직원 관리자</span></div></div>
   </aside>
@@ -323,6 +324,7 @@
                   <div class="ccard"><span class="ccard-l">산출기준 수입금액</span><span class="ccard-v" style="color:#cbd5e1">(거래처별)</span></div>
                   <div class="ccard"><span class="ccard-l">기본 세무조정료</span><span class="ccard-v" style="color:#cbd5e1">(누진표 자동)</span></div>
                   <div class="ccard"><span class="ccard-l">추가 용역 소계</span><span class="ccard-v" style="color:#cbd5e1">(S1·S2·S3)</span></div>
+                  <div class="ccard"><span class="ccard-l">할 인 액</span><span class="ccard-v" style="color:#cbd5e1">(거래처별 발행 시)</span></div>
                   <div class="ccard final"><span class="ccard-l">최종 청구 (VAT 포함)</span><span class="ccard-v" style="color:#cbd5e1">(자동 계산)</span></div>
                 </div>
                 <div class="pay">
@@ -511,6 +513,113 @@
         </div>
       </section>
 
+      <!-- ====================================================== -->
+      <!-- 4. ✍️ 수기 청구서 발행 (거래처/검토표 없이 1건) -->
+      <!-- ====================================================== -->
+      <section class="view" id="v-manual">
+        <div class="h-lbl">수기 발행 (거래처 무관)</div>
+        <h1>✍️ 수기 청구서 1건 만들기</h1>
+        <div class="h-sub">검토표 없는 거래처·신규·1회성 청구도 OK. 모든 칸 직접 입력 → <b>양식 템플릿(인삿말·계좌·사인)은 그대로 적용</b> → 발행</div>
+
+        <div class="split">
+          <div class="left">
+
+            <div class="card">
+              <div class="c-h">
+                <span class="ti">📇 거래처 정보 (직접 입력)</span>
+                <span class="right-act">
+                  <span class="tb-lbl">담당자</span>
+                  <select class="seld" id="m-staff" onchange="syncManualPreview()"><option>이재윤</option><option>정은</option><option selected>민지</option><option>영철</option><option>예슬</option></select>
+                  <button class="btn-primary btn" onclick="publishManual()">💾 발행 → 모아보기</button>
+                </span>
+              </div>
+              <div class="help" style="background:#FFF7ED;border-color:#FED7AA;color:#9A3412">✍️ <b>검토표 자동 prefill X</b> — 사장님이 직접 다 입력. 양식의 인삿말·계좌·사인·누진표는 그대로 적용.</div>
+              <div class="frow"><label>거래처명</label><input id="m-cn" placeholder="예: (주)신규고객" oninput="syncManualPreview()"></div>
+              <div class="frow"><label>대표자</label><input id="m-rn" placeholder="홍길동" oninput="syncManualPreview()"></div>
+              <div class="frow"><label>귀속연도</label><input id="m-yr" value="2025" oninput="syncManualPreview()"></div>
+              <div class="frow"><label>업무구분</label>
+                <select id="m-bt" onchange="syncManualPreview()">
+                  <option>법인장부대행 및 법인조정</option><option>법인조정</option>
+                  <option>개인장부대행 및 개인조정</option><option>개인조정</option>
+                  <option>부가세 신고</option><option>기타</option>
+                </select>
+              </div>
+              <div class="frow frow2" style="grid-template-columns:90px 1fr 1fr">
+                <label>수입금액</label>
+                <input id="m-rev" type="number" value="0" oninput="syncManualPreview()" placeholder="원">
+                <input id="m-asset" type="number" value="0" oninput="syncManualPreview()" placeholder="자산총액">
+              </div>
+              <div class="frow frow2" style="grid-template-columns:90px 1fr 1fr">
+                <label>발행·납기</label>
+                <input id="m-date" type="date" value="2025-05-20" oninput="syncManualPreview()">
+                <input id="m-due" type="date" value="2025-06-30" oninput="syncManualPreview()">
+              </div>
+              <div class="frow frow2" style="grid-template-columns:90px 1fr 1fr">
+                <label>업종·할인</label>
+                <select id="m-bizup" onchange="syncManualPreview()">
+                  <option>제조</option><option>도소매업</option><option>건설</option><option>운수</option><option>금융보험업</option><option>부동산임대</option><option>전문과학기술</option><option>교육서비스</option><option>보건의료</option><option>개인서비스</option><option>기타</option>
+                </select>
+                <input id="m-disc" type="number" value="0" oninput="syncManualPreview()" placeholder="할인액 (원)">
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="c-h"><span class="ti">💸 Section 3 적용 (직접 추가)</span><span class="badge" id="m-s3Cnt">0</span>
+                <span class="right-act"><button class="btn" style="font-size:11.5px" onclick="addS3Manual()">+ 항목</button></span>
+              </div>
+              <div class="help">📝 수기 모드 = 검토표 자동흐름 없음. 카탈로그에서 직접 선택해서 추가.</div>
+              <table class="ftbl"><thead><tr><th style="width:42%">항목</th><th style="width:18%">감면액</th><th style="width:18%">가산율</th><th style="width:14%">가산액</th><th style="width:8%"></th></tr></thead><tbody id="m-s3Body"></tbody></table>
+            </div>
+
+          </div>
+
+          <div class="right">
+            <div class="preview-shell">
+              <div class="preview-tools">
+                <div><b id="mpv-title">📄 수기 청구서 미리보기</b></div>
+                <div class="tb"><button class="green" onclick="alert('(시뮬) PDF + 카톡')">📤 발행+카톡</button><button onclick="window.print()">🖨️ PDF</button></div>
+              </div>
+              <div class="page" id="man-page">
+                <div class="hd">
+                  <div class="hd-logo">
+                    <div class="hd-mark"><img src="/iyun-logo.png" alt="세무회계 이윤"></div>
+                    <div><div class="hd-name" id="mpv-firm">세무회계 이윤</div><div class="hd-sub">TAX STRATEGY &amp; ADVISORY</div></div>
+                  </div>
+                  <div class="hd-meta">발행일자 : <span id="mpv-date">2025. 05. 20</span></div>
+                </div>
+                <table class="itbl">
+                  <tr><th>수 신</th><td class="b" style="width:60%"><span id="mpv-cn" style="color:#cbd5e1">(거래처명)</span>&nbsp;&nbsp;<span id="mpv-rn" style="color:#cbd5e1">(대표)</span> 대표이사 귀하</td><th>귀속</th><td><span id="mpv-yr">2025</span>년</td></tr>
+                  <tr><th>제 목</th><td colspan="3" class="b" id="mpv-subj">…</td></tr>
+                </table>
+                <div class="greet">
+                  <p id="mpv-p1">…</p><p id="mpv-p2">…</p><p id="mpv-p3">…</p><p id="mpv-pEnd">…</p>
+                </div>
+                <div class="cards">
+                  <div class="ccard"><span class="ccard-l">산출기준 수입금액</span><span class="ccard-v" id="mpv-rev">—</span></div>
+                  <div class="ccard"><span class="ccard-l">기본 세무조정료</span><span class="ccard-v" id="mpv-base">—</span></div>
+                  <div class="ccard"><span class="ccard-l">추가 용역 소계</span><span class="ccard-v" id="mpv-extra">—</span></div>
+                  <div class="ccard" id="mpv-disc-row" style="display:none"><span class="ccard-l">할인액</span><span class="ccard-v" id="mpv-disc">—</span></div>
+                  <div class="ccard final"><span class="ccard-l">최종 청구 (VAT 포함)</span><span class="ccard-v" id="mpv-total">—</span></div>
+                </div>
+                <div class="pay">
+                  <span class="pl">※ 수수료 입금 계좌</span>
+                  <div class="pa"><span id="mpv-bank">하나은행</span>&nbsp;<span id="mpv-acct">010-5531-7625</span></div>
+                  <div class="ph">(예금주 : <span id="mpv-holder">세무사 이재윤 사무소</span>)</div>
+                  <div class="pd">납부기한 : <span id="mpv-due">—</span>까지</div>
+                </div>
+                <div class="ft">
+                  <div>
+                    <div class="ft-addr" id="mpv-addr">우 42633 대구광역시 달서구 와룡로 221 4층</div>
+                    <div class="ft-tel"><span>TEL <span id="mpv-tel">(053) 269-1213</span></span><span>FAX <span id="mpv-fax">(053) 267-1213</span></span></div>
+                  </div>
+                  <div class="ft-sign">대표세무사&nbsp;<span class="nm" id="mpv-cpa">이 재 윤</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </div>
   </div>
 </div>
@@ -571,7 +680,7 @@ function catLabel(c){return{general:'일반',special:'특별공제',credit_inves
 function calcBase(amount,form){var t=TARIFF[form];var row=t[0];for(var i=0;i<t.length;i++){if(amount>=t[i][0])row=t[i];else break}return Math.floor((row[1]+(amount-row[0])*((row[2]||0)/100))/1000)*1000}
 function calcGain(amt,rule){if(rule==='flat_5')return Math.floor(amt*0.05);if(rule==='progressive_u'){var g=0;if(amt<=5000000)g=amt*0.20;else if(amt<=10000000)g=amt*0.10;else g=amt*0.20;return Math.floor(g)}return 0}
 
-function nav(el){document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));el.classList.add('on');var v=el.dataset.v;document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));$('v-'+v).classList.add('on');$('bc').textContent={tpl:'청구서 양식 (템플릿)',list:'청구서 모아보기',cust:'거래처 dashboard — 청구서 발행'}[v];if(v==='tpl')renderTpl();if(v==='list')renderList();if(v==='cust')renderCust();window.scrollTo(0,0)}
+function nav(el){document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));el.classList.add('on');var v=el.dataset.v;document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));$('v-'+v).classList.add('on');$('bc').textContent={tpl:'청구서 양식 (템플릿)',list:'청구서 모아보기',cust:'거래처 dashboard — 청구서 발행',manual:'수기 청구서 발행'}[v];if(v==='tpl')renderTpl();if(v==='list')renderList();if(v==='cust')renderCust();if(v==='manual')renderManual();window.scrollTo(0,0)}
 function filterStaff(){renderList();refreshAlert()}
 function pickTpl(el){document.querySelectorAll('#tplTabs .tab').forEach(b=>b.classList.remove('on'));el.classList.add('on');curTplForm=el.dataset.t;$('tplFormLabel').textContent=curTplForm==='corp'?'법인':'개인';renderTpl()}
 
@@ -776,6 +885,74 @@ function publish(){
   setTimeout(()=>nav(document.querySelector('[data-v=list]')),900);
 }
 function custStaffChange(){personStaff=$('custStaff').value;showToast('👤 박수현 → '+personStaff+' · override 안 된 사업장 자동 상속');renderCust()}
+
+/* ===== 4. 수기 청구서 발행 ===== */
+var MAN_S3=[];
+function renderManual(){renderManS3();syncManualPreview()}
+function renderManS3(){
+  $('m-s3Cnt').textContent=MAN_S3.length;
+  $('m-s3Body').innerHTML=MAN_S3.map((s3,idx)=>{
+    var gain=calcGain(s3.amt,s3.rule);s3.gain=gain;
+    return '<tr><td style="font-size:12px;font-weight:600">'+esc(s3.name)+'</td>'
+      +'<td><input type="number" value="'+s3.amt+'" onchange="setManS3('+idx+',\'amt\',+this.value)"></td>'
+      +'<td><select class="seld" onchange="setManS3('+idx+',\'rule\',this.value)"><option value="flat_5"'+(s3.rule==='flat_5'?' selected':'')+'>5%</option><option value="progressive_u"'+(s3.rule==='progressive_u'?' selected':'')+'>U자</option></select></td>'
+      +'<td style="font-weight:700;color:#0B1F3A">'+W(gain)+'원</td>'
+      +'<td><button class="btn-x" onclick="rmManS3('+idx+')">✕</button></td></tr>';
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--mut);padding:14px">+ 항목 추가로 직접 선택</td></tr>';
+  syncManualPreview();
+}
+function setManS3(i,f,v){MAN_S3[i][f]=v;renderManS3()}
+function rmManS3(i){var n=MAN_S3[i].name;MAN_S3.splice(i,1);showToast('✕ '+n);renderManS3()}
+function addS3Manual(){var bill=CATALOG.filter(c=>c.billable);if(!bill.length){showToast('카탈로그 fetch 대기');return}var pick=prompt('항목명 검색:\n예: 중특, 통합고용, R&D, 환경보전','중특');if(!pick)return;var h=bill.find(c=>c.name.includes(pick)||(c.alias||[]).some(a=>a.includes(pick)));if(!h){showToast('일치 없음');return}var amt=parseFloat(prompt('감면액 (원):','1000000'))||0;MAN_S3.push({code:h.code,name:h.name,amt:amt,rule:h.rule});renderManS3();showToast('+ '+h.name)}
+function syncManualPreview(){
+  var cn=$('m-cn').value||'(거래처명)',rn=$('m-rn').value||'(대표)',yr=$('m-yr').value||'____';
+  var bt=$('m-bt').value,taxType=bt.includes('법인')?'법인세':bt.includes('부가')?'부가세':bt.includes('개인')?'종소세':'기타';
+  var form=bt.includes('법인')?'corp':'indv';
+  var rev=parseFloat($('m-rev').value)||0,asset=parseFloat($('m-asset').value)||0;
+  var baseRev=Math.max(rev,asset);
+  var base=calcBase(baseRev,form);
+  var ket=bt.includes('장부')?Math.floor(base*0.2/1000)*1000:0;
+  var cst=base>0?Math.floor((base+ket)*0.1/1000)*1000:0;
+  var s1Extra=0;SECTIONS[form].s1.forEach(it=>{if(it.type==='rate')s1Extra+=Math.floor(base*(it.val||0)/100/1000)*1000});
+  var s3Tot=MAN_S3.reduce((a,s)=>a+(s.gain||0),0);
+  var extra=s1Extra+s3Tot;
+  var supply=base+ket+cst+extra;
+  var disc=parseFloat($('m-disc').value)||0;
+  var supplyDisc=supply-disc,vat=Math.round(supplyDisc*0.1),total=supplyDisc+vat;
+  $('mpv-title').textContent=cn+' '+yr+'년 '+taxType+' 청구서 (수기)';
+  $('mpv-firm').textContent=$('g-firm').value||'세무회계 이윤';
+  $('mpv-cpa').textContent=($('g-cpa').value||'이재윤').split('').join(' ');
+  $('mpv-date').textContent=($('m-date').value||'').replace(/-/g,'. ');
+  $('mpv-due').textContent=($('m-due').value||'').replace(/-/g,'. ');
+  $('mpv-cn').textContent=cn; $('mpv-cn').style.color=cn==='(거래처명)'?'#cbd5e1':'';
+  $('mpv-rn').textContent=rn; $('mpv-rn').style.color=rn==='(대표)'?'#cbd5e1':'';
+  $('mpv-yr').textContent=yr;
+  var subj=($('g-title').value||(yr+'년 귀속 '+taxType+' 신고 및 세무조정 수수료 청구의 건')).replace(/{yn}/g,yr).replace(/{taxType}/g,taxType);
+  $('mpv-subj').textContent=subj;
+  var p3=($('g-p3').value||'').replace(/{yn}/g,yr).replace(/{taxType}/g,taxType);
+  $('mpv-p1').textContent=$('g-p1').value||'';$('mpv-p2').textContent=$('g-p2').value||'';
+  $('mpv-p3').textContent=p3;$('mpv-pEnd').textContent=$('g-pEnd').value||'';
+  $('mpv-bank').textContent=$('g-bank').value||'';$('mpv-acct').textContent=$('g-acct').value||'';
+  $('mpv-holder').textContent=$('g-holder').value||'';
+  $('mpv-addr').textContent=$('g-addr').value||'';$('mpv-tel').textContent=$('g-tel').value||'';$('mpv-fax').textContent=$('g-fax').value||'';
+  $('mpv-rev').textContent=rev?W(rev)+'원':'—';
+  $('mpv-base').textContent=base?W(base+ket+cst)+'원':'—';
+  $('mpv-extra').textContent=extra?W(extra)+'원':'—';
+  if(disc>0){$('mpv-disc-row').style.display='flex';$('mpv-disc').textContent='▼ '+W(disc)+'원'}else{$('mpv-disc-row').style.display='none'}
+  $('mpv-total').textContent=total?W(total)+'원':'—';
+}
+function publishManual(){
+  var cn=$('m-cn').value.trim();
+  if(!cn){alert('거래처명 필수');return}
+  var yr=$('m-yr').value,bt=$('m-bt').value;
+  var tt=bt.includes('법인')?'법인세':bt.includes('부가')?'부가세':bt.includes('개인')?'종소세':'기타';
+  var amt=parseFloat(($('mpv-total').textContent||'0').replace(/[^0-9]/g,''))||0;
+  var nid=Math.max.apply(null,INVOICES.map(i=>i.id))+1;
+  var staff=$('m-staff').value;
+  INVOICES.unshift({id:nid,cust:cn,taxType:tt,yr:+yr,iDate:$('m-date').value,due:$('m-due').value,amount:amt,sent:true,paid:false,paidAt:'',staff:staff,override:false});
+  showToast('💾 '+cn+' '+yr+'년 수기 발행 → 모아보기 ('+W(amt)+'원, '+staff+' 담당)');
+  setTimeout(()=>nav(document.querySelector('[data-v=list]')),900);
+}
 function bizStaffChange(id,v){var b=BIZS.find(x=>x.id===id);if(!b)return;if(v===personStaff&&!b.override)return;b.staff=v;b.override=true;showToast('⚙ '+b.name+' → '+v);renderCust()}
 function bizResetOverride(id){var b=BIZS.find(x=>x.id===id);if(!b)return;b.override=false;b.staff=null;showToast('↶ '+b.name+' override 해제');renderCust()}
 
