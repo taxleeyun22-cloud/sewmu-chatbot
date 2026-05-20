@@ -426,11 +426,16 @@
 
         <!-- 거래처 검색·선택 (C1: 진짜 거래처 list fetch) -->
         <div class="card" id="custPersonPicker">
-          <div class="c-h" style="margin-bottom:8px"><span class="ti">🔍 거래처 검색</span>
+          <div class="c-h" style="margin-bottom:8px"><span class="ti">🔍 검색</span>
             <span class="right-act">
-              <span style="font-size:11.5px;color:var(--mut)" id="custLoadCnt">거래처 로드 중…</span>
+              <span style="font-size:11.5px;color:var(--mut)" id="custLoadCnt">로드 중…</span>
               <button class="btn" onclick="loadCustList(true)" style="font-size:11.5px">↻ 새로고침</button>
             </span>
+          </div>
+          <!-- 사람/사업장 토글 -->
+          <div id="custModeTabs" style="display:flex;gap:6px;margin-bottom:8px">
+            <button class="tab on" data-mode="person" onclick="setCustMode('person')" style="padding:6px 14px;font-size:12.5px">👤 거래처(사람)</button>
+            <button class="tab" data-mode="business" onclick="setCustMode('business')" style="padding:6px 14px;font-size:12.5px">🏢 사업장(법인·개인)</button>
           </div>
           <input type="text" id="custSearchBox" placeholder="이름·전화 검색 (예: 박수현, 010-1234)" oninput="searchCustList()" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;margin-bottom:8px;box-sizing:border-box">
           <div id="custResults" style="max-height:340px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px"></div>
@@ -714,13 +719,17 @@ var CATALOG=[];
 var CATALOG_FALLBACK=[{"code":"SOD_56","name":"배당세액공제","alias":["배당"],"law":"소득세법 56조","cat":"general"},{"code":"JTL_56_2","name":"기장세액공제","alias":["기장"],"law":"조특법 56조의2","cat":"general"},{"code":"JTL_104_8","name":"전자계산서 발급전송세액공제","alias":["전자계산서"],"law":"조특법 104조의8","cat":"general"},{"code":"SOD_57","name":"외국납부세액공제","alias":["외국납부"],"law":"소득세법 57조","cat":"general"},{"code":"SOD_58","name":"재해손실세액공제","alias":["재해손실"],"law":"소득세법 58조","cat":"general"},{"code":"SOD_59","name":"근로소득세액공제","alias":["근로소득"],"law":"소득세법 59조","cat":"general"},{"code":"SOD_59_2","name":"자녀세액공제","alias":["자녀"],"law":"소득세법 59조의2","cat":"general"},{"code":"SOD_59_2_B","name":"출산입양자녀세액공제","alias":["출산","입양"],"law":"소득세법 59조의2","cat":"general"},{"code":"JTL_91_5","name":"연금계좌세액공제(과학기술인공제)","alias":["연금","과학기술인"],"law":"조특법 91조의5","cat":"general"},{"code":"SOD_59_3_A","name":"연금계좌세액공제(퇴직연금)","alias":["퇴직연금","연금"],"law":"소득세법 59조의3","cat":"general"},{"code":"SOD_59_3_B","name":"연금계좌세액공제(연금저축)","alias":["연금저축","연금"],"law":"소득세법 59조의3","cat":"general"},{"code":"JTL_91_18","name":"연금계좌세액공제(ISA만기 연금계좌납입)","alias":["ISA","연금"],"law":"조특법 91조의18","cat":"general"},{"code":"SOD_59_4_A","name":"보장성보험료 세액공제(일반)","alias":["보험","보장성"],"law":"소득세법 59조의4","cat":"special"},{"code":"SOD_59_4_B","name":"보장성보험료 세액공제(장애인)","alias":["보험","장애인"],"law":"소득세법 59조의4","cat":"special"},{"code":"SOD_59_4_C","name":"의료비 세액공제","alias":["의료비"],"law":"소득세법 59조의4","cat":"special"},{"code":"SOD_59_4_D","name":"교육비 세액공제","alias":["교육비"],"law":"소득세법 59조의4","cat":"special"},{"code":"SOD_59_4_E","name":"기부금 세액공제","alias":["기부","기부금"],"law":"소득세법 59조의4","cat":"special"},{"code":"SOD_59_4_F","name":"표준세액공제","alias":["표준"],"law":"소득세법 59조의4","cat":"special"},{"code":"131","name":"중소기업투자세액공제","alias":["중소기업투자"],"law":"조특법 5조","cat":"credit_invest"},{"code":"14Z","name":"상생결제 지급금액 세액공제","alias":["상생결제"],"law":"조특법 7조의4","cat":"credit_invest"},{"code":"14M","name":"대·중소기업 상생협력기금 출연 세액공제","alias":["상생협력기금"],"law":"조특법 8조의3","cat":"credit_invest"},{"code":"18D","name":"협력중소기업 유형고정자산 무상임대 세액공제","alias":["무상임대"],"law":"조특법 8조의3","cat":"credit_invest"},{"code":"18L","name":"수탁기업 설치 시설 세액공제","alias":["수탁기업"],"law":"조특법 8조의3","cat":"credit_invest"},{"code":"18R","name":"교육기관 무상기증 중고자산 세액공제","alias":["무상기증","중고자산"],"law":"조특법 8조의3","cat":"credit_invest"},{"code":"13L","name":"신성장·원천기술 연구개발비 세액공제(최저한세 적용대상)","alias":["신성장","R&D","연구"],"law":"조특법 10조","cat":"credit_rnd"},{"code":"10E","name":"국가전략기술 연구개발비 세액공제(최저한세 적용대상)","alias":["국가전략","R&D"],"law":"조특법 10조","cat":"credit_rnd"},{"code":"13M","name":"일반연구 및 인력개발비 세액공제(최저한세 적용대상)","alias":["일반연구","R&D"],"law":"조특법 10조","cat":"credit_rnd"},{"code":"16A","name":"신성장·원천기술 연구개발비 세액공제(최저한세 적용제외)","alias":["신성장","R&D"],"law":"조특법 10조","cat":"credit_rnd"},{"code":"10D","name":"국가전략기술 연구개발비 세액공제(최저한세 적용제외)","alias":["국가전략","R&D"],"law":"조특법 10조","cat":"credit_rnd"},{"code":"16B","name":"일반연구 및 인력개발비 세액공제(최저한세 적용제외)","alias":["일반연구","R&D"],"law":"조특법 10조","cat":"credit_rnd"},{"code":"176","name":"기술취득 세액공제","alias":["기술취득"],"law":"조특법 12조","cat":"credit_rnd"},{"code":"14T","name":"기술혁신형 합병 세액공제","alias":["기술혁신","합병"],"law":"조특법 12조의3","cat":"credit_rnd"},{"code":"14U","name":"기술혁신형 주식취득 세액공제","alias":["기술혁신","주식취득"],"law":"조특법 12조의4","cat":"credit_rnd"},{"code":"18E","name":"벤처기업 등 출자 세액공제","alias":["벤처","출자"],"law":"조특법 13조의2","cat":"credit_invest"},{"code":"18N","name":"소재·부품·장비 수요기업 공동출자 세액공제","alias":["소부장","수요기업"],"law":"조특법 13조의3","cat":"credit_invest"},{"code":"19P","name":"소재·부품·장비 외국법인 인수 세액공제","alias":["소부장","외국법인"],"law":"조특법 13조의3","cat":"credit_invest"},{"code":"18H","name":"성과공유 중소기업 경영성과급 세액공제","alias":["성과공유","경영성과급"],"law":"조특법 19조","cat":"credit_employee"},{"code":"13W","name":"통합투자세액공제(일반)","alias":["통합투자"],"law":"조특법 24조","cat":"credit_invest"},{"code":"13X","name":"통합투자세액공제(신성장사업화시설)","alias":["통합투자","신성장"],"law":"조특법 24조","cat":"credit_invest"},{"code":"13Y","name":"통합투자세액공제(국가전략기술사업화시설)","alias":["통합투자","국가전략"],"law":"조특법 24조","cat":"credit_invest"},{"code":"1B1","name":"임시 통합투자세액공제(일반)","alias":["임시통합투자"],"law":"조특법 24조","cat":"credit_invest"},{"code":"1B2","name":"임시 통합투자세액공제(신성장사업화시설)","alias":["임시통합투자","신성장"],"law":"조특법 24조","cat":"credit_invest"},{"code":"1B3","name":"임시 통합투자세액공제(국가전략기술사업화시설)","alias":["임시통합투자","국가전략"],"law":"조특법 24조","cat":"credit_invest"},{"code":"18I","name":"초연결네트워크 투자 세액공제","alias":["초연결네트워크"],"law":"조특법 25조의5","cat":"credit_invest"},{"code":"134","name":"연구 및 인력개발설비투자 세액공제","alias":["연구","인력개발설비"],"law":"조특법 25조","cat":"credit_rnd"},{"code":"177","name":"에너지절약시설투자 세액공제","alias":["에너지절약"],"law":"조특법 25조의2","cat":"credit_invest"},{"code":"14A","name":"환경보전시설투자 세액공제","alias":["환경보전"],"law":"조특법 25조의3","cat":"credit_invest"},{"code":"142","name":"근로자복지증진설비투자 세액공제","alias":["근로자복지"],"law":"조특법 25조의4","cat":"credit_employee"},{"code":"136","name":"안전설비투자 세액공제","alias":["안전설비"],"law":"조특법 25조의5","cat":"credit_invest"},{"code":"135","name":"생산성향상시설투자 세액공제","alias":["생산성향상"],"law":"조특법 25조의6","cat":"credit_invest"},{"code":"14B","name":"의약품품질관리개선시설투자 세액공제","alias":["의약품"],"law":"조특법 25조의8","cat":"credit_invest"},{"code":"18B","name":"신성장기술 사업화 시설투자 세액공제","alias":["신성장기술","사업화"],"law":"조특법 25조의9","cat":"credit_invest"},{"code":"18C","name":"영상콘텐츠제작비용 세액공제(기본)","alias":["영상콘텐츠"],"law":"조특법 25조의10","cat":"credit_invest"},{"code":"1B8","name":"영상콘텐츠제작비용 세액공제(추가)","alias":["영상콘텐츠"],"law":"조특법 25조의10","cat":"credit_invest"},{"code":"1B7","name":"문화산업전문회사 출자 세액공제","alias":["문화산업"],"law":"조특법 25조의11","cat":"credit_invest"},{"code":"14N","name":"고용창출투자세액공제","alias":["고용창출투자"],"law":"조특법 26조","cat":"credit_employee"},{"code":"14S","name":"산업수요맞춤형고교 졸업자 병역이행 후 복직 중소기업 세액공제","alias":["병역이행","복직"],"law":"조특법 29조의2","cat":"credit_employee"},{"code":"14X","name":"경력단절여성 고용기업 인건비 세액공제","alias":["경력단절","여성"],"law":"조특법 29조의3","cat":"credit_employee"},{"code":"18J","name":"육아휴직 후 고용유지 인건비 세액공제","alias":["육아휴직"],"law":"조특법 29조의3","cat":"credit_employee"},{"code":"14Y","name":"근로소득 증대 기업 세액공제","alias":["근로소득증대"],"law":"조특법 29조의4","cat":"credit_employee"},{"code":"18A","name":"청년고용증대 세액공제","alias":["청년고용"],"law":"조특법 29조의5","cat":"credit_employee"},{"code":"18F","name":"고용증대 세액공제","alias":["고용증대"],"law":"조특법 29조의7","cat":"credit_employee"},{"code":"18S","name":"통합고용세액공제","alias":["통합고용"],"law":"조특법 29조의8","cat":"credit_employee"},{"code":"1B4","name":"통합고용세액공제(정규직전환)","alias":["통합고용","정규직"],"law":"조특법 29조의8","cat":"credit_employee"},{"code":"1B5","name":"통합고용세액공제(육아휴직복귀)","alias":["통합고용","육아휴직"],"law":"조특법 29조의8","cat":"credit_employee"},{"code":"18K","name":"고용유지 중소기업 세액공제","alias":["고용유지"],"law":"조특법 30조","cat":"credit_employee"},{"code":"14H","name":"정규직근로자 전환 세액공제","alias":["정규직전환"],"law":"조특법 30조의2","cat":"credit_employee"},{"code":"14Q","name":"중소기업 고용증가인원 사회보험료 세액공제","alias":["사회보험료","고용증가"],"law":"조특법 30조의4","cat":"credit_employee"},{"code":"18G","name":"중소기업(고용증가인원) 사회보험료 세액공제","alias":["사회보험료","고용증가"],"law":"조특법 30조의4","cat":"credit_employee"},{"code":"10B","name":"상가임대료 인하 임대사업자 세액공제","alias":["상가임대","인하"],"law":"조특법 96조의3","cat":"credit_invest"},{"code":"18Q","name":"선결제금액 세액공제","alias":["선결제"],"law":"조특법 99조의11","cat":"credit_invest"},{"code":"184","name":"전자신고세액공제(납세의무자)","alias":["전자신고"],"law":"조특법 104조의5","cat":"credit_general"},{"code":"14J","name":"전자신고세액공제(세무대리인)","alias":["전자신고","세무대리"],"law":"조특법 104조의5","cat":"credit_general"},{"code":"14E","name":"제3자물류비용 세액공제","alias":["제3자물류"],"law":"조특법 104조의14","cat":"credit_invest"},{"code":"1B6","name":"해외자원개발투자 과세특례","alias":["해외자원개발"],"law":"조특법 104조의15","cat":"credit_invest"},{"code":"14O","name":"기업의 경기부 설치운영 세액공제","alias":["경기부"],"law":"조특법 104조의20","cat":"credit_invest"},{"code":"14P","name":"석유제품 전자상거래 세액공제","alias":["석유제품","전자상거래"],"law":"조특법 104조의22","cat":"credit_invest"},{"code":"14I","name":"대학 맞춤형 교육비용 세액공제","alias":["대학","맞춤형교육"],"law":"조특법 104조의18","cat":"credit_general"},{"code":"14K","name":"대학 등 기부 설비 세액공제","alias":["대학기부","설비"],"law":"조특법 104조의18","cat":"credit_general"},{"code":"14R","name":"산업수요맞춤형고교 재학생 현장훈련수당 세액공제","alias":["현장훈련수당"],"law":"조특법 104조의18","cat":"credit_employee"},{"code":"18M","name":"우수선화주 인증 국제물류주선업자 세액공제","alias":["선화주","물류주선"],"law":"조특법 104조의27","cat":"credit_invest"},{"code":"10C","name":"용역제공자 과세자료 제출 세액공제","alias":["용역제공자"],"law":"조특법 104조의29","cat":"credit_general"},{"code":"14W","name":"금사업자·스크랩 사업자 수입금액 증가 세액공제","alias":["금사업자","스크랩"],"law":"조특법 122조의4","cat":"credit_invest"},{"code":"14V","name":"금현물시장 금지금 과세특례","alias":["금현물","금지금"],"law":"조특법 126조의7","cat":"credit_invest"},{"code":"11O","name":"창업중소기업 감면(최저한세 적용제외)","alias":["창업중소","창특"],"law":"조특법 6조","cat":"exemption"},{"code":"111","name":"창업중소기업 감면(최저한세 적용대상)","alias":["창업중소","창특"],"law":"조특법 6조","cat":"exemption"},{"code":"174","name":"창업벤처중소기업 감면","alias":["창업벤처","창벤"],"law":"조특법 6조","cat":"exemption"},{"code":"13E","name":"에너지신기술 중소기업 감면","alias":["에너지신기술"],"law":"조특법 6조","cat":"exemption"},{"code":"112","name":"중소기업 특별세액감면","alias":["중특","중소기업특별"],"law":"조특법 7조","cat":"exemption"},{"code":"13J","name":"기술이전 감면","alias":["기술이전"],"law":"조특법 12조","cat":"exemption"},{"code":"13K","name":"기술대여 감면","alias":["기술대여"],"law":"조특법 12조","cat":"exemption"},{"code":"17C","name":"연구개발특구 입주기업 세액감면(최저한세 적용제외)","alias":["연구개발특구"],"law":"조특법 12조의2","cat":"exemption"},{"code":"179","name":"연구개발특구 입주기업 세액감면(최저한세 적용대상)","alias":["연구개발특구"],"law":"조특법 12조의2","cat":"exemption"},{"code":"190","name":"고용창출형 창업기업 감면","alias":["고용창출형창업"],"law":"조특법 30조의2","cat":"exemption"},{"code":"192","name":"사업전환 중소기업 감면","alias":["사업전환"],"law":"조특법 33조의2","cat":"exemption"},{"code":"108","name":"수도권과밀억제권역 밖 이전 중소기업 / 공장 지방이전 세액감면","alias":["지방이전","수도권과밀"],"law":"조특법 63조","cat":"exemption"},{"code":"117","name":"농공단지 입주기업 등 감면","alias":["농공단지"],"law":"조특법 64조","cat":"exemption"},{"code":"11L","name":"사회적기업 감면","alias":["사회적기업"],"law":"조특법 85조의6","cat":"exemption"},{"code":"11M","name":"장애인표준사업장 감면","alias":["장애인표준사업장"],"law":"조특법 85조의6","cat":"exemption"},{"code":"11A","name":"행정중심복합도시·혁신도시 공장이전 감면","alias":["혁신도시","공장이전"],"law":"조특법 85조의2","cat":"exemption"},{"code":"13I","name":"소형주택 임대사업자 감면","alias":["소형주택","임대사업자"],"law":"조특법 96조","cat":"exemption"},{"code":"13N","name":"상가건물 장기임대사업자 감면","alias":["상가건물","장기임대"],"law":"조특법 96조의2","cat":"exemption"},{"code":"11N","name":"위기지역내 창업기업 세액감면(최저한세 적용제외)","alias":["위기지역"],"law":"조특법 99조의9","cat":"exemption"},{"code":"13S","name":"위기지역내 창업기업 세액감면(최저한세 적용대상)","alias":["위기지역"],"law":"조특법 99조의9","cat":"exemption"},{"code":"124","name":"산림개발소득 감면","alias":["산림개발"],"law":"조특법 102조","cat":"exemption"},{"code":"11F","name":"해외진출기업 국내복귀 감면","alias":["국내복귀","해외진출"],"law":"조특법 104조의24","cat":"exemption"},{"code":"181","name":"제주첨단과학기술단지 입주기업 조세감면(최저한세 적용제외)","alias":["제주첨단","제주과기"],"law":"조특법 121조의8","cat":"exemption"},{"code":"182","name":"제주첨단과학기술단지 입주기업 조세감면(최저한세 적용대상)","alias":["제주첨단","제주과기"],"law":"조특법 121조의8","cat":"exemption"},{"code":"197","name":"제주투자진흥지구·제주자유무역지역 입주기업 감면(최저한세 적용제외)","alias":["제주투자진흥","제주자유무역"],"law":"조특법 121조의9","cat":"exemption"},{"code":"13R","name":"제주투자진흥지구·제주자유무역지역 입주기업 감면(최저한세 적용대상)","alias":["제주투자진흥","제주자유무역"],"law":"조특법 121조의9","cat":"exemption"},{"code":"198","name":"기업도시개발사업등 시행자 감면","alias":["기업도시"],"law":"조특법 121조의17","cat":"exemption"},{"code":"11C","name":"아시아문화중심도시 투자진흥지구 입주기업 감면(최저한세 적용제외)","alias":["아시아문화중심도시"],"law":"조특법 121조의20","cat":"exemption"},{"code":"11G","name":"아시아문화중심도시 투자진흥지구 입주기업 감면(최저한세 적용대상)","alias":["아시아문화중심도시"],"law":"조특법 121조의20","cat":"exemption"},{"code":"17A","name":"금융중심지 창업기업 감면(최저한세 적용제외)","alias":["금융중심지"],"law":"조특법 121조의21","cat":"exemption"},{"code":"17B","name":"금융중심지 창업기업 감면(최저한세 적용대상)","alias":["금융중심지"],"law":"조특법 121조의21","cat":"exemption"},{"code":"380","name":"첨단의료복합단지 입주기업 감면(최저한세 적용제외)","alias":["첨단의료"],"law":"조특법 121조의22","cat":"exemption"},{"code":"381","name":"첨단의료복합단지 입주기업 감면(최저한세 적용대상)","alias":["첨단의료"],"law":"조특법 121조의22","cat":"exemption"},{"code":"164","name":"기회발전특구 창업기업등 세액감면","alias":["기회발전특구"],"law":"조특법 121조의33","cat":"exemption"}];
 var STAFF=['정은','민지','영철','예슬'];
 
-/* C1 (2026-05-20): mock BIZS 폐기 → /api/admin-businesses?user_id=N fetch 로 동적 채움.
- * 사람 선택 시 pickCust(uid) → 그 사람의 매핑 사업장 list = BIZS. */
-var PERSONS=[];          /* 거래처(사람) list, /api/admin-approve fetch */
-var SELECTED_PERSON=null;/* 현재 선택된 거래처 객체 */
-var BIZS=[];             /* 현재 선택된 거래처의 매핑 사업장 (dynamic) */
-var personStaff='민지';   /* (Phase D 후속에서 사람별 자동 상속) */
-var selectedBizId=null;  /* 사업장 선택 X 까지 null */
+/* C1 (2026-05-20): mock BIZS 폐기 → /api/admin-* fetch 로 동적 채움.
+ * 두 가지 진입 모드:
+ *   - person: 사람 검색 → 매핑 사업장 picker → 청구 (개인사업자/법인 가족 묶음)
+ *   - business: 사업장 직접 검색 (법인세 청구 = 법인이 청구 대상이라 직접 모드 필수) */
+var PERSONS=[];           /* /api/admin-approve fetch */
+var BIZS_ALL=[];          /* /api/admin-businesses fetch (전체 사업장 list) */
+var SELECTED_PERSON=null; /* 현재 선택된 거래처 객체 (사람 모드) */
+var BIZS=[];              /* 현재 발행 대상 사업장 list (사람 모드: 매핑 / 사업장 모드: 단건) */
+var custMode='person';    /* 'person' | 'business' */
+var personStaff='민지';
+var selectedBizId=null;
 var INV_S3=[];  /* 현재 선택된 거래처의 Section 3 적용분 (검토표 자동흐름 후 사장님 편집) */
 
 var INVOICES=[
@@ -858,29 +867,76 @@ function renderCust(){
   }
 }
 
-/* C1: 거래처 fetch — URL 의 ?key= 자동 첨부 + same-origin cookie. 사장님 admin.html?key=X 흐름 호환. */
+/* C1: 거래처 + 사업장 fetch — URL 의 ?key= 자동 첨부 + same-origin cookie. 사장님 admin.html?key=X 흐름 호환. */
 function adminKeyQS(prefix){
   try{ var k=new URLSearchParams(location.search).get('key'); return k?(prefix||'&')+'key='+encodeURIComponent(k):''; }catch(_){return ''}
 }
 async function loadCustList(force){
-  if(!force && PERSONS.length) return;
-  var cnt=$('custLoadCnt'); if(cnt) cnt.textContent='거래처 로드 중…';
+  if(!force && PERSONS.length && BIZS_ALL.length) return;
+  var cnt=$('custLoadCnt'); if(cnt) cnt.textContent='로드 중…';
+  /* 사람 + 사업장 병렬 fetch */
+  var personPromise=fetch('/api/admin-approve?status=approved_client'+adminKeyQS('&'),{credentials:'include'}).then(r=>r.ok?r.json():Promise.reject('HTTP '+r.status));
+  var bizPromise=fetch('/api/admin-businesses'+adminKeyQS('?'),{credentials:'include'}).then(r=>r.ok?r.json():Promise.reject('HTTP '+r.status));
   try{
-    /* approved_client (기장거래처) + admin 직원 제외 = 진짜 기장거래처 */
-    var r=await fetch('/api/admin-approve?status=approved_client'+adminKeyQS('&'),{credentials:'include'});
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    var d=await r.json();
-    PERSONS=(d.users||[]).filter(u=>Number(u.is_admin)!==1);
-    if(cnt) cnt.textContent='기장거래처 '+PERSONS.length+'명';
+    var [pd,bd]=await Promise.all([personPromise,bizPromise]);
+    PERSONS=(pd.users||[]).filter(u=>Number(u.is_admin)!==1);
+    BIZS_ALL=(bd.businesses||[]).filter(b=>!b.deleted_at).map(b=>({
+      id:b.id,
+      name:b.company_name||'(이름없음)',
+      form: (b.company_form==='법인'||b.company_form==='corp')?'법인':'개인사업자',
+      taxType: b.tax_type || ((b.company_form==='법인'||b.company_form==='corp')?'법인세':'종소세'),
+      ceo: b.ceo_name||'',
+      bizNum: b.business_number||'',
+      raw: b,
+      staff:null, override:false,
+      ext:{rev:0,asset:0,bizup:'기타',bt:((b.company_form==='법인'||b.company_form==='corp')?'법인장부대행 및 법인조정':'개인장부대행 및 개인조정'),s3FromReview:[]}
+    }));
+    updateLoadCnt();
     searchCustList();
   }catch(e){
-    if(cnt) cnt.textContent='⚠️ 로드 실패 ('+e.message+')';
-    $('custResults').innerHTML='<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--mut);font-size:13px;line-height:1.6">/api/admin-approve 응답 실패 ('+esc(e.message)+').<br><br>👉 <b>URL 끝에 <code>?key=YOUR_ADMIN_KEY</code> 붙여서 진입</b><br><span style="font-size:11.5px">예: /billing-preview.html?key=1111</span></div>';
+    var em=(e&&e.message)||String(e);
+    if(cnt) cnt.textContent='⚠️ 로드 실패 ('+em+')';
+    $('custResults').innerHTML='<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--mut);font-size:13px;line-height:1.6">API 응답 실패 ('+esc(em)+').<br><br>👉 <b>URL 끝에 <code>?key=YOUR_ADMIN_KEY</code> 붙여서 진입</b><br><span style="font-size:11.5px">예: /billing-preview.html?key=1111</span></div>';
   }
+}
+
+function updateLoadCnt(){
+  var cnt=$('custLoadCnt'); if(!cnt) return;
+  cnt.textContent='거래처 '+PERSONS.length+'명 · 사업장 '+BIZS_ALL.length+'개 (법인 '+BIZS_ALL.filter(b=>b.form==='법인').length+')';
+}
+
+function setCustMode(mode){
+  custMode=mode;
+  document.querySelectorAll('#custModeTabs .tab').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
+  var box=$('custSearchBox');
+  box.placeholder=mode==='person'?'이름·전화 검색 (예: 박수현, 010-1234)':'회사명·사업자번호·대표자 검색 (예: 베이커리, 1234567890)';
+  searchCustList();
 }
 
 function searchCustList(){
   var q=($('custSearchBox').value||'').trim().toLowerCase();
+  if(custMode==='business'){
+    var list=BIZS_ALL.filter(b=>{
+      if(!q) return true;
+      var h=((b.name||'')+' '+(b.bizNum||'')+' '+(b.ceo||'')).toLowerCase();
+      return h.indexOf(q)>=0;
+    }).slice(0,200);
+    if(!list.length){
+      $('custResults').innerHTML='<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--mut);font-size:12.5px">'+(BIZS_ALL.length?'검색 결과 없음':'사업장 로드 중…')+'</div>';
+      return;
+    }
+    $('custResults').innerHTML=list.map(b=>{
+      var fc=b.form==='법인'?'🏢':'👤';
+      var fbg=b.form==='법인'?'#FEF3C7':'#EEF2F7';
+      return '<button onclick="pickBiz('+b.id+')" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;text-align:left;font-family:inherit">'
+        +'<span style="width:30px;height:30px;border-radius:8px;background:'+fbg+';display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+fc+'</span>'
+        +'<span style="min-width:0;overflow:hidden"><div style="font-weight:700;font-size:12.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(b.name)+'</div>'
+        +'<div style="font-size:10px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(b.form)+' · '+esc(b.taxType)+(b.ceo?' · '+esc(b.ceo):'')+(b.bizNum?' · '+esc(b.bizNum):'')+'</div></span>'
+        +'</button>';
+    }).join('');
+    return;
+  }
+  /* person mode */
   var list=PERSONS.filter(u=>{
     if(!q) return true;
     var h=((u.real_name||'')+' '+(u.name||'')+' '+(u.phone||'')+' '+(u.email||'')).toLowerCase();
@@ -900,6 +956,25 @@ function searchCustList(){
       +'<div style="font-size:10.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(ph||'전화 미등록')+'</div></span>'
       +'</button>';
   }).join('');
+}
+
+/* 사업장 모드: 직접 선택 → 사람 미매핑이어도 즉시 청구 가능 */
+function pickBiz(bid){
+  var b=BIZS_ALL.find(x=>x.id===bid); if(!b) return;
+  SELECTED_PERSON=null;
+  BIZS=[b];
+  selectedBizId=bid;
+  $('custPersonPicker').style.display='none';
+  $('custSelectedHeader').style.display='block';
+  $('custH1').textContent='🏢 '+b.name+' — 청구서 발행';
+  $('custAvatar').textContent=b.form==='법인'?'🏢':'👤';
+  $('custName').textContent=b.name;
+  $('custMeta').textContent=b.form+' · '+b.taxType+(b.ceo?' · '+b.ceo+' 대표':'')+(b.bizNum?' · '+b.bizNum:'');
+  $('custStaff').value=personStaff;
+  renderBizPicker();
+  /* 청구 이력 mock (C3 에서 진짜 fetch) */
+  var hist=INVOICES.filter(i=>i.cust.indexOf(b.name)>=0);
+  $('psHist').innerHTML=hist.length?hist.map(i=>{var st=statusOf(i);return '<tr><td><b>'+esc(i.cust)+'</b></td><td><span class="chip '+(i.taxType==='법인세'?'chip-biz':'chip-indv')+'">'+esc(i.taxType)+'</span></td><td style="color:#6B7280">'+esc(i.iDate.slice(2).replace(/-/g,'.'))+'</td><td style="font-weight:700">'+W(i.amount)+'원</td><td><span class="st '+st.cls+'">'+st.label+'</span></td><td><b>'+esc(i.staff)+'</b></td></tr>'}).join(''):'<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--mut);font-size:12px">청구 이력 없음 (C3 에서 /api/billing-invoices fetch 연결)</td></tr>';
 }
 
 async function pickCust(uid){
