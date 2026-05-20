@@ -782,9 +782,14 @@
     </div>
     <div class="s3-modal-amt" id="s2PickInputArea" style="display:none">
       <div class="s3-pick-selected">선택: <b id="s2PickSelectedName">—</b> <span class="s3-pick-selected-meta" id="s2PickSelectedMeta"></span></div>
+      <!-- 직접 추가 모드 — 항목명 input (양식 선택 시는 숨김) -->
+      <div class="s3-amt-row" id="s2PickNameRow" style="display:none">
+        <label>항목명</label>
+        <input type="text" id="s2PickName" placeholder="예: 신용카드 검토 / 사업장 추가 / 자료 정리..." style="flex:1">
+      </div>
       <div class="s3-amt-row">
         <label>단가 (원)</label>
-        <input type="number" id="s2PickVal" oninput="updateS2PickGain()" placeholder="양식 단가">
+        <input type="number" id="s2PickVal" oninput="updateS2PickGain()" placeholder="단가">
         <label style="min-width:50px;margin-left:8px">건수</label>
         <input type="number" id="s2PickQty" oninput="updateS2PickGain()" placeholder="1" style="flex:0 0 100px">
         <span class="unit">= 가산 <b id="s2PickGain" style="color:#0B1F3A">—</b></span>
@@ -1252,6 +1257,8 @@ function openS2Picker(mode){
   $('s2PickVal').value=''; $('s2PickQty').value='1';
   $('s2PickGain').textContent='—';
   $('s2PickInputArea').style.display='none';
+  $('s2PickNameRow').style.display='none';
+  $('s2PickName').value='';
   renderS2Picks();
   setTimeout(function(){ var el=$('s2PickSearch'); if(el)el.focus(); },50);
 }
@@ -1264,12 +1271,22 @@ function renderS2Picks(){
     var h=(c.name+' '+(c.desc||'')).toLowerCase();
     return h.indexOf(q)>=0;
   });
-  $('s2PickCnt').textContent=list.length+'/'+src.length;
-  if(!list.length){
-    $('s2PickResults').innerHTML='<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--mut);font-size:12.5px">'+(src.length?'검색 결과 없음':'양식 Section 2 가 비어있음 — 청구서 양식에서 먼저 추가하세요')+'</div>';
+  $('s2PickCnt').textContent=list.length+'/'+src.length+(src.length?' · 양식 항목':'');
+  /* 직접 추가 카드 — 항상 최상단. 검색어 있으면 그 텍스트 prefill 안내 */
+  var customQuery=($('s2PickSearch').value||'').trim();
+  var customCard='<button class="s3-pick'+(_s2PickIdx===-1?' on':'')+'" onclick="selectS2Pick(-1)" type="button" style="border-style:dashed;border-color:#3B82F6;background:#F0F9FF">'
+    +'<div class="s3-pick-nm" style="color:#1E40AF">✏️ 직접 추가 (양식 X)'+(customQuery?': "'+esc(customQuery)+'"':'')+'</div>'
+    +'<div class="s3-pick-meta"><span class="s3-pick-cat" style="background:#DBEAFE;color:#1E40AF">자유 입력</span><span class="s3-pick-code">항목명·단가·건수 직접</span></div>'
+    +'</button>';
+  if(!list.length && !src.length){
+    $('s2PickResults').innerHTML=customCard+'<div style="grid-column:1/-1;padding:14px;text-align:center;color:var(--mut);font-size:11.5px">양식 Section 2 비어있음 — 위 "직접 추가" 사용 또는 양식에서 항목 등록</div>';
     return;
   }
-  $('s2PickResults').innerHTML=list.map(c=>{
+  if(!list.length){
+    $('s2PickResults').innerHTML=customCard+'<div style="grid-column:1/-1;padding:14px;text-align:center;color:var(--mut);font-size:11.5px">양식에서 일치 없음 — 위 "직접 추가" 사용</div>';
+    return;
+  }
+  $('s2PickResults').innerHTML=customCard+list.map(c=>{
     var sel=c._idx===_s2PickIdx;
     var typeLbl=c.type==='rate'?'기본보수×%':c.type==='unit'?'건당':'직접 입력';
     return '<button class="s3-pick'+(sel?' on':'')+'" onclick="selectS2Pick('+c._idx+')" type="button">'
@@ -1280,13 +1297,26 @@ function renderS2Picks(){
 }
 function selectS2Pick(idx){
   _s2PickIdx=idx;
+  if(idx===-1){
+    /* 직접 추가 모드 */
+    $('s2PickSelectedName').textContent='✏️ 직접 추가';
+    $('s2PickSelectedMeta').textContent='자유 입력 (양식 X)';
+    $('s2PickNameRow').style.display='flex';
+    $('s2PickName').value=($('s2PickSearch').value||'').trim();
+    $('s2PickVal').value=''; $('s2PickQty').value='1';
+    $('s2PickGain').textContent='—';
+    $('s2PickInputArea').style.display='block';
+    renderS2Picks();
+    setTimeout(function(){ var el=$('s2PickName'); if(el)el.focus(); },30);
+    return;
+  }
   var it=SECTIONS[_s2CurrentForm()].s2[idx]; if(!it) return;
   $('s2PickSelectedName').textContent=it.name;
   $('s2PickSelectedMeta').textContent=(it.type==='rate'?'기본보수×%':it.type==='unit'?'건당':'직접 입력')+' · '+(it.desc||'');
+  $('s2PickNameRow').style.display='none';  /* 양식 모드 = 항목명 input 숨김 */
   /* type=rate 면 기본보수 기준 자동 — base 추정해서 prefill, 사장님이 수정 가능 */
   var defaultVal=it.val||0;
   if(it.type==='rate'){
-    /* 거래처 모드면 현재 미리보기의 base 추정, 수기면 0 */
     var base=0;
     try{ base=parseFloat($('cpv-base').textContent.replace(/[^0-9]/g,''))||0; }catch(_){}
     defaultVal=Math.floor(base*(it.val||0)/100/1000)*1000;
@@ -1307,12 +1337,20 @@ function confirmS2Pick(){
   if(_s2PickIdx===null){ showToast('항목을 먼저 선택하세요'); return; }
   var val=parseFloat($('s2PickVal').value)||0;
   var qty=parseFloat($('s2PickQty').value)||1;
+  var name='';
+  if(_s2PickIdx===-1){
+    name=($('s2PickName').value||'').trim();
+    if(!name){ showToast('항목명을 입력하세요'); var el=$('s2PickName'); if(el)el.focus(); return; }
+  } else {
+    var src=SECTIONS[_s2CurrentForm()].s2[_s2PickIdx];
+    if(!src) return;
+    name=src.name;
+  }
   if(val<=0){ showToast('단가를 입력하세요'); var el=$('s2PickVal'); if(el)el.focus(); return; }
-  var src=SECTIONS[_s2CurrentForm()].s2[_s2PickIdx];
-  var row={name:src.name, val:val, qty:qty};
+  var row={name:name, val:val, qty:qty};
   if(_s2PickMode==='cust'){ INV_S2.push(row); renderS2(); }
   else { MAN_S2.push(row); renderManS2(); }
-  showToast('+ '+src.name);
+  showToast('+ '+name);
   closeS2Picker();
 }
 
