@@ -14,6 +14,22 @@ export const runtime = 'edge';
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
+import { InvoicePreview } from '@/components/billing/InvoicePreview';
+
+/* 누진표 계산 (preview 용) — new/page.tsx 의 calcBase 와 동일 */
+function calcBase(amount: number, tariff: TariffRow[]): number {
+  if (!tariff || tariff.length === 0) return 0;
+  let row: TariffRow = tariff[0];
+  for (let i = 0; i < tariff.length; i++) {
+    if (amount >= tariff[i][0]) row = tariff[i];
+    else break;
+  }
+  return Math.floor((row[1] + (amount - row[0]) * ((row[2] || 0) / 100)) / 1000) * 1000;
+}
+
+/* sample 미리보기 데이터 — billing-preview.html "SAMPLE" 와 동일 톤 */
+const SAMPLE_REV_CORP = 500_000_000; // 5억
+const SAMPLE_REV_INDV = 300_000_000; // 3억
 
 type TariffRow = [number, number, number];
 
@@ -122,12 +138,27 @@ export default function TemplatePage() {
     );
   }
 
+  /* sample 미리보기 계산 — 현재 form 의 누진표·인삿말·계좌·서명 즉시 반영 */
+  const previewTaxType = activeTab === 'corp' ? '법인세' : '종소세';
+  const sampleRev = activeTab === 'corp' ? SAMPLE_REV_CORP : SAMPLE_REV_INDV;
+  const sampleBase = calcBase(sampleRev, tariff);
+  const sampleKet = Math.floor((sampleBase * 0.2) / 1000) * 1000; // 결산 20%
+  const sampleCst = sampleBase > 0 ? Math.floor(((sampleBase + sampleKet) * 0.1) / 1000) * 1000 : 0; // 원가 10%
+  const sampleBaseFee = sampleBase + sampleKet + sampleCst;
+  const sampleTotal = Math.round(sampleBaseFee * 1.1); // VAT 10%
+
   return (
     <div className="space-y-4">
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
         💡 청구서 양식 = 모든 청구서의 기본 룰. 인삿말·계좌·누진표는 여기서 한 번 설정 →
         전체 청구서 자동 반영. 개별 청구서에서 거래처별 입력 (수입금액·할인·메모 등) 만 다르게.
       </div>
+
+      {/* 사장님 명령 (2026-05-21): "프리뷰랑 왤케 다른건데" — billing-preview.html 처럼
+          좌측 form + 우측 A4 sample 미리보기 split. 실시간 반영. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* 좌측 — 입력 폼 */}
+        <div className="space-y-4">
 
       {/* 기본 정보 */}
       <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
@@ -401,6 +432,38 @@ export default function TemplatePage() {
           ⚠️ 저장 실패: {(saveMut.error as Error).message}
         </div>
       )}
+
+        </div>
+        {/* 우측 — A4 sample 미리보기 (sticky) */}
+        <div className="lg:sticky lg:top-20 lg:self-start">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-900 mb-3">
+            📄 <b>SAMPLE 미리보기</b> — 양식이 어떻게 보일지. 거래처 데이터는 발행 시 결정.
+            <span className="ml-2 text-amber-700">(수입 {(sampleRev / 100_000_000).toFixed(1)}억 기준 — {activeTab === 'corp' ? '법인' : '개인'})</span>
+          </div>
+          <InvoicePreview
+            companyName="(샘플 거래처)"
+            ceoName="홍 길 동"
+            year={new Date().getFullYear()}
+            taxType={previewTaxType}
+            bizType="제조"
+            revenue={sampleRev}
+            baseFee={sampleBaseFee}
+            s2Total={0}
+            s3Total={0}
+            discount={0}
+            total={sampleTotal}
+            s2Items={[]}
+            s3Items={[]}
+            template={{
+              greeting,
+              bank_info: bankInfo,
+              office_address: officeAddress,
+              office_phone: officePhone,
+              signature_text: signatureText,
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
