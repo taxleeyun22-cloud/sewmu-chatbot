@@ -142,6 +142,21 @@ export default function NewInvoicePage() {
   });
   const template = templateQuery.data?.template || null;
 
+  /* 사장님 보고 (2026-05-21): 사업장 진입 시 종소세 검토표 "안땡겨와지는데" — 개인사업자
+   * 종소세 검토표는 Person owner_type 으로 저장됨. business 의 주 사용자 (대표) 의
+   * user_id 를 가져와 setUserId → Person fallback 자동 활성. */
+  const bizDetailQuery = useQuery<{ primary_user_id: number | null }>({
+    queryKey: ['businesses.get', { id: bizId }],
+    queryFn: () => trpcCall('businesses.get', { id: bizId }),
+    enabled: bizId > 0,
+  });
+  useEffect(() => {
+    const pid = bizDetailQuery.data?.primary_user_id;
+    if (pid && !userId) {
+      setUserId(pid);
+    }
+  }, [bizDetailQuery.data, userId]);
+
   /* 카탈로그 fetch — billable filter 용 (검토표 자동 prefill 시 신고서 본문 자연발생 자동 제외) */
   const catalogQuery = useQuery<CatalogItem[]>({
     queryKey: ['filing-tax-credit-catalog'],

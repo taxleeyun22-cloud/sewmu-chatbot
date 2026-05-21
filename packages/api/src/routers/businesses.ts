@@ -61,7 +61,7 @@ export const businessesRouter = router({
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const db = drizzle(ctx.db);
-      const { businesses } = schema;
+      const { businesses, businessMembers } = schema;
       const business = await db
         .select()
         .from(businesses)
@@ -70,7 +70,7 @@ export const businessesRouter = router({
         .then((rows) => rows[0]);
 
       if (!business) {
-        return { business: null, branches: [], parent: null };
+        return { business: null, branches: [], parent: null, primary_user_id: null };
       }
 
       let branches: typeof businesses.$inferSelect[] = [];
@@ -95,7 +95,30 @@ export const businessesRouter = router({
           );
       }
 
-      return { business, branches, parent };
+      /* 사장님 보고 (2026-05-21): "검토표 안땡겨와지는데" — 개인사업자 종소세 검토표는
+       * Person owner_type 으로 저장됨. business_id 만으로는 못 찾음. 이 business 의
+       * 주 사용자 (business_members.is_primary=1 또는 가장 오래된 active 멤버) 의 user_id 를
+       * 반환 → 새 admin /admin/billing/new 가 자동 Person fallback 활성. */
+      let primary_user_id: number | null = null;
+      try {
+        const primary = await db
+          .select({ user_id: businessMembers.user_id, is_primary: businessMembers.is_primary })
+          .from(businessMembers)
+          .where(
+            and(
+              eq(businessMembers.business_id, business.id),
+              or(isNull(businessMembers.removed_at), eq(businessMembers.removed_at, ''))!,
+            ),
+          )
+          .orderBy(desc(businessMembers.is_primary), businessMembers.id)
+          .limit(1)
+          .then((rows) => rows[0]);
+        primary_user_id = primary?.user_id ?? null;
+      } catch {
+        /* business_members 테이블 미존재 / 컬럼 누락 — 안전 무시 */
+      }
+
+      return { business, branches, parent, primary_user_id };
     }),
 
   create: adminProcedure
