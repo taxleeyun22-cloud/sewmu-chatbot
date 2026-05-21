@@ -40,6 +40,7 @@ import {
   Bug,
   LogOut,
   ExternalLink,
+  Receipt,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -94,6 +95,12 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: '/admin/docs', icon: FileText, label: '문서', countKey: 'pendingDocs' },
       { href: '/admin/memos', icon: StickyNote, label: '메모', countKey: 'memosTotal' },
+    ],
+  },
+  {
+    title: '재무',
+    items: [
+      { href: '/admin/billing', icon: Receipt, label: '청구서 (조정료)' },
     ],
   },
   {
