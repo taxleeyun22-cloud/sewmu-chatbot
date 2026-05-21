@@ -208,58 +208,74 @@ export default function TemplatePage() {
         </div>
       </section>
 
-      {/* 누진표 */}
-      <section className="bg-white border border-gray-200 rounded-lg p-4">
-        <div className="flex items-center mb-3">
-          <h2 className="text-sm font-bold text-gray-900">💰 누진표 (세무조정 기본보수)</h2>
-          <div className="ml-auto flex gap-1">
+      {/* 누진표 — billing-preview.html 톤 그대로 (사장님 명령 2026-05-21) */}
+      <section className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <h2 className="text-[15px] font-bold text-gray-900">
+            📊 누진표 — <span className="text-[#0B1F3A]">{activeTab === 'corp' ? '법인' : '개인'}</span> · 수입금액 구간별
+          </h2>
+          <span className="ml-auto flex items-center gap-2">
+            <span className="text-[11px] text-gray-400">결산 20% · 원가 10%</span>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab('corp')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
+                  activeTab === 'corp'
+                    ? 'bg-[#0B1F3A] text-white'
+                    : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                🏢 법인
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('indv')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
+                  activeTab === 'indv'
+                    ? 'bg-[#0B1F3A] text-white'
+                    : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                👤 개인
+              </button>
+            </div>
             <button
               type="button"
-              onClick={() => setActiveTab('corp')}
-              className={`px-3 py-1 rounded text-xs font-semibold ${
-                activeTab === 'corp' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
-              }`}
+              onClick={() => setTariff([...tariff, [0, 0, 0]])}
+              className="text-[11.5px] border border-gray-300 rounded-md px-2.5 py-1 hover:bg-gray-50 font-medium"
             >
-              🏢 법인
+              + 구간
             </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('indv')}
-              className={`px-3 py-1 rounded text-xs font-semibold ${
-                activeTab === 'indv' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              👤 개인
-            </button>
-          </div>
+          </span>
         </div>
-        <div className="text-xs text-gray-500 mb-2">
-          수입금액 임계 이상 시 → 기본보수 + (초과 × 가산률%) 적용. 1,000원 단위 절사.
-        </div>
-        <table className="w-full text-sm">
+        <table className="w-full border border-gray-200 rounded-lg overflow-hidden">
           <thead className="bg-gray-50">
-            <tr className="text-xs text-gray-600">
-              <th className="px-2 py-1.5 text-left font-medium">수입금액 임계 (백만원)</th>
-              <th className="px-2 py-1.5 text-left font-medium">기본보수 (원)</th>
-              <th className="px-2 py-1.5 text-left font-medium">가산률 (%)</th>
-              <th className="w-8"></th>
+            <tr className="text-[10.5px] uppercase tracking-wide text-gray-500">
+              <th className="px-2 py-1.5 text-left font-semibold" style={{ width: '34%' }}>수입금액 구간</th>
+              <th className="px-2 py-1.5 text-left font-semibold" style={{ width: '26%' }}>기준보수 (원)</th>
+              <th className="px-2 py-1.5 text-left font-semibold" style={{ width: '22%' }}>초과단가</th>
+              <th style={{ width: '18%' }}></th>
             </tr>
           </thead>
           <tbody>
             {tariff.map((row, i) => (
-              <tr key={i} className="border-t border-gray-100">
+              <tr key={i} className="border-t border-gray-100 hover:bg-gray-50/50">
                 <td className="px-2 py-1.5">
-                  <input
-                    type="number"
-                    value={row[0] / 1_000_000}
-                    onChange={(e) => {
-                      const v = Number(e.target.value) * 1_000_000;
-                      const newTariff = [...tariff];
-                      newTariff[i] = [v, row[1], row[2]];
-                      setTariff(newTariff);
-                    }}
-                    className="w-32 border border-gray-300 rounded px-2 py-1 text-sm"
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      value={row[0] / 1_000_000}
+                      onChange={(e) => {
+                        const v = Number(e.target.value) * 1_000_000;
+                        const newTariff = [...tariff];
+                        newTariff[i] = [v, row[1], row[2]];
+                        setTariff(newTariff);
+                      }}
+                      className="w-24 border border-gray-300 rounded px-2 py-1 text-sm h-7"
+                    />
+                    <span className="text-[10.5px] text-gray-400 whitespace-nowrap">백만원</span>
+                  </div>
                 </td>
                 <td className="px-2 py-1.5">
                   <input
@@ -270,27 +286,31 @@ export default function TemplatePage() {
                       newTariff[i] = [row[0], Number(e.target.value), row[2]];
                       setTariff(newTariff);
                     }}
-                    className="w-32 border border-gray-300 rounded px-2 py-1 text-sm"
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm h-7"
                   />
                 </td>
                 <td className="px-2 py-1.5">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={row[2]}
-                    onChange={(e) => {
-                      const newTariff = [...tariff];
-                      newTariff[i] = [row[0], row[1], Number(e.target.value)];
-                      setTariff(newTariff);
-                    }}
-                    className="w-24 border border-gray-300 rounded px-2 py-1 text-sm"
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={row[2]}
+                      onChange={(e) => {
+                        const newTariff = [...tariff];
+                        newTariff[i] = [row[0], row[1], Number(e.target.value)];
+                        setTariff(newTariff);
+                      }}
+                      className="w-20 border border-gray-300 rounded px-2 py-1 text-sm h-7"
+                    />
+                    <span className="text-[10.5px] text-gray-400">%</span>
+                  </div>
                 </td>
-                <td>
+                <td className="text-center">
                   <button
                     type="button"
                     onClick={() => setTariff(tariff.filter((_, idx) => idx !== i))}
-                    className="text-red-600 hover:bg-red-50 px-1 rounded text-xs"
+                    className="text-red-600 hover:bg-red-50 border border-dashed border-red-300 rounded px-2 py-0.5 text-[11px] font-medium"
+                    title="구간 삭제"
                   >
                     ✕
                   </button>
@@ -299,13 +319,9 @@ export default function TemplatePage() {
             ))}
           </tbody>
         </table>
-        <button
-          type="button"
-          onClick={() => setTariff([...tariff, [0, 0, 0]])}
-          className="mt-2 text-xs border border-gray-300 rounded px-2 py-1 hover:bg-gray-50"
-        >
-          + 구간 추가
-        </button>
+        <div className="text-[11px] text-gray-400 mt-2">
+          💡 수입금액 임계 이상 시 → 기본보수 + (초과 × 초과단가%) 적용. 1,000원 단위 절사.
+        </div>
       </section>
 
       {/* 활증업무 옵션 — 사장님 명령 (2026-05-21) */}

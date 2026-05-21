@@ -6,7 +6,9 @@
  */
 import { describe, it, expect } from 'vitest';
 
-/* admin-filing-review.js 와 동일 fields 구조 — 명세 검증. */
+/* admin-filing-review.js 와 동일 fields 구조 — 명세 검증.
+ * 사장님 명령 (2026-05-21): "검토표에 농특세 납부도 집어넣자" — farmland_tax 추가
+ * (결정세액 ↔ 기납부세액 사이). 종소세 10→11 / 법인세 13→14 항목. */
 const JONGSO_KEYS = [
   'revenue',
   'total_income',
@@ -16,6 +18,7 @@ const JONGSO_KEYS = [
   'deduction_total',
   'penalty_total',
   'decisive_tax',
+  'farmland_tax',
   'prepaid_tax',
   'payable_tax',
 ];
@@ -31,18 +34,24 @@ const BEOPIN_KEYS = [
   'deduction_total',
   'penalty_total',
   'decisive_tax',
+  'farmland_tax',
   'prepaid_tax',
   'additional_tax',
   'payable_tax',
 ];
 
-describe('Filing fields 분리 (사장님 명령 2026-05-13)', () => {
-  it('종소세 = 10항목 (명세 4.1)', () => {
-    expect(JONGSO_KEYS).toHaveLength(10);
+describe('Filing fields 분리 (사장님 명령 2026-05-13 + 농특세 2026-05-21)', () => {
+  it('종소세 = 11항목 (명세 4.1 + 농특세 납부)', () => {
+    expect(JONGSO_KEYS).toHaveLength(11);
   });
 
-  it('법인세 = 13항목 (명세 4.2 + 익금/손금)', () => {
-    expect(BEOPIN_KEYS).toHaveLength(13);
+  it('법인세 = 14항목 (명세 4.2 + 익금/손금 + 농특세 납부)', () => {
+    expect(BEOPIN_KEYS).toHaveLength(14);
+  });
+
+  it('농특세 납부 = 공통 (종소세·법인세 둘 다)', () => {
+    expect(JONGSO_KEYS).toContain('farmland_tax');
+    expect(BEOPIN_KEYS).toContain('farmland_tax');
   });
 
   it('종소세 전용 키 — total_income / income_deduction (법인세에 없음)', () => {
@@ -65,7 +74,7 @@ describe('Filing fields 분리 (사장님 명령 2026-05-13)', () => {
     expect(JONGSO_KEYS).not.toContain('additional_tax');
   });
 
-  it('공통 키 — revenue / tax_base / calculated_tax / decisive_tax / prepaid_tax / payable_tax / deduction_total / penalty_total', () => {
+  it('공통 키 — revenue / tax_base / calculated_tax / decisive_tax / prepaid_tax / payable_tax / deduction_total / penalty_total / farmland_tax', () => {
     const common = [
       'revenue',
       'tax_base',
@@ -75,6 +84,7 @@ describe('Filing fields 분리 (사장님 명령 2026-05-13)', () => {
       'payable_tax',
       'deduction_total',
       'penalty_total',
+      'farmland_tax',
     ];
     for (const k of common) {
       expect(JONGSO_KEYS, `종소세 should have ${k}`).toContain(k);
