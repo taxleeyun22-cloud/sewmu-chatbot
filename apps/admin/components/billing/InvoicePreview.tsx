@@ -170,9 +170,8 @@ export function InvoicePreview({
         <div className="page">
           <div className="hd">
             <div className="hd-logo">
-              <div className="hd-mark">
-                <img src="/iyun-logo.png" alt="세무회계 이윤" />
-              </div>
+              <div className="hd-mark" />
+
               <div>
                 <div className="hd-name">{firm}</div>
                 <div className="hd-sub">TAX STRATEGY &amp; ADVISORY</div>

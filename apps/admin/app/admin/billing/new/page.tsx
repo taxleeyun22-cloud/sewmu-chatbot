@@ -123,7 +123,24 @@ export default function NewInvoicePage() {
   const [mode, setMode] = useState<'person' | 'business'>(
     preUserId ? 'person' : preBizId ? 'business' : 'person',
   );
-  const [year, setYear] = useState<number>(new Date().getFullYear());
+  /* 사장님 명령 (2026-05-21): "소득세 검토표는 원래 개인에 있잖아" — person 모드는 종소세,
+   * business 모드는 법인세 기본. taxType 자동 동기. */
+  useEffect(() => {
+    if (mode === 'person') {
+      setTaxType('종소세');
+      setBasicType('개인장부대행 및 개인조정');
+    } else {
+      setTaxType('법인세');
+      setBasicType('법인장부대행 및 법인조정');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+  const [year, setYearRaw] = useState<number>(new Date().getFullYear());
+  /* 사장님 보고 (2026-05-21): "received: nan" tRPC 400 — setYear 가 NaN/string 받지 않게 wrap */
+  function setYear(v: unknown) {
+    const n = Number(v);
+    setYearRaw(Number.isFinite(n) && n >= 2000 && n <= 2100 ? n : new Date().getFullYear());
+  }
   const [taxType, setTaxType] = useState<'법인세' | '종소세' | '부가세'>('법인세');
   const [basicType, setBasicType] = useState<string>('법인장부대행 및 법인조정');
   const [revenue, setRevenue] = useState<number>(0);
@@ -238,6 +255,10 @@ export default function NewInvoicePage() {
   }, [filingBizQuery.data, filingPersonQuery.data]);
 
   useEffect(() => {
+    /* 사장님 보고 (2026-05-21): "Section 3 저번에 프리뷰할때 개고생했는데" — catalog
+     * 로딩 전 prefill 되면 표준세액공제 같은 billable=false 자연발생 자동 제외 안됨.
+     * → catalog 로딩 끝나면 (또는 명시적으로 0 건이면) 실행. */
+    if (catalogQuery.isLoading) return;
     if (!allFilings.length) return;
     const matched = allFilings
       .filter((f) => f.type === taxType)
@@ -250,11 +271,8 @@ export default function NewInvoicePage() {
     } catch {}
     if (af.revenue) setRevenue(Number(af.revenue) || 0);
     if (af.asset) setAsset(Number(af.asset) || 0);
-    /* fiscal_year — D1 column 이 TEXT 일 경우 string("2025") 으로 옴. 무조건 Number() coerce */
-    if (latest.fiscal_year) {
-      const fy = Number(latest.fiscal_year);
-      if (Number.isFinite(fy) && fy >= 2000 && fy <= 2100) setYear(fy);
-    }
+    /* fiscal_year — D1 column 이 TEXT 일 경우 string("2025") 으로 옴. setYear wrapper 가 coerce */
+    if (latest.fiscal_year) setYear(latest.fiscal_year);
     if (af.업종 || af.industry) setBizType(String(af.업종 || af.industry));
     /* deductions → s3_items — 카탈로그 매칭해서 billable=true 만 자동 추가 (신고서 본문 자연발생 자동 제외) */
     const dedList = (af.deductions || af.공제감면) as Array<{ code?: string; name?: string; amount?: number; 금액?: number }> | undefined;
@@ -281,8 +299,11 @@ export default function NewInvoicePage() {
     }
   }, [allFilings, taxType, catalog]);
 
-  /* 검토표 prefill 상태 메시지 */
-  const filingPrefillActive = allFilings.some((f) => f.type === taxType);
+  /* 검토표 prefill 상태 — 어느 연도 사장님 보고 (2026-05-21): "몇년도껄 땡겨오는지는 아에 안나오네" */
+  const matchedFiling = allFilings
+    .filter((f) => f.type === taxType)
+    .sort((a, b) => (b.fiscal_year || 0) - (a.fiscal_year || 0))[0];
+  const filingPrefillActive = !!matchedFiling;
 
   /* 금액 계산 (실시간) */
   const calc = useMemo(() => {
@@ -457,8 +478,9 @@ export default function NewInvoicePage() {
                     )}
                   </div>
                   {mappedBizs.length === 0 && !personBizQuery.isFetching ? (
-                    <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2 text-xs text-amber-900">
-                      이 거래처에 매핑된 사업장이 없습니다. 거래처 dashboard 에서 사업장 추가 후 진행하세요. (또는 검토표 prefill 없이 수기 발행 가능)
+                    <div className="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-xs text-blue-900">
+                      💡 매핑된 사업장이 없습니다. <b>개인사업자 종소세</b> 는 사람 단위 검토표·발행 가능 (사업장 선택 X).
+                      <br />법인세 / 매출 큰 거래처는 거래처 dashboard 에서 사업장 추가 후 진행하세요.
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -520,11 +542,11 @@ export default function NewInvoicePage() {
         <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
           <div className="flex items-center gap-2 mb-2">
             <span className="font-semibold text-gray-900">💰 발행 입력</span>
-            {filingPrefillActive ? (
+            {filingPrefillActive && matchedFiling ? (
               <span className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded">
-                ✅ 검토표 자동 prefill
+                ✅ {matchedFiling.fiscal_year}년 {taxType} 검토표 자동 prefill
               </span>
-            ) : bizId > 0 ? (
+            ) : (bizId > 0 || userId > 0) ? (
               <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
                 🔍 {taxType} 검토표 없음 — 수기 입력
               </span>
@@ -675,7 +697,12 @@ export default function NewInvoicePage() {
           <button
             type="button"
             onClick={() => publishMut.mutate()}
-            disabled={!bizId || publishMut.isPending}
+            /* 사장님 명령 (2026-05-21): "개인도 당연 매핑되야지... 소득세 검토표는 원래 개인에 있잖아"
+             * → person 종소세는 매핑 사업장 없어도 발행 가능 (사용자 단위) */
+            disabled={
+              publishMut.isPending ||
+              (!bizId && !(mode === 'person' && userId > 0 && taxType === '종소세'))
+            }
             className="ml-auto bg-blue-600 text-white px-6 py-2 rounded font-bold text-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             {publishMut.isPending ? '발행 중…' : `💾 발행 (${formatWon(calc.total)}원)`}
