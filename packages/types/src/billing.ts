@@ -117,17 +117,39 @@ export const FeeRuleRowSchema = z.tuple([
 ]);
 export type FeeRuleRow = z.infer<typeof FeeRuleRowSchema>;
 
+/**
+ * 활증업무 옵션 (양식 SSoT) — 사장님 명령 (2026-05-21): "개인은 양식추가에 근로소득
+ * 합산추가 이런거 넣고 금액넣을수있게".
+ *
+ * 사장님이 양식에 자주 쓰는 활증업무 (근로소득 합산 / 4대보험 / 신용카드 검토 등)
+ * 등록 → 새 청구서 발행 시 S2PickerModal 이 이 list 에서 선택 + 단가 prefill.
+ *
+ * type:
+ *   - 'unit'   = 건당 (val × 건수)
+ *   - 'rate'   = 기본보수 × val% (자동)
+ *   - 'direct' = 1회 직접 (val 그대로)
+ */
+export const FeeRuleOptionSchema = z.object({
+  name: z.string().min(1).max(100),
+  type: z.enum(['unit', 'rate', 'direct']).default('unit'),
+  val: z.number().min(0).default(0),
+  desc: z.string().max(200).optional(),
+});
+export type FeeRuleOption = z.infer<typeof FeeRuleOptionSchema>;
+
+export const FeeRuleSchema = z.object({
+  tariff: z.array(FeeRuleRowSchema),
+  s2_options: z.array(FeeRuleOptionSchema).optional(),  // 활증업무 옵션 list
+});
+export type FeeRule = z.infer<typeof FeeRuleSchema>;
+
 export const BillingTemplateSchema = z.object({
   greeting: z.string().max(2000).optional(),
   bank_info: z.string().max(500).optional(),
   office_address: z.string().max(300).optional(),
   office_phone: z.string().max(100).optional(),
   signature_text: z.string().max(200).optional(),
-  fee_rule_indv: z
-    .object({ tariff: z.array(FeeRuleRowSchema) })
-    .optional(),
-  fee_rule_corp: z
-    .object({ tariff: z.array(FeeRuleRowSchema) })
-    .optional(),
+  fee_rule_indv: FeeRuleSchema.optional(),
+  fee_rule_corp: FeeRuleSchema.optional(),
 });
 export type BillingTemplate = z.infer<typeof BillingTemplateSchema>;

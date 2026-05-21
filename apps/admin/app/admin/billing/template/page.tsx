@@ -17,14 +17,26 @@ import { trpcCall } from '@/lib/trpc';
 
 type TariffRow = [number, number, number];
 
+interface S2Option {
+  name: string;
+  type: 'unit' | 'rate' | 'direct';
+  val: number;
+  desc?: string;
+}
+
+interface FeeRule {
+  tariff: TariffRow[];
+  s2_options?: S2Option[];
+}
+
 interface TemplateData {
   greeting?: string;
   bank_info?: string;
   office_address?: string;
   office_phone?: string;
   signature_text?: string;
-  fee_rule_indv?: { tariff: TariffRow[] };
-  fee_rule_corp?: { tariff: TariffRow[] };
+  fee_rule_indv?: FeeRule;
+  fee_rule_corp?: FeeRule;
 }
 
 const DEFAULT_CORP: TariffRow[] = [
@@ -35,6 +47,20 @@ const DEFAULT_CORP: TariffRow[] = [
 const DEFAULT_INDV: TariffRow[] = [
   [0, 200_000, 0],
   [300_000_000, 400_000, 0.05],
+];
+
+/* 사장님 명령 (2026-05-21): "개인은 근로소득 합산 추가" — default 활증업무 옵션. */
+const DEFAULT_S2_CORP: S2Option[] = [
+  { name: '신용카드 내역 검토', type: 'direct', val: 0, desc: '직접 입력' },
+  { name: '4대보험 취득·상실', type: 'unit', val: 10_000, desc: '건당' },
+  { name: '연말정산', type: 'unit', val: 20_000, desc: '인당' },
+  { name: '부가세 수정신고', type: 'unit', val: 50_000, desc: '건당' },
+];
+const DEFAULT_S2_INDV: S2Option[] = [
+  { name: '근로소득 합산', type: 'direct', val: 0, desc: '근로소득 합산 신고 시' },
+  { name: '신용카드 내역 검토', type: 'direct', val: 0, desc: '직접 입력' },
+  { name: '4대보험 (자영업자)', type: 'unit', val: 10_000, desc: '건당' },
+  { name: '프리랜서 인적용역', type: 'unit', val: 30_000, desc: '건당' },
 ];
 
 export default function TemplatePage() {
@@ -50,6 +76,8 @@ export default function TemplatePage() {
   const [signatureText, setSignatureText] = useState('세무사 이재윤');
   const [tariffCorp, setTariffCorp] = useState<TariffRow[]>(DEFAULT_CORP);
   const [tariffIndv, setTariffIndv] = useState<TariffRow[]>(DEFAULT_INDV);
+  const [s2OptionsCorp, setS2OptionsCorp] = useState<S2Option[]>(DEFAULT_S2_CORP);
+  const [s2OptionsIndv, setS2OptionsIndv] = useState<S2Option[]>(DEFAULT_S2_INDV);
   const [activeTab, setActiveTab] = useState<'corp' | 'indv'>('corp');
 
   /* 양식 fetch → state 채움 */
@@ -63,6 +91,8 @@ export default function TemplatePage() {
     setSignatureText(t.signature_text || '세무사 이재윤');
     if (t.fee_rule_corp?.tariff) setTariffCorp(t.fee_rule_corp.tariff);
     if (t.fee_rule_indv?.tariff) setTariffIndv(t.fee_rule_indv.tariff);
+    if (t.fee_rule_corp?.s2_options) setS2OptionsCorp(t.fee_rule_corp.s2_options);
+    if (t.fee_rule_indv?.s2_options) setS2OptionsIndv(t.fee_rule_indv.s2_options);
   }, [data]);
 
   const saveMut = useMutation({
@@ -73,14 +103,16 @@ export default function TemplatePage() {
         office_address: officeAddress,
         office_phone: officePhone,
         signature_text: signatureText,
-        fee_rule_corp: { tariff: tariffCorp },
-        fee_rule_indv: { tariff: tariffIndv },
+        fee_rule_corp: { tariff: tariffCorp, s2_options: s2OptionsCorp },
+        fee_rule_indv: { tariff: tariffIndv, s2_options: s2OptionsIndv },
       }),
     onSuccess: () => refetch(),
   });
 
   const tariff = activeTab === 'corp' ? tariffCorp : tariffIndv;
   const setTariff = activeTab === 'corp' ? setTariffCorp : setTariffIndv;
+  const s2Options = activeTab === 'corp' ? s2OptionsCorp : s2OptionsIndv;
+  const setS2Options = activeTab === 'corp' ? setS2OptionsCorp : setS2OptionsIndv;
 
   if (isLoading) {
     return (
@@ -242,6 +274,111 @@ export default function TemplatePage() {
           className="mt-2 text-xs border border-gray-300 rounded px-2 py-1 hover:bg-gray-50"
         >
           + 구간 추가
+        </button>
+      </section>
+
+      {/* 활증업무 옵션 — 사장님 명령 (2026-05-21) */}
+      <section className="bg-white border border-gray-200 rounded-lg p-4">
+        <div className="flex items-center mb-3">
+          <h2 className="text-sm font-bold text-gray-900">
+            📞 활증업무 옵션 ({activeTab === 'corp' ? '법인' : '개인'})
+          </h2>
+          <span className="ml-2 text-xs text-gray-500">— 청구서 발행 시 빠른 선택</span>
+        </div>
+        <div className="text-xs text-gray-500 mb-2">
+          예: 개인은 "근로소득 합산" / "프리랜서 인적용역" 등 자주 쓰는 항목 등록 →
+          /admin/billing/new 의 S2 Picker 에서 빠른 선택 + 단가 자동 prefill.
+        </div>
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr className="text-xs text-gray-600">
+              <th className="px-2 py-1.5 text-left font-medium">항목명</th>
+              <th className="px-2 py-1.5 text-left font-medium w-24">기준</th>
+              <th className="px-2 py-1.5 text-left font-medium w-32">값 (원/%)</th>
+              <th className="px-2 py-1.5 text-left font-medium">설명</th>
+              <th className="w-8"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {s2Options.map((opt, i) => (
+              <tr key={i} className="border-t border-gray-100">
+                <td className="px-2 py-1.5">
+                  <input
+                    value={opt.name}
+                    onChange={(e) => {
+                      const newOpts = [...s2Options];
+                      newOpts[i] = { ...opt, name: e.target.value };
+                      setS2Options(newOpts);
+                    }}
+                    placeholder="예: 근로소득 합산"
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                  />
+                </td>
+                <td className="px-2 py-1.5">
+                  <select
+                    value={opt.type}
+                    onChange={(e) => {
+                      const newOpts = [...s2Options];
+                      newOpts[i] = { ...opt, type: e.target.value as 'unit' | 'rate' | 'direct' };
+                      setS2Options(newOpts);
+                    }}
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-white"
+                  >
+                    <option value="unit">건당</option>
+                    <option value="rate">기본보수 × %</option>
+                    <option value="direct">직접 입력</option>
+                  </select>
+                </td>
+                <td className="px-2 py-1.5">
+                  <input
+                    type="number"
+                    step={opt.type === 'rate' ? '0.01' : '1'}
+                    value={opt.val}
+                    onChange={(e) => {
+                      const newOpts = [...s2Options];
+                      newOpts[i] = { ...opt, val: Number(e.target.value) };
+                      setS2Options(newOpts);
+                    }}
+                    placeholder={opt.type === 'rate' ? '예: 20 (%)' : '예: 10000'}
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                  />
+                </td>
+                <td className="px-2 py-1.5">
+                  <input
+                    value={opt.desc || ''}
+                    onChange={(e) => {
+                      const newOpts = [...s2Options];
+                      newOpts[i] = { ...opt, desc: e.target.value };
+                      setS2Options(newOpts);
+                    }}
+                    placeholder="설명 (옵션)"
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                  />
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    onClick={() => setS2Options(s2Options.filter((_, idx) => idx !== i))}
+                    className="text-red-600 hover:bg-red-50 px-1 rounded text-xs"
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <button
+          type="button"
+          onClick={() =>
+            setS2Options([
+              ...s2Options,
+              { name: '', type: 'unit', val: 0, desc: '' },
+            ])
+          }
+          className="mt-2 text-xs border border-gray-300 rounded px-2 py-1 hover:bg-gray-50"
+        >
+          + 활증업무 항목 추가
         </button>
       </section>
 

@@ -458,6 +458,8 @@ export default function NewInvoicePage() {
         open={s2ModalOpen}
         onClose={() => setS2ModalOpen(false)}
         onAdd={(item: S2ItemType) => setS2Items([...s2Items, item])}
+        form={taxType === '법인세' ? 'corp' : 'indv'}
+        base={calc.base}
       />
       <S3PickerModal
         open={s3ModalOpen}
