@@ -146,7 +146,11 @@ export function InvoicePreview({
   const firm = t.firm_name || DEFAULT_FIRM;
 
   const extra = s2Total + s3Total;
-  const showBreakdown = (showBreakdownPage ?? false) || (s3Items && s3Items.length > 0);
+  /* 사장님 명령 (2026-05-21): "안적으면 2page 에서는 사라지게" — val/amt > 0 인 항목만 표시 */
+  const s2Visible = (s2Items || []).filter((it) => (it.val || 0) > 0 && (it.qty || 0) > 0);
+  const s3Visible = (s3Items || []).filter((it) => (it.amt || 0) > 0);
+  const showBreakdown =
+    (showBreakdownPage ?? false) || s2Visible.length > 0 || s3Visible.length > 0;
 
   const dispCompany = companyName || '(거래처명)';
   const dispCeo = ceoName || '대표';
@@ -252,20 +256,18 @@ export function InvoicePreview({
           </div>
         </div>
 
-        {/* ─── A4 2장 (cust-page2) — Section 3 산출근거 ─── */}
+        {/* ─── A4 2장 (cust-page2) — Section 2 + Section 3 산출근거 ─── */}
         {showBreakdown && (
           <div className="page">
             <div className="hd">
               <div className="hd-logo">
-                <div className="hd-mark">
-                  <img src="/iyun-logo.png" alt="세무회계 이윤" />
-                </div>
+                <div className="hd-mark" />
                 <div>
                   <div className="hd-name">{firm}</div>
                   <div className="hd-sub">TAX STRATEGY &amp; ADVISORY · 산출근거</div>
                 </div>
               </div>
-              <div className="hd-meta">2장 / Section 3 산출근거</div>
+              <div className="hd-meta">2장 / Section 2·3 산출근거</div>
             </div>
 
             <table className="itbl" style={{ marginBottom: '10px' }}>
@@ -285,44 +287,83 @@ export function InvoicePreview({
               </tbody>
             </table>
 
-            <div style={{ fontSize: '11px', fontWeight: 800, color: '#0f172a', marginBottom: '6px' }}>
-              📋 Section 3 · 세액공제·감면 가산 산출근거
-            </div>
-
-            <table className="dtbl">
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left' }}>항 목</th>
-                  <th style={{ textAlign: 'left' }}>산출 내역</th>
-                  <th>가산액 (원)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {s3Items.map((it, i) => {
-                  const gain = calcGain(it.amt, it.rule);
-                  const ruleLbl = it.rule === 'flat_5' ? 'flat 5%' : 'U자 (500↓20% · 500~1000:10% · 1000↑20%)';
-                  return (
-                    <tr key={i}>
-                      <td>{it.name}</td>
-                      <td>
-                        {W(it.amt)}원 × {ruleLbl}
-                      </td>
-                      <td>{W(gain)}</td>
+            {/* 사장님 명령 (2026-05-21): 양식 옵션 자동 + 사장님이 단가 안 적은 (val=0) 행 자동 hide */}
+            {s2Visible.length > 0 && (
+              <>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#0f172a', marginBottom: '6px' }}>
+                  📞 Section 2 · 활증업무 산출근거
+                </div>
+                <table className="dtbl" style={{ marginBottom: '14px' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left' }}>항 목</th>
+                      <th style={{ textAlign: 'left' }}>산출 내역</th>
+                      <th>가산액 (원)</th>
                     </tr>
-                  );
-                })}
-                <tr className="sub">
-                  <td colSpan={2}>Section 3 가산 소계</td>
-                  <td>{W(s3Total)}</td>
-                </tr>
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {s2Visible.map((it, i) => (
+                      <tr key={i}>
+                        <td>{it.name}</td>
+                        <td>
+                          {W(it.val)}원 × {it.qty}건
+                        </td>
+                        <td>{W(it.val * it.qty)}</td>
+                      </tr>
+                    ))}
+                    <tr className="sub">
+                      <td colSpan={2}>Section 2 가산 소계</td>
+                      <td>{W(s2Total)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </>
+            )}
 
-            <div className="dtbl-note">
-              ※ 가산율 룰: 중특(중소기업특별세액감면) = flat 5% / 그 외 세액공제·감면 = U자(500만↓ 20% · 500만~1000만 10% · 1000만↑ 20%)
-              <br />
-              ※ 자연발생 공제(배당·기장·근로·자녀·연금·의료비·교육비·기부금·표준 등 신고서 본문) = 청구 가산 대상 아님(이 청구서에서 자동 제외됨)
-            </div>
+            {s3Visible.length > 0 && (
+              <>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#0f172a', marginBottom: '6px' }}>
+                  📋 Section 3 · 세액공제·감면 가산 산출근거
+                </div>
+                <table className="dtbl">
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left' }}>항 목</th>
+                      <th style={{ textAlign: 'left' }}>산출 내역</th>
+                      <th>가산액 (원)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {s3Visible.map((it, i) => {
+                      const gain = calcGain(it.amt, it.rule);
+                      const ruleLbl =
+                        it.rule === 'flat_5'
+                          ? 'flat 5%'
+                          : 'U자 (500↓20% · 500~1000:10% · 1000↑20%)';
+                      return (
+                        <tr key={i}>
+                          <td>{it.name}</td>
+                          <td>
+                            {W(it.amt)}원 × {ruleLbl}
+                          </td>
+                          <td>{W(gain)}</td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="sub">
+                      <td colSpan={2}>Section 3 가산 소계</td>
+                      <td>{W(s3Total)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <div className="dtbl-note">
+                  ※ 가산율 룰: 중특(중소기업특별세액감면) = flat 5% / 그 외 세액공제·감면 = U자(500만↓ 20% · 500만~1000만 10% · 1000만↑ 20%)
+                  <br />
+                  ※ 자연발생 공제(배당·기장·근로·자녀·연금·의료비·교육비·기부금·표준 등 신고서 본문) = 청구 가산 대상 아님(이 청구서에서 자동 제외됨)
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

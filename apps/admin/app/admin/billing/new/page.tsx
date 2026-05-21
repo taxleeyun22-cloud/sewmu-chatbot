@@ -18,7 +18,7 @@
 'use client';
 export const runtime = 'edge';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -97,6 +97,16 @@ interface CatalogItem {
   category?: string;
 }
 
+interface S2OptionTpl {
+  name: string;
+  type?: 'unit' | 'rate' | 'direct';
+  val?: number;
+  desc?: string;
+}
+interface FeeRuleTpl {
+  tariff?: number[][];
+  s2_options?: S2OptionTpl[];
+}
 interface TemplateData {
   greeting?: string;
   bank_info?: string;
@@ -104,6 +114,8 @@ interface TemplateData {
   office_phone?: string;
   signature_text?: string;
   firm_name?: string;
+  fee_rule_corp?: FeeRuleTpl;
+  fee_rule_indv?: FeeRuleTpl;
 }
 
 export default function NewInvoicePage() {
@@ -152,6 +164,12 @@ export default function NewInvoicePage() {
   const [s2ModalOpen, setS2ModalOpen] = useState(false);
   const [s3ModalOpen, setS3ModalOpen] = useState(false);
   const [note, setNote] = useState<string>('');
+  /* 사장님 명령 (2026-05-21): "내가 몇년도 검토표꺼 땡길지 정하는거도 해야되고" — 사장님이 직접
+   * 연도 선택. null 이면 최신 (default). dropdown 으로 매칭된 filings 의 연도 list 표시. */
+  const [pickedFiscalYear, setPickedFiscalYear] = useState<number | null>(null);
+  /* 사장님 명령: "양식에 이거있는데 왜 새청구서발행가면 따로 없어 그냥 넣어져있되" —
+   * Section 2 활증업무 자동 prefill 표식 (taxType 별로 1회) */
+  const s2PrefilledRef = useRef<string>('');
 
   /* 사업장 단건 fetch (URL ?business_id=N 또는 picker 선택 후) */
   const bizQuery = useQuery<{ businesses: BusinessRow[] }>({
@@ -183,6 +201,19 @@ export default function NewInvoicePage() {
     queryFn: () => trpcCall('billing.templateGet'),
   });
   const template = templateQuery.data?.template || null;
+
+  /* 사장님 명령 (2026-05-21): 양식 s2_options → s2Items 자동 prefill (taxType 별 1회).
+   * 사장님이 단가 0 인 항목은 청구서 미리보기·발행에서 자동 제외 (calcS2Tot 가 0 = 합계 0).
+   * cust-page2 (Section 2 산출근거) 도 val>0 만 표시. */
+  useEffect(() => {
+    if (!template) return;
+    const key = taxType;
+    if (s2PrefilledRef.current === key) return;
+    s2PrefilledRef.current = key;
+    const rule = taxType === '법인세' ? template.fee_rule_corp : template.fee_rule_indv;
+    const opts = rule?.s2_options || [];
+    setS2Items(opts.map((o) => ({ name: o.name || '', val: 0, qty: 1 })));
+  }, [template, taxType]);
 
   /* 사장님 보고 (2026-05-21): 사업장 진입 시 종소세 검토표 "안땡겨와지는데" — 개인사업자
    * 종소세 검토표는 Person owner_type 으로 저장됨. business 의 주 사용자 (대표) 의
@@ -264,7 +295,11 @@ export default function NewInvoicePage() {
       .filter((f) => f.type === taxType)
       .sort((a, b) => (b.fiscal_year || 0) - (a.fiscal_year || 0));
     if (!matched.length) return;
-    const latest = matched[0];
+    /* 사장님 명령 (2026-05-21): "몇년도 검토표꺼 땡길지 정하는거" — pickedFiscalYear 우선,
+     * 없으면 최신 (matched[0]) */
+    const latest =
+      (pickedFiscalYear !== null && matched.find((m) => m.fiscal_year === pickedFiscalYear)) ||
+      matched[0];
     let af: Record<string, unknown> = {};
     try {
       af = JSON.parse(latest.auto_fields || '{}');
@@ -297,12 +332,20 @@ export default function NewInvoicePage() {
         });
       setS3Items(items);
     }
-  }, [allFilings, taxType, catalog]);
+  }, [allFilings, taxType, catalog, pickedFiscalYear, catalogQuery.isLoading]);
 
-  /* 검토표 prefill 상태 — 어느 연도 사장님 보고 (2026-05-21): "몇년도껄 땡겨오는지는 아에 안나오네" */
-  const matchedFiling = allFilings
-    .filter((f) => f.type === taxType)
-    .sort((a, b) => (b.fiscal_year || 0) - (a.fiscal_year || 0))[0];
+  /* 검토표 매칭 list (사장님 선택용 + prefill 메시지). 같은 taxType 내림차순. */
+  const matchedFilings = useMemo(
+    () =>
+      allFilings
+        .filter((f) => f.type === taxType)
+        .sort((a, b) => (b.fiscal_year || 0) - (a.fiscal_year || 0)),
+    [allFilings, taxType],
+  );
+  const matchedFiling =
+    (pickedFiscalYear !== null && matchedFilings.find((m) => m.fiscal_year === pickedFiscalYear)) ||
+    matchedFilings[0] ||
+    null;
   const filingPrefillActive = !!matchedFiling;
 
   /* 금액 계산 (실시간) */
@@ -543,8 +586,28 @@ export default function NewInvoicePage() {
           <div className="flex items-center gap-2 mb-2">
             <span className="font-semibold text-gray-900">💰 발행 입력</span>
             {filingPrefillActive && matchedFiling ? (
-              <span className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded">
-                ✅ {matchedFiling.fiscal_year}년 {taxType} 검토표 자동 prefill
+              <span className="flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded">
+                ✅
+                {matchedFilings.length > 1 ? (
+                  <select
+                    value={pickedFiscalYear ?? matchedFiling.fiscal_year ?? ''}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setPickedFiscalYear(Number.isFinite(v) ? v : null);
+                    }}
+                    className="bg-white border border-green-300 rounded px-1 py-0.5 text-xs font-semibold text-green-700"
+                    title="다른 연도 검토표 선택 — 사장님 명령 (2026-05-21)"
+                  >
+                    {matchedFilings.map((m) => (
+                      <option key={m.id} value={m.fiscal_year}>
+                        {m.fiscal_year}년
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span>{matchedFiling.fiscal_year}년</span>
+                )}
+                {taxType} 검토표 자동 prefill ({matchedFilings.length}건 中)
               </span>
             ) : (bizId > 0 || userId > 0) ? (
               <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
@@ -614,18 +677,46 @@ export default function NewInvoicePage() {
           </div>
         </div>
 
-        {/* Section 2 — 활증업무 */}
+        {/* Section 2 — 활증업무. 사장님 명령 (2026-05-21): "양식에 이거있는데 왜 새청구서발행가면
+            따로 없어 그냥 넣어져있되 내가 뭐 안적으면 2page에서는 사라지게" — 양식 옵션 자동
+            row + inline 단가/건수 입력. val=0 인 행은 청구서 미리보기 cust-page2 에서 자동 hide. */}
         <SectionEditor
-          title="📞 Section 2 — 활증업무"
+          title="📞 Section 2 — 활증업무 (양식 자동 + 단가 0 이면 청구서 미표시)"
           items={s2Items}
           onAdd={() => setS2ModalOpen(true)}
           onRemove={(i) => setS2Items(s2Items.filter((_, idx) => idx !== i))}
           renderRow={(it, i) => (
             <>
-              <td className="px-2 py-1.5 text-sm">{it.name}</td>
-              <td className="px-2 py-1.5 text-sm text-right">{formatWon(it.val)}원</td>
-              <td className="px-2 py-1.5 text-sm text-right">{it.qty}</td>
-              <td className="px-2 py-1.5 text-sm text-right font-semibold">
+              <td className="px-2 py-1.5 text-sm font-medium text-gray-900">{it.name}</td>
+              <td className="px-2 py-1.5">
+                <input
+                  type="number"
+                  value={it.val || ''}
+                  placeholder="0"
+                  onChange={(e) => {
+                    const v = Number(e.target.value) || 0;
+                    setS2Items(s2Items.map((x, idx) => (idx === i ? { ...x, val: v } : x)));
+                  }}
+                  className="w-24 border border-gray-300 rounded px-2 py-1 text-sm text-right"
+                />
+              </td>
+              <td className="px-2 py-1.5">
+                <input
+                  type="number"
+                  value={it.qty || ''}
+                  placeholder="1"
+                  onChange={(e) => {
+                    const v = Number(e.target.value) || 1;
+                    setS2Items(s2Items.map((x, idx) => (idx === i ? { ...x, qty: v } : x)));
+                  }}
+                  className="w-16 border border-gray-300 rounded px-2 py-1 text-sm text-right"
+                />
+              </td>
+              <td
+                className={`px-2 py-1.5 text-sm text-right font-semibold ${
+                  it.val > 0 ? 'text-blue-700' : 'text-gray-300'
+                }`}
+              >
                 {formatWon(it.val * it.qty)}원
               </td>
             </>
