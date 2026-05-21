@@ -8,6 +8,7 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { Menu } from 'lucide-react';
 
@@ -15,6 +16,17 @@ export default function AdminLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+
+  /* 사장님 명령 (2026-05-21): "왜 좌측사이드바가 나옴??" — 새 admin 진짜 page
+   * (billing 등) 는 standalone full-width. 옛 admin 사이드바와 중복 방지.
+   * 각 page 의 own layout 에 "← admin" 복귀 link 있음. */
+  const standalonePaths = ['/admin/billing'];
+  const isStandalone = standalonePaths.some((p) => pathname?.startsWith(p));
+
+  if (isStandalone) {
+    return <main className="min-h-screen bg-gray-50 dark:bg-gray-950">{children}</main>;
+  }
 
   return (
     <div className="flex h-screen bg-white dark:bg-gray-900">
