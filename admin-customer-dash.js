@@ -605,6 +605,19 @@ function cdGotoRoom(){
     try { if (typeof tab === 'function') tab('rooms'); } catch(_) {}
   }, 100);
 }
+/* 사장님 명령 (2026-05-21): "조정료청구서 클릭하는거 안보임" — 거래처 dashboard 안에서
+ * 새 admin 의 청구서 발행 page 로 진입 버튼 추가. user_id 자동 전달 → 매핑 사업장
+ * picker 자동, 검토표 자동 prefill (Person fallback). */
+function cdGotoBilling(){
+  var _uid = (typeof _cdCurrentUserId !== 'undefined' && _cdCurrentUserId) || null;
+  if (!_uid){ alert('거래처가 선택되지 않았습니다.'); return; }
+  /* 새 admin (sewmu-admin.pages.dev) — 별 창 으로 진입. ADMIN_KEY 자동 첨부 (3중 인증 통과용). */
+  var k = '';
+  try { k = (typeof KEY === 'string' && KEY) ? KEY : (sessionStorage.getItem('ADMIN_KEY') || ''); } catch(_){}
+  var url = 'https://sewmu-admin.pages.dev/admin/billing/new?user_id=' + encodeURIComponent(_uid)
+          + (k ? '&key=' + encodeURIComponent(k) : '');
+  try { window.open(url, '_blank', 'noopener'); } catch(_) { window.location.href = url; }
+}
 function cdExportCsv(){
   exportWehago();
 }

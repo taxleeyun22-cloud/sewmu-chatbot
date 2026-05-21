@@ -641,6 +641,23 @@
       .catch(function(err){ $('summaryBody').innerHTML = '<div class="err">오류: ' + e(err.message) + '</div>'; });
   };
 
+  /* 사장님 명령 (2026-05-21): "조정료청구서 클릭하는거 안보임"
+   * 업체 dashboard 에서 새 admin 의 청구서 발행 page 로 진입.
+   * business_id 자동 전달 → 검토표 자동 prefill (Business owner_type, 종소세면 Person fallback). */
+  window.bizGotoBilling = function(){
+    if(!bid){ alert('업체 ID 누락'); return; }
+    /* ADMIN_KEY 자동 첨부 — 3중 인증 통과용 (admin_key_auth) */
+    var k = '';
+    try { k = sessionStorage.getItem('ADMIN_KEY') || ''; } catch(_){}
+    if(!k){
+      var u = new URLSearchParams(location.search);
+      k = u.get('key') || '';
+    }
+    var url = 'https://sewmu-admin.pages.dev/admin/billing/new?business_id=' + encodeURIComponent(bid)
+            + (k ? '&key=' + encodeURIComponent(k) : '');
+    try { window.open(url, '_blank', 'noopener'); } catch(_) { window.location.href = url; }
+  };
+
   /* Phase M6 (2026-05-05 사장님 명령): 업체 삭제 + 메모 cascade
    * "신중히 삭제하시겠습니까?" 1단계 confirm + 업체명 직접 입력 2단계 → DELETE API */
   window.deleteBusinessFromPage = async function(){

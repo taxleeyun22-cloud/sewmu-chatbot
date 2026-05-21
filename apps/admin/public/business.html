@@ -53,6 +53,8 @@
     <span class="bz-bc"><span class="bz-mark">이</span><span style="margin-left:6px">세무회계 이윤</span><span style="color:#E5E7EB;margin:0 8px">/</span><span>업체</span></span>
     <span class="bz-nav-r">
       <span style="color:#9ca3af;font-size:.78em" id="topMeta"></span>
+      <!-- 사장님 명령 (2026-05-21): "조정료청구서 클릭하는거 안보임" — 업체 dashboard 에서도 청구서 발행 진입 -->
+      <button id="bizBillingBtn" onclick="bizGotoBilling()" class="bz-act" style="background:#fef3c7;color:#92400e;border-color:#fde68a;font-weight:600" title="이 업체로 조정료 청구서 발행 (새 admin · 검토표 자동 prefill)">💰 조정료 청구서 ↗</button>
       <!-- Phase M6 (2026-05-05 사장님 명령: 업체 삭제 + 메모 cascade) — ID·onclick 보존 -->
       <button id="bizDeleteBtn" onclick="deleteBusinessFromPage()" class="bz-act" style="color:#dc2626;border-color:#dc2626" title="이 업체 + 모든 메모를 휴지통으로 (되돌릴 수 없음)">🗑️ 업체 삭제</button>
     </span>
@@ -257,7 +259,7 @@ fetch('/admin-modals.html?v=55', { cache: 'no-cache' })
 </script>
 
 <!-- Phase B-1 (2026-05-17): paste-drop → src/lib/paste-drop.ts (assets/main.js 번들, self-register) -->
-<script src="/business.js?v=9"></script>
+<script src="/business.js?v=10"></script>
 <!-- Phase 6 (2026-05-07): 신고 검토표 시스템 (법인세) -->
 <script src="/admin-filing-review.js?v=21"></script>
 <!-- Phase Infra-2 fix (2026-05-09): admin-modals.html 안 backToList() / 등 admin-anal-review-faq.js 함수 사용

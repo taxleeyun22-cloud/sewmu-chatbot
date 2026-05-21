@@ -264,7 +264,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=65', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=66', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -286,7 +286,7 @@ setTimeout(function(){
 <!-- Phase B-1 (2026-05-17): paste-drop classic 제거 → src/lib/paste-drop.ts (assets/main.js 번들).
      window.attachPasteDrop self-register 로 classic 소비자(admin-memos 등) 호환 -->
 <script src="/admin-memos.js?v=22"></script>
-<script src="/admin-customer-dash.js?v=35"></script>
+<script src="/admin-customer-dash.js?v=36"></script>
 <script src="/admin-business-tab.js?v=13"></script>
 <script src="/admin-search-bulk.js?v=5"></script>
 <script src="/admin-rooms-list.js?v=11"></script>
