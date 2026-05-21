@@ -28,6 +28,50 @@ function parseJsonArray(s: string | null | undefined): unknown[] {
   }
 }
 
+/**
+ * Lazy migration — 옛 admin 패턴 (사장님 명령: "구글식 + lazy ALTER").
+ * tRPC 첫 호출 시 D1 에 테이블 없으면 자동 생성. 이미 있으면 IF NOT EXISTS 로 skip.
+ *
+ * 사장님 보고 (2026-05-21): "D1_ERROR: no such table: billing_invoices".
+ * 원인: Drizzle schema 만 정의됐고 prod D1 에 실제 테이블 X (드리즐 migration 안 돌림).
+ */
+async function ensureBillingTables(d1: { prepare: (sql: string) => { run: () => Promise<unknown> } }) {
+  try {
+    await d1
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS billing_invoices (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          business_id INTEGER, user_id INTEGER, filing_id INTEGER,
+          year INTEGER, tax_type TEXT,
+          revenue INTEGER, asset INTEGER, biz_type TEXT, basic_type TEXT,
+          base_fee INTEGER DEFAULT 0, s2_addition INTEGER DEFAULT 0,
+          s3_addition INTEGER DEFAULT 0, discount INTEGER DEFAULT 0, total_fee INTEGER DEFAULT 0,
+          s2_items TEXT, s3_items TEXT,
+          staff_user_id INTEGER, staff_override INTEGER DEFAULT 0,
+          status TEXT DEFAULT 'pending', sent_at TEXT, paid_at TEXT, paid_amount INTEGER,
+          note TEXT, created_by_user_id INTEGER,
+          created_at TEXT, updated_at TEXT, deleted_at TEXT
+        )`,
+      )
+      .run();
+  } catch {}
+  try {
+    await d1
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS billing_template (
+          id INTEGER PRIMARY KEY,
+          greeting TEXT, bank_info TEXT, office_address TEXT, office_phone TEXT,
+          signature_text TEXT, fee_rule_indv TEXT, fee_rule_corp TEXT, updated_at TEXT
+        )`,
+      )
+      .run();
+  } catch {}
+  try { await d1.prepare(`CREATE INDEX IF NOT EXISTS idx_billing_business ON billing_invoices(business_id, year DESC)`).run(); } catch {}
+  try { await d1.prepare(`CREATE INDEX IF NOT EXISTS idx_billing_status ON billing_invoices(status, created_at DESC)`).run(); } catch {}
+  try { await d1.prepare(`CREATE INDEX IF NOT EXISTS idx_billing_staff ON billing_invoices(staff_user_id, status)`).run(); } catch {}
+  try { await d1.prepare(`CREATE INDEX IF NOT EXISTS idx_billing_year ON billing_invoices(year, tax_type)`).run(); } catch {}
+}
+
 export const billingRouter = router({
   /** 청구서 list — 필터 + 담당자별 그룹 카운트 */
   list: adminProcedure
@@ -43,6 +87,7 @@ export const billingRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
+      await ensureBillingTables(ctx.db as { prepare: (sql: string) => { run: () => Promise<unknown> } });
       const db = drizzle(ctx.db);
       const { billingInvoices, businesses, users } = schema;
 
@@ -96,6 +141,7 @@ export const billingRouter = router({
   byId: adminProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
+      await ensureBillingTables(ctx.db as { prepare: (sql: string) => { run: () => Promise<unknown> } });
       const db = drizzle(ctx.db);
       const { billingInvoices, businesses, users } = schema;
 
@@ -139,6 +185,7 @@ export const billingRouter = router({
   create: adminProcedure
     .input(NewInvoiceSchema)
     .mutation(async ({ ctx, input }) => {
+      await ensureBillingTables(ctx.db as { prepare: (sql: string) => { run: () => Promise<unknown> } });
       const db = drizzle(ctx.db);
       const { billingInvoices } = schema;
       const now = new Date().toISOString();
@@ -187,6 +234,7 @@ export const billingRouter = router({
   update: adminProcedure
     .input(z.object({ id: z.number().int().positive(), data: InvoiceUpdateSchema }))
     .mutation(async ({ ctx, input }) => {
+      await ensureBillingTables(ctx.db as { prepare: (sql: string) => { run: () => Promise<unknown> } });
       const db = drizzle(ctx.db);
       const { billingInvoices } = schema;
       const now = new Date().toISOString();
@@ -249,6 +297,7 @@ export const billingRouter = router({
   remove: adminProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
+      await ensureBillingTables(ctx.db as { prepare: (sql: string) => { run: () => Promise<unknown> } });
       const db = drizzle(ctx.db);
       const { billingInvoices } = schema;
       const now = new Date().toISOString();
@@ -295,6 +344,7 @@ export const billingRouter = router({
   templateSave: adminProcedure
     .input(BillingTemplateSchema)
     .mutation(async ({ ctx, input }) => {
+      await ensureBillingTables(ctx.db as { prepare: (sql: string) => { run: () => Promise<unknown> } });
       const db = drizzle(ctx.db);
       const { billingTemplate } = schema;
       const now = new Date().toISOString();
