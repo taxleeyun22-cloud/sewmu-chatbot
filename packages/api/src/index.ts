@@ -23,6 +23,7 @@ import { bulkSendRouter } from './routers/bulk-send';
 import { errorLogsRouter } from './routers/error-logs';
 import { auditLogsRouter } from './routers/audit-logs';
 import { customerRouter } from './routers/customer';
+import { billingRouter } from './routers/billing';
 
 export const appRouter = router({
   chat: chatRouter,
@@ -41,6 +42,7 @@ export const appRouter = router({
   errorLogs: errorLogsRouter,
   auditLogs: auditLogsRouter,
   customer: customerRouter,
+  billing: billingRouter,
 });
 
 export { audit } from './audit';

@@ -384,6 +384,48 @@ function applySchema(rawDb: RawDb): void {
       user_agent TEXT,
       created_at TEXT
     )`,
+    /* Phase D1 (2026-05-21): 청구서 시스템 — 새 admin 통합용. */
+    `CREATE TABLE billing_invoices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id INTEGER,
+      user_id INTEGER,
+      filing_id INTEGER,
+      year INTEGER,
+      tax_type TEXT,
+      revenue INTEGER,
+      asset INTEGER,
+      biz_type TEXT,
+      basic_type TEXT,
+      base_fee INTEGER DEFAULT 0,
+      s2_addition INTEGER DEFAULT 0,
+      s3_addition INTEGER DEFAULT 0,
+      discount INTEGER DEFAULT 0,
+      total_fee INTEGER DEFAULT 0,
+      s2_items TEXT,
+      s3_items TEXT,
+      staff_user_id INTEGER,
+      staff_override INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'pending',
+      sent_at TEXT,
+      paid_at TEXT,
+      paid_amount INTEGER,
+      note TEXT,
+      created_by_user_id INTEGER,
+      created_at TEXT,
+      updated_at TEXT,
+      deleted_at TEXT
+    )`,
+    `CREATE TABLE billing_template (
+      id INTEGER PRIMARY KEY,
+      greeting TEXT,
+      bank_info TEXT,
+      office_address TEXT,
+      office_phone TEXT,
+      signature_text TEXT,
+      fee_rule_indv TEXT,
+      fee_rule_corp TEXT,
+      updated_at TEXT
+    )`,
   ];
   for (const ddl of ddls) {
     rawDb.exec(ddl);

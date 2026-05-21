@@ -16,7 +16,7 @@ import { logger, logCtx } from './logger';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export interface AuditOptions {
-  target_type?: 'user' | 'business' | 'memo' | 'filing' | 'document' | 'room' | 'faq' | 'error_log';
+  target_type?: 'user' | 'business' | 'memo' | 'filing' | 'document' | 'room' | 'faq' | 'error_log' | 'billing_invoice' | 'billing_template';
   target_id?: number | null;
   before?: Record<string, unknown> | null;
   after?: Record<string, unknown> | null;
