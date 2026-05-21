@@ -54,22 +54,24 @@ export type TaxType = z.infer<typeof TaxTypeSchema>;
  */
 export const NewInvoiceSchema = z
   .object({
-    business_id: z.number().int().positive().optional(),
-    user_id: z.number().int().positive().optional(),
-    filing_id: z.number().int().positive().optional(),
-    year: z.number().int().min(2000).max(2100),
+    business_id: z.coerce.number().int().positive().optional(),
+    user_id: z.coerce.number().int().positive().optional(),
+    filing_id: z.coerce.number().int().positive().optional(),
+    /* 사장님 보고 (2026-05-21): 'year: undefined' 발행 실패. 검토표 prefill 의
+     * fiscal_year 가 string 일 수 있음. coerce 로 string→number 안전 변환. */
+    year: z.coerce.number().int().min(2000).max(2100),
     tax_type: TaxTypeSchema,
 
-    revenue: z.number().min(0).default(0),
-    asset: z.number().min(0).default(0),
+    revenue: z.coerce.number().min(0).default(0),
+    asset: z.coerce.number().min(0).default(0),
     biz_type: z.string().max(100).optional(),
     basic_type: z.string().max(100).optional(),
 
-    base_fee: z.number().min(0).default(0),
-    s2_addition: z.number().min(0).default(0),
-    s3_addition: z.number().min(0).default(0),
-    discount: z.number().min(0).default(0), // 사장님 룰: 항상 수기 입력
-    total_fee: z.number().min(0).default(0),
+    base_fee: z.coerce.number().min(0).default(0),
+    s2_addition: z.coerce.number().min(0).default(0),
+    s3_addition: z.coerce.number().min(0).default(0),
+    discount: z.coerce.number().min(0).default(0), // 사장님 룰: 항상 수기 입력
+    total_fee: z.coerce.number().min(0).default(0),
 
     s2_items: z.array(S2ItemSchema).default([]),
     s3_items: z.array(S3ItemSchema).default([]),

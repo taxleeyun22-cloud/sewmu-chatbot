@@ -206,9 +206,13 @@ export default function NewInvoicePage() {
     try {
       af = JSON.parse(latest.auto_fields || '{}');
     } catch {}
-    if (af.revenue) setRevenue(Number(af.revenue));
-    if (af.asset) setAsset(Number(af.asset));
-    if (latest.fiscal_year) setYear(latest.fiscal_year);
+    if (af.revenue) setRevenue(Number(af.revenue) || 0);
+    if (af.asset) setAsset(Number(af.asset) || 0);
+    /* fiscal_year — D1 column 이 TEXT 일 경우 string("2025") 으로 옴. 무조건 Number() coerce */
+    if (latest.fiscal_year) {
+      const fy = Number(latest.fiscal_year);
+      if (Number.isFinite(fy) && fy >= 2000 && fy <= 2100) setYear(fy);
+    }
     if (af.업종 || af.industry) setBizType(String(af.업종 || af.industry));
     /* deductions → s3_items — 카탈로그 매칭해서 billable=true 만 자동 추가 (신고서 본문 자연발생 자동 제외) */
     const dedList = (af.deductions || af.공제감면) as Array<{ code?: string; name?: string; amount?: number; 금액?: number }> | undefined;
@@ -256,35 +260,78 @@ export default function NewInvoicePage() {
     return { base, ket, cst, s2Tot, s3Tot, extra, supply, supplyDisc, vat, total, disc };
   }, [revenue, asset, taxType, basicType, s2Items, s3Items, discount]);
 
-  /* Publish — POST tRPC billing.create */
+  /* Publish — POST tRPC billing.create
+   * 사장님 보고 (2026-05-21): 발행 시 'year: undefined' tRPC 400.
+   * 원인: 검토표 prefill 의 fiscal_year 가 string("2025") 일 수 있고, NaN/empty 시 undefined.
+   * 3중 방어: publish-time Number() coerce + Zod schema coerce + 친절 에러 메시지. */
   const publishMut = useMutation({
-    mutationFn: () =>
-      trpcCall<{ ok: boolean; id?: number }>('billing.create', {
+    mutationFn: () => {
+      /* 모든 숫자 필드 finite 보장 — undefined/NaN/string 모두 안전 처리 */
+      const yr = Number(year);
+      const rev = Number(revenue);
+      const ast = Number(asset);
+      const safeYear = Number.isFinite(yr) && yr >= 2000 && yr <= 2100 ? yr : new Date().getFullYear();
+      const safeRev = Number.isFinite(rev) && rev >= 0 ? rev : 0;
+      const safeAsset = Number.isFinite(ast) && ast >= 0 ? ast : 0;
+      return trpcCall<{ ok: boolean; id?: number }>('billing.create', {
         business_id: bizId || undefined,
         user_id: userId || undefined,
         filing_id: preFilingId || undefined,
-        year,
+        year: safeYear,
         tax_type: taxType,
-        revenue,
-        asset,
+        revenue: safeRev,
+        asset: safeAsset,
         biz_type: bizType,
         basic_type: basicType,
-        base_fee: calc.base,
-        s2_addition: calc.s2Tot,
-        s3_addition: calc.s3Tot,
-        discount: calc.disc,
-        total_fee: calc.total,
-        s2_items: s2Items,
-        s3_items: s3Items,
+        base_fee: Number(calc.base) || 0,
+        s2_addition: Number(calc.s2Tot) || 0,
+        s3_addition: Number(calc.s3Tot) || 0,
+        discount: Number(calc.disc) || 0,
+        total_fee: Number(calc.total) || 0,
+        s2_items: s2Items.map((it) => ({
+          name: String(it.name || ''),
+          val: Number(it.val) || 0,
+          qty: Number(it.qty) || 1,
+        })),
+        s3_items: s3Items.map((it) => ({
+          code: String(it.code || 'CUSTOM'),
+          name: String(it.name || ''),
+          amt: Number(it.amt) || 0,
+          rule: it.rule || 'progressive_u',
+        })),
         staff_override: false,
         note: note || undefined,
-      }),
+      });
+    },
     onSuccess: (d) => {
       if (d.ok) {
         router.push('/admin/billing');
       }
     },
   });
+
+  /* 발행 에러 친절 표시 — 긴 tRPC JSON 대신 사람말 */
+  function formatPublishError(err: unknown): string {
+    const msg = (err as Error)?.message || String(err);
+    /* tRPC 400 → 어느 필드인지 추출 */
+    const pathMatch = msg.match(/"path":\s*\[\s*"([^"]+)"/);
+    if (pathMatch) {
+      const f = pathMatch[1];
+      const label: Record<string, string> = {
+        year: '귀속연도',
+        tax_type: '세금구분',
+        revenue: '수입금액',
+        asset: '자산총액',
+        business_id: '사업장',
+        user_id: '거래처',
+      };
+      return `⚠️ ${label[f] || f} 값을 확인해주세요. (${msg.includes('Required') ? '필수' : '형식 오류'})`;
+    }
+    if (msg.includes('400')) return '⚠️ 입력값 형식 오류 — 귀속연도 / 수입금액 확인';
+    if (msg.includes('401')) return '⚠️ 인증 만료 — 새로고침 후 다시 시도';
+    if (msg.includes('500')) return '⚠️ 서버 오류 — 잠시 후 다시 시도';
+    return `발행 실패: ${msg.slice(0, 200)}`;
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -473,7 +520,11 @@ export default function NewInvoicePage() {
         </div>
         {publishMut.isError && (
           <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm">
-            ⚠️ 발행 실패: {(publishMut.error as Error).message}
+            {formatPublishError(publishMut.error)}
+            <details className="mt-2 text-xs text-red-500">
+              <summary className="cursor-pointer hover:underline">기술 상세 (개발자용)</summary>
+              <pre className="mt-1 whitespace-pre-wrap break-all">{(publishMut.error as Error).message}</pre>
+            </details>
           </div>
         )}
       </section>
