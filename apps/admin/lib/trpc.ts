@@ -8,7 +8,7 @@ import type { AppRouter } from '@sewmu/api';
 
 /* mutation 패턴 — 이 이름으로 끝나면 POST. 나머지는 query (GET). */
 const MUTATION_PATTERN =
-  /\.(create|update|delete|approve|reject|send|set[A-Z]\w*|link\w*|unlink\w*|remove|mark\w+|report|unreport|resolve|clearOld|clearAll|setVerified|patchFields|setConfidence|setAdmin|linkBusiness|unlinkBusiness|reopen|close|rename|addToUser|preview|log|restore|purge|upload)$/;
+  /\.(create|update|delete|approve|reject|send|set[A-Z]\w*|save[A-Z]?\w*|link\w*|unlink\w*|remove|mark\w+|report|unreport|resolve|clearOld|clearAll|setVerified|patchFields|setConfidence|setAdmin|linkBusiness|unlinkBusiness|reopen|close|rename|addToUser|preview|log|restore|purge|upload|templateSave)$/;
 
 function isMutation(procedure: string): boolean {
   return MUTATION_PATTERN.test(procedure);

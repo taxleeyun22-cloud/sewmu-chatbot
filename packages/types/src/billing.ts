@@ -66,7 +66,7 @@ export const NewInvoiceSchema = z
     basic_type: z.string().max(100).optional(),
 
     base_fee: z.number().min(0).default(0),
-    s2_total: z.number().min(0).default(0),
+    s2_addition: z.number().min(0).default(0),
     s3_addition: z.number().min(0).default(0),
     discount: z.number().min(0).default(0), // 사장님 룰: 항상 수기 입력
     total_fee: z.number().min(0).default(0),
@@ -90,7 +90,7 @@ export const InvoiceUpdateSchema = z.object({
   biz_type: z.string().max(100).optional(),
   basic_type: z.string().max(100).optional(),
   base_fee: z.number().min(0).optional(),
-  s2_total: z.number().min(0).optional(),
+  s2_addition: z.number().min(0).optional(),
   s3_addition: z.number().min(0).optional(),
   discount: z.number().min(0).optional(),
   total_fee: z.number().min(0).optional(),
