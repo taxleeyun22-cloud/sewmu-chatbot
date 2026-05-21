@@ -27,6 +27,7 @@ import { S2PickerModal, type S2Item as S2ItemType } from '@/components/billing/S
 import { S3PickerModal, type S3Item as S3ItemType } from '@/components/billing/S3PickerModal';
 import { InvoicePreview } from '@/components/billing/InvoicePreview';
 import { BusinessCombobox } from '@/components/billing/BusinessCombobox';
+import { PersonCombobox } from '@/components/billing/PersonCombobox';
 
 /* ─── Helper (billing-calc 와 동일 — 후속 packages 분리) ─────────────────── */
 function formatWon(n: number | null | undefined): string {
@@ -114,6 +115,13 @@ export default function NewInvoicePage() {
   /* Form state */
   const [bizId, setBizId] = useState<number>(preBizId);
   const [userId, setUserId] = useState<number>(preUserId);
+  const [userLabel, setUserLabel] = useState<string>('');
+  /* 사장님 명령 (2026-05-21): "사람이랑 업체가있어야하는거 아님" — 모드 토글.
+   * URL ?user_id=N 으로 들어오면 person, ?business_id=N 이면 business, 둘 다 없으면 person default
+   * (billing-preview.html v-cust 의 setCustMode('person') 와 동일) */
+  const [mode, setMode] = useState<'person' | 'business'>(
+    preUserId ? 'person' : preBizId ? 'business' : 'person',
+  );
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [taxType, setTaxType] = useState<'법인세' | '종소세' | '부가세'>('법인세');
   const [basicType, setBasicType] = useState<string>('법인장부대행 및 법인조정');
@@ -135,6 +143,22 @@ export default function NewInvoicePage() {
   const allBiz = bizQuery.data?.businesses ?? [];
   const selectedBiz = allBiz.find((b) => b.id === bizId) || null;
 
+  /* 사장님 명령: 사람 선택 → 그 사람의 매핑 사업장 picker (billing-preview.html v-cust 흐름).
+   * person mode + userId 있을 때만 fetch. 1개면 자동 setBizId. */
+  const personBizQuery = useQuery<{ businesses: BusinessRow[] }>({
+    queryKey: ['businesses.list', { user_id: userId }],
+    queryFn: () =>
+      trpcCall('businesses.list', { user_id: userId, limit: 50, status: 'all' }),
+    enabled: mode === 'person' && userId > 0,
+  });
+  const mappedBizs = personBizQuery.data?.businesses ?? [];
+  /* 매핑 사업장 1개 면 자동 선택 — 사장님 흐름 단축 */
+  useEffect(() => {
+    if (mode === 'person' && mappedBizs.length === 1 && !bizId) {
+      setBizId(mappedBizs[0].id);
+    }
+  }, [mode, mappedBizs, bizId]);
+
   /* 양식 (Template) — 인삿말 / 계좌 / 사무실 / 서명 미리보기 prefill */
   const templateQuery = useQuery<{ template: TemplateData | null }>({
     queryKey: ['billing.templateGet'],
@@ -151,11 +175,13 @@ export default function NewInvoicePage() {
     enabled: bizId > 0,
   });
   useEffect(() => {
+    /* business mode 일 때만 primary_user_id 자동 적용. person mode 는 사용자가 명시 선택. */
+    if (mode !== 'business') return;
     const pid = bizDetailQuery.data?.primary_user_id;
     if (pid && !userId) {
       setUserId(pid);
     }
-  }, [bizDetailQuery.data, userId]);
+  }, [bizDetailQuery.data, userId, mode]);
 
   /* 카탈로그 fetch — billable filter 용 (검토표 자동 prefill 시 신고서 본문 자연발생 자동 제외) */
   const catalogQuery = useQuery<CatalogItem[]>({
@@ -352,20 +378,141 @@ export default function NewInvoicePage() {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* 좌측 — 입력 폼 */}
       <section className="space-y-4">
-        {/* 사업장 선택 — 사장님 명령 (2026-05-21): "글로좀 치는거도 나와야지" — typeahead 검색 */}
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            🏢 사업장 선택
-            <span className="ml-2 text-xs text-gray-400 font-normal">
-              ({allBiz.length}개 — 회사명·사업자번호·대표자 검색)
+        {/* 거래처/사업장 선택 — 사장님 명령 (2026-05-21): "사람이랑 업체가있어야하는거 아님"
+            billing-preview.html v-cust 의 person/business 토글 그대로 */}
+        <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('person');
+                /* 모드 전환 시 선택 reset (사람 선택부터 다시) */
+                if (!preUserId) {
+                  setUserId(0);
+                  setUserLabel('');
+                }
+                if (!preBizId) setBizId(0);
+              }}
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold ${
+                mode === 'person'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              👤 거래처 (개인)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('business');
+                if (!preUserId) {
+                  setUserId(0);
+                  setUserLabel('');
+                }
+                if (!preBizId) setBizId(0);
+              }}
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold ${
+                mode === 'business'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              🏢 사업장 (법인)
+            </button>
+            <span className="ml-auto text-xs text-gray-400">
+              개인 = 종소세 거래처 · 사업장 = 법인세 거래처
             </span>
-          </label>
-          <BusinessCombobox
-            businesses={allBiz}
-            selectedId={bizId}
-            onChange={setBizId}
-            isLoading={bizQuery.isLoading}
-          />
+          </div>
+
+          {mode === 'person' ? (
+            <>
+              <label className="block text-sm font-semibold text-gray-700">
+                👤 거래처 선택
+                <span className="ml-2 text-xs text-gray-400 font-normal">
+                  (이름·전화·이메일 검색 — 사람 선택 후 매핑 사업장 자동 표시)
+                </span>
+              </label>
+              <PersonCombobox
+                selectedId={userId}
+                selectedLabel={userLabel}
+                onChange={(id, label) => {
+                  setUserId(id);
+                  setUserLabel(label);
+                  if (id !== userId) setBizId(0); // 사람 변경 시 매핑 사업장 reset
+                }}
+              />
+
+              {/* 매핑 사업장 picker (사람 선택 후) */}
+              {userId > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <div className="text-xs font-semibold text-gray-600 mb-2">
+                    🏢 매핑된 사업장
+                    {personBizQuery.isFetching ? (
+                      <span className="ml-2 text-gray-400 font-normal">불러오는 중…</span>
+                    ) : (
+                      <span className="ml-2 text-gray-400 font-normal">
+                        ({mappedBizs.length}개)
+                      </span>
+                    )}
+                  </div>
+                  {mappedBizs.length === 0 && !personBizQuery.isFetching ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2 text-xs text-amber-900">
+                      이 거래처에 매핑된 사업장이 없습니다. 거래처 dashboard 에서 사업장 추가 후 진행하세요. (또는 검토표 prefill 없이 수기 발행 가능)
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {mappedBizs.map((b) => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => setBizId(b.id)}
+                          className={`text-left p-2.5 border rounded transition ${
+                            b.id === bizId
+                              ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                              : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm text-gray-900 truncate">
+                              {b.company_name || '(이름없음)'}
+                            </span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 ${
+                                /\(주\)|㈜|주식회사|법인/.test(b.company_form || b.company_name || '')
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : 'bg-blue-100 text-blue-800'
+                              }`}
+                            >
+                              {/\(주\)|㈜|주식회사|법인/.test(b.company_form || b.company_name || '') ? '법인' : '개인'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5 truncate">
+                            {b.ceo_name && `대표 ${b.ceo_name}`}
+                            {b.business_number && ` · ${b.business_number}`}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <label className="block text-sm font-semibold text-gray-700">
+                🏢 사업장 선택
+                <span className="ml-2 text-xs text-gray-400 font-normal">
+                  ({allBiz.length}개 — 회사명·사업자번호·대표자 검색)
+                </span>
+              </label>
+              <BusinessCombobox
+                businesses={allBiz}
+                selectedId={bizId}
+                onChange={setBizId}
+                isLoading={bizQuery.isLoading}
+              />
+            </>
+          )}
         </div>
 
         {/* 발행 입력 */}

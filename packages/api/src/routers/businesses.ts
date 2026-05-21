@@ -16,12 +16,15 @@ export const businessesRouter = router({
       z.object({
         status: z.enum(['all', 'active', 'closed', 'terminated']).default('all'),
         search: z.string().optional(),
+        /* 사장님 명령 (2026-05-21): "사람이랑 업체가있어야하는거 아님" — 사람 선택 시
+         * 그 사람의 매핑 사업장 picker. user_id 주면 business_members JOIN 으로 필터. */
+        user_id: z.number().int().positive().optional(),
         limit: z.number().min(1).max(2000).default(1000),
       }),
     )
     .query(async ({ ctx, input }) => {
       const db = drizzle(ctx.db);
-      const { businesses } = schema;
+      const { businesses, businessMembers } = schema;
       const conditions = [
         or(isNull(businesses.deleted_at), eq(businesses.deleted_at, ''))!,
       ];
@@ -39,12 +42,32 @@ export const businessesRouter = router({
           )!,
         );
       }
-      const list = await db
-        .select()
-        .from(businesses)
-        .where(and(...conditions))
-        .orderBy(desc(businesses.created_at))
-        .limit(input.limit);
+
+      let list: typeof businesses.$inferSelect[];
+      if (input.user_id) {
+        /* business_members JOIN — 그 사용자의 매핑 사업장 only (active members) */
+        const joined = await db
+          .select({ b: businesses })
+          .from(businesses)
+          .innerJoin(businessMembers, eq(businessMembers.business_id, businesses.id))
+          .where(
+            and(
+              eq(businessMembers.user_id, input.user_id),
+              or(isNull(businessMembers.removed_at), eq(businessMembers.removed_at, ''))!,
+              ...conditions,
+            ),
+          )
+          .orderBy(desc(businessMembers.is_primary), desc(businesses.created_at))
+          .limit(input.limit);
+        list = joined.map((r) => r.b);
+      } else {
+        list = await db
+          .select()
+          .from(businesses)
+          .where(and(...conditions))
+          .orderBy(desc(businesses.created_at))
+          .limit(input.limit);
+      }
 
       const all = list.length;
       const active = list.filter((b) => (b.status || 'active') === 'active').length;
