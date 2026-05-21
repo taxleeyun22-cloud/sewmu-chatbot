@@ -26,6 +26,7 @@ import { trpcCall } from '@/lib/trpc';
 import { S2PickerModal, type S2Item as S2ItemType } from '@/components/billing/S2PickerModal';
 import { S3PickerModal, type S3Item as S3ItemType } from '@/components/billing/S3PickerModal';
 import { InvoicePreview } from '@/components/billing/InvoicePreview';
+import { BusinessCombobox } from '@/components/billing/BusinessCombobox';
 
 /* ─── Helper (billing-calc 와 동일 — 후속 packages 분리) ─────────────────── */
 function formatWon(n: number | null | undefined): string {
@@ -289,29 +290,20 @@ export default function NewInvoicePage() {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* 좌측 — 입력 폼 */}
       <section className="space-y-4">
-        {/* 사업장 선택 */}
+        {/* 사업장 선택 — 사장님 명령 (2026-05-21): "글로좀 치는거도 나와야지" — typeahead 검색 */}
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <label className="block text-sm font-semibold text-gray-700 mb-2">
             🏢 사업장 선택
+            <span className="ml-2 text-xs text-gray-400 font-normal">
+              ({allBiz.length}개 — 회사명·사업자번호·대표자 검색)
+            </span>
           </label>
-          <select
-            value={bizId || ''}
-            onChange={(e) => setBizId(Number(e.target.value) || 0)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white"
-          >
-            <option value="">— 선택 —</option>
-            {allBiz.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.company_name} ({b.tax_type || (/\(주\)|㈜|주식회사/.test(b.company_name || '') ? '법인' : '개인')})
-              </option>
-            ))}
-          </select>
-          {selectedBiz && (
-            <div className="mt-2 text-xs text-gray-500">
-              {selectedBiz.ceo_name && `대표 ${selectedBiz.ceo_name}`}
-              {selectedBiz.business_number && ` · 사업자번호 ${selectedBiz.business_number}`}
-            </div>
-          )}
+          <BusinessCombobox
+            businesses={allBiz}
+            selectedId={bizId}
+            onChange={setBizId}
+            isLoading={bizQuery.isLoading}
+          />
         </div>
 
         {/* 발행 입력 */}
