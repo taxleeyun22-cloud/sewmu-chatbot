@@ -458,25 +458,99 @@ function renderBizPicker(){
 function selectBiz(id){
   selectedBizId=id;
   var b=BIZS.find(x=>x.id===id);if(!b)return;
-  $('bizPanel').style.display='';  /* 사업장 선택 시 발행 패널 표시 */
+  $('bizPanel').style.display='';
   $('biz-name').textContent=b.name;
-  /* 검토표 데이터 자동 prefill — C2 후속에서 진짜 /api/admin-filings fetch 연결. 지금은 빈 fallback. */
+  /* C2 default: 빈 상태로 시작 — prefillFromFiling 가 비동기로 채움 */
   var ext=b.ext||{};
   $('i-rev').value=ext.rev||0;
   $('i-asset').value=ext.asset||0;
   if(ext.bizup) $('i-bizup').value=ext.bizup;
   if(ext.bt) $('i-bt').value=ext.bt;
-  /* Section 3 자동 흐름 (검토표 fetch X 까진 빈 array) */
-  INV_S3=(ext.s3FromReview||[]).filter(s3=>{
-    var cat=CATALOG.find(c=>c.code===s3.code);
-    return cat && cat.billable;
-  }).map(s3=>{var cat=CATALOG.find(c=>c.code===s3.code)||{rule:'progressive_u'};return Object.assign({},s3,{rule:cat.rule})});
+  /* INV_S2 / INV_S3 reset (검토표 fetch 후 채움) */
+  INV_S2=[]; INV_S3=[];
   /* picker active 갱신 */
-  renderBizPicker.__skip=true;  /* 재진입 방지 */
   $('bizPicker').querySelectorAll('button').forEach((btn,idx)=>{
     btn.classList.toggle('on', BIZS[idx] && BIZS[idx].id===id);
   });
   renderS2(); renderS3(); syncCustPreview();
+  /* C2 (2026-05-20): 검토표 자동 prefill — /api/admin-filings fetch */
+  prefillFromFiling(b);
+}
+
+/* C2: 사업장(또는 사람)의 최신 검토표 → 수입금액 + s3 자동 prefill.
+ * 할인액(i-disc)은 절대 자동 X — 사장님 룰. */
+async function prefillFromFiling(biz){
+  if(!biz || !biz.id) return;
+  var taxType = biz.taxType || (biz.form==='법인' ? '법인세' : '종소세');
+  /* 사업장 owner_type=Business 우선. 없으면 사람 (개인사업자 종소세) 시도. */
+  var tries = [{type:'Business', id:biz.id}];
+  if(SELECTED_PERSON && SELECTED_PERSON.id && taxType==='종소세'){
+    tries.push({type:'Person', id:SELECTED_PERSON.id});
+  }
+  for(var i=0; i<tries.length; i++){
+    var t = tries[i];
+    try{
+      var r = await fetch('/api/admin-filings?owner_type='+t.type+'&owner_id='+t.id+adminKeyQS('&'), {credentials:'include'});
+      if(!r.ok) continue;
+      var d = await r.json();
+      var filings = (d.filings||[]).filter(f=>f.type===taxType).sort((a,b)=>(b.fiscal_year||0)-(a.fiscal_year||0));
+      if(!filings.length) continue;
+      var latest = filings[0];
+      _applyFilingPrefill(latest);
+      return;
+    }catch(e){
+      _billingError('prefillFromFiling.'+t.type, e);
+    }
+  }
+  /* 검토표 없음 — 안내만 */
+  showToast('🔍 '+taxType+' 검토표 없음 — 수기 입력');
+}
+
+function _applyFilingPrefill(filing){
+  var af = {};
+  try{ af = JSON.parse(filing.auto_fields || '{}'); }catch(_){}
+  /* 1. 귀속연도 */
+  if(filing.fiscal_year){ $('i-yr').value = filing.fiscal_year; }
+  /* 2. 수입금액 (revenue) */
+  if(af.revenue !== undefined && af.revenue !== null){
+    $('i-rev').value = af.revenue;
+  }
+  /* 3. 자산총액 (있으면) */
+  if(af.asset !== undefined && af.asset !== null){
+    $('i-asset').value = af.asset;
+  }
+  /* 4. 업종 */
+  if(af.업종 || af.industry){
+    var bizup = af.업종 || af.industry;
+    var sel = $('i-bizup');
+    if(sel){
+      /* select option 중 일치 시도, 없으면 무시 */
+      for(var i=0;i<sel.options.length;i++){
+        if(sel.options[i].value === bizup || sel.options[i].text === bizup){ sel.selectedIndex = i; break; }
+      }
+    }
+  }
+  /* 5. Section 3 — 검토표 공제·감면 → billable=true 만 자동 추가 */
+  var dedList = af.deductions || af.공제감면 || [];
+  if(Array.isArray(dedList) && dedList.length){
+    INV_S3 = dedList.filter(item=>{
+      if(!item || !item.code) return false;
+      var cat = CATALOG.find(c => c.code === item.code);
+      return cat && cat.billable;
+    }).map(item=>{
+      var cat = CATALOG.find(c => c.code === item.code) || {rule:'progressive_u', name:item.name};
+      return {
+        code: item.code,
+        name: item.name || cat.name || '',
+        amt: Number(item.amount || item.금액 || 0),
+        rule: cat.rule || 'progressive_u',
+      };
+    });
+    renderS3();
+  }
+  /* 6. 할인액 절대 자동 X (사장님 룰) — i-disc 안 건드림 */
+  syncCustPreview();
+  showToast('✅ '+filing.type+' '+filing.fiscal_year+'년 검토표 자동 prefill (수입 + s3 '+INV_S3.length+'건). 할인액은 수기.');
 }
 /* Section 2 (활증업무) — INV_S2 (거래처) / MAN_S2 (수기) */
 function renderS2(){
