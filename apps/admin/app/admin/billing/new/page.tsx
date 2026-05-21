@@ -23,6 +23,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
+import { S2PickerModal, type S2Item as S2ItemType } from '@/components/billing/S2PickerModal';
+import { S3PickerModal, type S3Item as S3ItemType } from '@/components/billing/S3PickerModal';
 
 /* ─── Helper (billing-calc 와 동일 — 후속 packages 분리) ─────────────────── */
 function formatWon(n: number | null | undefined): string {
@@ -102,6 +104,8 @@ export default function NewInvoicePage() {
   const [discount, setDiscount] = useState<string>(''); // 빈 칸 default — 사장님 룰
   const [s2Items, setS2Items] = useState<S2Item[]>([]);
   const [s3Items, setS3Items] = useState<S3Item[]>([]);
+  const [s2ModalOpen, setS2ModalOpen] = useState(false);
+  const [s3ModalOpen, setS3ModalOpen] = useState(false);
   const [note, setNote] = useState<string>('');
 
   /* 사업장 단건 fetch (URL ?business_id=N 또는 picker 선택 후) */
@@ -312,14 +316,7 @@ export default function NewInvoicePage() {
         <SectionEditor
           title="📞 Section 2 — 활증업무"
           items={s2Items}
-          onAdd={() => {
-            const name = window.prompt('항목명:');
-            if (!name) return;
-            const val = Number(window.prompt('단가 (원):') || '0');
-            const qty = Number(window.prompt('건수:', '1') || '1');
-            if (val <= 0) return;
-            setS2Items([...s2Items, { name, val, qty }]);
-          }}
+          onAdd={() => setS2ModalOpen(true)}
           onRemove={(i) => setS2Items(s2Items.filter((_, idx) => idx !== i))}
           renderRow={(it, i) => (
             <>
@@ -338,16 +335,7 @@ export default function NewInvoicePage() {
         <SectionEditor
           title="💸 Section 3 — 세액공제·감면"
           items={s3Items}
-          onAdd={() => {
-            const code = window.prompt('카탈로그 code (예: 112 — 중특):');
-            if (!code) return;
-            const name = window.prompt('이름:') || code;
-            const amt = Number(window.prompt('감면액 (원):') || '0');
-            if (amt <= 0) return;
-            const ruleInput = window.prompt('가산룰 (flat_5 또는 progressive_u):', 'progressive_u');
-            const rule = (ruleInput === 'flat_5' ? 'flat_5' : 'progressive_u') as 'flat_5' | 'progressive_u';
-            setS3Items([...s3Items, { code, name, amt, rule }]);
-          }}
+          onAdd={() => setS3ModalOpen(true)}
           onRemove={(i) => setS3Items(s3Items.filter((_, idx) => idx !== i))}
           renderRow={(it, i) => {
             const gain = calcGain(it.amt, it.rule);
@@ -464,6 +452,18 @@ export default function NewInvoicePage() {
           </div>
         </div>
       </section>
+
+      {/* S2/S3 Picker 모달 — Phase D4-4 (2026-05-21) */}
+      <S2PickerModal
+        open={s2ModalOpen}
+        onClose={() => setS2ModalOpen(false)}
+        onAdd={(item: S2ItemType) => setS2Items([...s2Items, item])}
+      />
+      <S3PickerModal
+        open={s3ModalOpen}
+        onClose={() => setS3ModalOpen(false)}
+        onAdd={(item: S3ItemType) => setS3Items([...s3Items, { ...item, rule: item.rule === 'none' ? 'progressive_u' : item.rule }])}
+      />
     </div>
   );
 }
