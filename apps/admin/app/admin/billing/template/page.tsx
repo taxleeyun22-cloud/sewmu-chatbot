@@ -16,7 +16,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
 import { InvoicePreview } from '@/components/billing/InvoicePreview';
 
-/* 누진표 계산 (preview 용) — new/page.tsx 의 calcBase 와 동일 */
+/* 누진표 계산 (preview 용) — 세무사 누진률 0.05% / 0.1% (row[2] 가 % 단위) */
 function calcBase(amount: number, tariff: TariffRow[]): number {
   if (!tariff || tariff.length === 0) return 0;
   let row: TariffRow = tariff[0];
@@ -55,6 +55,8 @@ interface TemplateData {
   fee_rule_corp?: FeeRule;
 }
 
+/* 세무사 실무 누진률 — 가산률 단위는 % (0.05 = 0.05% / 0.1 = 0.1%).
+ * 7억 매출 시 (700M-500M)×0.05/100 = 10만원 → 합리적. */
 const DEFAULT_CORP: TariffRow[] = [
   [0, 300_000, 0],
   [500_000_000, 500_000, 0.05],
@@ -319,8 +321,11 @@ export default function TemplatePage() {
             ))}
           </tbody>
         </table>
-        <div className="text-[11px] text-gray-400 mt-2">
-          💡 수입금액 임계 이상 시 → 기본보수 + (초과 × 초과단가%) 적용. 1,000원 단위 절사.
+        <div className="text-[11px] text-gray-400 mt-2 space-y-0.5">
+          <div>💡 수입금액 임계 이상 시 → 기본보수 + (초과 × 초과단가%) 적용. 1,000원 단위 절사.</div>
+          <div className="text-amber-700">
+            ⚠️ 초과단가 단위 = % (예: 0.05 입력 → 0.05% 적용 / 5억 초과시 1억당 5만원 가산). 5% 가 아닙니다.
+          </div>
         </div>
       </section>
 

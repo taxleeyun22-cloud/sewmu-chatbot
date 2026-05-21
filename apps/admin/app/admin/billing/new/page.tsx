@@ -34,6 +34,7 @@ function formatWon(n: number | null | undefined): string {
   return (n || 0).toLocaleString('ko-KR');
 }
 type FeeRuleRow = [number, number, number];
+/* 세무사 실무 누진률 — row[2] 는 % 단위 (0.05 = 0.05%). 7억 매출 → 10만원 가산. */
 function calcBase(amount: number, tariff: FeeRuleRow[]): number {
   if (!tariff || tariff.length === 0) return 0;
   let row: FeeRuleRow = tariff[0];
@@ -56,7 +57,7 @@ function calcGain(amt: number, rule: 'flat_5' | 'progressive_u' | 'none'): numbe
   return 0;
 }
 
-/* 기본 누진표 (Template 미저장 시 fallback) */
+/* 기본 누진표 (Template 미저장 시 fallback) — 가산률 단위 % (0.05 = 0.05%) */
 const DEFAULT_CORP: FeeRuleRow[] = [
   [0, 300_000, 0],
   [500_000_000, 500_000, 0.05],
