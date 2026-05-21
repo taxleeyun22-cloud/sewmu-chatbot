@@ -60,4 +60,4 @@ export const FilingType = z.enum([
 export type FilingTypeType = z.infer<typeof FilingType>;
 
 // Phase X (2026-05-20): 청구서 시스템 — 별도 파일에서 모든 schema/type re-export
-export * from "./billing.js";
+export * from './billing';
