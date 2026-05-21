@@ -25,6 +25,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
 import { S2PickerModal, type S2Item as S2ItemType } from '@/components/billing/S2PickerModal';
 import { S3PickerModal, type S3Item as S3ItemType } from '@/components/billing/S3PickerModal';
+import { InvoicePreview } from '@/components/billing/InvoicePreview';
 
 /* ─── Helper (billing-calc 와 동일 — 후속 packages 분리) ─────────────────── */
 function formatWon(n: number | null | undefined): string {
@@ -85,6 +86,23 @@ interface BusinessRow {
   business_number: string | null;
 }
 
+interface CatalogItem {
+  code: string;
+  name: string;
+  billable?: boolean;
+  rule?: 'flat_5' | 'progressive_u' | 'none';
+  category?: string;
+}
+
+interface TemplateData {
+  greeting?: string;
+  bank_info?: string;
+  office_address?: string;
+  office_phone?: string;
+  signature_text?: string;
+  firm_name?: string;
+}
+
 export default function NewInvoicePage() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -116,6 +134,27 @@ export default function NewInvoicePage() {
   const allBiz = bizQuery.data?.businesses ?? [];
   const selectedBiz = allBiz.find((b) => b.id === bizId) || null;
 
+  /* 양식 (Template) — 인삿말 / 계좌 / 사무실 / 서명 미리보기 prefill */
+  const templateQuery = useQuery<{ template: TemplateData | null }>({
+    queryKey: ['billing.templateGet'],
+    queryFn: () => trpcCall('billing.templateGet'),
+  });
+  const template = templateQuery.data?.template || null;
+
+  /* 카탈로그 fetch — billable filter 용 (검토표 자동 prefill 시 신고서 본문 자연발생 자동 제외) */
+  const catalogQuery = useQuery<CatalogItem[]>({
+    queryKey: ['filing-tax-credit-catalog'],
+    queryFn: async () => {
+      const r = await fetch('/filing-tax-credit-catalog.json', { cache: 'force-cache' });
+      if (!r.ok) return [];
+      const j = (await r.json()) as CatalogItem[] | { items?: CatalogItem[]; catalog?: CatalogItem[] };
+      if (Array.isArray(j)) return j;
+      return j.items || j.catalog || [];
+    },
+    staleTime: 60 * 60 * 1000,
+  });
+  const catalog = catalogQuery.data || [];
+
   /* taxType 자동 결정 (사업장 form 기반) */
   useEffect(() => {
     if (!selectedBiz) return;
@@ -125,17 +164,39 @@ export default function NewInvoicePage() {
     setBasicType(isCorp ? '법인장부대행 및 법인조정' : '개인장부대행 및 개인조정');
   }, [selectedBiz]);
 
-  /* 검토표 자동 prefill (사업장 선택 시 → 최신 filing) */
-  const filingQuery = useQuery<{ filings: Array<{ id: number; type: string; fiscal_year: number; auto_fields: string | null }> }>({
+  /* 검토표 자동 prefill — Business owner_type 우선, 없으면 Person fallback (개인사업자 종소세).
+   * 사장님 명령 (2026-05-21): "자동으로 검토표 연동안되노?"
+   * → billing-preview.js 의 prefillFromFiling 패턴 그대로 (Business → Person 폴백). */
+  const filingBizQuery = useQuery<{ filings: Array<{ id: number; type: string; fiscal_year: number; auto_fields: string | null }> }>({
     queryKey: ['filings.list', { owner_type: 'Business', owner_id: bizId }],
     queryFn: () =>
       trpcCall('filings.list', { owner_type: 'Business', owner_id: bizId, limit: 50 }),
     enabled: bizId > 0,
   });
+  /* Person fallback — userId 있고 종소세일 때만 시도 (개인사업자 패턴) */
+  const filingPersonQuery = useQuery<{ filings: Array<{ id: number; type: string; fiscal_year: number; auto_fields: string | null }> }>({
+    queryKey: ['filings.list', { owner_type: 'Person', owner_id: userId }],
+    queryFn: () =>
+      trpcCall('filings.list', { owner_type: 'Person', owner_id: userId, limit: 50 }),
+    enabled: userId > 0 && taxType === '종소세',
+  });
+
+  /* 통합 filings — Business 우선, 없거나 종소세인데 비었으면 Person 추가 */
+  const allFilings = useMemo(() => {
+    const biz = filingBizQuery.data?.filings || [];
+    const per = filingPersonQuery.data?.filings || [];
+    /* 중복 제거 (id 기준) */
+    const seen = new Set<number>();
+    return [...biz, ...per].filter((f) => {
+      if (seen.has(f.id)) return false;
+      seen.add(f.id);
+      return true;
+    });
+  }, [filingBizQuery.data, filingPersonQuery.data]);
+
   useEffect(() => {
-    if (!filingQuery.data) return;
-    const filings = filingQuery.data.filings || [];
-    const matched = filings
+    if (!allFilings.length) return;
+    const matched = allFilings
       .filter((f) => f.type === taxType)
       .sort((a, b) => (b.fiscal_year || 0) - (a.fiscal_year || 0));
     if (!matched.length) return;
@@ -148,20 +209,33 @@ export default function NewInvoicePage() {
     if (af.asset) setAsset(Number(af.asset));
     if (latest.fiscal_year) setYear(latest.fiscal_year);
     if (af.업종 || af.industry) setBizType(String(af.업종 || af.industry));
-    /* deductions → s3_items (billable filter 는 카탈로그 매칭 필요 — 후속 D4-3 에서 보강) */
+    /* deductions → s3_items — 카탈로그 매칭해서 billable=true 만 자동 추가 (신고서 본문 자연발생 자동 제외) */
     const dedList = (af.deductions || af.공제감면) as Array<{ code?: string; name?: string; amount?: number; 금액?: number }> | undefined;
     if (Array.isArray(dedList)) {
       const items: S3Item[] = dedList
         .filter((d) => d.code)
-        .map((d) => ({
-          code: d.code!,
-          name: d.name || d.code!,
-          amt: Number(d.amount || d.금액 || 0),
-          rule: d.code === '112' || d.code === 'JTL_7' ? 'flat_5' : 'progressive_u',
-        }));
+        .filter((d) => {
+          if (!catalog.length) return true; // 카탈로그 미로딩 시 일단 통과 — 사장님 수기 삭제 가능
+          const cat = catalog.find((c) => c.code === d.code);
+          /* billable=false (신고서 본문 자연발생) 자동 제외. billable 미정의면 true 로 fallback */
+          return cat ? cat.billable !== false : true;
+        })
+        .map((d) => {
+          const cat = catalog.find((c) => c.code === d.code);
+          const rule = cat?.rule || (d.code === '112' || d.code === 'JTL_7' ? 'flat_5' : 'progressive_u');
+          return {
+            code: d.code!,
+            name: d.name || cat?.name || d.code!,
+            amt: Number(d.amount || d.금액 || 0),
+            rule,
+          };
+        });
       setS3Items(items);
     }
-  }, [filingQuery.data, taxType]);
+  }, [allFilings, taxType, catalog]);
+
+  /* 검토표 prefill 상태 메시지 */
+  const filingPrefillActive = allFilings.some((f) => f.type === taxType);
 
   /* 금액 계산 (실시간) */
   const calc = useMemo(() => {
@@ -244,11 +318,15 @@ export default function NewInvoicePage() {
         <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
           <div className="flex items-center gap-2 mb-2">
             <span className="font-semibold text-gray-900">💰 발행 입력</span>
-            {filingQuery.data && filingQuery.data.filings.length > 0 && (
+            {filingPrefillActive ? (
               <span className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded">
                 ✅ 검토표 자동 prefill
               </span>
-            )}
+            ) : bizId > 0 ? (
+              <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                🔍 {taxType} 검토표 없음 — 수기 입력
+              </span>
+            ) : null}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="귀속연도">
@@ -408,49 +486,24 @@ export default function NewInvoicePage() {
         )}
       </section>
 
-      {/* 우측 — 청구서 미리보기 */}
+      {/* 우측 — A4 청구서 미리보기 (billing-preview.html 톤) */}
       <section className="lg:sticky lg:top-20 lg:self-start space-y-3">
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-          <div className="border-b border-gray-200 px-4 py-2 text-xs text-gray-500 font-semibold">
-            📄 청구서 미리보기
-          </div>
-          <div className="p-6 space-y-4">
-            <div>
-              <div className="text-lg font-bold text-gray-900">세무회계 이윤</div>
-              <div className="text-xs text-gray-500">TAX STRATEGY & ADVISORY</div>
-            </div>
-            <table className="w-full text-sm">
-              <tbody>
-                <tr>
-                  <td className="py-1 text-gray-500 w-20">수신</td>
-                  <td className="py-1 font-semibold">{selectedBiz?.company_name || '(거래처 미선택)'} 대표이사 귀하</td>
-                </tr>
-                <tr>
-                  <td className="py-1 text-gray-500">귀속</td>
-                  <td className="py-1">{year}년</td>
-                </tr>
-                <tr>
-                  <td className="py-1 text-gray-500">제목</td>
-                  <td className="py-1 font-semibold">
-                    {year}년 귀속 {taxType} 신고 및 세무조정 수수료 청구의 건
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <div className="space-y-2 border-t border-gray-200 pt-4">
-              <Row label="산출기준 수입금액" value={revenue ? `${formatWon(revenue)}원` : '—'} />
-              <Row label="기본 세무조정료" value={calc.base ? `${formatWon(calc.base + calc.ket + calc.cst)}원` : '—'} />
-              <Row label="추가 용역 소계" value={calc.extra ? `${formatWon(calc.extra)}원` : '—'} />
-              {calc.disc > 0 && (
-                <Row label="▼ 할인액" value={`▼ ${formatWon(calc.disc)}원`} muted />
-              )}
-              <div className="flex items-center justify-between border-t border-gray-200 pt-3 font-bold">
-                <span>최종 청구 (VAT 포함)</span>
-                <span className="text-lg text-blue-700">{formatWon(calc.total)}원</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <InvoicePreview
+          companyName={selectedBiz?.company_name}
+          ceoName={selectedBiz?.ceo_name}
+          year={year}
+          taxType={taxType}
+          bizType={bizType}
+          revenue={revenue}
+          baseFee={calc.base + calc.ket + calc.cst}
+          s2Total={calc.s2Tot}
+          s3Total={calc.s3Tot}
+          discount={calc.disc}
+          total={calc.total}
+          s2Items={s2Items}
+          s3Items={s3Items}
+          template={template}
+        />
       </section>
 
       {/* S2/S3 Picker 모달 — Phase D4-4 (2026-05-21) */}
@@ -477,15 +530,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label className="block text-xs font-semibold text-gray-600 mb-1">{label}</label>
       {children}
-    </div>
-  );
-}
-
-function Row({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
-  return (
-    <div className={`flex items-center justify-between text-sm ${muted ? 'text-gray-500' : ''}`}>
-      <span>{label}</span>
-      <span className="font-semibold">{value}</span>
     </div>
   );
 }

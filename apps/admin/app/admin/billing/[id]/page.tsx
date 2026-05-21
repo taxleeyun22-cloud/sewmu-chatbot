@@ -14,10 +14,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
-
-function formatWon(n: number | null | undefined): string {
-  return (n || 0).toLocaleString('ko-KR');
-}
+import { InvoicePreview } from '@/components/billing/InvoicePreview';
 
 interface InvoiceDetail {
   id: number;
@@ -71,6 +68,13 @@ export default function InvoiceDetailPage() {
     onSuccess: () => router.push('/admin/billing'),
   });
 
+  /* 양식 (Template) fetch — 미리보기 인삿말 / 계좌 / 사인. 모든 hook 은 early return 위. */
+  const templateQuery = useQuery<{ template: Record<string, string> | null }>({
+    queryKey: ['billing.templateGet'],
+    queryFn: () => trpcCall('billing.templateGet'),
+  });
+  const template = templateQuery.data?.template || null;
+
   if (isLoading) {
     return (
       <div className="bg-white border border-gray-200 rounded-lg p-12 text-center text-gray-500">
@@ -92,7 +96,6 @@ export default function InvoiceDetailPage() {
   }
 
   const inv = data.invoice;
-  const customer = inv.business_name || inv.user_name || '(이름없음)';
 
   return (
     <div className="space-y-4">
@@ -155,167 +158,69 @@ export default function InvoiceDetailPage() {
         </span>
       </div>
 
-      {/* 청구서 본체 — 인쇄 시 보임 */}
-      <article className="bg-white border border-gray-200 rounded-lg shadow-sm p-8 max-w-3xl mx-auto print:shadow-none print:border-none">
-        <header className="border-b-2 border-gray-900 pb-3 mb-6 flex items-end">
+      {/* 청구서 본체 — A4 1장+2장 (billing-preview.html 톤) */}
+      <div className="max-w-3xl mx-auto">
+        <InvoicePreview
+          companyName={inv.business_name || inv.user_name}
+          year={inv.year || new Date().getFullYear()}
+          taxType={(inv.tax_type as '법인세' | '종소세' | '부가세') || '법인세'}
+          bizType={inv.biz_type}
+          revenue={inv.revenue || 0}
+          baseFee={inv.base_fee || 0}
+          s2Total={inv.s2_addition || 0}
+          s3Total={inv.s3_addition || 0}
+          discount={inv.discount || 0}
+          total={inv.total_fee || 0}
+          issueDate={inv.created_at}
+          s2Items={inv.s2_items_parsed || []}
+          s3Items={(inv.s3_items_parsed || []).map((it) => ({
+            code: it.code,
+            name: it.name,
+            amt: it.amt,
+            rule: (it.rule as 'flat_5' | 'progressive_u' | 'none') || 'progressive_u',
+          }))}
+          template={template}
+        />
+      </div>
+
+      {/* 메타 정보 (인쇄 시 hidden) */}
+      <section className="bg-gray-50 border border-gray-200 rounded p-3 text-xs space-y-1 print:hidden max-w-3xl mx-auto">
+        <div className="grid grid-cols-2 gap-2">
           <div>
-            <div className="text-2xl font-bold text-gray-900">세무회계 이윤</div>
-            <div className="text-xs text-gray-500 tracking-widest">TAX STRATEGY &amp; ADVISORY</div>
+            <span className="text-gray-500">생성:</span>{' '}
+            <span className="font-semibold">{inv.created_at || '—'}</span>
           </div>
-          <div className="ml-auto text-right text-sm">
-            <div className="text-gray-500">발행일자</div>
-            <div className="font-semibold">
-              {inv.created_at ? inv.created_at.slice(0, 10).replace(/-/g, '. ') : '—'}
-            </div>
+          <div>
+            <span className="text-gray-500">발송:</span>{' '}
+            <span className="font-semibold">{inv.sent_at || '—'}</span>
           </div>
-        </header>
-
-        <table className="w-full text-sm mb-6">
-          <tbody>
-            <tr className="border-b border-gray-200">
-              <th className="bg-gray-50 px-3 py-2 text-left w-20 font-semibold">수신</th>
-              <td className="px-3 py-2 font-semibold">{customer} 대표이사 귀하</td>
-              <th className="bg-gray-50 px-3 py-2 text-left w-16 font-semibold">귀속</th>
-              <td className="px-3 py-2 w-24">{inv.year}년</td>
-            </tr>
-            <tr className="border-b border-gray-200">
-              <th className="bg-gray-50 px-3 py-2 text-left font-semibold">제목</th>
-              <td className="px-3 py-2 font-bold" colSpan={3}>
-                {inv.year}년 귀속 {inv.tax_type} 신고 및 세무조정 수수료 청구의 건
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* 금액 카드 */}
-        <div className="space-y-2 mb-6">
-          <Row label="산출기준 수입금액" value={`${formatWon(inv.revenue || 0)}원`} />
-          <Row label="기본 세무조정료" value={`${formatWon(inv.base_fee || 0)}원`} />
-          {(inv.s2_addition || 0) > 0 && (
-            <Row label="활증업무 (Section 2)" value={`${formatWon(inv.s2_addition || 0)}원`} />
-          )}
-          {(inv.s3_addition || 0) > 0 && (
-            <Row label="세액공제·감면 가산 (Section 3)" value={`${formatWon(inv.s3_addition || 0)}원`} />
-          )}
-          {(inv.discount || 0) > 0 && (
-            <Row label="▼ 할인액" value={`▼ ${formatWon(inv.discount || 0)}원`} muted />
-          )}
-          <div className="flex items-center justify-between border-t-2 border-gray-900 pt-3 font-bold text-lg">
-            <span>최종 청구 (VAT 포함)</span>
-            <span className="text-blue-700">{formatWon(inv.total_fee || 0)}원</span>
+          <div>
+            <span className="text-gray-500">수금:</span>{' '}
+            <span className="font-semibold">{inv.paid_at || '—'}</span>
+          </div>
+          <div>
+            <span className="text-gray-500">업종:</span>{' '}
+            <span className="font-semibold">{inv.biz_type || '—'}</span>
+          </div>
+          <div>
+            <span className="text-gray-500">업무구분:</span>{' '}
+            <span className="font-semibold">{inv.basic_type || '—'}</span>
+          </div>
+          <div>
+            <span className="text-gray-500">담당자:</span>{' '}
+            <span className="font-semibold">
+              {inv.staff_user_id ? `#${inv.staff_user_id}` : '미지정'}
+              {inv.staff_override ? ' (override)' : ''}
+            </span>
           </div>
         </div>
-
-        {/* Section 3 산출근거 */}
-        {inv.s3_items_parsed.length > 0 && (
-          <section className="mb-6">
-            <h3 className="text-sm font-bold text-gray-900 mb-2">📋 Section 3 산출근거</h3>
-            <table className="w-full text-xs border border-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-2 py-1.5 text-left font-medium">항목</th>
-                  <th className="px-2 py-1.5 text-right font-medium">감면액</th>
-                  <th className="px-2 py-1.5 text-left font-medium">룰</th>
-                  <th className="px-2 py-1.5 text-right font-medium">가산액</th>
-                </tr>
-              </thead>
-              <tbody>
-                {inv.s3_items_parsed.map((it, i) => (
-                  <tr key={i} className="border-t border-gray-100">
-                    <td className="px-2 py-1.5">{it.name}</td>
-                    <td className="px-2 py-1.5 text-right">{formatWon(it.amt)}원</td>
-                    <td className="px-2 py-1.5 text-gray-500">
-                      {it.rule === 'flat_5' ? '5%' : 'U자'}
-                    </td>
-                    <td className="px-2 py-1.5 text-right font-semibold">
-                      {formatWon(it.gain || 0)}원
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        )}
-
-        {/* Section 2 산출근거 */}
-        {inv.s2_items_parsed.length > 0 && (
-          <section className="mb-6">
-            <h3 className="text-sm font-bold text-gray-900 mb-2">📋 Section 2 산출근거</h3>
-            <table className="w-full text-xs border border-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-2 py-1.5 text-left font-medium">항목</th>
-                  <th className="px-2 py-1.5 text-right font-medium">단가</th>
-                  <th className="px-2 py-1.5 text-right font-medium">건수</th>
-                  <th className="px-2 py-1.5 text-right font-medium">가산액</th>
-                </tr>
-              </thead>
-              <tbody>
-                {inv.s2_items_parsed.map((it, i) => (
-                  <tr key={i} className="border-t border-gray-100">
-                    <td className="px-2 py-1.5">{it.name}</td>
-                    <td className="px-2 py-1.5 text-right">{formatWon(it.val)}원</td>
-                    <td className="px-2 py-1.5 text-right">{it.qty}</td>
-                    <td className="px-2 py-1.5 text-right font-semibold">
-                      {formatWon(it.val * it.qty)}원
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        )}
-
-        {/* 메타 정보 (인쇄 시 hidden) */}
-        <section className="bg-gray-50 border border-gray-200 rounded p-3 text-xs space-y-1 print:hidden">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <span className="text-gray-500">생성:</span>{' '}
-              <span className="font-semibold">{inv.created_at || '—'}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">발송:</span>{' '}
-              <span className="font-semibold">{inv.sent_at || '—'}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">수금:</span>{' '}
-              <span className="font-semibold">{inv.paid_at || '—'}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">업종:</span>{' '}
-              <span className="font-semibold">{inv.biz_type || '—'}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">업무구분:</span>{' '}
-              <span className="font-semibold">{inv.basic_type || '—'}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">담당자:</span>{' '}
-              <span className="font-semibold">
-                {inv.staff_user_id ? `#${inv.staff_user_id}` : '미지정'}
-                {inv.staff_override ? ' (override)' : ''}
-              </span>
-            </div>
+        {inv.note && (
+          <div className="border-t border-gray-200 pt-2 mt-2">
+            <div className="text-gray-500">비고:</div>
+            <div className="font-semibold">{inv.note}</div>
           </div>
-          {inv.note && (
-            <div className="border-t border-gray-200 pt-2 mt-2">
-              <div className="text-gray-500">비고:</div>
-              <div className="font-semibold">{inv.note}</div>
-            </div>
-          )}
-        </section>
-      </article>
-    </div>
-  );
-}
-
-function Row({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
-  return (
-    <div
-      className={`flex items-center justify-between text-sm ${muted ? 'text-gray-500' : 'text-gray-700'}`}
-    >
-      <span>{label}</span>
-      <span className="font-semibold">{value}</span>
+        )}
+      </section>
     </div>
   );
 }
