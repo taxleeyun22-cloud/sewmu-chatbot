@@ -156,22 +156,24 @@ export default function NewInvoicePage() {
   });
   const template = templateQuery.data?.template || null;
 
-  /* 사장님 명령 (2026-05-21): "개인은 타소득합산 이런거 기본으로 깔려잇고 내가 숫자넣으면 되도록".
-   * 양식 s2_options 있으면 그걸로, 없으면(양식 미저장) 코드 DEFAULT 활증업무 기본 제공.
-   * taxType 별 1회 prefill. 단가 0 → 사장님이 숫자만 입력. val=0 인 항목은 청구서 미표시. */
+  /* 사장님 명령 (2026-05-21):
+   * ① "단가 후려치기 들어갔어 원래 내가 했던거" → 양식/원본 단가(o.val) 그대로 prefill (0 강제 X)
+   * ② "업무구분에서 개인/법인 체크하면 섹션2 조정되는건 어떻노" → 분기를 업무구분(basicType) 으로
+   * 건수(qty)는 0 으로 시작 → 사장님이 건수 입력 시 청구서 표시 (안 적으면 미표시 룰). 단가는 보임. */
   useEffect(() => {
     if (templateQuery.isLoading) return; // 양식 로딩 대기 (양식 우선)
-    const key = taxType;
+    const isCorpWork = basicType.includes('법인');
+    const key = isCorpWork ? 'corp' : 'indv';
     if (s2PrefilledRef.current === key) return;
     s2PrefilledRef.current = key;
-    const rule = taxType === '법인세' ? template?.fee_rule_corp : template?.fee_rule_indv;
-    let opts: Array<{ name?: string }> = rule?.s2_options || [];
+    const rule = isCorpWork ? template?.fee_rule_corp : template?.fee_rule_indv;
+    let opts: Array<{ name?: string; val?: number }> = rule?.s2_options || [];
     if (!opts.length) {
-      /* 양식 미저장 → 코드 DEFAULT (개인: 타소득 합산·근로소득 합산… / 법인: 신용카드·4대보험…) */
-      opts = taxType === '법인세' ? DEFAULT_S2_CORP : DEFAULT_S2_INDV;
+      /* 양식 미저장 → 코드 DEFAULT (사장님 원본 단가: 4대보험 1만·연말정산 2만·부가세수정 5만 등) */
+      opts = isCorpWork ? DEFAULT_S2_CORP : DEFAULT_S2_INDV;
     }
-    setS2Items(opts.map((o) => ({ name: o.name || '', val: 0, qty: 1 })));
-  }, [templateQuery.isLoading, template, taxType]);
+    setS2Items(opts.map((o) => ({ name: o.name || '', val: Number(o.val) || 0, qty: 0 })));
+  }, [templateQuery.isLoading, template, basicType]);
 
   /* 사장님 보고 (2026-05-21): 사업장 진입 시 종소세 검토표 "안땡겨와지는데" — 개인사업자
    * 종소세 검토표는 Person owner_type 으로 저장됨. business 의 주 사용자 (대표) 의
@@ -367,7 +369,12 @@ export default function NewInvoicePage() {
         /* 사장님 룰 (2026-05-21): "안적으면 청구서에 없음" — val/amt 0 인 항목은 발행 X.
          * (양식 자동 prefill 된 활증업무 중 단가 안 적은 것 자동 제외 → 400 빈 name 방지) */
         s2_items: s2Items
-          .filter((it) => (Number(it.val) || 0) > 0 && String(it.name || '').trim().length > 0)
+          .filter(
+            (it) =>
+              (Number(it.val) || 0) > 0 &&
+              (Number(it.qty) || 0) > 0 &&
+              String(it.name || '').trim().length > 0,
+          )
           .map((it) => ({
             name: String(it.name).trim(),
             val: Number(it.val) || 0,
@@ -694,7 +701,7 @@ export default function NewInvoicePage() {
               </td>
               <td
                 className={`px-2 py-1.5 text-sm text-right font-semibold ${
-                  it.val > 0 ? 'text-blue-700' : 'text-gray-300'
+                  it.val > 0 && it.qty > 0 ? 'text-blue-700' : 'text-gray-300'
                 }`}
               >
                 {formatWon(it.val * it.qty)}원

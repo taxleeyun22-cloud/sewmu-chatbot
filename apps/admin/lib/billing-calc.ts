@@ -66,18 +66,20 @@ export interface S2OptionDef {
   val?: number;
   desc?: string;
 }
+/* 단가 = billing-preview.js SECTIONS 사장님 원본 (2026-05-21 "단가 후려치기" 보고 후 복원).
+ * direct = 사장님이 단가 직접 입력 (val 0) / unit = 건당 단가 (그대로). */
 export const DEFAULT_S2_CORP: S2OptionDef[] = [
-  { name: '신용카드 내역 검토' },
-  { name: '4대보험 취득·상실' },
-  { name: '연말정산' },
-  { name: '부가세 수정신고' },
+  { name: '신용카드 내역 검토', type: 'direct', val: 0, desc: '직접 입력' },
+  { name: '4대보험 취득·상실', type: 'unit', val: 10_000, desc: '건당' },
+  { name: '연말정산', type: 'unit', val: 20_000, desc: '인당' },
+  { name: '부가세 수정신고', type: 'unit', val: 50_000, desc: '건당' },
 ];
 export const DEFAULT_S2_INDV: S2OptionDef[] = [
-  { name: '타소득 합산' },
-  { name: '근로소득 합산' },
-  { name: '신용카드 내역 검토' },
-  { name: '4대보험 (자영업자)' },
-  { name: '프리랜서 인적용역' },
+  { name: '타소득 합산', type: 'direct', val: 0, desc: '타소득 합산 신고 시' },
+  { name: '근로소득 합산', type: 'direct', val: 0, desc: '근로소득 합산 신고 시' },
+  { name: '신용카드 내역 검토', type: 'direct', val: 0, desc: '직접 입력' },
+  { name: '4대보험 (자영업자)', type: 'unit', val: 10_000, desc: '건당' },
+  { name: '프리랜서 인적용역', type: 'unit', val: 30_000, desc: '건당' },
 ];
 
 /* ─── 포맷 ─────────────────────────────────────────────── */
