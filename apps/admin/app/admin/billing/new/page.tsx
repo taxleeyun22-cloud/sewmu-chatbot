@@ -232,15 +232,33 @@ export default function NewInvoicePage() {
     }
   }, [bizDetailQuery.data, userId, mode]);
 
-  /* 카탈로그 fetch — billable filter 용 (검토표 자동 prefill 시 신고서 본문 자연발생 자동 제외) */
+  /* 카탈로그 fetch — billable filter 용 (검토표 자동 prefill 시 신고서 본문 자연발생 자동 제외).
+   * 사장님 보고 (2026-05-21): "기장세액공제 이런거 다빼라햇잖아" — catalog.json 항목엔
+   * billable 필드 없음. billing-preview.js line 987 룰 그대로 cat 기반 계산:
+   *   - cat 'general'(배당·기장·근로·자녀·연금) / 'special'(보험·의료비·교육비·기부금·표준) → billable=false (청구 제외)
+   *   - 그 외 (credit_invest/rnd/employee/general, exemption) → billable=true (사장님 노력 가산)
+   *   - 중특(중소기업특별세액감면, code 112/JTL_7/이름·별칭 매칭) → rule=flat_5, 나머지 billable → U자 */
   const catalogQuery = useQuery<CatalogItem[]>({
     queryKey: ['filing-tax-credit-catalog'],
     queryFn: async () => {
       const r = await fetch('/filing-tax-credit-catalog.json', { cache: 'force-cache' });
       if (!r.ok) return [];
-      const j = (await r.json()) as CatalogItem[] | { items?: CatalogItem[]; catalog?: CatalogItem[] };
-      if (Array.isArray(j)) return j;
-      return j.items || j.catalog || [];
+      const j = (await r.json()) as
+        | Array<Record<string, unknown>>
+        | { items?: Array<Record<string, unknown>>; catalog?: Array<Record<string, unknown>> };
+      const arr = Array.isArray(j) ? j : j.items || j.catalog || [];
+      return arr.map((c) => {
+        const cat = String(c.cat || '');
+        const code = String(c.code || '');
+        const name = String(c.name || '');
+        const alias = Array.isArray(c.alias) ? (c.alias as string[]) : [];
+        const billable = !(cat === 'general' || cat === 'special');
+        let rule: 'flat_5' | 'progressive_u' | 'none' = billable ? 'progressive_u' : 'none';
+        if (code === 'JTL_7' || code === '112' || name.includes('특별세액감면') || alias.includes('중특')) {
+          rule = 'flat_5';
+        }
+        return { code, name, billable, rule, category: cat } as CatalogItem;
+      });
     },
     staleTime: 60 * 60 * 1000,
   });
