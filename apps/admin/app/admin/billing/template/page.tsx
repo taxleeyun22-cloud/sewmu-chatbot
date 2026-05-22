@@ -15,6 +15,8 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
 import { InvoicePreview } from '@/components/billing/InvoicePreview';
+/* 사장님 보고 (2026-05-22): 양식 저장이 자꾸 안 됨 — 발행과 동일하게 클라 검증으로 정확한 필드 진단 */
+import { BillingTemplateSchema } from '@sewmu/types';
 
 /* 누진표 계산 (preview 용) — 세무사 누진률 0.05% / 0.1% (row[2] 가 % 단위) */
 function calcBase(amount: number, tariff: TariffRow[]): number {
@@ -59,7 +61,7 @@ interface TemplateData {
  * 7억 매출 시 (700M-500M)×0.05/100 = 10만원 → 합리적. */
 /* 사장님 원본 요율표 (invoice.zip CORP_DEFAULT / INDV_DEFAULT, 2026-05-22). 가산률 % 단위. */
 const DEFAULT_CORP: TariffRow[] = [
-  [1, 460_000, 0],
+  [0, 460_000, 0],
   [100_000_000, 460_000, 0.25],
   [300_000_000, 960_000, 0.18],
   [500_000_000, 1_320_000, 0.1],
@@ -71,7 +73,7 @@ const DEFAULT_CORP: TariffRow[] = [
   [100_000_000_000, 14_620_000, 0.01],
 ];
 const DEFAULT_INDV: TariffRow[] = [
-  [1, 300_000, 0],
+  [0, 300_000, 0],
   [100_000_000, 300_000, 0.25],
   [300_000_000, 800_000, 0.18],
   [500_000_000, 1_160_000, 0.12],
@@ -128,16 +130,36 @@ export default function TemplatePage() {
   }, [data]);
 
   const saveMut = useMutation({
-    mutationFn: () =>
-      trpcCall<{ ok: boolean }>('billing.templateSave', {
-        greeting,
-        bank_info: bankInfo,
-        office_address: officeAddress,
-        office_phone: officePhone,
-        signature_text: signatureText,
-        fee_rule_corp: { tariff: tariffCorp, s2_options: s2OptionsCorp },
-        fee_rule_indv: { tariff: tariffIndv, s2_options: s2OptionsIndv },
-      }),
+    mutationFn: () => {
+      /* 숫자 정규화 — 빈칸/NaN 방어 (저장 실패 원인 차단) */
+      const cleanTariff = (rows: TariffRow[]): TariffRow[] =>
+        rows.map((r) => [Number(r[0]) || 0, Number(r[1]) || 0, Number(r[2]) || 0]);
+      const cleanS2 = (opts: S2Option[]) =>
+        opts
+          .filter((o) => String(o.name || '').trim().length > 0) // 이름 빈 항목 제외 (name.min(1) 위반 방지)
+          .map((o) => ({
+            name: String(o.name).trim(),
+            type: o.type || 'unit',
+            val: Number(o.val) || 0,
+            desc: o.desc || undefined,
+          }));
+      const payload = {
+        greeting: greeting || undefined,
+        bank_info: bankInfo || undefined,
+        office_address: officeAddress || undefined,
+        office_phone: officePhone || undefined,
+        signature_text: signatureText || undefined,
+        fee_rule_corp: { tariff: cleanTariff(tariffCorp), s2_options: cleanS2(s2OptionsCorp) },
+        fee_rule_indv: { tariff: cleanTariff(tariffIndv), s2_options: cleanS2(s2OptionsIndv) },
+      };
+      /* 클라 사전 검증 — 실패 시 어느 필드인지 정확히 (서버 400 추측 제거) */
+      const parsed = BillingTemplateSchema.safeParse(payload);
+      if (!parsed.success) {
+        const msgs = parsed.error.issues.map((iss) => `· ${iss.path.join('.') || '양식'} — ${iss.message}`);
+        throw new Error('VALIDATION:\n' + msgs.join('\n'));
+      }
+      return trpcCall<{ ok: boolean }>('billing.templateSave', parsed.data);
+    },
     onSuccess: () => refetch(),
   });
 
@@ -154,13 +176,12 @@ export default function TemplatePage() {
     );
   }
 
-  /* sample 미리보기 계산 — 현재 form 의 누진표·인삿말·계좌·서명 즉시 반영 */
+  /* sample 미리보기 계산 — 현재 form 누진표 기준. 결산 20% on, 원가 off (발행과 동일 룰). */
   const previewTaxType = activeTab === 'corp' ? '법인세' : '종소세';
   const sampleRev = activeTab === 'corp' ? SAMPLE_REV_CORP : SAMPLE_REV_INDV;
   const sampleBase = calcBase(sampleRev, tariff);
-  const sampleKet = Math.floor((sampleBase * 0.2) / 1000) * 1000; // 결산 20%
-  const sampleCst = sampleBase > 0 ? Math.floor(((sampleBase + sampleKet) * 0.1) / 1000) * 1000 : 0; // 원가 10%
-  const sampleBaseFee = sampleBase + sampleKet + sampleCst;
+  const sampleKet = Math.floor((sampleBase * 0.2) / 1000) * 1000; // 결산 20% (base 기준)
+  const sampleBaseFee = sampleBase + sampleKet; // 원가 off (체크 시 발행 화면에서 추가)
   const sampleTotal = Math.round(sampleBaseFee * 1.1); // VAT 10%
 
   return (
@@ -464,7 +485,11 @@ export default function TemplatePage() {
       </div>
       {saveMut.isError && (
         <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm">
-          ⚠️ 저장 실패: {(saveMut.error as Error).message}
+          <div className="whitespace-pre-line">
+            {((saveMut.error as Error).message || '').startsWith('VALIDATION:')
+              ? '⚠️ 저장 전 확인이 필요합니다:\n' + (saveMut.error as Error).message.replace('VALIDATION:\n', '')
+              : '⚠️ 저장 실패: ' + (saveMut.error as Error).message}
+          </div>
         </div>
       )}
 
