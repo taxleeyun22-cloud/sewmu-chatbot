@@ -27,7 +27,6 @@ import { S2PickerModal, type S2Item as S2ItemType } from '@/components/billing/S
 import { S3PickerModal, type S3Item as S3ItemType } from '@/components/billing/S3PickerModal';
 import { InvoicePreview } from '@/components/billing/InvoicePreview';
 import { BusinessCombobox } from '@/components/billing/BusinessCombobox';
-import { PersonCombobox } from '@/components/billing/PersonCombobox';
 /* 사장님 명령 (2026-05-21): 계산·룰 단일 진실 (SSoT) — inline 중복 제거, 전부 이 모듈에서 */
 import {
   formatWon,
@@ -41,6 +40,8 @@ import {
   type CatalogItem,
   type FeeRuleRow,
 } from '@/lib/billing-calc';
+/* 사장님 보고 (2026-05-22): 발행 400 — 발행 전 클라이언트 검증으로 정확한 필드 진단 */
+import { NewInvoiceSchema } from '@sewmu/types';
 
 interface BusinessRow {
   id: number;
@@ -79,28 +80,12 @@ export default function NewInvoicePage() {
   const preUserId = Number(sp.get('user_id') || 0);
   const preFilingId = Number(sp.get('filing_id') || 0);
 
-  /* Form state */
+  /* Form state.
+   * 사장님 명령 (2026-05-22): "개인은 빼버리자 어차피 사업자명도 같이찍히는게 맞다" —
+   * person/business 토글 폐기. 사업장(개인사업자 포함) 단일 선택. 종소세 검토표는
+   * 사업장 대표(primary_user_id)로 Person fallback fetch 유지. */
   const [bizId, setBizId] = useState<number>(preBizId);
   const [userId, setUserId] = useState<number>(preUserId);
-  const [userLabel, setUserLabel] = useState<string>('');
-  /* 사장님 명령 (2026-05-21): "사람이랑 업체가있어야하는거 아님" — 모드 토글.
-   * URL ?user_id=N 으로 들어오면 person, ?business_id=N 이면 business, 둘 다 없으면 person default
-   * (billing-preview.html v-cust 의 setCustMode('person') 와 동일) */
-  const [mode, setMode] = useState<'person' | 'business'>(
-    preUserId ? 'person' : preBizId ? 'business' : 'person',
-  );
-  /* 사장님 명령 (2026-05-21): "소득세 검토표는 원래 개인에 있잖아" — person 모드는 종소세,
-   * business 모드는 법인세 기본. taxType 자동 동기. */
-  useEffect(() => {
-    if (mode === 'person') {
-      setTaxType('종소세');
-      setBasicType('개인장부대행 및 개인조정');
-    } else {
-      setTaxType('법인세');
-      setBasicType('법인장부대행 및 법인조정');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
   const [year, setYearRaw] = useState<number>(new Date().getFullYear());
   /* 사장님 보고 (2026-05-21): "received: nan" tRPC 400 — setYear 가 NaN/string 받지 않게 wrap */
   function setYear(v: unknown) {
@@ -113,6 +98,10 @@ export default function NewInvoicePage() {
   const [asset, setAsset] = useState<number>(0);
   const [bizType, setBizType] = useState<string>('제조');
   const [discount, setDiscount] = useState<string>(''); // 빈 칸 default — 사장님 룰
+  /* 사장님 명령 (2026-05-22): "날짜도 넣도록" — 발행일 / 납기일 (청구서 표시). */
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [issueDate, setIssueDate] = useState<string>(todayStr);
+  const [dueDate, setDueDate] = useState<string>('');
   const [s2Items, setS2Items] = useState<S2Item[]>([]);
   const [s3Items, setS3Items] = useState<S3Item[]>([]);
   const [s2ModalOpen, setS2ModalOpen] = useState(false);
@@ -132,22 +121,6 @@ export default function NewInvoicePage() {
   });
   const allBiz = bizQuery.data?.businesses ?? [];
   const selectedBiz = allBiz.find((b) => b.id === bizId) || null;
-
-  /* 사장님 명령: 사람 선택 → 그 사람의 매핑 사업장 picker (billing-preview.html v-cust 흐름).
-   * person mode + userId 있을 때만 fetch. 1개면 자동 setBizId. */
-  const personBizQuery = useQuery<{ businesses: BusinessRow[] }>({
-    queryKey: ['businesses.list', { user_id: userId }],
-    queryFn: () =>
-      trpcCall('businesses.list', { user_id: userId, limit: 50, status: 'all' }),
-    enabled: mode === 'person' && userId > 0,
-  });
-  const mappedBizs = personBizQuery.data?.businesses ?? [];
-  /* 매핑 사업장 1개 면 자동 선택 — 사장님 흐름 단축 */
-  useEffect(() => {
-    if (mode === 'person' && mappedBizs.length === 1 && !bizId) {
-      setBizId(mappedBizs[0].id);
-    }
-  }, [mode, mappedBizs, bizId]);
 
   /* 양식 (Template) — 인삿말 / 계좌 / 사무실 / 서명 미리보기 prefill */
   const templateQuery = useQuery<{ template: TemplateData | null }>({
@@ -184,13 +157,10 @@ export default function NewInvoicePage() {
     enabled: bizId > 0,
   });
   useEffect(() => {
-    /* business mode 일 때만 primary_user_id 자동 적용. person mode 는 사용자가 명시 선택. */
-    if (mode !== 'business') return;
+    /* 사업장 선택 시 그 대표(primary_user_id) 자동 → Person 검토표 fallback 활성 */
     const pid = bizDetailQuery.data?.primary_user_id;
-    if (pid && !userId) {
-      setUserId(pid);
-    }
-  }, [bizDetailQuery.data, userId, mode]);
+    if (pid && !userId) setUserId(pid);
+  }, [bizDetailQuery.data, userId]);
 
   /* 카탈로그 fetch — billable filter 용 (검토표 자동 prefill 시 신고서 본문 자연발생 자동 제외).
    * 사장님 보고 (2026-05-21): "기장세액공제 이런거 다빼라햇잖아" — catalog.json 항목엔
@@ -351,7 +321,7 @@ export default function NewInvoicePage() {
       const safeYear = Number.isFinite(yr) && yr >= 2000 && yr <= 2100 ? yr : new Date().getFullYear();
       const safeRev = Number.isFinite(rev) && rev >= 0 ? rev : 0;
       const safeAsset = Number.isFinite(ast) && ast >= 0 ? ast : 0;
-      return trpcCall<{ ok: boolean; id?: number }>('billing.create', {
+      const payload = {
         business_id: bizId || undefined,
         user_id: userId || undefined,
         filing_id: preFilingId || undefined,
@@ -359,15 +329,14 @@ export default function NewInvoicePage() {
         tax_type: taxType,
         revenue: safeRev,
         asset: safeAsset,
-        biz_type: bizType,
-        basic_type: basicType,
+        biz_type: bizType || undefined,
+        basic_type: basicType || undefined,
         base_fee: Number(calc.base) || 0,
         s2_addition: Number(calc.s2Tot) || 0,
         s3_addition: Number(calc.s3Tot) || 0,
         discount: Number(calc.disc) || 0,
         total_fee: Number(calc.total) || 0,
-        /* 사장님 룰 (2026-05-21): "안적으면 청구서에 없음" — val/amt 0 인 항목은 발행 X.
-         * (양식 자동 prefill 된 활증업무 중 단가 안 적은 것 자동 제외 → 400 빈 name 방지) */
+        /* 사장님 룰 (2026-05-21): "안적으면 청구서에 없음" — val/amt 0 인 항목은 발행 X. */
         s2_items: s2Items
           .filter(
             (it) =>
@@ -375,11 +344,7 @@ export default function NewInvoicePage() {
               (Number(it.qty) || 0) > 0 &&
               String(it.name || '').trim().length > 0,
           )
-          .map((it) => ({
-            name: String(it.name).trim(),
-            val: Number(it.val) || 0,
-            qty: Number(it.qty) || 1,
-          })),
+          .map((it) => ({ name: String(it.name).trim(), val: Number(it.val) || 0, qty: Number(it.qty) || 1 })),
         s3_items: s3Items
           .filter((it) => (Number(it.amt) || 0) > 0 && String(it.name || '').trim().length > 0)
           .map((it) => ({
@@ -390,7 +355,30 @@ export default function NewInvoicePage() {
           })),
         staff_override: false,
         note: note || undefined,
-      });
+      };
+      /* 사장님 보고 (2026-05-22): 발행 400 — 서버 가기 전 클라 검증으로 정확한 필드 진단.
+       * NewInvoiceSchema (서버와 동일) safeParse → 실패 시 어느 필드인지 한국어로. */
+      const parsed = NewInvoiceSchema.safeParse(payload);
+      if (!parsed.success) {
+        const labelMap: Record<string, string> = {
+          year: '귀속연도',
+          tax_type: '세금구분',
+          revenue: '수입금액',
+          asset: '자산총액',
+          business_id: '사업장',
+          user_id: '거래처',
+          s2_items: 'Section 2 활증업무',
+          s3_items: 'Section 3 세액공제·감면',
+          base_fee: '기본 세무조정료',
+          total_fee: '최종 청구액',
+        };
+        const msgs = parsed.error.issues.map((iss) => {
+          const top = String(iss.path[0] ?? '');
+          return `· ${labelMap[top] || top || '청구서'} — ${iss.message}`;
+        });
+        throw new Error('VALIDATION:\n' + msgs.join('\n'));
+      }
+      return trpcCall<{ ok: boolean; id?: number }>('billing.create', parsed.data);
     },
     onSuccess: (d) => {
       if (d.ok) {
@@ -402,6 +390,10 @@ export default function NewInvoicePage() {
   /* 발행 에러 친절 표시 — 긴 tRPC JSON 대신 사람말 */
   function formatPublishError(err: unknown): string {
     const msg = (err as Error)?.message || String(err);
+    /* 클라 사전 검증 실패 (NewInvoiceSchema safeParse) — 정확한 필드 한국어 표시 */
+    if (msg.startsWith('VALIDATION:')) {
+      return '⚠️ 발행 전 확인이 필요합니다:\n' + msg.replace('VALIDATION:\n', '');
+    }
     /* tRPC 400 → 어느 필드인지 추출 */
     const pathMatch = msg.match(/"path":\s*\[\s*"([^"]+)"/);
     if (pathMatch) {
@@ -430,142 +422,21 @@ export default function NewInvoicePage() {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* 좌측 — 입력 폼 */}
       <section className="space-y-4">
-        {/* 거래처/사업장 선택 — 사장님 명령 (2026-05-21): "사람이랑 업체가있어야하는거 아님"
-            billing-preview.html v-cust 의 person/business 토글 그대로 */}
+        {/* 사업장 선택 — 사장님 명령 (2026-05-22): "개인은 빼버리자 어차피 사업자명도 같이찍히는게 맞다".
+            person 토글 폐기. 사업장(개인사업자 포함) 단일. 종소세 검토표는 대표(primary_user_id) Person fallback. */}
         <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setMode('person');
-                /* 모드 전환 시 선택 reset (사람 선택부터 다시) */
-                if (!preUserId) {
-                  setUserId(0);
-                  setUserLabel('');
-                }
-                if (!preBizId) setBizId(0);
-              }}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold ${
-                mode === 'person'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              👤 거래처 (개인)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('business');
-                if (!preUserId) {
-                  setUserId(0);
-                  setUserLabel('');
-                }
-                if (!preBizId) setBizId(0);
-              }}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold ${
-                mode === 'business'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              🏢 사업장 (법인)
-            </button>
-            <span className="ml-auto text-xs text-gray-400">
-              개인 = 종소세 거래처 · 사업장 = 법인세 거래처
+          <label className="block text-sm font-semibold text-gray-700">
+            🏢 사업장 선택
+            <span className="ml-2 text-xs text-gray-400 font-normal">
+              ({allBiz.length}개 — 회사명·사업자번호·대표자 검색 · 법인/개인사업자 모두)
             </span>
-          </div>
-
-          {mode === 'person' ? (
-            <>
-              <label className="block text-sm font-semibold text-gray-700">
-                👤 거래처 선택
-                <span className="ml-2 text-xs text-gray-400 font-normal">
-                  (이름·전화·이메일 검색 — 사람 선택 후 매핑 사업장 자동 표시)
-                </span>
-              </label>
-              <PersonCombobox
-                selectedId={userId}
-                selectedLabel={userLabel}
-                onChange={(id, label) => {
-                  setUserId(id);
-                  setUserLabel(label);
-                  if (id !== userId) setBizId(0); // 사람 변경 시 매핑 사업장 reset
-                }}
-              />
-
-              {/* 매핑 사업장 picker (사람 선택 후) */}
-              {userId > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <div className="text-xs font-semibold text-gray-600 mb-2">
-                    🏢 매핑된 사업장
-                    {personBizQuery.isFetching ? (
-                      <span className="ml-2 text-gray-400 font-normal">불러오는 중…</span>
-                    ) : (
-                      <span className="ml-2 text-gray-400 font-normal">
-                        ({mappedBizs.length}개)
-                      </span>
-                    )}
-                  </div>
-                  {mappedBizs.length === 0 && !personBizQuery.isFetching ? (
-                    <div className="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-xs text-blue-900">
-                      💡 매핑된 사업장이 없습니다. <b>개인사업자 종소세</b> 는 사람 단위 검토표·발행 가능 (사업장 선택 X).
-                      <br />법인세 / 매출 큰 거래처는 거래처 dashboard 에서 사업장 추가 후 진행하세요.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {mappedBizs.map((b) => (
-                        <button
-                          key={b.id}
-                          type="button"
-                          onClick={() => setBizId(b.id)}
-                          className={`text-left p-2.5 border rounded transition ${
-                            b.id === bizId
-                              ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                              : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm text-gray-900 truncate">
-                              {b.company_name || '(이름없음)'}
-                            </span>
-                            <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 ${
-                                /\(주\)|㈜|주식회사|법인/.test(b.company_form || b.company_name || '')
-                                  ? 'bg-purple-100 text-purple-800'
-                                  : 'bg-blue-100 text-blue-800'
-                              }`}
-                            >
-                              {/\(주\)|㈜|주식회사|법인/.test(b.company_form || b.company_name || '') ? '법인' : '개인'}
-                            </span>
-                          </div>
-                          <div className="text-xs text-gray-500 mt-0.5 truncate">
-                            {b.ceo_name && `대표 ${b.ceo_name}`}
-                            {b.business_number && ` · ${b.business_number}`}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <label className="block text-sm font-semibold text-gray-700">
-                🏢 사업장 선택
-                <span className="ml-2 text-xs text-gray-400 font-normal">
-                  ({allBiz.length}개 — 회사명·사업자번호·대표자 검색)
-                </span>
-              </label>
-              <BusinessCombobox
-                businesses={allBiz}
-                selectedId={bizId}
-                onChange={setBizId}
-                isLoading={bizQuery.isLoading}
-              />
-            </>
-          )}
+          </label>
+          <BusinessCombobox
+            businesses={allBiz}
+            selectedId={bizId}
+            onChange={setBizId}
+            isLoading={bizQuery.isLoading}
+          />
         </div>
 
         {/* 발행 입력 */}
@@ -658,6 +529,23 @@ export default function NewInvoicePage() {
                 type="number"
                 value={asset}
                 onChange={(e) => setAsset(Number(e.target.value) || 0)}
+                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
+              />
+            </Field>
+            {/* 사장님 명령 (2026-05-22): "날짜도 넣도록" — 발행일 / 납기일 */}
+            <Field label="발행일자">
+              <input
+                type="date"
+                value={issueDate}
+                onChange={(e) => setIssueDate(e.target.value)}
+                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
+              />
+            </Field>
+            <Field label="납부기한 (선택)">
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
                 className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
               />
             </Field>
@@ -775,12 +663,7 @@ export default function NewInvoicePage() {
           <button
             type="button"
             onClick={() => publishMut.mutate()}
-            /* 사장님 명령 (2026-05-21): "개인도 당연 매핑되야지... 소득세 검토표는 원래 개인에 있잖아"
-             * → person 종소세는 매핑 사업장 없어도 발행 가능 (사용자 단위) */
-            disabled={
-              publishMut.isPending ||
-              (!bizId && !(mode === 'person' && userId > 0 && taxType === '종소세'))
-            }
+            disabled={publishMut.isPending || !bizId}
             className="ml-auto bg-blue-600 text-white px-6 py-2 rounded font-bold text-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             {publishMut.isPending ? '발행 중…' : `💾 발행 (${formatWon(calc.total)}원)`}
@@ -788,7 +671,7 @@ export default function NewInvoicePage() {
         </div>
         {publishMut.isError && (
           <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm">
-            {formatPublishError(publishMut.error)}
+            <div className="whitespace-pre-line">{formatPublishError(publishMut.error)}</div>
             <details className="mt-2 text-xs text-red-500">
               <summary className="cursor-pointer hover:underline">기술 상세 (개발자용)</summary>
               <pre className="mt-1 whitespace-pre-wrap break-all">{(publishMut.error as Error).message}</pre>
@@ -811,6 +694,8 @@ export default function NewInvoicePage() {
           s3Total={calc.s3Tot}
           discount={calc.disc}
           total={calc.total}
+          issueDate={issueDate || undefined}
+          dueDate={dueDate || undefined}
           s2Items={s2Items}
           s3Items={s3Items}
           template={template}
