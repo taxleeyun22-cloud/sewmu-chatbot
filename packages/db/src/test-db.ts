@@ -473,8 +473,10 @@ export function createTestDb() {
           };
         }
         if (method === 'get') {
+          /* drizzle-orm/sqlite-proxy 의 'get' contract = rows 는 단일 행의 flat 값 배열.
+           * (옛 버그: [Object.values(row)] 중첩 → 컬럼 매핑 깨짐 → billing .get() 테스트 skip 됐었음) */
           const row = stmt.get(...np);
-          return { rows: row ? [Object.values(row as Record<string, unknown>)] : [] };
+          return { rows: row ? Object.values(row as Record<string, unknown>) : [] };
         }
         const rows = stmt.all(...np);
         return { rows: rows.map((r) => Object.values(r as Record<string, unknown>)) };

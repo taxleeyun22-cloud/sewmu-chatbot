@@ -135,7 +135,7 @@ describe('billing router (integration)', () => {
   });
 
   describe('byId', () => {
-    it.skip('returns single invoice + parsed s2/s3 items (drizzle proxy column-mapping; 후속 fix)', async () => {
+    it('returns single invoice + parsed s2/s3 items', async () => {
       const { caller, rawDb } = await makeCaller({ isOwner: true });
       rawDb
         .prepare(
@@ -223,7 +223,7 @@ describe('billing router (integration)', () => {
       expect(r.template).toBeNull();
     });
 
-    it.skip('templateSave upsert + templateGet returns parsed JSON (drizzle proxy column-mapping; 후속 fix)', async () => {
+    it('templateSave upsert + templateGet returns parsed JSON (s2_options 보존)', async () => {
       const { caller } = await makeCaller({ isOwner: true });
       const r = await caller.billing.templateSave({
         greeting: '평소 깊은 신뢰를...',
@@ -235,13 +235,27 @@ describe('billing router (integration)', () => {
             [500_000_000, 500_000, 0.05],
           ],
         },
+        /* 사장님 명령 (2026-05-21): 양식 s2_options 가 새 청구서로 그대로 가야 함 — round-trip 검증 */
+        fee_rule_indv: {
+          tariff: [[0, 200_000, 0]],
+          s2_options: [
+            { name: '타소득 합산', type: 'direct', val: 0 },
+            { name: '4대보험 (자영업자)', type: 'unit', val: 10_000 },
+          ],
+        },
       });
       expect(r.ok).toBe(true);
 
       const t = await caller.billing.templateGet();
       expect(t.template).toBeTruthy();
       expect(t.template!.greeting).toBe('평소 깊은 신뢰를...');
-      expect((t.template!.fee_rule_corp as any).tariff[0]).toEqual([0, 300_000, 0]);
+      expect((t.template!.fee_rule_corp as { tariff: number[][] }).tariff[0]).toEqual([0, 300_000, 0]);
+      /* 양식 → 새 청구서 SSoT: s2_options 가 저장·조회 round-trip 에서 그대로 보존 */
+      const indv = t.template!.fee_rule_indv as { s2_options: Array<{ name: string; val: number }> };
+      expect(indv.s2_options).toHaveLength(2);
+      expect(indv.s2_options[0].name).toBe('타소득 합산');
+      expect(indv.s2_options[1].name).toBe('4대보험 (자영업자)');
+      expect(indv.s2_options[1].val).toBe(10_000);
     });
   });
 });
