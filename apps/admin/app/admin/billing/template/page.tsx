@@ -75,6 +75,7 @@ const DEFAULT_S2_CORP: S2Option[] = [
   { name: '부가세 수정신고', type: 'unit', val: 50_000, desc: '건당' },
 ];
 const DEFAULT_S2_INDV: S2Option[] = [
+  { name: '타소득 합산', type: 'direct', val: 0, desc: '타소득 합산 신고 시' },
   { name: '근로소득 합산', type: 'direct', val: 0, desc: '근로소득 합산 신고 시' },
   { name: '신용카드 내역 검토', type: 'direct', val: 0, desc: '직접 입력' },
   { name: '4대보험 (자영업자)', type: 'unit', val: 10_000, desc: '건당' },

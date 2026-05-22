@@ -57,6 +57,29 @@ export const DEFAULT_INDV: FeeRuleRow[] = [
   [300_000_000, 400_000, 0.05],
 ];
 
+/* ─── 기본 활증업무 (Section 2) — 양식 미저장 시 fallback. 사장님 명령 (2026-05-21):
+ * "개인은 타소득합산 이런거 기본으로 깔려잇고 내가 숫자넣으면 되도록".
+ * 새 청구서 발행 진입 시 자동으로 깔림 (단가 0 → 사장님이 숫자만 입력. val=0 은 청구서 미표시). */
+export interface S2OptionDef {
+  name: string;
+  type?: 'unit' | 'rate' | 'direct';
+  val?: number;
+  desc?: string;
+}
+export const DEFAULT_S2_CORP: S2OptionDef[] = [
+  { name: '신용카드 내역 검토' },
+  { name: '4대보험 취득·상실' },
+  { name: '연말정산' },
+  { name: '부가세 수정신고' },
+];
+export const DEFAULT_S2_INDV: S2OptionDef[] = [
+  { name: '타소득 합산' },
+  { name: '근로소득 합산' },
+  { name: '신용카드 내역 검토' },
+  { name: '4대보험 (자영업자)' },
+  { name: '프리랜서 인적용역' },
+];
+
 /* ─── 포맷 ─────────────────────────────────────────────── */
 export function formatWon(n: number | null | undefined): string {
   return (n || 0).toLocaleString('ko-KR');
