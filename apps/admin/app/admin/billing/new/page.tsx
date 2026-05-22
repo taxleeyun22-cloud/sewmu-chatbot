@@ -28,57 +28,16 @@ import { S3PickerModal, type S3Item as S3ItemType } from '@/components/billing/S
 import { InvoicePreview } from '@/components/billing/InvoicePreview';
 import { BusinessCombobox } from '@/components/billing/BusinessCombobox';
 import { PersonCombobox } from '@/components/billing/PersonCombobox';
-
-/* ─── Helper (billing-calc 와 동일 — 후속 packages 분리) ─────────────────── */
-function formatWon(n: number | null | undefined): string {
-  return (n || 0).toLocaleString('ko-KR');
-}
-type FeeRuleRow = [number, number, number];
-/* 세무사 실무 누진률 — row[2] 는 % 단위 (0.05 = 0.05%). 7억 매출 → 10만원 가산. */
-function calcBase(amount: number, tariff: FeeRuleRow[]): number {
-  if (!tariff || tariff.length === 0) return 0;
-  let row: FeeRuleRow = tariff[0];
-  for (let i = 0; i < tariff.length; i++) {
-    if (amount >= tariff[i][0]) row = tariff[i];
-    else break;
-  }
-  return Math.floor((row[1] + (amount - row[0]) * ((row[2] || 0) / 100)) / 1000) * 1000;
-}
-function calcGain(amt: number, rule: 'flat_5' | 'progressive_u' | 'none'): number {
-  if (amt <= 0) return 0;
-  if (rule === 'flat_5') return Math.floor(amt * 0.05);
-  if (rule === 'progressive_u') {
-    let g = 0;
-    if (amt <= 5_000_000) g = amt * 0.2;
-    else if (amt <= 10_000_000) g = amt * 0.1;
-    else g = amt * 0.2;
-    return Math.floor(g);
-  }
-  return 0;
-}
-
-/* 기본 누진표 (Template 미저장 시 fallback) — 가산률 단위 % (0.05 = 0.05%) */
-const DEFAULT_CORP: FeeRuleRow[] = [
-  [0, 300_000, 0],
-  [500_000_000, 500_000, 0.05],
-  [1_000_000_000, 800_000, 0.1],
-];
-const DEFAULT_INDV: FeeRuleRow[] = [
-  [0, 200_000, 0],
-  [300_000_000, 400_000, 0.05],
-];
-
-interface S2Item {
-  name: string;
-  val: number;
-  qty: number;
-}
-interface S3Item {
-  code: string;
-  name: string;
-  amt: number;
-  rule: 'flat_5' | 'progressive_u' | 'none';
-}
+/* 사장님 명령 (2026-05-21): 계산·룰 단일 진실 (SSoT) — inline 중복 제거, 전부 이 모듈에서 */
+import {
+  formatWon,
+  calcGain,
+  calcInvoice,
+  normalizeCatalogItem,
+  type S2Item,
+  type S3Item,
+  type CatalogItem,
+} from '@/lib/billing-calc';
 
 interface BusinessRow {
   id: number;
@@ -87,14 +46,6 @@ interface BusinessRow {
   tax_type: string | null;
   ceo_name: string | null;
   business_number: string | null;
-}
-
-interface CatalogItem {
-  code: string;
-  name: string;
-  billable?: boolean;
-  rule?: 'flat_5' | 'progressive_u' | 'none';
-  category?: string;
 }
 
 interface S2OptionTpl {
@@ -247,18 +198,8 @@ export default function NewInvoicePage() {
         | Array<Record<string, unknown>>
         | { items?: Array<Record<string, unknown>>; catalog?: Array<Record<string, unknown>> };
       const arr = Array.isArray(j) ? j : j.items || j.catalog || [];
-      return arr.map((c) => {
-        const cat = String(c.cat || '');
-        const code = String(c.code || '');
-        const name = String(c.name || '');
-        const alias = Array.isArray(c.alias) ? (c.alias as string[]) : [];
-        const billable = !(cat === 'general' || cat === 'special');
-        let rule: 'flat_5' | 'progressive_u' | 'none' = billable ? 'progressive_u' : 'none';
-        if (code === 'JTL_7' || code === '112' || name.includes('특별세액감면') || alias.includes('중특')) {
-          rule = 'flat_5';
-        }
-        return { code, name, billable, rule, category: cat } as CatalogItem;
-      });
+      /* SSoT: normalizeCatalogItem 가 billable/rule 계산 (billing-preview.js 동일 룰) */
+      return arr.map((c) => normalizeCatalogItem(c));
     },
     staleTime: 60 * 60 * 1000,
   });
@@ -369,22 +310,20 @@ export default function NewInvoicePage() {
   const filingPrefillActive = !!matchedFiling;
 
   /* 금액 계산 (실시간) */
-  const calc = useMemo(() => {
-    const tariff = taxType === '법인세' ? DEFAULT_CORP : DEFAULT_INDV;
-    const baseRev = Math.max(revenue, asset);
-    const base = calcBase(baseRev, tariff);
-    const ket = basicType.includes('장부') ? Math.floor((base * 0.2) / 1000) * 1000 : 0;
-    const cst = base > 0 ? Math.floor(((base + ket) * 0.1) / 1000) * 1000 : 0;
-    const s2Tot = s2Items.reduce((a, it) => a + it.val * it.qty, 0);
-    const s3Tot = s3Items.reduce((a, it) => a + calcGain(it.amt, it.rule), 0);
-    const extra = s2Tot + s3Tot;
-    const supply = base + ket + cst + extra;
-    const disc = parseFloat(discount) || 0;
-    const supplyDisc = Math.max(0, supply - disc);
-    const vat = Math.round(supplyDisc * 0.1);
-    const total = supplyDisc + vat;
-    return { base, ket, cst, s2Tot, s3Tot, extra, supply, supplyDisc, vat, total, disc };
-  }, [revenue, asset, taxType, basicType, s2Items, s3Items, discount]);
+  /* SSoT — apps/admin/lib/billing-calc.calcInvoice. inline 계산 제거 (사장님: 단일 진실) */
+  const calc = useMemo(
+    () =>
+      calcInvoice({
+        revenue,
+        asset,
+        taxType,
+        basicType,
+        s2Items,
+        s3Items,
+        discount: parseFloat(discount) || 0,
+      }),
+    [revenue, asset, taxType, basicType, s2Items, s3Items, discount],
+  );
 
   /* Publish — POST tRPC billing.create
    * 사장님 보고 (2026-05-21): 발행 시 'year: undefined' tRPC 400.
@@ -839,7 +778,7 @@ export default function NewInvoicePage() {
           taxType={taxType}
           bizType={bizType}
           revenue={revenue}
-          baseFee={calc.base + calc.ket + calc.cst}
+          baseFee={calc.baseFee}
           s2Total={calc.s2Tot}
           s3Total={calc.s3Tot}
           discount={calc.disc}

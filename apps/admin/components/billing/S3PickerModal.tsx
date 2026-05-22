@@ -17,6 +17,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
+/* 사장님 명령 (2026-05-21): 계산·룰 단일 진실 (SSoT) */
+import { calcGain, normalizeCatalogItem, type CatalogItem } from '@/lib/billing-calc';
 
 export interface S3Item {
   code: string;
@@ -25,28 +27,7 @@ export interface S3Item {
   rule: 'flat_5' | 'progressive_u' | 'none';
 }
 
-interface CatalogEntry {
-  code: string;
-  name: string;
-  alias?: string[];
-  law?: string;
-  cat: string;
-  billable?: boolean;
-  rule?: 'flat_5' | 'progressive_u' | 'none';
-}
-
-function calcGain(amt: number, rule: 'flat_5' | 'progressive_u' | 'none'): number {
-  if (amt <= 0) return 0;
-  if (rule === 'flat_5') return Math.floor(amt * 0.05);
-  if (rule === 'progressive_u') {
-    let g = 0;
-    if (amt <= 5_000_000) g = amt * 0.2;
-    else if (amt <= 10_000_000) g = amt * 0.1;
-    else g = amt * 0.2;
-    return Math.floor(g);
-  }
-  return 0;
-}
+type CatalogEntry = CatalogItem;
 
 function catLabel(cat: string): string {
   const map: Record<string, string> = {
@@ -61,29 +42,16 @@ function catLabel(cat: string): string {
   return map[cat] || cat;
 }
 
-/* Catalog 한번 fetch + module-level cache (re-fetch 방지) */
+/* Catalog 한번 fetch + module-level cache (re-fetch 방지). SSoT normalizeCatalogItem 사용. */
 let _catalogCache: CatalogEntry[] | null = null;
 async function loadCatalog(): Promise<CatalogEntry[]> {
   if (_catalogCache) return _catalogCache;
   try {
     const r = await fetch('/filing-tax-credit-catalog.json', { cache: 'no-store' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    const j = (await r.json()) as { items?: CatalogEntry[] } | CatalogEntry[];
+    const j = (await r.json()) as { items?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
     const arr = Array.isArray(j) ? j : j.items || [];
-    /* 카탈로그 → billable + rule 매핑 */
-    _catalogCache = arr.map((c) => {
-      const billable = !(c.cat === 'general' || c.cat === 'special');
-      let rule: 'flat_5' | 'progressive_u' | 'none' = billable ? 'progressive_u' : 'none';
-      if (
-        c.code === 'JTL_7' ||
-        c.code === '112' ||
-        (c.name && c.name.indexOf('특별세액감면') >= 0) ||
-        (c.alias && c.alias.indexOf('중특') >= 0)
-      ) {
-        rule = 'flat_5';
-      }
-      return { ...c, billable, rule };
-    });
+    _catalogCache = arr.map((c) => normalizeCatalogItem(c));
     return _catalogCache;
   } catch (e) {
     console.error('[S3PickerModal] catalog fetch failed:', e);
@@ -202,7 +170,7 @@ export function S3PickerModal({
                   <div className="font-bold text-sm text-gray-900">{c.name}</div>
                   <div className="flex items-center gap-1.5 mt-1 text-xs">
                     <span className="bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded font-semibold">
-                      {catLabel(c.cat)}
+                      {catLabel(c.category)}
                     </span>
                     {c.rule === 'flat_5' && (
                       <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-semibold">
@@ -235,7 +203,7 @@ export function S3PickerModal({
                   {customMode ? '✏️ 직접 추가' : selected?.name}
                 </b>
                 <span className="text-xs text-gray-500 ml-2">
-                  {customMode ? '자유 입력' : `${catLabel(selected!.cat)} · ${selected!.law || ''}`}
+                  {customMode ? '자유 입력' : `${catLabel(selected!.category)} · ${selected!.law || ''}`}
                 </span>
               </div>
               {customMode && (

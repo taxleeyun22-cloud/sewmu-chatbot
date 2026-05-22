@@ -13,25 +13,10 @@
 'use client';
 
 import './InvoicePreview.css';
+/* 사장님 명령 (2026-05-21): 계산 단일 진실 — calcGain inline 제거, SSoT 사용 */
+import { calcGain, formatWon as W } from '@/lib/billing-calc';
 
 /* ─────────── Helpers ─────────── */
-function W(n: number): string {
-  return (n || 0).toLocaleString('ko-KR');
-}
-
-function calcGain(amt: number, rule: 'flat_5' | 'progressive_u' | 'none'): number {
-  if (amt <= 0) return 0;
-  if (rule === 'flat_5') return Math.floor(amt * 0.05);
-  if (rule === 'progressive_u') {
-    let g = 0;
-    if (amt <= 5_000_000) g = amt * 0.2;
-    else if (amt <= 10_000_000) g = amt * 0.1;
-    else g = amt * 0.2;
-    return Math.floor(g);
-  }
-  return 0;
-}
-
 function fmtDate(d: Date | string): string {
   const dt = typeof d === 'string' ? new Date(d) : d;
   if (isNaN(dt.getTime())) return '';
