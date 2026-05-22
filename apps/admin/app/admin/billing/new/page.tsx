@@ -264,12 +264,14 @@ export default function NewInvoicePage() {
       trpcCall('filings.list', { owner_type: 'Business', owner_id: bizId, limit: 50 }),
     enabled: bizId > 0,
   });
-  /* Person fallback — userId 있고 종소세일 때만 시도 (개인사업자 패턴) */
+  /* Person fallback — userId 있으면 항상 (taxType 조건 제거 — 사장님 보고 2026-05-21:
+   * 박창범 24/25 검토표 2건인데 1건만 뜸. taxType 타이밍 때문에 Person 검토표 누락.
+   * userId 있으면 무조건 fetch, matched 단계에서 type 필터. */
   const filingPersonQuery = useQuery<{ filings: Array<{ id: number; type: string; fiscal_year: number; auto_fields: string | null }> }>({
     queryKey: ['filings.list', { owner_type: 'Person', owner_id: userId }],
     queryFn: () =>
       trpcCall('filings.list', { owner_type: 'Person', owner_id: userId, limit: 50 }),
-    enabled: userId > 0 && taxType === '종소세',
+    enabled: userId > 0,
   });
 
   /* 통합 filings — Business 우선, 없거나 종소세인데 비었으면 Person 추가 */
