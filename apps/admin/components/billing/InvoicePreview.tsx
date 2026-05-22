@@ -174,7 +174,7 @@ export function InvoicePreview({
               <tr>
                 <th>수 신</th>
                 <td className="b" style={{ width: '60%' }}>
-                  {dispCompany}&nbsp;&nbsp;{dispCeo} 대표이사 귀하
+                  {dispCompany}&nbsp;&nbsp;{dispCeo} 대표님
                 </td>
                 <th>귀속</th>
                 <td>{year}년</td>
