@@ -113,6 +113,10 @@ var curType = '종소세';
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
 var _t=null; function _deb(){ clearTimeout(_t); _t=setTimeout(render,250); }
 function bizUrl(id){ return '/business.html?id='+id+'&key='+encodeURIComponent(KEY); }
+/* 사장님 보고 (2026-05-21): Person(👤 기장 거래처) 행 클릭 시 검토표로 안 감.
+ * 거래처(개인) dashboard 진입 = admin.html#tab=users&cust=N (admin.js 가 해시 소비 →
+ * openCustomerDashboard 자동 호출 → cdFilingsReview 종소세 검토표 표시). */
+function custUrl(id){ return '/admin.html?key='+encodeURIComponent(KEY)+'#tab=users&cust='+id; }
 function stClass(s){ if(s==='완료')return'done'; if(s==='결재대기')return'wait'; if(s==='작성중')return'ing'; if(s==='반려')return'rej'; return'etc'; }
 function pick(el){
   document.querySelectorAll('.tab').forEach(function(b){b.classList.remove('on')});
@@ -194,10 +198,10 @@ function render(){
     var isBiz=f.owner_type==='Business';
     var nm=isBiz?(f.business_name||'업체 #'+f.owner_id):(f.person_real_name||f.person_name||'거래처 #'+f.owner_id);
     var icon=isBiz?'🏢':'👤';
-    /* 클릭→업체 이동: <a href target> 로 popup-blocker 우회 + Ctrl/middle-click 정상 작동 */
-    var tg=isBiz
-      ? '<span class="tg">'+icon+' <a class="lnk" href="'+bizUrl(f.owner_id)+'" target="_blank" rel="noopener">'+esc(nm)+'</a></span>'
-      : '<span class="tg">'+icon+' '+esc(nm)+'</span>';
+    /* 클릭→대상 이동: <a href target> 로 popup-blocker 우회 + Ctrl/middle-click 정상 작동.
+     * 업체(🏢) → business.html / 거래처(👤) → admin.html 거래처 dashboard (검토표 표시). */
+    var url=isBiz?bizUrl(f.owner_id):custUrl(f.owner_id);
+    var tg='<span class="tg">'+icon+' <a class="lnk" href="'+url+'" target="_blank" rel="noopener">'+esc(nm)+'</a></span>';
     var stv=f.review_status||'작성중';
     return '<tr>'
       +'<td>'+tg+'</td>'
