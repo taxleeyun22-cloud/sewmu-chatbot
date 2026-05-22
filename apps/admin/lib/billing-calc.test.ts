@@ -18,21 +18,25 @@ import {
   DEFAULT_INDV,
 } from './billing-calc';
 
-describe('calcBase — 누진표 기본보수 (가산률 % 단위)', () => {
-  it('첫 구간 (임계 미만) → 기본보수', () => {
-    expect(calcBase(0, DEFAULT_CORP)).toBe(300_000);
-    expect(calcBase(100_000_000, DEFAULT_CORP)).toBe(300_000);
+describe('calcBase — 사장님 원본 누진표 (invoice.zip, 가산률 % 단위)', () => {
+  it('법인 첫 구간 (1억 미만) → 46만', () => {
+    expect(calcBase(0, DEFAULT_CORP)).toBe(460_000);
+    expect(calcBase(50_000_000, DEFAULT_CORP)).toBe(460_000);
   });
-  it('5억~10억 7억 → 50만 + (2억 × 0.05%) = 60만', () => {
-    // 500_000 + 200_000_000 * 0.05/100 = 500_000 + 100_000 = 600_000
-    expect(calcBase(700_000_000, DEFAULT_CORP)).toBe(600_000);
+  it('법인 5억~10억 7억 → 132만 + (2억 × 0.1%) = 152만', () => {
+    // 1_320_000 + 200_000_000 * 0.1/100 = 1_320_000 + 200_000 = 1_520_000
+    expect(calcBase(700_000_000, DEFAULT_CORP)).toBe(1_520_000);
   });
-  it('10억↑ 15억 → 80만 + (5억 × 0.1%) = 130만', () => {
-    // 800_000 + 500_000_000 * 0.1/100 = 800_000 + 500_000 = 1_300_000
-    expect(calcBase(1_500_000_000, DEFAULT_CORP)).toBe(1_300_000);
+  it('법인 1억~3억 2억 → 46만 + (1억 × 0.25%) = 71만', () => {
+    // 460_000 + 100_000_000 * 0.25/100 = 460_000 + 250_000 = 710_000
+    expect(calcBase(200_000_000, DEFAULT_CORP)).toBe(710_000);
   });
-  it('개인 3억↑ 4억 → 40만 + (1억 × 0.05%) = 45만', () => {
-    expect(calcBase(400_000_000, DEFAULT_INDV)).toBe(450_000);
+  it('개인 3억~5억 4억 → 80만 + (1억 × 0.18%) = 98만', () => {
+    // 800_000 + 100_000_000 * 0.18/100 = 800_000 + 180_000 = 980_000
+    expect(calcBase(400_000_000, DEFAULT_INDV)).toBe(980_000);
+  });
+  it('개인 첫 구간 → 30만', () => {
+    expect(calcBase(0, DEFAULT_INDV)).toBe(300_000);
   });
   it('빈 tariff → 0', () => {
     expect(calcBase(1_000_000, [])).toBe(0);
@@ -135,7 +139,7 @@ describe('calcS2Total / calcS3Total', () => {
 });
 
 describe('calcInvoice — 청구서 합계 (장부 결산 20% + 원가 10% + VAT)', () => {
-  it('개인 종소세 장부, 수입 0 → base 20만 + 결산 4만 + 원가 2.4만 = 26.4만, VAT 포함 29.04만', () => {
+  it('개인 종소세 장부, 수입 0 → base 30만 + 결산 6만 + 원가 3.6만 = 39.6만, VAT 포함 43.56만', () => {
     const r = calcInvoice({
       revenue: 0,
       asset: 0,
@@ -145,11 +149,11 @@ describe('calcInvoice — 청구서 합계 (장부 결산 20% + 원가 10% + VAT
       s3Items: [],
       discount: 0,
     });
-    expect(r.base).toBe(200_000);
-    expect(r.ket).toBe(40_000);
-    expect(r.cst).toBe(24_000);
-    expect(r.baseFee).toBe(264_000);
-    expect(r.total).toBe(290_400);
+    expect(r.base).toBe(300_000);
+    expect(r.ket).toBe(60_000); // 300_000 * 20%
+    expect(r.cst).toBe(36_000); // (300_000 + 60_000) * 10%
+    expect(r.baseFee).toBe(396_000);
+    expect(r.total).toBe(435_600); // 396_000 * 1.1
   });
   it('할인액 차감 후 VAT', () => {
     const r = calcInvoice({
@@ -159,11 +163,11 @@ describe('calcInvoice — 청구서 합계 (장부 결산 20% + 원가 10% + VAT
       basicType: '개인장부대행 및 개인조정',
       s2Items: [],
       s3Items: [],
-      discount: 64_000,
+      discount: 96_000,
     });
-    // supply 264_000 - 64_000 = 200_000, vat 20_000, total 220_000
-    expect(r.supplyDisc).toBe(200_000);
-    expect(r.total).toBe(220_000);
+    // supply 396_000 - 96_000 = 300_000, vat 30_000, total 330_000
+    expect(r.supplyDisc).toBe(300_000);
+    expect(r.total).toBe(330_000);
   });
   it('조정 only (장부 X) → 결산료 0', () => {
     const r = calcInvoice({
