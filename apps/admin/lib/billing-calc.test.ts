@@ -139,7 +139,23 @@ describe('calcS2Total / calcS3Total', () => {
 });
 
 describe('calcInvoice — 청구서 합계 (장부 결산 20% + 원가 10% + VAT)', () => {
-  it('개인 종소세 장부, 수입 0 → base 30만 + 결산 6만 + 원가 3.6만 = 39.6만, VAT 포함 43.56만', () => {
+  it('개인 종소세 장부, 수입 0, 원가 X → base 30만 + 결산 6만 = 36만, VAT 포함 39.6만', () => {
+    const r = calcInvoice({
+      revenue: 0,
+      asset: 0,
+      taxType: '종소세',
+      basicType: '개인장부대행 및 개인조정', // 장부 → 결산 default on, 원가 default off
+      s2Items: [],
+      s3Items: [],
+      discount: 0,
+    });
+    expect(r.base).toBe(300_000);
+    expect(r.ket).toBe(60_000); // 300_000 * 20% (장부 → 결산 on)
+    expect(r.cst).toBe(0); // 원가 default off
+    expect(r.baseFee).toBe(360_000);
+    expect(r.total).toBe(396_000); // 360_000 * 1.1
+  });
+  it('원가 체크 시 → base × 10% 추가 (원본 invoice.zip: base 기준)', () => {
     const r = calcInvoice({
       revenue: 0,
       asset: 0,
@@ -148,12 +164,10 @@ describe('calcInvoice — 청구서 합계 (장부 결산 20% + 원가 10% + VAT
       s2Items: [],
       s3Items: [],
       discount: 0,
+      hasCost: true,
     });
-    expect(r.base).toBe(300_000);
-    expect(r.ket).toBe(60_000); // 300_000 * 20%
-    expect(r.cst).toBe(36_000); // (300_000 + 60_000) * 10%
-    expect(r.baseFee).toBe(396_000);
-    expect(r.total).toBe(435_600); // 396_000 * 1.1
+    expect(r.cst).toBe(30_000); // 300_000 * 10% (base 기준, NOT (base+ket))
+    expect(r.baseFee).toBe(390_000); // 300_000 + 60_000 + 30_000
   });
   it('할인액 차감 후 VAT', () => {
     const r = calcInvoice({
@@ -163,9 +177,9 @@ describe('calcInvoice — 청구서 합계 (장부 결산 20% + 원가 10% + VAT
       basicType: '개인장부대행 및 개인조정',
       s2Items: [],
       s3Items: [],
-      discount: 96_000,
+      discount: 60_000,
     });
-    // supply 396_000 - 96_000 = 300_000, vat 30_000, total 330_000
+    // supply 360_000 - 60_000 = 300_000, vat 30_000, total 330_000
     expect(r.supplyDisc).toBe(300_000);
     expect(r.total).toBe(330_000);
   });
@@ -174,12 +188,13 @@ describe('calcInvoice — 청구서 합계 (장부 결산 20% + 원가 10% + VAT
       revenue: 0,
       asset: 0,
       taxType: '법인세',
-      basicType: '법인조정',
+      basicType: '법인조정', // 장부 아님 → 결산 off
       s2Items: [],
       s3Items: [],
       discount: 0,
     });
     expect(r.ket).toBe(0);
+    expect(r.cst).toBe(0);
   });
 });
 

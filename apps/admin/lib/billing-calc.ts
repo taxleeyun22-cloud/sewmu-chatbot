@@ -169,22 +169,31 @@ export function calcS3Total(items: S3Item[]): number {
   return (items || []).reduce((a, it) => a + calcGain(it.amt || 0, it.rule), 0);
 }
 
-/* ─── 청구서 합계 (기본보수 + 결산 20% + 원가 10% + S2 + S3 − 할인 + VAT) ─── */
+/* ─── 청구서 합계 ───
+ * 사장님 결정 (2026-05-22): "원본대로 체크박스" — 결산(20%)·원가(10%) 선택적 가산.
+ * invoice.zip 원본: ketA = base × 20% / cstA = base × 10% (둘 다 base 기준, 체크 시만).
+ * VAT 는 어느 경우든 기본 세무조정료엔 안 들어가고 최종 청구에만 별도 10%. */
 export interface InvoiceCalcInput {
   revenue: number;
   asset: number;
   taxType: string; // '법인세' | '종소세' | '부가세'
-  basicType: string; // '...장부...' 면 결산료 가산
+  basicType: string; // '...장부...' 면 결산 default on
   s2Items: S2Item[];
   s3Items: S3Item[];
   discount: number; // 원 (수기)
   tariffCorp?: FeeRuleRow[];
   tariffIndv?: FeeRuleRow[];
+  hasKet?: boolean; // 결산 20% (미지정 시 basicType '장부' 포함 여부)
+  hasCost?: boolean; // 원가 10% (미지정 시 false)
+  ketRate?: number; // 결산 가산율 % (default 20)
+  costRate?: number; // 원가 가산율 % (default 10)
 }
 export interface InvoiceCalcResult {
   base: number;
-  ket: number; // 결산료 (장부 20%)
-  cst: number; // 원가 (10%)
+  ket: number; // 결산료 (체크 시 base × 20%)
+  cst: number; // 원가 (체크 시 base × 10%)
+  hasKet: boolean;
+  hasCost: boolean;
   s2Tot: number;
   s3Tot: number;
   extra: number;
@@ -202,8 +211,13 @@ export function calcInvoice(input: InvoiceCalcInput): InvoiceCalcResult {
       : input.tariffIndv || DEFAULT_INDV;
   const baseRev = Math.max(input.revenue || 0, input.asset || 0);
   const base = calcBase(baseRev, tariff);
-  const ket = input.basicType.includes('장부') ? Math.floor((base * 0.2) / 1000) * 1000 : 0;
-  const cst = base > 0 ? Math.floor(((base + ket) * 0.1) / 1000) * 1000 : 0;
+  const ketRate = input.ketRate ?? 20;
+  const costRate = input.costRate ?? 10;
+  const hasKet = input.hasKet ?? input.basicType.includes('장부');
+  const hasCost = input.hasCost ?? false;
+  /* 원본 invoice.zip 동일 — 둘 다 base 기준, 1,000원 절사 */
+  const ket = hasKet ? Math.floor((base * ketRate) / 100 / 1000) * 1000 : 0;
+  const cst = hasCost ? Math.floor((base * costRate) / 100 / 1000) * 1000 : 0;
   const s2Tot = calcS2Total(input.s2Items);
   const s3Tot = calcS3Total(input.s3Items);
   const extra = s2Tot + s3Tot;
@@ -212,5 +226,5 @@ export function calcInvoice(input: InvoiceCalcInput): InvoiceCalcResult {
   const supplyDisc = Math.max(0, supply - disc);
   const vat = Math.round(supplyDisc * 0.1);
   const total = supplyDisc + vat;
-  return { base, ket, cst, s2Tot, s3Tot, extra, supply, disc, supplyDisc, vat, total, baseFee: base + ket + cst };
+  return { base, ket, cst, hasKet, hasCost, s2Tot, s3Tot, extra, supply, disc, supplyDisc, vat, total, baseFee: base + ket + cst };
 }

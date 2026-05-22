@@ -97,6 +97,10 @@ export default function NewInvoicePage() {
   const [revenue, setRevenue] = useState<number>(0);
   const [asset, setAsset] = useState<number>(0);
   const [bizType, setBizType] = useState<string>('제조');
+  /* 사장님 결정 (2026-05-22): 결산(20%)·원가(10%) 체크박스 (원본 invoice.zip 방식).
+   * 결산 default = 장부업무, 원가 default = off. */
+  const [hasKet, setHasKet] = useState<boolean>(true);
+  const [hasCost, setHasCost] = useState<boolean>(false);
   const [discount, setDiscount] = useState<string>(''); // 빈 칸 default — 사장님 룰
   /* 사장님 명령 (2026-05-22): "날짜도 넣도록" — 발행일 / 납기일 (청구서 표시). */
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -191,6 +195,8 @@ export default function NewInvoicePage() {
     const isCorp = form === '법인' || form === 'corp' || /\(주\)|㈜|주식회사/.test(selectedBiz.company_name || '');
     setTaxType(isCorp ? '법인세' : '종소세');
     setBasicType(isCorp ? '법인장부대행 및 법인조정' : '개인장부대행 및 개인조정');
+    setHasKet(true); // 장부대행 default → 결산 on
+    setHasCost(false);
   }, [selectedBiz]);
 
   /* 검토표 자동 prefill — Business owner_type 우선, 없으면 Person fallback (개인사업자 종소세).
@@ -304,8 +310,10 @@ export default function NewInvoicePage() {
         discount: parseFloat(discount) || 0,
         tariffCorp: template?.fee_rule_corp?.tariff as FeeRuleRow[] | undefined,
         tariffIndv: template?.fee_rule_indv?.tariff as FeeRuleRow[] | undefined,
+        hasKet,
+        hasCost,
       }),
-    [revenue, asset, taxType, basicType, s2Items, s3Items, discount, template],
+    [revenue, asset, taxType, basicType, s2Items, s3Items, discount, template, hasKet, hasCost],
   );
 
   /* Publish — POST tRPC billing.create
@@ -549,6 +557,32 @@ export default function NewInvoicePage() {
                 className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
               />
             </Field>
+          </div>
+          {/* 사장님 결정 (2026-05-22): 결산(20%)·원가(10%) 체크박스 — 원본 invoice.zip 방식.
+              둘 다 기본보수(base) 기준. 부가세는 최종 청구에만 별도 (여기 미포함). */}
+          <div className="flex items-center gap-4 pt-1 border-t border-gray-100 mt-1">
+            <span className="text-xs font-semibold text-gray-600">가산 옵션:</span>
+            <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hasKet}
+                onChange={(e) => setHasKet(e.target.checked)}
+                className="w-4 h-4 accent-blue-600"
+              />
+              결산 (기본보수 × 20%) {hasKet && calc.ket > 0 && <span className="text-blue-700 font-semibold">+{formatWon(calc.ket)}원</span>}
+            </label>
+            <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hasCost}
+                onChange={(e) => setHasCost(e.target.checked)}
+                className="w-4 h-4 accent-blue-600"
+              />
+              원가계산 (기본보수 × 10%) {hasCost && calc.cst > 0 && <span className="text-blue-700 font-semibold">+{formatWon(calc.cst)}원</span>}
+            </label>
+          </div>
+          <div className="text-[11px] text-gray-400">
+            💡 기본 세무조정료 = 누진표 기본보수{hasKet ? ' + 결산 20%' : ''}{hasCost ? ' + 원가 10%' : ''}. 부가세(10%)는 최종 청구에만 별도.
           </div>
         </div>
 

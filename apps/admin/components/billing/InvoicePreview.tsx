@@ -225,6 +225,8 @@ export function InvoicePreview({
             <div className="pa">{bankLine}</div>
             <div className="ph">(예금주 : {DEFAULT_HOLDER})</div>
             {dueStr && <div className="pd">납부기한 : {dueStr}까지</div>}
+            {/* 사장님 명령 (2026-05-22): 기한 미납 시 CMS 자동출금 안내 (납부기한 밑) */}
+            <div className="pd">※ 납부기한까지 미납 시 CMS 로 자동출금됨을 알립니다.</div>
           </div>
 
           <div className="ft">
