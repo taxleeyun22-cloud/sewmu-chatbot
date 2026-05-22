@@ -37,6 +37,7 @@ import {
   type S2Item,
   type S3Item,
   type CatalogItem,
+  type FeeRuleRow,
 } from '@/lib/billing-calc';
 
 interface BusinessRow {
@@ -310,7 +311,9 @@ export default function NewInvoicePage() {
   const filingPrefillActive = !!matchedFiling;
 
   /* 금액 계산 (실시간) */
-  /* SSoT — apps/admin/lib/billing-calc.calcInvoice. inline 계산 제거 (사장님: 단일 진실) */
+  /* SSoT — apps/admin/lib/billing-calc.calcInvoice. inline 계산 제거 (사장님: 단일 진실).
+   * 사장님 보고 (2026-05-21): "기본세무조정료 바꿔라" — 양식(template) 의 누진표를
+   * 계산에 반영 (안 넘기면 DEFAULT 로 계산 → 양식 값과 달라짐). */
   const calc = useMemo(
     () =>
       calcInvoice({
@@ -321,8 +324,10 @@ export default function NewInvoicePage() {
         s2Items,
         s3Items,
         discount: parseFloat(discount) || 0,
+        tariffCorp: template?.fee_rule_corp?.tariff as FeeRuleRow[] | undefined,
+        tariffIndv: template?.fee_rule_indv?.tariff as FeeRuleRow[] | undefined,
       }),
-    [revenue, asset, taxType, basicType, s2Items, s3Items, discount],
+    [revenue, asset, taxType, basicType, s2Items, s3Items, discount, template],
   );
 
   /* Publish — POST tRPC billing.create
@@ -353,17 +358,23 @@ export default function NewInvoicePage() {
         s3_addition: Number(calc.s3Tot) || 0,
         discount: Number(calc.disc) || 0,
         total_fee: Number(calc.total) || 0,
-        s2_items: s2Items.map((it) => ({
-          name: String(it.name || ''),
-          val: Number(it.val) || 0,
-          qty: Number(it.qty) || 1,
-        })),
-        s3_items: s3Items.map((it) => ({
-          code: String(it.code || 'CUSTOM'),
-          name: String(it.name || ''),
-          amt: Number(it.amt) || 0,
-          rule: it.rule || 'progressive_u',
-        })),
+        /* 사장님 룰 (2026-05-21): "안적으면 청구서에 없음" — val/amt 0 인 항목은 발행 X.
+         * (양식 자동 prefill 된 활증업무 중 단가 안 적은 것 자동 제외 → 400 빈 name 방지) */
+        s2_items: s2Items
+          .filter((it) => (Number(it.val) || 0) > 0 && String(it.name || '').trim().length > 0)
+          .map((it) => ({
+            name: String(it.name).trim(),
+            val: Number(it.val) || 0,
+            qty: Number(it.qty) || 1,
+          })),
+        s3_items: s3Items
+          .filter((it) => (Number(it.amt) || 0) > 0 && String(it.name || '').trim().length > 0)
+          .map((it) => ({
+            code: String(it.code || 'CUSTOM').trim(),
+            name: String(it.name).trim(),
+            amt: Number(it.amt) || 0,
+            rule: it.rule || 'progressive_u',
+          })),
         staff_override: false,
         note: note || undefined,
       });
@@ -389,10 +400,14 @@ export default function NewInvoicePage() {
         asset: '자산총액',
         business_id: '사업장',
         user_id: '거래처',
+        s2_items: 'Section 2 활증업무',
+        s3_items: 'Section 3 세액공제·감면',
       };
       return `⚠️ ${label[f] || f} 값을 확인해주세요. (${msg.includes('Required') ? '필수' : '형식 오류'})`;
     }
-    if (msg.includes('400')) return '⚠️ 입력값 형식 오류 — 귀속연도 / 수입금액 확인';
+    if (msg.includes('refine') || msg.includes('하나 필수'))
+      return '⚠️ 거래처/사업장을 먼저 선택해주세요.';
+    if (msg.includes('400')) return '⚠️ 입력값 형식 오류 — 귀속연도 / 수입금액 / 항목 확인';
     if (msg.includes('401')) return '⚠️ 인증 만료 — 새로고침 후 다시 시도';
     if (msg.includes('500')) return '⚠️ 서버 오류 — 잠시 후 다시 시도';
     return `발행 실패: ${msg.slice(0, 200)}`;
