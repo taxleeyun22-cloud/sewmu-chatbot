@@ -96,6 +96,19 @@ export const DEFAULT_S2_INDV: S2OptionDef[] = [
   { name: '프리랜서 인적용역', type: 'unit', val: 30_000, desc: '건당' },
 ];
 
+/* ─── 사업장 법인/개인 판정 — SSoT ───────────────────────
+ * BusinessCombobox(표시) 와 new/page(taxType·누진표 선택) 가 같은 판정을 써야 함.
+ * 과거 drift: 콤보박스는 /법인/ 느슨 매칭(법인사업자 → 법인), 발행폼은 ==='법인' 엄격 →
+ * company_form='법인사업자' 사업장이 콤보박스엔 (법인) 인데 발행폼은 종소세(30만)로 갈림.
+ * company_form 에 '법인' 포함 또는 회사명에 주식회사 표기면 법인. */
+export function isCorpBusiness(
+  companyForm: string | null | undefined,
+  companyName: string | null | undefined,
+): boolean {
+  const f = companyForm || '';
+  return /법인/.test(f) || f === 'corp' || /\(주\)|㈜|주식회사/.test(companyName || '');
+}
+
 /* ─── 포맷 ─────────────────────────────────────────────── */
 export function formatWon(n: number | null | undefined): string {
   return (n || 0).toLocaleString('ko-KR');

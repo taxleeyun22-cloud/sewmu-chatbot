@@ -14,6 +14,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { isCorpBusiness } from '@/lib/billing-calc';
 
 export interface BizRow {
   id: number;
@@ -24,9 +25,9 @@ export interface BizRow {
   business_number: string | null;
 }
 
+/* SSoT — new/page(taxType 결정) 와 동일 판정 (billing-calc.isCorpBusiness). drift 금지. */
 function isCorp(b: BizRow): boolean {
-  const f = b.company_form || '';
-  return f === '법인' || f === 'corp' || /법인/.test(f) || /\(주\)|㈜|주식회사/.test(b.company_name || '');
+  return isCorpBusiness(b.company_form, b.company_name);
 }
 
 function fmtBizNo(n: string | null): string {

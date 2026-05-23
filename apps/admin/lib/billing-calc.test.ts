@@ -14,9 +14,32 @@ import {
   calcS3Total,
   calcInvoice,
   formatWon,
+  isCorpBusiness,
   DEFAULT_CORP,
   DEFAULT_INDV,
 } from './billing-calc';
+
+describe('isCorpBusiness — 법인/개인 판정 SSoT (콤보박스 ↔ 발행폼 drift 방지)', () => {
+  it("company_form '법인' → 법인", () => {
+    expect(isCorpBusiness('법인', null)).toBe(true);
+  });
+  it("company_form '법인사업자' → 법인 (과거 버그: 발행폼이 종소세 30만으로 갈림)", () => {
+    expect(isCorpBusiness('법인사업자', null)).toBe(true);
+  });
+  it("company_form 'corp' → 법인", () => {
+    expect(isCorpBusiness('corp', null)).toBe(true);
+  });
+  it('회사명에 주식회사 표기 → 법인 (form 비어도)', () => {
+    expect(isCorpBusiness(null, '(주)다이렉트')).toBe(true);
+    expect(isCorpBusiness('', '㈜이윤')).toBe(true);
+    expect(isCorpBusiness('', '주식회사 세무')).toBe(true);
+  });
+  it("개인사업자 (form '개인' / 주식회사 표기 없음) → 개인", () => {
+    expect(isCorpBusiness('개인', '홍길동 상회')).toBe(false);
+    expect(isCorpBusiness(null, null)).toBe(false);
+    expect(isCorpBusiness('', '다이렉트에스케이비')).toBe(false);
+  });
+});
 
 describe('calcBase — 사장님 원본 누진표 (invoice.zip, 가산률 % 단위)', () => {
   it('법인 첫 구간 (1억 미만) → 46만', () => {

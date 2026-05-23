@@ -19,10 +19,13 @@ export async function trpcCall<T>(procedure: string, input?: unknown): Promise<T
 
   let res: Response;
   if (mutation) {
+    /* 비배치(non-batch) tRPC fetch 어댑터는 POST body 자체를 input 으로 읽는다.
+     * { input } 으로 감싸면 서버가 input.year 등을 전부 undefined 로 받아
+     * z.coerce.number() 에서 NaN → 400 (received: nan). raw 로 보내야 함. */
     res = await fetch(`/api/trpc/${procedure}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input }),
+      body: JSON.stringify(input ?? {}),
     });
   } else {
     /* query — input 을 URL query string 으로 */

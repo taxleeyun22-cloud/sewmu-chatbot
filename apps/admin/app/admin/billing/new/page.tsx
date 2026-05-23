@@ -32,6 +32,7 @@ import {
   formatWon,
   calcGain,
   calcInvoice,
+  isCorpBusiness,
   normalizeCatalogItem,
   DEFAULT_S2_CORP,
   DEFAULT_S2_INDV,
@@ -188,11 +189,12 @@ export default function NewInvoicePage() {
   });
   const catalog = catalogQuery.data || [];
 
-  /* taxType 자동 결정 (사업장 form 기반) */
+  /* taxType 자동 결정 (사업장 form 기반).
+   * SSoT — BusinessCombobox 와 동일 판정 (billing-calc.isCorpBusiness). 과거 drift:
+   * 콤보박스는 '법인사업자' 도 법인으로 봤는데 여기선 ==='법인' 엄격이라 종소세(30만)로 갈림. */
   useEffect(() => {
     if (!selectedBiz) return;
-    const form = selectedBiz.company_form;
-    const isCorp = form === '법인' || form === 'corp' || /\(주\)|㈜|주식회사/.test(selectedBiz.company_name || '');
+    const isCorp = isCorpBusiness(selectedBiz.company_form, selectedBiz.company_name);
     setTaxType(isCorp ? '법인세' : '종소세');
     setBasicType(isCorp ? '법인장부대행 및 법인조정' : '개인장부대행 및 개인조정');
     setHasKet(true); // 장부대행 default → 결산 on
