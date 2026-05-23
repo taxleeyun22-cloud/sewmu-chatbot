@@ -28,10 +28,12 @@
   .bz-hero-label{font-size:11px;font-weight:600;color:#9CA3AF;letter-spacing:.08em;text-transform:uppercase}
   .bz-hero h1,.bz-hero #bizName{font-size:34px!important;font-weight:700;letter-spacing:-0.04em;color:#111827;margin:8px 0 6px!important;border:none!important;padding:0!important}
   .bz-hero #bizSub,.bz-hero .sub{font-size:13px;color:#4B5563}
-  .bz-wrap{max-width:1180px;margin:0 auto;padding:18px 28px 60px}
+  /* 사장님 명령 (2026-05-23): 글자 크게 + 더 예쁘게 (거래처 dashboard 와 통일 시안).
+     .bz-wrap 기준 font-size 17px (브라우저 기본 16 → ↑) → em 기반 내부 텍스트 전체 비례 확대. */
+  .bz-wrap{max-width:1180px;margin:0 auto;padding:18px 28px 60px;font-size:17px}
   /* 기존 .section 을 시안 카드 톤으로 (border-radius/그림자/spacing — 내부 렌더 출력 무손상) */
-  .bz-wrap .section{background:#fff;border:1px solid #ECEEF1;border-radius:14px;padding:20px 22px;margin-bottom:18px;box-shadow:0 1px 3px rgba(0,0,0,.03)}
-  .bz-wrap .sec-title{font-size:16px!important;font-weight:700;letter-spacing:-0.02em;color:#111827;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .bz-wrap .section{background:#fff;border:1px solid #ECEEF1;border-radius:18px;padding:22px 24px;margin-bottom:18px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 6px 20px rgba(16,24,40,.03)}
+  .bz-wrap .sec-title{font-size:18.5px!important;font-weight:800;letter-spacing:-0.02em;color:#111827;margin-bottom:16px;display:flex;align-items:center;gap:8px}
   .bz-wrap .memo-tabs button.on{background:#0B1F3A!important;border-color:#0B1F3A!important}
   .bz-wrap .btn-primary{background:#0B1F3A!important}
   .bz-wrap .btn-success{background:#10B981!important}
@@ -41,7 +43,7 @@
   /* 증분2: 시안 2컬럼 (좌 검토표·메모·AI / 우 정보·구성원·상담방·일정·문서). JS 노드이동으로 채움 — DOM 재배치라 ID·onclick·렌더 전부 보존. */
   .bz-grid{display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start}
   .bz-main,.bz-side{min-width:0}
-  .bz-side .section{padding:16px 18px}
+  .bz-side .section{padding:18px 20px}
   @media(max-width:720px){.bz-hero h1,.bz-hero #bizName{font-size:26px!important}.bz-nav,.bz-hero,.bz-wrap{padding-left:16px;padding-right:16px}}
   @media(max-width:920px){.bz-grid{grid-template-columns:1fr}}
 </style>
@@ -261,7 +263,7 @@ fetch('/admin-modals.html?v=55', { cache: 'no-cache' })
 <!-- Phase B-1 (2026-05-17): paste-drop → src/lib/paste-drop.ts (assets/main.js 번들, self-register) -->
 <script src="/business.js?v=10"></script>
 <!-- Phase 6 (2026-05-07): 신고 검토표 시스템 (법인세) -->
-<script src="/admin-filing-review.js?v=21"></script>
+<script src="/admin-filing-review.js?v=37"></script>
 <!-- Phase Infra-2 fix (2026-05-09): admin-modals.html 안 backToList() / 등 admin-anal-review-faq.js 함수 사용
      사장님 보고 (Sentry first error): ReferenceError: backToList is not defined at /business:158:47 -->
 <!-- Phase 16 (2026-05-13) 사장님 Sentry 보고: ReferenceError: $g is not defined at backToList.
