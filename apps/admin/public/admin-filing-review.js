@@ -311,7 +311,8 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
    */
   /* 사장님 명령 (2026-05-21): "검토표에 농특세 납부도 집어넣자".
    * 농어촌특별세 = 조세특례제한법 감면세액의 일정 % (보통 20%) 별도 납부.
-   * 종소세 / 법인세 양쪽 검토표에 추가 — 결정세액 ↔ 기납부세액 사이. */
+   * 종소세 / 법인세 양쪽 검토표에 추가.
+   * 사장님 명령 (2026-05-23): 위치 변경 — 납부할세액 바로 아래 (맨 끝). 개인·법인 동일. */
   const fields = isJongSo
     ? [
         { key: 'revenue', label: '수입금액' },
@@ -322,9 +323,9 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
         { key: 'deduction_total', label: '세액공제·감면', autoSum: 'deductions' },
         { key: 'penalty_total', label: '가산세', autoSum: 'penalties' },
         { key: 'decisive_tax', label: '결정세액', bold: true },
-        { key: 'farmland_tax', label: '농특세 납부' },
         { key: 'prepaid_tax', label: '기납부세액' },
         { key: 'payable_tax', label: '납부할세액', bold: true },
+        { key: 'farmland_tax', label: '농특세 납부' },
       ]
     : [
         { key: 'revenue', label: '매출액' },
@@ -337,10 +338,10 @@ function _filRenderBody(f, prev, af, pf, isJongSo, readonly) {
         { key: 'deduction_total', label: '공제·감면', autoSum: 'deductions' },
         { key: 'penalty_total', label: '가산세', autoSum: 'penalties' },
         { key: 'decisive_tax', label: '결정세액', bold: true },
-        { key: 'farmland_tax', label: '농특세 납부' },
         { key: 'prepaid_tax', label: '기납부세액' },
         { key: 'additional_tax', label: '감면분추가납부세액' },
         { key: 'payable_tax', label: '납부할세액', bold: true },
+        { key: 'farmland_tax', label: '농특세 납부' },
       ];
 
   /* 사장님 명령 (2026-05-07): 결재란은 헤더 우상단 (admin-modals.html) 으로 이동.

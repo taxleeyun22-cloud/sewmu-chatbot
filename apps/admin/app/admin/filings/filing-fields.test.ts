@@ -7,8 +7,9 @@
 import { describe, it, expect } from 'vitest';
 
 /* admin-filing-review.js 와 동일 fields 구조 — 명세 검증.
- * 사장님 명령 (2026-05-21): "검토표에 농특세 납부도 집어넣자" — farmland_tax 추가
- * (결정세액 ↔ 기납부세액 사이). 종소세 10→11 / 법인세 13→14 항목. */
+ * 사장님 명령 (2026-05-21): "검토표에 농특세 납부도 집어넣자" — farmland_tax 추가.
+ * 종소세 10→11 / 법인세 13→14 항목.
+ * 사장님 명령 (2026-05-23): 위치 이동 — 농특세는 납부할세액(payable_tax) 바로 아래 (맨 끝). 개인·법인 동일. */
 const JONGSO_KEYS = [
   'revenue',
   'total_income',
@@ -18,9 +19,9 @@ const JONGSO_KEYS = [
   'deduction_total',
   'penalty_total',
   'decisive_tax',
-  'farmland_tax',
   'prepaid_tax',
   'payable_tax',
+  'farmland_tax',
 ];
 
 const BEOPIN_KEYS = [
@@ -34,10 +35,10 @@ const BEOPIN_KEYS = [
   'deduction_total',
   'penalty_total',
   'decisive_tax',
-  'farmland_tax',
   'prepaid_tax',
   'additional_tax',
   'payable_tax',
+  'farmland_tax',
 ];
 
 describe('Filing fields 분리 (사장님 명령 2026-05-13 + 농특세 2026-05-21)', () => {
@@ -52,6 +53,15 @@ describe('Filing fields 분리 (사장님 명령 2026-05-13 + 농특세 2026-05-
   it('농특세 납부 = 공통 (종소세·법인세 둘 다)', () => {
     expect(JONGSO_KEYS).toContain('farmland_tax');
     expect(BEOPIN_KEYS).toContain('farmland_tax');
+  });
+
+  it('농특세 = 납부할세액 바로 아래 (맨 끝) — 사장님 명령 2026-05-23', () => {
+    // 개인·법인 둘 다 farmland_tax 가 마지막 항목
+    expect(JONGSO_KEYS[JONGSO_KEYS.length - 1]).toBe('farmland_tax');
+    expect(BEOPIN_KEYS[BEOPIN_KEYS.length - 1]).toBe('farmland_tax');
+    // 바로 앞 = payable_tax (납부할세액)
+    expect(JONGSO_KEYS[JONGSO_KEYS.indexOf('farmland_tax') - 1]).toBe('payable_tax');
+    expect(BEOPIN_KEYS[BEOPIN_KEYS.indexOf('farmland_tax') - 1]).toBe('payable_tax');
   });
 
   it('종소세 전용 키 — total_income / income_deduction (법인세에 없음)', () => {
