@@ -87,8 +87,9 @@ export default function BillingLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-[#FAFAFA]">
-      {/* 좌측 사이드바 — billing-preview.html .sb 톤 (navy 강조, 위하고 톤) */}
-      <aside className="w-60 flex-shrink-0 bg-white border-r border-gray-200 sticky top-0 h-screen flex flex-col">
+      {/* 좌측 사이드바 — billing-preview.html .sb 톤 (navy 강조, 위하고 톤).
+          사장님 보고 (2026-05-25): 인쇄 시 사이드바·헤더가 같이 나와 청구서 찌그러짐 → print:hidden. */}
+      <aside className="w-60 flex-shrink-0 bg-white border-r border-gray-200 sticky top-0 h-screen flex flex-col print:hidden">
         <div className="px-5 py-4 border-b border-gray-200 flex items-center gap-2">
           <span className="w-7 h-7 rounded-md bg-[#0B1F3A] text-white font-bold text-sm flex items-center justify-center">
             이
@@ -134,7 +135,7 @@ export default function BillingLayout({ children }: { children: ReactNode }) {
 
       {/* 메인 — billing-preview.html .main 톤 (topbar + wrap) */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-10 px-7 py-3 flex items-center gap-3">
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-10 px-7 py-3 flex items-center gap-3 print:hidden">
           <span className="text-sm text-gray-400">
             {pathname.includes('/template') && '청구서 양식'}
             {pathname.endsWith('/billing') && '청구서 모아보기'}
@@ -142,7 +143,7 @@ export default function BillingLayout({ children }: { children: ReactNode }) {
             {pathname.match(/\/billing\/\d+$/) && '청구서 상세'}
           </span>
         </header>
-        <main className="flex-1 px-6 py-5 max-w-[1500px] w-full mx-auto">
+        <main className="flex-1 px-6 py-5 max-w-[1500px] w-full mx-auto print:p-0 print:max-w-none">
           {children}
         </main>
       </div>

@@ -158,8 +158,8 @@ export default function InvoiceDetailPage() {
         </span>
       </div>
 
-      {/* 청구서 본체 — A4 1장+2장 (billing-preview.html 톤) */}
-      <div className="max-w-3xl mx-auto">
+      {/* 청구서 본체 — A4 1장+2장 (billing-preview.html 톤). 인쇄 시 A4 전폭. */}
+      <div className="max-w-3xl mx-auto print:max-w-none print:mx-0">
         <InvoicePreview
           companyName={inv.business_name || inv.user_name}
           year={inv.year || new Date().getFullYear()}
