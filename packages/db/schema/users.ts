@@ -35,6 +35,8 @@ export const users = sqliteTable('users', {
   is_owner: integer('is_owner').default(0),         // 0 = 일반, 1 = 사장님 (Phase Infra-2 후속)
   staff_role: text('staff_role'),                   // 'manager' | 'staff' | NULL (Phase #10 RBAC, deprecated 2026-05-12)
   admin_role: text('admin_role'),                   // 'owner' | 'admin' | 'editor' | 'viewer' | NULL (노션 5단계 권한, 2026-05-12)
+  /* 담당 직원 staff_user_id (사장님 명령 2026-05-25, 거래처→개인업체 상속) 는 Drizzle schema 미포함 —
+   * raw SQL + lazy ALTER 관리 (select-all 이 prod 미존재 컬럼 참조 → 깨짐 방지). */
 
   // 본인 확인
   name_confirmed: integer('name_confirmed').default(0),

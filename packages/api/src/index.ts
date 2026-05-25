@@ -24,6 +24,7 @@ import { errorLogsRouter } from './routers/error-logs';
 import { auditLogsRouter } from './routers/audit-logs';
 import { customerRouter } from './routers/customer';
 import { billingRouter } from './routers/billing';
+import { staffRouter } from './routers/staff';
 
 export const appRouter = router({
   chat: chatRouter,
@@ -43,6 +44,7 @@ export const appRouter = router({
   auditLogs: auditLogsRouter,
   customer: customerRouter,
   billing: billingRouter,
+  staff: staffRouter,
 });
 
 export { audit } from './audit';

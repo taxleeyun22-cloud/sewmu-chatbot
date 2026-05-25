@@ -33,6 +33,8 @@ export const businesses = sqliteTable('businesses', {
 
   // 본·지점 매핑 (사장님 명령 2026-05-08)
   parent_business_id: integer('parent_business_id'),  // NULL = 본점, 값 있음 = 지점
+  /* 담당 직원 staff_user_id (사장님 명령 2026-05-25) 는 Drizzle schema 미포함 — raw SQL + lazy ALTER 관리.
+   * (schema 에 넣으면 select-all 이 prod 미존재 컬럼 참조해 깨짐 — is_checked drift 사고 회피). */
 
   // Status
   status: text('status').default('active'),          // 'active' | 'closed' | 'terminated'
