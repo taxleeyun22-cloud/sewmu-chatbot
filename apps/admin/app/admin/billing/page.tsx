@@ -35,6 +35,7 @@ interface InvoiceRow {
   business_name: string | null;
   user_real_name: string | null;
   user_name: string | null;
+  staff_name: string | null;  // 담당자 직원 이름 (사장님 명령 2026-05-25 — 청구서 목록에 ID 아닌 이름 표시)
 }
 
 interface ListResponse {
@@ -69,11 +70,12 @@ export default function BillingListPage() {
     });
   }, [data, search]);
 
-  /* 담당자별 그룹 (사장님 의도: "담당자별로 자동 분류") */
+  /* 담당자별 그룹 (사장님 의도: "담당자별로 자동 분류").
+   * 2026-05-25: ID(#숫자) 대신 직원 이름 표시. JOIN 으로 staff_name 받음(없으면 미지정). */
   const grouped = useMemo(() => {
     const map = new Map<string, InvoiceRow[]>();
     for (const inv of filtered) {
-      const key = inv.staff_user_id ? `담당자 #${inv.staff_user_id}` : '담당자 미지정';
+      const key = inv.staff_name || (inv.staff_user_id ? `담당자 #${inv.staff_user_id}` : '담당자 미지정');
       const arr = map.get(key) ?? [];
       arr.push(inv);
       map.set(key, arr);

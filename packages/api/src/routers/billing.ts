@@ -6,9 +6,11 @@
  */
 import { z } from 'zod';
 import { eq, and, isNull, desc, sql, or } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
 import { adminProcedure, router } from '../trpc';
 import { drizzle, schema } from '@sewmu/db/client';
 import { audit } from '../audit';
+import { ensureStaffColumns, type D1Like } from './staff';
 import {
   NewInvoiceSchema,
   InvoiceUpdateSchema,
@@ -90,6 +92,9 @@ export const billingRouter = router({
       await ensureBillingTables(ctx.db as { prepare: (sql: string) => { run: () => Promise<unknown> } });
       const db = drizzle(ctx.db);
       const { billingInvoices, businesses, users } = schema;
+      /* 담당자 직원(users) 별칭 JOIN — 청구서.staff_user_id → users.id → staff_name.
+       * 사장님 명령 (2026-05-25): 청구서 목록에 "담당자 #숫자" 대신 직원 이름 표시. */
+      const staffUsers = alias(users, 'staff_users');
 
       const conditions = [
         or(isNull(billingInvoices.deleted_at), eq(billingInvoices.deleted_at, ''))!,
@@ -126,10 +131,12 @@ export const billingRouter = router({
           business_name: businesses.company_name,
           user_real_name: users.real_name,
           user_name: users.name,
+          staff_name: sql<string | null>`COALESCE(${staffUsers.real_name}, ${staffUsers.name})`.as('staff_name'),
         })
         .from(billingInvoices)
         .leftJoin(businesses, eq(billingInvoices.business_id, businesses.id))
         .leftJoin(users, eq(billingInvoices.user_id, users.id))
+        .leftJoin(staffUsers, eq(billingInvoices.staff_user_id, staffUsers.id))
         .where(and(...conditions))
         .orderBy(desc(billingInvoices.created_at))
         .limit(input.limit);
@@ -181,14 +188,30 @@ export const billingRouter = router({
       };
     }),
 
-  /** 청구서 생성 (POST) */
+  /** 청구서 생성 (POST). 담당자 자동 상속(사장님 명령 2026-05-25): 입력에 staff_user_id 없으면
+   *  업체(business)→사람(user) 순으로 lookup. staff_override=true 면 상속 안 함(수동 강제). */
   create: adminProcedure
     .input(NewInvoiceSchema)
     .mutation(async ({ ctx, input }) => {
       await ensureBillingTables(ctx.db as { prepare: (sql: string) => { run: () => Promise<unknown> } });
+      await ensureStaffColumns(ctx.db as unknown as D1Like);
       const db = drizzle(ctx.db);
       const { billingInvoices } = schema;
       const now = new Date().toISOString();
+
+      /* 담당자 상속 — 입력값 우선, 없으면 업체/사람의 staff_user_id lookup (raw SQL — 컬럼이 Drizzle 미포함) */
+      let inheritedStaff: number | null = input.staff_user_id ?? null;
+      if (inheritedStaff == null && !input.staff_override) {
+        const d1raw = ctx.db as unknown as { prepare: (s: string) => { bind: (...a: unknown[]) => { first: () => Promise<unknown> } } };
+        if (input.business_id) {
+          const row = (await d1raw.prepare(`SELECT staff_user_id FROM businesses WHERE id = ?`).bind(input.business_id).first()) as { staff_user_id?: number | null } | null;
+          if (row && row.staff_user_id) inheritedStaff = row.staff_user_id;
+        }
+        if (inheritedStaff == null && input.user_id) {
+          const row = (await d1raw.prepare(`SELECT staff_user_id FROM users WHERE id = ?`).bind(input.user_id).first()) as { staff_user_id?: number | null } | null;
+          if (row && row.staff_user_id) inheritedStaff = row.staff_user_id;
+        }
+      }
 
       const r = await db
         .insert(billingInvoices)
@@ -209,7 +232,7 @@ export const billingRouter = router({
           total_fee: input.total_fee,
           s2_items: input.s2_items.length ? JSON.stringify(input.s2_items) : null,
           s3_items: input.s3_items.length ? JSON.stringify(input.s3_items) : null,
-          staff_user_id: input.staff_user_id ?? null,
+          staff_user_id: inheritedStaff,
           staff_override: input.staff_override ? 1 : 0,
           status: 'pending',
           note: input.note ?? null,

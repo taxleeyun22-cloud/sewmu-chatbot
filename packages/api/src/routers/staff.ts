@@ -14,15 +14,16 @@ import { adminProcedure, router } from '../trpc';
 import { drizzle, schema } from '@sewmu/db/client';
 import { audit } from '../audit';
 
-type D1Like = {
+export type D1Like = {
   prepare: (sql: string) => {
     bind: (...args: unknown[]) => { run: () => Promise<unknown> };
     run: () => Promise<unknown>;
   };
 };
 
-/** staff_user_id 컬럼 lazy 보장 (users + businesses). 이미 있으면 ALTER 실패 → catch. */
-async function ensureStaffColumns(d1: D1Like) {
+/** staff_user_id 컬럼 lazy 보장 (users + businesses). 이미 있으면 ALTER 실패 → catch.
+ *  다른 라우터(billing.create 상속 read 등)도 재사용. */
+export async function ensureStaffColumns(d1: D1Like) {
   try { await d1.prepare(`ALTER TABLE users ADD COLUMN staff_user_id INTEGER`).run(); } catch {}
   try { await d1.prepare(`ALTER TABLE businesses ADD COLUMN staff_user_id INTEGER`).run(); } catch {}
 }
