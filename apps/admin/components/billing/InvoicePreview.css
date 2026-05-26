@@ -228,9 +228,11 @@
 }
 
 .iyun-invoice-preview .pay .pd {
-  font-size: 7.5px;
-  color: #94a3b8;
-  margin-top: 3px;
+  /* 사장님 명령 (2026-05-26): 글자 키우고 진하게 — 7.5→11px, #94a3b8(연회색)→#1e293b(찐). */
+  font-size: 11px;
+  color: #1e293b;
+  font-weight: 500;
+  margin-top: 4px;
 }
 
 .iyun-invoice-preview .ft {
@@ -377,6 +379,8 @@
   .iyun-invoice-preview .pay { padding: 7px 16px; }
   .iyun-invoice-preview .pay .pa { font-size: 16px; }
   .iyun-invoice-preview .pay .ph { font-size: 11px; }
+  /* 사장님 명령 (2026-05-26): 납부기한·CMS 안내 인쇄에서도 더 키움 (화면 11 → 인쇄 13). */
+  .iyun-invoice-preview .pay .pd { font-size: 13px; }
   .iyun-invoice-preview .ft { font-size: 11px; margin-top: auto; }
   .iyun-invoice-preview .ft-sign .nm { font-size: 26px; }
   .iyun-invoice-preview .dtbl { font-size: 11px; }
