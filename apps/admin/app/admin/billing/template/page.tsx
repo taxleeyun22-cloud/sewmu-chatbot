@@ -107,7 +107,7 @@ export default function TemplatePage() {
   const [bankInfo, setBankInfo] = useState('');
   const [officeAddress, setOfficeAddress] = useState('');
   const [officePhone, setOfficePhone] = useState('');
-  const [signatureText, setSignatureText] = useState('세무사 이재윤');
+  const [signatureText, setSignatureText] = useState('이재윤');
   const [tariffCorp, setTariffCorp] = useState<TariffRow[]>(DEFAULT_CORP);
   const [tariffIndv, setTariffIndv] = useState<TariffRow[]>(DEFAULT_INDV);
   const [s2OptionsCorp, setS2OptionsCorp] = useState<S2Option[]>(DEFAULT_S2_CORP);
@@ -122,7 +122,7 @@ export default function TemplatePage() {
     setBankInfo(t.bank_info || '');
     setOfficeAddress(t.office_address || '');
     setOfficePhone(t.office_phone || '');
-    setSignatureText(t.signature_text || '세무사 이재윤');
+    setSignatureText(t.signature_text || '이재윤');
     if (t.fee_rule_corp?.tariff) setTariffCorp(t.fee_rule_corp.tariff);
     if (t.fee_rule_indv?.tariff) setTariffIndv(t.fee_rule_indv.tariff);
     if (t.fee_rule_corp?.s2_options) setS2OptionsCorp(t.fee_rule_corp.s2_options);
@@ -223,7 +223,7 @@ export default function TemplatePage() {
               value={signatureText}
               onChange={(e) => setSignatureText(e.target.value)}
               className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-              placeholder="세무사 이재윤"
+              placeholder="이재윤"
             />
           </Field>
           <Field label="사무실 주소">

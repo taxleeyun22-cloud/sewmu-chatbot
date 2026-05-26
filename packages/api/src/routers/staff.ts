@@ -1,10 +1,12 @@
 /**
  * Phase 담당자-1 (2026-05-25): staff 라우터 — 담당 직원 목록 + 거래처/업체 담당자 지정.
  *
- * 사장님 명령: "개인업체마다 담당자 수동지정 → 연결된 (개인)업체도 자동 배정 / 법인은 따로 수정".
+ * 사장님 명령 (2026-05-26 확정): 개인업체마다 담당자 수동 지정 + 연결된 업체(법인 포함) 자동 상속.
+ *   법인은 default 상속 + 업체 단위로 독립 override 가능.
  * - list: is_admin=1 직원 (담당자 후보) 목록
  * - setAssignee: 거래처(user) 또는 업체(business) 담당자 지정
- *   - user 지정 시 → 연결된 개인사업자 업체(business_members) 자동 상속 (법인 제외, 독립)
+ *   - user 지정 시 → 연결된 모든 업체(business_members) 자동 상속 (법인 포함)
+ *   - business 지정 = 그 업체만 독립 override (다음 user 지정 전까지 유지)
  *
  * staff_user_id 컬럼은 lazy ALTER (users/businesses) — 옛 admin 호환.
  */
@@ -60,23 +62,22 @@ export const staffRouter = router({
 
       let propagated = 0;
       if (input.targetType === 'business') {
-        /* 업체 단위 — 법인은 여기서 독립 지정/수정 */
+        /* 업체 단위 = 독립 override (개인·법인 무관). 다음 user 지정 시 덮어쓰임. */
         await d1
           .prepare(`UPDATE businesses SET staff_user_id = ?, updated_at = ? WHERE id = ?`)
           .bind(sid, now, input.targetId)
           .run();
       } else {
-        /* 거래처(사람) 단위 */
+        /* 거래처(사람) 단위 → 연결된 모든 업체 상속 (법인 포함, 사장님 확정 2026-05-26).
+         * business_members = 사람↔업체 N:N. 법인 독립이 필요하면 업체 단위 setAssignee 로 override. */
         await d1
           .prepare(`UPDATE users SET staff_user_id = ? WHERE id = ?`)
           .bind(sid, input.targetId)
           .run();
-        /* 연결된 개인사업자 업체로 상속 (법인 제외). business_members = 사람↔업체 N:N. */
         const r = (await d1
           .prepare(
             `UPDATE businesses SET staff_user_id = ?, updated_at = ?
-             WHERE id IN (SELECT business_id FROM business_members WHERE user_id = ?)
-               AND COALESCE(company_form, '') NOT LIKE '%법인%'`,
+             WHERE id IN (SELECT business_id FROM business_members WHERE user_id = ?)`,
           )
           .bind(sid, now, input.targetId)
           .run()) as { meta?: { changes?: number } };
