@@ -326,7 +326,10 @@
 /* 🖨️ 인쇄 — A4 1장+2장 분리. 사장님 invoice/print.html 동일 패턴. */
 @media print {
   @page { size: A4; margin: 0 }
-  body { background: #fff !important; }
+  /* 사장님 보고 (2026-05-26): 인쇄 시 .page 297mm 위/아래로 부모(body/wrapper) margin 이
+   * 누적되면 브라우저가 2 물리페이지로 split. 모든 부모 reset. */
+  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  .iyun-invoice-preview { margin: 0 !important; padding: 0 !important; }
   *, *::before, *::after {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;

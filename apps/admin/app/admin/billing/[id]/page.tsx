@@ -98,7 +98,9 @@ export default function InvoiceDetailPage() {
   const inv = data.invoice;
 
   return (
-    <div className="space-y-4">
+    /* print:space-y-0 — 사장님 보고 (2026-05-26): 인쇄 시 space-y-4 가 16px margin-top
+     * 부여 → .page 297mm 합산 313px → 브라우저가 2 물리페이지로 split. 인쇄엔 0. */
+    <div className="space-y-4 print:space-y-0">
       {/* 상단 액션 바 */}
       <div className="bg-white border border-gray-200 rounded-lg p-3 flex items-center flex-wrap gap-2 print:hidden">
         <Link
