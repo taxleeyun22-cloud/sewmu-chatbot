@@ -45,6 +45,7 @@ async function ensureBillingTables(d1: { prepare: (sql: string) => { run: () => 
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           business_id INTEGER, user_id INTEGER, filing_id INTEGER,
           year INTEGER, tax_type TEXT,
+          issue_date TEXT, due_date TEXT,
           revenue INTEGER, asset INTEGER, biz_type TEXT, basic_type TEXT,
           base_fee INTEGER DEFAULT 0, s2_addition INTEGER DEFAULT 0,
           s3_addition INTEGER DEFAULT 0, discount INTEGER DEFAULT 0, total_fee INTEGER DEFAULT 0,
@@ -68,6 +69,10 @@ async function ensureBillingTables(d1: { prepare: (sql: string) => { run: () => 
       )
       .run();
   } catch {}
+  /* lazy migration (사장님 보고 2026-05-29): 기존 테이블에 발행일자·납부기한 컬럼 추가.
+   * CREATE TABLE IF NOT EXISTS 는 기존 테이블에 새 컬럼을 안 더하므로 ALTER 필수. 이미 있으면 catch. */
+  try { await d1.prepare(`ALTER TABLE billing_invoices ADD COLUMN issue_date TEXT`).run(); } catch {}
+  try { await d1.prepare(`ALTER TABLE billing_invoices ADD COLUMN due_date TEXT`).run(); } catch {}
   try { await d1.prepare(`CREATE INDEX IF NOT EXISTS idx_billing_business ON billing_invoices(business_id, year DESC)`).run(); } catch {}
   try { await d1.prepare(`CREATE INDEX IF NOT EXISTS idx_billing_status ON billing_invoices(status, created_at DESC)`).run(); } catch {}
   try { await d1.prepare(`CREATE INDEX IF NOT EXISTS idx_billing_staff ON billing_invoices(staff_user_id, status)`).run(); } catch {}
@@ -221,6 +226,8 @@ export const billingRouter = router({
           filing_id: input.filing_id ?? null,
           year: input.year,
           tax_type: input.tax_type,
+          issue_date: input.issue_date ?? now.slice(0, 10),
+          due_date: input.due_date ?? null,
           revenue: input.revenue,
           asset: input.asset,
           biz_type: input.biz_type ?? null,
@@ -271,6 +278,8 @@ export const billingRouter = router({
 
       const patch: Record<string, unknown> = {};
       const d = input.data;
+      if (d.issue_date !== undefined) patch.issue_date = d.issue_date;
+      if (d.due_date !== undefined) patch.due_date = d.due_date;
       if (d.revenue !== undefined) patch.revenue = d.revenue;
       if (d.asset !== undefined) patch.asset = d.asset;
       if (d.biz_type !== undefined) patch.biz_type = d.biz_type;

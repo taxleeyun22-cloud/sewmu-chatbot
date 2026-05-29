@@ -143,6 +143,7 @@ export default function NewInvoicePage() {
   interface EditInvoice {
     id: number; business_id: number | null; user_id: number | null;
     year: number | null; tax_type: string | null;
+    issue_date: string | null; due_date: string | null;
     revenue: number | null; asset: number | null;
     biz_type: string | null; basic_type: string | null;
     discount: number | null; status: string | null; note: string | null;
@@ -167,6 +168,8 @@ export default function NewInvoicePage() {
     if (editInv.tax_type) setTaxType(editInv.tax_type as '법인세' | '종소세' | '부가세');
     if (editInv.basic_type) setBasicType(editInv.basic_type);
     if (editInv.biz_type) setBizType(editInv.biz_type);
+    if (editInv.issue_date) setIssueDate(editInv.issue_date);
+    setDueDate(editInv.due_date || '');
     setRevenue(Number(editInv.revenue) || 0);
     setAsset(Number(editInv.asset) || 0);
     setDiscount(editInv.discount && editInv.discount > 0 ? String(editInv.discount) : '');
@@ -390,11 +393,16 @@ export default function NewInvoicePage() {
         filing_id: preFilingId || undefined,
         year: safeYear,
         tax_type: taxType,
+        issue_date: issueDate || undefined,
+        due_date: dueDate || undefined,
         revenue: safeRev,
         asset: safeAsset,
         biz_type: bizType || undefined,
         basic_type: basicType || undefined,
-        base_fee: Number(calc.base) || 0,
+        /* 사장님 보고 (2026-05-29): 발행하면 기본료가 결산 가산 전 값으로 표시됨.
+         * 미리보기는 calc.baseFee(base+결산+원가)인데 저장은 calc.base(가산 전)였음 →
+         * 미리보기와 동일하게 baseFee 로 저장 (SSoT: billing-calc.baseFee = 기본 세무조정료). */
+        base_fee: Number(calc.baseFee) || 0,
         s2_addition: Number(calc.s2Tot) || 0,
         s3_addition: Number(calc.s3Tot) || 0,
         discount: Number(calc.disc) || 0,
@@ -445,6 +453,8 @@ export default function NewInvoicePage() {
        * year/tax_type/business_id 등 메타는 update 가 안 받음 → 무시 (UI 에 readonly 안내 권장). */
       if (editMode) {
         const updateData = {
+          issue_date: parsed.data.issue_date,
+          due_date: parsed.data.due_date,
           revenue: parsed.data.revenue,
           asset: parsed.data.asset,
           biz_type: parsed.data.biz_type,

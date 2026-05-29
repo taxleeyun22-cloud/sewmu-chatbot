@@ -23,6 +23,9 @@ export const billingInvoices = sqliteTable('billing_invoices', {
   year: integer('year'),
   tax_type: text('tax_type'),                     // '종소세' | '법인세' | '부가세'
 
+  issue_date: text('issue_date'),                 // 발행일자 (YYYY-MM-DD, 미지정 시 created_at)
+  due_date: text('due_date'),                     // 납부기한 (YYYY-MM-DD, 선택)
+
   revenue: integer('revenue'),                    // 수입금액 (검토표 prefill)
   asset: integer('asset'),                        // 자산총액
   biz_type: text('biz_type'),                     // 업종 (제조/도소매업/...)

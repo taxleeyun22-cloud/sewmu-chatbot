@@ -62,6 +62,10 @@ export const NewInvoiceSchema = z
     year: z.coerce.number().int().min(2000).max(2100),
     tax_type: TaxTypeSchema,
 
+    /* 사장님 보고 (2026-05-29): 발행 시 발행일자·납부기한이 저장 안 돼 청구서에서 사라짐. */
+    issue_date: z.string().max(20).optional(), // 발행일자 (YYYY-MM-DD)
+    due_date: z.string().max(20).optional(),   // 납부기한 (YYYY-MM-DD, 선택)
+
     revenue: z.coerce.number().min(0).default(0),
     asset: z.coerce.number().min(0).default(0),
     biz_type: z.string().max(100).optional(),
@@ -87,6 +91,8 @@ export type NewInvoice = z.infer<typeof NewInvoiceSchema>;
 
 /** 청구서 update (PATCH). 부분 변경 — 모든 필드 선택. */
 export const InvoiceUpdateSchema = z.object({
+  issue_date: z.string().max(20).optional(),
+  due_date: z.string().max(20).optional(),
   revenue: z.number().min(0).optional(),
   asset: z.number().min(0).optional(),
   biz_type: z.string().max(100).optional(),

@@ -24,6 +24,8 @@ interface InvoiceDetail {
   user_name: string | null;
   year: number | null;
   tax_type: string | null;
+  issue_date: string | null;
+  due_date: string | null;
   revenue: number | null;
   asset: number | null;
   biz_type: string | null;
@@ -180,7 +182,8 @@ export default function InvoiceDetailPage() {
           s3Total={inv.s3_addition || 0}
           discount={inv.discount || 0}
           total={inv.total_fee || 0}
-          issueDate={inv.created_at}
+          issueDate={inv.issue_date || inv.created_at}
+          dueDate={inv.due_date || undefined}
           s2Items={inv.s2_items_parsed || []}
           s3Items={(inv.s3_items_parsed || []).map((it) => ({
             code: it.code,
