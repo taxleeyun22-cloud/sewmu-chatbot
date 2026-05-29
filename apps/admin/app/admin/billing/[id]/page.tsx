@@ -139,6 +139,13 @@ export default function InvoiceDetailPage() {
               ↶ 미수로
             </button>
           )}
+          {/* 사장님 명령 (2026-05-27): "조정료청구서 수정이 안된다" — 새 발행 폼 ?edit=N 재활용 */}
+          <Link
+            href={`/admin/billing/new?edit=${inv.id}`}
+            className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded font-semibold hover:bg-blue-100"
+          >
+            ✏️ 수정
+          </Link>
           <button
             type="button"
             onClick={() => window.print()}

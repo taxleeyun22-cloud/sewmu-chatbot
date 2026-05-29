@@ -80,6 +80,10 @@ export default function NewInvoicePage() {
   const preBizId = Number(sp.get('business_id') || 0);
   const preUserId = Number(sp.get('user_id') || 0);
   const preFilingId = Number(sp.get('filing_id') || 0);
+  /* 사장님 명령 (2026-05-27): "조정료청구서 수정이 안된다" — 새 발행 폼 재활용 수정 모드.
+   * ?edit=N 진입 시 billing.byId 로 모든 필드 prefill + publish 시 billing.update 호출. */
+  const editId = Number(sp.get('edit') || 0);
+  const editMode = editId > 0;
 
   /* Form state.
    * 사장님 명령 (2026-05-22): "개인은 빼버리자 어차피 사업자명도 같이찍히는게 맞다" —
@@ -134,11 +138,57 @@ export default function NewInvoicePage() {
   });
   const template = templateQuery.data?.template || null;
 
+  /* 수정 모드 — editId>0 시 청구서 fetch + 모든 state 1회 prefill.
+   * 자동 prefill useEffect 들은 editMode 가드로 차단 (검토표/사업장 자동 덮어쓰기 방지). */
+  interface EditInvoice {
+    id: number; business_id: number | null; user_id: number | null;
+    year: number | null; tax_type: string | null;
+    revenue: number | null; asset: number | null;
+    biz_type: string | null; basic_type: string | null;
+    discount: number | null; status: string | null; note: string | null;
+    s2_items_parsed: Array<{ name: string; val: number; qty: number }>;
+    s3_items_parsed: Array<{ code: string; name: string; amt: number; rule: string }>;
+    created_at: string | null;
+    business_name?: string | null; user_name?: string | null; total_fee?: number | null;
+  }
+  const editQuery = useQuery<{ invoice: EditInvoice | null }>({
+    queryKey: ['billing.byId', { id: editId }],
+    queryFn: () => trpcCall('billing.byId', { id: editId }),
+    enabled: editMode,
+  });
+  const editInv = editQuery.data?.invoice || null;
+  const editPrefilledRef = useRef(false);
+  useEffect(() => {
+    if (!editMode || !editInv || editPrefilledRef.current) return;
+    editPrefilledRef.current = true;
+    if (editInv.business_id) setBizId(editInv.business_id);
+    if (editInv.user_id) setUserId(editInv.user_id);
+    if (editInv.year) setYear(editInv.year);
+    if (editInv.tax_type) setTaxType(editInv.tax_type as '법인세' | '종소세' | '부가세');
+    if (editInv.basic_type) setBasicType(editInv.basic_type);
+    if (editInv.biz_type) setBizType(editInv.biz_type);
+    setRevenue(Number(editInv.revenue) || 0);
+    setAsset(Number(editInv.asset) || 0);
+    setDiscount(editInv.discount && editInv.discount > 0 ? String(editInv.discount) : '');
+    setNote(editInv.note || '');
+    setS2Items((editInv.s2_items_parsed || []).map((it) => ({
+      name: String(it.name || ''), val: Number(it.val) || 0, qty: Number(it.qty) || 0,
+    })));
+    setS3Items((editInv.s3_items_parsed || []).map((it) => ({
+      code: String(it.code || ''), name: String(it.name || ''),
+      amt: Number(it.amt) || 0,
+      rule: ((it.rule as 'flat_5' | 'progressive_u' | 'none') || 'progressive_u'),
+    })));
+    /* s2 자동 prefill 도 skip (이미 청구서 데이터로 채움) */
+    s2PrefilledRef.current = 'edit';
+  }, [editMode, editInv]);
+
   /* 사장님 명령 (2026-05-21):
    * ① "단가 후려치기 들어갔어 원래 내가 했던거" → 양식/원본 단가(o.val) 그대로 prefill (0 강제 X)
    * ② "업무구분에서 개인/법인 체크하면 섹션2 조정되는건 어떻노" → 분기를 업무구분(basicType) 으로
    * 건수(qty)는 0 으로 시작 → 사장님이 건수 입력 시 청구서 표시 (안 적으면 미표시 룰). 단가는 보임. */
   useEffect(() => {
+    if (editMode) return; // 수정 모드: s2 자동 prefill 차단 (청구서 데이터로 채움)
     if (templateQuery.isLoading) return; // 양식 로딩 대기 (양식 우선)
     const isCorpWork = basicType.includes('법인');
     const key = isCorpWork ? 'corp' : 'indv';
@@ -162,10 +212,11 @@ export default function NewInvoicePage() {
     enabled: bizId > 0,
   });
   useEffect(() => {
+    if (editMode) return; // 수정 모드: 사업장 자동 user_id 매칭 차단
     /* 사업장 선택 시 그 대표(primary_user_id) 자동 → Person 검토표 fallback 활성 */
     const pid = bizDetailQuery.data?.primary_user_id;
     if (pid && !userId) setUserId(pid);
-  }, [bizDetailQuery.data, userId]);
+  }, [bizDetailQuery.data, userId, editMode]);
 
   /* 카탈로그 fetch — billable filter 용 (검토표 자동 prefill 시 신고서 본문 자연발생 자동 제외).
    * 사장님 보고 (2026-05-21): "기장세액공제 이런거 다빼라햇잖아" — catalog.json 항목엔
@@ -193,13 +244,14 @@ export default function NewInvoicePage() {
    * SSoT — BusinessCombobox 와 동일 판정 (billing-calc.isCorpBusiness). 과거 drift:
    * 콤보박스는 '법인사업자' 도 법인으로 봤는데 여기선 ==='법인' 엄격이라 종소세(30만)로 갈림. */
   useEffect(() => {
+    if (editMode) return; // 수정 모드: taxType/basicType 자동 결정 차단
     if (!selectedBiz) return;
     const isCorp = isCorpBusiness(selectedBiz.company_form, selectedBiz.company_name);
     setTaxType(isCorp ? '법인세' : '종소세');
     setBasicType(isCorp ? '법인장부대행 및 법인조정' : '개인장부대행 및 개인조정');
     setHasKet(true); // 장부대행 default → 결산 on
     setHasCost(false);
-  }, [selectedBiz]);
+  }, [selectedBiz, editMode]);
 
   /* 검토표 자동 prefill — Business owner_type 우선, 없으면 Person fallback (개인사업자 종소세).
    * 사장님 명령 (2026-05-21): "자동으로 검토표 연동안되노?"
@@ -234,6 +286,7 @@ export default function NewInvoicePage() {
   }, [filingBizQuery.data, filingPersonQuery.data]);
 
   useEffect(() => {
+    if (editMode) return; // 수정 모드: 검토표 자동 prefill 차단 (청구서 데이터 우선)
     /* 사장님 보고 (2026-05-21): "Section 3 저번에 프리뷰할때 개고생했는데" — catalog
      * 로딩 전 prefill 되면 표준세액공제 같은 billable=false 자연발생 자동 제외 안됨.
      * → catalog 로딩 끝나면 (또는 명시적으로 0 건이면) 실행. */
@@ -388,11 +441,31 @@ export default function NewInvoicePage() {
         });
         throw new Error('VALIDATION:\n' + msgs.join('\n'));
       }
+      /* 사장님 명령 (2026-05-27): 수정 모드 → billing.update (InvoiceUpdateSchema 호환 필드만).
+       * year/tax_type/business_id 등 메타는 update 가 안 받음 → 무시 (UI 에 readonly 안내 권장). */
+      if (editMode) {
+        const updateData = {
+          revenue: parsed.data.revenue,
+          asset: parsed.data.asset,
+          biz_type: parsed.data.biz_type,
+          basic_type: parsed.data.basic_type,
+          base_fee: parsed.data.base_fee,
+          s2_addition: parsed.data.s2_addition,
+          s3_addition: parsed.data.s3_addition,
+          discount: parsed.data.discount,
+          total_fee: parsed.data.total_fee,
+          s2_items: parsed.data.s2_items,
+          s3_items: parsed.data.s3_items,
+          note: parsed.data.note,
+        };
+        return trpcCall<{ ok: boolean }>('billing.update', { id: editId, data: updateData });
+      }
       return trpcCall<{ ok: boolean; id?: number }>('billing.create', parsed.data);
     },
     onSuccess: (d) => {
       if (d.ok) {
-        router.push('/admin/billing');
+        /* 수정 모드: 상세 페이지로 복귀, 새 발행: 모아보기로 */
+        router.push(editMode ? `/admin/billing/${editId}` : '/admin/billing');
       }
     },
   });
@@ -452,7 +525,7 @@ export default function NewInvoicePage() {
         {/* 발행 입력 */}
         <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
           <div className="flex items-center gap-2 mb-2">
-            <span className="font-semibold text-gray-900">💰 발행 입력</span>
+            <span className="font-semibold text-gray-900">{editMode ? `✏️ 청구서 #${editId} 수정` : '💰 발행 입력'}</span>
             {filingPrefillActive && matchedFiling ? (
               <span className="flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded">
                 ✅
@@ -702,7 +775,9 @@ export default function NewInvoicePage() {
             disabled={publishMut.isPending || !bizId}
             className="ml-auto bg-blue-600 text-white px-6 py-2 rounded font-bold text-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            {publishMut.isPending ? '발행 중…' : `💾 발행 (${formatWon(calc.total)}원)`}
+            {publishMut.isPending
+              ? (editMode ? '수정 저장 중…' : '발행 중…')
+              : `${editMode ? '✏️ 수정 저장' : '💾 발행'} (${formatWon(calc.total)}원)`}
           </button>
         </div>
         {publishMut.isError && (
