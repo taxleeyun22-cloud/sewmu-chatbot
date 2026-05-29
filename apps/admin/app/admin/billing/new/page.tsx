@@ -21,7 +21,7 @@ export const runtime = 'edge';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
 import { S2PickerModal, type S2Item as S2ItemType } from '@/components/billing/S2PickerModal';
 import { S3PickerModal, type S3Item as S3ItemType } from '@/components/billing/S3PickerModal';
@@ -76,6 +76,7 @@ interface TemplateData {
 
 export default function NewInvoicePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const sp = useSearchParams();
   const preBizId = Number(sp.get('business_id') || 0);
   const preUserId = Number(sp.get('user_id') || 0);
@@ -472,8 +473,14 @@ export default function NewInvoicePage() {
       }
       return trpcCall<{ ok: boolean; id?: number }>('billing.create', parsed.data);
     },
-    onSuccess: (d) => {
+    onSuccess: async (d) => {
       if (d.ok) {
+        /* 사장님 보고 (2026-05-29): "수정발행눌러도 청구서는 그대로다 안바뀜".
+         * 원인: QueryClient staleTime=30s. 수정 폼이 prefill 로 채운 billing.byId 캐시가
+         * 아직 fresh → 상세 페이지가 옛 캐시를 그대로 보여주고 refetch 안 함 (DB 는 갱신됨).
+         * 해결: 저장 성공 시 byId + list 캐시 무효화 → 상세 페이지 mount 시 새 데이터 fetch. */
+        await queryClient.invalidateQueries({ queryKey: ['billing.byId', { id: editId }] });
+        await queryClient.invalidateQueries({ queryKey: ['billing.list'] });
         /* 수정 모드: 상세 페이지로 복귀, 새 발행: 모아보기로 */
         router.push(editMode ? `/admin/billing/${editId}` : '/admin/billing');
       }
