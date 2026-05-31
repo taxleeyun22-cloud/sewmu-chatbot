@@ -23,6 +23,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
+import { toast } from '@/components/ui/toast';
 import { S2PickerModal, type S2Item as S2ItemType } from '@/components/billing/S2PickerModal';
 import { S3PickerModal, type S3Item as S3ItemType } from '@/components/billing/S3PickerModal';
 import { InvoicePreview } from '@/components/billing/InvoicePreview';
@@ -481,6 +482,8 @@ export default function NewInvoicePage() {
          * 해결: 저장 성공 시 byId + list 캐시 무효화 → 상세 페이지 mount 시 새 데이터 fetch. */
         await queryClient.invalidateQueries({ queryKey: ['billing.byId', { id: editId }] });
         await queryClient.invalidateQueries({ queryKey: ['billing.list'] });
+        /* 사장님 UX 개선 #3 (2026-05-31): 발행/수정 후 토스트 피드백 */
+        toast.success(editMode ? '청구서를 수정했어요' : '청구서를 발행했어요');
         /* 수정 모드: 상세 페이지로 복귀, 새 발행: 모아보기로 */
         router.push(editMode ? `/admin/billing/${editId}` : '/admin/billing');
       }

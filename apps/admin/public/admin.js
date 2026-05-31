@@ -3714,6 +3714,43 @@ function _adminSidebarClick(e){
  * CLAUDE.md "🔄 Mutation 후 UI 갱신 절대 룰" 참조.
  * 누락 시 사장님이 새로고침해야 갱신됨 → 짜증 + 버그 보고.
  * ============================================================================== */
+/* ===== 토스트 (행동 후 피드백) — 사장님 UX 개선 #3 (2026-05-31) =====
+ * 메가앱(구글/슬랙/카톡)은 모든 동작에 짧은 확인 피드백. 우리 admin 은 무반응이라
+ * "된 거 맞나?" 재클릭 유발. 인라인 style 만 사용(CSS 파일 무수정). actionLabel/onAction
+ * 으로 "실행취소" 등 액션 버튼 지원(미래 확장). */
+function showToast(message, opts) {
+  opts = opts || {};
+  try {
+    var host = document.getElementById('toastHost');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'toastHost';
+      host.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:2147483000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none';
+      document.body.appendChild(host);
+    }
+    var t = document.createElement('div');
+    t.style.cssText = 'pointer-events:auto;display:inline-flex;align-items:center;gap:10px;background:#191f28;color:#fff;padding:11px 16px;border-radius:12px;font-size:13px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.25);font-family:inherit;opacity:0;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease;max-width:90vw';
+    if (opts.type === 'error') t.style.background = '#c0392b';
+    var span = document.createElement('span');
+    span.textContent = (opts.type === 'error' ? '⚠️' : (opts.icon || '✓')) + '  ' + (message || '처리되었습니다');
+    t.appendChild(span);
+    var tm;
+    function remove() { clearTimeout(tm); t.style.opacity = '0'; t.style.transform = 'translateY(8px)'; setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 200); }
+    if (opts.actionLabel && typeof opts.onAction === 'function') {
+      var btn = document.createElement('button');
+      btn.textContent = opts.actionLabel;
+      btn.style.cssText = 'pointer-events:auto;color:#74c0fc;font-weight:700;cursor:pointer;background:none;border:none;border-left:1px solid #495057;padding:0 0 0 10px;margin-left:2px;font-size:13px;font-family:inherit';
+      btn.onclick = function () { try { opts.onAction(); } catch (_) {} remove(); };
+      t.appendChild(btn);
+    }
+    host.appendChild(t);
+    requestAnimationFrame(function () { t.style.opacity = '1'; t.style.transform = 'translateY(0)'; });
+    tm = setTimeout(remove, opts.duration || (opts.actionLabel ? 5000 : 2400));
+    t.onclick = function (e) { if (e.target.tagName !== 'BUTTON') remove(); };
+  } catch (_) {}
+}
+window.showToast = showToast;
+
 function mutationDone(opts) {
   opts = opts || {};
   /* 사이드바 카운트 — default true (대부분 mutation 이 어느 카운트 영향) */
@@ -3764,6 +3801,11 @@ function mutationDone(opts) {
         _loadCdFilings(_cdCurrentUserId);
       }
     } catch (_) {}
+  }
+  /* 사장님 UX 개선 #3 (2026-05-31): 모든 mutation 후 확인 토스트 (default ON).
+   * 호출부에서 opts.toast='저장되었습니다' 처럼 문구 지정 가능. opts.toast===false 면 생략. */
+  if (opts.toast !== false) {
+    try { showToast(typeof opts.toast === 'string' ? opts.toast : '처리되었습니다'); } catch (_) {}
   }
 }
 /* alias — 명확화 위해 같은 함수 다른 이름 (mutation 후 호출이라는 의도 강조) */

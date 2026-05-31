@@ -14,6 +14,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
+import { toast } from '@/components/ui/toast';
 import { InvoicePreview } from '@/components/billing/InvoicePreview';
 
 interface InvoiceDetail {
@@ -62,12 +63,22 @@ export default function InvoiceDetailPage() {
   const updateMut = useMutation({
     mutationFn: (patch: Record<string, unknown>) =>
       trpcCall<{ ok: boolean }>('billing.update', { id, data: patch }),
-    onSuccess: () => refetch(),
+    /* 사장님 UX 개선 #3 (2026-05-31): 발송/수금/미수 후 토스트 (patch.status 로 문구 분기) */
+    onSuccess: (_d, patch) => {
+      const st = (patch as { status?: string }).status;
+      toast.success(st === 'sent' ? '발송 처리했어요' : st === 'paid' ? '수금 처리했어요' : st === 'pending' ? '미수로 되돌렸어요' : '변경했어요');
+      refetch();
+    },
+    onError: () => toast.error('처리 실패 — 잠시 후 다시 시도해주세요'),
   });
 
   const removeMut = useMutation({
     mutationFn: () => trpcCall<{ ok: boolean }>('billing.remove', { id }),
-    onSuccess: () => router.push('/admin/billing'),
+    onSuccess: () => {
+      toast.success('청구서를 휴지통으로 옮겼어요');
+      router.push('/admin/billing');
+    },
+    onError: () => toast.error('삭제 실패 — 잠시 후 다시 시도해주세요'),
   });
 
   /* 양식 (Template) fetch — 미리보기 인삿말 / 계좌 / 사인. 모든 hook 은 early return 위. */
