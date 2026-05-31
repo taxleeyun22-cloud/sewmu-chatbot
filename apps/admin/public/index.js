@@ -174,7 +174,7 @@ function add(role,text){
     d.className=`msg msg-${role==="user"?"user":"ai"}`;
     d.innerHTML=role==="user"
         ?`<div class="msg-wrap"><div class="msg-bubble">${linkify(esc(text))}</div></div>`
-        :`<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble">${linkify(esc(text))}</div></div>`;
+        :`<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble">${linkify(esc(stripConf(text)))}</div></div>`;
     c.appendChild(d);c.scrollTop=c.scrollHeight;
 }
 
@@ -187,6 +187,10 @@ function showDots(){
 function hideDots(){const d=document.getElementById("dots");if(d)d.remove()}
 function esc(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")}
 function escAttr(t){return String(t==null?'':t).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/'/g,"&#39;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/[\r\n]+/g," ")}
+/* 사장님 명령 (2026-05-31): 답변의 [신뢰도:…] 라벨은 사용자 화면에서 숨김 (비전문가 불안 유발).
+   ⚠️ 내부 검수·자동 플래그(chat.js extractConfidence)는 그대로 유지 — 서버가 모델 출력에서 추출하므로
+   messages 히스토리엔 원문(라벨 포함) 보존(모델이 계속 라벨 생성 → 서버 추출 가능). 화면 렌더 시에만 strip. */
+function stripConf(t){return String(t==null?'':t).replace(/\s*\[\s*신뢰도\s*[:：]\s*(?:높음|보통|낮음)[^\]]*\]/g,"").replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").replace(/\s+$/,"")}
 /* URL 자동링크: esc()된 문자열에만 적용(XSS 안전). <br>은 공백 문자 취급 안 되므로 URL 구분자로 사용됨 */
 function linkify(s){
   if(!s)return s;
@@ -2857,23 +2861,25 @@ async function submitName(){
   }catch(e){err.textContent='네트워크 오류';err.style.display='block'}
 }
 
-/* ===== 한도 초과 시 카톡/전화 유도 카드 ===== */
+/* ===== 한도 초과 시 인앱 카드 (alert 대신 — 사장님 승인 목업 2026-05-31) =====
+   막힌 순간을 "기장거래처 신청" 유도로. 브라우저 alert 금지(거칠고 다음 행동 없음). */
 function showLimitExceeded(err){
   var c=document.getElementById("chatArea");
   var st=(err&&err.approval_status)||'pending';
-  var headline=st==='pending'
-    ? '오늘 무료 상담 '+(err.limit||3)+'건을 모두 이용하셨습니다'
-    : '오늘 상담 한도('+(err.limit||5)+'건)를 모두 이용하셨습니다';
+  var lim=(err&&err.limit)||5;
+  var headline='오늘 무료 상담 '+lim+'건을 다 쓰셨어요';
   var subline=st==='pending'
-    ? '기장거래처이시면 담당 세무사에게 말씀하시면 무제한 이용이 가능합니다. 내일 다시 이용하시거나, 마이페이지 > 상담방 만들기로 세무사에게 직접 문의해 주세요.'
-    : '내일 다시 이용하시거나, 마이페이지 > 상담방 만들기로 세무사에게 직접 문의해 주세요.';
+    ? '내일 0시에 다시 '+lim+'건이 충전돼요.<br>세무회계 이윤 <b>기장거래처</b>는 횟수 제한 없이 상담하실 수 있어요.'
+    : '내일 0시에 다시 이용하실 수 있어요.<br>급하시면 상담방으로 세무사에게 직접 문의해 주세요.';
   var html=''
     +'<div class="msg msg-ai"><div class="msg-avatar"><img src="logo-icon.png" alt=""></div>'
     +'<div class="msg-wrap"><div class="msg-name">세무회계 이윤</div>'
-    +'<div class="msg-bubble" style="background:linear-gradient(135deg,#fff8e1,#fff3d1);border:1px solid #f0d47a">'
-    +  '<div style="font-weight:700;font-size:.95em;margin-bottom:6px;color:#8b6914">🔔 '+esc(headline)+'</div>'
-    +  '<div style="font-size:.85em;line-height:1.55;color:#5a4510;margin-bottom:10px">'+esc(subline)+'</div>'
-    +  '<button onclick="switchTab(\'mypage\')" style="width:100%;padding:11px 14px;background:#8b6914;color:#fff;border:none;border-radius:10px;font-size:.88em;font-weight:600;cursor:pointer;font-family:inherit">👤 내정보에서 상담 문의</button>'
+    +'<div class="msg-bubble" style="background:linear-gradient(180deg,#fffaf0,#fff7e6);border:1px solid #f0d47a;text-align:center;padding:18px 16px">'
+    +  '<div style="font-size:1.7em;line-height:1;margin-bottom:8px">📊</div>'
+    +  '<div style="font-weight:800;font-size:.98em;margin-bottom:6px;color:#8b6914">'+esc(headline)+'</div>'
+    +  '<div style="font-size:.86em;line-height:1.6;color:#5a4510;margin-bottom:14px">'+subline+'</div>'
+    +  '<button onclick="switchTab(\'mypage\')" style="width:100%;padding:12px 14px;background:#0B1F3A;color:#fff;border:none;border-radius:10px;font-size:.9em;font-weight:700;cursor:pointer;font-family:inherit">기장거래처 신청 · 세무사 문의</button>'
+    +  '<button onclick="this.closest(\'.msg\').remove()" style="background:none;border:none;color:#a98b3a;font-size:.82em;margin-top:8px;cursor:pointer;font-family:inherit">내일 다시 이용할게요</button>'
     +'</div></div></div>';
   c.insertAdjacentHTML('beforeend',html);
   c.scrollTop=c.scrollHeight;
@@ -3192,7 +3198,7 @@ function rejectConsent(){
                   msgDiv.innerHTML='<div class="msg-avatar"><img src="logo-icon.png" alt=""></div><div class="msg-wrap"><div class="msg-name">세무회계 이윤</div><div class="msg-bubble" id="streamBubble"></div></div>';
                   c.appendChild(msgDiv);bubble=document.getElementById("streamBubble");
                 }
-                fullText+=j.content;bubble.innerHTML=linkify(esc(fullText));c.scrollTop=c.scrollHeight;
+                fullText+=j.content;bubble.innerHTML=linkify(esc(stripConf(fullText)));c.scrollTop=c.scrollHeight;
               }
             }catch{}
           }
@@ -3205,7 +3211,7 @@ function rejectConsent(){
       if(msgDiv && fullText){
         var lastUserMsg=[...messages].reverse().find(function(m,i){return i>0 && m.role==='user'});
         var q=lastUserMsg?lastUserMsg.content:t;
-        if(typeof _attachChatbotShareBtn==='function')_attachChatbotShareBtn(msgDiv,q,fullText);
+        if(typeof _attachChatbotShareBtn==='function')_attachChatbotShareBtn(msgDiv,q,stripConf(fullText));
       }
       // 사용량 갱신
       if(currentUser){currentUser.daily_used=(currentUser.daily_used||0)+1;showApprovalBanner()}
