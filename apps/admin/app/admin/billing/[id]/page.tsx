@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
 import { toast } from '@/components/ui/toast';
+import { confirm } from '@/components/ui/confirm-dialog';
 import { InvoicePreview } from '@/components/billing/InvoicePreview';
 
 interface InvoiceDetail {
@@ -168,10 +169,15 @@ export default function InvoiceDetailPage() {
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (confirm(`청구서 #${inv.id} 삭제? (휴지통으로 이동, 복구 가능)`)) {
-                removeMut.mutate();
-              }
+            onClick={async () => {
+              const ok = await confirm({
+                title: `청구서 #${inv.id} 삭제`,
+                description: '휴지통으로 이동합니다. 휴지통에서 다시 복구할 수 있어요.',
+                confirmText: '삭제',
+                cancelText: '취소',
+                variant: 'destructive',
+              });
+              if (ok) removeMut.mutate();
             }}
             className="text-xs bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded hover:bg-red-100"
           >
