@@ -16,6 +16,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
 import { toast } from '@/components/ui/toast';
 import { confirm } from '@/components/ui/confirm-dialog';
+import { SkeletonCard } from '@/components/ui/skeleton';
 import { InvoicePreview } from '@/components/billing/InvoicePreview';
 
 interface InvoiceDetail {
@@ -90,9 +91,11 @@ export default function InvoiceDetailPage() {
   const template = templateQuery.data?.template || null;
 
   if (isLoading) {
+    /* 사장님 UX 개선 #5 (2026-05-31): 텍스트 → 스켈레톤 */
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-12 text-center text-gray-500">
-        로드 중…
+      <div className="space-y-4 max-w-3xl mx-auto">
+        <SkeletonCard />
+        <SkeletonCard />
       </div>
     );
   }

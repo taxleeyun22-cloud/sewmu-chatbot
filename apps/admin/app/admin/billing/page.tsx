@@ -12,6 +12,7 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { trpcCall } from '@/lib/trpc';
+import { SkeletonList } from '@/components/ui/skeleton';
 
 /* billing helper (src/lib/billing-calc.ts 와 동일 — 후속에 packages 분리 후 import) */
 type InvoiceStatus = 'pending' | 'sent' | 'paid';
@@ -142,12 +143,8 @@ export default function BillingListPage() {
         </span>
       </div>
 
-      {/* Loading / Error */}
-      {isLoading && (
-        <div className="bg-white border border-gray-200 rounded-lg p-12 text-center text-gray-500">
-          로드 중…
-        </div>
-      )}
+      {/* Loading / Error — 사장님 UX 개선 #5 (2026-05-31): 텍스트 → 스켈레톤 */}
+      {isLoading && <SkeletonList rows={6} />}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-red-700">
           ⚠️ 로드 실패: {(error as Error).message}
