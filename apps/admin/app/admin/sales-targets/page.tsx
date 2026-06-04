@@ -77,14 +77,14 @@ export default function SalesTargetsPage() {
   const [tab, setTab] = useState<Tab>('pension');
   const [year, setYear] = useState<number>(0);
 
-  const yearsQ = useQuery<{ years: number[] }>({
+  const yearsQ = useQuery<{ years: number[]; defaultYear: number }>({
     queryKey: ['salesTargets.years'],
     queryFn: () => trpcCall('salesTargets.years'),
   });
 
-  /* 연도 기본값 = 최신 (years 로드되면 1회 설정) */
+  /* 연도 기본값 = 검토표 가장 많은 연도(서버 defaultYear) — 최신연도가 비어있어도 안전 */
   useEffect(() => {
-    if (!year && yearsQ.data?.years?.length) setYear(yearsQ.data.years[0]);
+    if (!year && yearsQ.data?.defaultYear) setYear(yearsQ.data.defaultYear);
   }, [yearsQ.data, year]);
 
   const pensionQ = useQuery<PensionResult>({

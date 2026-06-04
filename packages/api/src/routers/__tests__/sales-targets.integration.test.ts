@@ -181,6 +181,7 @@ describe('salesTargets router (integration)', () => {
       insertFiling(rawDb, { id: 3, type: '법인세', year: 2025, owner_type: 'Business', owner_id: 3 });
       const r = await caller.salesTargets.years();
       expect(r.years).toEqual([2025, 2024]);
+      expect(r.defaultYear).toBe(2025); // 2025=2건 > 2024=1건 → 가장 많은 연도
     });
   });
 

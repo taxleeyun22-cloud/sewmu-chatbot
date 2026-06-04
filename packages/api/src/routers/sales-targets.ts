@@ -63,17 +63,28 @@ function notDeleted() {
 }
 
 export const salesTargetsRouter = router({
-  /** 검토표 귀속연도 목록 (드롭다운용, 내림차순) */
+  /** 검토표 귀속연도 목록 (드롭다운용, 내림차순) + 기본 선택 연도 */
   years: adminProcedure.query(async ({ ctx }) => {
     const db = drizzle(ctx.db);
     const { filings } = schema;
     const rows = await db.select({ y: filings.fiscal_year }).from(filings).where(notDeleted());
-    const set = new Set<number>();
+    const counts = new Map<number, number>();
     rows.forEach((r) => {
       const y = Number(r.y);
-      if (Number.isFinite(y) && y > 0) set.add(y);
+      if (Number.isFinite(y) && y > 0) counts.set(y, (counts.get(y) || 0) + 1);
     });
-    return { years: Array.from(set).sort((a, b) => b - a) };
+    const years = Array.from(counts.keys()).sort((a, b) => b - a);
+    /* 기본 연도 = 검토표 가장 많은 연도. 최신연도(예: 2026)가 1~2건뿐이면 열자마자 빈 화면
+     * 되는 것 방지 — 실제 영업 대상 연도로 자동 진입. (사장님 보고 2026-06-04 prod 검증) */
+    let defaultYear = years[0] ?? 0;
+    let max = -1;
+    counts.forEach((c, y) => {
+      if (c > max) {
+        max = c;
+        defaultYear = y;
+      }
+    });
+    return { years, defaultYear };
   }),
 
   /** 연금 절세 타겟 — 종소세 · 산출세액>0 · 연금계좌공제 없음 */
