@@ -96,6 +96,24 @@ describe('salesTargets router (integration)', () => {
       expect(r.targets[0].phone).toBe('010-1111-1111');
     });
 
+    it('타겟 90명 초과 — inArray 청크 분할 (prod D1 변수한도 회피)', async () => {
+      const { caller, rawDb } = await makeCaller({ isOwner: true });
+      const N = 95; // SQL_VAR_LIMIT(90) 초과 → 2청크
+      for (let k = 0; k < N; k++) {
+        const uid = 1000 + k;
+        insertUser(rawDb, { id: uid, real_name: `고객${k}`, phone: `010-0000-${String(k).padStart(4, '0')}` });
+        insertFiling(rawDb, {
+          id: 500 + k, type: '종소세', year: 2025, owner_type: 'Person', owner_id: uid,
+          auto_fields: { calculated_tax: 1_000_000 + k, 공제감면: [] },
+        });
+      }
+      const r = await caller.salesTargets.pension({ year: 2025 });
+      expect(r.count).toBe(N);
+      // 모든 타겟이 이름·전화 정상 매핑 (청크 누락 시 #id fallback 발생)
+      expect(r.targets.every((t: any) => /^고객\d+$/.test(t.name))).toBe(true);
+      expect(r.targets.every((t: any) => t.phone && t.phone.startsWith('010-'))).toBe(true);
+    });
+
     it('연금공제를 name(연금계좌)으로도 감지', async () => {
       const { caller, rawDb } = await makeCaller({ isOwner: true });
       insertUser(rawDb, { id: 20, real_name: '연금이름', phone: '010-0000-0000' });

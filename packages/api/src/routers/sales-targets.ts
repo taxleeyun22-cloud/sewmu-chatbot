@@ -44,6 +44,18 @@ function parseAF(s: string | null | undefined): AutoFields {
   }
 }
 
+/* D1/SQLite 변수 한도(100) 회피 — inArray(ids) 를 청크로 분할 조회.
+ * 사장님 보고 (2026-06-04 prod 검증): 연금 142명 inArray → "too many SQL variables" 500.
+ * 통합테스트(인메모리)는 한도가 높아 못 잡음 → prod 검증에서 발견. */
+const SQL_VAR_LIMIT = 90;
+async function chunkedIn<T>(ids: number[], run: (chunk: number[]) => Promise<T[]>): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += SQL_VAR_LIMIT) {
+    out.push(...(await run(ids.slice(i, i + SQL_VAR_LIMIT))));
+  }
+  return out;
+}
+
 /** 삭제 안 된 검토표 조건 (deleted_at NULL 또는 빈문자) */
 function notDeleted() {
   const { filings } = schema;
@@ -104,10 +116,12 @@ export const salesTargetsRouter = router({
       const ids = Array.from(new Set(pre.map((p) => p.owner_id)));
       const umap = new Map<number, { name: string; phone: string | null }>();
       if (ids.length) {
-        const us = await db
-          .select({ id: users.id, real_name: users.real_name, name: users.name, phone: users.phone })
-          .from(users)
-          .where(inArray(users.id, ids));
+        const us = await chunkedIn(ids, (chunk) =>
+          db
+            .select({ id: users.id, real_name: users.real_name, name: users.name, phone: users.phone })
+            .from(users)
+            .where(inArray(users.id, chunk)),
+        );
         us.forEach((u) =>
           umap.set(u.id, {
             name: (u.real_name || u.name || `#${u.id}`) as string,
@@ -188,10 +202,12 @@ export const salesTargetsRouter = router({
       const umap = new Map<number, { name: string; phone: string | null }>();
       const bmap = new Map<number, { name: string; phone: string | null }>();
       if (personIds.length) {
-        const us = await db
-          .select({ id: users.id, real_name: users.real_name, name: users.name, phone: users.phone })
-          .from(users)
-          .where(inArray(users.id, personIds));
+        const us = await chunkedIn(personIds, (chunk) =>
+          db
+            .select({ id: users.id, real_name: users.real_name, name: users.name, phone: users.phone })
+            .from(users)
+            .where(inArray(users.id, chunk)),
+        );
         us.forEach((u) =>
           umap.set(u.id, {
             name: (u.real_name || u.name || `#${u.id}`) as string,
@@ -200,10 +216,12 @@ export const salesTargetsRouter = router({
         );
       }
       if (bizIds.length) {
-        const bs = await db
-          .select({ id: businesses.id, company_name: businesses.company_name, ceo_name: businesses.ceo_name })
-          .from(businesses)
-          .where(inArray(businesses.id, bizIds));
+        const bs = await chunkedIn(bizIds, (chunk) =>
+          db
+            .select({ id: businesses.id, company_name: businesses.company_name, ceo_name: businesses.ceo_name })
+            .from(businesses)
+            .where(inArray(businesses.id, chunk)),
+        );
         bs.forEach((b) =>
           bmap.set(b.id, { name: (b.company_name || `업체#${b.id}`) as string, phone: null }),
         );
