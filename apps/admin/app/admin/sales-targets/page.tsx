@@ -36,6 +36,7 @@ interface PensionResult {
 interface ExpenseTarget {
   filing_id: number;
   owner_type: string;
+  owner_id: number;
   tax_type: string;
   name: string;
   phone: string | null;
@@ -106,6 +107,18 @@ export default function SalesTargetsPage() {
     () => (expense?.keywords?.length ? expense.keywords.join(' · ') : '접대비 · 지출결의 · 경비내역 · 가경비 · 판촉비'),
     [expense],
   );
+
+  /* 행 클릭 → 거래처 대시보드 (구 admin) 새 탭. 사장님 명령 (2026-06-04).
+   * 개인(Person)=거래처 종합 대시보드(#tab=users&cust=N, 첫 로드 자동 open),
+   * 업체(Business)=업체 대시보드(business.html?id=N). */
+  function openClient(ownerType: string, id: number | null | undefined) {
+    if (!id) return;
+    const url =
+      ownerType === 'Business'
+        ? `https://sewmu-chatbot.pages.dev/business.html?id=${id}`
+        : `https://sewmu-chatbot.pages.dev/admin.html#tab=users&cust=${id}`;
+    window.open(url, '_blank', 'noopener');
+  }
 
   function exportPension() {
     if (!pension?.targets.length) return;
@@ -201,9 +214,14 @@ export default function SalesTargetsPage() {
               </thead>
               <tbody>
                 {pension.targets.map((t, i) => (
-                  <tr key={t.filing_id} className="border-t border-gray-100 hover:bg-gray-50">
+                  <tr
+                    key={t.filing_id}
+                    className="border-t border-gray-100 hover:bg-blue-50 cursor-pointer"
+                    onClick={() => openClient('Person', t.user_id)}
+                    title="거래처 대시보드 열기 ↗"
+                  >
                     <td className="px-3 py-2 text-gray-400">{i + 1}</td>
-                    <td className="px-3 py-2 font-medium text-gray-900">{t.name}</td>
+                    <td className="px-3 py-2 font-medium text-blue-700 hover:underline">{t.name} ↗</td>
                     <td className="px-3 py-2 text-gray-600">{t.phone || '—'}</td>
                     <td className="px-3 py-2 text-right font-semibold text-gray-900">{won(t.calculated_tax)}원</td>
                   </tr>
@@ -254,9 +272,14 @@ export default function SalesTargetsPage() {
               </thead>
               <tbody>
                 {expense.targets.map((t, i) => (
-                  <tr key={t.filing_id} className="border-t border-gray-100 hover:bg-gray-50 align-top">
+                  <tr
+                    key={t.filing_id}
+                    className="border-t border-gray-100 hover:bg-blue-50 cursor-pointer align-top"
+                    onClick={() => openClient(t.owner_type, t.owner_id)}
+                    title="거래처 대시보드 열기 ↗"
+                  >
                     <td className="px-3 py-2 text-gray-400">{i + 1}</td>
-                    <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{t.name}</td>
+                    <td className="px-3 py-2 font-medium text-blue-700 hover:underline whitespace-nowrap">{t.name} ↗</td>
                     <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{t.tax_type}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {t.keywords.map((k) => (
