@@ -25,6 +25,7 @@ import { auditLogsRouter } from './routers/audit-logs';
 import { customerRouter } from './routers/customer';
 import { billingRouter } from './routers/billing';
 import { staffRouter } from './routers/staff';
+import { salesTargetsRouter } from './routers/sales-targets';
 
 export const appRouter = router({
   chat: chatRouter,
@@ -45,6 +46,7 @@ export const appRouter = router({
   customer: customerRouter,
   billing: billingRouter,
   staff: staffRouter,
+  salesTargets: salesTargetsRouter,
 });
 
 export { audit } from './audit';
