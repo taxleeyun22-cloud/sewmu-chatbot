@@ -19,6 +19,34 @@ function timingSafeEqual(a, b) {
   return diff === 0;
 }
 
+/**
+ * admin_key_auth HMAC 쿠키 검증 — 새 admin(admin-key-auth.ts)과 동일, 만료 30일.
+ * 사장님 비번 한 번 → 30일 유지(2026-06-05). 토큰 = "owner:{ts}.{base64(HMAC-SHA256(payload, AUTH_SECRET))}".
+ * AUTH_SECRET 없으면(또는 위조면) false → 기존 인증 경로로 안전 fallback (추가 경로일 뿐 기존 로직 무영향).
+ */
+async function verifyOwnerToken(token, secret) {
+  if (!token || !secret) return false;
+  try {
+    const dot = token.lastIndexOf('.');
+    if (dot === -1) return false;
+    const payload = token.slice(0, dot);
+    const sigB64 = token.slice(dot + 1);
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+    const bin = atob(sigB64);
+    const sig = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) sig[i] = bin.charCodeAt(i);
+    const ok = await crypto.subtle.verify('HMAC', key, sig, enc.encode(payload));
+    if (!ok) return false;
+    const m = payload.match(/^owner:(\d+)$/);
+    if (!m) return false;
+    if (Date.now() - Number(m[1]) > 30 * 86400 * 1000) return false; // 30일 만료
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** admin_role + is_admin/is_owner → 5단계 role 결정. */
 function calculateAdminRole(row) {
   if (!row) return null;
@@ -42,10 +70,18 @@ export async function checkAdmin(context) {
     return { ok: true, owner: true, userId: null, adminRole: 'owner' };
   }
 
+  const cookie = context.request.headers.get("Cookie") || "";
+
+  // (1b) admin_key_auth HMAC 쿠키 → owner (사장님 비번 한 번 → 30일 유지, 2026-06-05).
+  //      추가 경로일 뿐 — 위조/만료/AUTH_SECRET 없음이면 false 로 아래 기존 경로 그대로 진행.
+  const akMatch = cookie.match(/admin_key_auth=([^;]+)/);
+  if (akMatch && context.env.AUTH_SECRET && await verifyOwnerToken(akMatch[1], context.env.AUTH_SECRET)) {
+    return { ok: true, owner: true, userId: null, adminRole: 'owner' };
+  }
+
   // (2) 세션 쿠키 + is_admin
   const db = context.env.DB;
   if (!db) return null;
-  const cookie = context.request.headers.get("Cookie") || "";
   const m = cookie.match(/session=([^;]+)/);
   if (!m) return null;
 
