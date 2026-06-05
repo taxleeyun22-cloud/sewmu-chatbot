@@ -35,10 +35,11 @@ export async function onRequestPost(context) {
   const csrf = checkOriginCsrf(context.request, context.env);
   if (csrf) return csrf;
 
+  /* HMAC 서명 secret = ADMIN_KEY (옛 admin 에 확실히 설정됨. AUTH_SECRET 은 sewmu-chatbot 에
+   * 미설정이라 못 씀). ADMIN_KEY 로 서명 → ADMIN_KEY 모르면 위조 불가(동일 보안). 토큰엔 키 원문 없음. */
   const adminKey = context.env.ADMIN_KEY;
-  const secret = context.env.AUTH_SECRET;
-  if (!adminKey || !secret) {
-    return Response.json({ ok: false, error: 'ADMIN_KEY / AUTH_SECRET 미설정' }, { status: 500 });
+  if (!adminKey) {
+    return Response.json({ ok: false, error: 'ADMIN_KEY 미설정' }, { status: 500 });
   }
 
   let body;
@@ -48,7 +49,7 @@ export async function onRequestPost(context) {
     return Response.json({ ok: false, error: '비번이 일치하지 않습니다' }, { status: 401 });
   }
 
-  const token = await signOwnerToken(secret);
+  const token = await signOwnerToken(adminKey);
   const maxAge = 30 * 24 * 60 * 60; // 30일
   const headers = new Headers({ 'Content-Type': 'application/json' });
   headers.append(

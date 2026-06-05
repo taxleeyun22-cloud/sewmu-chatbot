@@ -73,9 +73,10 @@ export async function checkAdmin(context) {
   const cookie = context.request.headers.get("Cookie") || "";
 
   // (1b) admin_key_auth HMAC 쿠키 → owner (사장님 비번 한 번 → 30일 유지, 2026-06-05).
-  //      추가 경로일 뿐 — 위조/만료/AUTH_SECRET 없음이면 false 로 아래 기존 경로 그대로 진행.
+  //      서명 secret = ADMIN_KEY (admin-key-login 과 동일). 추가 경로일 뿐 —
+  //      위조/만료/ADMIN_KEY 없음이면 false 로 아래 기존 경로 그대로 진행 (무영향).
   const akMatch = cookie.match(/admin_key_auth=([^;]+)/);
-  if (akMatch && context.env.AUTH_SECRET && await verifyOwnerToken(akMatch[1], context.env.AUTH_SECRET)) {
+  if (akMatch && adminKey && await verifyOwnerToken(akMatch[1], adminKey)) {
     return { ok: true, owner: true, userId: null, adminRole: 'owner' };
   }
 
