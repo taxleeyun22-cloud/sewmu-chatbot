@@ -372,6 +372,14 @@ async function login(){
 var k=$g('keyInput').value.trim();
 if(!k)return;
 await doLogin(k,true);
+/* 사장님 명령 (2026-06-04): 한 번 비번 → 30일 유지. 수동 로그인 성공 시(=sessionStorage 에
+ * 키 저장됨) owner session 쿠키 발급 → 새 탭·재시작도 자동 로그인(쿠키 fallback).
+ * 자동 로그인(doLogin 재호출) 땐 호출 안 됨 → 세션 row 누적 방지. 로그아웃이 쿠키·row 삭제. */
+try{
+  if(sessionStorage.getItem('admin_key')===k){
+    fetch('/api/admin-key-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k}),credentials:'same-origin'}).catch(function(){});
+  }
+}catch(_){}
 }
 
 /**
