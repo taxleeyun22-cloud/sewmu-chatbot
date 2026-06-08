@@ -146,11 +146,40 @@ function buildClientContext(businesses, userRealName) {
   const header = userRealName ? `- 대화 상대: ${userRealName}님\n` : "";
   if (businesses.length === 1) {
     const lines = businessLine(businesses[0], null);
-    return `\n\n===== 현재 상담 거래처 정보 (기장거래처) =====\n${header}${lines}\n\n[활용 지침]\n- 답변 시 위 정보를 자연스럽게 반영. "○○상사님(간이과세)은..." 같이 맞춤 호칭·상황 반영.\n- 과세유형·업종 특수 사항 고려 (예: 음식점 의제매입세액, 건설업 기성고 등).\n- 세무사 메모가 있으면 그 맥락 반영.\n- 사업자번호·매출 같은 민감정보는 답변에 노출하지 마.\n`;
+    return `\n\n===== 현재 상담 거래처 정보 (기장거래처) =====\n${header}${lines}\n\n[활용 지침]\n- 답변 시 위 정보를 자연스럽게 반영. "○○상사님(간이과세)은..." 같이 맞춤 호칭·상황 반영.\n- 과세유형·업종 특수 사항 고려 (예: 음식점 의제매입세액, 건설업 기성고 등).\n- 세무사 메모가 있으면 그 맥락 반영.\n- 사업자번호는 답변에 노출 자제. 단, "로그인한 본인"이 본인의 매출·세금을 물으면 아래 "신고 검토표 데이터"의 숫자로 정확히 답변 가능 (본인 데이터이므로 OK).\n`;
   }
   // 복수 사업장
   const blocks = businesses.map((b, i) => businessLine(b, i)).join('\n\n');
-  return `\n\n===== 현재 상담 거래처 정보 (기장거래처 · ${businesses.length}개 사업장) =====\n${header}${blocks}\n\n[활용 지침]\n- 위 ${businesses.length}개 사업장을 운영 중이신 대표자입니다.\n- 질문이 특정 사업장에 해당하는지 맥락 파악 필요 (예: "우리 음식점"이라면 음식점 사업장 기준).\n- 사업장별 과세유형·업종이 다를 수 있으므로 구분해서 안내.\n- 사업자별 매출 합산·비교 등 질문 가능성도 고려.\n- 세무사 메모가 있으면 그 맥락 반영.\n- 민감정보(사업자번호·매출)는 직접 노출 자제.\n`;
+  return `\n\n===== 현재 상담 거래처 정보 (기장거래처 · ${businesses.length}개 사업장) =====\n${header}${blocks}\n\n[활용 지침]\n- 위 ${businesses.length}개 사업장을 운영 중이신 대표자입니다.\n- 질문이 특정 사업장에 해당하는지 맥락 파악 필요 (예: "우리 음식점"이라면 음식점 사업장 기준).\n- 사업장별 과세유형·업종이 다를 수 있으므로 구분해서 안내.\n- 사업자별 매출 합산·비교 등 질문 가능성도 고려.\n- 세무사 메모가 있으면 그 맥락 반영.\n- 사업자번호는 직접 노출 자제. 단, "로그인한 본인"이 본인의 매출·세금을 물으면 아래 "신고 검토표 데이터"의 숫자로 정확히 답변 가능 (본인 데이터이므로 OK).\n`;
+}
+
+/* 본인 신고 검토표(filings) 조회 — 사장님 명령 (2026-06-05): "작년 매출?" 챗봇 답변용.
+ * ⚠️ 격리: 반드시 owner = 로그인 본인(userId) 인 것만. 사업장·재무(client_finance)와 동일 패턴.
+ * Person(개인 종소세) 한정 — 가장 좁고 안전한 범위로 시작. */
+async function getClientFilings(db, userId) {
+  if (!db || !userId) return [];
+  try {
+    const { results } = await db.prepare(
+      `SELECT type, fiscal_year, auto_fields FROM filings
+       WHERE owner_type = 'Person' AND owner_id = ? AND (deleted_at IS NULL OR deleted_at = '')
+       ORDER BY fiscal_year DESC LIMIT 5`
+    ).bind(userId).all();
+    return results || [];
+  } catch { return []; }
+}
+
+function buildFilingContext(filings) {
+  if (!filings || filings.length === 0) return "";
+  const won = (n) => (Number(n) || 0).toLocaleString('ko-KR');
+  const lines = filings.map((f) => {
+    let af = {};
+    try { af = JSON.parse(f.auto_fields || '{}'); } catch {}
+    const parts = [`- ${f.fiscal_year}년 귀속 ${f.type}`];
+    if (af.revenue) parts.push(`수입금액 ${won(af.revenue)}원`);
+    if (af.decisive_tax) parts.push(`결정세액(낸 세금) ${won(af.decisive_tax)}원`);
+    return parts.join(' · ');
+  }).join('\n');
+  return `\n\n===== 본인(로그인 거래처)의 신고 검토표 데이터 =====\n${lines}\n\n[활용 지침 — 중요]\n- 위는 "지금 로그인한 본인"의 실제 신고 데이터입니다. 본인이 "내 작년 매출 얼마지?", "작년 세금 얼마 냈지?" 등을 물으면 위 숫자를 정확히 그대로(만들지 말고) 답하세요.\n- 위 목록에 없는 연도/항목은 "확인이 필요합니다"라고 답하고 절대 추측하지 마세요.\n- 다른 사람·다른 거래처의 매출/세금은 여기 없으며, 어떤 경우에도 만들어내거나 답하지 마세요.\n`;
 }
 
 // 승인상태별 일일 한도 (사장님 명령 2026-05-02: 일반승인 폐지, pending 5회로 인상)
@@ -636,6 +665,9 @@ export async function onRequestPost(context) {
         userRealName = u ? u.real_name : null;
         const businesses = await getClientBusinesses(db, userId);
         clientContext = buildClientContext(businesses, userRealName);
+        /* 본인 검토표(매출·세금) 추가 — WHERE owner = 본인(userId) 만 (2026-06-05) */
+        const filings = await getClientFilings(db, userId);
+        clientContext += buildFilingContext(filings);
       } catch {}
       // 재무 데이터 (매출·매입·세금) — 세무사가 입력해 둔 client_finance 최근 12건
       try {
