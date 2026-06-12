@@ -48,8 +48,8 @@
       </label>
     </div>
 
-    <div id="nameErr" style="display:none;color:#f04452;font-size:.78em;margin-top:10px"></div>
-    <button onclick="submitName()" style="margin-top:16px;width:100%;padding:13px;background:#3182f6;color:#fff;border:none;border-radius:10px;font-size:.95em;font-weight:600;cursor:pointer;font-family:inherit">가입 완료</button>
+    <div id="nameErr" style="display:none;color:var(--toss-red);font-size:.78em;margin-top:10px"></div>
+    <button onclick="submitName()" style="margin-top:16px;width:100%;padding:13px;background:var(--of-primary);color:#fff;border:none;border-radius:10px;font-size:.95em;font-weight:600;cursor:pointer;font-family:inherit">가입 완료</button>
     <p style="font-size:.68em;color:var(--text2);margin:12px 0 0;text-align:center;line-height:1.5">가명/허위 입력 시 이용이 제한될 수 있습니다<br>입력 정보는 세무상담 목적으로만 사용됩니다</p>
   </div>
 </div>
@@ -70,12 +70,12 @@
       <div style="padding:6px 11px;background:var(--card);font-size:.66em;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border)">필수</div>
       <label class="cs-row" style="display:flex;align-items:center;gap:8px;padding:10px 11px;cursor:pointer;border-bottom:1px solid var(--border)">
         <input type="checkbox" class="cs-req" data-key="age_14" onchange="updateConsentState()" style="width:16px;height:16px;flex-shrink:0">
-        <span style="flex:1;font-size:.76em">만 14세 이상입니다 <span style="color:#3182f6;font-size:.95em">(필수)</span></span>
+        <span style="flex:1;font-size:.76em">만 14세 이상입니다 <span style="color:var(--of-primary);font-size:.95em">(필수)</span></span>
       </label>
       <div class="cs-item" style="border-bottom:1px solid var(--border)">
         <label style="display:flex;align-items:center;gap:8px;padding:10px 11px;cursor:pointer">
           <input type="checkbox" class="cs-req" data-key="tos" onchange="updateConsentState()" style="width:16px;height:16px;flex-shrink:0">
-          <span style="flex:1;font-size:.76em">이용약관 동의 <span style="color:#3182f6;font-size:.95em">(필수)</span></span>
+          <span style="flex:1;font-size:.76em">이용약관 동의 <span style="color:var(--of-primary);font-size:.95em">(필수)</span></span>
           <button type="button" onclick="toggleCsDetail(this)" style="background:none;border:none;color:var(--text2);font-size:.7em;cursor:pointer;padding:2px 6px">자세히 ▼</button>
         </label>
         <div class="cs-detail" style="display:none;padding:9px 13px 13px;background:var(--card);font-size:.7em;line-height:1.6;color:var(--text2)">
@@ -92,7 +92,7 @@
       <div class="cs-item" style="border-bottom:1px solid var(--border)">
         <label style="display:flex;align-items:center;gap:8px;padding:10px 11px;cursor:pointer">
           <input type="checkbox" class="cs-req" data-key="privacy" onchange="updateConsentState()" style="width:16px;height:16px;flex-shrink:0">
-          <span style="flex:1;font-size:.76em">개인정보 수집·이용 동의 <span style="color:#3182f6;font-size:.95em">(필수)</span></span>
+          <span style="flex:1;font-size:.76em">개인정보 수집·이용 동의 <span style="color:var(--of-primary);font-size:.95em">(필수)</span></span>
           <button type="button" onclick="toggleCsDetail(this)" style="background:none;border:none;color:var(--text2);font-size:.7em;cursor:pointer;padding:2px 6px">자세히 ▼</button>
         </label>
         <div class="cs-detail" style="display:none;padding:9px 13px 13px;background:var(--card);font-size:.7em;line-height:1.6;color:var(--text2)">
@@ -111,7 +111,7 @@
       <div class="cs-item">
         <label style="display:flex;align-items:center;gap:8px;padding:10px 11px;cursor:pointer">
           <input type="checkbox" class="cs-req" data-key="overseas" onchange="updateConsentState()" style="width:16px;height:16px;flex-shrink:0">
-          <span style="flex:1;font-size:.76em">개인정보 국외이전 동의 <span style="color:#3182f6;font-size:.95em">(필수)</span></span>
+          <span style="flex:1;font-size:.76em">개인정보 국외이전 동의 <span style="color:var(--of-primary);font-size:.95em">(필수)</span></span>
           <button type="button" onclick="toggleCsDetail(this)" style="background:none;border:none;color:var(--text2);font-size:.7em;cursor:pointer;padding:2px 6px">자세히 ▼</button>
         </label>
         <div class="cs-detail" style="display:none;padding:9px 13px 13px;background:var(--card);font-size:.7em;line-height:1.6;color:var(--text2)">
@@ -154,8 +154,8 @@
       </div>
     </div>
 
-    <div id="consentErr" style="display:none;color:#f04452;font-size:.72em;margin-top:9px"></div>
-    <button id="consentBtn" onclick="submitConsent()" disabled style="margin-top:12px;width:100%;padding:11px;background:#3182f6;color:#fff;border:none;border-radius:10px;font-size:.85em;font-weight:600;cursor:pointer;font-family:inherit;opacity:.4">시작하기</button>
+    <div id="consentErr" style="display:none;color:var(--toss-red);font-size:.72em;margin-top:9px"></div>
+    <button id="consentBtn" onclick="submitConsent()" disabled style="margin-top:12px;width:100%;padding:11px;background:var(--of-primary);color:#fff;border:none;border-radius:10px;font-size:.85em;font-weight:600;cursor:pointer;font-family:inherit;opacity:.4">시작하기</button>
     <div style="text-align:center;margin-top:8px">
       <a href="javascript:rejectConsent()" style="font-size:.68em;color:var(--text2);text-decoration:underline">동의하지 않음</a>
     </div>
@@ -222,9 +222,9 @@
     <input id="editName" type="text" maxlength="20" style="width:100%;padding:12px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;font-size:.95em;outline:none;font-family:inherit">
     <label style="font-size:.8em;font-weight:600;display:block;margin:12px 0 4px">휴대폰 번호</label>
     <input id="editPhone" type="tel" maxlength="13" style="width:100%;padding:12px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;font-size:.95em;outline:none;font-family:inherit" oninput="formatPhone(this)">
-    <div id="editErr" style="display:none;color:#f04452;font-size:.78em;margin-top:8px"></div>
+    <div id="editErr" style="display:none;color:var(--toss-red);font-size:.78em;margin-top:8px"></div>
     <div style="display:flex;gap:8px;margin-top:14px">
-      <button onclick="saveMyInfo()" style="flex:1;background:#3182f6;color:#fff;border:none;padding:12px;border-radius:10px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">저장</button>
+      <button onclick="saveMyInfo()" style="flex:1;background:var(--of-primary);color:#fff;border:none;padding:12px;border-radius:10px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">저장</button>
       <button onclick="document.getElementById('editInfoModal').style.display='none'" style="background:var(--card);color:var(--text2);border:1px solid var(--border);padding:12px 20px;border-radius:10px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
     </div>
   </div>
@@ -252,13 +252,13 @@
     </div>
     <div id="plSavedPeople" style="margin-bottom:12px;display:none"></div>
 
-    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">받는 사람 이름 <span style="color:#f04452">*</span></label>
+    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">받는 사람 이름 <span style="color:var(--toss-red)">*</span></label>
     <input id="plName" type="text" placeholder="홍길동" maxlength="30" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
 
-    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">주민등록번호 <span style="color:#f04452">*</span></label>
+    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">주민등록번호 <span style="color:var(--toss-red)">*</span></label>
     <input id="plResid" type="text" placeholder="000000-0000000" maxlength="14" inputmode="numeric" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:.9em;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
 
-    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">세전 금액 <span style="color:#f04452">*</span></label>
+    <label style="font-size:.78em;font-weight:600;display:block;margin-bottom:4px">세전 금액 <span style="color:var(--toss-red)">*</span></label>
     <input id="plAmount" type="text" placeholder="1,000,000" inputmode="numeric" oninput="onPayrollAmountInput()" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;font-size:1em;font-family:inherit;margin-bottom:6px;box-sizing:border-box;font-weight:700">
 
     <!-- 계산 결과 (모드별) -->
@@ -292,7 +292,7 @@
 <div id="withdrawModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--bg);color:var(--text);border-radius:16px;padding:22px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <h3 style="font-size:1.1em;margin:0;color:#dc2626">회원 탈퇴</h3>
+      <h3 style="font-size:1.1em;margin:0;color:var(--of-danger)">회원 탈퇴</h3>
       <button onclick="closeWithdrawModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--text2)">✕</button>
     </div>
     <div style="background:#fff7ed;border:1px solid #fdba74;color:#9a3412;padding:12px;border-radius:8px;font-size:.82em;line-height:1.55;margin-bottom:14px">
@@ -307,7 +307,7 @@
       <span>위 내용을 확인했으며 탈퇴에 동의합니다</span>
     </label>
     <div style="display:flex;gap:8px">
-      <button onclick="submitWithdraw()" style="flex:1;background:#dc2626;color:#fff;border:none;padding:12px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">탈퇴</button>
+      <button onclick="submitWithdraw()" style="flex:1;background:var(--of-danger);color:#fff;border:none;padding:12px;border-radius:8px;font-size:.9em;font-weight:600;cursor:pointer;font-family:inherit">탈퇴</button>
       <button onclick="closeWithdrawModal()" style="background:var(--border);color:var(--text);border:none;padding:12px 20px;border-radius:8px;font-size:.9em;cursor:pointer;font-family:inherit">취소</button>
     </div>
   </div>

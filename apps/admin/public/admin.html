@@ -31,7 +31,7 @@ if ('serviceWorker' in navigator) {
 <!-- Phase S3c-1 (2026-05-04): office 사이드바 흡수 — office.css 사이드바 스타일 사용 -->
 <link rel="stylesheet" href="/office.css?v=6">
 <!-- 토스 벤치마킹 (2026-06-12): 토큰 라운드·그림자·사이드바 흰색. cache bump v=5→v=6. -->
-<link rel="stylesheet" href="/assets/main.css?v=6">
+<link rel="stylesheet" href="/assets/main.css?v=7">
 <script type="module" src="/assets/main.js?v=14"></script>
 <!-- AG-Grid Community (엑셀 스타일 그리드) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css">
@@ -270,7 +270,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=68', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=69', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -282,7 +282,7 @@ setTimeout(function(){
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=202"></script>
+<script src="/admin.js?v=203"></script>
 <!-- 모듈화 #3 Step9 (2026-05-18): PC 알림 admin.js 에서 분리 (classic, admin.js 다음 로드) -->
 <script src="/admin-pc-notify.js?v=1"></script>
 <!-- 모듈화 #3 Step10 (2026-05-18): owner 전체 내보내기 admin.js 에서 분리 -->

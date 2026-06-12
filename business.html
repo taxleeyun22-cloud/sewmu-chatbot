@@ -8,7 +8,7 @@
 <!-- Phase H6a (2026-05-04): 인라인 CSS/JS 외부화 -->
 <link rel="stylesheet" href="/business.css?v=1">
 <!-- Phase T1+T2a: Tailwind + 토큰 통합 -->
-<link rel="stylesheet" href="/assets/main.css?v=3">
+<link rel="stylesheet" href="/assets/main.css?v=4">
 <script type="module" src="/assets/main.js?v=2"></script>
 <!-- Phase 3.6 (2026-05-08): React entry — BizRoomList mount -->
 <script type="module" src="/assets/react.js?v=19"></script>
@@ -20,14 +20,14 @@
   body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif!important;background:#FAFAFA!important;letter-spacing:-0.01em;-webkit-font-smoothing:antialiased}
   .bz-nav{background:#fff;border-bottom:1px solid #ECEEF1;padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20}
   .bz-nav a{color:#9CA3AF;font-size:13px;font-weight:500;text-decoration:none}
-  .bz-nav a:hover{color:#111827}
+  .bz-nav a:hover{color:var(--of-text-main)}
   .bz-bc{color:#9CA3AF;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px}
   .bz-mark{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:#0B1F3A;color:#fff;font-size:11px;font-weight:700}
   .bz-nav-r{margin-left:auto;display:flex;gap:8px;align-items:center}
   .bz-hero{max-width:1180px;margin:24px auto 8px;padding:0 28px}
   .bz-hero-label{font-size:11px;font-weight:600;color:#9CA3AF;letter-spacing:.08em;text-transform:uppercase}
   .bz-hero h1,.bz-hero #bizName{font-size:35px!important;font-weight:800;letter-spacing:-0.04em;color:#0B1F3A;margin:8px 0 6px!important;border:none!important;padding:0!important}
-  .bz-hero #bizSub,.bz-hero .sub{font-size:13.5px;color:#374151;font-weight:500}
+  .bz-hero #bizSub,.bz-hero .sub{font-size:13.5px;color:var(--gray-700);font-weight:500}
   /* 사장님 명령 (2026-05-23): 글자 크게 + 더 예쁘게 (거래처 dashboard 와 통일 시안).
      .bz-wrap 기준 font-size 17px (브라우저 기본 16 → ↑) → em 기반 내부 텍스트 전체 비례 확대. */
   .bz-wrap{max-width:1180px;margin:0 auto;padding:18px 28px 60px;font-size:17px}
@@ -36,8 +36,8 @@
   .bz-wrap .sec-title{font-size:19.5px!important;font-weight:800;letter-spacing:-0.02em;color:#0B1F3A;margin-bottom:16px;display:flex;align-items:center;gap:8px}
   .bz-wrap .memo-tabs button.on{background:#0B1F3A!important;border-color:#0B1F3A!important}
   .bz-wrap .btn-primary{background:#0B1F3A!important}
-  .bz-wrap .btn-success{background:#10B981!important}
-  .bz-act{padding:7px 14px;font-size:13px;font-weight:500;border:1px solid #E5E7EB;border-radius:8px;background:#fff;color:#111827;cursor:pointer;font-family:inherit}
+  .bz-wrap .btn-success{background:var(--of-success)!important}
+  .bz-act{padding:7px 14px;font-size:13px;font-weight:500;border:1px solid #E5E7EB;border-radius:8px;background:#fff;color:var(--of-text-main);cursor:pointer;font-family:inherit}
   .bz-act:hover{background:#F5F6F8}
   .bz-act.primary{background:#0B1F3A;color:#fff;border-color:#0B1F3A}
   /* 증분2: 시안 2컬럼 (좌 검토표·메모·AI / 우 정보·구성원·상담방·일정·문서). JS 노드이동으로 채움 — DOM 재배치라 ID·onclick·렌더 전부 보존. */
@@ -56,9 +56,9 @@
     <span class="bz-nav-r">
       <span style="color:#9ca3af;font-size:.78em" id="topMeta"></span>
       <!-- 사장님 명령 (2026-05-21): "조정료청구서 클릭하는거 안보임" — 업체 dashboard 에서도 청구서 발행 진입 -->
-      <button id="bizBillingBtn" onclick="bizGotoBilling()" class="bz-act" style="background:#fef3c7;color:#92400e;border-color:#fde68a;font-weight:600" title="이 업체로 조정료 청구서 발행 (새 admin · 검토표 자동 prefill)">💰 조정료 청구서 ↗</button>
+      <button id="bizBillingBtn" onclick="bizGotoBilling()" class="bz-act" style="background:var(--of-warn-soft);color:var(--warn-text);border-color:#fde68a;font-weight:600" title="이 업체로 조정료 청구서 발행 (새 admin · 검토표 자동 prefill)">💰 조정료 청구서 ↗</button>
       <!-- Phase M6 (2026-05-05 사장님 명령: 업체 삭제 + 메모 cascade) — ID·onclick 보존 -->
-      <button id="bizDeleteBtn" onclick="deleteBusinessFromPage()" class="bz-act" style="color:#dc2626;border-color:#dc2626" title="이 업체 + 모든 메모를 휴지통으로 (되돌릴 수 없음)">🗑️ 업체 삭제</button>
+      <button id="bizDeleteBtn" onclick="deleteBusinessFromPage()" class="bz-act" style="color:var(--of-danger);border-color:var(--of-danger)" title="이 업체 + 모든 메모를 휴지통으로 (되돌릴 수 없음)">🗑️ 업체 삭제</button>
     </span>
   </nav>
 
@@ -82,7 +82,7 @@
   <div class="section" id="branchInfoSection" style="display:none">
     <div class="sec-title">
       <span id="branchSecTitle">🏢 본점·지점</span>
-      <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px" id="branchSecHint"></span>
+      <span style="font-size:.72em;color:var(--text-mute);font-weight:500;margin-left:6px" id="branchSecHint"></span>
     </div>
     <div id="branchInfoBody"></div>
   </div>
@@ -91,15 +91,15 @@
        내부 박스가 법인세/부가세/종소세 자체 헤더를 가지므로 외부는 generic.
        (옛: "— 법인세" 고정 → 법인 중복 + 개인 오라벨) -->
   <div class="section" id="bizFilingReviewSection">
-    <div class="sec-title">🧾 신고 검토표 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">결재용 · 작년 vs 올해 비교 · A4 PDF</span>
+    <div class="sec-title">🧾 신고 검토표 <span style="font-size:.72em;color:var(--text-mute);font-weight:500;margin-left:6px">결재용 · 작년 vs 올해 비교 · A4 PDF</span>
     </div>
     <div id="bdFilingsReview" style="font-size:.85em"><div class="loading">불러오는 중...</div></div>
   </div>
 
   <div class="section">
-    <div class="sec-title">🏢 업체 메모 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">전화·문서·이슈·약속 + #태그 + 📎첨부 — 이 메모는 거래처(사람) dashboard 에도 "🏢 업체명 메모" 로 표시</span>
-      <button onclick="openMemoWindowBiz()" style="margin-left:auto;background:#fff;color:#3182f6;border:1px solid #3182f6;padding:4px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit" title="메모만 별창으로 — 카톡 보면서 동시에 메모">🪟 별창</button>
-      <span style="font-size:.7em;color:#8b95a1">총 <span id="memoCount">0</span>건</span>
+    <div class="sec-title">🏢 업체 메모 <span style="font-size:.72em;color:var(--text-mute);font-weight:500;margin-left:6px">전화·문서·이슈·약속 + #태그 + 📎첨부 — 이 메모는 거래처(사람) dashboard 에도 "🏢 업체명 메모" 로 표시</span>
+      <button onclick="openMemoWindowBiz()" style="margin-left:auto;background:#fff;color:var(--of-primary);border:1px solid var(--of-primary);padding:4px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit" title="메모만 별창으로 — 카톡 보면서 동시에 메모">🪟 별창</button>
+      <span style="font-size:.7em;color:var(--text-mute)">총 <span id="memoCount">0</span>건</span>
     </div>
     <!-- 카테고리 탭 -->
     <div class="memo-tabs" id="memoTabs">
@@ -133,11 +133,11 @@
         <input id="memoNewDue" type="date" title="기한 (선택)">
         <button type="button" class="file-label" onclick="document.getElementById('memoNewFile').click()">📎 첨부</button>
         <input id="memoNewFile" type="file" multiple accept="image/*,.pdf,.hwp,.hwpx" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" onchange="onMemoFileSelect(event)">
-        <span id="memoNewFileLabel" style="font-size:.74em;color:#8b95a1"></span>
+        <span id="memoNewFileLabel" style="font-size:.74em;color:var(--text-mute)"></span>
       </div>
       <textarea id="memoNewContent" rows="2" placeholder="예) 사장님 종소세 분납 요청 #종소세&#10;예) 5/15 부가세 매입 영수증 12장 수령 #부가세 #영수증"></textarea>
       <div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">
-        <span style="font-size:.7em;color:#8b95a1;margin-right:auto">💡 #키워드 자동 태그</span>
+        <span style="font-size:.7em;color:var(--text-mute);margin-right:auto">💡 #키워드 자동 태그</span>
         <button class="btn-primary" onclick="submitMemoNew()">＋ 추가</button>
       </div>
     </div>
@@ -185,7 +185,7 @@
 <div id="adminModalsSlot"></div>
 <script>
 window.KEY = window.KEY || (new URL(location.href)).searchParams.get('key') || '';
-fetch('/admin-modals.html?v=55', { cache: 'no-cache' })
+fetch('/admin-modals.html?v=56', { cache: 'no-cache' })
   .then(r => r.ok ? r.text() : Promise.reject(r.status))
   .then(html => {
     const slot = document.getElementById('adminModalsSlot');
@@ -222,7 +222,7 @@ fetch('/admin-modals.html?v=55', { cache: 'no-cache' })
       var t=document.getElementById('__bizGuardToast');
       if(!t){
         t=document.createElement('div'); t.id='__bizGuardToast';
-        t.style.cssText='position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#191f28;color:#fff;padding:10px 18px;border-radius:10px;font-size:.86em;z-index:99999;box-shadow:0 4px 16px rgba(0,0,0,.25);font-family:inherit;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center';
+        t.style.cssText='position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--text-main);color:#fff;padding:10px 18px;border-radius:10px;font-size:.86em;z-index:99999;box-shadow:0 4px 16px rgba(0,0,0,.25);font-family:inherit;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center';
         document.body.appendChild(t);
       }
       t.textContent=msg;
@@ -304,8 +304,8 @@ window.KEY = window.KEY || (new URL(location.href).searchParams.get('key') || ''
         /* Phase 16 (2026-05-17) 사장님 명령: "신고검토표 부가세랑 법인세랑 두개 분리".
          * 법인 → 법인세 박스 + 부가세 박스 (2개 별도). 개인 → 종소세 안내 + 부가세 박스.
          * _filRenderTypeInto 로 type 별 분리 (store 무관, 회귀 0). */
-        var secStyle='background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:12px';
-        var hdr=function(t){ return '<div style="font-weight:700;font-size:.92em;color:#191f28;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #191f28">📋 신고 검토표 — '+t+'</div>'; };
+        var secStyle='background:#fff;border:1px solid var(--neutral-border);border-radius:10px;padding:14px 16px;margin-bottom:12px';
+        var hdr=function(t){ return '<div style="font-weight:700;font-size:.92em;color:var(--text-main);margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--text-main)">📋 신고 검토표 — '+t+'</div>'; };
         function _renderType(boxId, ftype){
           if(typeof _filRenderTypeInto==='function'){ _filRenderTypeInto(boxId, 'Business', bid, nm, ftype); }
           else { setTimeout(()=>{ if(typeof _filRenderTypeInto==='function') _filRenderTypeInto(boxId, 'Business', bid, nm, ftype); }, 500); }
@@ -321,7 +321,7 @@ window.KEY = window.KEY || (new URL(location.href).searchParams.get('key') || ''
           /* 개인사업자 → 종소세 안내 (작게) + 부가세 박스 */
           var ceo=biz.ceo_name||'대표자';
           var rep=(d.members||[]).find(m=>(m.role==='대표자'||m.is_primary===1)&&m.user_id);
-          var link=rep?'<a href="javascript:void(0)" onclick="alert(\'admin 화면에서 사용자 list 의 '+ceo.replace(/[\'\"]/g,'')+' → 거래처정보 → 신고 검토표 섹션 참조\')" style="color:#3182f6;font-weight:600">→ '+ceo+' 종소세 Case 보기 (admin)</a>':'';
+          var link=rep?'<a href="javascript:void(0)" onclick="alert(\'admin 화면에서 사용자 list 의 '+ceo.replace(/[\'\"]/g,'')+' → 거래처정보 → 신고 검토표 섹션 참조\')" style="color:var(--of-primary);font-weight:600">→ '+ceo+' 종소세 Case 보기 (admin)</a>':'';
           box.innerHTML=
             '<div style="background:#dbeafe;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:6px;color:#1e3a8a;font-size:.82em;margin-bottom:12px">'
             +'📌 <b>개인사업자</b> — 종소세는 대표자 ('+ceo+') 종소세에 포함.'+(link?' '+link:'')+'</div>'
@@ -331,7 +331,7 @@ window.KEY = window.KEY || (new URL(location.href).searchParams.get('key') || ''
       })
       .catch(()=>{
         var box=document.getElementById('bdFilingsReview');
-        if(box) box.innerHTML='<div style="color:#f04452;padding:8px;font-size:.82em">업체 정보 로드 실패</div>';
+        if(box) box.innerHTML='<div style="color:var(--toss-red);padding:8px;font-size:.82em">업체 정보 로드 실패</div>';
       });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);

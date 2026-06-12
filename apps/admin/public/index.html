@@ -19,7 +19,7 @@
 <!-- Phase H4 (2026-05-04): 인라인 <style> 4개 블록 → index.css 외부화 -->
 <link rel="stylesheet" href="/index.css?v=3">
 <!-- 토스 벤치마킹 (2026-06-12): 토큰 라운드·그림자. cache bump v=3→v=4 -->
-<link rel="stylesheet" href="/assets/main.css?v=4">
+<link rel="stylesheet" href="/assets/main.css?v=5">
 <script type="module" src="/assets/main.js?v=1"></script>
 </head>
 <body>
@@ -386,7 +386,7 @@
 <script>
 (function loadIndexModals(){
   function inject(){
-    fetch('/index-modals.html?v=2', {cache: 'no-cache'})
+    fetch('/index-modals.html?v=3', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('indexModalsSlot');
