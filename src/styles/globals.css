@@ -77,11 +77,11 @@
   /* === 모달 오버레이 === */
   --overlay-bg: rgba(0, 0, 0, 0.5);
 
-  /* === Radius 스케일 (4단계) === */
-  --radius-sm: 6px;    /* pill / 칩 */
-  --radius-md: 8px;    /* 버튼 / 카드 */
-  --radius-lg: 12px;   /* 섹션 카드 */
-  --radius-xl: 16px;   /* 모달 외곽 */
+  /* === Radius 스케일 (4단계) — 토스-4 (2026-06-12): 토스 라운드로 한 단계씩 ↑ === */
+  --radius-sm: 8px;    /* pill / 칩 */
+  --radius-md: 10px;   /* 버튼 / 카드 */
+  --radius-lg: 16px;   /* 섹션 카드 */
+  --radius-xl: 20px;   /* 모달 외곽 */
 
   /* === 브랜드 색 (의미 부여) === */
   --brand-primary: #3182f6;     /* 일반 액션·확인·저장 */

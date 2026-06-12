@@ -455,3 +455,19 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
 /* 카톡 UX: ESC 키 자동 닫기 + 외부 클릭 자동 닫기 (옛 admin.js 의 핸들러 보장)
  * — 이 룰은 visual 만, 실제 ESC 닫기는 admin.js 의 keydown handler 가 처리
  * — 모달 backdrop 클릭 시 자동 닫기는 admin.js 에서 처리 */
+
+/* ============================================================
+ * 토스-4 (2026-06-12 사장님 "모달 디테일 다잡자"):
+ * modal-overlay 35개 공통 — 카드 라운드 20 + 보더 제거 + 토스 그림자,
+ * 파랑/빨강 주요 버튼 라운드 12 + 볼드. 레이아웃·기능 0 변경 (모양만).
+ * ============================================================ */
+.modal-overlay > div{border-radius:20px!important;border:none!important;box-shadow:0 8px 28px rgba(25,31,40,.16)!important}
+.modal-overlay button[style*="background:var(--of-primary)"],
+.modal-overlay button[style*="background: var(--of-primary)"],
+.modal-overlay button[style*="background:var(--brand-primary)"],
+.modal-overlay button[style*="background: var(--brand-primary)"]{border-radius:12px!important;font-weight:800!important}
+.modal-overlay button[style*="background:var(--of-danger)"],
+.modal-overlay button[style*="background: var(--of-danger)"]{border-radius:12px!important;font-weight:800!important}
+/* 검증 탭 필터 — 토스 pill */
+.review-filters button{border-radius:99px}
+.review-card{border-radius:16px;box-shadow:0 2px 10px rgba(25,31,40,.05)}

@@ -346,3 +346,11 @@ mark{background:#fef3c7;color:inherit;padding:0 2px;border-radius:2px}
 
 /* === [블록 4] editInfoModal flex 분기 === */
 #editInfoModal[style*="flex"]{display:flex!important}
+
+/* ============================================================
+ * 토스-4 (2026-06-12 사장님 "모달 디테일 다잡자"):
+ * 고객 모달 카드 라운드 20 + 토스 그림자 (iosInstallModal 바텀시트는 제외).
+ * ============================================================ */
+#nameModal > div,#consentModal > div,#installModal > div,#roomInfoModal > div,
+#editInfoModal > div,#payrollModal > div,#withdrawModal > div,#onboardModal > div{
+  border-radius:20px!important;box-shadow:0 8px 28px rgba(25,31,40,.16)!important}
