@@ -132,7 +132,77 @@ setTimeout(()=>{loadReview(curFilter)},500);
 }catch(err){alert('오류: '+err.message)}
 }
 
+/* ============================================================
+ * 토스-홈 (2026-06-12 사장님 "마저하고 이모지도 토스스럽게"):
+ * 홈(대화 탭) 상단 — 인사 + KPI 빅넘버 4카드 + 바로가기 4버튼.
+ * 아이콘 = 이모지 대신 토스풍 SVG (stroke currentColor).
+ * 데이터: admin-approve counts + analytics daily + admin-users total.
+ * 실패해도 홈 리스트는 정상 (전부 try/catch — 회귀 0).
+ * ============================================================ */
+function _hIco(name){
+  var P={
+    receipt:'<path d="M4 2h12v18l-2-1.5L12 20l-2-1.5L8 20l-2-1.5L4 20V2z"/><path d="M8 7h6M8 11h6"/>',
+    target:'<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3"/>',
+    usercheck:'<circle cx="8" cy="6.5" r="3.5"/><path d="M2.5 17c0-3 2.5-4.5 5.5-4.5s5.5 1.5 5.5 4.5"/><path d="M13.5 9l2 2 3.5-3.5"/>',
+    doc:'<path d="M5 2h7l4 4v12H5V2z"/><path d="M12 2v4h4M8 11h5M8 14h5"/>',
+    people:'<circle cx="7.5" cy="7" r="3"/><path d="M2 17c0-3 2.5-4.5 5.5-4.5S13 14 13 17"/><circle cx="14" cy="8" r="2.4"/><path d="M14 12.4c2.4 0 4 1.4 4 3.6"/>',
+    wait:'<circle cx="10" cy="10" r="7.5"/><path d="M10 6v4l2.6 2"/>',
+    chat:'<path d="M3 4h14v10H8l-4 3.5V4z"/>',
+    biz:'<path d="M4 18V5h8v13M12 9h4v9M4 18h14"/><path d="M6.5 8h1.5M6.5 11h1.5M6.5 14h1.5"/>',
+  }[name]||'';
+  return '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+P+'</svg>';
+}
+async function renderHomeHero(){
+  var el=$g('homeHero'); if(!el) return;
+  try{
+    var now=new Date(Date.now()+9*3600*1000);
+    var days=['일','월','화','수','목','금','토'];
+    var dateStr=(now.getUTCMonth()+1)+'월 '+now.getUTCDate()+'일 '+days[now.getUTCDay()]+'요일';
+    if(!el.innerHTML){
+      el.innerHTML='<div style="margin:4px 2px 18px">'
+        +'<div style="font-size:13px;color:var(--text-mute);font-weight:600">'+dateStr+'</div>'
+        +'<div style="font-size:24px;font-weight:800;letter-spacing:-.03em;color:var(--text-main);margin-top:3px">사장님, 오늘도 좋은 하루 되세요<span style="color:var(--of-primary)">.</span></div>'
+        +'</div><div id="homeKpis"></div><div id="homeQuick"></div>';
+    }
+    var rs=await Promise.all([
+      fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=pending').then(function(r){return r.json()}).catch(function(){return {}}),
+      fetch('/api/analytics?key='+encodeURIComponent(KEY)).then(function(r){return r.json()}).catch(function(){return {}}),
+      fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&page=1').then(function(r){return r.json()}).catch(function(){return {}}),
+    ]);
+    var c=(rs[0]&&rs[0].counts)||{};
+    var todayKey=now.toISOString().slice(0,10);
+    var dRow=((rs[1]&&rs[1].daily)||[]).find(function(d){return d.date===todayKey});
+    var todayCnt=dRow?dRow.count:0;
+    var totalUsers=(rs[2]&&rs[2].total)||0;
+    var pending=c.pending||0;
+    function kpi(ico,label,val,unit,color,onclick){
+      return '<div onclick="'+(onclick||'')+'" style="background:#fff;border-radius:20px;padding:18px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:'+(onclick?'pointer':'default')+'">'
+        +'<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-mute);font-weight:700">'+_hIco(ico)+label+'</div>'
+        +'<div style="font-size:27px;font-weight:800;letter-spacing:-.03em;margin-top:6px;color:'+color+'">'+val+'<span style="font-size:14px;font-weight:700;color:var(--text-sub)"> '+unit+'</span></div>'
+        +'</div>';
+    }
+    var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
+    $g('homeKpis').innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px">'
+      +kpi('people','기장거래처',(c.approved_client||0),'곳','var(--of-primary)',uTab)
+      +kpi('wait','승인 대기',pending,'명',pending>0?'var(--toss-red)':'var(--text-main)',uTab)
+      +kpi('chat','오늘 챗봇 상담',todayCnt,'건','var(--text-main)','')
+      +kpi('biz','전체 사용자',totalUsers,'명','var(--text-main)',uTab)
+      +'</div>';
+    function qk(ico,label,onclick){
+      return '<button onclick="'+onclick+'" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:8px;background:#fff;border:none;border-radius:16px;padding:13px 10px;box-shadow:0 2px 10px rgba(25,31,40,.05);font-size:13.5px;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit">'
+        +'<span style="display:inline-flex;color:var(--of-primary)">'+_hIco(ico)+'</span>'+label+'</button>';
+    }
+    $g('homeQuick').innerHTML='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">'
+      +qk('receipt','청구서 발행',"window.open('https://sewmu-admin.pages.dev/admin/billing/new','_blank')")
+      +qk('target','영업 타겟',"window.open('https://sewmu-admin.pages.dev/admin/sales-targets','_blank')")
+      +qk('usercheck','가입 승인',uTab)
+      +qk('doc','검토표 모아보기',"($g('sbReviewAllBtn')||{click:function(){}}).click()")
+      +'</div>';
+  }catch(_){/* 홈 헤더 실패해도 리스트는 정상 */}
+}
+
 async function loadList(){
+try{renderHomeHero()}catch(_){}
 const r=await fetch('/api/conversations?key='+encodeURIComponent(KEY)+'&page=1');
 const d=await r.json();
 const el=$g('list');

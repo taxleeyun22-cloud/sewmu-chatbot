@@ -43,7 +43,9 @@ button{font-family:inherit;cursor:pointer}
 .of-sb-item{display:flex;align-items:center;gap:10px;padding:9px 12px;margin:1px 8px;width:calc(100% - 16px);font-size:13.5px;font-weight:600;color:var(--sb-text);cursor:pointer;border:0;background:transparent;text-align:left;font-family:inherit;transition:background .12s,color .12s;border-radius:10px}
 .of-sb-item:hover{background:var(--sb-hover)}
 .of-sb-item.on{background:var(--sb-active-bg);color:var(--sb-active-text);font-weight:800}
-.of-sb-item .ic{font-size:14px;width:18px;text-align:center;flex-shrink:0;opacity:.92}
+/* 토스-홈 (2026-06-12): 이모지 → SVG 아이콘 (currentColor 상속 — active 시 파랑) */
+.of-sb-item .ic{font-size:14px;width:18px;text-align:center;flex-shrink:0;opacity:.92;display:inline-flex;align-items:center;justify-content:center}
+.of-sb-item .ic svg{display:block}
 .of-sb-item .lb{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .of-sb-item .cnt{background:var(--sb-cnt-bg);color:var(--sb-cnt-text);font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;flex-shrink:0;min-width:24px;text-align:center;font-variant-numeric:tabular-nums}
 .of-sb-item.on .cnt{background:var(--of-primary);color:#fff}
