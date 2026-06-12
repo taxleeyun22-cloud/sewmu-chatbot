@@ -152,8 +152,11 @@ function _hIco(name){
   }[name]||'';
   return '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+P+'</svg>';
 }
+var _hhTries=0;
 async function renderHomeHero(){
-  var el=$g('homeHero'); if(!el) return;
+  var el=$g('homeHero');
+  /* admin-modals.html 주입이 loadList 보다 늦을 수 있음 — 있을 때까지 재시도 (최대 ~6초) */
+  if(!el){ if(_hhTries++<15) setTimeout(renderHomeHero,400); return; }
   try{
     var now=new Date(Date.now()+9*3600*1000);
     var days=['일','월','화','수','목','금','토'];
@@ -176,13 +179,13 @@ async function renderHomeHero(){
     var totalUsers=(rs[2]&&rs[2].total)||0;
     var pending=c.pending||0;
     function kpi(ico,label,val,unit,color,onclick){
-      return '<div onclick="'+(onclick||'')+'" style="background:#fff;border-radius:20px;padding:18px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:'+(onclick?'pointer':'default')+'">'
+      return '<div onclick="'+(onclick||'')+'" style="flex:1 1 180px;min-width:160px;background:#fff;border-radius:20px;padding:18px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:'+(onclick?'pointer':'default')+'">'
         +'<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-mute);font-weight:700">'+_hIco(ico)+label+'</div>'
         +'<div style="font-size:27px;font-weight:800;letter-spacing:-.03em;margin-top:6px;color:'+color+'">'+val+'<span style="font-size:14px;font-weight:700;color:var(--text-sub)"> '+unit+'</span></div>'
         +'</div>';
     }
     var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
-    $g('homeKpis').innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px">'
+    $g('homeKpis').innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
       +kpi('people','기장거래처',(c.approved_client||0),'곳','var(--of-primary)',uTab)
       +kpi('wait','승인 대기',pending,'명',pending>0?'var(--toss-red)':'var(--text-main)',uTab)
       +kpi('chat','오늘 챗봇 상담',todayCnt,'건','var(--text-main)','')
