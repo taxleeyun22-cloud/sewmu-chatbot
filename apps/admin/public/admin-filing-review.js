@@ -1197,7 +1197,8 @@ function _buildFilingReviewListHtml() {
     html += '<button onclick="openFilingNew(\'Person\',' + ownerId + ',\'' + _nm + '\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">+ 새 종소세 Case</button>';
   } else {
     html += '<button onclick="openFilingNew(\'Business\',' + ownerId + ',\'' + _nm + '\',\'법인세\')" style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px;margin-right:6px">+ 새 법인세 Case</button>';
-    html += '<button onclick="openFilingNew(\'Business\',' + ownerId + ',\'' + _nm + '\',\'부가세\')" style="background:#1a3a5c;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">+ 새 부가세 Case</button>';
+    /* 토스-2 v2 (2026-06-12): 부가세 진네이비 → 연파랑 (법인세 파랑과 토스 팔레트 안에서 구분) */
+    html += '<button onclick="openFilingNew(\'Business\',' + ownerId + ',\'' + _nm + '\',\'부가세\')" style="background:var(--of-primary-soft);color:var(--of-primary);border:none;padding:8px 14px;border-radius:10px;font-size:.82em;font-weight:800;cursor:pointer;font-family:inherit;margin-bottom:10px">+ 새 부가세 Case</button>';
   }
   if (!list.length) {
     html += '<div style="color:#9ca3af;padding:8px 0;font-size:.85em">신고 Case 가 없습니다.</div>';
