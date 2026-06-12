@@ -26,7 +26,8 @@ const config: Config = {
         'brand-success': 'var(--brand-success, #10b981)',
       },
       fontFamily: {
-        sans: ['Noto Sans KR', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        /* 토스-3 (2026-06-12): Pretendard 우선 (토스 톤), Noto fallback */
+        sans: ['Pretendard', 'Noto Sans KR', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
       },
     },
   },

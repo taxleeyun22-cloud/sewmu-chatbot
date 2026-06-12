@@ -167,7 +167,7 @@ export default function SalesTargetsPage() {
           type="button"
           onClick={() => setTab('pension')}
           className={`px-4 py-2 rounded-lg text-sm font-semibold border ${
-            tab === 'pension' ? 'bg-[#0B1F3A] text-white border-[#0B1F3A]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            tab === 'pension' ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
           }`}
         >
           💰 연금 절세
@@ -176,7 +176,7 @@ export default function SalesTargetsPage() {
           type="button"
           onClick={() => setTab('expense')}
           className={`px-4 py-2 rounded-lg text-sm font-semibold border ${
-            tab === 'expense' ? 'bg-[#0B1F3A] text-white border-[#0B1F3A]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            tab === 'expense' ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
           }`}
         >
           🛡️ 보험 (경비 키워드)
@@ -197,7 +197,7 @@ export default function SalesTargetsPage() {
               type="button"
               onClick={exportPension}
               disabled={!pension.count}
-              className="ml-auto bg-[#0B1F3A] text-white px-3 py-1.5 rounded text-xs font-bold disabled:bg-gray-300"
+              className="ml-auto bg-brand-primary text-white px-3 py-1.5 rounded text-xs font-bold disabled:bg-gray-300"
             >
               ⬇ CSV 다운로드 ({pension.count})
             </button>
@@ -253,7 +253,7 @@ export default function SalesTargetsPage() {
               type="button"
               onClick={exportExpense}
               disabled={!expense.count}
-              className="ml-auto bg-[#0B1F3A] text-white px-3 py-1.5 rounded text-xs font-bold disabled:bg-gray-300"
+              className="ml-auto bg-brand-primary text-white px-3 py-1.5 rounded text-xs font-bold disabled:bg-gray-300"
             >
               ⬇ CSV 다운로드 ({expense.count})
             </button>
