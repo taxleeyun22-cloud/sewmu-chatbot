@@ -1237,8 +1237,11 @@ async function _filRenderTypeInto(elId, ownerType, ownerId, ownerName, filingTyp
   if (!box) return;
   box.innerHTML = '<div style="color:#9ca3af;padding:8px 0;font-size:.85em">불러오는 중...</div>';
   const _nm = _filEsc(ownerName || '').replace(/\'/g, '');
-  const btnColor = filingType === '부가세' ? '#1a3a5c' : '#3182f6';
-  let html = '<button onclick="openFilingNew(\'' + ownerType + '\',' + ownerId + ',\'' + _nm + '\',\'' + filingType + '\')" style="background:' + btnColor + ';color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">+ 새 ' + filingType + ' Case</button>';
+  /* 토스-2 v2 (2026-06-12): 부가세 진네이비 → 연파랑+파랑글자 (토스 팔레트 안에서 세목 구분 유지) */
+  const isVat = filingType === '부가세';
+  const btnBg = isVat ? 'var(--of-primary-soft)' : 'var(--of-primary)';
+  const btnFg = isVat ? 'var(--of-primary)' : '#fff';
+  let html = '<button onclick="openFilingNew(\'' + ownerType + '\',' + ownerId + ',\'' + _nm + '\',\'' + filingType + '\')" style="background:' + btnBg + ';color:' + btnFg + ';border:none;padding:8px 14px;border-radius:10px;font-size:.82em;font-weight:800;cursor:pointer;font-family:inherit;margin-bottom:10px">+ 새 ' + filingType + ' Case</button>';
   try {
     const r = await fetch('/api/admin-filings?key=' + encodeURIComponent(_filGetKey()) + '&owner_type=' + ownerType + '&owner_id=' + ownerId);
     const d = await r.json();
