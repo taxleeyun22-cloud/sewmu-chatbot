@@ -2645,9 +2645,6 @@ async function loadMyPage(){
   var phoneIssue=st==='rejected' && rr && /연락처|카카오|전화|번호/.test(rr);
   if(warnEl) warnEl.style.display=phoneIssue?'block':'none';
   if(infoItem) infoItem.style.boxShadow=phoneIssue?'inset 4px 0 0 #dc2626':'';
-  /* 업체 등록 요청 상태 불러오기 */
-  try{loadMyCompanyRequest()}catch(_){}
-
   /* 관리자 권한이 있으면 관리자 페이지 버튼 노출 */
   var adminBtn=document.getElementById('mpAdminBtn');
   if(adminBtn)adminBtn.style.display=currentUser.is_admin?'flex':'none';
@@ -2715,65 +2712,9 @@ async function loadMyPage(){
   }
 }
 
-/* 📝 업체 등록 요청 — 마이페이지에서 자기 업체 정보·역할을 세무사에게 미리 요청 */
-async function loadMyCompanyRequest(){
-  var el=document.getElementById('mpCompanyReqValue');
-  if(!el)return;
-  try{
-    var r=await fetch('/api/my-company-request');
-    if(!r.ok){el.textContent='아직 등록 요청 안 함';return}
-    var d=await r.json();
-    var req=d.request;
-    if(req && req.requested_company_name){
-      var role=req.requested_role||'담당자';
-      el.textContent='✅ '+req.requested_company_name+' · '+role+(req.requested_business_number?' ('+req.requested_business_number+')':'');
-      el.style.color='#10b981';
-    } else {
-      el.textContent='아직 등록 요청 안 함';
-      el.style.color='';
-    }
-  }catch(_){}
-}
-async function openCompanyRequestModal(){
-  var m=document.getElementById('companyRequestModal');if(!m)return;
-  /* 기존 요청 값 미리 채움 (수정 지원) */
-  try{
-    var r=await fetch('/api/my-company-request');
-    var d=r.ok?await r.json():{};
-    var req=(d&&d.request)||{};
-    document.getElementById('cprName').value=req.requested_company_name||'';
-    document.getElementById('cprBiz').value=req.requested_business_number||'';
-    var role=req.requested_role||'담당자';
-    var rr=document.querySelector('input[name=cprRole][value='+role+']');
-    if(rr)rr.checked=true;
-  }catch(_){}
-  /* 실명 prefill: currentUser.real_name (없으면 빈칸) */
-  var rn=document.getElementById('cprRealName');
-  if(rn)rn.value=(currentUser&&currentUser.real_name)||'';
-  m.style.display='flex';
-}
-function closeCompanyRequestModal(){
-  var m=document.getElementById('companyRequestModal');if(m)m.style.display='none';
-}
-async function submitCompanyRequest(){
-  var name=(document.getElementById('cprName').value||'').trim();
-  var realName=(document.getElementById('cprRealName').value||'').trim();
-  var bn=(document.getElementById('cprBiz').value||'').trim();
-  var role=(document.querySelector('input[name=cprRole]:checked')||{}).value||'담당자';
-  if(!name){alert('상호를 입력해주세요');return}
-  if(!realName||realName.length<2){alert('본인 실명을 2자 이상 입력해주세요');return}
-  var btn=document.getElementById('cprSubmitBtn');
-  if(btn){btn.disabled=true;btn.textContent='전송 중...';btn.style.opacity='.6'}
-  try{
-    var r=await fetch('/api/my-company-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:name,real_name:realName,business_number:bn,role:role})});
-    var d=await r.json();
-    if(!d.ok){alert('실패: '+(d.error||'unknown'));return}
-    alert('✅ 업체 등록 요청이 세무사님께 전달됐습니다.\n승인되면 알림이 갑니다.');
-    closeCompanyRequestModal();
-    loadMyCompanyRequest();
-  }catch(err){alert('오류: '+err.message)}
-  finally{if(btn){btn.disabled=false;btn.textContent='📤 요청 보내기';btn.style.opacity=''}}
-}
+/* 업체 등록 요청 기능 제거 (2026-06-12 사장님 명령 "업체등록요청 빼자")
+ * — 업체 연결은 세무사가 admin 에서 직접. API(my-company-request)는 기존 요청
+ *   데이터 조회 호환 위해 유지, 고객 진입 UI 만 제거. */
 
 function editMyInfo(){
   if(!currentUser)return;
