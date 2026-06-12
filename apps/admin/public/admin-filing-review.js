@@ -266,7 +266,7 @@ function _filRender() {
   _filGet('filingTitle').innerHTML = f.fiscal_year + '년귀속 <span style="background:' + (isJongSo ? '#dbeafe' : '#fef3c7') + ';color:' + (isJongSo ? '#1e40af' : '#92400e') + ';padding:2px 8px;border-radius:6px;font-size:.7em;font-weight:700;margin:0 4px">' + _filEsc(f.type) + '</span> 신고검토표';
 
   /* 결재 상태 배지 */
-  const stColor = { '작성중': '#9ca3af', '결재대기': '#f59e0b', '보관완료': '#10b981' }[f.review_status] || '#9ca3af';
+  const stColor = { '작성중': '#9ca3af', '결재대기': 'var(--of-primary)', '보관완료': 'var(--of-success)' }[f.review_status] || '#9ca3af';
   const stBadge = _filGet('filingStatusBadge');
   stBadge.textContent = f.review_status;
   stBadge.style.background = stColor;
@@ -1204,7 +1204,7 @@ function _buildFilingReviewListHtml() {
   } else {
     html += list.map(f => {
       const af = (function () { try { return JSON.parse(f.auto_fields || '{}'); } catch { return {}; } })();
-      const stColor = { '작성중': '#9ca3af', '결재대기': '#f59e0b', '보관완료': '#10b981' }[f.review_status] || '#9ca3af';
+      const stColor = { '작성중': '#9ca3af', '결재대기': 'var(--of-primary)', '보관완료': 'var(--of-success)' }[f.review_status] || '#9ca3af';
       const rev = af.revenue || 0;
       const dec = af.decisive_tax || 0;
       const eff = rev ? _filEffRate(dec, rev) : '—';
@@ -1247,7 +1247,7 @@ async function _filRenderTypeInto(elId, ownerType, ownerId, ownerName, filingTyp
     } else {
       html += list.map(f => {
         const af = (function () { try { return JSON.parse(f.auto_fields || '{}'); } catch { return {}; } })();
-        const stColor = { '작성중': '#9ca3af', '결재대기': '#f59e0b', '보관완료': '#10b981' }[f.review_status] || '#9ca3af';
+        const stColor = { '작성중': '#9ca3af', '결재대기': 'var(--of-primary)', '보관완료': 'var(--of-success)' }[f.review_status] || '#9ca3af';
         const rev = af.revenue || 0;
         const dec = af.decisive_tax || 0;
         return '<div onclick="openFilingDetail(' + f.id + ')" style="padding:10px 12px;background:#fff;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;justify-content:space-between" onmouseenter="this.style.background=\'#f0f9ff\'" onmouseleave="this.style.background=\'#fff\'">'
@@ -1337,7 +1337,7 @@ async function openRoomFilings(roomId) {
         + ' <span style="color:#8b95a1;font-weight:400;font-size:.92em">' + byType[type].length + '건</span></div>';
       byType[type].forEach(f => {
         const af = (function () { try { return JSON.parse(f.auto_fields || '{}'); } catch { return {}; } })();
-        const stColor = { '작성중': '#9ca3af', '결재대기': '#f59e0b', '보관완료': '#10b981' }[f.review_status] || '#9ca3af';
+        const stColor = { '작성중': '#9ca3af', '결재대기': 'var(--of-primary)', '보관완료': 'var(--of-success)' }[f.review_status] || '#9ca3af';
         const dec = af.decisive_tax || 0;
         html += '<div onclick="closeRoomFilings();openFilingDetail(' + f.id + ')" '
           + 'style="padding:9px 12px;background:#fff;border:1px solid #e5e8eb;border-radius:8px;margin-bottom:5px;cursor:pointer;display:flex;align-items:center;justify-content:space-between" '
@@ -1395,7 +1395,7 @@ function _filReloadList(ownerType, ownerId) {
 function _filApprovalButtonsHtml(f) {
   let html = '<div class="keep-together no-print" style="display:flex;gap:8px;justify-content:flex-end;padding:14px 0;border-top:1px solid #e5e8eb;margin-top:8px">';
   if (f.review_status === '작성중') {
-    html += '<button onclick="filingSetStatus(\'결재대기\')" style="background:#f59e0b;color:#fff;border:none;padding:9px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">📋 결재 요청 (→ 결재대기)</button>';
+    html += '<button onclick="filingSetStatus(\'결재대기\')" style="background:var(--of-primary);color:#fff;border:none;padding:9px 18px;border-radius:12px;font-size:.85em;font-weight:800;cursor:pointer;font-family:inherit">📋 결재 요청 (→ 결재대기)</button>';
   } else if (f.review_status === '결재대기') {
     html += '<button onclick="filingSetStatus(\'작성중\')" style="background:#fff;color:#6b7280;border:1px solid #d1d5db;padding:9px 14px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">← 작성중 으로</button>';
     if (typeof IS_OWNER !== 'undefined' && IS_OWNER) {

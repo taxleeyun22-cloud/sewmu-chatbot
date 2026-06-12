@@ -527,10 +527,11 @@
       .then(function(d){
         const docs = d.documents || [];
         const counts = d.counts || {};
-        const summary = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">'
-          + '<div style="padding:6px 9px;background:#fef3c7;border-radius:5px;font-size:.78em;text-align:center">⏳ 대기 <b>' + (counts.pending || 0) + '</b></div>'
-          + '<div style="padding:6px 9px;background:#d1fae5;border-radius:5px;font-size:.78em;text-align:center">✅ 승인 <b>' + (counts.approved || 0) + '</b></div>'
-          + '<div style="padding:6px 9px;background:#fee2e2;border-radius:5px;font-size:.78em;text-align:center">❌ 반려 <b>' + (counts.rejected || 0) + '</b></div>'
+        /* 토스-2 v2 (2026-06-12): 파스텔 3색 → 회색 타일 + 숫자만 의미색 (거래처 custdash 와 동일) */
+        const summary = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">'
+          + '<div style="padding:8px 10px;background:var(--gray-100);border-radius:12px;font-size:.78em;text-align:center;color:var(--text-mute);font-weight:700">⏳ 대기 <b style="color:var(--text-main);font-size:1.15em">' + (counts.pending || 0) + '</b></div>'
+          + '<div style="padding:8px 10px;background:var(--gray-100);border-radius:12px;font-size:.78em;text-align:center;color:var(--text-mute);font-weight:700">✅ 승인 <b style="color:var(--of-success);font-size:1.15em">' + (counts.approved || 0) + '</b></div>'
+          + '<div style="padding:8px 10px;background:var(--gray-100);border-radius:12px;font-size:.78em;text-align:center;color:var(--text-mute);font-weight:700">❌ 반려 <b style="color:var(--toss-red);font-size:1.15em">' + (counts.rejected || 0) + '</b></div>'
           + '</div>';
         if (!docs.length) { $('docList').innerHTML = summary + '<div class="empty">최근 문서 없음</div>'; return; }
         const TY = {receipt:'영수증',lease:'임대차',payroll:'근로',freelancer_payment:'프리랜서',tax_invoice:'세금계산서',insurance:'보험',utility:'공과금',property_tax:'지방세',bank_stmt:'은행내역',business_reg:'사업자등록증',identity:'신분증',contract:'계약서',other:'기타'};

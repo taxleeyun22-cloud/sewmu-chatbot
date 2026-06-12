@@ -17,29 +17,32 @@
      섹션·ID·onclick·스크립트 전부 그대로. 2컬럼 재배치는 증분2(검증 후). -->
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
 <style>
-  body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif!important;background:#FAFAFA!important;letter-spacing:-0.01em;-webkit-font-smoothing:antialiased}
-  .bz-nav{background:#fff;border-bottom:1px solid #ECEEF1;padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20}
+  /* 토스-2 (2026-06-12 사장님 v2 승인): 네이비 → 토스 절제 팔레트 (거래처 custdash 토스-1 과 동일 톤).
+     구조·ID·onclick 변화 0 — 톤 오버라이드만. */
+  body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif!important;background:var(--neutral-bg)!important;letter-spacing:-0.02em;-webkit-font-smoothing:antialiased}
+  .bz-nav{background:#fff;border-bottom:1px solid var(--gray-100);padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20}
   .bz-nav a{color:#9CA3AF;font-size:13px;font-weight:500;text-decoration:none}
   .bz-nav a:hover{color:var(--of-text-main)}
   .bz-bc{color:#9CA3AF;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px}
-  .bz-mark{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:#0B1F3A;color:#fff;font-size:11px;font-weight:700}
+  .bz-mark{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;background:var(--of-primary);color:#fff;font-size:11px;font-weight:700}
   .bz-nav-r{margin-left:auto;display:flex;gap:8px;align-items:center}
   .bz-hero{max-width:1180px;margin:24px auto 8px;padding:0 28px}
-  .bz-hero-label{font-size:11px;font-weight:600;color:#9CA3AF;letter-spacing:.08em;text-transform:uppercase}
-  .bz-hero h1,.bz-hero #bizName{font-size:35px!important;font-weight:800;letter-spacing:-0.04em;color:#0B1F3A;margin:8px 0 6px!important;border:none!important;padding:0!important}
+  .bz-hero-label{font-size:12px;font-weight:700;color:var(--text-mute)}
+  .bz-hero h1,.bz-hero #bizName{font-size:33px!important;font-weight:800;letter-spacing:-0.04em;color:var(--text-main);margin:6px 0 6px!important;border:none!important;padding:0!important}
   .bz-hero #bizSub,.bz-hero .sub{font-size:13.5px;color:var(--gray-700);font-weight:500}
   /* 사장님 명령 (2026-05-23): 글자 크게 + 더 예쁘게 (거래처 dashboard 와 통일 시안).
      .bz-wrap 기준 font-size 17px (브라우저 기본 16 → ↑) → em 기반 내부 텍스트 전체 비례 확대. */
   .bz-wrap{max-width:1180px;margin:0 auto;padding:18px 28px 60px;font-size:17px}
-  /* 기존 .section 을 시안 카드 톤으로 (border-radius/그림자/spacing — 내부 렌더 출력 무손상) */
-  .bz-wrap .section{background:#fff;border:1px solid #ECEEF1;border-radius:18px;padding:22px 24px;margin-bottom:18px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 6px 20px rgba(16,24,40,.03)}
-  .bz-wrap .sec-title{font-size:19.5px!important;font-weight:800;letter-spacing:-0.02em;color:#0B1F3A;margin-bottom:16px;display:flex;align-items:center;gap:8px}
-  .bz-wrap .memo-tabs button.on{background:#0B1F3A!important;border-color:#0B1F3A!important}
-  .bz-wrap .btn-primary{background:#0B1F3A!important}
+  /* 카드 — 토스: 보더 없는 라운드 20 + 부드러운 그림자 */
+  .bz-wrap .section{background:#fff;border:none;border-radius:20px;padding:22px 24px;margin-bottom:18px;box-shadow:0 2px 10px rgba(25,31,40,.05)}
+  .bz-wrap .sec-title{font-size:17px!important;font-weight:800;letter-spacing:-0.02em;color:var(--text-main);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+  .bz-wrap .memo-tabs button{border-radius:99px!important}
+  .bz-wrap .memo-tabs button.on{background:var(--text-main)!important;border-color:var(--text-main)!important;color:#fff!important}
+  .bz-wrap .btn-primary{background:var(--of-primary)!important;border-radius:12px!important;font-weight:800!important}
   .bz-wrap .btn-success{background:var(--of-success)!important}
-  .bz-act{padding:7px 14px;font-size:13px;font-weight:500;border:1px solid #E5E7EB;border-radius:8px;background:#fff;color:var(--of-text-main);cursor:pointer;font-family:inherit}
-  .bz-act:hover{background:#F5F6F8}
-  .bz-act.primary{background:#0B1F3A;color:#fff;border-color:#0B1F3A}
+  .bz-act{padding:8px 15px;font-size:13px;font-weight:700;border:none;border-radius:12px;background:#fff;color:var(--text-sub);cursor:pointer;font-family:inherit;box-shadow:0 2px 10px rgba(25,31,40,.05)}
+  .bz-act:hover{background:var(--gray-100)}
+  .bz-act.primary{background:var(--of-primary);color:#fff;border-color:var(--of-primary)}
   /* 증분2: 시안 2컬럼 (좌 검토표·메모·AI / 우 정보·구성원·상담방·일정·문서). JS 노드이동으로 채움 — DOM 재배치라 ID·onclick·렌더 전부 보존. */
   .bz-grid{display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start}
   .bz-main,.bz-side{min-width:0}
@@ -56,7 +59,7 @@
     <span class="bz-nav-r">
       <span style="color:#9ca3af;font-size:.78em" id="topMeta"></span>
       <!-- 사장님 명령 (2026-05-21): "조정료청구서 클릭하는거 안보임" — 업체 dashboard 에서도 청구서 발행 진입 -->
-      <button id="bizBillingBtn" onclick="bizGotoBilling()" class="bz-act" style="background:var(--of-warn-soft);color:var(--warn-text);border-color:#fde68a;font-weight:600" title="이 업체로 조정료 청구서 발행 (새 admin · 검토표 자동 prefill)">💰 조정료 청구서 ↗</button>
+      <button id="bizBillingBtn" onclick="bizGotoBilling()" class="bz-act" style="background:var(--of-primary-soft);color:var(--of-primary);font-weight:800" title="이 업체로 조정료 청구서 발행 (새 admin · 검토표 자동 prefill)">💰 조정료 청구서 ↗</button>
       <!-- Phase M6 (2026-05-05 사장님 명령: 업체 삭제 + 메모 cascade) — ID·onclick 보존 -->
       <button id="bizDeleteBtn" onclick="deleteBusinessFromPage()" class="bz-act" style="color:var(--of-danger);border-color:var(--of-danger)" title="이 업체 + 모든 메모를 휴지통으로 (되돌릴 수 없음)">🗑️ 업체 삭제</button>
     </span>
@@ -185,7 +188,7 @@
 <div id="adminModalsSlot"></div>
 <script>
 window.KEY = window.KEY || (new URL(location.href)).searchParams.get('key') || '';
-fetch('/admin-modals.html?v=57', { cache: 'no-cache' })
+fetch('/admin-modals.html?v=58', { cache: 'no-cache' })
   .then(r => r.ok ? r.text() : Promise.reject(r.status))
   .then(html => {
     const slot = document.getElementById('adminModalsSlot');
@@ -261,9 +264,9 @@ fetch('/admin-modals.html?v=57', { cache: 'no-cache' })
 </script>
 
 <!-- Phase B-1 (2026-05-17): paste-drop → src/lib/paste-drop.ts (assets/main.js 번들, self-register) -->
-<script src="/business.js?v=10"></script>
+<script src="/business.js?v=11"></script>
 <!-- Phase 6 (2026-05-07): 신고 검토표 시스템 (법인세) -->
-<script src="/admin-filing-review.js?v=37"></script>
+<script src="/admin-filing-review.js?v=38"></script>
 <!-- Phase Infra-2 fix (2026-05-09): admin-modals.html 안 backToList() / 등 admin-anal-review-faq.js 함수 사용
      사장님 보고 (Sentry first error): ReferenceError: backToList is not defined at /business:158:47 -->
 <!-- Phase 16 (2026-05-13) 사장님 Sentry 보고: ReferenceError: $g is not defined at backToList.
