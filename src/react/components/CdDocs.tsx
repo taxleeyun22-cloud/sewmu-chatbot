@@ -8,17 +8,17 @@ import { useStore } from '@nanostores/react';
 import { $dashboard } from '../../admin/state/dashboard-store';
 
 interface BoxProps {
-  bg: string;
-  fg: string;
+  /** 숫자 색 — 토스-1 v2 (2026-06-12): 타일은 전부 회색, 숫자만 의미색 */
+  numColor: string;
   label: string;
   value: number;
 }
 
-function Box({ bg, fg, label, value }: BoxProps) {
+function Box({ numColor, label, value }: BoxProps) {
   return (
-    <div style={{ padding: '8px 10px', background: bg, borderRadius: '6px' }}>
-      <div style={{ fontSize: '.72em', color: fg }}>{label}</div>
-      <div style={{ fontWeight: 800, fontSize: '1.1em' }}>{value}</div>
+    <div style={{ padding: '12px 14px', background: 'var(--gray-100)', borderRadius: '14px' }}>
+      <div style={{ fontSize: '.72em', color: 'var(--text-mute)', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontWeight: 800, fontSize: '1.35em', color: numColor, letterSpacing: '-.03em' }}>{value}</div>
     </div>
   );
 }
@@ -31,11 +31,11 @@ export function CdDocs() {
   const rejected = Number(c.rejected) || 0;
   const total = pending + approved + rejected;
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-      <Box bg="#fef3c7" fg="#92400e" label="⏳ 대기" value={pending} />
-      <Box bg="#d1fae5" fg="#065f46" label="✅ 승인" value={approved} />
-      <Box bg="#fee2e2" fg="#991b1b" label="❌ 반려" value={rejected} />
-      <Box bg="#e0f2fe" fg="#075985" label="📊 총" value={total} />
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+      <Box numColor="var(--text-main)" label="⏳ 대기" value={pending} />
+      <Box numColor="var(--of-success)" label="✅ 승인" value={approved} />
+      <Box numColor="var(--toss-red)" label="❌ 반려" value={rejected} />
+      <Box numColor="var(--of-primary)" label="📊 총" value={total} />
     </div>
   );
 }

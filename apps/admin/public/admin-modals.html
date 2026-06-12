@@ -852,37 +852,39 @@
        CSS = 톤 + Hero + cd-grid. 2컬럼 재배치는 admin-custdash-grid.js 가
        라이브 노드 이동 (ID·onclick·렌더 전부 보존 = 기능 회귀 0). -->
   <style>
-    #custDashModal,#custDashModal *{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif}
-    #custDashModal > div{background:#FAFAFA!important}
+    /* 토스-1 (2026-06-12 사장님 "v2가 나을듯"): 네이비 → 토스 절제 팔레트 (파랑+회색조).
+       구조·ID·onclick 변화 0 — 톤 오버라이드만. */
+    #custDashModal,#custDashModal *{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;letter-spacing:-.02em}
+    #custDashModal > div{background:var(--neutral-bg)!important}
     /* 헤더 = 업체(business.html) .bz-nav + .bz-hero 와 픽셀 동일.
        .cd-head 는 단일 children[0] 유지 (admin-custdash-grid.js reflow 호환). */
     #custDashModal .cd-head{background:#fff!important;padding:0!important;display:block!important}
-    #custDashModal .cd-nav{background:#fff;border-bottom:1px solid #ECEEF1;padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20}
-    #custDashModal .cd-back{background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:500;color:var(--of-text-main);cursor:pointer;font-family:inherit}
+    #custDashModal .cd-nav{background:#fff;border-bottom:1px solid var(--gray-100);padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20}
+    #custDashModal .cd-back{background:#fff;border:none;box-shadow:0 2px 10px rgba(25,31,40,.05);border-radius:12px;padding:8px 15px;font-size:13.5px;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit}
     #custDashModal .cd-bc{color:#9CA3AF;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    #custDashModal .cd-mark{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:#0B1F3A;color:#fff;font-size:11px;font-weight:700;flex-shrink:0}
+    #custDashModal .cd-mark{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;background:var(--of-primary);color:#fff;font-size:11px;font-weight:700;flex-shrink:0}
     #custDashModal .cd-bc-sep{color:#D1D5DB}
     #custDashModal .cd-nav-r{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}
-    #custDashModal .cd-sumbtn{background:var(--of-success);color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+    #custDashModal .cd-sumbtn{background:var(--of-primary);color:#fff;border:none;padding:8px 16px;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 4px 12px rgba(49,130,246,.3)}
     #custDashModal .cd-hero2{max-width:1180px;margin:24px auto 8px;padding:0 28px}
-    #custDashModal .cd-hero-label{font-size:11px;font-weight:600;color:#9CA3AF;letter-spacing:.08em;text-transform:uppercase}
-    #custDashModal .cd-hero2 #cdName{font-size:35px!important;font-weight:800!important;letter-spacing:-0.04em!important;color:#0B1F3A!important;margin:8px 0 6px!important;white-space:normal!important;overflow:visible!important}
+    #custDashModal .cd-hero-label{font-size:12px;font-weight:700;color:var(--text-mute)}
+    #custDashModal .cd-hero2 #cdName{font-size:33px!important;font-weight:800!important;letter-spacing:-0.04em!important;color:var(--text-main)!important;margin:6px 0 6px!important;white-space:normal!important;overflow:visible!important}
     #custDashModal .cd-hero2 #cdSub{font-size:13.5px!important;color:var(--gray-700)!important;font-weight:500!important;margin-top:0!important;white-space:normal!important;overflow:visible!important}
     @media(max-width:720px){#custDashModal .cd-hero2 #cdName{font-size:26px!important}#custDashModal .cd-nav,#custDashModal .cd-hero2{padding-left:16px;padding-right:16px}}
     /* 본문 wrap */
     #custDashModal .cd-body{max-width:1180px!important;padding:22px 28px 60px!important}
-    /* 카드 = .bz-wrap .section 동일 (여백 업체와 통일: padding 20px 22px) */
-    #custDashModal [style*="border-radius:12px"]{border:1px solid #ECEEF1!important;border-radius:18px!important;box-shadow:0 1px 2px rgba(16,24,40,.04),0 6px 20px rgba(16,24,40,.03)!important;padding:20px 22px!important}
-    /* 카드 제목 (font-weight:700 공유) navy */
-    #custDashModal [style*="font-weight:700"]{color:var(--of-text-main);letter-spacing:-0.01em}
-    /* 섹션 제목 = .bz-wrap .sec-title 동일 — 진한 검정·굵게 강제 (글자 찐하게) */
-    #custDashModal [style*="font-weight:700"][style*="font-size:.92em"]{font-size:19.5px!important;font-weight:800!important;color:#0B1F3A!important;letter-spacing:-0.02em!important}
-    /* 버튼 통일 룰 (.bz-wrap .btn-primary 와 동일 #0B1F3A) — 파랑 주요버튼 → 네이비.
-       초록(success var(--of-success)) 은 업체와 동일하게 유지. CSS-only — onclick·기능 0 변경 */
+    /* 카드 — 토스: 보더 없는 라운드 20 + 부드러운 그림자 */
+    #custDashModal [style*="border-radius:12px"]{border:none!important;border-radius:20px!important;box-shadow:0 2px 10px rgba(25,31,40,.05)!important;padding:20px 22px!important}
+    /* 카드 제목 (font-weight:700 공유) 잉크 */
+    #custDashModal [style*="font-weight:700"]{color:var(--text-main);letter-spacing:-0.01em}
+    /* 섹션 제목 — 토스: 잉크 검정 800 */
+    #custDashModal [style*="font-weight:700"][style*="font-size:.92em"]{font-size:17px!important;font-weight:800!important;color:var(--text-main)!important;letter-spacing:-0.02em!important}
+    /* 버튼 — 토스: 주요버튼 파랑 그대로, 메모탭 active 만 잉크 pill (시안 v2) */
     #custDashModal button[style*="background:var(--of-primary)"],
     #custDashModal button[style*="background: var(--of-primary)"],
-    #custDashModal button[style*="--brand-primary"],
-    #custDashModal #cdMemoTabs button.on{background:#0B1F3A!important;border-color:#0B1F3A!important;color:#fff!important}
+    #custDashModal button[style*="--brand-primary"]{background:var(--of-primary)!important;border-color:var(--of-primary)!important;color:#fff!important;border-radius:12px!important;font-weight:800!important}
+    #custDashModal #cdMemoTabs button{border-radius:99px!important}
+    #custDashModal #cdMemoTabs button.on{background:var(--text-main)!important;border-color:var(--text-main)!important;color:#fff!important}
     /* 본문 내용 = 업체(business.css .grid: .85em≈13.6px / var(--gray-700)) 와 동일 크기·색 통일.
        지금은 일부 16px·일부 .78em 으로 제각각 + 흐린 회색 → "글자 크기 다르고 안 찐함" 원인.
        내용 컨테이너 base 통일 (제목 .92em→16px 룰은 위에서 !important 라 영향 0). */
@@ -899,7 +901,7 @@
     #custDashModal .cd-main > div,#custDashModal .cd-side > div{grid-column:auto!important;margin:0!important}
     @media(max-width:920px){#custDashModal .cd-grid{grid-template-columns:1fr}}
   </style>
-  <div style="background:var(--gray-100);min-height:100vh">
+  <div style="background:var(--neutral-bg);min-height:100vh">
     <!-- 헤더 = 업체(business.html) nav+hero 동일 구조 (2026-05-19 사장님 "업체쪽으로 디자인 맞추자").
          단일 .cd-head = children[0] 유지 → admin-custdash-grid.js reflow 호환.
          ID(cdName/cdSub/cdPriority)·onclick(closeCustomerDashboard/openCustomerSummary) 전부 보존 = 회귀 0. -->
