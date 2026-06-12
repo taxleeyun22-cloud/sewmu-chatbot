@@ -203,6 +203,9 @@ async function renderHomeHero(){
       +'</div>';
   }catch(_){/* 홈 헤더 실패해도 리스트는 정상 */}
 }
+/* 자가 시작 — 부팅 경로(비번/쿠키/탭복원) 무관하게 homeHero 생기면 렌더.
+ * (loadList 가 cookie 부팅 타이밍에 안 불리는 경로 발견 — 2026-06-12) */
+try{ setTimeout(renderHomeHero, 600); }catch(_){}
 
 async function loadList(){
 try{renderHomeHero()}catch(_){}
