@@ -35,7 +35,9 @@ export async function onRequestGet(context) {
   const offset = (page - 1) * limit;
 
   try {
-    let whereClause = "1=1";
+    /* 2026-06-12 데이터 audit: 병합된 껍데기(provider='merged', merge 시 data 이미 이전됨)는
+     * 목록에서 숨김 — "이름만 떠다니는" 잔상 제거. 데이터 변경 0, 보기 필터일 뿐. */
+    let whereClause = "COALESCE(u.provider,'') != 'merged'";
     const params = [];
     if (search) {
       whereClause += " AND (u.name LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)";
@@ -61,7 +63,7 @@ export async function onRequestGet(context) {
     params.push(limit, offset);
 
     const { results } = await db.prepare(query).bind(...params).all();
-    const countR = await db.prepare(`SELECT COUNT(*) as n FROM users`).first();
+    const countR = await db.prepare(`SELECT COUNT(*) as n FROM users u WHERE COALESCE(u.provider,'') != 'merged'`).first();
 
     return Response.json({
       users: results || [],
@@ -411,6 +413,10 @@ export async function onRequestPost(context) {
           try { await db.prepare(`UPDATE daily_usage SET user_id = ? WHERE user_id = ?`).bind(keepId, archiveId).run(); } catch {}
           try { await db.prepare(`UPDATE sessions SET user_id = ? WHERE user_id = ?`).bind(keepId, archiveId).run(); } catch {}
           try { await db.prepare(`UPDATE business_documents SET user_id = ? WHERE user_id = ?`).bind(keepId, archiveId).run(); } catch {}
+          /* 2026-06-12 audit: 검토표·거래처사업장도 이전 (filings owner_id / client_businesses·client_profiles user_id) */
+          try { await db.prepare(`UPDATE filings SET owner_id = ? WHERE owner_type = 'Person' AND owner_id = ?`).bind(keepId, archiveId).run(); } catch {}
+          try { await db.prepare(`UPDATE client_businesses SET user_id = ? WHERE user_id = ?`).bind(keepId, archiveId).run(); } catch {}
+          try { await db.prepare(`UPDATE client_profiles SET user_id = ? WHERE user_id = ?`).bind(keepId, archiveId).run(); } catch {}
           merged.push({ name: pair.name, survived: keepId, archived: archiveId });
         } catch (e) {
           failed.push({ pair, reason: e.message });
@@ -458,7 +464,7 @@ export async function onRequestPost(context) {
       if (!kakao || !manual) return Response.json({ error: "user not found" }, { status: 404 });
 
       const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
-      const stats = { mappings: 0, memos: 0, conversations: 0, room_members: 0, documents: 0 };
+      const stats = { mappings: 0, memos: 0, conversations: 0, room_members: 0, documents: 0, filings: 0 };
 
       /* 0. snapshot 저장 — 분리 시 원상복구용 */
       const kakaoSnapshot = JSON.stringify({
@@ -552,6 +558,12 @@ export async function onRequestPost(context) {
       try { await db.prepare(`UPDATE daily_usage SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run(); } catch {}
       try { await db.prepare(`UPDATE sessions SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run(); } catch {}
       try { await db.prepare(`UPDATE business_documents SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run(); } catch {}
+      /* 사장님 보고 (2026-06-12 데이터 audit): 병합 시 검토표·거래처사업장 끊김 방지.
+       * filings 는 owner_id(owner_type='Person') 기준, client_businesses/client_profiles 는 user_id 기준
+       * — 위 user_id 일괄 이전에서 누락돼 있었음. 챗봇 "내 매출/업체" 연동 유지 위해 같이 이전. */
+      try { const rf = await db.prepare(`UPDATE filings SET owner_id = ? WHERE owner_type = 'Person' AND owner_id = ?`).bind(kakaoUid, manualUid).run(); stats.filings = rf?.meta?.changes || 0; } catch {}
+      try { await db.prepare(`UPDATE client_businesses SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run(); } catch {}
+      try { await db.prepare(`UPDATE client_profiles SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run(); } catch {}
       /* manual user 의 import_batch_id 도 그대로 — rollback 시 archived manual 자동 제거 */
 
       return Response.json({
