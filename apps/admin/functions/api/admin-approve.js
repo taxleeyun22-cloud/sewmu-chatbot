@@ -174,36 +174,34 @@ export async function onRequestGet(context) {
 
     const { results } = await db.prepare(query).bind(...binds).all();
 
+    /* 2026-06-15 사장님 "기장거래처 누르면 오래걸림": today_count 를 264명 각각 따로
+     * 조회하던 순차 루프(264번 D1 왕복 ≈ 2초+) → 오늘치 한 방 조회 후 map. 결과 동일. */
     const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    for (const u of results) {
-      try {
-        const usage = await db.prepare(
-          `SELECT count FROM daily_usage WHERE user_id = ? AND date = ?`
-        ).bind(u.id, today).first();
-        u.today_count = usage ? usage.count : 0;
-      } catch { u.today_count = 0; }
-    }
+    try {
+      const { results: usageRows } = await db.prepare(
+        `SELECT user_id, count FROM daily_usage WHERE date = ?`
+      ).bind(today).all();
+      const usageMap = {};
+      for (const row of (usageRows || [])) usageMap[row.user_id] = row.count;
+      for (const u of results) u.today_count = usageMap[u.id] || 0;
+    } catch { for (const u of results) u.today_count = 0; }
 
-    /* counts 도 분기 — 사장님 명령 (2026-05-08): is_admin=0 user 만 카운트 (admin 은 별도 카테고리) */
+    /* counts 도 분기 — 사장님 명령 (2026-05-08): is_admin=0 user 만 카운트 (admin 은 별도 카테고리)
+     * 2026-06-15 사장님 "오래걸림": status별 COUNT 7개를 순차 await → 병렬(Promise.all)로. 결과 동일. */
     const counts = {};
-    for (const s of APPROVAL_STATUSES) {
-      let sql, binds2;
-      if (s === 'withdrawn') {
-        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND u.deleted_at IS NOT NULL AND u.deleted_at != '' AND COALESCE(u.approval_status, 'pending') = 'withdrawn'`;
-        binds2 = [];
-      } else if (s === 'rejoined') {
-        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND COALESCE(u.approval_status, 'pending') = 'rejoined' AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
-        binds2 = [];
-      } else if (s === 'deleted') {
-        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND COALESCE(u.approval_status, 'pending') = 'deleted'`;
-        binds2 = [];
-      } else {
-        sql = `SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.approval_status, 'pending') = ? AND COALESCE(u.is_admin, 0) = 0 AND (u.deleted_at IS NULL OR u.deleted_at = '')`;
-        binds2 = [s];
-      }
-      const r = binds2.length ? await db.prepare(sql).bind(...binds2).first() : await db.prepare(sql).first();
-      counts[s] = r?.c || 0;
-    }
+    const _countSql = (s) => {
+      if (s === 'withdrawn') return [`SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND u.deleted_at IS NOT NULL AND u.deleted_at != '' AND COALESCE(u.approval_status, 'pending') = 'withdrawn'`, []];
+      if (s === 'rejoined') return [`SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND COALESCE(u.approval_status, 'pending') = 'rejoined' AND (u.deleted_at IS NULL OR u.deleted_at = '')`, []];
+      if (s === 'deleted') return [`SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.is_admin, 0) = 0 AND COALESCE(u.approval_status, 'pending') = 'deleted'`, []];
+      return [`SELECT COUNT(*) as c FROM users u WHERE COALESCE(u.approval_status, 'pending') = ? AND COALESCE(u.is_admin, 0) = 0 AND (u.deleted_at IS NULL OR u.deleted_at = '')`, [s]];
+    };
+    await Promise.all(APPROVAL_STATUSES.map(async (s) => {
+      try {
+        const [sql, binds2] = _countSql(s);
+        const r = binds2.length ? await db.prepare(sql).bind(...binds2).first() : await db.prepare(sql).first();
+        counts[s] = r?.c || 0;
+      } catch { counts[s] = 0; }
+    }));
     try {
       const a = await db.prepare(`SELECT COUNT(*) as c FROM users WHERE is_admin = 1`).first();
       counts.admin = a?.c || 0;
