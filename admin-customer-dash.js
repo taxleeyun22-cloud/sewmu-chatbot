@@ -85,7 +85,8 @@ async function openCustomerDashboard(userId, opts){
   const q=(p)=>'/api/'+p+(p.includes('?')?'&':'?')+'key='+encodeURIComponent(KEY);
   try{
     const [custRes, bizDocsRes, docsRes, roomsRes, mappedBizRes] = await Promise.all([
-      fetch(q('admin-approve?status=all')).then(r=>r.json()).catch(()=>({users:[]})),
+      /* 2026-06-15 사장님 "로딩 너무 오래걸림": 전체 290명(4.4초) → 이 한 명만(~100ms). admin-approve user_id fast-path */
+      fetch(q('admin-approve?user_id='+userId)).then(r=>r.json()).catch(()=>({users:[]})),
       fetch(q('admin-biz-docs?user_id='+userId)).then(r=>r.json()).catch(()=>({businesses:[]})),
       fetch(q('admin-documents?user_id='+userId+'&limit=5')).then(r=>r.json()).catch(()=>({documents:[],counts:{}})),
       fetch(q('admin-rooms')).then(r=>r.json()).catch(()=>({rooms:[]})),
