@@ -5,6 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
 <title>거래처 정보</title>
+<!-- 진입 속도 (2026-06-15): GET /api in-flight 중복 합치기 (admin.html 과 동일 — 쌍둥이). -->
+<script>(function(){try{
+  var _orig=window.fetch.bind(window); var _inflight={};
+  window.fetch=function(input,init){
+    try{
+      var method=((init&&init.method)||'GET').toUpperCase();
+      var url=(typeof input==='string')?input:(input&&input.url)||'';
+      if(method==='GET' && url.indexOf('/api/')!==-1){
+        if(_inflight[url]) return _inflight[url].then(function(r){return r.clone();});
+        var p=_orig(input,init); _inflight[url]=p;
+        var clear=function(){ delete _inflight[url]; }; p.then(clear,clear);
+        return p.then(function(r){return r.clone();});
+      }
+    }catch(_){}
+    return _orig(input,init);
+  };
+}catch(_){}})();</script>
 <!-- Phase H6a (2026-05-04): 인라인 CSS/JS 외부화 -->
 <link rel="stylesheet" href="/business.css?v=1">
 <!-- Phase T1+T2a: Tailwind + 토큰 통합 -->

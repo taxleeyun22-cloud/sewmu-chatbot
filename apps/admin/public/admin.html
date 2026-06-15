@@ -24,6 +24,28 @@ if ('serviceWorker' in navigator) {
 </script>
 <!-- 사무실 OS 임베드 모드 — ?embedded=1 진입 시 헤더/wrap 패딩 hide, iframe 안에서 콘텐츠만 보임 -->
 <script>try{if(new URLSearchParams(location.search).get('embedded')==='1')document.documentElement.classList.add('embedded');}catch(_){}</script>
+<!-- 진입 속도 (2026-06-15 사장님 "전체적으로 불러오는중 느림"): GET /api in-flight 중복 합치기.
+     여러 init 경로(홈 히어로·refreshPendingBadge·사이드바 카운트)가 같은 GET 을 동시에 쏘면
+     D1 동시부하로 각 1~2초로 부풂. 같은 URL 이 이미 날아가는 중이면 그 응답을 공유(clone).
+     시간차 캐시 아님(in-flight 중에만) → mutation 후 재조회 최신성 룰 무영향. POST/PUT/DELETE 제외. -->
+<script>(function(){try{
+  var _orig=window.fetch.bind(window); var _inflight={};
+  window.fetch=function(input,init){
+    try{
+      var method=((init&&init.method)||'GET').toUpperCase();
+      var url=(typeof input==='string')?input:(input&&input.url)||'';
+      if(method==='GET' && url.indexOf('/api/')!==-1){
+        if(_inflight[url]) return _inflight[url].then(function(r){return r.clone();});
+        var p=_orig(input,init);
+        _inflight[url]=p;
+        var clear=function(){ delete _inflight[url]; };
+        p.then(clear,clear);
+        return p.then(function(r){return r.clone();});
+      }
+    }catch(_){}
+    return _orig(input,init);
+  };
+}catch(_){}})();</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <!-- 토스 벤치마킹 (2026-06-12 사장님 명령): Pretendard 서체 (토스 톤) -->
 <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
