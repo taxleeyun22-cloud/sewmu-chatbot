@@ -152,26 +152,36 @@ function _hIco(name){
   }[name]||'';
   return '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+P+'</svg>';
 }
-var _hhTries=0, _hhLoaded=false, _hhBusy=false;
-async function renderHomeHero(){
-  var el=$g('homeHero');
-  /* admin-modals.html 주입이 loadList 보다 늦을 수 있음 — 있을 때까지 재시도 (최대 ~6초) */
-  if(!el){ if(_hhTries++<15) setTimeout(renderHomeHero,400); return; }
-  /* 중복 호출 방지 (2026-06-15 사장님 "불러오는중 느림"): 여러 트리거(이벤트·타이머·
-   * loadList·모달로더)가 다 부르면 admin-approve 등이 5~6번 중복 fetch → D1 동시부하로
-   * 전체 느려짐. 한 번만 로드 + 진행중 재진입 차단. (수동 새로고침은 _hhLoaded=false 로) */
-  if(_hhLoaded || _hhBusy) return;
-  _hhBusy=true;
+var _hhTries=0, _hhData=null, _hhFetching=false;
+/* KPI 박스 1개 HTML */
+function _hhKpi(ico,label,val,unit,color,onclick){
+  return '<div onclick="'+(onclick||'')+'" style="flex:1 1 180px;min-width:160px;background:#fff;border-radius:20px;padding:18px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:'+(onclick?'pointer':'default')+'">'
+    +'<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-mute);font-weight:700">'+_hIco(ico)+label+'</div>'
+    +'<div style="font-size:27px;font-weight:800;letter-spacing:-.03em;margin-top:6px;color:'+color+'">'+val+'<span style="font-size:14px;font-weight:700;color:var(--text-sub)"> '+unit+'</span></div>'
+    +'</div>';
+}
+/* KPI 채우기 — 캐시(_hhData) 있으면 숫자, 없으면 '·' 플레이스홀더. fetch 안 함(쌈). */
+function _hhFill(){
+  var box=$g('homeKpis'); if(!box) return;
+  var d=_hhData||{};
+  var P=function(v){ return (d && v!=null)?v:'·'; };
+  var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
+  var pend=d.pending;
+  box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
+    +_hhKpi('people','기장거래처',P(d.approvedClient),'곳','var(--of-primary)',uTab)
+    +_hhKpi('wait','승인 대기',P(pend),'명',(pend>0)?'var(--toss-red)':'var(--text-main)',uTab)
+    +_hhKpi('chat','오늘 챗봇 상담',P(d.todayCnt),'건','var(--text-main)','')
+    +_hhKpi('biz','전체 사용자',P(d.totalUsers),'명','var(--text-main)',uTab)
+    +'</div>';
+}
+/* 데이터 1회만 fetch — 캐시 후 재호출 시 skip (2026-06-15 사장님 "불러오는중 느림":
+ * 여러 트리거가 각각 fetch 3개씩 발사 → admin-approve 등 5~6중복 → D1 경합 → 전체 지연.
+ * 이제 fetch 는 한 번, 렌더(_hhRender)는 비면 캐시로 재적용(쌈) → 사라짐도 방지). */
+async function _hhFetch(){
+  if(_hhData || _hhFetching) return;
+  _hhFetching=true;
   try{
     var now=new Date(Date.now()+9*3600*1000);
-    var days=['일','월','화','수','목','금','토'];
-    var dateStr=(now.getUTCMonth()+1)+'월 '+now.getUTCDate()+'일 '+days[now.getUTCDay()]+'요일';
-    if(!el.innerHTML){
-      el.innerHTML='<div style="margin:4px 2px 18px">'
-        +'<div style="font-size:13px;color:var(--text-mute);font-weight:600">'+dateStr+'</div>'
-        +'<div style="font-size:24px;font-weight:800;letter-spacing:-.03em;color:var(--text-main);margin-top:3px">사장님, 오늘도 좋은 하루 되세요<span style="color:var(--of-primary)">.</span></div>'
-        +'</div><div id="homeKpis"></div><div id="homeQuick"></div>';
-    }
     var rs=await Promise.all([
       fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=pending').then(function(r){return r.json()}).catch(function(){return {}}),
       fetch('/api/analytics?key='+encodeURIComponent(KEY)).then(function(r){return r.json()}).catch(function(){return {}}),
@@ -180,35 +190,39 @@ async function renderHomeHero(){
     var c=(rs[0]&&rs[0].counts)||{};
     var todayKey=now.toISOString().slice(0,10);
     var dRow=((rs[1]&&rs[1].daily)||[]).find(function(d){return d.date===todayKey});
-    var todayCnt=dRow?dRow.count:0;
-    var totalUsers=(rs[2]&&rs[2].total)||0;
-    var pending=c.pending||0;
-    function kpi(ico,label,val,unit,color,onclick){
-      return '<div onclick="'+(onclick||'')+'" style="flex:1 1 180px;min-width:160px;background:#fff;border-radius:20px;padding:18px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:'+(onclick?'pointer':'default')+'">'
-        +'<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-mute);font-weight:700">'+_hIco(ico)+label+'</div>'
-        +'<div style="font-size:27px;font-weight:800;letter-spacing:-.03em;margin-top:6px;color:'+color+'">'+val+'<span style="font-size:14px;font-weight:700;color:var(--text-sub)"> '+unit+'</span></div>'
-        +'</div>';
-    }
+    _hhData={ approvedClient:(c.approved_client||0), pending:(c.pending||0), todayCnt:(dRow?dRow.count:0), totalUsers:((rs[2]&&rs[2].total)||0) };
+  }catch(_){ _hhData=null; }
+  _hhFetching=false;
+  try{ _hhFill(); }catch(_){}
+}
+/* 렌더 — 멱등. 이미 그려졌고(=#homeKpis 존재) 데이터도 있으면 즉시 return.
+ * 비어있으면(주입/재주입으로 노출) shell 다시 그림 + 캐시로 채움 + (처음이면)fetch. */
+function renderHomeHero(){
+  var el=$g('homeHero');
+  if(!el){ if(_hhTries++<20) setTimeout(renderHomeHero,400); return; }
+  if(el.querySelector('#homeKpis')){ if(_hhData) return; _hhFill(); if(!_hhData) _hhFetch(); return; }
+  try{
+    var now=new Date(Date.now()+9*3600*1000);
+    var days=['일','월','화','수','목','금','토'];
+    var dateStr=(now.getUTCMonth()+1)+'월 '+now.getUTCDate()+'일 '+days[now.getUTCDay()]+'요일';
     var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
-    $g('homeKpis').innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
-      +kpi('people','기장거래처',(c.approved_client||0),'곳','var(--of-primary)',uTab)
-      +kpi('wait','승인 대기',pending,'명',pending>0?'var(--toss-red)':'var(--text-main)',uTab)
-      +kpi('chat','오늘 챗봇 상담',todayCnt,'건','var(--text-main)','')
-      +kpi('biz','전체 사용자',totalUsers,'명','var(--text-main)',uTab)
-      +'</div>';
     function qk(ico,label,onclick){
       return '<button onclick="'+onclick+'" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:8px;background:#fff;border:none;border-radius:16px;padding:13px 10px;box-shadow:0 2px 10px rgba(25,31,40,.05);font-size:13.5px;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit">'
         +'<span style="display:inline-flex;color:var(--of-primary)">'+_hIco(ico)+'</span>'+label+'</button>';
     }
-    $g('homeQuick').innerHTML='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">'
+    el.innerHTML='<div style="margin:4px 2px 18px">'
+      +'<div style="font-size:13px;color:var(--text-mute);font-weight:600">'+dateStr+'</div>'
+      +'<div style="font-size:24px;font-weight:800;letter-spacing:-.03em;color:var(--text-main);margin-top:3px">사장님, 오늘도 좋은 하루 되세요<span style="color:var(--of-primary)">.</span></div>'
+      +'</div><div id="homeKpis"></div>'
+      +'<div id="homeQuick"><div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">'
       +qk('receipt','청구서 발행',"window.open('https://sewmu-admin.pages.dev/admin/billing/new','_blank')")
       +qk('target','영업 타겟',"window.open('https://sewmu-admin.pages.dev/admin/sales-targets','_blank')")
       +qk('usercheck','가입 승인',uTab)
       +qk('doc','검토표 모아보기',"($g('sbReviewAllBtn')||{click:function(){}}).click()")
-      +'</div>';
-    _hhLoaded=true; /* 데이터 로드 완료 — 이후 중복 호출 skip */
+      +'</div></div>';
+    _hhFill();           /* 캐시 있으면 숫자, 없으면 '·' */
+    if(!_hhData) _hhFetch();  /* 처음이면 1회 fetch → 끝나면 _hhFill 재적용 */
   }catch(_){/* 홈 헤더 실패해도 리스트는 정상 */}
-  finally{ _hhBusy=false; }
 }
 /* 홈 히어로 자동 렌더 — 모달 DOM 준비 신호에 직접 훅 (2026-06-15 사장님 "왜안되노").
  * 원인: #homeHero 는 admin-modals.html 안에 있고, ESM loadAdminModals 가 주입 후
@@ -216,8 +230,9 @@ async function renderHomeHero(){
  * 안 맞아 빗나갔음(부팅 경로마다 주입 시점 다름). → 이벤트에 직접 건다 = 항상 정확.
  * + 백업: 이미 주입된 뒤 진입한 경우(이벤트 놓침) 대비 짧은 폴링도 유지. */
 try{ document.addEventListener('adminModalsLoaded', function(){ try{ renderHomeHero(); }catch(_){} }); }catch(_){}
-try{ setTimeout(renderHomeHero, 600); }catch(_){}
-try{ setTimeout(renderHomeHero, 1500); }catch(_){}
+/* 백업 재렌더 — 모달 재주입 등으로 homeHero 가 비워지는 케이스 대비.
+ * renderHomeHero 는 멱등 + fetch 1회 캐시라 여러 번 불러도 비용 거의 0 (DOM 재적용만). */
+try{ [600,1500,3000,5000].forEach(function(ms){ setTimeout(renderHomeHero, ms); }); }catch(_){}
 
 async function loadList(){
 try{renderHomeHero()}catch(_){}
