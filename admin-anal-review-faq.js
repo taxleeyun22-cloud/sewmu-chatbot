@@ -203,9 +203,14 @@ async function renderHomeHero(){
       +'</div>';
   }catch(_){/* 홈 헤더 실패해도 리스트는 정상 */}
 }
-/* 자가 시작 — 부팅 경로(비번/쿠키/탭복원) 무관하게 homeHero 생기면 렌더.
- * (loadList 가 cookie 부팅 타이밍에 안 불리는 경로 발견 — 2026-06-12) */
+/* 홈 히어로 자동 렌더 — 모달 DOM 준비 신호에 직접 훅 (2026-06-15 사장님 "왜안되노").
+ * 원인: #homeHero 는 admin-modals.html 안에 있고, ESM loadAdminModals 가 주입 후
+ * 'adminModalsLoaded' 이벤트 dispatch. setTimeout(600) 자가시작은 이 주입 타이밍과
+ * 안 맞아 빗나갔음(부팅 경로마다 주입 시점 다름). → 이벤트에 직접 건다 = 항상 정확.
+ * + 백업: 이미 주입된 뒤 진입한 경우(이벤트 놓침) 대비 짧은 폴링도 유지. */
+try{ document.addEventListener('adminModalsLoaded', function(){ try{ renderHomeHero(); }catch(_){} }); }catch(_){}
 try{ setTimeout(renderHomeHero, 600); }catch(_){}
+try{ setTimeout(renderHomeHero, 1500); }catch(_){}
 
 async function loadList(){
 try{renderHomeHero()}catch(_){}
