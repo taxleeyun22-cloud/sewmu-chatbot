@@ -152,11 +152,16 @@ function _hIco(name){
   }[name]||'';
   return '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+P+'</svg>';
 }
-var _hhTries=0;
+var _hhTries=0, _hhLoaded=false, _hhBusy=false;
 async function renderHomeHero(){
   var el=$g('homeHero');
   /* admin-modals.html 주입이 loadList 보다 늦을 수 있음 — 있을 때까지 재시도 (최대 ~6초) */
   if(!el){ if(_hhTries++<15) setTimeout(renderHomeHero,400); return; }
+  /* 중복 호출 방지 (2026-06-15 사장님 "불러오는중 느림"): 여러 트리거(이벤트·타이머·
+   * loadList·모달로더)가 다 부르면 admin-approve 등이 5~6번 중복 fetch → D1 동시부하로
+   * 전체 느려짐. 한 번만 로드 + 진행중 재진입 차단. (수동 새로고침은 _hhLoaded=false 로) */
+  if(_hhLoaded || _hhBusy) return;
+  _hhBusy=true;
   try{
     var now=new Date(Date.now()+9*3600*1000);
     var days=['일','월','화','수','목','금','토'];
@@ -201,7 +206,9 @@ async function renderHomeHero(){
       +qk('usercheck','가입 승인',uTab)
       +qk('doc','검토표 모아보기',"($g('sbReviewAllBtn')||{click:function(){}}).click()")
       +'</div>';
+    _hhLoaded=true; /* 데이터 로드 완료 — 이후 중복 호출 skip */
   }catch(_){/* 홈 헤더 실패해도 리스트는 정상 */}
+  finally{ _hhBusy=false; }
 }
 /* 홈 히어로 자동 렌더 — 모달 DOM 준비 신호에 직접 훅 (2026-06-15 사장님 "왜안되노").
  * 원인: #homeHero 는 admin-modals.html 안에 있고, ESM loadAdminModals 가 주입 후
