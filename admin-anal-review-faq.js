@@ -246,10 +246,13 @@ const av=s.user_profile_image
 ?'<img src="'+e(s.user_profile_image)+'" alt="">'
 :nm[0];
 const pv=s.user_provider||'';
+/* 토스 정리 (2026-06-16 사장님 "후가 훨씬 낫다"): 신뢰도 3색 뱃지 → 점 하나.
+ * 낮음(주의) 있으면 빨강점+개수, 없으면 회색점(양호). 행마다 색 3개 → 1개 = 차분. */
+var _dot=function(color,label){return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:.72em;font-weight:700;color:'+color+';margin-left:6px"><span style="width:6px;height:6px;border-radius:50%;background:'+color+';display:inline-block"></span>'+label+'</span>';};
 let confBadges='';
-if(s.count_high>0)confBadges+='<span class="conf high">높음 '+s.count_high+'</span>';
-if(s.count_medium>0)confBadges+='<span class="conf medium">보통 '+s.count_medium+'</span>';
-if(s.count_low>0)confBadges+='<span class="conf low">낮음 '+s.count_low+'</span>';
+if(s.count_low>0) confBadges=_dot('var(--toss-red)','낮음 '+s.count_low);
+else if(s.count_medium>0) confBadges=_dot('var(--text-mute)','보통');
+else if(s.count_high>0) confBadges=_dot('var(--of-success)','');
 return '<div class="item" onclick="detail(\''+e(s.group_id)+'\')">'
 +'<div class="avatar">'+av+'</div>'
 +'<div class="info"><div class="name">'+e(nm)+confBadges+'</div>'
