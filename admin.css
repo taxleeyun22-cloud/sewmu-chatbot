@@ -471,3 +471,13 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
 /* 검증 탭 필터 — 토스 pill */
 .review-filters button{border-radius:99px}
 .review-card{border-radius:16px;box-shadow:0 2px 10px rgba(25,31,40,.05)}
+
+/* ============================================================
+ * 토스 정리 (2026-06-16 사장님 "버튼 8개 정신없다"): 사용자 행 ⋯ 관리 메뉴.
+ * 행 = 클릭하면 대시보드. 액션은 우측 ⋯ → floating 메뉴(버튼 세로 스택).
+ * 버튼의 기존 색/onclick 은 보존(레이아웃만 override). ============================ */
+.urow:hover{background:var(--neutral-bg)!important}
+.u-kebab:hover{background:var(--neutral-border,#e5e8eb)!important}
+#uMenu > div{display:block!important;margin:0!important;gap:0!important}
+#uMenu button{display:block!important;width:100%!important;text-align:left!important;margin:0 0 5px 0!important;box-sizing:border-box}
+#uMenu button:last-child{margin-bottom:0!important}
