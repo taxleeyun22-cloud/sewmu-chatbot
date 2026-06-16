@@ -165,10 +165,12 @@ function exportCsv(){
   setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },120);
 }
 async function loadReviews(){
-  if(!KEY){ document.body.dataset.auth='false'; return; }
+  /* 2026-06-15 사장님 보고("검토표 모아보기 인증 필요 뜸"): 쿠키 로그인(30일 유지)이면 KEY=''
+   * 인데 옛 코드가 !KEY 면 fetch도 안 하고 막았음. 쿠키(admin_key_auth)는 same-origin fetch 에
+   * 자동 첨부되어 서버가 인증함 → 일단 fetch 시도하고, 진짜 미인증(401)일 때만 안내. */
   var box=document.getElementById('list'); box.innerHTML='<tr><td colspan="5" class="load">불러오는 중…</td></tr>';
   try{
-    var r=await fetch('/api/admin-filings?all=1&key='+encodeURIComponent(KEY));
+    var r=await fetch('/api/admin-filings?all=1&key='+encodeURIComponent(KEY),{credentials:'same-origin'});
     if(r.status===401){ document.body.dataset.auth='false'; return; }
     var d=await r.json();
     if(!d.ok){ box.innerHTML='<tr><td colspan="5" class="empty" style="color:#dc2626">불러오기 실패: '+esc(d.error||'unknown')+'</td></tr>'; return; }
