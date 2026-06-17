@@ -16,6 +16,31 @@ import { ensureScrapeTables, kst } from "./_scrape.js";
 
 const FILING_TYPES = ['종소세', '법인세', '부가세'];
 
+/* GET — 수임 거래처(연결) 목록 (admin). 사용자 실명 join. */
+export async function onRequestGet(context) {
+  const auth = await checkAdmin(context);
+  if (!auth) return adminUnauthorized();
+  const db = context.env.DB;
+  if (!db) return Response.json({ error: "no_db" }, { status: 500 });
+  await ensureScrapeTables(db);
+
+  let results = [];
+  try {
+    const r = await db.prepare(
+      `SELECT c.*, u.real_name, u.name
+       FROM scrape_connections c
+       LEFT JOIN users u ON c.user_id = u.id
+       ORDER BY c.id DESC LIMIT 200`
+    ).all();
+    results = r.results || [];
+  } catch {
+    /* users join 실패 시 connections 단독 */
+    const r = await db.prepare(`SELECT * FROM scrape_connections ORDER BY id DESC LIMIT 200`).all();
+    results = r.results || [];
+  }
+  return Response.json({ ok: true, connections: results });
+}
+
 export async function onRequestPost(context) {
   const csrf = checkOriginCsrf(context.request, context.env);
   if (csrf) return csrf;

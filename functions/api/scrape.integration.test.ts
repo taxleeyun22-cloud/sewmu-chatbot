@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createTestDb } from '../../packages/db/src/test-db';
 // @ts-expect-error JS module
-import { onRequestPost as triggerPost } from './admin-scrape-trigger.js';
+import { onRequestPost as triggerPost, onRequestGet as triggerGet } from './admin-scrape-trigger.js';
 // @ts-expect-error JS module
 import { onRequestGet as workerGet } from './cron-scrape-worker.js';
 // @ts-expect-error JS module
@@ -207,6 +207,16 @@ describe('scrape pipeline integration', () => {
     // key 없음 → checkOriginCsrf(없는 Origin) 또는 checkAdmin 실패로 차단
     const res = await triggerPost(ctx(d1, { body: { connection_id: conn, filing_type: '부가세', fiscal_year: 2024 } }));
     expect([401, 403]).toContain(res.status);
+  });
+
+  it('lists connections (GET trigger)', async () => {
+    await createConnection(d1, 100);
+    await createConnection(d1, 200);
+    const res = await triggerGet(ctx(d1, { method: 'GET', search: `?key=${KEY}` }));
+    const j = await json(res);
+    expect(j.ok).toBe(true);
+    expect(j.connections.length).toBe(2);
+    expect(j.connections[0].consent_status).toBe('granted');
   });
 
   it('review list returns jobs joined to raw', async () => {

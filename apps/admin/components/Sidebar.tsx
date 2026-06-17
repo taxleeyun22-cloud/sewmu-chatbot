@@ -38,6 +38,7 @@ import {
   Search,
   Trash2,
   Bug,
+  DownloadCloud,
   LogOut,
   ExternalLink,
   Receipt,
@@ -111,6 +112,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
       { href: '/admin/review', icon: CheckCircle2, label: '검증', countKey: 'reviewPending' },
       { href: '/admin/faq', icon: BookOpen, label: 'FAQ' },
       { href: '/admin/filings', icon: ClipboardList, label: '신고 검토표', countKey: 'filingsInProgress' },
+      { href: '/admin/scrape', icon: DownloadCloud, label: '신고서 스크래핑' },
     ],
   },
   {
