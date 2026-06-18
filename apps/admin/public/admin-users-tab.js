@@ -28,6 +28,11 @@ if(n>0){b.textContent=n;b.style.display='inline-block'}else{b.style.display='non
 }catch{}
 }
 
+/* 보안 (2026-06-18): onclick="fn('VALUE')" 처럼 JS-문자열 in HTML-속성 컨텍스트에 값 삽입 시
+ * 안전 이스케이프. JS 레이어(\, ') → HTML 속성 레이어(escAttr: ", &, <, >) 이중 처리.
+ * e(x).replace(/'/g,'') (따옴표 미이스케이프 → " 로 속성 탈출 = 저장형 XSS) 대체. */
+function jsArg(s){ return escAttr(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")); }
+
 /* 사장님 명령 (2026-05-07): 거절 모달 — 미리 옵션 + 직접 입력 + 사용자 화면에 사유 표시 */
 var _rejTargetUserId=null;
 function rejectUserWithReason(userId, name){
@@ -129,29 +134,29 @@ const managerBtn = IS_OWNER ? (isManager
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +(IS_OWNER?'<button onclick="setAdminFlag('+u.id+',0)" style="background:#fff;color:#8b6914;border:1px solid #8b6914;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">👑 관리자 해제</button>':'<span style="font-size:.72em;color:#8b95a1">(owner 만 관리 가능)</span>')
 +managerBtn
-+'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
++'<button onclick="openCustomerDashboard('+u.id+',\''+jsArg(nm)+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +'</div>';
 } else if(status==='pending'){
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
-+'<button onclick="openApproveWithBusiness('+u.id+',\''+e(nm).replace(/\'/g,'')+'\',\''+e(u.phone||'').replace(/\'/g,'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="승인 + 업체·역할 연결을 한 번에">✓ 기장거래처 승인</button>'
-+'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
++'<button onclick="openApproveWithBusiness('+u.id+',\''+jsArg(nm)+'\',\''+jsArg(u.phone||'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="승인 + 업체·역할 연결을 한 번에">✓ 기장거래처 승인</button>'
++'<button onclick="openCustomerDashboard('+u.id+',\''+jsArg(nm)+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✕ 거절</button>'
 +adminBtn
-+(IS_OWNER?'<button onclick="_hardDeleteUser('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#9ca3af;border:1px solid #d1d5db;padding:8px 12px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit" title="영구 삭제 (owner only)">🗑️</button>':'')
++(IS_OWNER?'<button onclick="_hardDeleteUser('+u.id+',\''+jsArg(u.real_name||u.name||'')+'\')" style="background:#fff;color:#9ca3af;border:1px solid #d1d5db;padding:8px 12px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit" title="영구 삭제 (owner only)">🗑️</button>':'')
 +'</div>';
 }else{
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
-+'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
-+(status!=='approved_client'?'<button onclick="openApproveWithBusiness('+u.id+',\''+e(nm).replace(/\'/g,'')+'\',\''+e(u.phone||'').replace(/\'/g,'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="승인 + 업체 연결">→ 기장거래처</button>':'')
++'<button onclick="openCustomerDashboard('+u.id+',\''+jsArg(nm)+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
++(status!=='approved_client'?'<button onclick="openApproveWithBusiness('+u.id+',\''+jsArg(nm)+'\',\''+jsArg(u.phone||'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="승인 + 업체 연결">→ 기장거래처</button>':'')
 +(status!=='approved_guest'?'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#10b981;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="일반 승인 (일 5건 무료)">→ 일반</button>':'')
 +(status!=='pending'?'<button onclick="approveUser('+u.id+',\'pending\')" style="background:#8b95a1;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 대기로</button>':'')
-+(IS_OWNER && status!=='rejected'?'<button onclick="rejectUserWithReason('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#f04452;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="거절 + 사유 입력">→ 거절</button>':'')
-+(IS_OWNER && (status==='approved_client'||status==='approved_guest')?'<button onclick="archiveClient('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" title="폐업 처리 — 방만 closed, 고객 접근·계정은 유지" style="background:#fff;color:#8b6914;border:1px solid #fcd34d;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">📦 폐업 처리</button>':'')
-+(IS_OWNER && (status==='approved_client'||status==='approved_guest')?'<button onclick="terminateUser('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" title="거래 종료(기장이관) — 상담방 모두 closed, 고객 접근 차단" style="background:#fff;color:#6b7280;border:1px solid #6b7280;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🚫 거래 종료</button>':'')
++(IS_OWNER && status!=='rejected'?'<button onclick="rejectUserWithReason('+u.id+',\''+jsArg(nm)+'\')" style="background:#f04452;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="거절 + 사유 입력">→ 거절</button>':'')
++(IS_OWNER && (status==='approved_client'||status==='approved_guest')?'<button onclick="archiveClient('+u.id+',\''+jsArg(nm)+'\')" title="폐업 처리 — 방만 closed, 고객 접근·계정은 유지" style="background:#fff;color:#8b6914;border:1px solid #fcd34d;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">📦 폐업 처리</button>':'')
++(IS_OWNER && (status==='approved_client'||status==='approved_guest')?'<button onclick="terminateUser('+u.id+',\''+jsArg(nm)+'\')" title="거래 종료(기장이관) — 상담방 모두 closed, 고객 접근 차단" style="background:#fff;color:#6b7280;border:1px solid #6b7280;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🚫 거래 종료</button>':'')
 +(IS_OWNER && status==='terminated'?'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🔄 거래 재개(기장)</button>':'')
 +adminBtn
-+(IS_OWNER && (u.active_merge_id || u.is_likely_merged)?'<button onclick="_splitMerge('+(u.active_merge_id||0)+','+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#dc2626;border:1px dashed #dc2626;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600" title="합치기 분리 — 카카오 user 대기로, 수동 user 그대로">🔀 분리</button>':'')
-+(IS_OWNER?'<button onclick="_hardDeleteUser('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#9ca3af;border:1px solid #d1d5db;padding:6px 10px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="영구 삭제 (사용자 list 에서 사라짐, owner only)">🗑️</button>':'')
++(IS_OWNER && (u.active_merge_id || u.is_likely_merged)?'<button onclick="_splitMerge('+(u.active_merge_id||0)+','+u.id+',\''+jsArg(u.real_name||u.name||'')+'\')" style="background:#fff;color:#dc2626;border:1px dashed #dc2626;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600" title="합치기 분리 — 카카오 user 대기로, 수동 user 그대로">🔀 분리</button>':'')
++(IS_OWNER?'<button onclick="_hardDeleteUser('+u.id+',\''+jsArg(u.real_name||u.name||'')+'\')" style="background:#fff;color:#9ca3af;border:1px solid #d1d5db;padding:6px 10px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="영구 삭제 (사용자 list 에서 사라짐, owner only)">🗑️</button>':'')
 +'</div>';
 }
 const company=(u.company_name||'').trim();
@@ -163,7 +168,7 @@ const roleBadge=ceoName
     : '<span style="font-size:.62em;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600">👤 담당자</span>')
   : '';
 const kakaoAlias=(u.name&&u.real_name&&u.name!==u.real_name?' <span style="font-size:.72em;color:#8b95a1">(카톡: '+e(u.name)+')</span>':'');
-const editBtn=' <button onclick="editUserName('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\',\''+e(u.phone||'').replace(/\'/g,'')+'\',\''+e(u.birth_date||'').replace(/\'/g,'')+'\')" style="background:none;border:none;color:#3182f6;cursor:pointer;font-size:.78em;padding:0 4px;font-family:inherit" title="이름 / 전화 / 생년월일 수정">✏️</button>';
+const editBtn=' <button onclick="editUserName('+u.id+',\''+jsArg(u.real_name||u.name||'')+'\',\''+jsArg(u.phone||'')+'\',\''+jsArg(u.birth_date||'')+'\')" style="background:none;border:none;color:#3182f6;cursor:pointer;font-size:.78em;padding:0 4px;font-family:inherit" title="이름 / 전화 / 생년월일 수정">✏️</button>';
 const nameLine=company
   ? '<div class="name">🏢 '+e(company)+' <span style="font-weight:500;color:#8b95a1;font-size:.88em">· '+e(nm)+'</span>'+roleBadge+kakaoAlias+adminMark+roleMark+editBtn+'</div>'
   : '<div class="name">'+e(nm)+roleBadge+kakaoAlias+adminMark+roleMark+editBtn+'</div>';
@@ -257,35 +262,35 @@ const managerBtn = IS_OWNER ? (isManager
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +(IS_OWNER?'<button onclick="setAdminFlag('+u.id+',0)" style="background:#fff;color:#8b6914;border:1px solid #8b6914;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">👑 관리자 해제</button>':'<span style="font-size:.72em;color:#8b95a1">(owner 만 관리 가능)</span>')
 +managerBtn
-+'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
++'<button onclick="openCustomerDashboard('+u.id+',\''+jsArg(nm)+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +'</div>';
 } else if(status==='pending'){
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
-+'<button onclick="openApproveWithBusiness('+u.id+',\''+e(nm).replace(/\'/g,'')+'\',\''+e(u.phone||'').replace(/\'/g,'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="승인 + 업체·역할 연결을 한 번에">✓ 기장거래처 승인</button>'
++'<button onclick="openApproveWithBusiness('+u.id+',\''+jsArg(nm)+'\',\''+jsArg(u.phone||'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="승인 + 업체·역할 연결을 한 번에">✓ 기장거래처 승인</button>'
 /* '○ 일반 승인' 버튼 폐지 (사장님 명령 2026-05-02). pending 사용자는 → 기장거래처 승인 또는 거절만. */
-+'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
++'<button onclick="openCustomerDashboard('+u.id+',\''+jsArg(nm)+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✕ 거절</button>'
 +adminBtn
 /* 사장님 명령 (2026-05-07): row 합치기 폐지 — 대기 승인 모달 안 합치기 흐름만 유지. */
-+(IS_OWNER?'<button onclick="_hardDeleteUser('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#9ca3af;border:1px solid #d1d5db;padding:8px 12px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit" title="영구 삭제 (owner only)">🗑️</button>':'')
++(IS_OWNER?'<button onclick="_hardDeleteUser('+u.id+',\''+jsArg(u.real_name||u.name||'')+'\')" style="background:#fff;color:#9ca3af;border:1px solid #d1d5db;padding:8px 12px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit" title="영구 삭제 (owner only)">🗑️</button>':'')
 +'</div>';
 }else{
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
-+'<button onclick="openCustomerDashboard('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
-+(status!=='approved_client'?'<button onclick="openApproveWithBusiness('+u.id+',\''+e(nm).replace(/\'/g,'')+'\',\''+e(u.phone||'').replace(/\'/g,'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="승인 + 업체 연결">→ 기장거래처</button>':'')
++'<button onclick="openCustomerDashboard('+u.id+',\''+jsArg(nm)+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
++(status!=='approved_client'?'<button onclick="openApproveWithBusiness('+u.id+',\''+jsArg(nm)+'\',\''+jsArg(u.phone||'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="승인 + 업체 연결">→ 기장거래처</button>':'')
 /* 사장님 명령 (2026-05-07): 기장 ↔ 일반 와리가리 — approved_client 도 일반으로 강등 가능 */
 +(status!=='approved_guest'?'<button onclick="approveUser('+u.id+',\'approve_guest\')" style="background:#10b981;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="일반 승인 (일 5건 무료)">→ 일반</button>':'')
 +(status!=='pending'?'<button onclick="approveUser('+u.id+',\'pending\')" style="background:#8b95a1;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">→ 대기로</button>':'')
-+(IS_OWNER && status!=='rejected'?'<button onclick="rejectUserWithReason('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" style="background:#f04452;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="거절 + 사유 입력">→ 거절</button>':'')
-+(IS_OWNER && (status==='approved_client'||status==='approved_guest')?'<button onclick="archiveClient('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" title="폐업 처리 — 방만 closed, 고객 접근·계정은 유지" style="background:#fff;color:#8b6914;border:1px solid #fcd34d;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">📦 폐업 처리</button>':'')
-+(IS_OWNER && (status==='approved_client'||status==='approved_guest')?'<button onclick="terminateUser('+u.id+',\''+e(nm).replace(/\'/g,'')+'\')" title="거래 종료(기장이관) — 상담방 모두 closed, 고객 접근 차단" style="background:#fff;color:#6b7280;border:1px solid #6b7280;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🚫 거래 종료</button>':'')
++(IS_OWNER && status!=='rejected'?'<button onclick="rejectUserWithReason('+u.id+',\''+jsArg(nm)+'\')" style="background:#f04452;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="거절 + 사유 입력">→ 거절</button>':'')
++(IS_OWNER && (status==='approved_client'||status==='approved_guest')?'<button onclick="archiveClient('+u.id+',\''+jsArg(nm)+'\')" title="폐업 처리 — 방만 closed, 고객 접근·계정은 유지" style="background:#fff;color:#8b6914;border:1px solid #fcd34d;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">📦 폐업 처리</button>':'')
++(IS_OWNER && (status==='approved_client'||status==='approved_guest')?'<button onclick="terminateUser('+u.id+',\''+jsArg(nm)+'\')" title="거래 종료(기장이관) — 상담방 모두 closed, 고객 접근 차단" style="background:#fff;color:#6b7280;border:1px solid #6b7280;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🚫 거래 종료</button>':'')
 +(IS_OWNER && status==='terminated'?'<button onclick="approveUser('+u.id+',\'approve_client\')" style="background:#3182f6;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit">🔄 거래 재개(기장)</button>':'')
 +adminBtn
 /* 사장님 명령 (2026-05-07): row 합치기 폐지 — 대기 승인 모달 안 합치기 흐름만 유지.
  * 분리 / 영구 삭제 만 row 에 남김. */
-+(IS_OWNER && (u.active_merge_id || u.is_likely_merged)?'<button onclick="_splitMerge('+(u.active_merge_id||0)+','+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#dc2626;border:1px dashed #dc2626;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600" title="합치기 분리 — 카카오 user 대기로, 수동 user 그대로">🔀 분리</button>':'')
++(IS_OWNER && (u.active_merge_id || u.is_likely_merged)?'<button onclick="_splitMerge('+(u.active_merge_id||0)+','+u.id+',\''+jsArg(u.real_name||u.name||'')+'\')" style="background:#fff;color:#dc2626;border:1px dashed #dc2626;padding:6px 12px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit;font-weight:600" title="합치기 분리 — 카카오 user 대기로, 수동 user 그대로">🔀 분리</button>':'')
 /* 사장님 명령 (2026-05-07): 영구 삭제 (owner only, 신중) */
-+(IS_OWNER?'<button onclick="_hardDeleteUser('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\')" style="background:#fff;color:#9ca3af;border:1px solid #d1d5db;padding:6px 10px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="영구 삭제 (사용자 list 에서 사라짐, owner only)">🗑️</button>':'')
++(IS_OWNER?'<button onclick="_hardDeleteUser('+u.id+',\''+jsArg(u.real_name||u.name||'')+'\')" style="background:#fff;color:#9ca3af;border:1px solid #d1d5db;padding:6px 10px;border-radius:8px;font-size:.75em;cursor:pointer;font-family:inherit" title="영구 삭제 (사용자 list 에서 사라짐, owner only)">🗑️</button>':'')
 +'</div>';
 }
 /* 상호 + 이름 + 대표/담당자 뱃지 — 검색성·식별성 향상 (server: company_name·ceo_name JOIN) */
@@ -300,7 +305,7 @@ const roleBadge=ceoName
 const kakaoAlias=(u.name&&u.real_name&&u.name!==u.real_name?' <span style="font-size:.72em;color:#8b95a1">(카톡: '+e(u.name)+')</span>':'');
 /* Phase P2 (2026-05-07 사장님 명령): 카카오 닉네임/실명 편집 버튼.
  * 카카오 가입자 = 카톡 닉네임이 가명일 수 있어 사장님이 진짜 이름으로 수정. */
-const editBtn=' <button onclick="editUserName('+u.id+',\''+e(u.real_name||u.name||'').replace(/\'/g,'')+'\',\''+e(u.phone||'').replace(/\'/g,'')+'\',\''+e(u.birth_date||'').replace(/\'/g,'')+'\')" style="background:none;border:none;color:#3182f6;cursor:pointer;font-size:.78em;padding:0 4px;font-family:inherit" title="이름 / 전화 / 생년월일 수정">✏️</button>';
+const editBtn=' <button onclick="editUserName('+u.id+',\''+jsArg(u.real_name||u.name||'')+'\',\''+jsArg(u.phone||'')+'\',\''+jsArg(u.birth_date||'')+'\')" style="background:none;border:none;color:#3182f6;cursor:pointer;font-size:.78em;padding:0 4px;font-family:inherit" title="이름 / 전화 / 생년월일 수정">✏️</button>';
 const nameLine=company
   ? '<div class="name">🏢 '+e(company)+' <span style="font-weight:500;color:#8b95a1;font-size:.88em">· '+e(nm)+'</span>'+roleBadge+kakaoAlias+adminMark+roleMark+editBtn+'</div>'
   : '<div class="name">'+e(nm)+roleBadge+kakaoAlias+adminMark+roleMark+editBtn+'</div>';
@@ -477,7 +482,7 @@ async function _apbLoadSimilarUsers(currentUserId, name, phone){
       const nm=u.real_name||u.name||'#'+u.id;
       const sub=[u.phone||'', u.email||'', 'ID #'+u.id].filter(Boolean).join(' · ');
       /* Phase (사장님 명령 정정 2026-05-07): 두 옵션 제공 — 매핑만 복사 또는 진짜 합치기 */
-      return '<div style="padding:8px 10px;background:#fff;border:1px solid #fcd34d;border-radius:6px;margin-top:4px"><div style="margin-bottom:6px"><b>'+e(nm)+'</b><div style="font-size:.72em;color:#92400e">'+e(sub)+'</div></div><div style="display:flex;gap:6px"><button onclick="_apbMergeMappings('+u.id+','+currentUserId+',\''+e(nm).replace(/\'/g,'')+'\')" style="flex:1;background:#fff;color:#92400e;border:1px solid #f59e0b;font-size:.74em;font-weight:600;padding:5px 8px;border-radius:99px;cursor:pointer;font-family:inherit">📋 매핑만 복사</button><button onclick="_apbMergeUsers('+u.id+','+currentUserId+',\''+e(nm).replace(/\'/g,'')+'\')" style="flex:1;background:#dc2626;color:#fff;border:none;font-size:.74em;font-weight:700;padding:5px 8px;border-radius:99px;cursor:pointer;font-family:inherit" title="기존 user 가 살아남고 카카오 user 흡수됨 (진짜 merge)">🔗 진짜 합치기</button></div></div>';
+      return '<div style="padding:8px 10px;background:#fff;border:1px solid #fcd34d;border-radius:6px;margin-top:4px"><div style="margin-bottom:6px"><b>'+e(nm)+'</b><div style="font-size:.72em;color:#92400e">'+e(sub)+'</div></div><div style="display:flex;gap:6px"><button onclick="_apbMergeMappings('+u.id+','+currentUserId+',\''+jsArg(nm)+'\')" style="flex:1;background:#fff;color:#92400e;border:1px solid #f59e0b;font-size:.74em;font-weight:600;padding:5px 8px;border-radius:99px;cursor:pointer;font-family:inherit">📋 매핑만 복사</button><button onclick="_apbMergeUsers('+u.id+','+currentUserId+',\''+jsArg(nm)+'\')" style="flex:1;background:#dc2626;color:#fff;border:none;font-size:.74em;font-weight:700;padding:5px 8px;border-radius:99px;cursor:pointer;font-family:inherit" title="기존 user 가 살아남고 카카오 user 흡수됨 (진짜 merge)">🔗 진짜 합치기</button></div></div>';
     }).join('');
   }catch(_){ /* silent */ }
 }

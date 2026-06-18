@@ -63,6 +63,11 @@ export async function onRequestPost(context) {
   const role = body.role === '대표자' ? '대표자' : (body.role === '담당자' ? '담당자' : null);
   if (!name) return Response.json({ ok: false, error: '회사명(상호) 을 입력해주세요' }, { status: 400 });
   if (!realName || realName.length < 2) return Response.json({ ok: false, error: '본인 실명을 2자 이상 입력해주세요' }, { status: 400 });
+  /* 보안: real_name 은 admin 화면 onclick 등에 삽입되므로 문자 제한 (auth/update-profile.js 와 동일).
+   * 따옴표·꺾쇠 등 주입 문자 차단 → 저장형 XSS 원천 차단. (2026-06-18) */
+  if (!/^[가-힣a-zA-Z\s]+$/.test(realName)) {
+    return Response.json({ ok: false, error: '한글 또는 영문 이름만 입력 가능합니다.' }, { status: 400 });
+  }
   if (!role) return Response.json({ ok: false, error: '역할(대표자/담당자) 를 선택해주세요' }, { status: 400 });
   try {
     await db.prepare(
