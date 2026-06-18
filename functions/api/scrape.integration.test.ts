@@ -15,6 +15,8 @@ import { onRequestGet as workerGet } from './cron-scrape-worker.js';
 // @ts-expect-error JS module
 import { onRequestGet as reviewGet, onRequestPost as reviewPost } from './admin-scrape-review.js';
 // @ts-expect-error JS module
+import { onRequestGet as scheduleGet } from './cron-scrape-schedule.js';
+// @ts-expect-error JS module
 import { ensureScrapeTables } from './_scrape.js';
 
 const KEY = 'test-admin-key';
@@ -200,6 +202,46 @@ describe('scrape pipeline integration', () => {
     job = await d1.prepare(`SELECT status, attempts FROM scrape_jobs WHERE id = ?`).bind(r.body.job_id).first();
     expect(job.status).toBe('queued');
     expect(job.attempts).toBe(1);
+  });
+
+  it('auto scheduler: enqueues granted+active conns × types, skips revoked, dedups on re-run', async () => {
+    const c1 = await createConnection(d1, 100);
+    const c2 = await createConnection(d1, 200);
+    const cRevoked = await createConnection(d1, 300);
+    await d1.prepare(`UPDATE scrape_connections SET consent_status='revoked' WHERE id=?`).bind(cRevoked).run();
+
+    const r1 = await scheduleGet(ctx(d1, { method: 'GET', search: `?key=${KEY}&year=2024` }));
+    const j1 = await json(r1);
+    expect(j1.ok).toBe(true);
+    expect(j1.connections).toBe(2); // revoked 제외
+    expect(j1.enqueued).toBe(6);    // 2 conns × 3 types
+    expect(j1.skipped).toBe(0);
+
+    // 재실행 → 중복 없음
+    const r2 = await scheduleGet(ctx(d1, { method: 'GET', search: `?key=${KEY}&year=2024` }));
+    const j2 = await json(r2);
+    expect(j2.enqueued).toBe(0);
+    expect(j2.skipped).toBe(6);
+
+    // 실제 적재 확인
+    const { results } = await d1.prepare(`SELECT * FROM scrape_jobs WHERE requested_by='auto_schedule'`).all();
+    expect(results.length).toBe(6);
+    void c1; void c2;
+  });
+
+  it('auto scheduler: dry_run 은 적재 안 함', async () => {
+    await createConnection(d1, 100);
+    const r = await scheduleGet(ctx(d1, { method: 'GET', search: `?key=${KEY}&year=2024&dry_run=1` }));
+    const j = await json(r);
+    expect(j.dry_run).toBe(true);
+    expect(j.enqueued).toBe(3);
+    const { results } = await d1.prepare(`SELECT * FROM scrape_jobs`).all();
+    expect(results.length).toBe(0);
+  });
+
+  it('auto scheduler: rejects without key', async () => {
+    const r = await scheduleGet(ctx(d1, { method: 'GET' }));
+    expect(r.status).toBe(401);
   });
 
   it('requires admin auth + rejects without key', async () => {
