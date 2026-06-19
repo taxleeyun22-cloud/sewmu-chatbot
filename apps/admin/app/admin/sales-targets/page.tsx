@@ -77,6 +77,32 @@ function downloadCsv(filename: string, headers: string[], rows: (string | number
 export default function SalesTargetsPage() {
   const [tab, setTab] = useState<Tab>('pension');
   const [year, setYear] = useState<number>(0);
+  /* 경비 키워드 자유 검색 (사장님 2026-06-18): 비우면 서버 기본 5종, 입력 시 그 키워드로.
+   * kwInput = 입력창 텍스트, appliedKw = 실제 적용된 배열(쿼리 키). */
+  const [kwInput, setKwInput] = useState('');
+  const [appliedKw, setAppliedKw] = useState<string[]>([]);
+
+  function parseKw(s: string): string[] {
+    return Array.from(
+      new Set(
+        s.split(/[,，]/).map((t) => t.trim()).filter((t) => t.length > 0 && t.length <= 40),
+      ),
+    ).slice(0, 20);
+  }
+  function applyKw() {
+    setAppliedKw(parseKw(kwInput));
+  }
+  function resetKw() {
+    setKwInput('');
+    setAppliedKw([]);
+  }
+  function addChip(k: string) {
+    const cur = parseKw(kwInput);
+    if (cur.includes(k)) return;
+    const next = [...cur, k];
+    setKwInput(next.join(','));
+    setAppliedKw(next);
+  }
 
   const yearsQ = useQuery<{ years: number[]; defaultYear: number }>({
     queryKey: ['salesTargets.years'],
@@ -94,8 +120,12 @@ export default function SalesTargetsPage() {
     enabled: tab === 'pension' && year > 0,
   });
   const expenseQ = useQuery<ExpenseResult>({
-    queryKey: ['salesTargets.expense', { year }],
-    queryFn: () => trpcCall('salesTargets.expense', { year }),
+    queryKey: ['salesTargets.expense', { year, kw: appliedKw }],
+    queryFn: () =>
+      trpcCall('salesTargets.expense', {
+        year,
+        ...(appliedKw.length ? { keywords: appliedKw } : {}),
+      }),
     enabled: tab === 'expense' && year > 0,
   });
 
@@ -182,6 +212,55 @@ export default function SalesTargetsPage() {
           🛡️ 보험 (경비 키워드)
         </button>
       </div>
+
+      {/* 경비 키워드 자유 검색 (보험 탭) */}
+      {tab === 'expense' && (
+        <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={kwInput}
+              onChange={(e) => setKwInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applyKw();
+              }}
+              placeholder="경비 키워드 검색 — 쉼표로 여러 개 (예: 차량,리스,접대비)"
+              className="border border-gray-300 rounded px-3 py-1.5 text-sm flex-1 min-w-[240px]"
+            />
+            <button
+              type="button"
+              onClick={applyKw}
+              className="bg-[#0B1F3A] text-white px-3 py-1.5 rounded text-sm font-semibold hover:opacity-90"
+            >
+              🔍 검색
+            </button>
+            <button
+              type="button"
+              onClick={resetKw}
+              className="border border-gray-300 text-gray-600 px-3 py-1.5 rounded text-sm hover:bg-gray-50"
+              title="기본 키워드(접대비·지출결의·경비내역·가경비·판촉비)로"
+            >
+              기본값
+            </button>
+            <span className="text-xs text-gray-400">
+              현재: {appliedKw.length ? appliedKw.join(' · ') : '기본 5종'}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-gray-400">빠른 추가:</span>
+            {['차량', '리스', '법인전환', '가지급금', '임대', '세무조사', '컨설팅'].map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => addChip(c)}
+                className="text-[11px] border border-gray-200 text-gray-600 rounded-full px-2 py-0.5 hover:bg-amber-50 hover:border-amber-300"
+              >
+                + {c}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading && <SkeletonList rows={6} />}
 
