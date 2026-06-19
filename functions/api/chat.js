@@ -158,14 +158,28 @@ function buildClientContext(businesses, userRealName) {
  * Person(개인 종소세) 한정 — 가장 좁고 안전한 범위로 시작. */
 async function getClientFilings(db, userId) {
   if (!db || !userId) return [];
+  /* 1차: 스크래핑 출처/검증 컬럼 반영 — 미검증 스크래핑 행은 챗봇에 노출 안 함.
+   *   manual/legacy(NULL) 는 기존대로 통과, source='scraped' 는 verified_at 있을 때만.
+   *   (신고서 스크래핑 Phase 4, 2026-06-17) */
   try {
     const { results } = await db.prepare(
-      `SELECT type, fiscal_year, auto_fields FROM filings
+      `SELECT type, fiscal_year, auto_fields, source FROM filings
        WHERE owner_type = 'Person' AND owner_id = ? AND (deleted_at IS NULL OR deleted_at = '')
+         AND (source = 'manual' OR source IS NULL OR verified_at IS NOT NULL)
        ORDER BY fiscal_year DESC LIMIT 5`
     ).bind(userId).all();
     return results || [];
-  } catch { return []; }
+  } catch {
+    /* 2차 폴백: source/verified_at 컬럼 미생성(스크래핑 도입 전) → 기존 동작(수동 검토표). */
+    try {
+      const { results } = await db.prepare(
+        `SELECT type, fiscal_year, auto_fields FROM filings
+         WHERE owner_type = 'Person' AND owner_id = ? AND (deleted_at IS NULL OR deleted_at = '')
+         ORDER BY fiscal_year DESC LIMIT 5`
+      ).bind(userId).all();
+      return results || [];
+    } catch { return []; }
+  }
 }
 
 function buildFilingContext(filings) {
@@ -177,6 +191,9 @@ function buildFilingContext(filings) {
     const parts = [`- ${f.fiscal_year}년 귀속 ${f.type}`];
     if (af.revenue) parts.push(`수입금액 ${won(af.revenue)}원`);
     if (af.decisive_tax) parts.push(`결정세액(낸 세금) ${won(af.decisive_tax)}원`);
+    /* 신고 제출 여부 (스크래핑 신고서 기준) — "신고됐어?" 질문 대응 */
+    if (typeof af.submitted === 'boolean') parts.push(af.submitted ? '신고 완료(제출됨)' : '아직 신고 전(미제출)');
+    if (f.source === 'scraped') parts.push('출처: 국세청 신고서');
     return parts.join(' · ');
   }).join('\n');
   return `\n\n===== 본인(로그인 거래처)의 신고 검토표 데이터 [확정·권위 데이터] =====\n${lines}\n\n[필수 지침 — 반드시 따를 것]\n1. 위 목록은 "지금 로그인한 본인"의 확정 신고 데이터입니다. 사용자가 특정 연도 매출/세금(예: "2025년 매출", "작년 매출", "세금 얼마 냈어")을 물으면, 위 목록에서 해당 "N년 귀속" 줄을 찾아 그 수입금액·세액을 숫자 그대로 답하세요.\n2. 목록에 그 연도의 수입금액이 적혀 있으면 무조건 그 숫자로 답하세요. "아직 반영되지 않았다 / 신고 전이다 / 담당 세무사 확인 필요 / 확인되지 않습니다" 같은 회피·추론은 절대 하지 마세요 — 데이터가 이미 여기 있습니다. (귀속연도가 최근이어도 위에 숫자가 있으면 그대로 답하세요.)\n3. 위 목록에 아예 없는 연도만 "○○년 자료는 아직 없습니다"라고 답하세요.\n4. 다른 사람·다른 거래처의 매출/세금은 여기 없으며, 어떤 경우에도 만들어내거나 답하지 마세요.\n`;

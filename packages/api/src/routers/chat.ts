@@ -74,7 +74,7 @@ export const chatRouter = router({
       }
 
       const db = drizzle(ctx.db);
-      const { users, dailyUsage, conversations } = schema;
+      const { users, dailyUsage, conversations, roomMembers } = schema;
 
       /* 1. 사용자 status 확인 + daily 한도 체크 */
       const userRow = await db
@@ -91,6 +91,26 @@ export const chatRouter = router({
       const user = userRow[0];
       if (!user) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: '사용자 없음' });
+      }
+
+      /* 보안 (C2, 2026-06-18): roomId 가 오면 그 방의 활성 멤버인지 검증.
+       * 미검증 시 임의/내부(is_internal) 방에 메시지 주입 = 크로스테넌트 IDOR.
+       * OpenAI 호출 전에 fail-fast. roomId 없으면 일반 챗(room_id=null) — 통과. */
+      if (input.roomId) {
+        const member = await db
+          .select({ id: roomMembers.id })
+          .from(roomMembers)
+          .where(
+            and(
+              eq(roomMembers.room_id, input.roomId),
+              eq(roomMembers.user_id, userId),
+              sql`${roomMembers.left_at} IS NULL`,
+            ),
+          )
+          .limit(1);
+        if (!member[0]) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '해당 상담방 접근 권한이 없습니다.' });
+        }
       }
 
       const status = user.approval_status || 'pending';
