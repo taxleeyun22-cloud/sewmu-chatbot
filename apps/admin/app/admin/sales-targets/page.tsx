@@ -190,6 +190,15 @@ export default function SalesTargetsPage() {
     [expense],
   );
 
+  /* 법인전환 등급 분포 (우선순위 한눈에) */
+  const incorpGradeCounts = useMemo(() => {
+    const c: Record<'S' | 'A' | 'B' | 'C', number> = { S: 0, A: 0, B: 0, C: 0 };
+    (incorporation?.targets || []).forEach((t) => {
+      c[t.grade] = (c[t.grade] || 0) + 1;
+    });
+    return c;
+  }, [incorporation]);
+
   /* 행 클릭 → 거래처 대시보드 (구 admin) 새 탭. 사장님 명령 (2026-06-04).
    * 개인(Person)=거래처 종합 대시보드(#tab=users&cust=N, 첫 로드 자동 open),
    * 업체(Business)=업체 대시보드(business.html?id=N). */
@@ -481,6 +490,17 @@ export default function SalesTargetsPage() {
             <span>종소세 검토표 <b>{incorporation.scanned}</b>건</span>
             <span>· 과세표준 입력 <b>{incorporation.withTaxBase}</b></span>
             <span className="text-indigo-700 font-bold">→ 타겟 {incorporation.count}명</span>
+            {incorporation.count > 0 && (
+              <span className="flex items-center gap-1">
+                {(['S', 'A', 'B', 'C'] as const)
+                  .filter((g) => incorpGradeCounts[g] > 0)
+                  .map((g) => (
+                    <span key={g} className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-bold ${GRADE_CLS[g]}`}>
+                      {g} {incorpGradeCounts[g]}
+                    </span>
+                  ))}
+              </span>
+            )}
             <button
               type="button"
               onClick={exportIncorporation}
