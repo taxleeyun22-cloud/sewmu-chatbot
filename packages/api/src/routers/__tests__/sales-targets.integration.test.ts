@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { setupDbMocks, makeCaller, seedBusiness } from './helpers';
+import { marginalRateByTaxBase, incorporationGrade } from '../sales-targets';
 
 setupDbMocks();
 
@@ -170,6 +171,92 @@ describe('salesTargets router (integration)', () => {
       const r = await caller.salesTargets.expense({ year: 2025, keywords: ['가경비'] });
       expect(r.count).toBe(1);
       expect(r.targets[0].keywords).toEqual(['가경비']);
+    });
+  });
+
+  describe('법인전환 등급 순수함수', () => {
+    it('marginalRateByTaxBase — 2026 누진구간 경계', () => {
+      expect(marginalRateByTaxBase(14_000_000)).toBe(6);
+      expect(marginalRateByTaxBase(14_000_001)).toBe(15);
+      expect(marginalRateByTaxBase(50_000_000)).toBe(15);
+      expect(marginalRateByTaxBase(88_000_000)).toBe(24);
+      expect(marginalRateByTaxBase(88_000_001)).toBe(35);
+      expect(marginalRateByTaxBase(150_000_001)).toBe(38);
+      expect(marginalRateByTaxBase(300_000_001)).toBe(40);
+      expect(marginalRateByTaxBase(500_000_001)).toBe(42);
+      expect(marginalRateByTaxBase(1_000_000_001)).toBe(45);
+    });
+    it('incorporationGrade — S/A/B/C', () => {
+      expect(incorporationGrade(90_000_000)).toBe('B'); // 35%
+      expect(incorporationGrade(200_000_000)).toBe('A'); // 38%
+      expect(incorporationGrade(400_000_000)).toBe('A'); // 40%
+      expect(incorporationGrade(600_000_000)).toBe('S'); // 42%
+      expect(incorporationGrade(50_000_000)).toBe('C'); // 15% — 약함
+    });
+  });
+
+  describe('incorporation (법인전환 타겟)', () => {
+    it('개인 종소세 과세표준 ≥컷오프만, 과세표준 desc + 등급/한계세율', async () => {
+      const { caller, rawDb } = await makeCaller({ isOwner: true });
+      insertUser(rawDb, { id: 50, real_name: '김고소득', phone: '010-1111-1111' });
+      insertUser(rawDb, { id: 51, real_name: '이중상', phone: '010-2222-2222' });
+      insertUser(rawDb, { id: 52, real_name: '박소액', phone: '010-3333-3333' });
+      insertUser(rawDb, { id: 53, real_name: '최무기입' });
+
+      // 타겟 A (과세표준 2억)
+      insertFiling(rawDb, {
+        id: 1, type: '종소세', year: 2025, owner_type: 'Person', owner_id: 50,
+        auto_fields: { tax_base: 200_000_000, calculated_tax: 56_000_000, revenue: 800_000_000 },
+      });
+      // 타겟 B (과세표준 1억)
+      insertFiling(rawDb, {
+        id: 2, type: '종소세', year: 2025, owner_type: 'Person', owner_id: 51,
+        auto_fields: { tax_base: 100_000_000, calculated_tax: 20_000_000, revenue: 300_000_000 },
+      });
+      // 제외: 과세표준 5천만 (컷오프 미달)
+      insertFiling(rawDb, {
+        id: 3, type: '종소세', year: 2025, owner_type: 'Person', owner_id: 52,
+        auto_fields: { tax_base: 50_000_000, calculated_tax: 6_000_000 },
+      });
+      // 제외: 과세표준 미입력
+      insertFiling(rawDb, {
+        id: 4, type: '종소세', year: 2025, owner_type: 'Person', owner_id: 53,
+        auto_fields: { calculated_tax: 9_000_000 },
+      });
+      // 제외: 법인세 (개인 아님)
+      insertFiling(rawDb, {
+        id: 5, type: '법인세', year: 2025, owner_type: 'Business', owner_id: 99,
+        auto_fields: { tax_base: 1_000_000_000 },
+      });
+
+      const r = await caller.salesTargets.incorporation({ year: 2025 });
+      expect(r.scanned).toBe(4); // 종소세 4건
+      expect(r.withTaxBase).toBe(3); // 과세표준>0 = id 1,2,3
+      expect(r.threshold).toBe(88_000_000);
+      expect(r.count).toBe(2); // 컷오프 이상 = id 1,2
+      expect(r.targets.map((t: any) => t.name)).toEqual(['김고소득', '이중상']); // 과세표준 desc
+      expect(r.targets[0].tax_base).toBe(200_000_000);
+      expect(r.targets[0].marginal_rate).toBe(38);
+      expect(r.targets[0].grade).toBe('A');
+      expect(r.targets[0].phone).toBe('010-1111-1111');
+      expect(r.targets[1].grade).toBe('B');
+    });
+
+    it('minTaxBase 커스텀 컷오프', async () => {
+      const { caller, rawDb } = await makeCaller({ isOwner: true });
+      insertUser(rawDb, { id: 60, real_name: '강력타겟' });
+      insertUser(rawDb, { id: 61, real_name: '중간타겟' });
+      insertFiling(rawDb, {
+        id: 1, type: '종소세', year: 2025, owner_type: 'Person', owner_id: 60,
+        auto_fields: { tax_base: 200_000_000 },
+      });
+      insertFiling(rawDb, {
+        id: 2, type: '종소세', year: 2025, owner_type: 'Person', owner_id: 61,
+        auto_fields: { tax_base: 100_000_000 },
+      });
+      const r = await caller.salesTargets.incorporation({ year: 2025, minTaxBase: 150_000_000 });
+      expect(r.count).toBe(1);
+      expect(r.targets[0].name).toBe('강력타겟');
     });
   });
 
