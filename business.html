@@ -5,10 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
 <title>거래처 정보</title>
+<!-- 진입 속도 (2026-06-15): GET /api in-flight 중복 합치기 (admin.html 과 동일 — 쌍둥이). -->
+<script>(function(){try{
+  var _orig=window.fetch.bind(window); var _inflight={};
+  window.fetch=function(input,init){
+    try{
+      var method=((init&&init.method)||'GET').toUpperCase();
+      var url=(typeof input==='string')?input:(input&&input.url)||'';
+      if(method==='GET' && url.indexOf('/api/')!==-1){
+        if(_inflight[url]) return _inflight[url].then(function(r){return r.clone();});
+        var p=_orig(input,init); _inflight[url]=p;
+        var clear=function(){ delete _inflight[url]; }; p.then(clear,clear);
+        return p.then(function(r){return r.clone();});
+      }
+    }catch(_){}
+    return _orig(input,init);
+  };
+}catch(_){}})();</script>
 <!-- Phase H6a (2026-05-04): 인라인 CSS/JS 외부화 -->
 <link rel="stylesheet" href="/business.css?v=1">
 <!-- Phase T1+T2a: Tailwind + 토큰 통합 -->
-<link rel="stylesheet" href="/assets/main.css?v=3">
+<link rel="stylesheet" href="/assets/main.css?v=5">
 <script type="module" src="/assets/main.js?v=2"></script>
 <!-- Phase 3.6 (2026-05-08): React entry — BizRoomList mount -->
 <script type="module" src="/assets/react.js?v=19"></script>
@@ -17,29 +34,32 @@
      섹션·ID·onclick·스크립트 전부 그대로. 2컬럼 재배치는 증분2(검증 후). -->
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
 <style>
-  body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif!important;background:#FAFAFA!important;letter-spacing:-0.01em;-webkit-font-smoothing:antialiased}
-  .bz-nav{background:#fff;border-bottom:1px solid #ECEEF1;padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20}
+  /* 토스-2 (2026-06-12 사장님 v2 승인): 네이비 → 토스 절제 팔레트 (거래처 custdash 토스-1 과 동일 톤).
+     구조·ID·onclick 변화 0 — 톤 오버라이드만. */
+  body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif!important;background:var(--neutral-bg)!important;letter-spacing:-0.02em;-webkit-font-smoothing:antialiased}
+  .bz-nav{background:#fff;border-bottom:1px solid var(--gray-100);padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20}
   .bz-nav a{color:#9CA3AF;font-size:13px;font-weight:500;text-decoration:none}
-  .bz-nav a:hover{color:#111827}
+  .bz-nav a:hover{color:var(--of-text-main)}
   .bz-bc{color:#9CA3AF;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px}
-  .bz-mark{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:#0B1F3A;color:#fff;font-size:11px;font-weight:700}
+  .bz-mark{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;background:var(--of-primary);color:#fff;font-size:11px;font-weight:700}
   .bz-nav-r{margin-left:auto;display:flex;gap:8px;align-items:center}
   .bz-hero{max-width:1180px;margin:24px auto 8px;padding:0 28px}
-  .bz-hero-label{font-size:11px;font-weight:600;color:#9CA3AF;letter-spacing:.08em;text-transform:uppercase}
-  .bz-hero h1,.bz-hero #bizName{font-size:35px!important;font-weight:800;letter-spacing:-0.04em;color:#0B1F3A;margin:8px 0 6px!important;border:none!important;padding:0!important}
-  .bz-hero #bizSub,.bz-hero .sub{font-size:13.5px;color:#374151;font-weight:500}
+  .bz-hero-label{font-size:12px;font-weight:700;color:var(--text-mute)}
+  .bz-hero h1,.bz-hero #bizName{font-size:33px!important;font-weight:800;letter-spacing:-0.04em;color:var(--text-main);margin:6px 0 6px!important;border:none!important;padding:0!important}
+  .bz-hero #bizSub,.bz-hero .sub{font-size:13.5px;color:var(--gray-700);font-weight:500}
   /* 사장님 명령 (2026-05-23): 글자 크게 + 더 예쁘게 (거래처 dashboard 와 통일 시안).
      .bz-wrap 기준 font-size 17px (브라우저 기본 16 → ↑) → em 기반 내부 텍스트 전체 비례 확대. */
   .bz-wrap{max-width:1180px;margin:0 auto;padding:18px 28px 60px;font-size:17px}
-  /* 기존 .section 을 시안 카드 톤으로 (border-radius/그림자/spacing — 내부 렌더 출력 무손상) */
-  .bz-wrap .section{background:#fff;border:1px solid #ECEEF1;border-radius:18px;padding:22px 24px;margin-bottom:18px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 6px 20px rgba(16,24,40,.03)}
-  .bz-wrap .sec-title{font-size:19.5px!important;font-weight:800;letter-spacing:-0.02em;color:#0B1F3A;margin-bottom:16px;display:flex;align-items:center;gap:8px}
-  .bz-wrap .memo-tabs button.on{background:#0B1F3A!important;border-color:#0B1F3A!important}
-  .bz-wrap .btn-primary{background:#0B1F3A!important}
-  .bz-wrap .btn-success{background:#10B981!important}
-  .bz-act{padding:7px 14px;font-size:13px;font-weight:500;border:1px solid #E5E7EB;border-radius:8px;background:#fff;color:#111827;cursor:pointer;font-family:inherit}
-  .bz-act:hover{background:#F5F6F8}
-  .bz-act.primary{background:#0B1F3A;color:#fff;border-color:#0B1F3A}
+  /* 카드 — 토스: 보더 없는 라운드 20 + 부드러운 그림자 */
+  .bz-wrap .section{background:#fff;border:none;border-radius:20px;padding:22px 24px;margin-bottom:18px;box-shadow:0 2px 10px rgba(25,31,40,.05)}
+  .bz-wrap .sec-title{font-size:17px!important;font-weight:800;letter-spacing:-0.02em;color:var(--text-main);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+  .bz-wrap .memo-tabs button{border-radius:99px!important}
+  .bz-wrap .memo-tabs button.on{background:var(--text-main)!important;border-color:var(--text-main)!important;color:#fff!important}
+  .bz-wrap .btn-primary{background:var(--of-primary)!important;border-radius:12px!important;font-weight:800!important}
+  .bz-wrap .btn-success{background:var(--of-success)!important}
+  .bz-act{padding:8px 15px;font-size:13px;font-weight:700;border:none;border-radius:12px;background:#fff;color:var(--text-sub);cursor:pointer;font-family:inherit;box-shadow:0 2px 10px rgba(25,31,40,.05)}
+  .bz-act:hover{background:var(--gray-100)}
+  .bz-act.primary{background:var(--of-primary);color:#fff;border-color:var(--of-primary)}
   /* 증분2: 시안 2컬럼 (좌 검토표·메모·AI / 우 정보·구성원·상담방·일정·문서). JS 노드이동으로 채움 — DOM 재배치라 ID·onclick·렌더 전부 보존. */
   .bz-grid{display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start}
   .bz-main,.bz-side{min-width:0}
@@ -56,9 +76,9 @@
     <span class="bz-nav-r">
       <span style="color:#9ca3af;font-size:.78em" id="topMeta"></span>
       <!-- 사장님 명령 (2026-05-21): "조정료청구서 클릭하는거 안보임" — 업체 dashboard 에서도 청구서 발행 진입 -->
-      <button id="bizBillingBtn" onclick="bizGotoBilling()" class="bz-act" style="background:#fef3c7;color:#92400e;border-color:#fde68a;font-weight:600" title="이 업체로 조정료 청구서 발행 (새 admin · 검토표 자동 prefill)">💰 조정료 청구서 ↗</button>
+      <button id="bizBillingBtn" onclick="bizGotoBilling()" class="bz-act" style="background:var(--of-primary-soft);color:var(--of-primary);font-weight:800" title="이 업체로 조정료 청구서 발행 (새 admin · 검토표 자동 prefill)">💰 조정료 청구서 ↗</button>
       <!-- Phase M6 (2026-05-05 사장님 명령: 업체 삭제 + 메모 cascade) — ID·onclick 보존 -->
-      <button id="bizDeleteBtn" onclick="deleteBusinessFromPage()" class="bz-act" style="color:#dc2626;border-color:#dc2626" title="이 업체 + 모든 메모를 휴지통으로 (되돌릴 수 없음)">🗑️ 업체 삭제</button>
+      <button id="bizDeleteBtn" onclick="deleteBusinessFromPage()" class="bz-act" style="color:var(--of-danger);border-color:var(--of-danger)" title="이 업체 + 모든 메모를 휴지통으로 (되돌릴 수 없음)">🗑️ 업체 삭제</button>
     </span>
   </nav>
 
@@ -71,7 +91,7 @@
   <div class="bz-wrap">
 
   <div class="section">
-    <div class="sec-title">📋 기본 정보 <span style="font-size:.7em;color:#9ca3af;font-weight:500">(위하고 호환)</span>
+    <div class="sec-title"><span style="color:var(--of-primary);display:inline-flex;vertical-align:-2px;margin-right:3px"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18V5h8v13M12 9h4v9M4 18h14"/><path d="M6.5 8h1.5M6.5 11h1.5M6.5 14h1.5"/></svg></span> 기본 정보 <span style="font-size:.7em;color:#9ca3af;font-weight:500">(위하고 호환)</span>
       <span style="margin-left:auto" id="basicActions"><button class="btn-ghost" onclick="toggleEdit(true)">✏️ 편집</button></span>
     </div>
     <div id="bizBasic"><div class="loading">기본 정보 불러오는 중...</div></div>
@@ -82,7 +102,7 @@
   <div class="section" id="branchInfoSection" style="display:none">
     <div class="sec-title">
       <span id="branchSecTitle">🏢 본점·지점</span>
-      <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px" id="branchSecHint"></span>
+      <span style="font-size:.72em;color:var(--text-mute);font-weight:500;margin-left:6px" id="branchSecHint"></span>
     </div>
     <div id="branchInfoBody"></div>
   </div>
@@ -91,26 +111,26 @@
        내부 박스가 법인세/부가세/종소세 자체 헤더를 가지므로 외부는 generic.
        (옛: "— 법인세" 고정 → 법인 중복 + 개인 오라벨) -->
   <div class="section" id="bizFilingReviewSection">
-    <div class="sec-title">🧾 신고 검토표 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">결재용 · 작년 vs 올해 비교 · A4 PDF</span>
+    <div class="sec-title"><span style="color:var(--of-primary);display:inline-flex;vertical-align:-2px;margin-right:3px"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h10v16l-1.7-1.3L11.6 18 10 16.7 8.4 18l-1.7-1.3L5 18V2z"/><path d="M8 6.5h4M8 10h4"/></svg></span> 신고 검토표 <span style="font-size:.72em;color:var(--text-mute);font-weight:500;margin-left:6px">결재용 · 작년 vs 올해 비교 · A4 PDF</span>
     </div>
     <div id="bdFilingsReview" style="font-size:.85em"><div class="loading">불러오는 중...</div></div>
   </div>
 
   <div class="section">
-    <div class="sec-title">🏢 업체 메모 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">전화·문서·이슈·약속 + #태그 + 📎첨부 — 이 메모는 거래처(사람) dashboard 에도 "🏢 업체명 메모" 로 표시</span>
-      <button onclick="openMemoWindowBiz()" style="margin-left:auto;background:#fff;color:#3182f6;border:1px solid #3182f6;padding:4px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit" title="메모만 별창으로 — 카톡 보면서 동시에 메모">🪟 별창</button>
-      <span style="font-size:.7em;color:#8b95a1">총 <span id="memoCount">0</span>건</span>
+    <div class="sec-title"><span style="color:var(--of-primary);display:inline-flex;vertical-align:-2px;margin-right:3px"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3l3 3L8 15H5v-3L14 3z"/><path d="M3 17h14"/></svg></span> 업체 메모 <span style="font-size:.72em;color:var(--text-mute);font-weight:500;margin-left:6px">거래처 + 이 업체 통합</span>
+      <button onclick="openMemoWindowBiz()" style="margin-left:auto;background:#fff;color:var(--of-primary);border:1px solid var(--of-primary);padding:4px 10px;border-radius:6px;font-size:.74em;font-weight:600;cursor:pointer;font-family:inherit" title="메모만 별창으로 — 카톡 보면서 동시에 메모">별창</button>
+      <span style="font-size:.7em;color:var(--text-mute)">총 <span id="memoCount">0</span>건</span>
     </div>
     <!-- 카테고리 탭 -->
     <div class="memo-tabs" id="memoTabs">
       <button data-mcat="all" class="on" onclick="memoFilter('all')">전체</button>
-      <button data-mcat="할 일" onclick="memoFilter('할 일')">📌 할 일</button>
-      <button data-mcat="거래처 정보" onclick="memoFilter('거래처 정보')">🏢 거래처 정보</button>
-      <button data-mcat="전화" onclick="memoFilter('전화')">📞 전화</button>
-      <button data-mcat="문서" onclick="memoFilter('문서')">📁 문서</button>
-      <button data-mcat="이슈" onclick="memoFilter('이슈')">⚠️ 이슈</button>
-      <button data-mcat="약속" onclick="memoFilter('약속')">📅 약속</button>
-      <button data-mcat="완료" onclick="memoFilter('완료')">✅ 완료</button>
+      <button data-mcat="할 일" onclick="memoFilter('할 일')"><span style="width:6px;height:6px;border-radius:50%;background:#F04452;display:inline-block;margin-right:4px;vertical-align:1px"></span>할 일</button>
+      <button data-mcat="거래처 정보" onclick="memoFilter('거래처 정보')"><span style="width:6px;height:6px;border-radius:50%;background:var(--of-primary);display:inline-block;margin-right:4px;vertical-align:1px"></span>거래처 정보</button>
+      <button data-mcat="전화" onclick="memoFilter('전화')"><span style="width:6px;height:6px;border-radius:50%;background:#16BA72;display:inline-block;margin-right:4px;vertical-align:1px"></span>전화</button>
+      <button data-mcat="문서" onclick="memoFilter('문서')"><span style="width:6px;height:6px;border-radius:50%;background:#FF9F1C;display:inline-block;margin-right:4px;vertical-align:1px"></span>문서</button>
+      <button data-mcat="이슈" onclick="memoFilter('이슈')"><span style="width:6px;height:6px;border-radius:50%;background:#F04452;display:inline-block;margin-right:4px;vertical-align:1px"></span>이슈</button>
+      <button data-mcat="약속" onclick="memoFilter('약속')"><span style="width:6px;height:6px;border-radius:50%;background:#7C5CFC;display:inline-block;margin-right:4px;vertical-align:1px"></span>약속</button>
+      <button data-mcat="완료" onclick="memoFilter('완료')"><span style="width:6px;height:6px;border-radius:50%;background:var(--text-mute);display:inline-block;margin-right:4px;vertical-align:1px"></span>완료</button>
     </div>
     <!-- 메모 카드 리스트 -->
     <div id="memoList" style="margin-bottom:10px"><div class="loading">메모 불러오는 중...</div></div>
@@ -133,18 +153,18 @@
         <input id="memoNewDue" type="date" title="기한 (선택)">
         <button type="button" class="file-label" onclick="document.getElementById('memoNewFile').click()">📎 첨부</button>
         <input id="memoNewFile" type="file" multiple accept="image/*,.pdf,.hwp,.hwpx" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" onchange="onMemoFileSelect(event)">
-        <span id="memoNewFileLabel" style="font-size:.74em;color:#8b95a1"></span>
+        <span id="memoNewFileLabel" style="font-size:.74em;color:var(--text-mute)"></span>
       </div>
       <textarea id="memoNewContent" rows="2" placeholder="예) 사장님 종소세 분납 요청 #종소세&#10;예) 5/15 부가세 매입 영수증 12장 수령 #부가세 #영수증"></textarea>
       <div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">
-        <span style="font-size:.7em;color:#8b95a1;margin-right:auto">💡 #키워드 자동 태그</span>
+        <span style="font-size:.7em;color:var(--text-mute);margin-right:auto">💡 #키워드 자동 태그</span>
         <button class="btn-primary" onclick="submitMemoNew()">＋ 추가</button>
       </div>
     </div>
   </div>
 
   <div class="section">
-    <div class="sec-title">🤖 AI 요약 <button class="btn-success" onclick="runSummary()">✨ 요약 생성</button></div>
+    <div class="sec-title"><span style="color:var(--of-primary);display:inline-flex;vertical-align:-2px;margin-right:3px"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2l1.6 4.4L16 8l-4.4 1.6L10 14l-1.6-4.4L4 8l4.4-1.6L10 2z"/></svg></span> AI 요약 <button class="btn-success" onclick="runSummary()">✨ 요약 생성</button></div>
     <div id="summaryBody"><div class="empty">아직 요약 없음. ✨ 버튼으로 생성. (이 업체 모든 상담방 + 메모 통합 GPT 요약)</div></div>
   </div>
 
@@ -152,22 +172,22 @@
        재무는 신고검토표 워크플로로 일원화. /api/admin-finance 는 비파괴 위해 유지(미사용). -->
 
   <div class="section">
-    <div class="sec-title">📋 문서 <span style="font-size:.72em;color:#9ca3af;font-weight:500">최근 5건</span></div>
+    <div class="sec-title"><span style="color:var(--of-primary);display:inline-flex;vertical-align:-2px;margin-right:3px"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5h6l2 2h8v9H2V5z"/></svg></span> 문서 <span style="font-size:.72em;color:#9ca3af;font-weight:500">최근 5건</span></div>
     <div id="docList"><div class="loading">문서 불러오는 중...</div></div>
   </div>
 
   <div class="section">
-    <div class="sec-title">📆 일정 (D-day) <button class="btn-primary" onclick="addSchedule()">＋ 일정</button></div>
+    <div class="sec-title"><span style="color:var(--of-primary);display:inline-flex;vertical-align:-2px;margin-right:3px"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8.5h14M7 2v3.5M13 2v3.5"/></svg></span> 일정 (D-day) <button class="btn-primary" onclick="addSchedule()">＋ 일정</button></div>
     <div id="scheduleList"><div class="loading">일정 불러오는 중...</div></div>
   </div>
 
   <div class="section">
-    <div class="sec-title">👥 구성원</div>
+    <div class="sec-title"><span style="color:var(--of-primary);display:inline-flex;vertical-align:-2px;margin-right:3px"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="7" r="3"/><path d="M2 17c0-3 2.5-4.5 5.5-4.5S13 14 13 17"/><circle cx="14" cy="8" r="2.4"/><path d="M14 12.4c2.4 0 4 1.4 4 3.6"/></svg></span> 구성원</div>
     <div id="memberList"><div class="loading">구성원 불러오는 중...</div></div>
   </div>
 
   <div class="section">
-    <div class="sec-title">💬 연결된 상담방</div>
+    <div class="sec-title"><span style="color:var(--of-primary);display:inline-flex;vertical-align:-2px;margin-right:3px"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h14v10H8l-4 3.5V4z"/><path d="M7 8h6M7 11h4"/></svg></span> 연결된 상담방</div>
     <!-- Phase 3.6 (2026-05-08): React BizRoomList 자동 mount. id 변경 — admin.html #roomList 와 충돌 방지 -->
     <div id="bizRoomList"><div class="loading">상담방 불러오는 중...</div></div>
   </div>
@@ -185,7 +205,7 @@
 <div id="adminModalsSlot"></div>
 <script>
 window.KEY = window.KEY || (new URL(location.href)).searchParams.get('key') || '';
-fetch('/admin-modals.html?v=55', { cache: 'no-cache' })
+fetch('/admin-modals.html?v=74', { cache: 'no-cache' })
   .then(r => r.ok ? r.text() : Promise.reject(r.status))
   .then(html => {
     const slot = document.getElementById('adminModalsSlot');
@@ -222,7 +242,7 @@ fetch('/admin-modals.html?v=55', { cache: 'no-cache' })
       var t=document.getElementById('__bizGuardToast');
       if(!t){
         t=document.createElement('div'); t.id='__bizGuardToast';
-        t.style.cssText='position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#191f28;color:#fff;padding:10px 18px;border-radius:10px;font-size:.86em;z-index:99999;box-shadow:0 4px 16px rgba(0,0,0,.25);font-family:inherit;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center';
+        t.style.cssText='position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--text-main);color:#fff;padding:10px 18px;border-radius:10px;font-size:.86em;z-index:99999;box-shadow:0 4px 16px rgba(0,0,0,.25);font-family:inherit;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center';
         document.body.appendChild(t);
       }
       t.textContent=msg;
@@ -261,9 +281,9 @@ fetch('/admin-modals.html?v=55', { cache: 'no-cache' })
 </script>
 
 <!-- Phase B-1 (2026-05-17): paste-drop → src/lib/paste-drop.ts (assets/main.js 번들, self-register) -->
-<script src="/business.js?v=10"></script>
+<script src="/business.js?v=11"></script>
 <!-- Phase 6 (2026-05-07): 신고 검토표 시스템 (법인세) -->
-<script src="/admin-filing-review.js?v=37"></script>
+<script src="/admin-filing-review.js?v=39"></script>
 <!-- Phase Infra-2 fix (2026-05-09): admin-modals.html 안 backToList() / 등 admin-anal-review-faq.js 함수 사용
      사장님 보고 (Sentry first error): ReferenceError: backToList is not defined at /business:158:47 -->
 <!-- Phase 16 (2026-05-13) 사장님 Sentry 보고: ReferenceError: $g is not defined at backToList.
@@ -304,8 +324,8 @@ window.KEY = window.KEY || (new URL(location.href).searchParams.get('key') || ''
         /* Phase 16 (2026-05-17) 사장님 명령: "신고검토표 부가세랑 법인세랑 두개 분리".
          * 법인 → 법인세 박스 + 부가세 박스 (2개 별도). 개인 → 종소세 안내 + 부가세 박스.
          * _filRenderTypeInto 로 type 별 분리 (store 무관, 회귀 0). */
-        var secStyle='background:#fff;border:1px solid #e5e8eb;border-radius:10px;padding:14px 16px;margin-bottom:12px';
-        var hdr=function(t){ return '<div style="font-weight:700;font-size:.92em;color:#191f28;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #191f28">📋 신고 검토표 — '+t+'</div>'; };
+        var secStyle='background:#fff;border:1px solid var(--neutral-border);border-radius:10px;padding:14px 16px;margin-bottom:12px';
+        var hdr=function(t){ return '<div style="font-weight:700;font-size:.92em;color:var(--text-main);margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--text-main)">📋 신고 검토표 — '+t+'</div>'; };
         function _renderType(boxId, ftype){
           if(typeof _filRenderTypeInto==='function'){ _filRenderTypeInto(boxId, 'Business', bid, nm, ftype); }
           else { setTimeout(()=>{ if(typeof _filRenderTypeInto==='function') _filRenderTypeInto(boxId, 'Business', bid, nm, ftype); }, 500); }
@@ -321,7 +341,7 @@ window.KEY = window.KEY || (new URL(location.href).searchParams.get('key') || ''
           /* 개인사업자 → 종소세 안내 (작게) + 부가세 박스 */
           var ceo=biz.ceo_name||'대표자';
           var rep=(d.members||[]).find(m=>(m.role==='대표자'||m.is_primary===1)&&m.user_id);
-          var link=rep?'<a href="javascript:void(0)" onclick="alert(\'admin 화면에서 사용자 list 의 '+ceo.replace(/[\'\"]/g,'')+' → 거래처정보 → 신고 검토표 섹션 참조\')" style="color:#3182f6;font-weight:600">→ '+ceo+' 종소세 Case 보기 (admin)</a>':'';
+          var link=rep?'<a href="javascript:void(0)" onclick="alert(\'admin 화면에서 사용자 list 의 '+ceo.replace(/[\'\"]/g,'')+' → 거래처정보 → 신고 검토표 섹션 참조\')" style="color:var(--of-primary);font-weight:600">→ '+ceo+' 종소세 Case 보기 (admin)</a>':'';
           box.innerHTML=
             '<div style="background:#dbeafe;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:6px;color:#1e3a8a;font-size:.82em;margin-bottom:12px">'
             +'📌 <b>개인사업자</b> — 종소세는 대표자 ('+ceo+') 종소세에 포함.'+(link?' '+link:'')+'</div>'
@@ -331,7 +351,7 @@ window.KEY = window.KEY || (new URL(location.href).searchParams.get('key') || ''
       })
       .catch(()=>{
         var box=document.getElementById('bdFilingsReview');
-        if(box) box.innerHTML='<div style="color:#f04452;padding:8px;font-size:.82em">업체 정보 로드 실패</div>';
+        if(box) box.innerHTML='<div style="color:var(--toss-red);padding:8px;font-size:.82em">업체 정보 로드 실패</div>';
       });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);

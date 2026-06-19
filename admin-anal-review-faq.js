@@ -132,7 +132,110 @@ setTimeout(()=>{loadReview(curFilter)},500);
 }catch(err){alert('오류: '+err.message)}
 }
 
+/* ============================================================
+ * 토스-홈 (2026-06-12 사장님 "마저하고 이모지도 토스스럽게"):
+ * 홈(대화 탭) 상단 — 인사 + KPI 빅넘버 4카드 + 바로가기 4버튼.
+ * 아이콘 = 이모지 대신 토스풍 SVG (stroke currentColor).
+ * 데이터: admin-approve counts + analytics daily + admin-users total.
+ * 실패해도 홈 리스트는 정상 (전부 try/catch — 회귀 0).
+ * ============================================================ */
+function _hIco(name){
+  var P={
+    receipt:'<path d="M4 2h12v18l-2-1.5L12 20l-2-1.5L8 20l-2-1.5L4 20V2z"/><path d="M8 7h6M8 11h6"/>',
+    target:'<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3"/>',
+    usercheck:'<circle cx="8" cy="6.5" r="3.5"/><path d="M2.5 17c0-3 2.5-4.5 5.5-4.5s5.5 1.5 5.5 4.5"/><path d="M13.5 9l2 2 3.5-3.5"/>',
+    doc:'<path d="M5 2h7l4 4v12H5V2z"/><path d="M12 2v4h4M8 11h5M8 14h5"/>',
+    people:'<circle cx="7.5" cy="7" r="3"/><path d="M2 17c0-3 2.5-4.5 5.5-4.5S13 14 13 17"/><circle cx="14" cy="8" r="2.4"/><path d="M14 12.4c2.4 0 4 1.4 4 3.6"/>',
+    wait:'<circle cx="10" cy="10" r="7.5"/><path d="M10 6v4l2.6 2"/>',
+    chat:'<path d="M3 4h14v10H8l-4 3.5V4z"/>',
+    biz:'<path d="M4 18V5h8v13M12 9h4v9M4 18h14"/><path d="M6.5 8h1.5M6.5 11h1.5M6.5 14h1.5"/>',
+  }[name]||'';
+  return '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+P+'</svg>';
+}
+var _hhTries=0, _hhData=null, _hhFetching=false;
+/* KPI 박스 1개 HTML */
+function _hhKpi(ico,label,val,unit,color,onclick){
+  return '<div onclick="'+(onclick||'')+'" style="flex:1 1 180px;min-width:160px;background:#fff;border-radius:20px;padding:18px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:'+(onclick?'pointer':'default')+'">'
+    +'<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-mute);font-weight:700">'+_hIco(ico)+label+'</div>'
+    +'<div style="font-size:27px;font-weight:800;letter-spacing:-.03em;margin-top:6px;color:'+color+'">'+val+'<span style="font-size:14px;font-weight:700;color:var(--text-sub)"> '+unit+'</span></div>'
+    +'</div>';
+}
+/* KPI 채우기 — 캐시(_hhData) 있으면 숫자, 없으면 '·' 플레이스홀더. fetch 안 함(쌈). */
+function _hhFill(){
+  var box=$g('homeKpis'); if(!box) return;
+  var d=_hhData||{};
+  var P=function(v){ return (d && v!=null)?v:'·'; };
+  var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
+  var pend=d.pending;
+  box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
+    +_hhKpi('people','기장거래처',P(d.approvedClient),'곳','var(--of-primary)',uTab)
+    +_hhKpi('wait','승인 대기',P(pend),'명',(pend>0)?'var(--toss-red)':'var(--text-main)',uTab)
+    +_hhKpi('chat','오늘 챗봇 상담',P(d.todayCnt),'건','var(--text-main)','')
+    +_hhKpi('biz','전체 사용자',P(d.totalUsers),'명','var(--text-main)',uTab)
+    +'</div>';
+}
+/* 데이터 1회만 fetch — 캐시 후 재호출 시 skip (2026-06-15 사장님 "불러오는중 느림":
+ * 여러 트리거가 각각 fetch 3개씩 발사 → admin-approve 등 5~6중복 → D1 경합 → 전체 지연.
+ * 이제 fetch 는 한 번, 렌더(_hhRender)는 비면 캐시로 재적용(쌈) → 사라짐도 방지). */
+async function _hhFetch(){
+  if(_hhData || _hhFetching) return;
+  _hhFetching=true;
+  try{
+    var now=new Date(Date.now()+9*3600*1000);
+    var rs=await Promise.all([
+      fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=pending').then(function(r){return r.json()}).catch(function(){return {}}),
+      fetch('/api/analytics?key='+encodeURIComponent(KEY)).then(function(r){return r.json()}).catch(function(){return {}}),
+      fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&page=1').then(function(r){return r.json()}).catch(function(){return {}}),
+    ]);
+    var c=(rs[0]&&rs[0].counts)||{};
+    var todayKey=now.toISOString().slice(0,10);
+    var dRow=((rs[1]&&rs[1].daily)||[]).find(function(d){return d.date===todayKey});
+    _hhData={ approvedClient:(c.approved_client||0), pending:(c.pending||0), todayCnt:(dRow?dRow.count:0), totalUsers:((rs[2]&&rs[2].total)||0) };
+  }catch(_){ _hhData=null; }
+  _hhFetching=false;
+  try{ _hhFill(); }catch(_){}
+}
+/* 렌더 — 멱등. 이미 그려졌고(=#homeKpis 존재) 데이터도 있으면 즉시 return.
+ * 비어있으면(주입/재주입으로 노출) shell 다시 그림 + 캐시로 채움 + (처음이면)fetch. */
+function renderHomeHero(){
+  var el=$g('homeHero');
+  if(!el){ if(_hhTries++<20) setTimeout(renderHomeHero,400); return; }
+  if(el.querySelector('#homeKpis')){ if(_hhData) return; _hhFill(); if(!_hhData) _hhFetch(); return; }
+  try{
+    var now=new Date(Date.now()+9*3600*1000);
+    var days=['일','월','화','수','목','금','토'];
+    var dateStr=(now.getUTCMonth()+1)+'월 '+now.getUTCDate()+'일 '+days[now.getUTCDay()]+'요일';
+    var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
+    function qk(ico,label,onclick){
+      return '<button onclick="'+onclick+'" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:8px;background:#fff;border:none;border-radius:16px;padding:13px 10px;box-shadow:0 2px 10px rgba(25,31,40,.05);font-size:13.5px;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit">'
+        +'<span style="display:inline-flex;color:var(--of-primary)">'+_hIco(ico)+'</span>'+label+'</button>';
+    }
+    el.innerHTML='<div style="margin:4px 2px 18px">'
+      +'<div style="font-size:13px;color:var(--text-mute);font-weight:600">'+dateStr+'</div>'
+      +'<div style="font-size:24px;font-weight:800;letter-spacing:-.03em;color:var(--text-main);margin-top:3px">사장님, 오늘도 좋은 하루 되세요<span style="color:var(--of-primary)">.</span></div>'
+      +'</div><div id="homeKpis"></div>'
+      +'<div id="homeQuick"><div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">'
+      +qk('receipt','청구서 발행',"window.open('https://sewmu-admin.pages.dev/admin/billing/new','_blank')")
+      +qk('target','영업 타겟',"window.open('https://sewmu-admin.pages.dev/admin/sales-targets','_blank')")
+      +qk('usercheck','가입 승인',uTab)
+      +qk('doc','검토표 모아보기',"($g('sbReviewAllBtn')||{click:function(){}}).click()")
+      +'</div></div>';
+    _hhFill();           /* 캐시 있으면 숫자, 없으면 '·' */
+    if(!_hhData) _hhFetch();  /* 처음이면 1회 fetch → 끝나면 _hhFill 재적용 */
+  }catch(_){/* 홈 헤더 실패해도 리스트는 정상 */}
+}
+/* 홈 히어로 자동 렌더 — 모달 DOM 준비 신호에 직접 훅 (2026-06-15 사장님 "왜안되노").
+ * 원인: #homeHero 는 admin-modals.html 안에 있고, ESM loadAdminModals 가 주입 후
+ * 'adminModalsLoaded' 이벤트 dispatch. setTimeout(600) 자가시작은 이 주입 타이밍과
+ * 안 맞아 빗나갔음(부팅 경로마다 주입 시점 다름). → 이벤트에 직접 건다 = 항상 정확.
+ * + 백업: 이미 주입된 뒤 진입한 경우(이벤트 놓침) 대비 짧은 폴링도 유지. */
+try{ document.addEventListener('adminModalsLoaded', function(){ try{ renderHomeHero(); }catch(_){} }); }catch(_){}
+/* 백업 재렌더 — 모달 재주입 등으로 homeHero 가 비워지는 케이스 대비.
+ * renderHomeHero 는 멱등 + fetch 1회 캐시라 여러 번 불러도 비용 거의 0 (DOM 재적용만). */
+try{ [600,1500,3000,5000].forEach(function(ms){ setTimeout(renderHomeHero, ms); }); }catch(_){}
+
 async function loadList(){
+try{renderHomeHero()}catch(_){}
 const r=await fetch('/api/conversations?key='+encodeURIComponent(KEY)+'&page=1');
 const d=await r.json();
 const el=$g('list');
@@ -143,10 +246,13 @@ const av=s.user_profile_image
 ?'<img src="'+e(s.user_profile_image)+'" alt="">'
 :nm[0];
 const pv=s.user_provider||'';
+/* 토스 정리 (2026-06-16 사장님 "후가 훨씬 낫다"): 신뢰도 3색 뱃지 → 점 하나.
+ * 낮음(주의) 있으면 빨강점+개수, 없으면 회색점(양호). 행마다 색 3개 → 1개 = 차분. */
+var _dot=function(color,label){return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:.72em;font-weight:700;color:'+color+';margin-left:6px"><span style="width:6px;height:6px;border-radius:50%;background:'+color+';display:inline-block"></span>'+label+'</span>';};
 let confBadges='';
-if(s.count_high>0)confBadges+='<span class="conf high">높음 '+s.count_high+'</span>';
-if(s.count_medium>0)confBadges+='<span class="conf medium">보통 '+s.count_medium+'</span>';
-if(s.count_low>0)confBadges+='<span class="conf low">낮음 '+s.count_low+'</span>';
+if(s.count_low>0) confBadges=_dot('var(--toss-red)','낮음 '+s.count_low);
+else if(s.count_medium>0) confBadges=_dot('var(--text-mute)','보통');
+else if(s.count_high>0) confBadges=_dot('var(--of-success)','');
 return '<div class="item" onclick="detail(\''+e(s.group_id)+'\')">'
 +'<div class="avatar">'+av+'</div>'
 +'<div class="info"><div class="name">'+e(nm)+confBadges+'</div>'

@@ -140,7 +140,7 @@ async function delMemo(id, ev){
   }catch(e){ alert('오류: '+e.message); }
 }
 async function loadMemoAll(){
-  if(!KEY){ document.body.dataset.auth='false'; return; }
+  /* 2026-06-15: 쿠키 로그인(KEY='')도 동작하게 — fetch 시도 후 401일 때만 안내 (review-all 과 동일). */
   const box=document.getElementById('list'); if(!box) return;
   const q=document.getElementById('q').value.trim();
   const tgt=document.getElementById('tgt').value;
@@ -149,7 +149,7 @@ async function loadMemoAll(){
     +(q?'&q='+encodeURIComponent(q):'')+(tgt?'&target='+encodeURIComponent(tgt):'')+(cat?'&category='+encodeURIComponent(cat):'');
   box.innerHTML='<tr><td colspan="5" class="load">불러오는 중…</td></tr>';
   try{
-    const r=await fetch('/api/memos'+qs);
+    const r=await fetch('/api/memos'+qs,{credentials:'same-origin'});
     if(r.status===401){ document.body.dataset.auth='false'; return; }
     const d=await r.json();
     if(!d.ok){ box.innerHTML='<tr><td colspan="5" class="empty" style="color:#dc2626">불러오기 실패: '+esc(d.error||'unknown')+'</td></tr>'; return; }

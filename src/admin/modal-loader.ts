@@ -17,7 +17,7 @@
  *   - admin.html: <script>window.__loadAdminModals?.();</script> 1줄로 호출
  */
 
-const MODAL_VERSION = 'v=24';
+const MODAL_VERSION = 'v=74';
 
 export interface ModalLoadResult {
   ok: boolean;
@@ -52,6 +52,13 @@ export async function loadAdminModals(slotId = 'adminModalsSlot'): Promise<Modal
         detail: { bytes: html.length, durationMs: performance.now() - t0 },
       }));
     } catch (_) { /* CustomEvent 실패 무시 */ }
+    /* 홈 히어로 직접 호출 — #homeHero 를 방금 주입했으니 여기가 가장 확실한 시점.
+     * (2026-06-15 사장님 "왜안되노": setTimeout/loadList 자가시작이 주입 타이밍과 어긋나
+     *  안 뜨던 문제 → 주입 주체가 직접 부른다. window.renderHomeHero 는 classic 전역.) */
+    try {
+      const w = window as unknown as { renderHomeHero?: () => void };
+      if (typeof w.renderHomeHero === 'function') w.renderHomeHero();
+    } catch (_) { /* 홈 히어로 실패해도 모달 로드는 정상 */ }
     return { ok: true, bytes: html.length, durationMs: performance.now() - t0 };
   } catch (e) {
     return {

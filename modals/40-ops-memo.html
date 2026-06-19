@@ -1,9 +1,9 @@
 <!-- 거래처 서류 확인 모달 (신분증·사업자등록증·홈택스 ID) -->
 <div id="bizDocsModal" class="modal-overlay" style="z-index:11400;display:none;align-items:flex-start;padding:20px;overflow-y:auto">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:720px;margin-top:40px;box-shadow:0 10px 40px rgba(0,0,0,.25);overflow:hidden">
-    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--neutral-border);display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">📋 거래처 서류 — <span id="bdTitle">-</span></div>
-      <button onclick="closeBizDocsPanel()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:#8b95a1">✕</button>
+      <button onclick="closeBizDocsPanel()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--text-mute)">✕</button>
     </div>
     <div id="bdBody" style="padding:16px 18px;max-height:75vh;overflow-y:auto"></div>
   </div>
@@ -14,30 +14,30 @@
 <!-- 상담방 AI 요약 모달 -->
 <div id="roomSummaryModal" class="modal-overlay" style="z-index:11600;display:none">
   <div class="modal-card" style="max-width:700px;max-height:88vh">
-    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
-      <div style="font-weight:700;font-size:1em">📝 AI 대화 요약 <span id="rsMeta" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
-      <button onclick="closeRoomSummary()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+    <div style="padding:14px 18px;border-bottom:1px solid var(--neutral-border);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1em">📝 AI 대화 요약 <span id="rsMeta" style="font-size:.72em;color:var(--text-mute);font-weight:500;margin-left:6px"></span></div>
+      <button onclick="closeRoomSummary()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--text-mute);font-family:inherit;padding:0 6px">✕</button>
     </div>
-    <div style="padding:10px 18px;border-bottom:1px solid #f2f4f6;display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:#f9fafb">
-      <span style="font-size:.78em;color:#8b95a1;margin-right:4px">기간:</span>
-      <button onclick="selectSummaryRange('recent')" class="rs-range" data-range="recent" style="background:#191f28;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:600">최근 50건</button>
-      <button onclick="selectSummaryRange('week')" class="rs-range" data-range="week" style="background:#e5e8eb;color:#555;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">최근 7일</button>
-      <button onclick="selectSummaryRange('month')" class="rs-range" data-range="month" style="background:#e5e8eb;color:#555;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">이번달</button>
-      <button onclick="selectSummaryRange('all')" class="rs-range" data-range="all" style="background:#e5e8eb;color:#555;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">전체</button>
-      <button onclick="selectSummaryRange('custom')" class="rs-range" data-range="custom" style="background:#e5e8eb;color:#555;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">📆 직접 지정</button>
+    <div style="padding:10px 18px;border-bottom:1px solid var(--gray-100);display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--neutral-bg)">
+      <span style="font-size:.78em;color:var(--text-mute);margin-right:4px">기간:</span>
+      <button onclick="selectSummaryRange('recent')" class="rs-range" data-range="recent" style="background:var(--text-main);color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:600">최근 50건</button>
+      <button onclick="selectSummaryRange('week')" class="rs-range" data-range="week" style="background:var(--neutral-border);color:#555;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">최근 7일</button>
+      <button onclick="selectSummaryRange('month')" class="rs-range" data-range="month" style="background:var(--neutral-border);color:#555;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">이번달</button>
+      <button onclick="selectSummaryRange('all')" class="rs-range" data-range="all" style="background:var(--neutral-border);color:#555;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">전체</button>
+      <button onclick="selectSummaryRange('custom')" class="rs-range" data-range="custom" style="background:var(--neutral-border);color:#555;border:none;padding:5px 12px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">📆 직접 지정</button>
       <div id="rsCustomBox" style="display:none;align-items:center;gap:6px;margin-left:4px;flex-wrap:wrap">
-        <input type="date" id="rsFrom" style="padding:4px 8px;border:1px solid #e5e8eb;border-radius:6px;font-size:.78em;font-family:inherit">
-        <span style="font-size:.78em;color:#8b95a1">~</span>
-        <input type="date" id="rsTo" style="padding:4px 8px;border:1px solid #e5e8eb;border-radius:6px;font-size:.78em;font-family:inherit">
+        <input type="date" id="rsFrom" style="padding:4px 8px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.78em;font-family:inherit">
+        <span style="font-size:.78em;color:var(--text-mute)">~</span>
+        <input type="date" id="rsTo" style="padding:4px 8px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.78em;font-family:inherit">
       </div>
     </div>
-    <div id="rsBody" style="flex:1;overflow-y:auto;padding:18px 22px;font-size:.92em;line-height:1.7;background:#fff;color:#191f28"></div>
-    <div style="padding:10px 18px;border-top:1px solid #e5e8eb;display:flex;gap:8px;justify-content:flex-end;background:#f9fafb;flex-wrap:wrap">
-      <button onclick="openSummaryHistory()" style="background:#e5e8eb;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit" title="이전 요약 이력 불러오기">🕘 이력</button>
-      <button onclick="copyRoomSummary()" style="background:#e5e8eb;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit" id="rsCopyBtn">📋 복사</button>
-      <button onclick="postSummaryToRoom()" style="background:#fbbf24;color:#78350f;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit" title="⚠️ 내부용 요약을 고객이 보이는 상담방에 게시합니다. 확인 필수">⚠️ 상담방 게시 (고객 노출)</button>
-      <button onclick="runRoomSummary()" style="background:#10b981;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">✨ 요약 생성</button>
-      <button onclick="closeRoomSummary()" style="background:#191f28;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;font-weight:600;cursor:pointer;font-family:inherit">닫기</button>
+    <div id="rsBody" style="flex:1;overflow-y:auto;padding:18px 22px;font-size:.92em;line-height:1.7;background:#fff;color:var(--text-main)"></div>
+    <div style="padding:10px 18px;border-top:1px solid var(--neutral-border);display:flex;gap:8px;justify-content:flex-end;background:var(--neutral-bg);flex-wrap:wrap">
+      <button onclick="openSummaryHistory()" style="background:var(--neutral-border);border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit" title="이전 요약 이력 불러오기">🕘 이력</button>
+      <button onclick="copyRoomSummary()" style="background:var(--neutral-border);border:none;padding:8px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit" id="rsCopyBtn">📋 복사</button>
+      <button onclick="postSummaryToRoom()" style="background:var(--of-warn);color:#78350f;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit" title="⚠️ 내부용 요약을 고객이 보이는 상담방에 게시합니다. 확인 필수">⚠️ 상담방 게시 (고객 노출)</button>
+      <button onclick="runRoomSummary()" style="background:var(--of-success);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">✨ 요약 생성</button>
+      <button onclick="closeRoomSummary()" style="background:var(--text-main);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;font-weight:600;cursor:pointer;font-family:inherit">닫기</button>
     </div>
   </div>
 </div>
@@ -46,59 +46,59 @@
 <!-- 📢 단체발송 모달 -->
 <div id="bulkSendModal" class="modal-overlay" style="z-index:11400;display:none">
   <div class="modal-card" style="max-width:700px;max-height:92vh">
-    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
-      <div style="font-weight:700;font-size:1em">📢 단체발송 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">여러 상담방에 한 번에 메시지 전송 (고객에게 발송됨)</span></div>
-      <button onclick="closeBulkSend()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+    <div style="padding:14px 18px;border-bottom:1px solid var(--neutral-border);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1em">📢 단체발송 <span style="font-size:.72em;color:var(--text-mute);font-weight:500;margin-left:6px">여러 상담방에 한 번에 메시지 전송 (고객에게 발송됨)</span></div>
+      <button onclick="closeBulkSend()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--text-mute);font-family:inherit;padding:0 6px">✕</button>
     </div>
     <!-- 메시지 입력 + 첨부 -->
-    <div style="padding:12px 16px;border-bottom:1px solid #f2f4f6;background:#fffbeb">
-      <textarea id="bulkContent" placeholder="예) 2026년 2기 부가세 신고 기한이 1/25입니다. 매입 영수증 올려주세요." style="width:100%;min-height:80px;padding:10px 12px;border:1px solid #e5e8eb;border-radius:8px;font-size:.9em;font-family:inherit;resize:vertical;box-sizing:border-box;outline:none"></textarea>
+    <div style="padding:12px 16px;border-bottom:1px solid var(--gray-100);background:#fffbeb">
+      <textarea id="bulkContent" placeholder="예) 2026년 2기 부가세 신고 기한이 1/25입니다. 매입 영수증 올려주세요." style="width:100%;min-height:80px;padding:10px 12px;border:1px solid var(--neutral-border);border-radius:8px;font-size:.9em;font-family:inherit;resize:vertical;box-sizing:border-box;outline:none"></textarea>
       <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
-        <label for="bulkImgInput" style="background:#f2f4f6;border:1px solid #e5e8eb;color:#4b5563;padding:5px 10px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">📷 사진 첨부</label>
+        <label for="bulkImgInput" style="background:var(--gray-100);border:1px solid var(--neutral-border);color:var(--text-sub);padding:5px 10px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">📷 사진 첨부</label>
         <input id="bulkImgInput" type="file" accept="image/*" multiple onchange="_bulkAddFiles(this.files,'image');this.value=''" class="hidden">
-        <label for="bulkFileInput" style="background:#f2f4f6;border:1px solid #e5e8eb;color:#4b5563;padding:5px 10px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">📎 파일 첨부</label>
+        <label for="bulkFileInput" style="background:var(--gray-100);border:1px solid var(--neutral-border);color:var(--text-sub);padding:5px 10px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">📎 파일 첨부</label>
         <input id="bulkFileInput" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx,.ppt,.pptx,.hwp,.hwpx,.txt,.csv,.zip" multiple onchange="_bulkAddFiles(this.files,'file');this.value=''" class="hidden">
-        <span style="font-size:.72em;color:#8b95a1">안내 자료 첨부 시 이용 (이미지+파일 합쳐 최대 10개)</span>
+        <span style="font-size:.72em;color:var(--text-mute)">안내 자료 첨부 시 이용 (이미지+파일 합쳐 최대 10개)</span>
       </div>
-      <div id="bulkAttachPreview" style="display:none;margin-top:8px;gap:8px;flex-wrap:wrap;padding:8px;background:#fff;border:1px solid #e5e8eb;border-radius:8px"></div>
-      <div style="font-size:.72em;color:#8b95a1;margin-top:6px">⚠️ 선택한 모든 거래처의 상담방에 동시 발송됩니다. 고객이 바로 볼 수 있습니다.</div>
+      <div id="bulkAttachPreview" style="display:none;margin-top:8px;gap:8px;flex-wrap:wrap;padding:8px;background:#fff;border:1px solid var(--neutral-border);border-radius:8px"></div>
+      <div style="font-size:.72em;color:var(--text-mute);margin-top:6px">⚠️ 선택한 모든 거래처의 상담방에 동시 발송됩니다. 고객이 바로 볼 수 있습니다.</div>
     </div>
     <!-- 대상 필터 -->
-    <div style="padding:10px 16px;border-bottom:1px solid #f2f4f6;background:#fafbfc;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:.78em;color:#6b7280;margin-right:2px">대상:</span>
-      <button onclick="_bulkSelect('all')" class="bulk-flt" data-f="all" style="background:#191f28;color:#fff;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit;font-weight:700">전체</button>
-      <button onclick="_bulkSelect(1)" class="bulk-flt" data-f="1" style="background:#fee2e2;color:#dc2626;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit;font-weight:700">🔴 1순위</button>
-      <button onclick="_bulkSelect(2)" class="bulk-flt" data-f="2" style="background:#fef3c7;color:#b45309;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit;font-weight:700">🟡 2순위</button>
+    <div style="padding:10px 16px;border-bottom:1px solid var(--gray-100);background:var(--gray-25);display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:.78em;color:var(--gray-500);margin-right:2px">대상:</span>
+      <button onclick="_bulkSelect('all')" class="bulk-flt" data-f="all" style="background:var(--text-main);color:#fff;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit;font-weight:700">전체</button>
+      <button onclick="_bulkSelect(1)" class="bulk-flt" data-f="1" style="background:var(--of-danger-soft);color:var(--of-danger);border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit;font-weight:700">🔴 1순위</button>
+      <button onclick="_bulkSelect(2)" class="bulk-flt" data-f="2" style="background:var(--of-warn-soft);color:#b45309;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit;font-weight:700">🟡 2순위</button>
       <button onclick="_bulkSelect(3)" class="bulk-flt" data-f="3" style="background:#d1fae5;color:#059669;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit;font-weight:700">🟢 3순위</button>
-      <button onclick="_bulkSelect('none')" class="bulk-flt" data-f="none" style="background:#e5e8eb;color:#4b5563;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">⚪ 미분류</button>
-      <button onclick="_bulkSelectNone()" style="background:none;border:1px solid #e5e8eb;color:#6b7280;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit;margin-left:8px">전체 해제</button>
+      <button onclick="_bulkSelect('none')" class="bulk-flt" data-f="none" style="background:var(--neutral-border);color:var(--text-sub);border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">⚪ 미분류</button>
+      <button onclick="_bulkSelectNone()" style="background:none;border:1px solid var(--neutral-border);color:var(--gray-500);padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit;margin-left:8px">전체 해제</button>
     </div>
     <!-- 방 리스트 -->
     <div id="bulkRoomList" style="flex:1;overflow-y:auto;padding:6px 16px;background:#fff"></div>
     <!-- 푸터 -->
-    <div style="padding:10px 16px;border-top:1px solid #e5e8eb;background:#f9fafb;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <div style="flex:1;font-size:.85em;color:#4b5563"><b id="bulkCount">0</b>명 선택됨</div>
-      <button onclick="closeBulkSend()" style="background:#e5e8eb;border:none;padding:8px 14px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
-      <button onclick="submitBulkSend()" id="bulkSubmitBtn" style="background:#dc2626;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">⚠️ 발송</button>
+    <div style="padding:10px 16px;border-top:1px solid var(--neutral-border);background:var(--neutral-bg);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div style="flex:1;font-size:.85em;color:var(--text-sub)"><b id="bulkCount">0</b>명 선택됨</div>
+      <button onclick="closeBulkSend()" style="background:var(--neutral-border);border:none;padding:8px 14px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
+      <button onclick="submitBulkSend()" id="bulkSubmitBtn" style="background:var(--of-danger);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">⚠️ 발송</button>
     </div>
   </div>
 </div>
 <!-- 📋 내 할 일 대시보드 모달 (전체 방 + 개인 일정 통합 뷰) -->
 <div id="myTodosModal" class="modal-overlay" style="z-index:11400;display:none">
   <div class="modal-card" style="max-width:720px;max-height:92vh">
-    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-      <div style="font-weight:700;font-size:1em">📋 내 할 일 <span id="mtMeta" style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
+    <div style="padding:14px 18px;border-bottom:1px solid var(--neutral-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="font-weight:700;font-size:1em">📋 내 할 일 <span id="mtMeta" style="font-size:.72em;color:var(--text-mute);font-weight:500;margin-left:6px"></span></div>
       <div style="display:flex;gap:6px;align-items:center">
-        <label style="font-size:.75em;color:#6b7280;display:flex;align-items:center;gap:4px"><input type="checkbox" id="mtOnlyMine" onchange="loadMyTodos()" style="width:14px;height:14px;cursor:pointer"> 내 것만</label>
-        <button onclick="loadMyTodos()" style="background:#e5e8eb;border:none;padding:5px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">🔄</button>
-        <button onclick="closeMyTodos()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+        <label style="font-size:.75em;color:var(--gray-500);display:flex;align-items:center;gap:4px"><input type="checkbox" id="mtOnlyMine" onchange="loadMyTodos()" style="width:14px;height:14px;cursor:pointer"> 내 것만</label>
+        <button onclick="loadMyTodos()" style="background:var(--neutral-border);border:none;padding:5px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">🔄</button>
+        <button onclick="closeMyTodos()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--text-mute);font-family:inherit;padding:0 6px">✕</button>
       </div>
     </div>
     <!-- 개인 일정 추가 폼 -->
-    <div style="padding:10px 16px;border-bottom:1px solid #f2f4f6;background:#fffbeb;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <input id="mtNewContent" type="text" placeholder="+ 개인 일정 (방 없이): 예) 은행 방문 · 세미나 참석" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid #e5e8eb;border-radius:7px;font-size:.85em;font-family:inherit;outline:none" onkeydown="if(event.key==='Enter'){event.preventDefault();addPersonalTask()}">
-      <input id="mtNewDue" type="date" style="padding:6px 8px;border:1px solid #e5e8eb;border-radius:6px;font-size:.78em;font-family:inherit" title="기한">
-      <button onclick="addPersonalTask()" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:7px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit">추가</button>
+    <div style="padding:10px 16px;border-bottom:1px solid var(--gray-100);background:#fffbeb;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input id="mtNewContent" type="text" placeholder="+ 개인 일정 (방 없이): 예) 은행 방문 · 세미나 참석" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--neutral-border);border-radius:7px;font-size:.85em;font-family:inherit;outline:none" onkeydown="if(event.key==='Enter'){event.preventDefault();addPersonalTask()}">
+      <input id="mtNewDue" type="date" style="padding:6px 8px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.78em;font-family:inherit" title="기한">
+      <button onclick="addPersonalTask()" style="background:var(--of-success);color:#fff;border:none;padding:7px 14px;border-radius:7px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit">추가</button>
     </div>
     <div id="myTodosList" style="flex:1;overflow-y:auto;padding:10px 16px 18px;background:#fff"></div>
   </div>
@@ -116,18 +116,18 @@
         <button onclick="closeTrash()" class="modal-close">✕</button>
       </div>
     </div>
-    <div style="padding:10px 16px;border-bottom:1px solid #f2f4f6;background:#fffbeb;font-size:.78em;color:#92400e">
+    <div style="padding:10px 16px;border-bottom:1px solid var(--gray-100);background:#fffbeb;font-size:.78em;color:var(--warn-text)">
       ⚠️ 삭제된 메모 200건 (최근 삭제순). <b>복원</b> = 다시 살림 / <b>영구 삭제</b> = 완전 제거 (되돌릴 수 없음).
     </div>
     <!-- Phase M3 (2026-05-05 사장님 명령): 일괄 액션 바 — 체크박스 + 전체 선택 + 일괄 복원·삭제 -->
-    <div style="padding:8px 16px;border-bottom:1px solid #f2f4f6;background:#f9fafb;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <div style="padding:8px 16px;border-bottom:1px solid var(--gray-100);background:var(--neutral-bg);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <label style="display:flex;align-items:center;gap:6px;font-size:.82em;cursor:pointer;font-weight:600">
-        <input type="checkbox" id="trashSelectAll" onchange="trashToggleAll(this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:#3182f6">
+        <input type="checkbox" id="trashSelectAll" onchange="trashToggleAll(this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--of-primary)">
         전체 선택
       </label>
-      <span id="trashSelectedCount" style="font-size:.78em;color:#6b7280">선택 0건</span>
-      <button id="trashBulkRestoreBtn" onclick="bulkRestoreTrash()" disabled style="margin-left:auto;background:#10b981;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit;opacity:.5">↶ 일괄 복원</button>
-      <button id="trashBulkPurgeBtn" onclick="bulkPurgeTrash()" disabled style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:6px 14px;border-radius:6px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit;opacity:.5">✕ 일괄 영구 삭제</button>
+      <span id="trashSelectedCount" style="font-size:.78em;color:var(--gray-500)">선택 0건</span>
+      <button id="trashBulkRestoreBtn" onclick="bulkRestoreTrash()" disabled style="margin-left:auto;background:var(--of-success);color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit;opacity:.5">↶ 일괄 복원</button>
+      <button id="trashBulkPurgeBtn" onclick="bulkPurgeTrash()" disabled style="background:#fff;color:var(--of-danger);border:1px solid var(--of-danger);padding:6px 14px;border-radius:6px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit;opacity:.5">✕ 일괄 영구 삭제</button>
     </div>
     <div id="trashList" style="flex:1;overflow-y:auto;padding:10px 16px 18px;background:#fff"></div>
   </div>
@@ -143,12 +143,12 @@
       <div class="font-bold">🐞 에러 로그 <span id="errorLogMeta" class="ml-1.5 text-xs font-medium text-of-text-mute"></span></div>
       <div class="flex items-center gap-1.5">
         <button onclick="loadErrorLog()" class="btn-ghost btn-sm">🔄</button>
-        <button onclick="purgeOldErrorLogs()" class="btn-sm" style="background:#fff;color:#dc2626;border:1px solid #dc2626;font-weight:600;cursor:pointer" title="7일 지난 에러 자동 삭제">🗑️ 7일 지난 거</button>
-        <button id="errorLogPurgeAllBtn" onclick="purgeAllErrorLogs()" class="btn-sm" style="background:#dc2626;color:#fff;border:none;font-weight:600;cursor:pointer;display:none" title="모든 에러 로그 전체 삭제 (owner only)">🗑️ 전체 비우기</button>
+        <button onclick="purgeOldErrorLogs()" class="btn-sm" style="background:#fff;color:var(--of-danger);border:1px solid var(--of-danger);font-weight:600;cursor:pointer" title="7일 지난 에러 자동 삭제">🗑️ 7일 지난 거</button>
+        <button id="errorLogPurgeAllBtn" onclick="purgeAllErrorLogs()" class="btn-sm" style="background:var(--of-danger);color:#fff;border:none;font-weight:600;cursor:pointer;display:none" title="모든 에러 로그 전체 삭제 (owner only)">🗑️ 전체 비우기</button>
         <button onclick="closeErrorLog()" class="modal-close">✕</button>
       </div>
     </div>
-    <div class="px-4 py-2.5 border-b border-of-border bg-of-danger-soft text-xs" style="color:#991b1b">
+    <div class="px-4 py-2.5 border-b border-of-border bg-of-danger-soft text-xs" style="color:var(--danger-text)">
       ⚠️ 거래처/사장님 admin 화면에서 발생한 JavaScript 에러 200건 (최근순). 7일 보관 후 자동 정리.
     </div>
     <div id="errorLogList" class="modal-body bg-white text-sm"></div>
@@ -156,37 +156,37 @@
 </div>
 <div id="memoModal" class="modal-overlay" style="z-index:11400;display:none">
   <div class="memo-panel modal-card" style="max-width:640px;max-height:88vh">
-    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
-      <div style="font-weight:700;font-size:1em">📒 담당자 메모 <span style="font-size:.72em;color:#8b95a1;font-weight:500;margin-left:6px">내부 전용 · AI 요약에 반영</span></div>
-      <button onclick="closeMemoModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;font-family:inherit;padding:0 6px">✕</button>
+    <div style="padding:14px 18px;border-bottom:1px solid var(--neutral-border);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1em">📒 담당자 메모 <span style="font-size:.72em;color:var(--text-mute);font-weight:500;margin-left:6px">내부 전용 · AI 요약에 반영</span></div>
+      <button onclick="closeMemoModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--text-mute);font-family:inherit;padding:0 6px">✕</button>
     </div>
     <!-- 작성·수정 폼 -->
-    <div style="padding:12px 16px;border-bottom:1px solid #f2f4f6;background:#fffbeb">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--gray-100);background:#fffbeb">
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center" id="memoTypeTabs"></div>
       <!-- Phase R2-7 (M18-c 2026-05-05): 메모 어디에 저장할지 선택 -->
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
-        <label style="font-size:.74em;color:#6b7280;font-weight:600">대상:</label>
-        <select id="memoTargetSelect" style="padding:5px 8px;border:1px solid #e5e8eb;border-radius:6px;font-size:.8em;font-family:inherit;background:#fff">
+        <label style="font-size:.74em;color:var(--gray-500);font-weight:600">대상:</label>
+        <select id="memoTargetSelect" style="padding:5px 8px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.8em;font-family:inherit;background:#fff">
           <option value="room" selected>📒 이 상담방 (직원 전용)</option>
         </select>
       </div>
-      <textarea id="memoInput" placeholder="예) 배당금 지급 시점 고객 재확인 / D-3 부가세 신고 준비" style="width:100%;min-height:56px;padding:8px 10px;border:1px solid #e5e8eb;border-radius:8px;font-size:.88em;font-family:inherit;resize:vertical;box-sizing:border-box;outline:none"></textarea>
+      <textarea id="memoInput" placeholder="예) 배당금 지급 시점 고객 재확인 / D-3 부가세 신고 준비" style="width:100%;min-height:56px;padding:8px 10px;border:1px solid var(--neutral-border);border-radius:8px;font-size:.88em;font-family:inherit;resize:vertical;box-sizing:border-box;outline:none"></textarea>
       <div style="display:flex;gap:8px;margin-top:6px;align-items:center;flex-wrap:wrap">
-        <label style="font-size:.72em;color:#6b7280;display:flex;align-items:center;gap:4px">📅 기한<input type="date" id="memoDueDate" style="padding:4px 6px;border:1px solid #e5e8eb;border-radius:5px;font-size:.78em;font-family:inherit;margin-left:2px"></label>
-        <label style="font-size:.72em;color:#6b7280;display:flex;align-items:center;gap:4px">🔗 메시지<input type="number" id="memoLinkMsg" min="1" placeholder="#ID" style="width:70px;padding:4px 6px;border:1px solid #e5e8eb;border-radius:5px;font-size:.78em;font-family:inherit;margin-left:2px"></label>
-        <span id="memoEditBanner" style="display:none;font-size:.72em;color:#92400e">✏️ 수정 중</span>
+        <label style="font-size:.72em;color:var(--gray-500);display:flex;align-items:center;gap:4px">📅 기한<input type="date" id="memoDueDate" style="padding:4px 6px;border:1px solid var(--neutral-border);border-radius:5px;font-size:.78em;font-family:inherit;margin-left:2px"></label>
+        <label style="font-size:.72em;color:var(--gray-500);display:flex;align-items:center;gap:4px">🔗 메시지<input type="number" id="memoLinkMsg" min="1" placeholder="#ID" style="width:70px;padding:4px 6px;border:1px solid var(--neutral-border);border-radius:5px;font-size:.78em;font-family:inherit;margin-left:2px"></label>
+        <span id="memoEditBanner" style="display:none;font-size:.72em;color:var(--warn-text)">✏️ 수정 중</span>
         <div style="flex:1"></div>
-        <button onclick="cancelMemoEdit()" id="memoCancelBtn" style="display:none;background:#e5e8eb;border:none;padding:6px 12px;border-radius:6px;font-size:.8em;cursor:pointer;font-family:inherit">취소</button>
-        <button onclick="submitMemo()" id="memoSubmitBtn" style="background:#10b981;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit">저장</button>
+        <button onclick="cancelMemoEdit()" id="memoCancelBtn" style="display:none;background:var(--neutral-border);border:none;padding:6px 12px;border-radius:6px;font-size:.8em;cursor:pointer;font-family:inherit">취소</button>
+        <button onclick="submitMemo()" id="memoSubmitBtn" style="background:var(--of-success);color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:.8em;font-weight:700;cursor:pointer;font-family:inherit">저장</button>
       </div>
     </div>
     <!-- 필터 탭 -->
-    <div style="padding:8px 16px;border-bottom:1px solid #f2f4f6;background:#fafbfc;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:.72em;color:#8b95a1">보기:</span>
-      <button class="memo-filter" data-filter="todo" onclick="setMemoFilter('todo')" style="background:#191f28;color:#fff;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit;font-weight:700">📌 할 일 <span id="memoCountTodo" style="font-weight:500"></span></button>
-      <button class="memo-filter" data-filter="ref" onclick="setMemoFilter('ref')" style="background:#e5e8eb;color:#555;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">🏢 거래처 정보 <span id="memoCountRef" style="font-weight:500"></span></button>
-      <button class="memo-filter" data-filter="done" onclick="setMemoFilter('done')" style="background:#e5e8eb;color:#555;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">✅ 완료 <span id="memoCountDone" style="font-weight:500"></span></button>
-      <button class="memo-filter" data-filter="all" onclick="setMemoFilter('all')" style="background:#e5e8eb;color:#555;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">전체 <span id="memoCountAll" style="font-weight:500"></span></button>
+    <div style="padding:8px 16px;border-bottom:1px solid var(--gray-100);background:var(--gray-25);display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:.72em;color:var(--text-mute)">보기:</span>
+      <button class="memo-filter" data-filter="todo" onclick="setMemoFilter('todo')" style="background:var(--text-main);color:#fff;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit;font-weight:700">📌 할 일 <span id="memoCountTodo" style="font-weight:500"></span></button>
+      <button class="memo-filter" data-filter="ref" onclick="setMemoFilter('ref')" style="background:var(--neutral-border);color:#555;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">🏢 거래처 정보 <span id="memoCountRef" style="font-weight:500"></span></button>
+      <button class="memo-filter" data-filter="done" onclick="setMemoFilter('done')" style="background:var(--neutral-border);color:#555;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">✅ 완료 <span id="memoCountDone" style="font-weight:500"></span></button>
+      <button class="memo-filter" data-filter="all" onclick="setMemoFilter('all')" style="background:var(--neutral-border);color:#555;border:none;padding:4px 10px;border-radius:12px;font-size:.74em;cursor:pointer;font-family:inherit">전체 <span id="memoCountAll" style="font-weight:500"></span></button>
     </div>
     <div id="memoList" style="flex:1;overflow-y:auto;padding:10px 16px 16px;background:#fff"></div>
   </div>
@@ -195,37 +195,37 @@
 <!-- 🕒 예약 발송 모달 -->
 <div id="scheduleSendModal" class="modal-overlay" style="z-index:11500;display:none">
   <div class="modal-card" style="max-width:460px;max-height:90vh">
-    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;gap:8px">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--neutral-border);display:flex;align-items:center;gap:8px">
       <div style="font-weight:700;font-size:1em">🕒 예약 발송</div>
       <div style="flex:1"></div>
-      <button onclick="closeScheduleSend()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1">✕</button>
+      <button onclick="closeScheduleSend()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--text-mute)">✕</button>
     </div>
     <div style="flex:1;overflow-y:auto;padding:16px 18px">
-      <div style="font-size:.78em;color:#6b7280;margin-bottom:4px">발송 내용 (입력창에 쓰신 메시지)</div>
-      <div id="schedPreview" style="padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e8eb;font-size:.85em;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow-y:auto;margin-bottom:14px;min-height:44px;color:#191f28"></div>
+      <div style="font-size:.78em;color:var(--gray-500);margin-bottom:4px">발송 내용 (입력창에 쓰신 메시지)</div>
+      <div id="schedPreview" style="padding:10px 12px;background:var(--neutral-bg);border-radius:8px;border:1px solid var(--neutral-border);font-size:.85em;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow-y:auto;margin-bottom:14px;min-height:44px;color:var(--text-main)"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
         <div>
-          <div style="font-size:.78em;color:#6b7280;margin-bottom:4px">날짜</div>
-          <input id="schedDate" type="date" style="width:100%;padding:9px 10px;border:1px solid #e5e8eb;border-radius:8px;font-family:inherit">
+          <div style="font-size:.78em;color:var(--gray-500);margin-bottom:4px">날짜</div>
+          <input id="schedDate" type="date" style="width:100%;padding:9px 10px;border:1px solid var(--neutral-border);border-radius:8px;font-family:inherit">
         </div>
         <div>
-          <div style="font-size:.78em;color:#6b7280;margin-bottom:4px">시각</div>
-          <input id="schedTime" type="time" style="width:100%;padding:9px 10px;border:1px solid #e5e8eb;border-radius:8px;font-family:inherit">
+          <div style="font-size:.78em;color:var(--gray-500);margin-bottom:4px">시각</div>
+          <input id="schedTime" type="time" style="width:100%;padding:9px 10px;border:1px solid var(--neutral-border);border-radius:8px;font-family:inherit">
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
-        <button onclick="schedQuick(15)" style="background:#f2f4f6;border:none;padding:6px 12px;border-radius:16px;font-size:.78em;cursor:pointer;font-family:inherit">+ 15분</button>
-        <button onclick="schedQuick(60)" style="background:#f2f4f6;border:none;padding:6px 12px;border-radius:16px;font-size:.78em;cursor:pointer;font-family:inherit">+ 1시간</button>
-        <button onclick="schedQuickAt(9, 1)" style="background:#f2f4f6;border:none;padding:6px 12px;border-radius:16px;font-size:.78em;cursor:pointer;font-family:inherit">내일 오전 9시</button>
-        <button onclick="schedQuickAt(14, 1)" style="background:#f2f4f6;border:none;padding:6px 12px;border-radius:16px;font-size:.78em;cursor:pointer;font-family:inherit">내일 오후 2시</button>
+        <button onclick="schedQuick(15)" style="background:var(--gray-100);border:none;padding:6px 12px;border-radius:16px;font-size:.78em;cursor:pointer;font-family:inherit">+ 15분</button>
+        <button onclick="schedQuick(60)" style="background:var(--gray-100);border:none;padding:6px 12px;border-radius:16px;font-size:.78em;cursor:pointer;font-family:inherit">+ 1시간</button>
+        <button onclick="schedQuickAt(9, 1)" style="background:var(--gray-100);border:none;padding:6px 12px;border-radius:16px;font-size:.78em;cursor:pointer;font-family:inherit">내일 오전 9시</button>
+        <button onclick="schedQuickAt(14, 1)" style="background:var(--gray-100);border:none;padding:6px 12px;border-radius:16px;font-size:.78em;cursor:pointer;font-family:inherit">내일 오후 2시</button>
       </div>
-      <div id="schedListWrap" style="border-top:1px solid #e5e8eb;padding-top:12px">
-        <div style="font-size:.78em;color:#6b7280;margin-bottom:6px">예약된 메시지</div>
-        <div id="schedList" style="font-size:.82em;color:#6b7280">불러오는 중...</div>
+      <div id="schedListWrap" style="border-top:1px solid var(--neutral-border);padding-top:12px">
+        <div style="font-size:.78em;color:var(--gray-500);margin-bottom:6px">예약된 메시지</div>
+        <div id="schedList" style="font-size:.82em;color:var(--gray-500)">불러오는 중...</div>
       </div>
     </div>
-    <div style="padding:12px 18px;border-top:1px solid #e5e8eb;display:flex;gap:8px">
-      <button onclick="closeScheduleSend()" style="flex:1;background:#f2f4f6;border:none;padding:10px;border-radius:10px;font-family:inherit;cursor:pointer">취소</button>
+    <div style="padding:12px 18px;border-top:1px solid var(--neutral-border);display:flex;gap:8px">
+      <button onclick="closeScheduleSend()" style="flex:1;background:var(--gray-100);border:none;padding:10px;border-radius:10px;font-family:inherit;cursor:pointer">취소</button>
       <button onclick="submitScheduleSend()" style="flex:2;background:var(--brand-primary);color:#fff;border:none;padding:10px;border-radius:10px;font-family:inherit;font-weight:700;cursor:pointer">🕒 예약 등록</button>
     </div>
   </div>
@@ -234,16 +234,16 @@
 <!-- 👥 상담방 참여자 관리 모달 -->
 <div id="roomMembersModal" class="modal-overlay" style="z-index:11700;display:none">
   <div class="modal-card" style="max-width:520px;max-height:88vh">
-    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
-      <div style="font-weight:700;font-size:1em">👥 참여자 관리 <span id="rmmRoomName" style="font-size:.78em;color:#8b95a1;font-weight:500;margin-left:6px"></span></div>
-      <button onclick="closeRoomMembersModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
+    <div style="padding:14px 18px;border-bottom:1px solid var(--neutral-border);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1em">👥 참여자 관리 <span id="rmmRoomName" style="font-size:.78em;color:var(--text-mute);font-weight:500;margin-left:6px"></span></div>
+      <button onclick="closeRoomMembersModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--text-mute);padding:0 6px">✕</button>
     </div>
-    <div id="rmmBody" style="flex:1;overflow-y:auto;padding:10px 16px;background:#f9fafb">
-      <div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div>
+    <div id="rmmBody" style="flex:1;overflow-y:auto;padding:10px 16px;background:var(--neutral-bg)">
+      <div style="text-align:center;color:var(--text-mute);padding:40px 0;font-size:.88em">불러오는 중...</div>
     </div>
-    <div style="padding:10px 16px;border-top:1px solid #e5e8eb;background:#fff;display:flex;gap:8px;justify-content:flex-end">
+    <div style="padding:10px 16px;border-top:1px solid var(--neutral-border);background:#fff;display:flex;gap:8px;justify-content:flex-end">
       <button onclick="closeRoomMembersModal();addMemberPrompt()" style="background:var(--brand-primary);color:#fff;border:none;padding:9px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">＋ 참여자 초대</button>
-      <button onclick="closeRoomMembersModal()" style="background:#e5e8eb;border:none;padding:9px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">닫기</button>
+      <button onclick="closeRoomMembersModal()" style="background:var(--neutral-border);border:none;padding:9px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">닫기</button>
     </div>
   </div>
 </div>
@@ -251,9 +251,9 @@
 <!-- ✅ 승인 + 🏢 업체·👥 역할 연결 모달 (위하고 수임처 신규생성 스타일) -->
 <div id="approveBizModal" class="modal-overlay" style="z-index:11900;display:none">
   <div class="modal-card" style="max-width:640px;max-height:92vh">
-    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--neutral-border);display:flex;align-items:center;justify-content:space-between">
       <div style="font-weight:700;font-size:1em">✅ 승인 + 🏢 업체 연결</div>
-      <button onclick="closeApproveBizModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
+      <button onclick="closeApproveBizModal()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--text-mute);padding:0 6px">✕</button>
     </div>
     <div style="flex:1;overflow-y:auto;padding:14px 18px">
       <div id="apbUser" style="padding:10px 12px;background:#eff6ff;border-radius:8px;font-size:.88em;color:#1e3a8a;margin-bottom:14px"></div>
@@ -263,32 +263,32 @@
       <span id="apbSimilarBox" style="display:none"></span>
       <span id="apbSimilarList" style="display:none"></span>
 
-      <div style="font-size:.82em;font-weight:700;color:#374151;margin-bottom:6px">🏢 업체</div>
+      <div style="font-size:.82em;font-weight:700;color:var(--gray-700);margin-bottom:6px">🏢 업체</div>
       <label style="display:flex;align-items:center;gap:6px;font-size:.88em;padding:6px 0;cursor:pointer">
         <input type="radio" name="apbMode" value="existing" checked onchange="_apbSwitchMode('existing')"> 기존 업체 선택
       </label>
       <div id="apbExistingBox" style="padding:0 0 10px 22px">
-        <input id="apbSearch" type="text" placeholder="업체명·사업자번호·대표자 검색..." oninput="_apbFilterList()" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box;margin-bottom:6px">
-        <div id="apbList" style="max-height:160px;overflow-y:auto;border:1px solid #e5e8eb;border-radius:6px;background:#fff">
-          <div style="text-align:center;color:#8b95a1;padding:20px 0;font-size:.8em">불러오는 중...</div>
+        <input id="apbSearch" type="text" placeholder="업체명·사업자번호·대표자 검색..." oninput="_apbFilterList()" style="width:100%;padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box;margin-bottom:6px">
+        <div id="apbList" style="max-height:160px;overflow-y:auto;border:1px solid var(--neutral-border);border-radius:6px;background:#fff">
+          <div style="text-align:center;color:var(--text-mute);padding:20px 0;font-size:.8em">불러오는 중...</div>
         </div>
       </div>
 
       <!-- 사장님 명령 (2026-05-07 정정): 업체 선택 + 사용자 선택 = 별도 영역 둘 다.
            '두개를 한명으로 합친다고' = 카카오 가입자 + 수동 등록 (카카오 인증 X) → 1명 -->
-      <div style="font-size:.82em;font-weight:700;color:#374151;margin:14px 0 6px">👤 합칠 수동 등록 사용자 <span style="color:#8b95a1;font-weight:400;font-size:.92em">— 선택사항</span></div>
+      <div style="font-size:.82em;font-weight:700;color:var(--gray-700);margin:14px 0 6px">👤 합칠 수동 등록 사용자 <span style="color:var(--text-mute);font-weight:400;font-size:.92em">— 선택사항</span></div>
       <div style="padding:0 0 10px 22px">
-        <div style="font-size:.74em;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:6px;margin-bottom:6px;border-left:3px solid #f59e0b">
+        <div style="font-size:.74em;color:var(--warn-text);background:var(--of-warn-soft);padding:6px 10px;border-radius:6px;margin-bottom:6px;border-left:3px solid #f59e0b">
           📌 사장님이 옛날에 수동 등록한 거래처 또는 <b>위하고 import 한 거래처</b> 와 이 카카오 가입자가 <b>같은 사람</b>이면 클릭해서 합치기.<br>
-          <span style="color:#374151">결과: 1명만 남음 (<b>카카오 user 가 살아남고</b> 수동 user 의 정보·매핑·메모 흡수 후 수동 user archive). 사장님 대원칙: 카톡이 master.</span>
+          <span style="color:var(--gray-700)">결과: 1명만 남음 (<b>카카오 user 가 살아남고</b> 수동 user 의 정보·매핑·메모 흡수 후 수동 user archive). 사장님 대원칙: 카톡이 master.</span>
         </div>
-        <input id="apbUserSearch" type="text" placeholder="수동 등록 거래처 이름·전화 검색..." oninput="_apbFilterUserList()" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box;margin-bottom:6px">
-        <div id="apbUserList" style="max-height:160px;overflow-y:auto;border:1px solid #e5e8eb;border-radius:6px;background:#fff">
-          <div style="text-align:center;color:#8b95a1;padding:20px 0;font-size:.8em">불러오는 중...</div>
+        <input id="apbUserSearch" type="text" placeholder="수동 등록 거래처 이름·전화 검색..." oninput="_apbFilterUserList()" style="width:100%;padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box;margin-bottom:6px">
+        <div id="apbUserList" style="max-height:160px;overflow-y:auto;border:1px solid var(--neutral-border);border-radius:6px;background:#fff">
+          <div style="text-align:center;color:var(--text-mute);padding:20px 0;font-size:.8em">불러오는 중...</div>
         </div>
         <div id="apbSelectedUserBox" style="display:none;margin-top:6px;padding:6px 10px;background:#dbeafe;border:1px solid #3b82f6;border-radius:6px;font-size:.78em;color:#1e3a8a">
           <span id="apbSelectedUserText"></span>
-          <button type="button" onclick="_apbClearUser()" style="margin-left:6px;background:none;border:none;color:#dc2626;cursor:pointer;font-weight:700;font-family:inherit">✕ 선택 해제</button>
+          <button type="button" onclick="_apbClearUser()" style="margin-left:6px;background:none;border:none;color:var(--of-danger);cursor:pointer;font-weight:700;font-family:inherit">✕ 선택 해제</button>
         </div>
       </div>
       <label style="display:flex;align-items:center;gap:6px;font-size:.88em;padding:6px 0;cursor:pointer">
@@ -296,10 +296,10 @@
       </label>
       <div id="apbNewBox" style="display:none;padding:0 0 10px 22px">
         <!-- 📋 수임처 정보 (위하고 스타일) -->
-        <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:6px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">📋 수임처 정보</div>
+        <div style="font-size:.75em;font-weight:700;color:var(--gray-500);margin:6px 0 6px;padding-bottom:3px;border-bottom:1px solid var(--neutral-border)">📋 수임처 정보</div>
         <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-bottom:6px">
-          <input id="apbNewName" type="text" placeholder="회사명 (수임처명) *" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
-          <select id="apbNewForm" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewName" type="text" placeholder="회사명 (수임처명) *" style="padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit">
+          <select id="apbNewForm" style="padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit">
             <option value="0.법인사업자" selected>0.법인사업자</option>
             <option value="1.개인사업자">1.개인사업자</option>
             <option value="2.간이사업자">2.간이사업자</option>
@@ -307,68 +307,68 @@
           </select>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-          <input id="apbNewCeo" type="text" placeholder="대표자명 *" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
-          <input id="apbNewBiz" type="text" placeholder="사업자등록번호 *" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewCeo" type="text" placeholder="대표자명 *" style="padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewBiz" type="text" placeholder="사업자등록번호 *" maxlength="14" style="padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-          <input id="apbNewSubBiz" type="text" placeholder="종사업자번호" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
-          <input id="apbNewCorpNo" type="text" placeholder="법인등록번호" maxlength="14" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewSubBiz" type="text" placeholder="종사업자번호" maxlength="14" style="padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewCorpNo" type="text" placeholder="법인등록번호" maxlength="14" style="padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit">
         </div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:6px">
-          <input id="apbNewAddr1" type="text" placeholder="사업장주소 (도로명)" readonly style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;background:#f9fafb;cursor:pointer" onclick="_apbOpenAddressSearch()">
-          <button type="button" onclick="_apbOpenAddressSearch()" style="padding:8px 14px;border:1px solid #3182f6;background:#eff6ff;color:#1e40af;border-radius:6px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">🔍 주소검색</button>
+          <input id="apbNewAddr1" type="text" placeholder="사업장주소 (도로명)" readonly style="padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit;background:var(--neutral-bg);cursor:pointer" onclick="_apbOpenAddressSearch()">
+          <button type="button" onclick="_apbOpenAddressSearch()" style="padding:8px 14px;border:1px solid var(--of-primary);background:#eff6ff;color:#1e40af;border-radius:6px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">🔍 주소검색</button>
         </div>
-        <input id="apbNewAddr2" type="text" placeholder="나머지 주소 (상세)" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box;margin-bottom:6px">
+        <input id="apbNewAddr2" type="text" placeholder="나머지 주소 (상세)" style="width:100%;padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box;margin-bottom:6px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-          <input id="apbNewPhone" type="text" placeholder="사업장전화번호" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
-          <input id="apbNewIndustryCode" type="text" placeholder="업종코드" maxlength="10" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewPhone" type="text" placeholder="사업장전화번호" style="padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewIndustryCode" type="text" placeholder="업종코드" maxlength="10" style="padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-          <input id="apbNewBizCategory" type="text" placeholder="업태 (예: 도매업)" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
-          <input id="apbNewIndustry" type="text" placeholder="업종 (음식점/서비스 등)" style="padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewBizCategory" type="text" placeholder="업태 (예: 도매업)" style="padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit">
+          <input id="apbNewIndustry" type="text" placeholder="업종 (음식점/서비스 등)" style="padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit">
         </div>
 
         <!-- 📊 회계/급여관리 정보 -->
-        <div style="font-size:.75em;font-weight:700;color:#6b7280;margin:12px 0 6px;padding-bottom:3px;border-bottom:1px solid #e5e8eb">📊 회계/급여관리 정보</div>
+        <div style="font-size:.75em;font-weight:700;color:var(--gray-500);margin:12px 0 6px;padding-bottom:3px;border-bottom:1px solid var(--neutral-border)">📊 회계/급여관리 정보</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-          <div><label style="font-size:.72em;color:#6b7280">개업년월일</label><input id="apbNewEstDate" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
-          <div><label style="font-size:.72em;color:#6b7280">N기</label><input id="apbNewFiscalTerm" type="number" min="1" placeholder="예: 5" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+          <div><label style="font-size:.72em;color:var(--gray-500)">개업년월일</label><input id="apbNewEstDate" type="date" style="width:100%;padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+          <div><label style="font-size:.72em;color:var(--gray-500)">N기</label><input id="apbNewFiscalTerm" type="number" min="1" placeholder="예: 5" style="width:100%;padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-          <div><label style="font-size:.72em;color:#6b7280">기수 회계기간 시작 *</label><input id="apbNewFiscalStart" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
-          <div><label style="font-size:.72em;color:#6b7280">기수 회계기간 종료 *</label><input id="apbNewFiscalEnd" type="date" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+          <div><label style="font-size:.72em;color:var(--gray-500)">기수 회계기간 시작 *</label><input id="apbNewFiscalStart" type="date" style="width:100%;padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
+          <div><label style="font-size:.72em;color:var(--gray-500)">기수 회계기간 종료 *</label><input id="apbNewFiscalEnd" type="date" style="width:100%;padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box"></div>
         </div>
         <div style="margin-bottom:6px">
-          <label style="font-size:.72em;color:#6b7280">인사연도 *</label>
-          <input id="apbNewHrYear" type="number" min="2000" max="2100" placeholder="예: 2026" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box">
+          <label style="font-size:.72em;color:var(--gray-500)">인사연도 *</label>
+          <input id="apbNewHrYear" type="number" min="2000" max="2100" placeholder="예: 2026" style="width:100%;padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box">
         </div>
-        <div style="font-size:.7em;color:#8b95a1;margin-top:4px">* 서비스 제공형태: 기장 고정 / 수임일자 자동 오늘로 저장</div>
+        <div style="font-size:.7em;color:var(--text-mute);margin-top:4px">* 서비스 제공형태: 기장 고정 / 수임일자 자동 오늘로 저장</div>
       </div>
 
-      <div style="border-top:1px solid #f2f4f6;margin:6px 0 10px"></div>
-      <div style="font-size:.82em;font-weight:700;color:#374151;margin-bottom:6px">👥 역할</div>
+      <div style="border-top:1px solid var(--gray-100);margin:6px 0 10px"></div>
+      <div style="font-size:.82em;font-weight:700;color:var(--gray-700);margin-bottom:6px">👥 역할</div>
       <div style="display:flex;gap:14px">
         <label style="display:flex;align-items:center;gap:5px;font-size:.88em;cursor:pointer"><input type="radio" name="apbRole" value="대표자"> 대표자</label>
         <label style="display:flex;align-items:center;gap:5px;font-size:.88em;cursor:pointer"><input type="radio" name="apbRole" value="담당자" checked> 담당자</label>
       </div>
 
-      <div style="border-top:1px solid #f2f4f6;margin:10px 0"></div>
+      <div style="border-top:1px solid var(--gray-100);margin:10px 0"></div>
       <label style="display:flex;align-items:center;gap:6px;font-size:.88em;cursor:pointer">
         <input type="checkbox" id="apbAutoJoin" checked>
         <span>이 업체의 기본 상담방에 자동 참여</span>
       </label>
-      <div style="font-size:.72em;color:#8b95a1;margin-left:22px;margin-top:2px">업체에 상담방이 없으면 새로 개설합니다.</div>
+      <div style="font-size:.72em;color:var(--text-mute);margin-left:22px;margin-top:2px">업체에 상담방이 없으면 새로 개설합니다.</div>
 
       <div style="margin-top:10px">
-        <label style="font-size:.82em;font-weight:700;color:#374151;display:block;margin-bottom:4px">🏷️ 담당자 라벨</label>
-        <select id="apbPriority" style="width:100%;padding:8px 10px;border:1px solid #e5e8eb;border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box">
+        <label style="font-size:.82em;font-weight:700;color:var(--gray-700);display:block;margin-bottom:4px">🏷️ 담당자 라벨</label>
+        <select id="apbPriority" style="width:100%;padding:8px 10px;border:1px solid var(--neutral-border);border-radius:6px;font-size:.85em;font-family:inherit;box-sizing:border-box">
           <option value="">— 미지정</option>
         </select>
-        <div style="font-size:.72em;color:#8b95a1;margin-top:3px">상담방 카드에 색상으로 표시됨 · ⚙️ 라벨 관리에서 추가</div>
+        <div style="font-size:.72em;color:var(--text-mute);margin-top:3px">상담방 카드에 색상으로 표시됨 · ⚙️ 라벨 관리에서 추가</div>
       </div>
     </div>
-    <div style="padding:10px 18px;border-top:1px solid #e5e8eb;display:flex;gap:8px;justify-content:flex-end">
-      <button onclick="closeApproveBizModal()" style="background:#e5e8eb;border:none;padding:9px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
+    <div style="padding:10px 18px;border-top:1px solid var(--neutral-border);display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeApproveBizModal()" style="background:var(--neutral-border);border:none;padding:9px 16px;border-radius:8px;font-size:.85em;cursor:pointer;font-family:inherit">취소</button>
       <button id="apbSubmitBtn" onclick="submitApproveWithBusiness()" style="background:var(--brand-success);color:#fff;border:none;padding:9px 18px;border-radius:8px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit">✅ 승인하고 연결</button>
     </div>
   </div>
@@ -377,15 +377,15 @@
 <!-- 🚫 거래 종료 요청 관리 모달 (owner 전용) -->
 <div id="termReqModal" class="modal-overlay" style="z-index:11950;display:none">
   <div class="modal-card" style="max-width:640px;max-height:88vh">
-    <div style="padding:14px 18px;border-bottom:1px solid #e5e8eb;display:flex;align-items:center;justify-content:space-between">
-      <div style="font-weight:700;font-size:1em">🚫 거래 종료 요청 <span id="termReqCount" style="color:#8b95a1;font-size:.85em;margin-left:6px"></span></div>
-      <button onclick="closeTerminationRequests()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#8b95a1;padding:0 6px">✕</button>
+    <div style="padding:14px 18px;border-bottom:1px solid var(--neutral-border);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:700;font-size:1em">🚫 거래 종료 요청 <span id="termReqCount" style="color:var(--text-mute);font-size:.85em;margin-left:6px"></span></div>
+      <button onclick="closeTerminationRequests()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--text-mute);padding:0 6px">✕</button>
     </div>
-    <div style="padding:8px 16px;border-bottom:1px solid #f2f4f6;background:#f9fafb;font-size:.78em;color:#6b7280">
+    <div style="padding:8px 16px;border-bottom:1px solid var(--gray-100);background:var(--neutral-bg);font-size:.78em;color:var(--gray-500)">
       직원이 올린 '거래 종료(기장 이관)' 요청입니다. 승인 시 고객 앱 접근이 즉시 차단되고 상담방이 모두 종료됩니다.
     </div>
     <div id="termReqList" style="flex:1;overflow-y:auto;padding:10px 14px;background:#fff">
-      <div style="text-align:center;color:#8b95a1;padding:40px 0;font-size:.88em">불러오는 중...</div>
+      <div style="text-align:center;color:var(--text-mute);padding:40px 0;font-size:.88em">불러오는 중...</div>
     </div>
   </div>
 </div>

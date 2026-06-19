@@ -172,17 +172,66 @@ const editBtn=' <button onclick="editUserName('+u.id+',\''+jsArg(u.real_name||u.
 const nameLine=company
   ? '<div class="name">🏢 '+e(company)+' <span style="font-weight:500;color:#8b95a1;font-size:.88em">· '+e(nm)+'</span>'+roleBadge+kakaoAlias+adminMark+roleMark+editBtn+'</div>'
   : '<div class="name">'+e(nm)+roleBadge+kakaoAlias+adminMark+roleMark+editBtn+'</div>';
-return '<div data-user-id="'+u.id+'" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.03)">'
+/* 토스 정리 (2026-06-16 사장님 "버튼 8개 정신없다"): 행 클릭=대시보드, 액션은 우측 "⋯" 메뉴로.
+ * 행 wrapper onclick=_uRowClick (버튼/링크 클릭은 guard 로 무시). 기존 actions 버튼은
+ * .u-menu-src 안에 그대로 보관(onclick·색 100% 보존) → ⋯ 클릭 시 floating 메뉴로 복사 표시. */
+const _nmEsc=jsArg(nm);
+return '<div data-user-id="'+u.id+'" class="urow" onclick="_uRowClick(event,'+u.id+",'"+_nmEsc+"')"+'" style="background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:9px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer">'
 +'<div style="display:flex;align-items:center;gap:14px">'
 +'<div class="avatar">'+av+'</div>'
 +'<div class="info">'+nameLine
 +'<div class="meta">'+nameConf+(pv?'<span class="badge">'+pv+'</span> ':'')+e(u.email||'')+phone+'</div>'
 +'<div class="meta" style="margin-top:3px">가입 '+e(u.created_at||'')+' · 오늘 '+todayCnt+'건</div>'
-+'</div></div>'
++'</div>'
++'<div style="display:flex;align-items:center;gap:7px;flex-shrink:0;margin-left:auto">'
++'<button type="button" onclick="event.stopPropagation();openCustomerDashboard('+u.id+",'"+_nmEsc+"')"+'" style="font-size:.78em;font-weight:700;color:var(--of-primary);background:var(--of-primary-soft);border:none;padding:7px 13px;border-radius:10px;cursor:pointer;font-family:inherit">열기</button>'
++(actions?'<button type="button" class="u-kebab" onclick="event.stopPropagation();_uMenuOpen(this)" title="관리 메뉴" style="width:34px;height:34px;border-radius:10px;border:none;background:var(--gray-100,#f2f4f6);color:var(--text-sub,#4e5968);font-size:18px;line-height:1;cursor:pointer;font-family:inherit">⋯</button>':'')
++'</div>'
++'</div>'
 +reqInfo
-+actions
++(actions?'<div class="u-menu-src" style="display:none">'+actions+'</div>':'')
 +'</div>';
 }
+/* ===== 행 클릭 → 대시보드 / ⋯ → floating 관리 메뉴 (2026-06-16) ===== */
+function _uRowClick(ev,uid,nm){
+  try{ if(ev.target.closest('button,a,input,select,textarea,.u-menu-src,#uMenu')) return; }catch(_){}
+  try{ openCustomerDashboard(uid,nm); }catch(_){}
+}
+function _uMenuEl(){
+  var m=document.getElementById('uMenu');
+  if(!m){
+    m=document.createElement('div'); m.id='uMenu';
+    m.style.cssText='position:fixed;z-index:12000;display:none;background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(25,31,40,.18);padding:7px;width:212px;max-height:80vh;overflow:auto';
+    document.body.appendChild(m);
+    /* 메뉴 안 버튼 클릭 → 액션 실행 후 닫기 */
+    m.addEventListener('click',function(e){ if(e.target.closest('button')) setTimeout(_uMenuHide,0); });
+    /* 바깥 클릭 / 스크롤 / Esc → 닫기 */
+    document.addEventListener('mousedown',function(e){
+      var mm=document.getElementById('uMenu'); if(!mm||mm.style.display==='none')return;
+      if(e.target.closest('#uMenu')||e.target.closest('.u-kebab'))return; _uMenuHide();
+    });
+    window.addEventListener('scroll',_uMenuHide,true);
+    window.addEventListener('resize',_uMenuHide);
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape')_uMenuHide(); });
+  }
+  return m;
+}
+function _uMenuHide(){ var m=document.getElementById('uMenu'); if(m)m.style.display='none'; }
+function _uMenuOpen(btn){
+  var row=btn.closest('[data-user-id]'); if(!row)return;
+  var src=row.querySelector('.u-menu-src'); if(!src)return;
+  var m=_uMenuEl();
+  m.innerHTML=src.innerHTML;
+  m.style.display='block'; m.style.visibility='hidden';
+  /* 위치: 버튼 우측정렬, 아래. 아래 넘치면 위로. */
+  var r=btn.getBoundingClientRect();
+  var mw=m.offsetWidth, mh=m.offsetHeight;
+  var left=Math.max(8,Math.min(r.right-mw, window.innerWidth-mw-8));
+  var top=r.bottom+6;
+  if(top+mh>window.innerHeight-8) top=Math.max(8,r.top-mh-6);
+  m.style.left=left+'px'; m.style.top=top+'px'; m.style.visibility='visible';
+}
+try{ if(typeof window!=='undefined'){ window._uRowClick=_uRowClick; window._uMenuOpen=_uMenuOpen; window._uMenuHide=_uMenuHide; } }catch(_){}
 /* Phase 3.1.B: React UserList 컴포넌트가 호출 가능하게 global 노출 */
 if(typeof window!=='undefined') window.__renderUserCardHtml = _renderUserCardHtml;
 

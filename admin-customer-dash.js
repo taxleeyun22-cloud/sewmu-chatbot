@@ -85,7 +85,8 @@ async function openCustomerDashboard(userId, opts){
   const q=(p)=>'/api/'+p+(p.includes('?')?'&':'?')+'key='+encodeURIComponent(KEY);
   try{
     const [custRes, bizDocsRes, docsRes, roomsRes, mappedBizRes] = await Promise.all([
-      fetch(q('admin-approve?status=all')).then(r=>r.json()).catch(()=>({users:[]})),
+      /* 2026-06-15 사장님 "로딩 너무 오래걸림": 전체 290명(4.4초) → 이 한 명만(~100ms). admin-approve user_id fast-path */
+      fetch(q('admin-approve?user_id='+userId)).then(r=>r.json()).catch(()=>({users:[]})),
       fetch(q('admin-biz-docs?user_id='+userId)).then(r=>r.json()).catch(()=>({businesses:[]})),
       fetch(q('admin-documents?user_id='+userId+'&limit=5')).then(r=>r.json()).catch(()=>({documents:[],counts:{}})),
       fetch(q('admin-rooms')).then(r=>r.json()).catch(()=>({rooms:[]})),
@@ -140,12 +141,13 @@ async function openCustomerDashboard(userId, opts){
     const fmt=v=>(Number(v)||0).toLocaleString('ko-KR');
     /* Phase 3.4.D (2026-05-08): React CdDocs/CdFinance 가 store 자동 reactive — fallback 만 직접 조작 */
     if(!window.__dashboardStore){
+      /* 토스-1 v2 (2026-06-12): 파스텔 4색 → 회색 타일 + 숫자만 의미색 (React CdDocs 와 동일) */
       $g('cdDocs').innerHTML=''
-        +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">'
-        +'<div style="padding:8px 10px;background:#fef3c7;border-radius:6px"><div style="font-size:.72em;color:#92400e">⏳ 대기</div><div style="font-weight:800;font-size:1.1em">'+(counts.pending||0)+'</div></div>'
-        +'<div style="padding:8px 10px;background:#d1fae5;border-radius:6px"><div style="font-size:.72em;color:#065f46">✅ 승인</div><div style="font-weight:800;font-size:1.1em">'+(counts.approved||0)+'</div></div>'
-        +'<div style="padding:8px 10px;background:#fee2e2;border-radius:6px"><div style="font-size:.72em;color:#991b1b">❌ 반려</div><div style="font-weight:800;font-size:1.1em">'+(counts.rejected||0)+'</div></div>'
-        +'<div style="padding:8px 10px;background:#e0f2fe;border-radius:6px"><div style="font-size:.72em;color:#075985">📊 총</div><div style="font-weight:800;font-size:1.1em">'+((counts.pending||0)+(counts.approved||0)+(counts.rejected||0))+'</div></div>'
+        +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'
+        +'<div style="padding:12px 14px;background:var(--gray-100);border-radius:14px"><div style="font-size:.72em;color:var(--text-mute);font-weight:700">⏳ 대기</div><div style="font-weight:800;font-size:1.35em;color:var(--text-main);letter-spacing:-.03em">'+(counts.pending||0)+'</div></div>'
+        +'<div style="padding:12px 14px;background:var(--gray-100);border-radius:14px"><div style="font-size:.72em;color:var(--text-mute);font-weight:700">✅ 승인</div><div style="font-weight:800;font-size:1.35em;color:var(--of-success);letter-spacing:-.03em">'+(counts.approved||0)+'</div></div>'
+        +'<div style="padding:12px 14px;background:var(--gray-100);border-radius:14px"><div style="font-size:.72em;color:var(--text-mute);font-weight:700">❌ 반려</div><div style="font-weight:800;font-size:1.35em;color:var(--toss-red);letter-spacing:-.03em">'+(counts.rejected||0)+'</div></div>'
+        +'<div style="padding:12px 14px;background:var(--gray-100);border-radius:14px"><div style="font-size:.72em;color:var(--text-mute);font-weight:700">📊 총</div><div style="font-weight:800;font-size:1.35em;color:var(--of-primary);letter-spacing:-.03em">'+((counts.pending||0)+(counts.approved||0)+(counts.rejected||0))+'</div></div>'
         +'</div>';
       /* 재무 렌더 제거 (2026-05-17 사장님: "재무 싹날리자") — cdFinance DOM·finRes 폐기. */
     }

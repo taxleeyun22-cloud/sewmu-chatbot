@@ -1,7 +1,8 @@
 /**
- * ToolLayout — 새 admin "도구" 화면 공용 셸 (navy 사이드바 + 헤더 + 메인).
+ * ToolLayout — 새 admin "도구" 화면 공용 셸 (토스 톤 사이드바 + 헤더 + 메인).
  *
- * billing-preview.html .sb 톤(navy 강조, 위하고 톤). 청구서·영업 타겟 등 공유.
+ * 토스-3 (2026-06-12 사장님 토스 벤치마킹): navy → 토스 절제 팔레트 (파랑+회색조).
+ * 옛 admin(office.css 사이드바)·거래처·업체 화면과 동일 톤. 청구서·영업 타겟 등 공유.
  * (2026-06-04 영업 타겟 추가하며 billing/layout 에서 추출 — 사이드바 중복 제거.)
  */
 'use client';
@@ -52,8 +53,8 @@ function NavItem({
   return (
     <Link
       href={href}
-      className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
-        active ? 'bg-blue-50 text-[#0B1F3A] font-bold' : 'text-gray-600 hover:bg-gray-100'
+      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${
+        active ? 'bg-sb-active-bg text-sb-active-text font-bold' : 'text-gray-600 hover:bg-gray-100'
       }`}
     >
       <span className="text-base">{icon}</span>
@@ -61,7 +62,7 @@ function NavItem({
       {tag && (
         <span
           className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-            active ? 'bg-[#0B1F3A] text-white' : 'bg-gray-200 text-gray-600'
+            active ? 'bg-brand-primary text-white' : 'bg-gray-200 text-gray-600'
           }`}
         >
           {tag}
@@ -83,10 +84,10 @@ export function ToolLayout({ children }: { children: ReactNode }) {
   const crumb = BREADCRUMBS.find((b) => b.match(pathname))?.label || '';
 
   return (
-    <div className="flex min-h-screen bg-[#FAFAFA]">
-      <aside className="w-60 flex-shrink-0 bg-white border-r border-gray-200 sticky top-0 h-screen flex flex-col print:hidden">
-        <div className="px-5 py-4 border-b border-gray-200 flex items-center gap-2">
-          <span className="w-7 h-7 rounded-md bg-[#0B1F3A] text-white font-bold text-sm flex items-center justify-center">
+    <div className="flex min-h-screen bg-[#F9FAFB]">
+      <aside className="w-60 flex-shrink-0 bg-white border-r border-gray-100 sticky top-0 h-screen flex flex-col print:hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+          <span className="w-7 h-7 rounded-lg bg-brand-primary text-white font-bold text-sm flex items-center justify-center">
             이
           </span>
           <span className="text-sm font-bold text-gray-900 tracking-tight">세무회계 이윤</span>
@@ -115,8 +116,8 @@ export function ToolLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        <div className="px-4 py-3 border-t border-gray-200 flex items-center gap-2.5 text-xs">
-          <span className="w-7 h-7 rounded-full bg-blue-50 text-[#0B1F3A] font-bold flex items-center justify-center">
+        <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-2.5 text-xs">
+          <span className="w-7 h-7 rounded-full bg-sb-active-bg text-sb-active-text font-bold flex items-center justify-center">
             이
           </span>
           <div className="min-w-0">
@@ -127,7 +128,7 @@ export function ToolLayout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-10 px-7 py-3 flex items-center gap-3 print:hidden">
+        <header className="bg-white border-b border-gray-100 sticky top-0 z-10 px-7 py-3 flex items-center gap-3 print:hidden">
           <span className="text-sm text-gray-400">{crumb}</span>
         </header>
         <main className="flex-1 px-6 py-5 max-w-[1500px] w-full mx-auto print:p-0 print:max-w-none">

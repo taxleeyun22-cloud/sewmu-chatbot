@@ -1,5 +1,6 @@
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Noto Sans KR',sans-serif;background:#f7f8fa;color:#191f28;min-height:100vh;-webkit-font-smoothing:antialiased}
+/* 토스 벤치마킹 (2026-06-12 사장님 명령): Pretendard 서체 + 밝은 배경. 스타일만, 구조 변화 0. */
+body{font-family:'Pretendard','Noto Sans KR',-apple-system,sans-serif;background:#f9fafb;color:#191f28;min-height:100vh;-webkit-font-smoothing:antialiased;letter-spacing:-.02em}
 
 /* ============================================================
  * Phase M12 (2026-05-05 사장님 명령): 관리자방 모드 — UI 단순화
@@ -77,7 +78,7 @@ body.docs-wide .wrap{max-width:none;padding-left:16px;padding-right:16px}
 .login-err{color:#f04452;font-size:.8em;margin-top:10px;display:none}
 
 /* 헤더 — 브랜드 카드 스타일 */
-.hdr{background:#fff;border-radius:16px;padding:14px 16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(17,24,39,.04);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.hdr{background:#fff;border-radius:20px;padding:14px 16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(25,31,40,.05);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .hdr h1{font-size:1.05em;font-weight:800;letter-spacing:-.02em;display:inline-flex;align-items:center;gap:8px;color:#111827;white-space:nowrap;flex-shrink:0}
 .hdr h1::before{content:"";display:inline-block;width:28px;height:28px;background:linear-gradient(135deg,#3182f6,#5da3ff);border-radius:8px;box-shadow:0 2px 6px rgba(49,130,246,.3);flex-shrink:0}
 .hdr .tabs{display:inline-flex;gap:4px;margin-left:8px;background:#f2f4f6;padding:4px;border-radius:12px;flex-wrap:nowrap}
@@ -89,13 +90,13 @@ body.docs-wide .wrap{max-width:none;padding-left:16px;padding-right:16px}
 .hdr > .logout:nth-of-type(1){margin-left:auto}
 .staff-badge{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:3px 9px;border-radius:10px;font-size:.65em;font-weight:700;letter-spacing:.02em;white-space:nowrap;flex-shrink:0}
 
-/* 리스트 카드 */
-.item{display:flex;align-items:center;gap:14px;padding:14px 16px;background:#fff;border-radius:14px;margin-bottom:8px;cursor:pointer;transition:all .15s;box-shadow:0 1px 3px rgba(17,24,39,.04);border:1px solid transparent}
-.item:hover{background:#f7f8fa;border-color:#e5e8eb;transform:translateY(-1px);box-shadow:0 2px 8px rgba(17,24,39,.06)}
+/* 리스트 카드 — 토스: 큰 라운드 + 부드러운 그림자, 보더 없음 */
+.item{display:flex;align-items:center;gap:14px;padding:15px 18px;background:#fff;border-radius:18px;margin-bottom:10px;cursor:pointer;transition:all .15s;box-shadow:0 2px 10px rgba(25,31,40,.05);border:1px solid transparent}
+.item:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(25,31,40,.08)}
 .avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#3182f6,#5da3ff);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.9em;font-weight:700;overflow:hidden;flex-shrink:0}
 .avatar img{width:100%;height:100%;object-fit:cover}
 .info{flex:1;min-width:0}
-.info .name{font-size:.92em;font-weight:600;color:#111827}
+.info .name{font-size:.95em;font-weight:700;color:#191f28}
 .info .meta{font-size:.72em;color:#8b95a1;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .badge{font-size:.68em;background:#e8f3ff;color:#3182f6;padding:2px 8px;border-radius:6px;font-weight:700}
 .right{text-align:right;flex-shrink:0}
@@ -116,8 +117,8 @@ body.docs-wide .wrap{max-width:none;padding-left:16px;padding-right:16px}
 /* 분석 */
 .analytics{display:none}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
-.stat{background:#fff;border-radius:12px;padding:16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.03)}
-.stat .n{font-size:1.6em;font-weight:700;color:#3182f6}
+.stat{background:#fff;border-radius:16px;padding:18px;text-align:center;box-shadow:0 2px 10px rgba(25,31,40,.05)}
+.stat .n{font-size:1.9em;font-weight:800;letter-spacing:-.03em;color:#3182f6}
 .stat .l{font-size:.72em;color:#8b95a1;margin-top:2px}
 .sec{font-size:.95em;font-weight:700;margin:20px 0 10px}
 .bar-item{display:flex;align-items:center;gap:10px;margin-bottom:6px}
@@ -454,3 +455,29 @@ html.embedded #userModeView .tabs button[onclick*="cleanDupBiz"]{
 /* 카톡 UX: ESC 키 자동 닫기 + 외부 클릭 자동 닫기 (옛 admin.js 의 핸들러 보장)
  * — 이 룰은 visual 만, 실제 ESC 닫기는 admin.js 의 keydown handler 가 처리
  * — 모달 backdrop 클릭 시 자동 닫기는 admin.js 에서 처리 */
+
+/* ============================================================
+ * 토스-4 (2026-06-12 사장님 "모달 디테일 다잡자"):
+ * modal-overlay 35개 공통 — 카드 라운드 20 + 보더 제거 + 토스 그림자,
+ * 파랑/빨강 주요 버튼 라운드 12 + 볼드. 레이아웃·기능 0 변경 (모양만).
+ * ============================================================ */
+.modal-overlay > div{border-radius:20px!important;border:none!important;box-shadow:0 8px 28px rgba(25,31,40,.16)!important}
+.modal-overlay button[style*="background:var(--of-primary)"],
+.modal-overlay button[style*="background: var(--of-primary)"],
+.modal-overlay button[style*="background:var(--brand-primary)"],
+.modal-overlay button[style*="background: var(--brand-primary)"]{border-radius:12px!important;font-weight:800!important}
+.modal-overlay button[style*="background:var(--of-danger)"],
+.modal-overlay button[style*="background: var(--of-danger)"]{border-radius:12px!important;font-weight:800!important}
+/* 검증 탭 필터 — 토스 pill */
+.review-filters button{border-radius:99px}
+.review-card{border-radius:16px;box-shadow:0 2px 10px rgba(25,31,40,.05)}
+
+/* ============================================================
+ * 토스 정리 (2026-06-16 사장님 "버튼 8개 정신없다"): 사용자 행 ⋯ 관리 메뉴.
+ * 행 = 클릭하면 대시보드. 액션은 우측 ⋯ → floating 메뉴(버튼 세로 스택).
+ * 버튼의 기존 색/onclick 은 보존(레이아웃만 override). ============================ */
+.urow:hover{background:var(--neutral-bg)!important}
+.u-kebab:hover{background:var(--neutral-border,#e5e8eb)!important}
+#uMenu > div{display:block!important;margin:0!important;gap:0!important}
+#uMenu button{display:block!important;width:100%!important;text-align:left!important;margin:0 0 5px 0!important;box-sizing:border-box}
+#uMenu button:last-child{margin-bottom:0!important}

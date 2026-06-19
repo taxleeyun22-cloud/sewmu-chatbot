@@ -14,10 +14,12 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="세무회계 이윤">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<!-- 토스 벤치마킹 (2026-06-12 사장님 명령): Pretendard 서체 (토스 톤) -->
+<link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <!-- Phase H4 (2026-05-04): 인라인 <style> 4개 블록 → index.css 외부화 -->
-<link rel="stylesheet" href="/index.css?v=2">
-<!-- Phase T1+T2a: Tailwind + 토큰 통합 -->
-<link rel="stylesheet" href="/assets/main.css?v=3">
+<link rel="stylesheet" href="/index.css?v=4">
+<!-- 토스 벤치마킹 (2026-06-12): 토큰 라운드·그림자. cache bump v=3→v=4 -->
+<link rel="stylesheet" href="/assets/main.css?v=6">
 <script type="module" src="/assets/main.js?v=1"></script>
 </head>
 <body>
@@ -206,14 +208,7 @@
       </div>
       <div class="mp-item-arrow">›</div>
     </div>
-    <div class="mp-item" onclick="openCompanyRequestModal()">
-      <div class="mp-item-icon">📝</div>
-      <div class="mp-item-main">
-        <div class="mp-item-label">업체 등록 요청 (세무사에게)</div>
-        <div class="mp-item-value" id="mpCompanyReqValue">아직 등록 요청 안 함</div>
-      </div>
-      <div class="mp-item-arrow">›</div>
-    </div>
+    <!-- 업체 등록 요청 메뉴 제거 (2026-06-12 사장님 명령 "업체등록요청 빼자") — 업체 연결은 세무사가 admin 에서 직접 -->
     <div class="mp-item" id="mpAdminBtn" style="display:none" onclick="location.href='/staff.html'">
       <div class="mp-item-icon">👑</div>
       <div class="mp-item-main">
@@ -391,7 +386,7 @@
 <script>
 (function loadIndexModals(){
   function inject(){
-    fetch('/index-modals.html?v=1', {cache: 'no-cache'})
+    fetch('/index-modals.html?v=3', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('indexModalsSlot');
@@ -406,6 +401,6 @@
 </script>
 
 <!-- Phase H3 (2026-05-04): 인라인 JS 3468줄 → index.js 외부화. 사장님 명령 "html여러개로 쪼개기". -->
-<script src="/index.js?v=8"></script>
+<script src="/index.js?v=9"></script>
 
 </html>

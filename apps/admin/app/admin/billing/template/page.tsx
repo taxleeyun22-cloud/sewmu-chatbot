@@ -249,7 +249,7 @@ export default function TemplatePage() {
       <section className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <h2 className="text-[15px] font-bold text-gray-900">
-            📊 누진표 — <span className="text-[#0B1F3A]">{activeTab === 'corp' ? '법인' : '개인'}</span> · 수입금액 구간별
+            📊 누진표 — <span className="text-brand-primary">{activeTab === 'corp' ? '법인' : '개인'}</span> · 수입금액 구간별
           </h2>
           <span className="ml-auto flex items-center gap-2">
             <span className="text-[11px] text-gray-400">결산 20% · 원가 10%</span>
@@ -259,7 +259,7 @@ export default function TemplatePage() {
                 onClick={() => setActiveTab('corp')}
                 className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
                   activeTab === 'corp'
-                    ? 'bg-[#0B1F3A] text-white'
+                    ? 'bg-brand-primary text-white'
                     : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
                 }`}
               >
@@ -270,7 +270,7 @@ export default function TemplatePage() {
                 onClick={() => setActiveTab('indv')}
                 className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
                   activeTab === 'indv'
-                    ? 'bg-[#0B1F3A] text-white'
+                    ? 'bg-brand-primary text-white'
                     : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
                 }`}
               >
