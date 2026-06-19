@@ -22,6 +22,33 @@ const PENSION_CODES = ['JTL_91_5', 'SOD_59_3_A', 'SOD_59_3_B', 'JTL_91_18'];
 /* 보험 타겟 기본 키워드 — 직원코멘트에서 검색 (사장님 확정 2026-06-04) */
 const DEFAULT_EXPENSE_KEYWORDS = ['접대비', '지출결의', '경비내역', '가경비', '판촉비'];
 
+/* 법인전환 영업 (2026-06-19): 개인 종소세 과세표준 기준. 기본 컷오프 = 8,800만(35% 구간부터).
+ * 법인세율(2억↓ 9% / 초과 19%)과의 한계세율 격차가 클수록 전환 실익 큼. */
+const DEFAULT_INCORP_TAX_BASE = 88_000_000;
+
+/** 2026 종합소득세 누진 한계세율(%) — 과세표준 구간. (소득세법 제55조) */
+export function marginalRateByTaxBase(taxBase: number): number {
+  const b = Number(taxBase) || 0;
+  if (b > 1_000_000_000) return 45;
+  if (b > 500_000_000) return 42;
+  if (b > 300_000_000) return 40;
+  if (b > 150_000_000) return 38;
+  if (b > 88_000_000) return 35;
+  if (b > 50_000_000) return 24;
+  if (b > 14_000_000) return 15;
+  return 6;
+}
+
+/** 법인전환 영업 우선순위 등급 — 과세표준 한계세율 기준.
+ *  S: 5억 초과(42~45%) · A: 1.5억 초과(38~40%) · B: 8,800만 초과(35%) · C: 24%↓(약함). */
+export function incorporationGrade(taxBase: number): 'S' | 'A' | 'B' | 'C' {
+  const r = marginalRateByTaxBase(taxBase);
+  if (r >= 42) return 'S';
+  if (r >= 38) return 'A';
+  if (r >= 35) return 'B';
+  return 'C';
+}
+
 interface Deduction {
   code?: string;
   name?: string;
@@ -29,6 +56,8 @@ interface Deduction {
 }
 interface AutoFields {
   calculated_tax?: number | string;
+  tax_base?: number | string;
+  revenue?: number | string;
   공제감면?: Deduction[];
   deductions?: Deduction[];
   employee_note?: string;
@@ -253,5 +282,90 @@ export const salesTargetsRouter = router({
       });
 
       return { year: input.year, scanned: rows.length, withNote, count: targets.length, keywords: KW, targets };
+    }),
+
+  /** 법인전환 타겟 — 개인 종소세 과세표준 상위(한계세율 ↑) → 법인전환 컨설팅 권유.
+   *  과세표준 desc 정렬 + 등급(S/A/B). 정밀 절감액은 추정 리스크라 미표시(한계세율만). */
+  incorporation: adminProcedure
+    .input(
+      z.object({
+        year: z.number().int().min(2000).max(2100),
+        minTaxBase: z.number().int().min(0).max(100_000_000_000).optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const db = drizzle(ctx.db);
+      const { filings, users } = schema;
+      const threshold = input.minTaxBase ?? DEFAULT_INCORP_TAX_BASE;
+      const rows = await db
+        .select()
+        .from(filings)
+        .where(and(eq(filings.type, '종소세'), eq(filings.fiscal_year, input.year), notDeleted()));
+
+      let withTaxBase = 0;
+      const pre: {
+        filing_id: number;
+        owner_id: number;
+        tax_base: number;
+        calculated_tax: number;
+        revenue: number;
+      }[] = [];
+      for (const f of rows) {
+        const af = parseAF(f.auto_fields);
+        const tb = Number(af.tax_base) || 0;
+        if (tb <= 0) continue; // 과세표준 미입력 → 판단 불가, 제외
+        withTaxBase++;
+        if (tb < threshold) continue;
+        if (f.owner_type === 'Person' && f.owner_id) {
+          pre.push({
+            filing_id: f.id,
+            owner_id: f.owner_id,
+            tax_base: tb,
+            calculated_tax: Number(af.calculated_tax) || 0,
+            revenue: Number(af.revenue) || 0,
+          });
+        }
+      }
+
+      /* 이름·전화 JOIN (Person owner = users) */
+      const ids = Array.from(new Set(pre.map((p) => p.owner_id)));
+      const umap = new Map<number, { name: string; phone: string | null }>();
+      if (ids.length) {
+        const us = await chunkedIn(ids, (chunk) =>
+          db
+            .select({ id: users.id, real_name: users.real_name, name: users.name, phone: users.phone })
+            .from(users)
+            .where(inArray(users.id, chunk)),
+        );
+        us.forEach((u) =>
+          umap.set(u.id, {
+            name: (u.real_name || u.name || `#${u.id}`) as string,
+            phone: (u.phone as string | null) ?? null,
+          }),
+        );
+      }
+
+      const targets = pre
+        .map((p) => ({
+          filing_id: p.filing_id,
+          user_id: p.owner_id,
+          name: umap.get(p.owner_id)?.name || `#${p.owner_id}`,
+          phone: umap.get(p.owner_id)?.phone || null,
+          tax_base: p.tax_base,
+          calculated_tax: p.calculated_tax,
+          revenue: p.revenue,
+          marginal_rate: marginalRateByTaxBase(p.tax_base),
+          grade: incorporationGrade(p.tax_base),
+        }))
+        .sort((a, b) => b.tax_base - a.tax_base);
+
+      return {
+        year: input.year,
+        scanned: rows.length,
+        withTaxBase,
+        threshold,
+        count: targets.length,
+        targets,
+      };
     }),
 });

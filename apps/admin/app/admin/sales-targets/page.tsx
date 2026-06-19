@@ -3,9 +3,10 @@
  *
  * - 연금 탭: 종소세·산출세액>0·연금공제 없음 → 연금저축/IRP 절세 권유 (산출세액 desc)
  * - 보험 탭: 검토표 직원코멘트에 접대비·지출결의서 등 키워드 → 보험 권유
+ * - 법인전환 탭: 개인 종소세 과세표준 상위(한계세율↑) → 법인전환 컨설팅 (과세표준 desc + 등급)
  * - 연도 드롭다운(기본 최신) + CSV 다운로드(엑셀 BOM)
  *
- * 데이터: tRPC salesTargets.{years,pension,expense} (읽기 전용).
+ * 데이터: tRPC salesTargets.{years,pension,expense,incorporation} (읽기 전용).
  */
 'use client';
 export const runtime = 'edge';
@@ -16,7 +17,7 @@ import { trpcCall } from '@/lib/trpc';
 import { toast } from '@/components/ui/toast';
 import { SkeletonList } from '@/components/ui/skeleton';
 
-type Tab = 'pension' | 'expense';
+type Tab = 'pension' | 'expense' | 'incorporation';
 
 interface PensionTarget {
   filing_id: number;
@@ -51,10 +52,47 @@ interface ExpenseResult {
   keywords: string[];
   targets: ExpenseTarget[];
 }
+interface IncorpTarget {
+  filing_id: number;
+  user_id: number;
+  name: string;
+  phone: string | null;
+  tax_base: number;
+  calculated_tax: number;
+  revenue: number;
+  marginal_rate: number;
+  grade: 'S' | 'A' | 'B' | 'C';
+}
+interface IncorpResult {
+  year: number;
+  scanned: number;
+  withTaxBase: number;
+  threshold: number;
+  count: number;
+  targets: IncorpTarget[];
+}
 
 function won(n: number): string {
   return (n || 0).toLocaleString('ko-KR');
 }
+
+/* 억/만 단위 축약 (과세표준 가독성) — 예: 200000000 → "2억" */
+function wonShort(n: number): string {
+  const v = Number(n) || 0;
+  if (v >= 100_000_000) {
+    const eok = v / 100_000_000;
+    return `${Number.isInteger(eok) ? eok : eok.toFixed(1)}억`;
+  }
+  if (v >= 10_000) return `${Math.round(v / 10_000).toLocaleString('ko-KR')}만`;
+  return v.toLocaleString('ko-KR');
+}
+
+const GRADE_CLS: Record<string, string> = {
+  S: 'bg-red-100 text-red-700',
+  A: 'bg-orange-100 text-orange-800',
+  B: 'bg-blue-100 text-blue-800',
+  C: 'bg-gray-100 text-gray-600',
+};
 
 /* CSV 다운로드 — 엑셀 한글 깨짐 방지 BOM(﻿) */
 function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
@@ -104,6 +142,9 @@ export default function SalesTargetsPage() {
     setAppliedKw(next);
   }
 
+  /* 법인전환 컷오프 과세표준 (기본 8,800만=35% 구간) */
+  const [incorpThreshold, setIncorpThreshold] = useState<number>(88_000_000);
+
   const yearsQ = useQuery<{ years: number[]; defaultYear: number }>({
     queryKey: ['salesTargets.years'],
     queryFn: () => trpcCall('salesTargets.years'),
@@ -128,10 +169,21 @@ export default function SalesTargetsPage() {
       }),
     enabled: tab === 'expense' && year > 0,
   });
+  const incorporationQ = useQuery<IncorpResult>({
+    queryKey: ['salesTargets.incorporation', { year, minTaxBase: incorpThreshold }],
+    queryFn: () => trpcCall('salesTargets.incorporation', { year, minTaxBase: incorpThreshold }),
+    enabled: tab === 'incorporation' && year > 0,
+  });
 
-  const loading = tab === 'pension' ? pensionQ.isLoading : expenseQ.isLoading;
+  const loading =
+    tab === 'pension'
+      ? pensionQ.isLoading
+      : tab === 'expense'
+        ? expenseQ.isLoading
+        : incorporationQ.isLoading;
   const pension = pensionQ.data;
   const expense = expenseQ.data;
+  const incorporation = incorporationQ.data;
 
   const expenseKwLabel = useMemo(
     () => (expense?.keywords?.length ? expense.keywords.join(' · ') : '접대비 · 지출결의 · 경비내역 · 가경비 · 판촉비'),
@@ -167,6 +219,17 @@ export default function SalesTargetsPage() {
       expense.targets.map((t) => [t.name, t.tax_type, t.keywords.join('·'), t.phone || '', t.note]),
     );
     toast.success(`보험 타겟 ${expense.targets.length}명 CSV 저장`);
+  }
+  function exportIncorporation() {
+    if (!incorporation?.targets.length) return;
+    downloadCsv(
+      `법인전환타겟_${incorporation.year}.csv`,
+      ['이름', '전화', '과세표준', '한계세율', '등급', '산출세액', '수입금액'],
+      incorporation.targets.map((t) => [
+        t.name, t.phone || '', t.tax_base, `${t.marginal_rate}%`, t.grade, t.calculated_tax, t.revenue,
+      ]),
+    );
+    toast.success(`법인전환 타겟 ${incorporation.targets.length}명 CSV 저장`);
   }
 
   return (
@@ -210,6 +273,15 @@ export default function SalesTargetsPage() {
           }`}
         >
           🛡️ 보험 (경비 키워드)
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('incorporation')}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold border ${
+            tab === 'incorporation' ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          🏢 법인전환
         </button>
       </div>
 
@@ -382,6 +454,96 @@ export default function SalesTargetsPage() {
             </table>
           </div>
           <p className="text-xs text-gray-400">※ 검토표 직원코멘트(SECTION 05) 검색 키워드: {expenseKwLabel}</p>
+        </>
+      )}
+
+      {/* 법인전환 컷오프 (법인전환 탭) */}
+      {tab === 'incorporation' && (
+        <div className="bg-white border border-gray-200 rounded-lg p-3 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-gray-600">과세표준 컷오프</span>
+          <select
+            value={incorpThreshold}
+            onChange={(e) => setIncorpThreshold(Number(e.target.value))}
+            className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+          >
+            <option value={88_000_000}>8,800만 이상 (35%~)</option>
+            <option value={150_000_000}>1.5억 이상 (38%~, 핵심)</option>
+            <option value={300_000_000}>3억 이상 (40%~, 최우선)</option>
+          </select>
+          <span className="text-xs text-gray-400">개인 종소세 과세표준 ≥ 컷오프 → 법인전환 실익 큰 순</span>
+        </div>
+      )}
+
+      {/* 법인전환 탭 */}
+      {tab === 'incorporation' && !loading && incorporation && (
+        <>
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-sm text-indigo-900 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span>종소세 검토표 <b>{incorporation.scanned}</b>건</span>
+            <span>· 과세표준 입력 <b>{incorporation.withTaxBase}</b></span>
+            <span className="text-indigo-700 font-bold">→ 타겟 {incorporation.count}명</span>
+            <button
+              type="button"
+              onClick={exportIncorporation}
+              disabled={!incorporation.count}
+              className="ml-auto bg-brand-primary text-white px-3 py-1.5 rounded text-xs font-bold disabled:bg-gray-300"
+            >
+              ⬇ CSV 다운로드 ({incorporation.count})
+            </button>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-600 text-xs">
+                <tr>
+                  <th className="px-3 py-2 text-left w-12">#</th>
+                  <th className="px-3 py-2 text-left">이름</th>
+                  <th className="px-3 py-2 text-right">과세표준</th>
+                  <th className="px-3 py-2 text-center">한계세율</th>
+                  <th className="px-3 py-2 text-center w-16">등급</th>
+                  <th className="px-3 py-2 text-right">산출세액</th>
+                  <th className="px-3 py-2 text-right">수입금액</th>
+                  <th className="px-3 py-2 text-left">전화</th>
+                </tr>
+              </thead>
+              <tbody>
+                {incorporation.targets.map((t, i) => (
+                  <tr
+                    key={t.filing_id}
+                    className="border-t border-gray-100 hover:bg-blue-50 cursor-pointer"
+                    onClick={() => openClient('Person', t.user_id)}
+                    title="거래처 대시보드 열기 ↗"
+                  >
+                    <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                    <td className="px-3 py-2 font-medium text-blue-700 hover:underline whitespace-nowrap">{t.name} ↗</td>
+                    <td className="px-3 py-2 text-right font-semibold text-gray-900" title={`${won(t.tax_base)}원`}>
+                      {wonShort(t.tax_base)}
+                    </td>
+                    <td className="px-3 py-2 text-center text-gray-700">
+                      {t.marginal_rate}% <span className="text-gray-400 text-xs">→ 법인 9~19%</span>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <span className={`inline-block rounded px-2 py-0.5 text-xs font-bold ${GRADE_CLS[t.grade] || GRADE_CLS.C}`}>
+                        {t.grade}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-600">{won(t.calculated_tax)}원</td>
+                    <td className="px-3 py-2 text-right text-gray-500">{wonShort(t.revenue)}</td>
+                    <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{t.phone || '—'}</td>
+                  </tr>
+                ))}
+                {!incorporation.count && (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-8 text-center text-gray-400">
+                      컷오프 이상 과세표준 거래처가 없습니다. (컷오프를 낮춰보세요)
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-gray-400">
+            ※ 과세표준 한계세율 기준 <b>1차 영업명단</b>입니다. 실제 법인전환은 성실신고확인·4대보험·가지급금·청산·취득세
+            등 종합검토가 필요해요. (법인세율: 과세표준 2억↓ 9% · 초과 19% — 소득세법 제55조 / 법인세법 제55조)
+          </p>
         </>
       )}
     </div>
