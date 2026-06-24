@@ -422,14 +422,15 @@ export async function onRequestGet(context) {
   /* === 대시보드 모드: 전체 방 + 개인 일정에서 미완료 할 일 한꺼번에 === */
   if (scope === 'my') {
     const onlyMine = url.searchParams.get("only_mine") === '1';
-    const uid = auth.userId || 0;
+    /* 사장님(ADMIN_KEY 로그인)은 userId=null → 이재윤(user_id=1)로 폴백 → 본인 매칭 정상화 */
+    const uid = auth.userId || (auth.owner ? 1 : 0);
     try {
-      /* 1. 미완료 할 일만 (완료·참고는 대시보드에서 제외) + 방 정보 JOIN */
+      /* 1. 미완료 할 일만 (완료·참고는 대시보드에서 제외) + 방/업체/거래처 이름 JOIN */
       let whereAssignee = '';
       const binds = [];
       if (onlyMine && uid) {
-        /* 내 것만: 내가 담당자거나 작성자거나 미지정(대표 공용) */
-        whereAssignee = ` AND (m.assigned_to_user_id = ? OR m.author_user_id = ? OR m.assigned_to_user_id IS NULL)`;
+        /* 본인거만 = 내가 담당자 OR 내가 작성자. 미지정(남이 쓴 공용)은 제외 = 개인 라이브러리 */
+        whereAssignee = ` AND (m.assigned_to_user_id = ? OR m.author_user_id = ?)`;
         binds.push(uid, uid);
       }
       const sql = `SELECT m.id, m.room_id, m.target_business_id, m.target_user_id,
@@ -437,9 +438,13 @@ export async function onRequestGet(context) {
                           m.memo_type, m.content, m.is_edited, m.due_date, m.linked_message_id,
                           m.category, m.tags, m.attachments,
                           m.created_at, m.updated_at,
-                          r.name AS room_name
+                          r.name AS room_name,
+                          b.company_name AS business_name,
+                          u.real_name AS customer_name, u.name AS customer_nickname
                      FROM memos m
                 LEFT JOIN chat_rooms r ON m.room_id = r.id
+                LEFT JOIN businesses b ON m.target_business_id = b.id
+                LEFT JOIN users u ON m.target_user_id = u.id
                     WHERE m.deleted_at IS NULL
                       AND (m.memo_type IN ('할 일','확인필요','고객요청'))
                       ${whereAssignee}
@@ -567,7 +572,8 @@ export async function onRequestPost(context) {
   const tags = normalizeTags(body.tags, content);  /* content #태그 자동 추출 + 머지 */
   const attachments = normalizeAttachments(body.attachments);
 
-  const authorUserId = auth.userId || null;
+  /* 사장님(ADMIN_KEY=owner, userId=null)도 작성자=이재윤(1)로 → 본인 할일에 정상 표시 */
+  const authorUserId = auth.userId || (auth.owner ? 1 : null);
   const authorName = auth.name || auth.realName || (auth.owner ? '대표' : '담당자');
 
   const now = kst();
