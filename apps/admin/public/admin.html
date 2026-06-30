@@ -203,9 +203,9 @@ if ('serviceWorker' in navigator) {
     <!-- ===== 알림 ===== -->
     <div class="of-sb-section" data-section-key="alerts">알림 <span class="arrow">▾</span></div>
     <div class="sb-grp" data-grp="alerts">
-      <button class="of-sb-item alert" type="button" id="sbMyTodosBtn" onclick="openMyTodos()">
-        <span class="ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8.5h14M7 2v3.5M13 2v3.5"/></svg></span><span class="lb">내 일정</span><span class="cnt" id="sbCntTodo"><span id="sb-todo-count-mount">0</span></span>
-      </button>
+      <a class="of-sb-item alert" id="sbMyTodosBtn" href="https://sewmu-admin.pages.dev/admin/todos" target="_blank" rel="noopener" title="내 할 일 — 달력+목록 (새 admin)" style="text-decoration:none;color:inherit;display:flex;align-items:center">
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8.5h14M7 2v3.5M13 2v3.5"/></svg></span><span class="lb">내 일정</span><span class="cnt" id="sbCntTodo"><span id="sb-todo-count-mount">0</span></span><span style="margin-left:auto;font-size:10px;color:#94a3b8">↗</span>
+      </a>
       <button class="of-sb-item alert" type="button" id="sbTermReqBtn" onclick="openTerminationRequests()">
         <span class="ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 2 17h16L10 3z"/><path d="M10 8.5v3.5M10 14.7v.2"/></svg></span><span class="lb">종료 요청</span><span class="cnt" id="sbCntTermReq"><span id="sb-termreq-count-mount">0</span></span>
       </button>
@@ -264,7 +264,7 @@ if ('serviceWorker' in navigator) {
 <button id="tabReview" onclick="tab('review')">검증 <span id="reviewBadge" style="display:none;background:#f04452;color:#fff;padding:1px 6px;border-radius:10px;font-size:.9em;margin-left:2px"></span></button>
 <button id="tabFaq" onclick="tab('faq')">📚 FAQ</button>
 </div>
-<button id="myTodosBtn" class="logout" onclick="openMyTodos()" style="margin-left:auto" title="내 할 일 대시보드 — 전체 방·개인 일정 통합 보기">📋 할 일 <span id="myTodosBadge" style="display:none;background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:.72em;font-weight:800;margin-left:4px"></span></button>
+<a id="myTodosBtn" class="logout" href="https://sewmu-admin.pages.dev/admin/todos" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none;display:inline-flex;align-items:center" title="내 할 일 — 달력+목록 (새 admin)">📋 할 일 <span id="myTodosBadge" style="display:none;background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:.72em;font-weight:800;margin-left:4px"></span></a>
 <button id="termReqBtn" class="logout" onclick="openTerminationRequests()" title="직원이 올린 거래 종료 요청 (대표 승인 대기)" class="hidden">🚫 종료 요청 <span id="termReqBadge" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:.72em;font-weight:800;margin-left:4px">0</span></button>
 <button class="logout" onclick="openBulkSend()" title="단체발송 — 여러 거래처에 한 번에 메시지">📢 단체발송</button>
 <button class="logout" onclick="openSearch()" title="전역 검색">🔍 검색</button>
