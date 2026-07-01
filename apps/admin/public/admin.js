@@ -3674,7 +3674,8 @@ function _adminSidebarClick(e){
   function _bindSbActionBtns(){
     var pairs = [
       ['sbTrashBtn',     function(){ if(typeof openTrash==='function') openTrash(); else alert('휴지통 — 함수 미정의'); }],
-      ['sbMyTodosBtn',   function(){ if(typeof openMyTodos==='function') openMyTodos(); else alert('내 일정 — 함수 미정의'); }],
+      /* sbMyTodosBtn: 2026-06-30 새 admin 달력(/admin/todos)으로 링크 전환 → JS 모달 바인딩 제거
+       * (안 그러면 <a> 링크 대신 옛 모달이 뜸). openMyTodos 모달은 잔존(다른 경로 대비). */
       ['sbTermReqBtn',   function(){ if(typeof openTerminationRequests==='function') openTerminationRequests(); else alert('종료 요청 — 함수 미정의'); }],
       ['sbBulkSendBtn',  function(){ if(typeof openBulkSend==='function') openBulkSend(); else alert('단체발송 — 함수 미정의'); }],
       ['sbSearchBtn',    function(){ if(typeof openSearch==='function') openSearch(); else alert('전역 검색 — 함수 미정의'); }],
