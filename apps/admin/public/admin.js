@@ -842,13 +842,45 @@ function applyPopupLayout(roomId){
    Purpose: 방 150개 일일이 클릭 안 해도 오늘·내일·이번주 할 일 한 번에 파악
    Data source: /api/memos?scope=my (미완료 할 일만, 방 정보 JOIN) */
 let _myTodosCache=[];
+let _mtView='calendar';   /* 'calendar' | 'list' — 기본 달력 (사장님: 마감 한눈에) */
+let _mtCalY=0, _mtCalM0=0; /* 표시중인 달력 연/월(0-based) */
+let _mtSelDate='';         /* 달력에서 선택된 날 YYYY-MM-DD (하단 상세) */
+function _todayKST(){ return new Date(Date.now()+9*60*60*1000).toISOString().substring(0,10); }
 async function openMyTodos(){
   const m=$g('myTodosModal');if(!m)return;
   m.style.display='flex';
   document.body.style.overflow='hidden';
   if($g('mtNewContent'))$g('mtNewContent').value='';
   if($g('mtNewDue'))$g('mtNewDue').value='';
+  /* 달력 초기값 = 이번 달 + 오늘 선택 */
+  const t=_todayKST();
+  _mtCalY=parseInt(t.substring(0,4),10);
+  _mtCalM0=parseInt(t.substring(5,7),10)-1;
+  _mtSelDate=t;
+  _syncMtViewUI();
   await loadMyTodos();
+}
+/* 뷰 토글 */
+function setMtView(v){ _mtView=(v==='list'?'list':'calendar'); _syncMtViewUI(); _renderMyTodos(); }
+function _syncMtViewUI(){
+  const cal=_mtView==='calendar';
+  const bl=$g('mtViewList'), bc=$g('mtViewCal'), nav=$g('mtCalNav');
+  if(bl){ bl.style.background=cal?'transparent':'#fff'; bl.style.color=cal?'var(--text-sub)':'var(--of-primary)'; bl.style.boxShadow=cal?'none':'0 1px 2px rgba(0,0,0,.12)'; }
+  if(bc){ bc.style.background=cal?'#fff':'transparent'; bc.style.color=cal?'var(--of-primary)':'var(--text-sub)'; bc.style.boxShadow=cal?'0 1px 2px rgba(0,0,0,.12)':'none'; }
+  if(nav) nav.style.visibility=cal?'visible':'hidden';
+}
+function mtCalPrev(){ _mtCalM0--; if(_mtCalM0<0){_mtCalM0=11;_mtCalY--;} _renderMyTodos(); }
+function mtCalNext(){ _mtCalM0++; if(_mtCalM0>11){_mtCalM0=0;_mtCalY++;} _renderMyTodos(); }
+function mtCalToday(){ const t=_todayKST(); _mtCalY=parseInt(t.substring(0,4),10); _mtCalM0=parseInt(t.substring(5,7),10)-1; _mtSelDate=t; _renderMyTodos(); }
+function mtSelectDay(d){ _mtSelDate=d; _renderMyTodos(); }
+/* 할일 출처 판별: 업체 > 거래처 > 방 > 개인 (room_id '__none__' 은 방 아님) */
+function _mtSource(m){
+  const realRoom=(m.room_id && m.room_id!=='__none__')?m.room_id:'';
+  if(m.business_name) return {k:'biz', name:m.business_name};
+  const cust=m.customer_name||m.customer_nickname||'';
+  if(cust) return {k:'cust', name:cust};
+  if(realRoom) return {k:'room', name:m.room_name||realRoom, roomId:realRoom};
+  return {k:'personal', name:'개인'};
 }
 function closeMyTodos(){
   const m=$g('myTodosModal');if(m)m.style.display='none';
@@ -880,6 +912,8 @@ function _bucketByDue(due){
 }
 function _renderMyTodos(){
   const list=$g('myTodosList');if(!list)return;
+  if($g('mtMeta'))$g('mtMeta').textContent=_myTodosCache.length+'건';
+  if(_mtView==='calendar'){ _renderMtCalendar(list); return; }
   if(!_myTodosCache.length){
     list.innerHTML='<div style="text-align:center;padding:50px 20px;color:var(--text-mute);font-size:.9em">📭 처리할 일이 없습니다<br><span style="font-size:.85em;color:#adb5bd">위 입력창에서 개인 일정을 추가하거나<br>상담방 📒 메모에서 할 일을 작성하세요</span></div>';
     $g('mtMeta').textContent='0건';
@@ -906,6 +940,67 @@ function _renderMyTodos(){
   }
   list.innerHTML=html;
   $g('mtMeta').textContent=total+'건';
+}
+/* 달력 뷰 — Google Calendar 톤. due_date 있는 할일을 그 날짜 칸에 출처색 칩으로. */
+function _renderMtCalendar(list){
+  const Y=_mtCalY, M0=_mtCalM0;
+  if($g('mtCalTitle'))$g('mtCalTitle').textContent=Y+'년 '+(M0+1)+'월';
+  const today=_todayKST();
+  const byDate={}, noDue=[];
+  for(const m of _myTodosCache){
+    const d=m.due_date;
+    if(d && /^\d{4}-\d{2}-\d{2}$/.test(d)){ (byDate[d]=byDate[d]||[]).push(m); }
+    else noDue.push(m);
+  }
+  const first=new Date(Y, M0, 1);
+  const startDow=first.getDay();
+  const daysInMonth=new Date(Y, M0+1, 0).getDate();
+  const cells=[];
+  for(let i=0;i<startDow;i++){ cells.push({dt:new Date(Y,M0,1-(startDow-i)), dim:true}); }
+  for(let d=1; d<=daysInMonth; d++){ cells.push({dt:new Date(Y,M0,d), dim:false}); }
+  while(cells.length%7!==0){ const l=cells[cells.length-1].dt; cells.push({dt:new Date(l.getFullYear(),l.getMonth(),l.getDate()+1), dim:true}); }
+  const fmt=(dt)=>dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+  const colors={over:{bg:'#fce8e6',fg:'#c5221f'}, biz:{bg:'#e8f0fe',fg:'#1967d2'}, cust:{bg:'#e6f4ea',fg:'#188038'}, room:{bg:'#f3e8fd',fg:'#8430ce'}, personal:{bg:'#fff4e5',fg:'#b45309'}};
+  let html='<div style="border:1px solid var(--neutral-border);border-radius:12px;overflow:hidden">';
+  html+='<div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--gray-100)">';
+  ['일','월','화','수','목','금','토'].forEach((w,i)=>{ const c=i===0?'#d93025':(i===6?'#1a73e8':'#70757a'); html+='<div style="padding:8px 0;text-align:center;font-size:.72em;font-weight:700;color:'+c+'">'+w+'</div>'; });
+  html+='</div><div style="display:grid;grid-template-columns:repeat(7,1fr)">';
+  cells.forEach((c)=>{
+    const ds=fmt(c.dt), dow=c.dt.getDay();
+    const isToday=ds===today, isSel=ds===_mtSelDate;
+    const evs=byDate[ds]||[];
+    const dnumC=c.dim?'#c9ccd1':(dow===0?'#d93025':(dow===6?'#1a73e8':'var(--text-main)'));
+    let cell='<div onclick="mtSelectDay(\''+ds+'\')" style="min-height:90px;border-right:1px solid var(--gray-100);border-bottom:1px solid var(--gray-100);padding:5px 5px 7px;cursor:pointer;'+(c.dim?'background:#fafafa;':'')+(isSel?'box-shadow:inset 0 0 0 2px var(--of-primary);':'')+'">';
+    cell+='<div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:.72em;margin-bottom:3px;'+(isToday?'background:#1a73e8;color:#fff;font-weight:700;':'color:'+dnumC+';')+'">'+c.dt.getDate()+'</div>';
+    evs.slice(0,3).forEach(m=>{
+      const src=_mtSource(m), over=ds<today;
+      const col=colors[over?'over':src.k]||colors.personal;
+      cell+='<div title="'+escAttr(m.content||'')+'" style="font-size:.68em;line-height:1.25;border-radius:5px;padding:1px 5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;background:'+col.bg+';color:'+col.fg+'">'+e(m.content||'')+'</div>';
+    });
+    if(evs.length>3) cell+='<div style="font-size:.66em;color:var(--gray-500);padding:0 4px">+'+(evs.length-3)+'개</div>';
+    cell+='</div>';
+    html+=cell;
+  });
+  html+='</div></div>';
+  html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:9px;font-size:.68em;color:#70757a">'
+    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#fce8e6;vertical-align:middle;margin-right:4px"></i>지남</span>'
+    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#e8f0fe;vertical-align:middle;margin-right:4px"></i>🏢업체</span>'
+    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#e6f4ea;vertical-align:middle;margin-right:4px"></i>👤거래처</span>'
+    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#f3e8fd;vertical-align:middle;margin-right:4px"></i>💬방</span>'
+    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#fff4e5;vertical-align:middle;margin-right:4px"></i>📍개인</span>'
+    +'</div>';
+  if(noDue.length){
+    html+='<div style="border:1px solid var(--neutral-border);border-radius:12px;margin-top:11px;padding:10px 14px">'
+      +'<div style="font-size:.76em;font-weight:700;color:var(--text-sub);margin-bottom:7px">🌙 기한 없음 ('+noDue.length+')</div>'
+      +noDue.map(_todoRow).join('')+'</div>';
+  }
+  const selEvs=byDate[_mtSelDate]||[];
+  const selLabel=(_mtSelDate===today?'오늘 · ':'')+_mtSelDate;
+  html+='<div style="margin-top:12px">'
+    +'<div style="font-size:.82em;font-weight:700;color:var(--of-primary);margin-bottom:6px;padding-bottom:3px;border-bottom:2px solid var(--of-primary)">📌 '+e(selLabel)+' <span style="font-weight:500;color:var(--gray-500)">('+selEvs.length+')</span></div>'
+    +(selEvs.length?selEvs.map(_todoRow).join(''):'<div style="text-align:center;color:var(--text-mute);font-size:.82em;padding:14px 0">이 날 할 일이 없습니다</div>')
+    +'</div>';
+  list.innerHTML=html;
 }
 function _todoRow(m){
   /* 출처 배지: 업체(🏢) > 거래처(👤) > 상담방(💬) > 개인(📍) 순.
