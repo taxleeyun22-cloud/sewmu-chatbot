@@ -85,13 +85,26 @@
 </div>
 <!-- 📋 내 할 일 대시보드 모달 (전체 방 + 개인 일정 통합 뷰) -->
 <div id="myTodosModal" class="modal-overlay" style="z-index:11400;display:none">
-  <div class="modal-card" style="max-width:720px;max-height:92vh">
+  <div class="modal-card" style="max-width:860px;max-height:92vh;display:flex;flex-direction:column">
     <div style="padding:14px 18px;border-bottom:1px solid var(--neutral-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <div style="font-weight:700;font-size:1em">📋 내 할 일 <span id="mtMeta" style="font-size:.72em;color:var(--text-mute);font-weight:500;margin-left:6px"></span></div>
       <div style="display:flex;gap:6px;align-items:center">
         <label style="font-size:.75em;color:var(--gray-500);display:flex;align-items:center;gap:4px"><input type="checkbox" id="mtOnlyMine" onchange="loadMyTodos()" checked style="width:14px;height:14px;cursor:pointer"> 내 것만</label>
         <button onclick="loadMyTodos()" style="background:var(--neutral-border);border:none;padding:5px 10px;border-radius:6px;font-size:.78em;cursor:pointer;font-family:inherit">🔄</button>
         <button onclick="closeMyTodos()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--text-mute);font-family:inherit;padding:0 6px">✕</button>
+      </div>
+    </div>
+    <!-- 뷰 툴바: 월 네비게이션(달력일 때만) + 목록/달력 토글 -->
+    <div style="padding:9px 16px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fafbfc">
+      <div id="mtCalNav" style="display:flex;align-items:center;gap:4px">
+        <button onclick="mtCalPrev()" title="이전 달" style="width:28px;height:28px;border:0;background:transparent;border-radius:50%;cursor:pointer;color:var(--text-sub);font-size:15px;font-family:inherit">‹</button>
+        <button onclick="mtCalNext()" title="다음 달" style="width:28px;height:28px;border:0;background:transparent;border-radius:50%;cursor:pointer;color:var(--text-sub);font-size:15px;font-family:inherit">›</button>
+        <span id="mtCalTitle" style="font-size:.95em;font-weight:700;color:var(--text-main);margin:0 4px"></span>
+        <button onclick="mtCalToday()" style="border:1px solid var(--neutral-border);background:#fff;border-radius:7px;padding:5px 11px;font-size:.76em;color:var(--text-sub);cursor:pointer;font-family:inherit">오늘</button>
+      </div>
+      <div style="margin-left:auto;display:flex;background:var(--neutral-bg);border-radius:9px;padding:3px">
+        <button id="mtViewList" onclick="setMtView('list')" style="border:0;background:transparent;border-radius:7px;padding:6px 13px;font-size:.8em;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit">📋 목록</button>
+        <button id="mtViewCal" onclick="setMtView('calendar')" style="border:0;background:transparent;border-radius:7px;padding:6px 13px;font-size:.8em;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit">🗓 달력</button>
       </div>
     </div>
     <!-- 개인 일정 추가 폼 -->
