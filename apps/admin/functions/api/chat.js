@@ -146,11 +146,57 @@ function buildClientContext(businesses, userRealName) {
   const header = userRealName ? `- 대화 상대: ${userRealName}님\n` : "";
   if (businesses.length === 1) {
     const lines = businessLine(businesses[0], null);
-    return `\n\n===== 현재 상담 거래처 정보 (기장거래처) =====\n${header}${lines}\n\n[활용 지침]\n- 답변 시 위 정보를 자연스럽게 반영. "○○상사님(간이과세)은..." 같이 맞춤 호칭·상황 반영.\n- 과세유형·업종 특수 사항 고려 (예: 음식점 의제매입세액, 건설업 기성고 등).\n- 세무사 메모가 있으면 그 맥락 반영.\n- 사업자번호·매출 같은 민감정보는 답변에 노출하지 마.\n`;
+    return `\n\n===== 현재 상담 거래처 정보 (기장거래처) =====\n${header}${lines}\n\n[활용 지침]\n- 답변 시 위 정보를 자연스럽게 반영. "○○상사님(간이과세)은..." 같이 맞춤 호칭·상황 반영.\n- 과세유형·업종 특수 사항 고려 (예: 음식점 의제매입세액, 건설업 기성고 등).\n- 세무사 메모가 있으면 그 맥락 반영.\n- 사업자번호는 답변에 노출 자제. 단, "로그인한 본인"이 본인의 매출·세금을 물으면 아래 "신고 검토표 데이터"의 숫자로 정확히 답변 가능 (본인 데이터이므로 OK).\n`;
   }
   // 복수 사업장
   const blocks = businesses.map((b, i) => businessLine(b, i)).join('\n\n');
-  return `\n\n===== 현재 상담 거래처 정보 (기장거래처 · ${businesses.length}개 사업장) =====\n${header}${blocks}\n\n[활용 지침]\n- 위 ${businesses.length}개 사업장을 운영 중이신 대표자입니다.\n- 질문이 특정 사업장에 해당하는지 맥락 파악 필요 (예: "우리 음식점"이라면 음식점 사업장 기준).\n- 사업장별 과세유형·업종이 다를 수 있으므로 구분해서 안내.\n- 사업자별 매출 합산·비교 등 질문 가능성도 고려.\n- 세무사 메모가 있으면 그 맥락 반영.\n- 민감정보(사업자번호·매출)는 직접 노출 자제.\n`;
+  return `\n\n===== 현재 상담 거래처 정보 (기장거래처 · ${businesses.length}개 사업장) =====\n${header}${blocks}\n\n[활용 지침]\n- 위 ${businesses.length}개 사업장을 운영 중이신 대표자입니다.\n- 질문이 특정 사업장에 해당하는지 맥락 파악 필요 (예: "우리 음식점"이라면 음식점 사업장 기준).\n- 사업장별 과세유형·업종이 다를 수 있으므로 구분해서 안내.\n- 사업자별 매출 합산·비교 등 질문 가능성도 고려.\n- 세무사 메모가 있으면 그 맥락 반영.\n- 사업자번호는 직접 노출 자제. 단, "로그인한 본인"이 본인의 매출·세금을 물으면 아래 "신고 검토표 데이터"의 숫자로 정확히 답변 가능 (본인 데이터이므로 OK).\n`;
+}
+
+/* 본인 신고 검토표(filings) 조회 — 사장님 명령 (2026-06-05): "작년 매출?" 챗봇 답변용.
+ * ⚠️ 격리: 반드시 owner = 로그인 본인(userId) 인 것만. 사업장·재무(client_finance)와 동일 패턴.
+ * Person(개인 종소세) 한정 — 가장 좁고 안전한 범위로 시작. */
+async function getClientFilings(db, userId) {
+  if (!db || !userId) return [];
+  /* 1차: 스크래핑 출처/검증 컬럼 반영 — 미검증 스크래핑 행은 챗봇에 노출 안 함.
+   *   manual/legacy(NULL) 는 기존대로 통과, source='scraped' 는 verified_at 있을 때만.
+   *   (신고서 스크래핑 Phase 4, 2026-06-17) */
+  try {
+    const { results } = await db.prepare(
+      `SELECT type, fiscal_year, auto_fields, source FROM filings
+       WHERE owner_type = 'Person' AND owner_id = ? AND (deleted_at IS NULL OR deleted_at = '')
+         AND (source = 'manual' OR source IS NULL OR verified_at IS NOT NULL)
+       ORDER BY fiscal_year DESC LIMIT 5`
+    ).bind(userId).all();
+    return results || [];
+  } catch {
+    /* 2차 폴백: source/verified_at 컬럼 미생성(스크래핑 도입 전) → 기존 동작(수동 검토표). */
+    try {
+      const { results } = await db.prepare(
+        `SELECT type, fiscal_year, auto_fields FROM filings
+         WHERE owner_type = 'Person' AND owner_id = ? AND (deleted_at IS NULL OR deleted_at = '')
+         ORDER BY fiscal_year DESC LIMIT 5`
+      ).bind(userId).all();
+      return results || [];
+    } catch { return []; }
+  }
+}
+
+function buildFilingContext(filings) {
+  if (!filings || filings.length === 0) return "";
+  const won = (n) => (Number(n) || 0).toLocaleString('ko-KR');
+  const lines = filings.map((f) => {
+    let af = {};
+    try { af = JSON.parse(f.auto_fields || '{}'); } catch {}
+    const parts = [`- ${f.fiscal_year}년 귀속 ${f.type}`];
+    if (af.revenue) parts.push(`수입금액 ${won(af.revenue)}원`);
+    if (af.decisive_tax) parts.push(`결정세액(낸 세금) ${won(af.decisive_tax)}원`);
+    /* 신고 제출 여부 (스크래핑 신고서 기준) — "신고됐어?" 질문 대응 */
+    if (typeof af.submitted === 'boolean') parts.push(af.submitted ? '신고 완료(제출됨)' : '아직 신고 전(미제출)');
+    if (f.source === 'scraped') parts.push('출처: 국세청 신고서');
+    return parts.join(' · ');
+  }).join('\n');
+  return `\n\n===== 본인(로그인 거래처)의 신고 검토표 데이터 [확정·권위 데이터] =====\n${lines}\n\n[필수 지침 — 반드시 따를 것]\n1. 위 목록은 "지금 로그인한 본인"의 확정 신고 데이터입니다. 사용자가 특정 연도 매출/세금(예: "2025년 매출", "작년 매출", "세금 얼마 냈어")을 물으면, 위 목록에서 해당 "N년 귀속" 줄을 찾아 그 수입금액·세액을 숫자 그대로 답하세요.\n2. 목록에 그 연도의 수입금액이 적혀 있으면 무조건 그 숫자로 답하세요. "아직 반영되지 않았다 / 신고 전이다 / 담당 세무사 확인 필요 / 확인되지 않습니다" 같은 회피·추론은 절대 하지 마세요 — 데이터가 이미 여기 있습니다. (귀속연도가 최근이어도 위에 숫자가 있으면 그대로 답하세요.)\n3. 위 목록에 아예 없는 연도만 "○○년 자료는 아직 없습니다"라고 답하세요.\n4. 다른 사람·다른 거래처의 매출/세금은 여기 없으며, 어떤 경우에도 만들어내거나 답하지 마세요.\n`;
 }
 
 // 승인상태별 일일 한도 (사장님 명령 2026-05-02: 일반승인 폐지, pending 5회로 인상)
@@ -636,6 +682,9 @@ export async function onRequestPost(context) {
         userRealName = u ? u.real_name : null;
         const businesses = await getClientBusinesses(db, userId);
         clientContext = buildClientContext(businesses, userRealName);
+        /* 본인 검토표(매출·세금) 추가 — WHERE owner = 본인(userId) 만 (2026-06-05) */
+        const filings = await getClientFilings(db, userId);
+        clientContext += buildFilingContext(filings);
       } catch {}
       // 재무 데이터 (매출·매입·세금) — 세무사가 입력해 둔 client_finance 최근 12건
       try {
