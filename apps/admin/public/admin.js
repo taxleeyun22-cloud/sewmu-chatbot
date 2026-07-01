@@ -908,13 +908,23 @@ function _renderMyTodos(){
   $g('mtMeta').textContent=total+'건';
 }
 function _todoRow(m){
-  const isPersonal=!m.room_id;
-  const roomBadge=isPersonal
-    ? '<span style="background:var(--of-warn-soft);color:var(--warn-text);padding:1px 7px;border-radius:8px;font-size:.7em;font-weight:700">📍 개인</span>'
-    : '<a href="javascript:void(0)" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(m.room_id)+'\')" style="background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:8px;font-size:.7em;font-weight:700;text-decoration:none" title="이 방으로 이동">📍 '+e(m.room_name||m.room_id)+'</a>';
+  /* 출처 배지: 업체(🏢) > 거래처(👤) > 상담방(💬) > 개인(📍) 순.
+   * room_id 가 '__none__' 이거나 빈값이면 방 아님 → 업체/거래처/개인으로 표시(옛 "__none__" 버그 제거) */
+  const realRoom = m.room_id && m.room_id !== '__none__' ? m.room_id : '';
+  const custName = m.customer_name || m.customer_nickname || '';
+  let roomBadge;
+  if(m.business_name){
+    roomBadge='<span style="background:#e8f0fe;color:#1967d2;padding:1px 7px;border-radius:8px;font-size:.7em;font-weight:700">🏢 '+e(m.business_name)+'</span>';
+  }else if(custName){
+    roomBadge='<span style="background:#e6f4ea;color:#188038;padding:1px 7px;border-radius:8px;font-size:.7em;font-weight:700">👤 '+e(custName)+'</span>';
+  }else if(realRoom){
+    roomBadge='<a href="javascript:void(0)" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(realRoom)+'\')" style="background:#f3e8fd;color:#8430ce;padding:1px 7px;border-radius:8px;font-size:.7em;font-weight:700;text-decoration:none" title="이 방으로 이동">💬 '+e(m.room_name||realRoom)+'</a>';
+  }else{
+    roomBadge='<span style="background:var(--of-warn-soft);color:var(--warn-text);padding:1px 7px;border-radius:8px;font-size:.7em;font-weight:700">📍 개인</span>';
+  }
   const dueLbl=m.due_date?'<span style="font-size:.7em;color:var(--gray-500)">📅 '+e(m.due_date)+'</span>':'';
   const linkBtn=m.linked_message_id
-    ? '<a href="javascript:void(0)" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(m.room_id||'')+'\','+m.linked_message_id+')" style="color:var(--of-primary);font-size:.72em;text-decoration:none" title="원본 메시지">🔗#'+m.linked_message_id+'</a>'
+    ? '<a href="javascript:void(0)" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(realRoom)+'\','+m.linked_message_id+')" style="color:var(--of-primary);font-size:.72em;text-decoration:none" title="원본 메시지">🔗#'+m.linked_message_id+'</a>'
     : '';
   return '<div style="display:flex;gap:9px;padding:8px 10px;border:1px solid #fde68a;border-radius:7px;margin-bottom:5px;background:#fffef5;align-items:flex-start">'
     +'<input type="checkbox" onchange="completeTodo('+m.id+')" style="width:18px;height:18px;cursor:pointer;accent-color:var(--of-success);flex-shrink:0;margin-top:1px">'
@@ -3674,8 +3684,7 @@ function _adminSidebarClick(e){
   function _bindSbActionBtns(){
     var pairs = [
       ['sbTrashBtn',     function(){ if(typeof openTrash==='function') openTrash(); else alert('휴지통 — 함수 미정의'); }],
-      /* sbMyTodosBtn: 2026-06-30 새 admin 달력(/admin/todos)으로 링크 전환 → JS 모달 바인딩 제거
-       * (안 그러면 <a> 링크 대신 옛 모달이 뜸). openMyTodos 모달은 잔존(다른 경로 대비). */
+      ['sbMyTodosBtn',   function(){ if(typeof openMyTodos==='function') openMyTodos(); else alert('내 일정 — 함수 미정의'); }],
       ['sbTermReqBtn',   function(){ if(typeof openTerminationRequests==='function') openTerminationRequests(); else alert('종료 요청 — 함수 미정의'); }],
       ['sbBulkSendBtn',  function(){ if(typeof openBulkSend==='function') openBulkSend(); else alert('단체발송 — 함수 미정의'); }],
       ['sbSearchBtn',    function(){ if(typeof openSearch==='function') openSearch(); else alert('전역 검색 — 함수 미정의'); }],
