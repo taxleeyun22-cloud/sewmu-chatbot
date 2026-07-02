@@ -114,8 +114,14 @@
 #myTodosModal .mtd-sec.blue{color:#1a73e8}
 #myTodosModal .mtd-row{display:flex;align-items:flex-start;gap:14px;padding:11px 10px;border-radius:12px}
 #myTodosModal .mtd-row:hover{background:#f8f9fa}
-#myTodosModal .mtd-ck{width:20px;height:20px;border:2px solid #5f6368;border-radius:50%;margin-top:1px;flex:0 0 auto;cursor:pointer;background:transparent;padding:0}
+#myTodosModal .mtd-ck{width:20px;height:20px;border:2px solid #5f6368;border-radius:50%;margin-top:1px;flex:0 0 auto;cursor:pointer;background:transparent;padding:0;position:relative}
 #myTodosModal .mtd-ck:hover{border-color:#1a73e8;background:#e8f0fe}
+#myTodosModal .mtd-ck.on{background:#1a73e8;border-color:#1a73e8}
+#myTodosModal .mtd-ck.on:after{content:"";position:absolute;left:5px;top:2px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+#myTodosModal .mtd-ck.on:hover{background:#5f6368;border-color:#5f6368}
+#myTodosModal .mtd-row.done .mtd-t{color:#9aa0a6;text-decoration:line-through}
+#myTodosModal .mtd-donehdr{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#5f6368;padding:14px 10px 4px;cursor:pointer;font-family:'Google Sans','Pretendard',sans-serif;border-top:1px solid #e8eaed;margin-top:12px;user-select:none}
+#myTodosModal .mtd-donehdr:hover{color:#1a73e8}
 #myTodosModal .mtd-t{font-size:14px;color:#202124;line-height:1.45;word-break:break-word}
 #myTodosModal .mtd-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px}
 #myTodosModal .mtd-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;border-radius:999px;padding:3px 10px;font-weight:500;text-decoration:none}

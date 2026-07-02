@@ -11,13 +11,16 @@
 - 모달 추가/수정 시 해당 `modals/*.html` 만 편집 → 빌드가 admin-modals.html 재생성
 - 검증: 빌드 후 `git diff admin-modals.html` 비어야 정상 (런타임 0 변화)
 
-## 🔁 미러 자동화 (A-3, 2026-05-17 — 수동 cp 폐지)
-**`apps/admin/public/` 은 repo-root 정적 자산의 자동 미러.** 직접 편집·수동 `cp` 금지.
+## 🔁 미러 자동화 (A-3, 2026-05-17 — 수동 cp 폐지 · 2026-07-02 functions/api 확장)
+**`apps/admin/public/` 과 `apps/admin/functions/api/` 는 repo-root 의 자동 미러.** 직접 편집·수동 `cp` 금지.
 - 정본 = repo root 의 `admin*.js` / `*.html` / `admin.css` 등 (31개, `scripts/sync-mirror.mjs` FILES 목록)
-- pre-commit hook 이 `node scripts/sync-mirror.mjs` 실행 → 변경분 자동 stage → drift 영구 차단
-- apps/admin `prebuild` 도 동일 실행 (CI 빌드 안전망)
+- **functions/api (2026-07-02, P0 #1)**: root `functions/api/**/*.{js,json}` → `apps/admin/functions/api/` 자동 미러.
+  수동 cp 시절 `_adminAuth.js` 드리프트로 새 admin 401 사고(2026-06-30) — 재발 근본 차단.
+  테스트 파일(`*.test.ts`)은 root 전용(미러 제외). 미러 쪽 여분 파일은 삭제 안 함.
+- pre-commit hook 이 `node scripts/sync-mirror.mjs --stage` 실행 → 변경분 자동 stage → drift 영구 차단
+- apps/admin `prebuild` 도 동일 실행 (CI 빌드 안전망). `--check` 모드 = CI 드리프트 검증.
 - 환경별 분기 필요 시 **root 에 통합** (예: admin.css P0 모달 fix 를 root 로 포팅함). 역방향(미러→root) 금지.
-- 새 정적 파일 추가 시 `scripts/sync-mirror.mjs` 의 `FILES` 에 1줄 추가.
+- 새 정적 파일 추가 시 `scripts/sync-mirror.mjs` 의 `FILES` 에 1줄 추가 (functions/api 는 자동 — 목록 불필요).
 
 ## 영역
 - `public/` — 옛 admin.html / admin-*.js / admin.css / admin-modals.html 통째 (정적 자산, root 자동 미러)

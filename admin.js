@@ -842,6 +842,8 @@ function applyPopupLayout(roomId){
    Purpose: 방 150개 일일이 클릭 안 해도 오늘·내일·이번주 할 일 한 번에 파악
    Data source: /api/memos?scope=my (미완료 할 일만, 방 정보 JOIN) */
 let _myTodosCache=[];
+let _myTodosDone=[];      /* 완료됨 (최근 50) — 목록 뷰 하단 "완료됨 N" 접이식 + 체크 해제 복구 */
+let _mtDoneOpen=false;
 let _mtView='calendar';   /* 'calendar'(월) | 'year'(연간) | 'list' — 기본 월 달력 (사장님: 마감 한눈에) */
 let _mtScope='mine';      /* 'mine'(내 할일) | 'team'(팀 전체) — 기본 본인거만 */
 let _mtCalY=0, _mtCalM0=0; /* 표시중인 달력 연/월(0-based) */
@@ -960,8 +962,9 @@ async function loadMyTodos(){
   list.innerHTML='<div style="text-align:center;color:var(--text-mute);padding:40px 0;font-size:.88em">불러오는 중...</div>';
   const onlyMine=(_mtScope==='mine')?1:0;
   try{
-    const d=await _mtJson('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my&only_mine='+onlyMine);
+    const d=await _mtJson('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my&only_mine='+onlyMine+'&include_done=1');
     if(d.error){list.innerHTML='<div style="color:var(--toss-red);padding:20px 0">오류: '+e(d.error)+'</div>';return}
+    _myTodosDone=d.done||[];
     _myTodosCache=(d.memos||[]).map(m=>({...m, _t:_normType(m.memo_type_display||m.memo_type)}));
     _renderMyTodos();
     _updateMyTodosBadge();
@@ -988,7 +991,8 @@ function _renderMyTodos(){
       +'<div style="width:68px;height:68px;border-radius:50%;background:#e8f0fe;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 16px">🎉</div>'
       +'<div style="font-size:15px;font-weight:600;color:#202124;margin-bottom:6px">할 일을 모두 끝냈어요</div>'
       +'<div style="font-size:12.5px;color:#5f6368;line-height:1.7">위 입력창에서 새 할일을 추가하거나<br>거래처·상담방 메모에서 "할 일"로 작성하면 여기 모입니다</div>'
-      +'</div>';
+      +'</div>'
+      +_mtDoneSection();
     return;
   }
   /* Google Tasks(C안) — 섹션 헤더 + 행 */
@@ -1007,6 +1011,7 @@ function _renderMyTodos(){
     const arr=groups[k];if(!arr.length)continue;
     html+='<div class="mtd-sec '+cls+'">'+e(lab)+'</div>'+arr.map(_todoRow).join('');
   }
+  html+=_mtDoneSection();
   list.innerHTML=html;
 }
 /* 기한 라벨 (Google Tasks 톤): 지남=빨강 "6월 30일 · 1일 지남" / 오늘·내일=파랑 / 이번주=주황 / 이후=회색 */
@@ -1091,6 +1096,7 @@ function _renderMtCalendar(list){
     if(selTax.length) html+='<div class="mtd-taxline">🏛 '+selTax.map(e).join(' · ')+' <span style="color:#9aa0a6">— 주말·공휴일이면 다음 영업일 순연</span></div>';
   }
   html+=(selEvs.length?selEvs.map(_todoRow).join(''):'<div style="font-size:12.5px;color:#9aa0a6;padding:8px 10px">이 날 할 일이 없습니다 — 위 입력창에 적고 Enter</div>');
+  html+=_mtDoneSection();
   list.innerHTML=html;
 }
 /* 연간 뷰 — Google Calendar 연간 톤: 12개 미니 달. 할일 있는 날 = 파랑 원, 지남 = 빨강, 오늘 = 채운 파랑.
@@ -1180,11 +1186,50 @@ async function completeTodo(id){
       body:JSON.stringify({memo_type:'완료'})
     });
     if(!d.ok){alert('완료 처리 실패: '+(d.error||'unknown'));return}
-    /* 즉시 UI 제거 (캐시에서 빼고 리렌더) */
+    /* 즉시 완료됨으로 이동 (실수 클릭 = "완료됨 N" 섹션에서 체크 해제로 복구) */
+    const done=_myTodosCache.find(m=>m.id===id);
     _myTodosCache=_myTodosCache.filter(m=>m.id!==id);
+    if(done)_myTodosDone.unshift({...done, memo_type:'완료'});
     _renderMyTodos();
     _updateMyTodosBadge();
   }catch(err){alert('오류: '+err.message)}
+}
+/* 완료 해제 (되돌리기) — 완료됨 섹션 체크 클릭 */
+async function uncompleteTodo(id){
+  try{
+    const d=await _mtJson('/api/memos?key='+encodeURIComponent(KEY)+'&id='+id,{
+      method:'PATCH',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({memo_type:'할 일'})
+    });
+    if(!d.ok){alert('되돌리기 실패: '+(d.error||'unknown'));return}
+    const it=_myTodosDone.find(m=>m.id===id);
+    _myTodosDone=_myTodosDone.filter(m=>m.id!==id);
+    if(it)_myTodosCache.push({...it, memo_type:'할 일', _t:'할 일'});
+    _renderMyTodos();
+    _updateMyTodosBadge();
+  }catch(err){alert('오류: '+err.message)}
+}
+function toggleMtDone(){ _mtDoneOpen=!_mtDoneOpen; _renderMyTodos(); }
+/* "완료됨 N" 접이식 섹션 (목록·달력 뷰 공통 하단) */
+function _mtDoneSection(){
+  if(!_myTodosDone.length)return '';
+  let html='<div class="mtd-donehdr" onclick="toggleMtDone()"><span>'+(_mtDoneOpen?'▾':'▸')+'</span> 완료됨 ('+_myTodosDone.length+')</div>';
+  if(_mtDoneOpen){
+    html+=_myTodosDone.map(m=>{
+      const src=_mtSource(m);
+      const chipCls=src.k==='biz'?'biz':(src.k==='cust'?'cust':(src.k==='room'?'room':'self'));
+      const chipTxt=src.k==='biz'?'🏢 '+src.name:(src.k==='cust'?'👤 '+src.name:(src.k==='room'?'💬 '+src.name:'개인'));
+      return '<div class="mtd-row done">'
+        +'<button class="mtd-ck on" onclick="uncompleteTodo('+m.id+')" title="완료 해제 (할 일로 되돌리기)"></button>'
+        +'<div style="flex:1;min-width:0">'
+        +'<div class="mtd-t">'+e(m.content||'')+'</div>'
+        +'<div class="mtd-meta"><span class="mtd-chip '+chipCls+'">'+e(chipTxt)+'</span>'
+        +'<span class="mtd-who">'+e(m.author_name||'')+'</span>'
+        +'<button class="mtd-del" onclick="deleteTodoFromDashboard('+m.id+')" title="삭제">🗑</button>'
+        +'</div></div></div>';
+    }).join('');
+  }
+  return html;
 }
 async function deleteTodoFromDashboard(id){
   if(!confirm('이 할 일을 삭제할까요?'))return;
@@ -1192,6 +1237,7 @@ async function deleteTodoFromDashboard(id){
     const d=await _mtJson('/api/memos?key='+encodeURIComponent(KEY)+'&id='+id,{method:'DELETE'});
     if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
     _myTodosCache=_myTodosCache.filter(m=>m.id!==id);
+    _myTodosDone=_myTodosDone.filter(m=>m.id!==id);
     _renderMyTodos();
     _updateMyTodosBadge();
   }catch(err){alert('오류: '+err.message)}
