@@ -460,7 +460,31 @@ export async function onRequestGet(context) {
         tags: r.tags ? safeParseJson(r.tags) : [],
         attachments: r.attachments ? safeParseJson(r.attachments) : [],
       }));
-      return Response.json({ ok: true, memos: normalized, types: NEW_TYPES, scope: 'my' });
+      /* 2. 완료됨 (최근 50건) — "완료됨 N" 섹션 + 체크 해제(되돌리기)용. include_done=1 일 때만 */
+      let done = [];
+      if (url.searchParams.get('include_done') === '1') {
+        try {
+          const doneSql = `SELECT m.id, m.room_id, m.target_business_id, m.target_user_id,
+                                  m.author_user_id, m.author_name, m.assigned_to_user_id,
+                                  m.memo_type, m.content, m.due_date, m.linked_message_id,
+                                  m.created_at, m.updated_at,
+                                  r.name AS room_name,
+                                  b.company_name AS business_name,
+                                  u.real_name AS customer_name, u.name AS customer_nickname
+                             FROM memos m
+                        LEFT JOIN chat_rooms r ON m.room_id = r.id
+                        LEFT JOIN businesses b ON m.target_business_id = b.id
+                        LEFT JOIN users u ON m.target_user_id = u.id
+                            WHERE m.deleted_at IS NULL
+                              AND m.memo_type = '완료'
+                              ${whereAssignee}
+                            ORDER BY m.updated_at DESC
+                            LIMIT 50`;
+          const dres = await db.prepare(doneSql).bind(...binds).all();
+          done = dres.results || [];
+        } catch (_) { /* done 조회 실패해도 본목록은 정상 반환 */ }
+      }
+      return Response.json({ ok: true, memos: normalized, done, types: NEW_TYPES, scope: 'my' });
     } catch (e) {
       return Response.json({ error: e.message }, { status: 500 });
     }

@@ -17,7 +17,7 @@
  * 제외: filing-tax-credit-catalog.json / permissions.json 등은 root `public/` 에서
  *       vite viteStaticCopy 로 별도 관리 → 이 미러 대상 아님.
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -98,19 +98,49 @@ for (const f of FILES) {
   }
 }
 
+/* ---- functions/api 미러 (P0 #1, 2026-07-02) ----
+ * 배경: admin*.js/html 은 자동 미러인데 백엔드(functions/api)는 수동 cp 였음
+ * → 2026-06-30 새 admin 401 사고(_adminAuth.js 드리프트)의 원인. 자동화로 근본 차단.
+ * 정본 = root functions/api → 미러 = apps/admin/functions/api (역방향 금지).
+ * *.js / *.json 만 (테스트 *.test.ts / *.integration.test.ts 는 root 전용).
+ * 미러 쪽 여분 파일은 삭제하지 않음 (안전). */
+const FN_SRC = join(ROOT, 'functions', 'api');
+const FN_DST = join(ROOT, 'apps', 'admin', 'functions', 'api');
+const fnSynced = [];
+function syncFnDir(rel) {
+  const absDir = join(FN_SRC, rel);
+  for (const name of readdirSync(absDir)) {
+    const r = rel ? rel + '/' + name : name;
+    const src = join(FN_SRC, r);
+    if (statSync(src).isDirectory()) { syncFnDir(r); continue; }
+    if (!/\.(js|json)$/.test(name)) continue;
+    const dst = join(FN_DST, r);
+    const buf = readFileSync(src);
+    let same = false;
+    if (existsSync(dst)) { try { same = readFileSync(dst).equals(buf); } catch { same = false; } }
+    if (!same) {
+      mkdirSync(dirname(dst), { recursive: true });
+      writeFileSync(dst, buf);
+      fnSynced.push(r);
+    }
+  }
+}
+if (existsSync(FN_SRC)) syncFnDir('');
+
+const totalDrift = copied + fnSynced.length;
 if (missingRoot.length) {
   console.error('⚠️  sync-mirror: root 에 없는 정본 파일 (목록 점검 필요): ' + missingRoot.join(', '));
 }
-if (copied === 0) {
+if (totalDrift === 0) {
   console.log('✅ sync-mirror: 미러 이미 최신 (드리프트 0)');
 } else {
-  console.log('✅ sync-mirror: ' + copied + '개 동기화 → apps/admin/public/');
-  console.log('   ' + synced.join(', '));
+  if (copied) console.log('✅ sync-mirror: ' + copied + '개 동기화 → apps/admin/public/\n   ' + synced.join(', '));
+  if (fnSynced.length) console.log('✅ sync-mirror: ' + fnSynced.length + '개 동기화 → apps/admin/functions/api/\n   ' + fnSynced.join(', '));
 }
 
-/* CI 검증용: --check 모드 시 드리프트 있으면 비정상 종료 (복사 안 함) */
-if (process.argv.includes('--check') && copied > 0) {
-  console.error('❌ sync-mirror --check: 미러 드리프트 감지 (' + synced.join(', ') + ')');
+/* CI 검증용: --check 모드 시 드리프트 있으면 비정상 종료 (복사는 이미 수행됨 — 커밋 전 상태 검증용) */
+if (process.argv.includes('--check') && totalDrift > 0) {
+  console.error('❌ sync-mirror --check: 미러 드리프트 감지 (' + synced.concat(fnSynced.map(f=>'functions/api/'+f)).join(', ') + ')');
   process.exit(1);
 }
 
@@ -121,6 +151,7 @@ if (process.argv.includes('--check') && copied > 0) {
 if (process.argv.includes('--stage')) {
   const paths = FILES
     .map((f) => join(MIRROR, f))
+    .concat(fnSynced.map((f) => join(FN_DST, f)))
     .filter((p) => existsSync(p))
     .map((p) => p.replace(ROOT + (process.platform === 'win32' ? '\\' : '/'), '').replace(/\\/g, '/'));
   if (paths.length) {
