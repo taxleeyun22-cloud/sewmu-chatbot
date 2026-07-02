@@ -842,7 +842,8 @@ function applyPopupLayout(roomId){
    Purpose: 방 150개 일일이 클릭 안 해도 오늘·내일·이번주 할 일 한 번에 파악
    Data source: /api/memos?scope=my (미완료 할 일만, 방 정보 JOIN) */
 let _myTodosCache=[];
-let _mtView='calendar';   /* 'calendar' | 'list' — 기본 달력 (사장님: 마감 한눈에) */
+let _mtView='calendar';   /* 'calendar'(월) | 'year'(연간) | 'list' — 기본 월 달력 (사장님: 마감 한눈에) */
+let _mtScope='mine';      /* 'mine'(내 할일) | 'team'(팀 전체) — 기본 본인거만 */
 let _mtCalY=0, _mtCalM0=0; /* 표시중인 달력 연/월(0-based) */
 let _mtSelDate='';         /* 달력에서 선택된 날 YYYY-MM-DD (하단 상세) */
 function _todayKST(){ return new Date(Date.now()+9*60*60*1000).toISOString().substring(0,10); }
@@ -860,6 +861,7 @@ async function openMyTodos(){
   if($g('mtNewDue'))$g('mtNewDue').value=t;
   _applyMtFull();
   _syncMtViewUI();
+  _syncMtScopeUI();
   await loadMyTodos();
 }
 /* 전체화면 ⟷ 모달 스위칭 */
@@ -876,17 +878,32 @@ function _applyMtFull(){
   const b=$g('mtFullBtn');
   if(b){ b.textContent=_mtFull?'🗗 창으로':'⛶ 전체화면'; b.title=_mtFull?'창 크기로 돌아가기':'전체화면으로 크게 보기'; }
 }
-/* 뷰 토글 */
-function setMtView(v){ _mtView=(v==='list'?'list':'calendar'); _syncMtViewUI(); _renderMyTodos(); }
+/* 뷰 토글: 목록 / 월 / 연간 */
+function setMtView(v){ _mtView=(v==='list'||v==='year')?v:'calendar'; _syncMtViewUI(); _renderMyTodos(); }
 function _syncMtViewUI(){
-  const cal=_mtView==='calendar';
-  const bl=$g('mtViewList'), bc=$g('mtViewCal'), nav=$g('mtCalNav');
-  if(bl){ bl.style.background=cal?'transparent':'#fff'; bl.style.color=cal?'var(--text-sub)':'var(--of-primary)'; bl.style.boxShadow=cal?'none':'0 1px 2px rgba(0,0,0,.12)'; }
-  if(bc){ bc.style.background=cal?'#fff':'transparent'; bc.style.color=cal?'var(--of-primary)':'var(--text-sub)'; bc.style.boxShadow=cal?'0 1px 2px rgba(0,0,0,.12)':'none'; }
-  if(nav) nav.style.visibility=cal?'visible':'hidden';
+  const pairs=[['mtViewList',_mtView==='list'],['mtViewCal',_mtView==='calendar'],['mtViewYear',_mtView==='year']];
+  for(const [id,on] of pairs){
+    const b=$g(id); if(!b)continue;
+    b.style.background=on?'#fff':'transparent';
+    b.style.color=on?'var(--of-primary)':'var(--text-sub)';
+    b.style.boxShadow=on?'0 1px 2px rgba(0,0,0,.12)':'none';
+  }
+  const nav=$g('mtCalNav'); if(nav) nav.style.visibility=(_mtView==='list')?'hidden':'visible';
 }
-function mtCalPrev(){ _mtCalM0--; if(_mtCalM0<0){_mtCalM0=11;_mtCalY--;} _renderMyTodos(); }
-function mtCalNext(){ _mtCalM0++; if(_mtCalM0>11){_mtCalM0=0;_mtCalY++;} _renderMyTodos(); }
+/* 범위 토글: 내 할일 / 팀 전체 */
+function setMtScope(s){ _mtScope=(s==='team'?'team':'mine'); _syncMtScopeUI(); loadMyTodos(); }
+function _syncMtScopeUI(){
+  const pairs=[['mtScopeMine',_mtScope==='mine'],['mtScopeTeam',_mtScope==='team']];
+  for(const [id,on] of pairs){
+    const b=$g(id); if(!b)continue;
+    b.style.background=on?'#fff':'transparent';
+    b.style.color=on?'var(--of-primary)':'var(--text-sub)';
+    b.style.boxShadow=on?'0 1px 2px rgba(0,0,0,.12)':'none';
+  }
+}
+/* ‹ › : 월 뷰 = ±1달, 연간 뷰 = ±1년 */
+function mtCalPrev(){ if(_mtView==='year'){_mtCalY--;} else {_mtCalM0--; if(_mtCalM0<0){_mtCalM0=11;_mtCalY--;}} _renderMyTodos(); }
+function mtCalNext(){ if(_mtView==='year'){_mtCalY++;} else {_mtCalM0++; if(_mtCalM0>11){_mtCalM0=0;_mtCalY++;}} _renderMyTodos(); }
 function mtCalToday(){ const t=_todayKST(); _mtCalY=parseInt(t.substring(0,4),10); _mtCalM0=parseInt(t.substring(5,7),10)-1; _mtSelDate=t; _renderMyTodos(); }
 /* 날짜 칸 클릭 → 선택 + 추가폼 날짜 자동 입력 + 내용창 포커스 (바로 치고 추가하면 그 날짜에 박힘) */
 function mtSelectDay(d){
@@ -911,7 +928,7 @@ function closeMyTodos(){
 async function loadMyTodos(){
   const list=$g('myTodosList');if(!list)return;
   list.innerHTML='<div style="text-align:center;color:var(--text-mute);padding:40px 0;font-size:.88em">불러오는 중...</div>';
-  const onlyMine=$g('mtOnlyMine')?.checked?1:0;
+  const onlyMine=(_mtScope==='mine')?1:0;
   try{
     const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my&only_mine='+onlyMine);
     const d=await r.json();
@@ -936,6 +953,7 @@ function _renderMyTodos(){
   const list=$g('myTodosList');if(!list)return;
   if($g('mtMeta'))$g('mtMeta').textContent=_myTodosCache.length+'건';
   if(_mtView==='calendar'){ _renderMtCalendar(list); return; }
+  if(_mtView==='year'){ _renderMtYear(list); return; }
   if(!_myTodosCache.length){
     list.innerHTML='<div style="text-align:center;padding:50px 20px;color:var(--text-mute);font-size:.9em">📭 처리할 일이 없습니다<br><span style="font-size:.85em;color:#adb5bd">위 입력창에서 개인 일정을 추가하거나<br>상담방 📒 메모에서 할 일을 작성하세요</span></div>';
     $g('mtMeta').textContent='0건';
@@ -1024,6 +1042,57 @@ function _renderMtCalendar(list){
     +(selEvs.length?selEvs.map(_todoRow).join(''):'<div style="text-align:center;color:var(--text-mute);font-size:.82em;padding:14px 0">이 날 할 일이 없습니다</div>')
     +'</div>';
   list.innerHTML=html;
+}
+/* 연간 뷰 — Google Calendar 연간 톤: 12개 미니 달. 할일 있는 날 = 파랑 원, 지남 = 빨강, 오늘 = 채운 파랑.
+ * 날짜 클릭 → 그 달 월 뷰로 점프 + 그 날 선택. 월 제목 클릭 → 그 달 월 뷰. */
+function _renderMtYear(list){
+  const Y=_mtCalY;
+  if($g('mtCalTitle'))$g('mtCalTitle').textContent=Y+'년';
+  const today=_todayKST();
+  const byDate={};
+  for(const m of _myTodosCache){
+    const d=m.due_date;
+    if(d && /^\d{4}-\d{2}-\d{2}$/.test(d)) (byDate[d]=byDate[d]||[]).push(m);
+  }
+  const wd=['일','월','화','수','목','금','토'];
+  let html='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:12px">';
+  for(let m0=0;m0<12;m0++){
+    const daysInMonth=new Date(Y,m0+1,0).getDate();
+    const startDow=new Date(Y,m0,1).getDay();
+    /* 이 달 할일 개수 (월 제목 옆 배지) */
+    let cnt=0;
+    for(const ds in byDate){ if(ds.substring(0,7)===Y+'-'+String(m0+1).padStart(2,'0')) cnt+=byDate[ds].length; }
+    html+='<div style="border:1px solid var(--neutral-border);border-radius:10px;padding:8px 8px 10px;background:#fff">';
+    html+='<div onclick="mtGotoMonth('+m0+')" style="font-size:.8em;font-weight:700;color:var(--of-primary);cursor:pointer;margin-bottom:5px;padding:1px 3px" title="이 달 월 뷰로">'+(m0+1)+'월'+(cnt?' <span style="font-weight:600;color:var(--gray-500);font-size:.85em">('+cnt+')</span>':'')+'</div>';
+    html+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px">';
+    for(let i=0;i<7;i++){ const c=i===0?'#d93025':(i===6?'#1a73e8':'#9aa0a6'); html+='<div style="text-align:center;font-size:.58em;font-weight:700;color:'+c+'">'+wd[i]+'</div>'; }
+    for(let i=0;i<startDow;i++) html+='<div></div>';
+    for(let d=1; d<=daysInMonth; d++){
+      const ds=Y+'-'+String(m0+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      const evs=byDate[ds]||[];
+      const isToday=ds===today;
+      let st='width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:.62em;border-radius:50%;cursor:pointer;';
+      if(isToday) st+='background:#1a73e8;color:#fff;font-weight:800;';
+      else if(evs.length){ const over=ds<today; st+='background:'+(over?'#fce8e6':'#e8f0fe')+';color:'+(over?'#c5221f':'#1967d2')+';font-weight:800;'; }
+      else st+='color:var(--text-sub);';
+      html+='<div onclick="mtYearSelectDay(\''+ds+'\')" title="'+(evs.length?evs.length+'건 — 클릭하면 월 뷰':'')+'" style="'+st+'">'+d+'</div>';
+    }
+    html+='</div></div>';
+  }
+  html+='</div>';
+  html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:.68em;color:#70757a">'
+    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#1a73e8;vertical-align:middle;margin-right:4px"></i>오늘</span>'
+    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#e8f0fe;vertical-align:middle;margin-right:4px"></i>할일 있음</span>'
+    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#fce8e6;vertical-align:middle;margin-right:4px"></i>기한 지남</span>'
+    +'<span>· 날짜/월 클릭 → 월 뷰로 이동</span></div>';
+  list.innerHTML=html;
+}
+function mtGotoMonth(m0){ _mtCalM0=m0; _mtView='calendar'; _syncMtViewUI(); _renderMyTodos(); }
+function mtYearSelectDay(ds){
+  _mtCalY=parseInt(ds.substring(0,4),10);
+  _mtCalM0=parseInt(ds.substring(5,7),10)-1;
+  _mtView='calendar'; _syncMtViewUI();
+  mtSelectDay(ds); /* 선택 + 추가폼 날짜 자동입력 + 포커스 */
 }
 function _todoRow(m){
   /* 출처 배지: 업체(🏢) > 거래처(👤) > 상담방(💬) > 개인(📍) 순.
