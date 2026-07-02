@@ -83,45 +83,125 @@
     </div>
   </div>
 </div>
-<!-- 📋 내 할 일 대시보드 모달 (전체 방 + 개인 일정 통합 뷰) -->
+<!-- 📋 내 할 일 대시보드 모달 — 사장님 픽 (2026-07-02): 달력 = Google Calendar 톤 미리보기 1:1, 목록 = Google Tasks(C안) 1:1 -->
+<style>
+#myTodosModal .modal-card{max-width:880px;max-height:92vh;display:flex;flex-direction:column;border-radius:24px;overflow:hidden;box-shadow:0 1px 3px rgba(60,64,67,.15),0 4px 12px rgba(60,64,67,.08)}
+#myTodosModal .mtd-top{display:flex;align-items:center;gap:10px;padding:16px 20px 8px;flex-wrap:wrap}
+#myTodosModal .mtd-top h2{font-size:20px;font-weight:500;color:#202124;font-family:'Google Sans','Pretendard',sans-serif;margin:0}
+#myTodosModal .mtd-me{font-size:12px;color:#5f6368;background:#f1f3f4;border-radius:999px;padding:5px 12px}
+#myTodosModal .mtd-iconbtn{width:32px;height:32px;border:0;background:transparent;border-radius:50%;cursor:pointer;color:#5f6368;font-size:15px;font-family:inherit;display:inline-flex;align-items:center;justify-content:center;padding:0}
+#myTodosModal .mtd-iconbtn:hover{background:#e8eaed}
+#myTodosModal .mtd-bar{display:flex;align-items:center;gap:8px;padding:2px 20px 8px;flex-wrap:wrap}
+#myTodosModal .mtd-nav button{width:30px;height:30px;border:0;background:transparent;border-radius:50%;cursor:pointer;color:#5f6368;font-size:16px;font-family:inherit}
+#myTodosModal .mtd-nav button:hover{background:#e8eaed}
+#myTodosModal .mtd-title{font-size:17px;font-weight:500;color:#202124;font-family:'Google Sans','Pretendard',sans-serif;margin:0 2px}
+#myTodosModal .mtd-todaybtn{border:1px solid #dadce0;background:#fff;border-radius:8px;padding:6px 12px;font-size:13px;color:#3c4043;cursor:pointer;font-family:inherit}
+#myTodosModal .mtd-todaybtn:hover{background:#f8f9fa}
+#myTodosModal .mtd-seg{display:flex;background:#e8eaed;border-radius:9px;padding:3px}
+#myTodosModal .mtd-seg button{border:0;background:transparent;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:600;color:#5f6368;cursor:pointer;font-family:inherit;white-space:nowrap}
+#myTodosModal .mtd-seg button.on{background:#fff;color:#1a73e8;box-shadow:0 1px 2px rgba(60,64,67,.2)}
+#myTodosModal .mtd-add{display:flex;align-items:center;gap:13px;padding:6px 20px 10px;color:#1a73e8}
+#myTodosModal .mtd-add .plus{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#e8f0fe;font-weight:700;font-size:15px;flex:0 0 auto}
+#myTodosModal .mtd-add input[type=text]{border:0;outline:0;font-size:14px;flex:1;min-width:150px;color:#202124;background:transparent;font-family:inherit}
+#myTodosModal .mtd-add input[type=date]{border:0;outline:0;font-size:12.5px;color:#5f6368;background:#f1f3f4;border-radius:999px;padding:6px 12px;font-family:inherit}
+#myTodosModal .mtd-add .go{border:0;background:transparent;color:#1a73e8;font-weight:600;font-size:13.5px;border-radius:999px;padding:7px 15px;cursor:pointer;font-family:inherit}
+#myTodosModal .mtd-add .go:hover{background:#e8f0fe}
+#myTodosModal .mtd-list{flex:1;overflow-y:auto;padding:2px 12px 18px;background:#fff}
+/* ---- 목록 (Google Tasks C안) ---- */
+#myTodosModal .mtd-sec{font-size:12px;font-weight:600;color:#5f6368;padding:14px 10px 4px;font-family:'Google Sans','Pretendard',sans-serif}
+#myTodosModal .mtd-sec.red{color:#d93025}
+#myTodosModal .mtd-sec.blue{color:#1a73e8}
+#myTodosModal .mtd-row{display:flex;align-items:flex-start;gap:14px;padding:11px 10px;border-radius:12px}
+#myTodosModal .mtd-row:hover{background:#f8f9fa}
+#myTodosModal .mtd-ck{width:20px;height:20px;border:2px solid #5f6368;border-radius:50%;margin-top:1px;flex:0 0 auto;cursor:pointer;background:transparent;padding:0}
+#myTodosModal .mtd-ck:hover{border-color:#1a73e8;background:#e8f0fe}
+#myTodosModal .mtd-t{font-size:14px;color:#202124;line-height:1.45;word-break:break-word}
+#myTodosModal .mtd-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px}
+#myTodosModal .mtd-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;border-radius:999px;padding:3px 10px;font-weight:500;text-decoration:none}
+#myTodosModal .mtd-chip.biz{background:#e8f0fe;color:#1967d2}
+#myTodosModal .mtd-chip.cust{background:#e6f4ea;color:#188038}
+#myTodosModal .mtd-chip.room{background:#f3e8fd;color:#8430ce}
+#myTodosModal .mtd-chip.self{background:#f1f3f4;color:#5f6368}
+#myTodosModal .mtd-d{font-size:12px;font-weight:500;color:#5f6368}
+#myTodosModal .mtd-d.red{color:#d93025}
+#myTodosModal .mtd-d.blue{color:#1a73e8}
+#myTodosModal .mtd-d.amber{color:#e37400}
+#myTodosModal .mtd-who{margin-left:auto;font-size:12px;color:#9aa0a6;white-space:nowrap}
+#myTodosModal .mtd-del{border:0;background:transparent;color:#bdc1c6;cursor:pointer;font-size:13px;padding:0 2px;font-family:inherit}
+#myTodosModal .mtd-del:hover{color:#d93025}
+#myTodosModal .mtd-link{color:#1a73e8;font-size:12px;text-decoration:none}
+/* ---- 월 달력 (Google Calendar 미리보기 1:1) ---- */
+#myTodosModal .mtd-cal{background:#fff;border:1px solid #dadce0;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(60,64,67,.1);margin:6px 4px 0}
+#myTodosModal .mtd-wk{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid #e8eaed}
+#myTodosModal .mtd-wk div{padding:10px 0;text-align:center;font-size:12px;font-weight:600;color:#70757a}
+#myTodosModal .mtd-wk .sun{color:#d93025}
+#myTodosModal .mtd-wk .sat{color:#1a73e8}
+#myTodosModal .mtd-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+#myTodosModal .mtd-cell{min-height:108px;border-right:1px solid #e8eaed;border-bottom:1px solid #e8eaed;padding:6px 6px 8px;cursor:pointer}
+#myTodosModal .mtd-cell:nth-child(7n){border-right:0}
+#myTodosModal .mtd-cell.dim{background:#fafafa}
+#myTodosModal .mtd-cell.sel{box-shadow:inset 0 0 0 2px #1a73e8}
+#myTodosModal .mtd-dnum{font-size:12px;color:#3c4043;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:50%;margin-bottom:3px}
+#myTodosModal .mtd-cell.dim .mtd-dnum{color:#bdc1c6}
+#myTodosModal .mtd-dnum.sun{color:#d93025}
+#myTodosModal .mtd-dnum.sat{color:#1a73e8}
+#myTodosModal .mtd-dnum.today{background:#1a73e8;color:#fff;font-weight:700}
+#myTodosModal .mtd-ev{font-size:11px;line-height:1.3;border-radius:5px;padding:2px 6px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+#myTodosModal .mtd-ev .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.5;margin-right:4px;vertical-align:middle}
+#myTodosModal .mtd-ev.biz{background:#e8f0fe;color:#1967d2}
+#myTodosModal .mtd-ev.cust{background:#e6f4ea;color:#188038}
+#myTodosModal .mtd-ev.room{background:#f3e8fd;color:#8430ce}
+#myTodosModal .mtd-ev.self{background:#fff4e5;color:#b45309}
+#myTodosModal .mtd-ev.over{background:#fce8e6;color:#c5221f}
+#myTodosModal .mtd-more{font-size:11px;color:#70757a;padding:1px 6px}
+#myTodosModal .mtd-legend{display:flex;gap:14px;flex-wrap:wrap;margin:10px 6px 0;font-size:11px;color:#70757a}
+#myTodosModal .mtd-legend span{display:inline-flex;align-items:center;gap:5px}
+#myTodosModal .mtd-legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+#myTodosModal .mtd-tray{background:#fff;border:1px solid #dadce0;border-radius:14px;margin:12px 4px 0;padding:12px 16px}
+#myTodosModal .mtd-tray h3{font-size:13px;font-weight:600;color:#5f6368;margin:0 0 8px;font-family:'Google Sans','Pretendard',sans-serif}
+#myTodosModal .mtd-tchip{display:inline-flex;align-items:center;gap:6px;background:#f1f3f4;border-radius:999px;padding:6px 12px;font-size:12.5px;color:#3c4043}
+#myTodosModal .mtd-tchip .o{width:14px;height:14px;border:2px solid #9aa0a6;border-radius:50%;cursor:pointer;flex:0 0 auto}
+#myTodosModal .mtd-tchip .o:hover{border-color:#1a73e8;background:#e8f0fe}
+#myTodosModal .mtd-tchip .x{cursor:pointer;color:#9aa0a6;font-size:11px}
+#myTodosModal .mtd-tchip .x:hover{color:#d93025}
+/* ---- 연간 ---- */
+#myTodosModal .mtd-ymon{background:#fff;border:1px solid #dadce0;border-radius:14px;padding:9px 9px 11px;box-shadow:0 1px 3px rgba(60,64,67,.08)}
+#myTodosModal .mtd-ymon h4{font-size:12.5px;font-weight:600;color:#1a73e8;cursor:pointer;margin:0 0 5px;padding:1px 3px;font-family:'Google Sans','Pretendard',sans-serif}
+</style>
 <div id="myTodosModal" class="modal-overlay" style="z-index:11400;display:none">
-  <div class="modal-card" style="max-width:860px;max-height:92vh;display:flex;flex-direction:column;border-radius:20px;overflow:hidden">
-    <div style="padding:15px 20px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-      <div style="font-weight:800;font-size:1.05em;color:var(--text-main)">내 할 일 <span id="mtMeta" style="font-size:.68em;color:var(--text-mute);font-weight:600;margin-left:6px"></span></div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <div style="display:flex;background:var(--neutral-bg);border-radius:12px;padding:3px">
-          <button id="mtScopeMine" onclick="setMtScope('mine')" style="border:0;background:transparent;border-radius:9px;padding:6px 12px;font-size:.75em;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit">👤 내 할일</button>
-          <button id="mtScopeTeam" onclick="setMtScope('team')" style="border:0;background:transparent;border-radius:9px;padding:6px 12px;font-size:.75em;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit">👥 팀 전체</button>
+  <div class="modal-card">
+    <div class="mtd-top">
+      <h2>내 할일</h2><span class="mtd-me" id="mtMeta">0</span>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="mtd-seg">
+          <button id="mtScopeMine" class="on" onclick="setMtScope('mine')">👤 내 할일</button>
+          <button id="mtScopeTeam" onclick="setMtScope('team')">👥 팀 전체</button>
         </div>
-        <button id="mtFullBtn" onclick="toggleMtFull()" title="전체화면으로 크게 보기" style="background:var(--neutral-border);border:none;padding:6px 11px;border-radius:10px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:700;color:var(--text-sub)">⛶ 전체화면</button>
-        <button onclick="loadMyTodos()" style="background:var(--neutral-border);border:none;padding:6px 11px;border-radius:10px;font-size:.78em;cursor:pointer;font-family:inherit">🔄</button>
-        <button onclick="closeMyTodos()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--text-mute);font-family:inherit;padding:0 6px">✕</button>
+        <button id="mtFullBtn" class="mtd-iconbtn" onclick="toggleMtFull()" title="전체화면으로 크게 보기">⛶</button>
+        <button class="mtd-iconbtn" onclick="loadMyTodos()" title="새로고침">🔄</button>
+        <button class="mtd-iconbtn" onclick="closeMyTodos()" title="닫기">✕</button>
       </div>
     </div>
-    <!-- 뷰 툴바: 월 네비게이션(달력일 때만) + 목록/달력 토글 -->
-    <div style="padding:9px 16px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fafbfc">
-      <div id="mtCalNav" style="display:flex;align-items:center;gap:4px">
-        <button onclick="mtCalPrev()" title="이전 달" style="width:28px;height:28px;border:0;background:transparent;border-radius:50%;cursor:pointer;color:var(--text-sub);font-size:15px;font-family:inherit">‹</button>
-        <button onclick="mtCalNext()" title="다음 달" style="width:28px;height:28px;border:0;background:transparent;border-radius:50%;cursor:pointer;color:var(--text-sub);font-size:15px;font-family:inherit">›</button>
-        <span id="mtCalTitle" style="font-size:.95em;font-weight:700;color:var(--text-main);margin:0 4px"></span>
-        <button onclick="mtCalToday()" style="border:1px solid var(--neutral-border);background:#fff;border-radius:9px;padding:6px 12px;font-size:.76em;color:var(--text-sub);cursor:pointer;font-family:inherit">오늘</button>
+    <div class="mtd-bar">
+      <div class="mtd-nav" id="mtCalNav" style="display:flex;align-items:center;gap:2px">
+        <button onclick="mtCalPrev()" title="이전">‹</button>
+        <button onclick="mtCalNext()" title="다음">›</button>
       </div>
-      <div style="margin-left:auto;display:flex;background:var(--neutral-bg);border-radius:12px;padding:3px">
-        <button id="mtViewList" onclick="setMtView('list')" style="border:0;background:transparent;border-radius:9px;padding:6px 14px;font-size:.8em;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit">📋 목록</button>
-        <button id="mtViewCal" onclick="setMtView('calendar')" style="border:0;background:transparent;border-radius:9px;padding:6px 14px;font-size:.8em;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit">🗓 월</button>
-        <button id="mtViewYear" onclick="setMtView('year')" style="border:0;background:transparent;border-radius:9px;padding:6px 14px;font-size:.8em;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit">📅 연간</button>
+      <span class="mtd-title" id="mtCalTitle"></span>
+      <button class="mtd-todaybtn" id="mtTodayBtn" onclick="mtCalToday()">오늘</button>
+      <div class="mtd-seg" style="margin-left:auto">
+        <button id="mtViewList" onclick="setMtView('list')">📋 목록</button>
+        <button id="mtViewCal" class="on" onclick="setMtView('calendar')">🗓 달력</button>
+        <button id="mtViewYear" onclick="setMtView('year')">📅 연간</button>
       </div>
     </div>
-    <!-- 개인 일정 추가 폼 (토스 톤) -->
-    <div style="padding:12px 20px;border-bottom:1px solid var(--gray-100);background:#fff;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <div style="flex:1;min-width:200px;display:flex;align-items:center;gap:9px;background:var(--neutral-bg);border-radius:14px;padding:10px 15px">
-        <span style="color:var(--of-primary);font-weight:800;font-size:1em;line-height:1">＋</span>
-        <input id="mtNewContent" type="text" placeholder="할 일 추가 — 예) 은행 방문 · 세미나 참석 (달력 날짜 클릭 → 그 날짜로)" style="flex:1;min-width:0;border:none;background:transparent;font-size:.85em;font-family:inherit;outline:none;color:var(--text-main)" onkeydown="if(event.key==='Enter'){event.preventDefault();addPersonalTask()}">
-      </div>
-      <input id="mtNewDue" type="date" style="padding:9px 12px;border:none;background:var(--neutral-bg);border-radius:12px;font-size:.78em;font-family:inherit;color:var(--text-sub)" title="기한">
-      <button onclick="addPersonalTask()" style="background:var(--of-primary);color:#fff;border:none;padding:10px 20px;border-radius:12px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit">추가</button>
+    <div class="mtd-add">
+      <span class="plus">＋</span>
+      <input id="mtNewContent" type="text" placeholder="새 할일 — Enter 로 추가 (달력 날짜 클릭 → 그 날짜로)" onkeydown="if(event.key==='Enter'){event.preventDefault();addPersonalTask()}">
+      <input id="mtNewDue" type="date" title="기한">
+      <button class="go" onclick="addPersonalTask()">추가</button>
     </div>
-    <div id="myTodosList" style="flex:1;overflow-y:auto;padding:12px 16px 18px;background:#fafbfc"></div>
+    <div id="myTodosList" class="mtd-list"></div>
   </div>
 </div>
 <!-- 🗑️ 휴지통 (메모 빡센 세팅 — 사장님 명령 2026-04-30) -->

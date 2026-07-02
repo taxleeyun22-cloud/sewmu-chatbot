@@ -879,34 +879,25 @@ function _applyMtFull(){
     card.style.maxWidth='98vw'; card.style.width='98vw';
     card.style.height='96vh'; card.style.maxHeight='96vh';
   }else{
-    card.style.maxWidth='860px'; card.style.width='';
-    card.style.height=''; card.style.maxHeight='92vh';
+    card.style.maxWidth=''; card.style.width='';
+    card.style.height=''; card.style.maxHeight='';
   }
   const b=$g('mtFullBtn');
-  if(b){ b.textContent=_mtFull?'🗗 창으로':'⛶ 전체화면'; b.title=_mtFull?'창 크기로 돌아가기':'전체화면으로 크게 보기'; }
+  if(b){ b.textContent=_mtFull?'🗗':'⛶'; b.title=_mtFull?'창 크기로 돌아가기':'전체화면으로 크게 보기'; }
 }
-/* 뷰 토글: 목록 / 월 / 연간 */
+/* 뷰 토글: 목록 / 월 / 연간 — .on 클래스 (스타일은 modals 의 #myTodosModal <style>) */
 function setMtView(v){ _mtView=(v==='list'||v==='year')?v:'calendar'; _syncMtViewUI(); _renderMyTodos(); }
 function _syncMtViewUI(){
-  const pairs=[['mtViewList',_mtView==='list'],['mtViewCal',_mtView==='calendar'],['mtViewYear',_mtView==='year']];
-  for(const [id,on] of pairs){
-    const b=$g(id); if(!b)continue;
-    b.style.background=on?'#fff':'transparent';
-    b.style.color=on?'var(--of-primary)':'var(--text-sub)';
-    b.style.boxShadow=on?'0 1px 2px rgba(0,0,0,.12)':'none';
-  }
-  const nav=$g('mtCalNav'); if(nav) nav.style.visibility=(_mtView==='list')?'hidden':'visible';
+  const map={mtViewList:'list', mtViewCal:'calendar', mtViewYear:'year'};
+  for(const id in map){ const b=$g(id); if(b)b.classList.toggle('on', _mtView===map[id]); }
+  const show=(_mtView!=='list')?'visible':'hidden';
+  for(const id of ['mtCalNav','mtCalTitle','mtTodayBtn']){ const el=$g(id); if(el)el.style.visibility=show; }
 }
 /* 범위 토글: 내 할일 / 팀 전체 */
 function setMtScope(s){ _mtScope=(s==='team'?'team':'mine'); _syncMtScopeUI(); loadMyTodos(); }
 function _syncMtScopeUI(){
-  const pairs=[['mtScopeMine',_mtScope==='mine'],['mtScopeTeam',_mtScope==='team']];
-  for(const [id,on] of pairs){
-    const b=$g(id); if(!b)continue;
-    b.style.background=on?'#fff':'transparent';
-    b.style.color=on?'var(--of-primary)':'var(--text-sub)';
-    b.style.boxShadow=on?'0 1px 2px rgba(0,0,0,.12)':'none';
-  }
+  const map={mtScopeMine:'mine', mtScopeTeam:'team'};
+  for(const id in map){ const b=$g(id); if(b)b.classList.toggle('on', _mtScope===map[id]); }
 }
 /* ‹ › : 월 뷰 = ±1달, 연간 뷰 = ±1년 */
 function mtCalPrev(){ if(_mtView==='year'){_mtCalY--;} else {_mtCalM0--; if(_mtCalM0<0){_mtCalM0=11;_mtCalY--;}} _renderMyTodos(); }
@@ -957,43 +948,47 @@ function _bucketByDue(due){
 }
 function _renderMyTodos(){
   const list=$g('myTodosList');if(!list)return;
-  if($g('mtMeta'))$g('mtMeta').textContent=_myTodosCache.length+'건';
+  if($g('mtMeta'))$g('mtMeta').textContent=(_mtScope==='team'?'팀 ':'본인 ')+_myTodosCache.length;
   if(_mtView==='calendar'){ _renderMtCalendar(list); return; }
   if(_mtView==='year'){ _renderMtYear(list); return; }
   if(!_myTodosCache.length){
     list.innerHTML='<div style="text-align:center;padding:70px 20px">'
-      +'<div style="width:68px;height:68px;border-radius:24px;background:#e8f3ff;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 16px">🎉</div>'
-      +'<div style="font-weight:800;font-size:1em;color:var(--text-main);margin-bottom:6px">할 일을 모두 끝냈어요</div>'
-      +'<div style="font-size:.82em;color:var(--text-mute);line-height:1.7">위 입력창에서 개인 일정을 추가하거나<br>거래처·상담방 메모에서 "할 일"로 작성하면 여기 모입니다</div>'
+      +'<div style="width:68px;height:68px;border-radius:50%;background:#e8f0fe;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 16px">🎉</div>'
+      +'<div style="font-size:15px;font-weight:600;color:#202124;margin-bottom:6px">할 일을 모두 끝냈어요</div>'
+      +'<div style="font-size:12.5px;color:#5f6368;line-height:1.7">위 입력창에서 새 할일을 추가하거나<br>거래처·상담방 메모에서 "할 일"로 작성하면 여기 모입니다</div>'
       +'</div>';
-    $g('mtMeta').textContent='0건';
     return;
   }
+  /* Google Tasks(C안) — 섹션 헤더 + 행 */
   const groups={overdue:[],today:[],tomorrow:[],week:[],later:[],none:[]};
   for(const m of _myTodosCache)groups[_bucketByDue(m.due_date)].push(m);
   const labels=[
-    ['overdue','🔴 지남','var(--of-danger)'],
-    ['today','🟠 오늘','#ea580c'],
-    ['tomorrow','🟡 내일','#ca8a04'],
-    ['week','🟢 이번주','#059669'],
-    ['later','🔵 다음주 이후','#2563eb'],
-    ['none','⚪ 기한 없음','var(--gray-500)'],
+    ['overdue','기한 지남','red'],
+    ['today','오늘',''],
+    ['tomorrow','내일',''],
+    ['week','이번 주',''],
+    ['later','예정',''],
+    ['none','기한 없음',''],
   ];
   let html='';
-  const total=_myTodosCache.length;
-  for(const [k,lab,col] of labels){
+  for(const [k,lab,cls] of labels){
     const arr=groups[k];if(!arr.length)continue;
-    html+='<div style="margin-bottom:16px">'
-      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
-      +'<span style="font-size:.8em;font-weight:800;color:'+col+'">'+e(lab)+'</span>'
-      +'<span style="font-size:.68em;font-weight:700;color:'+col+';border:1px solid '+col+';border-radius:999px;padding:0 7px;line-height:1.5">'+arr.length+'</span>'
-      +'<span style="flex:1;height:1px;background:var(--gray-100)"></span>'
-      +'</div>'
-      +arr.map(_todoRow).join('')
-      +'</div>';
+    html+='<div class="mtd-sec '+cls+'">'+e(lab)+'</div>'+arr.map(_todoRow).join('');
   }
   list.innerHTML=html;
-  $g('mtMeta').textContent=total+'건';
+}
+/* 기한 라벨 (Google Tasks 톤): 지남=빨강 "6월 30일 · 1일 지남" / 오늘·내일=파랑 / 이번주=주황 / 이후=회색 */
+function _mtDueLabel(due){
+  if(!due||!/^\d{4}-\d{2}-\d{2}$/.test(due))return null;
+  const today=_todayKST();
+  const diff=Math.round((new Date(due+'T00:00:00')-new Date(today+'T00:00:00'))/86400000);
+  const mm=parseInt(due.substring(5,7),10), dd=parseInt(due.substring(8,10),10);
+  const dow='일월화수목금토'[new Date(due+'T00:00:00').getDay()];
+  if(diff<0)return {cls:'red', txt:mm+'월 '+dd+'일 · '+(-diff)+'일 지남'};
+  if(diff===0)return {cls:'blue', txt:'오늘'};
+  if(diff===1)return {cls:'blue', txt:'내일'};
+  if(diff<=7)return {cls:'amber', txt:mm+'월 '+dd+'일 ('+dow+')'};
+  return {cls:'', txt:mm+'월 '+dd+'일 ('+dow+')'};
 }
 /* 달력 뷰 — Google Calendar 톤. due_date 있는 할일을 그 날짜 칸에 출처색 칩으로. */
 function _renderMtCalendar(list){
@@ -1014,47 +1009,44 @@ function _renderMtCalendar(list){
   for(let d=1; d<=daysInMonth; d++){ cells.push({dt:new Date(Y,M0,d), dim:false}); }
   while(cells.length%7!==0){ const l=cells[cells.length-1].dt; cells.push({dt:new Date(l.getFullYear(),l.getMonth(),l.getDate()+1), dim:true}); }
   const fmt=(dt)=>dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
-  const colors={over:{bg:'#fce8e6',fg:'#c5221f'}, biz:{bg:'#e8f0fe',fg:'#1967d2'}, cust:{bg:'#e6f4ea',fg:'#188038'}, room:{bg:'#f3e8fd',fg:'#8430ce'}, personal:{bg:'#fff4e5',fg:'#b45309'}};
-  let html='<div style="border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.02)">';
-  html+='<div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--gray-100)">';
-  ['일','월','화','수','목','금','토'].forEach((w,i)=>{ const c=i===0?'var(--toss-red)':(i===6?'var(--of-primary)':'#70757a'); html+='<div style="padding:8px 0;text-align:center;font-size:.72em;font-weight:700;color:'+c+'">'+w+'</div>'; });
-  html+='</div><div style="display:grid;grid-template-columns:repeat(7,1fr)">';
+  /* Google Calendar 미리보기 1:1 — 색점(dot)+색칩, 108px 칸, #dadce0 카드 */
+  let html='<div class="mtd-cal">';
+  html+='<div class="mtd-wk"><div class="sun">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div class="sat">토</div></div>';
+  html+='<div class="mtd-grid">';
   cells.forEach((c)=>{
     const ds=fmt(c.dt), dow=c.dt.getDay();
     const isToday=ds===today, isSel=ds===_mtSelDate;
     const evs=byDate[ds]||[];
-    const dnumC=c.dim?'#c9ccd1':(dow===0?'var(--toss-red)':(dow===6?'var(--of-primary)':'var(--text-main)'));
-    let cell='<div onclick="mtSelectDay(\''+ds+'\')" style="min-height:'+(_mtFull?130:90)+'px;border-right:1px solid var(--gray-100);border-bottom:1px solid var(--gray-100);padding:5px 5px 7px;cursor:pointer;'+(c.dim?'background:#fafafa;':'')+(isSel?'box-shadow:inset 0 0 0 2px var(--of-primary);':'')+'">';
-    cell+='<div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:.72em;margin-bottom:3px;'+(isToday?'background:var(--of-primary);color:#fff;font-weight:700;':'color:'+dnumC+';')+'">'+c.dt.getDate()+'</div>';
+    let cell='<div class="mtd-cell'+(c.dim?' dim':'')+(isSel?' sel':'')+'" onclick="mtSelectDay(\''+ds+'\')"'+(_mtFull?' style="min-height:132px"':'')+'>';
+    cell+='<div class="mtd-dnum'+(isToday?' today':(dow===0?' sun':(dow===6?' sat':'')))+'">'+c.dt.getDate()+'</div>';
     const maxChips=_mtFull?5:3;
     evs.slice(0,maxChips).forEach(m=>{
-      const src=_mtSource(m), over=ds<today;
-      const col=colors[over?'over':src.k]||colors.personal;
-      cell+='<div title="'+escAttr(m.content||'')+'" style="font-size:.68em;line-height:1.25;border-radius:5px;padding:1px 5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;background:'+col.bg+';color:'+col.fg+'">'+e(m.content||'')+'</div>';
+      const src=_mtSource(m);
+      const cls=ds<today?'over':(src.k==='personal'?'self':src.k);
+      cell+='<div class="mtd-ev '+cls+'" title="'+escAttr(m.content||'')+'"><span class="dot"></span>'+e(m.content||'')+'</div>';
     });
-    if(evs.length>maxChips) cell+='<div style="font-size:.66em;color:var(--gray-500);padding:0 4px">+'+(evs.length-maxChips)+'개</div>';
+    if(evs.length>maxChips) cell+='<div class="mtd-more">+'+(evs.length-maxChips)+'개</div>';
     cell+='</div>';
     html+=cell;
   });
   html+='</div></div>';
-  html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:9px;font-size:.68em;color:#70757a">'
-    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#fce8e6;vertical-align:middle;margin-right:4px"></i>지남</span>'
-    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#e8f0fe;vertical-align:middle;margin-right:4px"></i>🏢업체</span>'
-    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#e6f4ea;vertical-align:middle;margin-right:4px"></i>👤거래처</span>'
-    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#f3e8fd;vertical-align:middle;margin-right:4px"></i>💬방</span>'
-    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#fff4e5;vertical-align:middle;margin-right:4px"></i>📍개인</span>'
+  html+='<div class="mtd-legend">'
+    +'<span><i style="background:#fce8e6"></i>기한 지남</span>'
+    +'<span><i style="background:#e8f0fe"></i>🏢 업체</span>'
+    +'<span><i style="background:#e6f4ea"></i>👤 거래처</span>'
+    +'<span><i style="background:#f3e8fd"></i>💬 상담방</span>'
+    +'<span><i style="background:#fff4e5"></i>📍 개인</span>'
+    +'<span>· 점=미완료, 날짜 클릭=그 날 상세</span>'
     +'</div>';
   if(noDue.length){
-    html+='<div style="border-radius:16px;margin-top:12px;padding:12px 15px;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.02)">'
-      +'<div style="font-size:.76em;font-weight:700;color:var(--text-sub);margin-bottom:7px">🌙 기한 없음 ('+noDue.length+')</div>'
-      +noDue.map(_todoRow).join('')+'</div>';
+    html+='<div class="mtd-tray"><h3>🌙 기한 없음 ('+noDue.length+')</h3><div style="display:flex;gap:8px;flex-wrap:wrap">'
+      +noDue.map(m=>'<span class="mtd-tchip"><span class="o" onclick="completeTodo('+m.id+')" title="완료 처리"></span><span title="'+escAttr(_mtSource(m).name)+'">'+e(m.content||'')+'</span><span class="x" onclick="deleteTodoFromDashboard('+m.id+')" title="삭제">✕</span></span>').join('')
+      +'</div></div>';
   }
   const selEvs=byDate[_mtSelDate]||[];
-  const selLabel=(_mtSelDate===today?'오늘 · ':'')+_mtSelDate;
-  html+='<div style="margin-top:12px">'
-    +'<div style="font-size:.82em;font-weight:700;color:var(--of-primary);margin-bottom:6px;padding-bottom:3px;border-bottom:2px solid var(--of-primary)">📌 '+e(selLabel)+' <span style="font-weight:500;color:var(--gray-500)">('+selEvs.length+')</span></div>'
-    +(selEvs.length?selEvs.map(_todoRow).join(''):'<div style="text-align:center;color:var(--text-mute);font-size:.82em;padding:14px 0">이 날 할 일이 없습니다</div>')
-    +'</div>';
+  const selLabel=(_mtSelDate===today?'오늘 — ':'')+_mtSelDate;
+  html+='<div class="mtd-sec blue" style="margin-top:10px">📌 '+e(selLabel)+'</div>'
+    +(selEvs.length?selEvs.map(_todoRow).join(''):'<div style="font-size:12.5px;color:#9aa0a6;padding:8px 10px">이 날 할 일이 없습니다 — 위 입력창에 적고 Enter</div>');
   list.innerHTML=html;
 }
 /* 연간 뷰 — Google Calendar 연간 톤: 12개 미니 달. 할일 있는 날 = 파랑 원, 지남 = 빨강, 오늘 = 채운 파랑.
@@ -1076,28 +1068,28 @@ function _renderMtYear(list){
     /* 이 달 할일 개수 (월 제목 옆 배지) */
     let cnt=0;
     for(const ds in byDate){ if(ds.substring(0,7)===Y+'-'+String(m0+1).padStart(2,'0')) cnt+=byDate[ds].length; }
-    html+='<div style="border-radius:14px;padding:9px 9px 11px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.05),0 0 0 1px rgba(0,0,0,.02)">';
-    html+='<div onclick="mtGotoMonth('+m0+')" style="font-size:.8em;font-weight:700;color:var(--of-primary);cursor:pointer;margin-bottom:5px;padding:1px 3px" title="이 달 월 뷰로">'+(m0+1)+'월'+(cnt?' <span style="font-weight:600;color:var(--gray-500);font-size:.85em">('+cnt+')</span>':'')+'</div>';
+    html+='<div class="mtd-ymon">';
+    html+='<h4 onclick="mtGotoMonth('+m0+')" title="이 달 월 뷰로">'+(m0+1)+'월'+(cnt?' <span style="font-weight:500;color:#9aa0a6;font-size:.85em">('+cnt+')</span>':'')+'</h4>';
     html+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px">';
-    for(let i=0;i<7;i++){ const c=i===0?'var(--toss-red)':(i===6?'var(--of-primary)':'#9aa0a6'); html+='<div style="text-align:center;font-size:.58em;font-weight:700;color:'+c+'">'+wd[i]+'</div>'; }
+    for(let i=0;i<7;i++){ const c=i===0?'#d93025':(i===6?'#1a73e8':'#9aa0a6'); html+='<div style="text-align:center;font-size:.58em;font-weight:600;color:'+c+'">'+wd[i]+'</div>'; }
     for(let i=0;i<startDow;i++) html+='<div></div>';
     for(let d=1; d<=daysInMonth; d++){
       const ds=Y+'-'+String(m0+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
       const evs=byDate[ds]||[];
       const isToday=ds===today;
       let st='width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:.62em;border-radius:50%;cursor:pointer;';
-      if(isToday) st+='background:var(--of-primary);color:#fff;font-weight:800;';
-      else if(evs.length){ const over=ds<today; st+='background:'+(over?'#fce8e6':'#e8f0fe')+';color:'+(over?'#c5221f':'#1967d2')+';font-weight:800;'; }
-      else st+='color:var(--text-sub);';
+      if(isToday) st+='background:#1a73e8;color:#fff;font-weight:700;';
+      else if(evs.length){ const over=ds<today; st+='background:'+(over?'#fce8e6':'#e8f0fe')+';color:'+(over?'#c5221f':'#1967d2')+';font-weight:700;'; }
+      else st+='color:#3c4043;';
       html+='<div onclick="mtYearSelectDay(\''+ds+'\')" title="'+(evs.length?evs.length+'건 — 클릭하면 월 뷰':'')+'" style="'+st+'">'+d+'</div>';
     }
     html+='</div></div>';
   }
   html+='</div>';
-  html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:.68em;color:#70757a">'
-    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--of-primary);vertical-align:middle;margin-right:4px"></i>오늘</span>'
-    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#e8f0fe;vertical-align:middle;margin-right:4px"></i>할일 있음</span>'
-    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#fce8e6;vertical-align:middle;margin-right:4px"></i>기한 지남</span>'
+  html+='<div class="mtd-legend" style="margin-top:12px">'
+    +'<span><i style="border-radius:50%;background:#1a73e8"></i>오늘</span>'
+    +'<span><i style="border-radius:50%;background:#e8f0fe"></i>할일 있음</span>'
+    +'<span><i style="border-radius:50%;background:#fce8e6"></i>기한 지남</span>'
     +'<span>· 날짜/월 클릭 → 월 뷰로 이동</span></div>';
   list.innerHTML=html;
 }
@@ -1109,39 +1101,32 @@ function mtYearSelectDay(ds){
   mtSelectDay(ds); /* 선택 + 추가폼 날짜 자동입력 + 포커스 */
 }
 function _todoRow(m){
-  /* Google Tasks 톤 화이트 카드 — 출처색 좌측 액센트: 업체(🏢 파랑) > 거래처(👤 초록) > 상담방(💬 보라) > 개인(📍 앰버).
+  /* Google Tasks(C안) 행 — 동그란 체크 + 출처 칩 + 색 기한 텍스트 + 작성자.
    * room_id 가 '__none__' 이거나 빈값이면 방 아님 → 업체/거래처/개인으로 표시(옛 "__none__" 버그 제거) */
   const realRoom = m.room_id && m.room_id !== '__none__' ? m.room_id : '';
   const custName = m.customer_name || m.customer_nickname || '';
-  let accent, roomBadge;
+  let chip;
   if(m.business_name){
-    accent='#1967d2';
-    roomBadge='<span style="background:#e8f0fe;color:#1967d2;padding:2px 8px;border-radius:999px;font-size:.7em;font-weight:700">🏢 '+e(m.business_name)+'</span>';
+    chip='<span class="mtd-chip biz">🏢 '+e(m.business_name)+'</span>';
   }else if(custName){
-    accent='#188038';
-    roomBadge='<span style="background:#e6f4ea;color:#188038;padding:2px 8px;border-radius:999px;font-size:.7em;font-weight:700">👤 '+e(custName)+'</span>';
+    chip='<span class="mtd-chip cust">👤 '+e(custName)+'</span>';
   }else if(realRoom){
-    accent='#8430ce';
-    roomBadge='<a href="javascript:void(0)" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(realRoom)+'\')" style="background:#f3e8fd;color:#8430ce;padding:2px 8px;border-radius:999px;font-size:.7em;font-weight:700;text-decoration:none" title="이 방으로 이동">💬 '+e(m.room_name||realRoom)+'</a>';
+    chip='<a href="javascript:void(0)" class="mtd-chip room" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(realRoom)+'\')" title="이 방으로 이동">💬 '+e(m.room_name||realRoom)+'</a>';
   }else{
-    accent='#b45309';
-    roomBadge='<span style="background:#fff4e5;color:#b45309;padding:2px 8px;border-radius:999px;font-size:.7em;font-weight:700">📍 개인</span>';
+    chip='<span class="mtd-chip self">개인</span>';
   }
-  const isOver=m.due_date&&/^\d{4}-\d{2}-\d{2}$/.test(m.due_date)&&m.due_date<_todayKST();
-  const dueLbl=m.due_date
-    ? '<span style="font-size:.7em;font-weight:600;padding:2px 8px;border-radius:999px;'+(isOver?'background:#fce8e6;color:#c5221f':'background:var(--neutral-bg);color:var(--gray-500)')+'">📅 '+e(m.due_date)+(isOver?' · 지남':'')+'</span>'
-    : '';
+  const dl=_mtDueLabel(m.due_date);
+  const dueHtml=dl?'<span class="mtd-d '+dl.cls+'">'+e(dl.txt)+'</span>':'';
   const linkBtn=m.linked_message_id
-    ? '<a href="javascript:void(0)" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(realRoom)+'\','+m.linked_message_id+')" style="color:var(--of-primary);font-size:.72em;text-decoration:none" title="원본 메시지">🔗#'+m.linked_message_id+'</a>'
+    ? '<a href="javascript:void(0)" class="mtd-link" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(realRoom)+'\','+m.linked_message_id+')" title="원본 메시지">🔗</a>'
     : '';
-  return '<div style="display:flex;gap:11px;padding:12px 14px;border-left:3px solid '+accent+';border-radius:14px;margin-bottom:8px;background:#fff;align-items:flex-start;box-shadow:0 1px 4px rgba(0,0,0,.05),0 0 0 1px rgba(0,0,0,.02)">'
-    +'<input type="checkbox" onchange="completeTodo('+m.id+')" title="완료 처리" style="width:18px;height:18px;cursor:pointer;accent-color:var(--of-success);flex-shrink:0;margin-top:1px">'
+  return '<div class="mtd-row">'
+    +'<button class="mtd-ck" onclick="completeTodo('+m.id+')" title="완료 처리"></button>'
     +'<div style="flex:1;min-width:0">'
-    +'<div style="font-size:.88em;font-weight:600;color:var(--text-main);line-height:1.45;word-break:break-word">'+e(m.content||'')+'</div>'
-    +'<div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap">'
-    +roomBadge+dueLbl+linkBtn
-    +'<span style="font-size:.7em;color:#9ca3af;margin-left:auto">'+e(m.author_name||'')+'</span>'
-    +'<button onclick="deleteTodoFromDashboard('+m.id+')" style="background:none;border:none;color:#9ca3af;font-size:.8em;cursor:pointer;font-family:inherit;padding:0 2px" title="삭제" onmouseover="this.style.color=\'var(--toss-red)\'" onmouseout="this.style.color=\'#9ca3af\'">🗑️</button>'
+    +'<div class="mtd-t">'+e(m.content||'')+'</div>'
+    +'<div class="mtd-meta">'+chip+dueHtml+linkBtn
+    +'<span class="mtd-who">'+e(m.author_name||'')+'</span>'
+    +'<button class="mtd-del" onclick="deleteTodoFromDashboard('+m.id+')" title="삭제">🗑</button>'
     +'</div></div></div>';
 }
 async function completeTodo(id){
