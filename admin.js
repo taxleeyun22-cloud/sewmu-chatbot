@@ -869,6 +869,7 @@ async function openMyTodos(){
   _applyMtFull();
   _syncMtViewUI();
   _syncMtScopeUI();
+  _syncMtTaxUI();
   await loadMyTodos();
 }
 /* 전체화면 ⟷ 모달 스위칭 */
@@ -892,6 +893,37 @@ function _syncMtViewUI(){
   for(const id in map){ const b=$g(id); if(b)b.classList.toggle('on', _mtView===map[id]); }
   const show=(_mtView!=='list')?'visible':'hidden';
   for(const id of ['mtCalNav','mtCalTitle','mtTodayBtn']){ const el=$g(id); if(el)el.style.visibility=show; }
+  /* 세무일정 토글은 월 달력에서만 의미 있음 */
+  const tb=$g('mtTaxBtn'); if(tb)tb.style.visibility=(_mtView==='calendar')?'visible':'hidden';
+}
+/* 🏛 세무일정 토글 — 법정 신고 마감일을 월 달력에 회색 칩으로 (기본 켜짐, localStorage 기억) */
+let _mtTaxOn=true; try{ _mtTaxOn=(localStorage.getItem('_mtTaxOn')||'1')==='1'; }catch(_){}
+function toggleMtTax(){ _mtTaxOn=!_mtTaxOn; try{localStorage.setItem('_mtTaxOn',_mtTaxOn?'1':'0');}catch(_){} _syncMtTaxUI(); _renderMyTodos(); }
+function _syncMtTaxUI(){ const b=$g('mtTaxBtn'); if(b)b.classList.toggle('on',_mtTaxOn); }
+/* 법정 신고·납부 기한 (기한일 기준 — 주말·공휴일이면 다음 영업일 순연, 툴팁에 명시).
+ * 확실한 핵심만 (12월 결산법인 기준). 반환: {일: [라벨,...]} */
+function _mtTaxSchedule(Y, M0){
+  const out={};
+  const add=(d,label)=>{ (out[d]=out[d]||[]).push(label); };
+  /* 매월 */
+  add(10,'원천세 신고·납부');
+  add(new Date(Y,M0+1,0).getDate(),'지급명세서 제출(일용·사업소득)');
+  /* 고정 */
+  const fixed={
+    0:[[25,'부가세 확정신고(2기)·간이과세']],
+    1:[[10,'면세사업자 사업장현황신고']],
+    2:[[10,'지급명세서 제출(근로·퇴직·사업)'],[31,'법인세 신고·납부(12월 결산)']],
+    3:[[25,'부가세 예정신고(1기)'],[30,'성실신고확인 법인 법인세 신고']],
+    4:[[31,'종합소득세 확정신고·납부']],
+    5:[[30,'성실신고 대상 종소세 신고']],
+    6:[[25,'부가세 확정신고(1기)']],
+    7:[[31,'법인세 중간예납(12월 결산)']],
+    9:[[25,'부가세 예정신고(2기)']],
+    10:[[30,'종합소득세 중간예납 납부']],
+    11:[[15,'종합부동산세 신고·납부']],
+  };
+  (fixed[M0]||[]).forEach(p=>add(p[0],p[1]));
+  return out;
 }
 /* 범위 토글: 내 할일 / 팀 전체 */
 function setMtScope(s){ _mtScope=(s==='team'?'team':'mine'); _syncMtScopeUI(); loadMyTodos(); }
@@ -1009,7 +1041,8 @@ function _renderMtCalendar(list){
   for(let d=1; d<=daysInMonth; d++){ cells.push({dt:new Date(Y,M0,d), dim:false}); }
   while(cells.length%7!==0){ const l=cells[cells.length-1].dt; cells.push({dt:new Date(l.getFullYear(),l.getMonth(),l.getDate()+1), dim:true}); }
   const fmt=(dt)=>dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
-  /* Google Calendar 미리보기 1:1 — 색점(dot)+색칩, 108px 칸, #dadce0 카드 */
+  /* Google Calendar 미리보기 1:1 — 색점(dot)+색칩, 108px 칸, #dadce0 카드. 🏛 세무일정 회색 칩 */
+  const tax=_mtTaxOn?_mtTaxSchedule(Y,M0):{};
   let html='<div class="mtd-cal">';
   html+='<div class="mtd-wk"><div class="sun">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div class="sat">토</div></div>';
   html+='<div class="mtd-grid">';
@@ -1019,6 +1052,11 @@ function _renderMtCalendar(list){
     const evs=byDate[ds]||[];
     let cell='<div class="mtd-cell'+(c.dim?' dim':'')+(isSel?' sel':'')+'" onclick="mtSelectDay(\''+ds+'\')"'+(_mtFull?' style="min-height:132px"':'')+'>';
     cell+='<div class="mtd-dnum'+(isToday?' today':(dow===0?' sun':(dow===6?' sat':'')))+'">'+c.dt.getDate()+'</div>';
+    if(!c.dim){
+      (tax[c.dt.getDate()]||[]).forEach(t=>{
+        cell+='<div class="mtd-ev tax" title="'+escAttr(t+' — 주말·공휴일이면 다음 영업일 순연')+'">🏛 '+e(t)+'</div>';
+      });
+    }
     const maxChips=_mtFull?5:3;
     evs.slice(0,maxChips).forEach(m=>{
       const src=_mtSource(m);
@@ -1036,6 +1074,7 @@ function _renderMtCalendar(list){
     +'<span><i style="background:#e6f4ea"></i>👤 거래처</span>'
     +'<span><i style="background:#f3e8fd"></i>💬 상담방</span>'
     +'<span><i style="background:#fff4e5"></i>📍 개인</span>'
+    +(_mtTaxOn?'<span><i style="background:#f1f3f4"></i>🏛 법정마감 (주말·공휴일 = 다음 영업일)</span>':'')
     +'<span>· 점=미완료, 날짜 클릭=그 날 상세</span>'
     +'</div>';
   if(noDue.length){
@@ -1045,8 +1084,13 @@ function _renderMtCalendar(list){
   }
   const selEvs=byDate[_mtSelDate]||[];
   const selLabel=(_mtSelDate===today?'오늘 — ':'')+_mtSelDate;
-  html+='<div class="mtd-sec blue" style="margin-top:10px">📌 '+e(selLabel)+'</div>'
-    +(selEvs.length?selEvs.map(_todoRow).join(''):'<div style="font-size:12.5px;color:#9aa0a6;padding:8px 10px">이 날 할 일이 없습니다 — 위 입력창에 적고 Enter</div>');
+  html+='<div class="mtd-sec blue" style="margin-top:10px">📌 '+e(selLabel)+'</div>';
+  /* 선택한 날의 법정 마감 안내 배너 */
+  if(_mtTaxOn && _mtSelDate.substring(0,7)===Y+'-'+String(M0+1).padStart(2,'0')){
+    const selTax=tax[parseInt(_mtSelDate.substring(8,10),10)]||[];
+    if(selTax.length) html+='<div class="mtd-taxline">🏛 '+selTax.map(e).join(' · ')+' <span style="color:#9aa0a6">— 주말·공휴일이면 다음 영업일 순연</span></div>';
+  }
+  html+=(selEvs.length?selEvs.map(_todoRow).join(''):'<div style="font-size:12.5px;color:#9aa0a6;padding:8px 10px">이 날 할 일이 없습니다 — 위 입력창에 적고 Enter</div>');
   list.innerHTML=html;
 }
 /* 연간 뷰 — Google Calendar 연간 톤: 12개 미니 달. 할일 있는 날 = 파랑 원, 지남 = 빨강, 오늘 = 채운 파랑.

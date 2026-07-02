@@ -1147,6 +1147,7 @@
 #myTodosModal .mtd-title{font-size:17px;font-weight:500;color:#202124;font-family:'Google Sans','Pretendard',sans-serif;margin:0 2px}
 #myTodosModal .mtd-todaybtn{border:1px solid #dadce0;background:#fff;border-radius:8px;padding:6px 12px;font-size:13px;color:#3c4043;cursor:pointer;font-family:inherit}
 #myTodosModal .mtd-todaybtn:hover{background:#f8f9fa}
+#myTodosModal .mtd-todaybtn.on{background:#e8f0fe;color:#1a73e8;border-color:#c6dafc}
 #myTodosModal .mtd-seg{display:flex;background:#e8eaed;border-radius:9px;padding:3px}
 #myTodosModal .mtd-seg button{border:0;background:transparent;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:600;color:#5f6368;cursor:pointer;font-family:inherit;white-space:nowrap}
 #myTodosModal .mtd-seg button.on{background:#fff;color:#1a73e8;box-shadow:0 1px 2px rgba(60,64,67,.2)}
@@ -1203,6 +1204,8 @@
 #myTodosModal .mtd-ev.room{background:#f3e8fd;color:#8430ce}
 #myTodosModal .mtd-ev.self{background:#fff4e5;color:#b45309}
 #myTodosModal .mtd-ev.over{background:#fce8e6;color:#c5221f}
+#myTodosModal .mtd-ev.tax{background:#f1f3f4;color:#5f6368}
+#myTodosModal .mtd-taxline{font-size:12px;color:#5f6368;background:#f1f3f4;border-radius:8px;padding:7px 12px;margin:2px 0 6px}
 #myTodosModal .mtd-more{font-size:11px;color:#70757a;padding:1px 6px}
 #myTodosModal .mtd-legend{display:flex;gap:14px;flex-wrap:wrap;margin:10px 6px 0;font-size:11px;color:#70757a}
 #myTodosModal .mtd-legend span{display:inline-flex;align-items:center;gap:5px}
@@ -1239,6 +1242,7 @@
       </div>
       <span class="mtd-title" id="mtCalTitle"></span>
       <button class="mtd-todaybtn" id="mtTodayBtn" onclick="mtCalToday()">오늘</button>
+      <button class="mtd-todaybtn" id="mtTaxBtn" onclick="toggleMtTax()" title="법정 신고 마감일 표시 — 주말·공휴일이면 다음 영업일로 순연">🏛 세무일정</button>
       <div class="mtd-seg" style="margin-left:auto">
         <button id="mtViewList" onclick="setMtView('list')">📋 목록</button>
         <button id="mtViewCal" class="on" onclick="setMtView('calendar')">🗓 달력</button>
