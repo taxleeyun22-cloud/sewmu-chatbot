@@ -847,6 +847,13 @@ let _mtScope='mine';      /* 'mine'(내 할일) | 'team'(팀 전체) — 기본 
 let _mtCalY=0, _mtCalM0=0; /* 표시중인 달력 연/월(0-based) */
 let _mtSelDate='';         /* 달력에서 선택된 날 YYYY-MM-DD (하단 상세) */
 function _todayKST(){ return new Date(Date.now()+9*60*60*1000).toISOString().substring(0,10); }
+/* 응답이 JSON 이 아니면(배포 전환 순간 CF HTML 에러 페이지 등) raw 파싱 에러 대신 친절한 메시지 */
+async function _mtJson(url, opts){
+  const r=await fetch(url, opts);
+  const txt=await r.text();
+  try{ return JSON.parse(txt); }
+  catch(_){ throw new Error('서버 응답 오류 (HTTP '+r.status+') — 배포 직후이거나 일시 오류일 수 있어요. 잠시 후 다시 시도해주세요.'); }
+}
 let _mtFull=false;         /* 전체화면 모드 (⛶ 토글) */
 async function openMyTodos(){
   const m=$g('myTodosModal');if(!m)return;
@@ -930,8 +937,7 @@ async function loadMyTodos(){
   list.innerHTML='<div style="text-align:center;color:var(--text-mute);padding:40px 0;font-size:.88em">불러오는 중...</div>';
   const onlyMine=(_mtScope==='mine')?1:0;
   try{
-    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my&only_mine='+onlyMine);
-    const d=await r.json();
+    const d=await _mtJson('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my&only_mine='+onlyMine);
     if(d.error){list.innerHTML='<div style="color:var(--toss-red);padding:20px 0">오류: '+e(d.error)+'</div>';return}
     _myTodosCache=(d.memos||[]).map(m=>({...m, _t:_normType(m.memo_type_display||m.memo_type)}));
     _renderMyTodos();
@@ -956,7 +962,7 @@ function _renderMyTodos(){
   if(_mtView==='year'){ _renderMtYear(list); return; }
   if(!_myTodosCache.length){
     list.innerHTML='<div style="text-align:center;padding:70px 20px">'
-      +'<div style="width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,#e8f0fe,#e6f4ea);display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 16px">🎉</div>'
+      +'<div style="width:68px;height:68px;border-radius:24px;background:#e8f3ff;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 16px">🎉</div>'
       +'<div style="font-weight:800;font-size:1em;color:var(--text-main);margin-bottom:6px">할 일을 모두 끝냈어요</div>'
       +'<div style="font-size:.82em;color:var(--text-mute);line-height:1.7">위 입력창에서 개인 일정을 추가하거나<br>거래처·상담방 메모에서 "할 일"로 작성하면 여기 모입니다</div>'
       +'</div>';
@@ -1009,17 +1015,17 @@ function _renderMtCalendar(list){
   while(cells.length%7!==0){ const l=cells[cells.length-1].dt; cells.push({dt:new Date(l.getFullYear(),l.getMonth(),l.getDate()+1), dim:true}); }
   const fmt=(dt)=>dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
   const colors={over:{bg:'#fce8e6',fg:'#c5221f'}, biz:{bg:'#e8f0fe',fg:'#1967d2'}, cust:{bg:'#e6f4ea',fg:'#188038'}, room:{bg:'#f3e8fd',fg:'#8430ce'}, personal:{bg:'#fff4e5',fg:'#b45309'}};
-  let html='<div style="border:1px solid var(--neutral-border);border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 2px rgba(60,64,67,.06)">';
+  let html='<div style="border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.02)">';
   html+='<div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--gray-100)">';
-  ['일','월','화','수','목','금','토'].forEach((w,i)=>{ const c=i===0?'#d93025':(i===6?'#1a73e8':'#70757a'); html+='<div style="padding:8px 0;text-align:center;font-size:.72em;font-weight:700;color:'+c+'">'+w+'</div>'; });
+  ['일','월','화','수','목','금','토'].forEach((w,i)=>{ const c=i===0?'var(--toss-red)':(i===6?'var(--of-primary)':'#70757a'); html+='<div style="padding:8px 0;text-align:center;font-size:.72em;font-weight:700;color:'+c+'">'+w+'</div>'; });
   html+='</div><div style="display:grid;grid-template-columns:repeat(7,1fr)">';
   cells.forEach((c)=>{
     const ds=fmt(c.dt), dow=c.dt.getDay();
     const isToday=ds===today, isSel=ds===_mtSelDate;
     const evs=byDate[ds]||[];
-    const dnumC=c.dim?'#c9ccd1':(dow===0?'#d93025':(dow===6?'#1a73e8':'var(--text-main)'));
+    const dnumC=c.dim?'#c9ccd1':(dow===0?'var(--toss-red)':(dow===6?'var(--of-primary)':'var(--text-main)'));
     let cell='<div onclick="mtSelectDay(\''+ds+'\')" style="min-height:'+(_mtFull?130:90)+'px;border-right:1px solid var(--gray-100);border-bottom:1px solid var(--gray-100);padding:5px 5px 7px;cursor:pointer;'+(c.dim?'background:#fafafa;':'')+(isSel?'box-shadow:inset 0 0 0 2px var(--of-primary);':'')+'">';
-    cell+='<div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:.72em;margin-bottom:3px;'+(isToday?'background:#1a73e8;color:#fff;font-weight:700;':'color:'+dnumC+';')+'">'+c.dt.getDate()+'</div>';
+    cell+='<div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:.72em;margin-bottom:3px;'+(isToday?'background:var(--of-primary);color:#fff;font-weight:700;':'color:'+dnumC+';')+'">'+c.dt.getDate()+'</div>';
     const maxChips=_mtFull?5:3;
     evs.slice(0,maxChips).forEach(m=>{
       const src=_mtSource(m), over=ds<today;
@@ -1039,7 +1045,7 @@ function _renderMtCalendar(list){
     +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#fff4e5;vertical-align:middle;margin-right:4px"></i>📍개인</span>'
     +'</div>';
   if(noDue.length){
-    html+='<div style="border:1px solid var(--neutral-border);border-radius:12px;margin-top:11px;padding:10px 14px;background:#fff">'
+    html+='<div style="border-radius:16px;margin-top:12px;padding:12px 15px;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.02)">'
       +'<div style="font-size:.76em;font-weight:700;color:var(--text-sub);margin-bottom:7px">🌙 기한 없음 ('+noDue.length+')</div>'
       +noDue.map(_todoRow).join('')+'</div>';
   }
@@ -1070,17 +1076,17 @@ function _renderMtYear(list){
     /* 이 달 할일 개수 (월 제목 옆 배지) */
     let cnt=0;
     for(const ds in byDate){ if(ds.substring(0,7)===Y+'-'+String(m0+1).padStart(2,'0')) cnt+=byDate[ds].length; }
-    html+='<div style="border:1px solid var(--neutral-border);border-radius:10px;padding:8px 8px 10px;background:#fff">';
+    html+='<div style="border-radius:14px;padding:9px 9px 11px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.05),0 0 0 1px rgba(0,0,0,.02)">';
     html+='<div onclick="mtGotoMonth('+m0+')" style="font-size:.8em;font-weight:700;color:var(--of-primary);cursor:pointer;margin-bottom:5px;padding:1px 3px" title="이 달 월 뷰로">'+(m0+1)+'월'+(cnt?' <span style="font-weight:600;color:var(--gray-500);font-size:.85em">('+cnt+')</span>':'')+'</div>';
     html+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px">';
-    for(let i=0;i<7;i++){ const c=i===0?'#d93025':(i===6?'#1a73e8':'#9aa0a6'); html+='<div style="text-align:center;font-size:.58em;font-weight:700;color:'+c+'">'+wd[i]+'</div>'; }
+    for(let i=0;i<7;i++){ const c=i===0?'var(--toss-red)':(i===6?'var(--of-primary)':'#9aa0a6'); html+='<div style="text-align:center;font-size:.58em;font-weight:700;color:'+c+'">'+wd[i]+'</div>'; }
     for(let i=0;i<startDow;i++) html+='<div></div>';
     for(let d=1; d<=daysInMonth; d++){
       const ds=Y+'-'+String(m0+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
       const evs=byDate[ds]||[];
       const isToday=ds===today;
       let st='width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:.62em;border-radius:50%;cursor:pointer;';
-      if(isToday) st+='background:#1a73e8;color:#fff;font-weight:800;';
+      if(isToday) st+='background:var(--of-primary);color:#fff;font-weight:800;';
       else if(evs.length){ const over=ds<today; st+='background:'+(over?'#fce8e6':'#e8f0fe')+';color:'+(over?'#c5221f':'#1967d2')+';font-weight:800;'; }
       else st+='color:var(--text-sub);';
       html+='<div onclick="mtYearSelectDay(\''+ds+'\')" title="'+(evs.length?evs.length+'건 — 클릭하면 월 뷰':'')+'" style="'+st+'">'+d+'</div>';
@@ -1089,7 +1095,7 @@ function _renderMtYear(list){
   }
   html+='</div>';
   html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:.68em;color:#70757a">'
-    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#1a73e8;vertical-align:middle;margin-right:4px"></i>오늘</span>'
+    +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--of-primary);vertical-align:middle;margin-right:4px"></i>오늘</span>'
     +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#e8f0fe;vertical-align:middle;margin-right:4px"></i>할일 있음</span>'
     +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#fce8e6;vertical-align:middle;margin-right:4px"></i>기한 지남</span>'
     +'<span>· 날짜/월 클릭 → 월 뷰로 이동</span></div>';
@@ -1128,7 +1134,7 @@ function _todoRow(m){
   const linkBtn=m.linked_message_id
     ? '<a href="javascript:void(0)" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(realRoom)+'\','+m.linked_message_id+')" style="color:var(--of-primary);font-size:.72em;text-decoration:none" title="원본 메시지">🔗#'+m.linked_message_id+'</a>'
     : '';
-  return '<div style="display:flex;gap:10px;padding:10px 12px;border:1px solid var(--neutral-border);border-left:3px solid '+accent+';border-radius:10px;margin-bottom:6px;background:#fff;align-items:flex-start;box-shadow:0 1px 2px rgba(60,64,67,.06)">'
+  return '<div style="display:flex;gap:11px;padding:12px 14px;border-left:3px solid '+accent+';border-radius:14px;margin-bottom:8px;background:#fff;align-items:flex-start;box-shadow:0 1px 4px rgba(0,0,0,.05),0 0 0 1px rgba(0,0,0,.02)">'
     +'<input type="checkbox" onchange="completeTodo('+m.id+')" title="완료 처리" style="width:18px;height:18px;cursor:pointer;accent-color:var(--of-success);flex-shrink:0;margin-top:1px">'
     +'<div style="flex:1;min-width:0">'
     +'<div style="font-size:.88em;font-weight:600;color:var(--text-main);line-height:1.45;word-break:break-word">'+e(m.content||'')+'</div>'
@@ -1140,11 +1146,10 @@ function _todoRow(m){
 }
 async function completeTodo(id){
   try{
-    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&id='+id,{
+    const d=await _mtJson('/api/memos?key='+encodeURIComponent(KEY)+'&id='+id,{
       method:'PATCH',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({memo_type:'완료'})
     });
-    const d=await r.json();
     if(!d.ok){alert('완료 처리 실패: '+(d.error||'unknown'));return}
     /* 즉시 UI 제거 (캐시에서 빼고 리렌더) */
     _myTodosCache=_myTodosCache.filter(m=>m.id!==id);
@@ -1155,8 +1160,7 @@ async function completeTodo(id){
 async function deleteTodoFromDashboard(id){
   if(!confirm('이 할 일을 삭제할까요?'))return;
   try{
-    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&id='+id,{method:'DELETE'});
-    const d=await r.json();
+    const d=await _mtJson('/api/memos?key='+encodeURIComponent(KEY)+'&id='+id,{method:'DELETE'});
     if(!d.ok){alert('삭제 실패: '+(d.error||'unknown'));return}
     _myTodosCache=_myTodosCache.filter(m=>m.id!==id);
     _renderMyTodos();
@@ -1168,11 +1172,10 @@ async function addPersonalTask(){
   const due=($g('mtNewDue')?.value||'').trim();
   if(!content){alert('일정 내용을 입력하세요');return}
   try{
-    const r=await fetch('/api/memos?key='+encodeURIComponent(KEY),{
+    const d=await _mtJson('/api/memos?key='+encodeURIComponent(KEY),{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({memo_type:'할 일', content, due_date: due||null}) /* room_id 없음 = 개인 일정 */
     });
-    const d=await r.json();
     if(!d.ok){alert('추가 실패: '+(d.error||'unknown'));return}
     $g('mtNewContent').value='';
     /* 수기로 입력한 날짜가 있으면 달력을 그 달로 점프 + 그 날 선택 → 방금 추가한 게 바로 보임 */
