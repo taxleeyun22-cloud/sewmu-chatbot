@@ -955,7 +955,11 @@ function _renderMyTodos(){
   if(_mtView==='calendar'){ _renderMtCalendar(list); return; }
   if(_mtView==='year'){ _renderMtYear(list); return; }
   if(!_myTodosCache.length){
-    list.innerHTML='<div style="text-align:center;padding:50px 20px;color:var(--text-mute);font-size:.9em">📭 처리할 일이 없습니다<br><span style="font-size:.85em;color:#adb5bd">위 입력창에서 개인 일정을 추가하거나<br>상담방 📒 메모에서 할 일을 작성하세요</span></div>';
+    list.innerHTML='<div style="text-align:center;padding:70px 20px">'
+      +'<div style="width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,#e8f0fe,#e6f4ea);display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 16px">🎉</div>'
+      +'<div style="font-weight:800;font-size:1em;color:var(--text-main);margin-bottom:6px">할 일을 모두 끝냈어요</div>'
+      +'<div style="font-size:.82em;color:var(--text-mute);line-height:1.7">위 입력창에서 개인 일정을 추가하거나<br>거래처·상담방 메모에서 "할 일"로 작성하면 여기 모입니다</div>'
+      +'</div>';
     $g('mtMeta').textContent='0건';
     return;
   }
@@ -973,8 +977,12 @@ function _renderMyTodos(){
   const total=_myTodosCache.length;
   for(const [k,lab,col] of labels){
     const arr=groups[k];if(!arr.length)continue;
-    html+='<div style="margin-bottom:14px">'
-      +'<div style="font-size:.82em;font-weight:700;color:'+col+';margin-bottom:6px;padding:3px 0;border-bottom:2px solid '+col+'">'+e(lab)+' <span style="font-weight:500;color:var(--gray-500)">('+arr.length+')</span></div>'
+    html+='<div style="margin-bottom:16px">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+      +'<span style="font-size:.8em;font-weight:800;color:'+col+'">'+e(lab)+'</span>'
+      +'<span style="font-size:.68em;font-weight:700;color:'+col+';border:1px solid '+col+';border-radius:999px;padding:0 7px;line-height:1.5">'+arr.length+'</span>'
+      +'<span style="flex:1;height:1px;background:var(--gray-100)"></span>'
+      +'</div>'
       +arr.map(_todoRow).join('')
       +'</div>';
   }
@@ -1001,7 +1009,7 @@ function _renderMtCalendar(list){
   while(cells.length%7!==0){ const l=cells[cells.length-1].dt; cells.push({dt:new Date(l.getFullYear(),l.getMonth(),l.getDate()+1), dim:true}); }
   const fmt=(dt)=>dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
   const colors={over:{bg:'#fce8e6',fg:'#c5221f'}, biz:{bg:'#e8f0fe',fg:'#1967d2'}, cust:{bg:'#e6f4ea',fg:'#188038'}, room:{bg:'#f3e8fd',fg:'#8430ce'}, personal:{bg:'#fff4e5',fg:'#b45309'}};
-  let html='<div style="border:1px solid var(--neutral-border);border-radius:12px;overflow:hidden">';
+  let html='<div style="border:1px solid var(--neutral-border);border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 2px rgba(60,64,67,.06)">';
   html+='<div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--gray-100)">';
   ['일','월','화','수','목','금','토'].forEach((w,i)=>{ const c=i===0?'#d93025':(i===6?'#1a73e8':'#70757a'); html+='<div style="padding:8px 0;text-align:center;font-size:.72em;font-weight:700;color:'+c+'">'+w+'</div>'; });
   html+='</div><div style="display:grid;grid-template-columns:repeat(7,1fr)">';
@@ -1031,7 +1039,7 @@ function _renderMtCalendar(list){
     +'<span><i style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#fff4e5;vertical-align:middle;margin-right:4px"></i>📍개인</span>'
     +'</div>';
   if(noDue.length){
-    html+='<div style="border:1px solid var(--neutral-border);border-radius:12px;margin-top:11px;padding:10px 14px">'
+    html+='<div style="border:1px solid var(--neutral-border);border-radius:12px;margin-top:11px;padding:10px 14px;background:#fff">'
       +'<div style="font-size:.76em;font-weight:700;color:var(--text-sub);margin-bottom:7px">🌙 기한 없음 ('+noDue.length+')</div>'
       +noDue.map(_todoRow).join('')+'</div>';
   }
@@ -1095,32 +1103,39 @@ function mtYearSelectDay(ds){
   mtSelectDay(ds); /* 선택 + 추가폼 날짜 자동입력 + 포커스 */
 }
 function _todoRow(m){
-  /* 출처 배지: 업체(🏢) > 거래처(👤) > 상담방(💬) > 개인(📍) 순.
+  /* Google Tasks 톤 화이트 카드 — 출처색 좌측 액센트: 업체(🏢 파랑) > 거래처(👤 초록) > 상담방(💬 보라) > 개인(📍 앰버).
    * room_id 가 '__none__' 이거나 빈값이면 방 아님 → 업체/거래처/개인으로 표시(옛 "__none__" 버그 제거) */
   const realRoom = m.room_id && m.room_id !== '__none__' ? m.room_id : '';
   const custName = m.customer_name || m.customer_nickname || '';
-  let roomBadge;
+  let accent, roomBadge;
   if(m.business_name){
-    roomBadge='<span style="background:#e8f0fe;color:#1967d2;padding:1px 7px;border-radius:8px;font-size:.7em;font-weight:700">🏢 '+e(m.business_name)+'</span>';
+    accent='#1967d2';
+    roomBadge='<span style="background:#e8f0fe;color:#1967d2;padding:2px 8px;border-radius:999px;font-size:.7em;font-weight:700">🏢 '+e(m.business_name)+'</span>';
   }else if(custName){
-    roomBadge='<span style="background:#e6f4ea;color:#188038;padding:1px 7px;border-radius:8px;font-size:.7em;font-weight:700">👤 '+e(custName)+'</span>';
+    accent='#188038';
+    roomBadge='<span style="background:#e6f4ea;color:#188038;padding:2px 8px;border-radius:999px;font-size:.7em;font-weight:700">👤 '+e(custName)+'</span>';
   }else if(realRoom){
-    roomBadge='<a href="javascript:void(0)" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(realRoom)+'\')" style="background:#f3e8fd;color:#8430ce;padding:1px 7px;border-radius:8px;font-size:.7em;font-weight:700;text-decoration:none" title="이 방으로 이동">💬 '+e(m.room_name||realRoom)+'</a>';
+    accent='#8430ce';
+    roomBadge='<a href="javascript:void(0)" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(realRoom)+'\')" style="background:#f3e8fd;color:#8430ce;padding:2px 8px;border-radius:999px;font-size:.7em;font-weight:700;text-decoration:none" title="이 방으로 이동">💬 '+e(m.room_name||realRoom)+'</a>';
   }else{
-    roomBadge='<span style="background:var(--of-warn-soft);color:var(--warn-text);padding:1px 7px;border-radius:8px;font-size:.7em;font-weight:700">📍 개인</span>';
+    accent='#b45309';
+    roomBadge='<span style="background:#fff4e5;color:#b45309;padding:2px 8px;border-radius:999px;font-size:.7em;font-weight:700">📍 개인</span>';
   }
-  const dueLbl=m.due_date?'<span style="font-size:.7em;color:var(--gray-500)">📅 '+e(m.due_date)+'</span>':'';
+  const isOver=m.due_date&&/^\d{4}-\d{2}-\d{2}$/.test(m.due_date)&&m.due_date<_todayKST();
+  const dueLbl=m.due_date
+    ? '<span style="font-size:.7em;font-weight:600;padding:2px 8px;border-radius:999px;'+(isOver?'background:#fce8e6;color:#c5221f':'background:var(--neutral-bg);color:var(--gray-500)')+'">📅 '+e(m.due_date)+(isOver?' · 지남':'')+'</span>'
+    : '';
   const linkBtn=m.linked_message_id
     ? '<a href="javascript:void(0)" onclick="event.stopPropagation();jumpToRoomFromTodo(\''+escAttr(realRoom)+'\','+m.linked_message_id+')" style="color:var(--of-primary);font-size:.72em;text-decoration:none" title="원본 메시지">🔗#'+m.linked_message_id+'</a>'
     : '';
-  return '<div style="display:flex;gap:9px;padding:8px 10px;border:1px solid #fde68a;border-radius:7px;margin-bottom:5px;background:#fffef5;align-items:flex-start">'
-    +'<input type="checkbox" onchange="completeTodo('+m.id+')" style="width:18px;height:18px;cursor:pointer;accent-color:var(--of-success);flex-shrink:0;margin-top:1px">'
+  return '<div style="display:flex;gap:10px;padding:10px 12px;border:1px solid var(--neutral-border);border-left:3px solid '+accent+';border-radius:10px;margin-bottom:6px;background:#fff;align-items:flex-start;box-shadow:0 1px 2px rgba(60,64,67,.06)">'
+    +'<input type="checkbox" onchange="completeTodo('+m.id+')" title="완료 처리" style="width:18px;height:18px;cursor:pointer;accent-color:var(--of-success);flex-shrink:0;margin-top:1px">'
     +'<div style="flex:1;min-width:0">'
-    +'<div style="font-size:.88em;color:var(--text-main);line-height:1.45;word-break:break-word">'+e(m.content||'')+'</div>'
-    +'<div style="display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap">'
+    +'<div style="font-size:.88em;font-weight:600;color:var(--text-main);line-height:1.45;word-break:break-word">'+e(m.content||'')+'</div>'
+    +'<div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap">'
     +roomBadge+dueLbl+linkBtn
     +'<span style="font-size:.7em;color:#9ca3af;margin-left:auto">'+e(m.author_name||'')+'</span>'
-    +'<button onclick="deleteTodoFromDashboard('+m.id+')" style="background:none;border:none;color:var(--toss-red);font-size:.76em;cursor:pointer;font-family:inherit;padding:0 2px" title="삭제">🗑️</button>'
+    +'<button onclick="deleteTodoFromDashboard('+m.id+')" style="background:none;border:none;color:#9ca3af;font-size:.8em;cursor:pointer;font-family:inherit;padding:0 2px" title="삭제" onmouseover="this.style.color=\'var(--toss-red)\'" onmouseout="this.style.color=\'#9ca3af\'">🗑️</button>'
     +'</div></div></div>';
 }
 async function completeTodo(id){
