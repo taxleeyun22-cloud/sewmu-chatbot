@@ -29,8 +29,8 @@
 <!-- 🏢 업체 / 👤 사용자 모드 토글 + 통합 검색 (사장님 명령: 사용자·업체·메모 통합) -->
 <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:relative">
   <div style="display:flex;gap:6px;padding:4px;background:var(--gray-100);border-radius:10px;width:fit-content">
-    <button id="modeBtnUser" onclick="setClientTabMode('user')" style="background:var(--text-main);color:#fff;border:none;padding:7px 16px;border-radius:7px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit">👤 사용자</button>
-    <button id="modeBtnBiz" onclick="setClientTabMode('business')" style="background:transparent;color:var(--gray-500);border:none;padding:7px 16px;border-radius:7px;font-size:.82em;cursor:pointer;font-family:inherit">🏢 업체</button>
+    <button id="modeBtnUser" onclick="setClientTabMode('user')" style="background:var(--text-main);color:#fff;border:none;padding:7px 16px;border-radius:7px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit">사용자</button>
+    <button id="modeBtnBiz" onclick="setClientTabMode('business')" style="background:transparent;color:var(--gray-500);border:none;padding:7px 16px;border-radius:7px;font-size:.82em;cursor:pointer;font-family:inherit">업체</button>
   </div>
   <div style="margin-left:auto;flex:0 1 360px;min-width:220px;position:relative">
     <input id="clientSearchInput" type="text" placeholder="🔍 사용자·업체·메모·#태그 통합 검색" oninput="onClientSearchInput()" autocomplete="off"
@@ -46,16 +46,16 @@
 <button class="on" id="uStPending" onclick="userStatus('pending')" style="background:var(--toss-red);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:#fff;font-weight:500">대기 <span id="cPending"><span id="c-pending-mount">0</span></span></button>
 <button id="uStClient" onclick="userStatus('approved_client')" style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500">기장거래처 <span id="cClient"><span id="c-client-mount">0</span></span></button>
 <!-- 사장님 명령 (2026-05-07): 일반 승인 탭 부활 — 무료 이용 가입자 사후 검토 -->
-<button id="uStGuest" onclick="userStatus('approved_guest')" title="무료 이용 (일 5건) — 사장님 사후 검토 가능. 기장거래처로 승급 또는 거절 가능." style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500">📗 일반 승인 <span id="cGuest"><span id="c-guest-mount">0</span></span></button>
+<button id="uStGuest" onclick="userStatus('approved_guest')" title="무료 이용 (일 5건) — 사장님 사후 검토 가능. 기장거래처로 승급 또는 거절 가능." style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500">일반 승인 <span id="cGuest"><span id="c-guest-mount">0</span></span></button>
 <button id="uStRejected" onclick="userStatus('rejected')" style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500">거절 <span id="cRejected"><span id="c-rejected-mount">0</span></span></button>
-<button id="uStTerminated" onclick="userStatus('terminated')" title="거래가 종료된 거래처 — 상담방 모두 closed, 접근 차단됨" style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500">🚫 종료 <span id="cTerminated"><span id="c-terminated-mount">0</span></span></button>
+<button id="uStTerminated" onclick="userStatus('terminated')" title="거래가 종료된 거래처 — 상담방 모두 closed, 접근 차단됨" style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500">종료 <span id="cTerminated"><span id="c-terminated-mount">0</span></span></button>
 <!-- 사장님 명령 (2026-05-07 최종): 탈퇴 + 재가입 둘 다 표시 -->
-<button id="uStWithdrawn" onclick="userStatus('withdrawn')" title="회원 탈퇴한 사용자 (deleted_at 있음). 같은 카카오로 다시 로그인 시 재가입 탭으로 자동 이동." style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500">🚪 탈퇴 <span id="cWithdrawn">0</span></button>
-<button id="uStRejoined" onclick="userStatus('rejoined')" title="옛 탈퇴자가 다시 카카오 로그인 → 자동 부활 + 재가입 상태. admin 검토 후 다시 승인 결정." style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500">🔄 재가입 <span id="cRejoined"><span id="c-rejoined-mount">0</span></span></button>
-<button id="uStAdmin" onclick="userStatus('admin')" style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500" title="is_admin=1 관리자 사용자">👑 관리자 <span id="cAdmin"><span id="c-admin-mount">0</span></span></button>
-<button onclick="openManualClientModal()" style="margin-left:auto;background:var(--of-success);color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="OAuth 없이 관리자가 직접 거래처 생성 — 오프라인 고객·기존 거래처 마이그레이션용">➕ 수동 거래처</button>
+<button id="uStWithdrawn" onclick="userStatus('withdrawn')" title="회원 탈퇴한 사용자 (deleted_at 있음). 같은 카카오로 다시 로그인 시 재가입 탭으로 자동 이동." style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500">탈퇴 <span id="cWithdrawn">0</span></button>
+<button id="uStRejoined" onclick="userStatus('rejoined')" title="옛 탈퇴자가 다시 카카오 로그인 → 자동 부활 + 재가입 상태. admin 검토 후 다시 승인 결정." style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500">재가입 <span id="cRejoined"><span id="c-rejoined-mount">0</span></span></button>
+<button id="uStAdmin" onclick="userStatus('admin')" style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500" title="is_admin=1 관리자 사용자">관리자 <span id="cAdmin"><span id="c-admin-mount">0</span></span></button>
+<button onclick="openManualClientModal()" style="margin-left:auto;background:var(--of-primary);color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="OAuth 없이 관리자가 직접 거래처 생성 — 오프라인 고객·기존 거래처 마이그레이션용">➕ 수동 거래처</button>
 <!-- 📥 owner 전용 전체 내보내기 (사장님 명령 2026-04-30: 나(세무사)만 할 수 있어야) -->
-<button id="ownerExportBtn" onclick="openOwnerExport()" style="display:none;background:#8b6914;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:600" title="owner(사장님) 전용 — 사용자/업체/메모 전체 CSV 내보내기">📥 전체 내보내기</button>
+<button id="ownerExportBtn" onclick="openOwnerExport()" style="display:none;background:#fff;color:var(--text-sub);border:1px solid var(--neutral-border);padding:6px 12px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit;font-weight:600" title="owner(사장님) 전용 — 사용자/업체/메모 전체 CSV 내보내기">📥 전체 내보내기</button>
 <button onclick="cleanDupBiz()" title="같은 사용자에게 중복 저장된 사업장을 감지·정리 (먼저 미리보기 후 실행)" style="background:var(--gray-100);color:var(--text-sub);border:1px solid var(--neutral-border);padding:6px 12px;border-radius:8px;font-size:.78em;cursor:pointer;font-family:inherit">🧹 중복 사업장 정리</button>
 </div>
 <div id="userList"></div>
@@ -64,14 +64,14 @@
 <div id="bizModeView" class="hidden">
   <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <input id="bizSearchInput" type="text" placeholder="🔍 업체명·사업자번호·대표자명 검색" oninput="onBizSearchInput()" style="flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--neutral-border);border-radius:8px;font-size:.88em;font-family:inherit;outline:none">
-    <button onclick="openNewBusinessModal()" style="background:var(--of-success);color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit">＋ 새 업체</button>
+    <button onclick="openNewBusinessModal()" style="background:var(--of-primary);color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.82em;font-weight:600;cursor:pointer;font-family:inherit">＋ 새 업체</button>
   </div>
   <!-- 사장님 명령 (2026-05-08): 사용자처럼 status 별 탭 (전체 / 활성 / 종료 / 이관) -->
   <div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">
     <button class="on" id="bStAll" onclick="bizStatus('all')" style="background:var(--of-primary);color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:500">전체 <span id="cBizAll">0</span></button>
     <button id="bStActive" onclick="bizStatus('active')" style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500">활성 <span id="cBizActive">0</span></button>
-    <button id="bStClosed" onclick="bizStatus('closed')" style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500" title="status='closed' 업체">📦 종료 <span id="cBizClosed">0</span></button>
-    <button id="bStTerminated" onclick="bizStatus('terminated')" style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500" title="이관된 업체">🚫 이관 <span id="cBizTerminated">0</span></button>
+    <button id="bStClosed" onclick="bizStatus('closed')" style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500" title="status='closed' 업체">종료 <span id="cBizClosed">0</span></button>
+    <button id="bStTerminated" onclick="bizStatus('terminated')" style="background:var(--neutral-border);border:none;padding:6px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;color:var(--text-mute);font-weight:500" title="이관된 업체">이관 <span id="cBizTerminated">0</span></button>
   </div>
   <div id="bizList"></div>
 </div>

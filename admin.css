@@ -208,8 +208,8 @@ body.staff-mode .owner-only{display:none !important}
 .room-item .ri-sub{font-size:.72em;color:#8b95a1;display:flex;gap:4px;align-items:center}
 .room-item .ri-time{font-size:.66em;color:#b0b8c1;margin-top:2px}
 
-/* 상담방 개설 버튼 (그라디언트) */
-.room-create-btn{background:linear-gradient(135deg,#3182f6,#5da3ff)!important;color:#fff!important;border:none!important;padding:11px!important;border-radius:10px!important;font-size:.86em!important;font-weight:700!important;cursor:pointer!important;font-family:inherit!important;margin-bottom:10px!important;box-shadow:0 2px 8px rgba(49,130,246,.25)!important;transition:transform .1s!important}
+/* 상담방 개설 버튼 — 토스 정합화 (2026-07-06): 그라디언트 → 플랫 브랜드 블루 */
+.room-create-btn{background:var(--brand-primary,#3182f6)!important;color:#fff!important;border:none!important;padding:11px!important;border-radius:10px!important;font-size:.86em!important;font-weight:700!important;cursor:pointer!important;font-family:inherit!important;margin-bottom:10px!important;transition:transform .1s!important}
 .room-create-btn:active{transform:scale(.98)}
 
 /* 상담방 모바일 반응형 */
