@@ -192,10 +192,12 @@ function _hhCountUp(){
     });
   }catch(_){}
 }
-/* KPI 박스 1개 HTML — 토스 톤: 아이콘 틴트 + 카운트업 숫자 + (옵션) 스파크라인 */
-function _hhKpi(ico,label,val,unit,color,onclick,tintBg,tintFg,spark){
+/* KPI 박스 1개 HTML — 토스 톤: 아이콘 틴트 + 카운트업 숫자 + (옵션) 스파크라인/서브라인.
+ * 클릭 가능하면 hover 시 카드가 살짝 떠오름 (누를 수 있다는 어포던스). */
+function _hhKpi(ico,label,val,unit,color,onclick,tintBg,tintFg,spark,sub){
   var num=(typeof val==='number')?'<span data-hh-num="'+val+'">0</span>':val;
-  return '<div onclick="'+(onclick||'')+'" style="flex:1 1 180px;min-width:160px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:'+(onclick?'pointer':'default')+'">'
+  var hov=onclick?' onmouseover="this.style.boxShadow=\'0 6px 18px rgba(25,31,40,.12)\';this.style.transform=\'translateY(-1px)\'" onmouseout="this.style.boxShadow=\'0 2px 10px rgba(25,31,40,.05)\';this.style.transform=\'none\'"':'';
+  return '<div onclick="'+(onclick||'')+'"'+hov+' style="flex:1 1 180px;min-width:160px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:'+(onclick?'pointer':'default')+';transition:box-shadow .15s,transform .15s">'
     +'<div style="display:flex;align-items:center;gap:9px">'
     +'<span style="width:34px;height:34px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:'+(tintBg||'#f2f4f6')+';color:'+(tintFg||'var(--text-sub)')+';flex-shrink:0">'+_hIco(ico)+'</span>'
     +'<span style="font-size:12.5px;color:var(--text-mute);font-weight:700">'+label+'</span>'
@@ -203,7 +205,9 @@ function _hhKpi(ico,label,val,unit,color,onclick,tintBg,tintFg,spark){
     +'<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-top:8px">'
     +'<div style="font-size:27px;font-weight:800;letter-spacing:-.03em;color:'+color+'">'+num+'<span style="font-size:14px;font-weight:700;color:var(--text-sub)"> '+unit+'</span></div>'
     +(spark||'')
-    +'</div></div>';
+    +'</div>'
+    +(sub?'<div style="font-size:12px;color:var(--text-mute);margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+sub+'</div>':'')
+    +'</div>';
 }
 /* 히어로 브리핑 칩 한 줄 — 🏛 오늘 마감 · 📋 할 일 · 👤 승인 대기 */
 function _hhBrief(){
@@ -211,12 +215,17 @@ function _hhBrief(){
   var KST=new Date(Date.now()+9*3600*1000);
   var taxToday=0;
   try{ if(typeof _mtTaxSchedule==='function'){ taxToday=(_mtTaxSchedule(KST.getUTCFullYear(),KST.getUTCMonth())[KST.getUTCDate()]||[]).length; } }catch(_){}
-  var chip=function(txt,hot){ return '<span style="background:rgba(255,255,255,'+(hot?'.24':'.13')+');border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700;color:#fff">'+txt+'</span>'; };
+  /* 칩 = 버튼 (사장님 "사용자 편의": 누르면 바로 그 자리로) */
+  var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
+  var chip=function(txt,hot,onclick){
+    return '<button onclick="'+onclick+'" onmouseover="this.style.background=\'rgba(255,255,255,.32)\'" onmouseout="this.style.background=\'rgba(255,255,255,'+(hot?'.24':'.13')+')\'" style="background:rgba(255,255,255,'+(hot?'.24':'.13')+');border:none;border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">'+txt+'</button>';
+  };
+  var openTodos="if(typeof openMyTodos==='function')openMyTodos()";
   var t=_hhTodo, d=_hhData;
   var todoN=t?((t.overdue||0)+(t.today||0)):'·';
-  box.innerHTML=chip('🏛 오늘 마감 '+taxToday+'건', taxToday>0)
-    +chip('📋 할 일 '+todoN+'건'+((t&&t.overdue>0)?' · 지남 '+t.overdue:''), !!(t&&t.overdue>0))
-    +chip('👤 승인 대기 '+(d?(d.pending||0):'·')+'명', !!(d&&d.pending>0));
+  box.innerHTML=chip('🏛 오늘 마감 '+taxToday+'건 ›', taxToday>0, openTodos)
+    +chip('📋 할 일 '+todoN+'건'+((t&&t.overdue>0)?' · 지남 '+t.overdue:'')+' ›', !!(t&&t.overdue>0), openTodos)
+    +chip('👤 승인 대기 '+(d?(d.pending||0):'·')+'명 ›', !!(d&&d.pending>0), uTab);
 }
 /* KPI 채우기 — 캐시(_hhData) 있으면 숫자, 없으면 '·' 플레이스홀더. fetch 안 함(쌈). */
 function _hhFill(){
@@ -227,7 +236,8 @@ function _hhFill(){
   var pend=d.pending;
   box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
     +_hhKpi('people','기장거래처',P(d.approvedClient),'곳','var(--of-primary)',uTab,'#e8f3ff','var(--of-primary)')
-    +_hhKpi('wait','승인 대기',P(pend),'명',(pend>0)?'var(--toss-red)':'var(--text-main)',uTab,(pend>0)?'#fdecec':'#f2f4f6',(pend>0)?'var(--toss-red)':'var(--text-sub)')
+    +_hhKpi('wait','승인 대기',P(pend),'명',(pend>0)?'var(--toss-red)':'var(--text-main)',uTab,(pend>0)?'#fdecec':'#f2f4f6',(pend>0)?'var(--toss-red)':'var(--text-sub)','',
+      (pend>0&&d.pendingNames&&d.pendingNames.length)?('👉 '+d.pendingNames.join(' · ')+(pend>d.pendingNames.length?' 외 '+(pend-d.pendingNames.length)+'명':'')):'')
     +_hhKpi('chat','오늘 챗봇 상담',P(d.todayCnt),'건','var(--text-main)','','#e6f4ea','#188038',_hhSpark(d.daily7,'#188038'))
     +_hhKpi('biz','전체 사용자',P(d.totalUsers),'명','var(--text-main)',uTab,'#f2f4f6','var(--text-sub)')
     +'</div>';
@@ -278,13 +288,39 @@ function _hhToday(){
       +'<span style="background:#f2f4f6;color:var(--text-sub);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700">전체 '+(t.total||0)+'</span>'
       +'</div>';
   var open="if(typeof openMyTodos==='function')openMyTodos()";
+  var hov=' onmouseover="this.style.boxShadow=\'0 6px 18px rgba(25,31,40,.12)\'" onmouseout="this.style.boxShadow=\'0 2px 10px rgba(25,31,40,.05)\'"';
   box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
-    +'<div onclick="'+open+'" style="flex:1 1 300px;min-width:260px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer" title="클릭 → 내 할 일 달력">'
+    +'<div onclick="'+open+'"'+hov+' style="flex:1 1 300px;min-width:260px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer;transition:box-shadow .15s" title="클릭 → 내 할 일 달력">'
     +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">🏛 다가오는 법정 마감 <span style="font-weight:500">(7일 · 주말이면 다음 영업일)</span></div>'+taxRows+'</div>'
-    +'<div onclick="'+open+'" style="flex:1 1 300px;min-width:260px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer" title="클릭 → 내 할 일">'
-    +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">📋 내 할 일</div>'+todoLine+'</div>'
+    +'<div onclick="'+open+'"'+hov+' style="flex:1 1 300px;min-width:260px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer;transition:box-shadow .15s" title="클릭 → 내 할 일">'
+    +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">📋 내 할 일</div>'+todoLine
+    /* 빠른 추가 — 홈에서 생각난 할일 바로 입력 (Enter). 기한은 달력에서 */
+    +'<div onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:8px;background:#f2f4f6;border-radius:12px;padding:8px 13px;margin-top:11px">'
+    +'<span style="color:var(--of-primary);font-weight:800;line-height:1">＋</span>'
+    +'<input type="text" placeholder="할 일 빠른 추가 — Enter" onkeydown="_hhQuickAdd(event)" style="flex:1;min-width:0;border:none;background:transparent;font-size:13px;font-family:inherit;outline:none;color:var(--text-main)">'
+    +'</div>'
+    +'</div>'
     +'</div>';
   if(_hhTodo==null) _hhTodoFetch();
+}
+/* 홈 빠른 할일 추가 — Enter 로 즉시 저장 (기한 없음, 개인) */
+async function _hhQuickAdd(ev){
+  if(ev.key!=='Enter')return;
+  ev.preventDefault();
+  var inp=ev.target, c=(inp.value||'').trim();
+  if(!c)return;
+  inp.disabled=true;
+  try{
+    var r=await fetch('/api/memos?key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({memo_type:'할 일',content:c})
+    });
+    var d=await r.json();
+    if(d&&d.ok){
+      inp.value=''; inp.placeholder='✅ 추가됐어요 — 또 입력하세요';
+      _hhTodo=null; _hhTodoFetch();   /* 카운트 갱신 (재렌더 후 포커스 유실 감수) */
+    }else{ alert('추가 실패: '+((d&&d.error)||'unknown')); inp.disabled=false; inp.focus(); }
+  }catch(e){ alert('오류: '+e.message); inp.disabled=false; inp.focus(); }
 }
 async function _hhTodoFetch(){
   if(_hhTodo!==null || _hhTodoFetching) return;
@@ -324,7 +360,9 @@ async function _hhFetch(){
     var dRow=daily.find(function(d){return d.date===todayKey});
     /* 최근 7일 상담 건수 (스파크라인용) */
     var daily7=daily.slice(-7).map(function(x){return x.count||0});
-    _hhData={ approvedClient:(c.approved_client||0), pending:(c.pending||0), todayCnt:(dRow?dRow.count:0), totalUsers:((rs[2]&&rs[2].total)||0), daily7:daily7 };
+    /* 대기자 이름 미리보기 (상위 3명) — 홈에서 누가 기다리는지 바로 보이게 */
+    var pNames=((rs[0]&&rs[0].users)||[]).slice(0,3).map(function(u){return u.real_name||u.name||'이름없음'});
+    _hhData={ approvedClient:(c.approved_client||0), pending:(c.pending||0), todayCnt:(dRow?dRow.count:0), totalUsers:((rs[2]&&rs[2].total)||0), daily7:daily7, pendingNames:pNames };
   }catch(_){ _hhData=null; }
   _hhFetching=false;
   try{ _hhFill(); }catch(_){}
