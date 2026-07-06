@@ -422,6 +422,7 @@ setInterval(refreshLiveBadge,10000);
 try{
   var saved=localStorage.getItem('admin_last_tab');
   if(saved&&['home','chat','live','rooms','users','anal','review','faq'].indexOf(saved)>=0)tab(saved);
+  else tab('home'); /* 기본 = 홈 (2026-07-06 사장님: 홈 아래 대화 리스트 붙는 초기상태 제거) */
 }catch{}
 return true;
 }catch{
@@ -684,8 +685,8 @@ async function doCookieLogin(whoamiData){
   try{
     var saved=localStorage.getItem('admin_last_tab');
     if(saved&&['home','chat','live','rooms','users','anal','review','faq'].indexOf(saved)>=0)tab(saved);
-    else tab('rooms');
-  }catch{ try{ tab('rooms'); }catch(_){} }
+    else tab('home'); /* 기본 = 홈 (2026-07-06) */
+  }catch{ try{ tab('home'); }catch(_){} }
 }
 
 /* 🔐 상담방 목록 모드: 'external'(기본) | 'internal'(관리자방) */

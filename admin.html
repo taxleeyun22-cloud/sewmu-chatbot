@@ -101,7 +101,8 @@ if ('serviceWorker' in navigator) {
 <!-- 좌측 사이드바 (office 의 위멤버스 톤 사이드바를 admin 으로 이전) -->
 <aside class="of-sb" id="adminSidebar">
 
-  <div class="of-sb-brand">
+  <!-- 사용자 편의 (2026-07-06 사장님): 로고/이름 클릭 = 어디서든 홈 복귀 -->
+  <div class="of-sb-brand" onclick="if(typeof tab==='function')tab('home')" style="cursor:pointer" title="홈으로">
     <div class="logo">🌿</div>
     <div class="name">세무회계 이윤</div>
   </div>
@@ -308,7 +309,7 @@ setTimeout(function(){
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=214"></script>
+<script src="/admin.js?v=215"></script>
 <!-- 모듈화 #3 Step9 (2026-05-18): PC 알림 admin.js 에서 분리 (classic, admin.js 다음 로드) -->
 <script src="/admin-pc-notify.js?v=1"></script>
 <!-- 모듈화 #3 Step10 (2026-05-18): owner 전체 내보내기 admin.js 에서 분리 -->
