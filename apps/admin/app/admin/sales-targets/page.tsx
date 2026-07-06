@@ -395,7 +395,7 @@ export default function SalesTargetsPage() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') applyKw();
               }}
-              placeholder="경비 키워드 검색 — 쉼표로 여러 개 (예: 차량,리스,접대비)"
+              placeholder="키워드·이름·업체명 검색 — 쉼표로 여러 개 (예: 접대비,차량,어나드,박승호)"
               className="border border-gray-300 rounded px-3 py-1.5 text-sm flex-1 min-w-[240px]"
             />
             <button
@@ -558,7 +558,9 @@ export default function SalesTargetsPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-gray-400">※ 검토표 직원코멘트(SECTION 05) 검색 키워드: {expenseKwLabel}</p>
+          <p className="text-xs text-gray-400">
+            ※ 직원코멘트(SECTION 05) + 이름·업체명(대표자 포함)에서 검색: {expenseKwLabel}
+          </p>
         </>
       )}
 
