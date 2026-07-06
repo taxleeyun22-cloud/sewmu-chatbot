@@ -304,6 +304,48 @@ describe('salesTargets router (integration)', () => {
     });
   });
 
+  describe('income (소득률 타겟)', () => {
+    it('소득률 = 종합소득금액÷수입금액, 컷오프 필터 + 소득률 내림차순 + 이름 JOIN', async () => {
+      const { caller, rawDb } = await makeCaller({ isOwner: true });
+      insertUser(rawDb, { id: 60, real_name: '고소득률', phone: '010-1000-1000' });
+      insertUser(rawDb, { id: 61, real_name: '저소득률' });
+      insertUser(rawDb, { id: 62, real_name: '중간소득률' });
+      /* 60: 1억 수입 / 6천 소득 = 60% */
+      insertFiling(rawDb, {
+        id: 1, type: '종소세', year: 2025, owner_type: 'Person', owner_id: 60,
+        auto_fields: { revenue: 100_000_000, total_income: 60_000_000, calculated_tax: 9_000_000 },
+      });
+      /* 61: 2억 수입 / 2천 소득 = 10% → 컷오프(30) 미달 */
+      insertFiling(rawDb, {
+        id: 2, type: '종소세', year: 2025, owner_type: 'Person', owner_id: 61,
+        auto_fields: { revenue: 200_000_000, total_income: 20_000_000 },
+      });
+      /* 62: 1억 수입 / 3천5백 소득 = 35% */
+      insertFiling(rawDb, {
+        id: 3, type: '종소세', year: 2025, owner_type: 'Person', owner_id: 62,
+        auto_fields: { revenue: 100_000_000, total_income: 35_000_000 },
+      });
+      /* 수입금액 미입력 → 판단 불가 제외 */
+      insertFiling(rawDb, {
+        id: 4, type: '종소세', year: 2025, owner_type: 'Person', owner_id: 60,
+        auto_fields: { total_income: 50_000_000 },
+      });
+
+      const r = await caller.salesTargets.income({ year: 2025 });
+      expect(r.scanned).toBe(4);
+      expect(r.withBoth).toBe(3);
+      expect(r.minRate).toBe(30);
+      expect(r.count).toBe(2);
+      expect(r.targets[0]).toMatchObject({ name: '고소득률', rate: 60, phone: '010-1000-1000' });
+      expect(r.targets[1]).toMatchObject({ name: '중간소득률', rate: 35 });
+
+      /* 컷오프 50% → 1명만 */
+      const r50 = await caller.salesTargets.income({ year: 2025, minRate: 50 });
+      expect(r50.count).toBe(1);
+      expect(r50.targets[0].name).toBe('고소득률');
+    });
+  });
+
   describe('contacts (연락 진행 상태)', () => {
     it('setContact upsert → contacts 조회 + 같은 키 재설정 시 덮어쓰기', async () => {
       const { caller, rawDb } = await makeCaller({ isOwner: true, userId: 1 });

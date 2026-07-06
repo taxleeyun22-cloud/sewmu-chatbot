@@ -17,7 +17,7 @@ import { trpcCall } from '@/lib/trpc';
 import { toast } from '@/components/ui/toast';
 import { SkeletonList } from '@/components/ui/skeleton';
 
-type Tab = 'pension' | 'expense' | 'incorporation';
+type Tab = 'pension' | 'expense' | 'incorporation' | 'income';
 
 interface PensionTarget {
   filing_id: number;
@@ -70,6 +70,25 @@ interface IncorpResult {
   threshold: number;
   count: number;
   targets: IncorpTarget[];
+}
+
+interface IncomeTarget {
+  filing_id: number;
+  user_id: number;
+  name: string;
+  phone: string | null;
+  revenue: number;
+  total_income: number;
+  rate: number;
+  calculated_tax: number;
+}
+interface IncomeResult {
+  year: number;
+  scanned: number;
+  withBoth: number;
+  minRate: number;
+  count: number;
+  targets: IncomeTarget[];
 }
 
 /* 연락 진행 상태 (사장님 2026-07-06 "내가 연락 넣고 있다 이런 거 확인") */
@@ -191,6 +210,13 @@ export default function SalesTargetsPage() {
     queryFn: () => trpcCall('salesTargets.incorporation', { year, minTaxBase: incorpThreshold }),
     enabled: tab === 'incorporation' && year > 0,
   });
+  /* 소득률 컷오프 (기본 30%) */
+  const [minIncomeRate, setMinIncomeRate] = useState<number>(30);
+  const incomeQ = useQuery<IncomeResult>({
+    queryKey: ['salesTargets.income', { year, minRate: minIncomeRate }],
+    queryFn: () => trpcCall('salesTargets.income', { year, minRate: minIncomeRate }),
+    enabled: tab === 'income' && year > 0,
+  });
 
   /* 연락 진행 상태 — 탭별 별도 저장(sales_target_contacts), 행 select 로 즉시 변경 */
   const contactsQ = useQuery<{ contacts: ContactRow[] }>({
@@ -270,10 +296,13 @@ export default function SalesTargetsPage() {
       ? pensionQ.isLoading
       : tab === 'expense'
         ? expenseQ.isLoading
-        : incorporationQ.isLoading;
+        : tab === 'incorporation'
+          ? incorporationQ.isLoading
+          : incomeQ.isLoading;
   const pension = pensionQ.data;
   const expense = expenseQ.data;
   const incorporation = incorporationQ.data;
+  const income = incomeQ.data;
 
   const expenseKwLabel = useMemo(
     () => (expense?.keywords?.length ? expense.keywords.join(' · ') : '접대비 · 지출결의 · 경비내역 · 가경비 · 판촉비'),
@@ -318,6 +347,15 @@ export default function SalesTargetsPage() {
       expense.targets.map((t) => [t.name, t.tax_type, t.keywords.join('·'), t.phone || '', t.note]),
     );
     toast.success(`보험 타겟 ${expense.targets.length}명 CSV 저장`);
+  }
+  function exportIncome() {
+    if (!income?.targets.length) return;
+    downloadCsv(
+      `소득률타겟_${income.year}.csv`,
+      ['이름', '전화', '수입금액', '종합소득금액', '소득률(%)', '산출세액'],
+      income.targets.map((t) => [t.name, t.phone || '', t.revenue, t.total_income, t.rate, t.calculated_tax]),
+    );
+    toast.success(`소득률 타겟 ${income.targets.length}명 CSV 저장`);
   }
   function exportIncorporation() {
     if (!incorporation?.targets.length) return;
@@ -381,6 +419,15 @@ export default function SalesTargetsPage() {
           }`}
         >
           🏢 법인전환
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('income')}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold border ${
+            tab === 'income' ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          📈 소득률
         </button>
       </div>
 
@@ -664,6 +711,96 @@ export default function SalesTargetsPage() {
           <p className="text-xs text-gray-400">
             ※ 과세표준 한계세율 기준 <b>1차 영업명단</b>입니다. 실제 법인전환은 성실신고확인·4대보험·가지급금·청산·취득세
             등 종합검토가 필요해요. (법인세율: 과세표준 2억↓ 9% · 초과 19% — 소득세법 제55조 / 법인세법 제55조)
+          </p>
+        </>
+      )}
+
+      {/* 소득률 컷오프 (소득률 탭) */}
+      {tab === 'income' && (
+        <div className="bg-white border border-gray-200 rounded-lg p-3 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-gray-600">소득률 컷오프</span>
+          <select
+            value={minIncomeRate}
+            onChange={(e) => setMinIncomeRate(Number(e.target.value))}
+            className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+          >
+            <option value={20}>20% 이상</option>
+            <option value={30}>30% 이상 (기본)</option>
+            <option value={40}>40% 이상 (핵심)</option>
+            <option value={50}>50% 이상 (최우선)</option>
+          </select>
+          <span className="text-xs text-gray-400">소득률 = 종합소득금액 ÷ 수입금액 (검토표 기준) — 높을수록 경비·공제 못 쓰는 중</span>
+        </div>
+      )}
+
+      {/* 소득률 탭 */}
+      {tab === 'income' && !loading && income && (
+        <>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-900 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span>종소세 검토표 <b>{income.scanned}</b>건</span>
+            <span>· 수입·소득 둘 다 입력 <b>{income.withBoth}</b></span>
+            <span className="text-emerald-700 font-bold">→ 소득률 {income.minRate}%↑ {income.count}명</span>
+            <ContactSummary keys={income.targets.map((t) => `Person:${t.user_id}`)} />
+            <button
+              type="button"
+              onClick={exportIncome}
+              disabled={!income.count}
+              className="ml-auto bg-brand-primary text-white px-3 py-1.5 rounded text-xs font-bold disabled:bg-gray-300"
+            >
+              ⬇ CSV 다운로드 ({income.count})
+            </button>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-600 text-xs">
+                <tr>
+                  <th className="px-3 py-2 text-left w-12">#</th>
+                  <th className="px-3 py-2 text-left">이름</th>
+                  <th className="px-3 py-2 text-right">수입금액</th>
+                  <th className="px-3 py-2 text-right">종합소득금액</th>
+                  <th className="px-3 py-2 text-center">소득률</th>
+                  <th className="px-3 py-2 text-right">산출세액</th>
+                  <th className="px-3 py-2 text-left">전화</th>
+                  <th className="px-3 py-2 text-left w-28">연락</th>
+                </tr>
+              </thead>
+              <tbody>
+                {income.targets.map((t, i) => (
+                  <tr
+                    key={t.filing_id}
+                    className="border-t border-gray-100 hover:bg-blue-50 cursor-pointer"
+                    onClick={() => openClient('Person', t.user_id)}
+                    title="거래처 대시보드 열기 ↗"
+                  >
+                    <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                    <td className="px-3 py-2 font-medium text-blue-700 hover:underline whitespace-nowrap">{t.name} ↗</td>
+                    <td className="px-3 py-2 text-right text-gray-600" title={`${won(t.revenue)}원`}>{wonShort(t.revenue)}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-gray-900" title={`${won(t.total_income)}원`}>{wonShort(t.total_income)}</td>
+                    <td className="px-3 py-2 text-center">
+                      <span className={`inline-block rounded px-2 py-0.5 text-xs font-bold ${
+                        t.rate >= 50 ? 'bg-red-100 text-red-700' : t.rate >= 40 ? 'bg-orange-100 text-orange-800' : 'bg-emerald-100 text-emerald-800'
+                      }`}>
+                        {t.rate}%
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-600">{won(t.calculated_tax)}원</td>
+                    <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{t.phone || '—'}</td>
+                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} /></td>
+                  </tr>
+                ))}
+                {!income.count && (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-8 text-center text-gray-400">
+                      컷오프 이상 소득률 거래처가 없습니다. (컷오프를 낮춰보세요)
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-gray-400">
+            ※ 소득률 = 검토표의 <b>종합소득금액 ÷ 수입금액</b>. 소득률이 높다 = 경비·공제 여력을 못 쓰고 있다 →
+            노란우산공제·연금계좌·비용 증빙 보강 등 <b>절세 컨설팅 1차 명단</b>입니다. (업종별 적정률은 별도 판단)
           </p>
         </>
       )}

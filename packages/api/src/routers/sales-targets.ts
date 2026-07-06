@@ -21,7 +21,7 @@ import { audit } from '../audit';
 /* ── 연락 진행 상태 (사장님 2026-07-06 "내가 연락 넣고 있다 이런 거 확인") ──
  * 타겟은 검토표에서 동적 추출이라 상태는 (target_type, owner_type, owner_id) 키로 별도 저장.
  * status: none(미접촉) | contacted(연락중) | consult(상담예약) | won(성사) | hold(보류) */
-const CONTACT_TARGET_TYPES = ['pension', 'expense', 'incorporation'] as const;
+const CONTACT_TARGET_TYPES = ['pension', 'expense', 'incorporation', 'income'] as const;
 const CONTACT_STATUSES = ['none', 'contacted', 'consult', 'won', 'hold'] as const;
 
 type D1Like = {
@@ -69,6 +69,12 @@ const DEFAULT_EXPENSE_KEYWORDS = ['접대비', '지출결의', '경비내역', '
 /* 법인전환 영업 (2026-06-19): 개인 종소세 과세표준 기준. 기본 컷오프 = 8,800만(35% 구간부터).
  * 법인세율(2억↓ 9% / 초과 19%)과의 한계세율 격차가 클수록 전환 실익 큼. */
 const DEFAULT_INCORP_TAX_BASE = 88_000_000;
+
+/* 소득률 영업 (2026-07-06 사장님 "소득률 높은 애들도 파헤쳐야"):
+ * 소득률 = 종합소득금액(total_income) ÷ 수입금액(revenue) — 검토표 필드 그대로.
+ * 소득률 높음 = 경비·공제를 못 쓰고 있다 → 노란우산·연금·비용 증빙 등 절세 컨설팅 타겟.
+ * 기본 컷오프 30%. */
+const DEFAULT_INCOME_RATE = 30;
 
 /** 2026 종합소득세 누진 한계세율(%) — 과세표준 구간. (소득세법 제55조) */
 export function marginalRateByTaxBase(taxBase: number): number {
@@ -408,6 +414,94 @@ export const salesTargetsRouter = router({
         scanned: rows.length,
         withTaxBase,
         threshold,
+        count: targets.length,
+        targets,
+      };
+    }),
+
+  /** 소득률 타겟 — 개인 종소세: 소득률(종합소득금액÷수입금액) 높은 순.
+   *  경비·공제 여력을 못 쓰는 거래처 → 절세 컨설팅(노란우산·연금·비용 증빙) 영업. */
+  income: adminProcedure
+    .input(
+      z.object({
+        year: z.number().int().min(2000).max(2100),
+        minRate: z.number().min(0).max(100).optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const db = drizzle(ctx.db);
+      const { filings, users } = schema;
+      const minRate = input.minRate ?? DEFAULT_INCOME_RATE;
+      const rows = await db
+        .select()
+        .from(filings)
+        .where(and(eq(filings.type, '종소세'), eq(filings.fiscal_year, input.year), notDeleted()));
+
+      let withBoth = 0;
+      const pre: {
+        filing_id: number;
+        owner_id: number;
+        revenue: number;
+        total_income: number;
+        rate: number;
+        calculated_tax: number;
+      }[] = [];
+      for (const f of rows) {
+        const af = parseAF(f.auto_fields);
+        const revenue = Number(af.revenue) || 0;
+        const totalIncome = Number(af.total_income) || 0;
+        if (revenue <= 0 || totalIncome <= 0) continue; // 둘 다 입력된 검토표만 판단
+        withBoth++;
+        const rate = (totalIncome / revenue) * 100;
+        if (rate < minRate) continue;
+        if (f.owner_type === 'Person' && f.owner_id) {
+          pre.push({
+            filing_id: f.id,
+            owner_id: f.owner_id,
+            revenue,
+            total_income: totalIncome,
+            rate: Math.round(rate * 10) / 10,
+            calculated_tax: Number(af.calculated_tax) || 0,
+          });
+        }
+      }
+
+      /* 이름·전화 JOIN */
+      const ids = Array.from(new Set(pre.map((p) => p.owner_id)));
+      const umap = new Map<number, { name: string; phone: string | null }>();
+      if (ids.length) {
+        const us = await chunkedIn(ids, (chunk) =>
+          db
+            .select({ id: users.id, real_name: users.real_name, name: users.name, phone: users.phone })
+            .from(users)
+            .where(inArray(users.id, chunk)),
+        );
+        us.forEach((u) =>
+          umap.set(u.id, {
+            name: (u.real_name || u.name || `#${u.id}`) as string,
+            phone: (u.phone as string | null) ?? null,
+          }),
+        );
+      }
+
+      const targets = pre
+        .map((p) => ({
+          filing_id: p.filing_id,
+          user_id: p.owner_id,
+          name: umap.get(p.owner_id)?.name || `#${p.owner_id}`,
+          phone: umap.get(p.owner_id)?.phone || null,
+          revenue: p.revenue,
+          total_income: p.total_income,
+          rate: p.rate,
+          calculated_tax: p.calculated_tax,
+        }))
+        .sort((a, b) => b.rate - a.rate || b.total_income - a.total_income);
+
+      return {
+        year: input.year,
+        scanned: rows.length,
+        withBoth,
+        minRate,
         count: targets.length,
         targets,
       };
