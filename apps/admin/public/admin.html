@@ -119,8 +119,12 @@ if ('serviceWorker' in navigator) {
 
     <!-- Phase M4 (2026-05-05 사장님 명령): 전역검색 사이드바 최상단 단독 항목 -->
     <div class="sb-grp" data-grp="quick" style="padding-top:6px;padding-bottom:6px">
+      <!-- 사용자 편의 (2026-07-06): 홈 원클릭 복귀 — 대화 탭(=홈 히어로)과 동일 목적지 -->
+      <button class="of-sb-item" data-admin-tab="chat" type="button" style="font-weight:700">
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 10 3l7 6.5V17h-4.5v-4.5h-5V17H3V9.5z"/></svg></span><span class="lb">홈</span>
+      </button>
       <button class="of-sb-item" type="button" id="sbSearchBtn" style="font-weight:700">
-        <span class="ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2 17 17"/></svg></span><span class="lb">전역 검색</span>
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2 17 17"/></svg></span><span class="lb">전역 검색</span><span style="margin-left:auto;font-size:10px;color:#94a3b8;border:1px solid #e5e8eb;border-radius:5px;padding:1px 5px;font-weight:600">Ctrl K</span>
       </button>
     </div>
 
@@ -304,7 +308,7 @@ setTimeout(function(){
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=212"></script>
+<script src="/admin.js?v=213"></script>
 <!-- 모듈화 #3 Step9 (2026-05-18): PC 알림 admin.js 에서 분리 (classic, admin.js 다음 로드) -->
 <script src="/admin-pc-notify.js?v=1"></script>
 <!-- 모듈화 #3 Step10 (2026-05-18): owner 전체 내보내기 admin.js 에서 분리 -->
@@ -325,7 +329,7 @@ setTimeout(function(){
      사장님 명령 "lazy 의존 근본제거". 오늘 lazy 사고 4건(docsCustomers/$g/openRoomForCurrentCustomer/loadDocsTab)
      근본 원인 = 이 두 파일이 lazy 인데 cross-module 함수 노출. 다른 admin-*.js 처럼 항상 로드. -->
 <script src="/admin-docs.js?v=4"></script>
-<script src="/admin-anal-review-faq.js?v=12"></script>
+<script src="/admin-anal-review-faq.js?v=13"></script>
 <!-- Phase 2 (2026-05-07): 신고 검토표 시스템 (사장님 명세) -->
 <script src="/admin-filing-review.js?v=38"></script>
 

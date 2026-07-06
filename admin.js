@@ -857,6 +857,15 @@ async function _mtJson(url, opts){
   catch(_){ throw new Error('서버 응답 오류 (HTTP '+r.status+') — 배포 직후이거나 일시 오류일 수 있어요. 잠시 후 다시 시도해주세요.'); }
 }
 let _mtFull=false;         /* 전체화면 모드 (⛶ 토글) */
+/* ⌨️ 전역 단축키 — Ctrl/Cmd+K = 전역 검색 (2026-07-06 사장님 "사용자 편의") */
+try{
+  document.addEventListener('keydown',function(e){
+    if((e.ctrlKey||e.metaKey)&&(e.key==='k'||e.key==='K')){
+      e.preventDefault();
+      if(typeof openSearch==='function')openSearch();
+    }
+  });
+}catch(_){}
 async function openMyTodos(){
   const m=$g('myTodosModal');if(!m)return;
   m.style.display='flex';
