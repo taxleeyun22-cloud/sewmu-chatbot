@@ -172,6 +172,38 @@ describe('salesTargets router (integration)', () => {
       expect(r.count).toBe(1);
       expect(r.targets[0].keywords).toEqual(['가경비']);
     });
+
+    it('이름·업체명(대표자 포함)으로도 매칭 — 코멘트 없어도 뜸 (사장님 2026-07-06)', async () => {
+      const { caller, rawDb } = await makeCaller({ isOwner: true });
+      insertUser(rawDb, { id: 50, real_name: '박승호', phone: '010-1111-2222' });
+      seedBusiness(rawDb, { id: 300, company_name: '어나드범어', ceo_name: '정성경' });
+      /* 코멘트 아예 없음 — 이름/업체명 매칭만으로 떠야 함 */
+      insertFiling(rawDb, {
+        id: 1, type: '종소세', year: 2025, owner_type: 'Person', owner_id: 50, auto_fields: {},
+      });
+      insertFiling(rawDb, {
+        id: 2, type: '법인세', year: 2025, owner_type: 'Business', owner_id: 300, auto_fields: {},
+      });
+
+      /* 사람 이름 검색 */
+      const r1 = await caller.salesTargets.expense({ year: 2025, keywords: ['박승호'] });
+      expect(r1.count).toBe(1);
+      expect(r1.targets[0].name).toBe('박승호');
+
+      /* 업체명 부분 검색 */
+      const r2 = await caller.salesTargets.expense({ year: 2025, keywords: ['어나드'] });
+      expect(r2.count).toBe(1);
+      expect(r2.targets[0].name).toBe('어나드범어');
+
+      /* 업체 대표자명 검색 */
+      const r3 = await caller.salesTargets.expense({ year: 2025, keywords: ['정성경'] });
+      expect(r3.count).toBe(1);
+      expect(r3.targets[0].name).toBe('어나드범어');
+
+      /* 기본 5종은 이름에 안 걸림 — 기존 동작 불변 */
+      const r0 = await caller.salesTargets.expense({ year: 2025 });
+      expect(r0.count).toBe(0);
+    });
   });
 
   describe('법인전환 등급 순수함수', () => {

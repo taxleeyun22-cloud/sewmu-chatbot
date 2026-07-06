@@ -251,40 +251,18 @@ export const salesTargetsRouter = router({
         .from(filings)
         .where(and(eq(filings.fiscal_year, input.year), notDeleted()));
 
-      let withNote = 0;
-      const pre: {
-        filing_id: number;
-        owner_type: string;
-        owner_id: number;
-        tax_type: string;
-        keywords: string[];
-        note: string;
-      }[] = [];
-      for (const f of rows) {
-        const af = parseAF(f.auto_fields);
-        const note = `${af.employee_note || ''} ${f.reviewer_comment || ''}`.trim();
-        if (note) withNote++;
-        const hits = KW.filter((k) => note.includes(k));
-        if (!hits.length) continue;
-        pre.push({
-          filing_id: f.id,
-          owner_type: f.owner_type,
-          owner_id: f.owner_id,
-          tax_type: f.type,
-          keywords: hits,
-          note: note.replace(/\s+/g, ' ').slice(0, 140),
-        });
-      }
-
-      /* 이름·전화 JOIN — Person=users, Business=businesses */
+      /* 이름·전화 JOIN 을 매칭 "전"에 수행 — 키워드가 코멘트뿐 아니라 이름/업체명(대표자
+       * 포함)에도 걸리게 (사장님 2026-07-06 "이름 넣어도, 업체 이름 넣어도 그 사람 떠야").
+       * 코멘트가 비어 있어도 이름 매칭이면 포함. 기본 5종(접대비 등)은 이름에 안 걸리므로
+       * 기존 동작 불변. */
       const personIds = Array.from(
-        new Set(pre.filter((p) => p.owner_type === 'Person').map((p) => p.owner_id)),
+        new Set(rows.filter((f) => f.owner_type === 'Person').map((f) => f.owner_id)),
       );
       const bizIds = Array.from(
-        new Set(pre.filter((p) => p.owner_type === 'Business').map((p) => p.owner_id)),
+        new Set(rows.filter((f) => f.owner_type === 'Business').map((f) => f.owner_id)),
       );
-      const umap = new Map<number, { name: string; phone: string | null }>();
-      const bmap = new Map<number, { name: string; phone: string | null }>();
+      const umap = new Map<number, { name: string; phone: string | null; hay: string }>();
+      const bmap = new Map<number, { name: string; phone: string | null; hay: string }>();
       if (personIds.length) {
         const us = await chunkedIn(personIds, (chunk) =>
           db
@@ -296,6 +274,7 @@ export const salesTargetsRouter = router({
           umap.set(u.id, {
             name: (u.real_name || u.name || `#${u.id}`) as string,
             phone: (u.phone as string | null) ?? null,
+            hay: `${u.real_name || ''} ${u.name || ''}`,
           }),
         );
       }
@@ -307,23 +286,44 @@ export const salesTargetsRouter = router({
             .where(inArray(businesses.id, chunk)),
         );
         bs.forEach((b) =>
-          bmap.set(b.id, { name: (b.company_name || `업체#${b.id}`) as string, phone: null }),
+          bmap.set(b.id, {
+            name: (b.company_name || `업체#${b.id}`) as string,
+            phone: null,
+            hay: `${b.company_name || ''} ${b.ceo_name || ''}`,
+          }),
         );
       }
 
-      const targets = pre.map((p) => {
-        const info = p.owner_type === 'Person' ? umap.get(p.owner_id) : bmap.get(p.owner_id);
-        return {
-          filing_id: p.filing_id,
-          owner_type: p.owner_type,
-          owner_id: p.owner_id,
-          tax_type: p.tax_type,
-          name: info?.name || `#${p.owner_id}`,
+      let withNote = 0;
+      const targets: {
+        filing_id: number;
+        owner_type: string;
+        owner_id: number;
+        tax_type: string;
+        name: string;
+        phone: string | null;
+        keywords: string[];
+        note: string;
+      }[] = [];
+      for (const f of rows) {
+        const af = parseAF(f.auto_fields);
+        const note = `${af.employee_note || ''} ${f.reviewer_comment || ''}`.trim();
+        if (note) withNote++;
+        const info = f.owner_type === 'Person' ? umap.get(f.owner_id) : bmap.get(f.owner_id);
+        const hay = info?.hay || '';
+        const hits = KW.filter((k) => note.includes(k) || hay.includes(k));
+        if (!hits.length) continue;
+        targets.push({
+          filing_id: f.id,
+          owner_type: f.owner_type,
+          owner_id: f.owner_id,
+          tax_type: f.type,
+          name: info?.name || `#${f.owner_id}`,
           phone: info?.phone || null,
-          keywords: p.keywords,
-          note: p.note,
-        };
-      });
+          keywords: hits,
+          note: note.replace(/\s+/g, ' ').slice(0, 140),
+        });
+      }
 
       return { year: input.year, scanned: rows.length, withNote, count: targets.length, keywords: KW, targets };
     }),
