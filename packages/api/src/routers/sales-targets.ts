@@ -16,6 +16,50 @@ import { z } from 'zod';
 import { eq, and, or, isNull, inArray } from 'drizzle-orm';
 import { adminProcedure, router } from '../trpc';
 import { drizzle, schema } from '@sewmu/db/client';
+import { audit } from '../audit';
+
+/* ── 연락 진행 상태 (사장님 2026-07-06 "내가 연락 넣고 있다 이런 거 확인") ──
+ * 타겟은 검토표에서 동적 추출이라 상태는 (target_type, owner_type, owner_id) 키로 별도 저장.
+ * status: none(미접촉) | contacted(연락중) | consult(상담예약) | won(성사) | hold(보류) */
+const CONTACT_TARGET_TYPES = ['pension', 'expense', 'incorporation'] as const;
+const CONTACT_STATUSES = ['none', 'contacted', 'consult', 'won', 'hold'] as const;
+
+type D1Like = {
+  prepare: (sql: string) => {
+    bind: (...v: unknown[]) => { run: () => Promise<unknown>; all: () => Promise<{ results?: unknown[] }>; first: () => Promise<unknown> };
+    run: () => Promise<unknown>;
+    all: () => Promise<{ results?: unknown[] }>;
+  };
+};
+
+/** lazy migration — billing 패턴 (prod D1 에 첫 호출 시 자동 생성) */
+async function ensureContactTable(d1: D1Like) {
+  try {
+    await d1
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS sales_target_contacts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          target_type TEXT NOT NULL,
+          owner_type TEXT NOT NULL DEFAULT 'Person',
+          owner_id INTEGER NOT NULL,
+          status TEXT NOT NULL DEFAULT 'none',
+          note TEXT,
+          updated_by INTEGER,
+          updated_by_name TEXT,
+          created_at TEXT,
+          updated_at TEXT
+        )`,
+      )
+      .run();
+  } catch {}
+  try {
+    await d1
+      .prepare(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_stc_key ON sales_target_contacts(target_type, owner_type, owner_id)`,
+      )
+      .run();
+  } catch {}
+}
 
 /* 연금계좌세액공제 카탈로그 코드 (public/filing-tax-credit-catalog.json) */
 const PENSION_CODES = ['JTL_91_5', 'SOD_59_3_A', 'SOD_59_3_B', 'JTL_91_18'];
@@ -367,5 +411,73 @@ export const salesTargetsRouter = router({
         count: targets.length,
         targets,
       };
+    }),
+
+  /** 연락 진행 상태 목록 — 탭(target_type)별 전체 상태 rows */
+  contacts: adminProcedure
+    .input(z.object({ target_type: z.enum(CONTACT_TARGET_TYPES) }))
+    .query(async ({ ctx, input }) => {
+      await ensureContactTable(ctx.db as unknown as D1Like);
+      const { results } = await (ctx.db as unknown as D1Like)
+        .prepare(
+          `SELECT owner_type, owner_id, status, note, updated_by_name, updated_at
+             FROM sales_target_contacts WHERE target_type = ?`,
+        )
+        .bind(input.target_type)
+        .all();
+      return { contacts: (results ?? []) as Array<{
+        owner_type: string; owner_id: number; status: string;
+        note: string | null; updated_by_name: string | null; updated_at: string | null;
+      }> };
+    }),
+
+  /** 연락 상태 변경 — upsert (누가·언제 자동 기록) */
+  setContact: adminProcedure
+    .input(
+      z.object({
+        target_type: z.enum(CONTACT_TARGET_TYPES),
+        owner_type: z.enum(['Person', 'Business']).default('Person'),
+        owner_id: z.number().int().positive(),
+        status: z.enum(CONTACT_STATUSES),
+        note: z.string().max(500).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const d1 = ctx.db as unknown as D1Like;
+      await ensureContactTable(d1);
+      /* 변경자 이름 (홈/목록에 "누가 연락했는지" 표시용) */
+      let byName: string | null = null;
+      try {
+        const u = (await d1
+          .prepare(`SELECT COALESCE(real_name, name) AS n FROM users WHERE id = ?`)
+          .bind(ctx.auth.userId)
+          .first()) as { n?: string } | null;
+        byName = u?.n ?? null;
+      } catch {}
+      const now = new Date(Date.now() + 9 * 3600 * 1000).toISOString();
+      await d1
+        .prepare(
+          `INSERT INTO sales_target_contacts
+             (target_type, owner_type, owner_id, status, note, updated_by, updated_by_name, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(target_type, owner_type, owner_id) DO UPDATE SET
+             status = excluded.status,
+             note = COALESCE(excluded.note, sales_target_contacts.note),
+             updated_by = excluded.updated_by,
+             updated_by_name = excluded.updated_by_name,
+             updated_at = excluded.updated_at`,
+        )
+        .bind(
+          input.target_type, input.owner_type, input.owner_id,
+          input.status, input.note ?? null,
+          ctx.auth.userId, byName, now, now,
+        )
+        .run();
+      await audit(ctx, 'salesTargets.setContact', {
+        target_type: input.owner_type.toLowerCase(),
+        target_id: input.owner_id,
+        after: { target_type: input.target_type, status: input.status },
+      });
+      return { ok: true, status: input.status, updated_by_name: byName, updated_at: now };
     }),
 });

@@ -72,6 +72,23 @@ interface IncorpResult {
   targets: IncorpTarget[];
 }
 
+/* 연락 진행 상태 (사장님 2026-07-06 "내가 연락 넣고 있다 이런 거 확인") */
+interface ContactRow {
+  owner_type: string;
+  owner_id: number;
+  status: string;
+  note: string | null;
+  updated_by_name: string | null;
+  updated_at: string | null;
+}
+const CONTACT_OPTS = [
+  { v: 'none', label: '미접촉', cls: 'bg-gray-100 text-gray-500' },
+  { v: 'contacted', label: '연락중', cls: 'bg-blue-100 text-blue-700' },
+  { v: 'consult', label: '상담예약', cls: 'bg-amber-100 text-amber-800' },
+  { v: 'won', label: '성사', cls: 'bg-green-100 text-green-700' },
+  { v: 'hold', label: '보류', cls: 'bg-red-100 text-red-600' },
+] as const;
+
 function won(n: number): string {
   return (n || 0).toLocaleString('ko-KR');
 }
@@ -174,6 +191,79 @@ export default function SalesTargetsPage() {
     queryFn: () => trpcCall('salesTargets.incorporation', { year, minTaxBase: incorpThreshold }),
     enabled: tab === 'incorporation' && year > 0,
   });
+
+  /* 연락 진행 상태 — 탭별 별도 저장(sales_target_contacts), 행 select 로 즉시 변경 */
+  const contactsQ = useQuery<{ contacts: ContactRow[] }>({
+    queryKey: ['salesTargets.contacts', tab],
+    queryFn: () => trpcCall('salesTargets.contacts', { target_type: tab }),
+  });
+  const contactMap = useMemo(() => {
+    const m = new Map<string, ContactRow>();
+    (contactsQ.data?.contacts || []).forEach((c) => m.set(`${c.owner_type}:${c.owner_id}`, c));
+    return m;
+  }, [contactsQ.data]);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+
+  async function setContact(ownerType: string, ownerId: number, status: string) {
+    const key = `${ownerType}:${ownerId}`;
+    setSavingKey(key);
+    try {
+      await trpcCall('salesTargets.setContact', {
+        target_type: tab, owner_type: ownerType, owner_id: ownerId, status,
+      });
+      await contactsQ.refetch();
+      const lbl = CONTACT_OPTS.find((o) => o.v === status)?.label || status;
+      toast.success(`연락 상태 → ${lbl}`);
+    } catch {
+      toast.error('상태 저장 실패 — 다시 시도해주세요');
+    }
+    setSavingKey(null);
+  }
+
+  /* 행 안의 상태 select — 색 pill, 클릭이 행 클릭(대시보드 열기)으로 번지지 않게 stopPropagation */
+  function ContactCell({ ownerType, ownerId }: { ownerType: string; ownerId: number }) {
+    const key = `${ownerType}:${ownerId}`;
+    const c = contactMap.get(key);
+    const cur = c?.status || 'none';
+    const opt = CONTACT_OPTS.find((o) => o.v === cur) || CONTACT_OPTS[0];
+    return (
+      <select
+        value={cur}
+        disabled={savingKey === key}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          e.stopPropagation();
+          void setContact(ownerType, ownerId, e.target.value);
+        }}
+        title={c?.updated_at ? `${c.updated_by_name || '누군가'} · ${String(c.updated_at).slice(0, 10)}` : '연락 상태 기록'}
+        className={`rounded-full px-2 py-1 text-xs font-bold border-0 cursor-pointer appearance-none ${opt.cls}`}
+      >
+        {CONTACT_OPTS.map((o) => (
+          <option key={o.v} value={o.v}>{o.label}</option>
+        ))}
+      </select>
+    );
+  }
+
+  /* 상단바 상태 요약 칩 — 이 탭 타겟 중 상태 기록된 것만 (미접촉 제외) */
+  function ContactSummary({ keys }: { keys: string[] }) {
+    const cc: Record<string, number> = {};
+    keys.forEach((k) => {
+      const s = contactMap.get(k)?.status;
+      if (s && s !== 'none') cc[s] = (cc[s] || 0) + 1;
+    });
+    const parts = CONTACT_OPTS.filter((o) => cc[o.v]);
+    if (!parts.length) return null;
+    return (
+      <span className="flex items-center gap-1">
+        {parts.map((o) => (
+          <span key={o.v} className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-bold ${o.cls}`}>
+            {o.label} {cc[o.v]}
+          </span>
+        ))}
+      </span>
+    );
+  }
 
   const loading =
     tab === 'pension'
@@ -353,6 +443,7 @@ export default function SalesTargetsPage() {
             <span>· 산출세액 입력 <b>{pension.withTax}</b></span>
             <span>· 연금공제 있어 제외 <b>{pension.excludedPension}</b></span>
             <span className="text-blue-700 font-bold">→ 타겟 {pension.count}명</span>
+            <ContactSummary keys={pension.targets.map((t) => `Person:${t.user_id}`)} />
             <button
               type="button"
               onClick={exportPension}
@@ -369,6 +460,7 @@ export default function SalesTargetsPage() {
                   <th className="px-3 py-2 text-left w-12">#</th>
                   <th className="px-3 py-2 text-left">이름</th>
                   <th className="px-3 py-2 text-left">전화</th>
+                  <th className="px-3 py-2 text-left w-28">연락</th>
                   <th className="px-3 py-2 text-right">산출세액</th>
                 </tr>
               </thead>
@@ -383,12 +475,13 @@ export default function SalesTargetsPage() {
                     <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                     <td className="px-3 py-2 font-medium text-blue-700 hover:underline">{t.name} ↗</td>
                     <td className="px-3 py-2 text-gray-600">{t.phone || '—'}</td>
+                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} /></td>
                     <td className="px-3 py-2 text-right font-semibold text-gray-900">{won(t.calculated_tax)}원</td>
                   </tr>
                 ))}
                 {!pension.count && (
                   <tr>
-                    <td colSpan={4} className="px-3 py-8 text-center text-gray-400">
+                    <td colSpan={5} className="px-3 py-8 text-center text-gray-400">
                       조건에 맞는 거래처가 없습니다.
                     </td>
                   </tr>
@@ -409,6 +502,7 @@ export default function SalesTargetsPage() {
             <span>검토표 <b>{expense.scanned}</b>건</span>
             <span>· 직원코멘트 있음 <b>{expense.withNote}</b></span>
             <span className="text-amber-800 font-bold">→ 키워드 매칭 {expense.count}명</span>
+            <ContactSummary keys={expense.targets.map((t) => `${t.owner_type}:${t.owner_id}`)} />
             <button
               type="button"
               onClick={exportExpense}
@@ -427,6 +521,7 @@ export default function SalesTargetsPage() {
                   <th className="px-3 py-2 text-left">유형</th>
                   <th className="px-3 py-2 text-left">키워드</th>
                   <th className="px-3 py-2 text-left">전화</th>
+                  <th className="px-3 py-2 text-left w-28">연락</th>
                   <th className="px-3 py-2 text-left">직원코멘트</th>
                 </tr>
               </thead>
@@ -449,12 +544,13 @@ export default function SalesTargetsPage() {
                       ))}
                     </td>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{t.phone || '—'}</td>
+                    <td className="px-3 py-2 whitespace-nowrap"><ContactCell ownerType={t.owner_type} ownerId={t.owner_id} /></td>
                     <td className="px-3 py-2 text-gray-500 text-xs max-w-md">{t.note}</td>
                   </tr>
                 ))}
                 {!expense.count && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-gray-400">
+                    <td colSpan={7} className="px-3 py-8 text-center text-gray-400">
                       키워드에 맞는 거래처가 없습니다.
                     </td>
                   </tr>
@@ -490,6 +586,7 @@ export default function SalesTargetsPage() {
             <span>종소세 검토표 <b>{incorporation.scanned}</b>건</span>
             <span>· 과세표준 입력 <b>{incorporation.withTaxBase}</b></span>
             <span className="text-indigo-700 font-bold">→ 타겟 {incorporation.count}명</span>
+            <ContactSummary keys={incorporation.targets.map((t) => `Person:${t.user_id}`)} />
             {incorporation.count > 0 && (
               <span className="flex items-center gap-1">
                 {(['S', 'A', 'B', 'C'] as const)
@@ -522,6 +619,7 @@ export default function SalesTargetsPage() {
                   <th className="px-3 py-2 text-right">산출세액</th>
                   <th className="px-3 py-2 text-right">수입금액</th>
                   <th className="px-3 py-2 text-left">전화</th>
+                  <th className="px-3 py-2 text-left w-28">연락</th>
                 </tr>
               </thead>
               <tbody>
@@ -548,11 +646,12 @@ export default function SalesTargetsPage() {
                     <td className="px-3 py-2 text-right text-gray-600">{won(t.calculated_tax)}원</td>
                     <td className="px-3 py-2 text-right text-gray-500">{wonShort(t.revenue)}</td>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{t.phone || '—'}</td>
+                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} /></td>
                   </tr>
                 ))}
                 {!incorporation.count && (
                   <tr>
-                    <td colSpan={8} className="px-3 py-8 text-center text-gray-400">
+                    <td colSpan={9} className="px-3 py-8 text-center text-gray-400">
                       컷오프 이상 과세표준 거래처가 없습니다. (컷오프를 낮춰보세요)
                     </td>
                   </tr>
