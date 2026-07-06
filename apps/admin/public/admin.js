@@ -919,11 +919,10 @@ function _syncMtViewUI(){
 let _mtTaxOn=true; try{ _mtTaxOn=(localStorage.getItem('_mtTaxOn')||'1')==='1'; }catch(_){}
 function toggleMtTax(){ _mtTaxOn=!_mtTaxOn; try{localStorage.setItem('_mtTaxOn',_mtTaxOn?'1':'0');}catch(_){} _syncMtTaxUI(); _renderMyTodos(); }
 function _syncMtTaxUI(){ const b=$g('mtTaxBtn'); if(b)b.classList.toggle('on',_mtTaxOn); }
-/* 법정 신고·납부 기한 (기한일 기준 — 주말·공휴일이면 다음 영업일 순연, 툴팁에 명시).
- * 확실한 핵심만 (12월 결산법인 기준). 반환: {일: [라벨,...]} */
-function _mtTaxSchedule(Y, M0){
-  const out={};
-  const add=(d,label)=>{ (out[d]=out[d]||[]).push(label); };
+/* 법정 신고·납부 기한 원본 (기한일 기준, 확실한 핵심만 — 12월 결산법인 기준) */
+function _mtTaxRaw(Y, M0){
+  const out=[];
+  const add=(d,label)=>out.push({d:d,label:label});
   /* 매월 */
   add(10,'원천세 신고·납부');
   add(new Date(Y,M0+1,0).getDate(),'지급명세서 제출(일용·사업소득)');
@@ -942,6 +941,26 @@ function _mtTaxSchedule(Y, M0){
     11:[[15,'종합부동산세 신고·납부']],
   };
   (fixed[M0]||[]).forEach(p=>add(p[0],p[1]));
+  return out;
+}
+/* 표시용 스케줄 — 기한일이 토·일이면 다음 영업일(월)로 순연해서 그 날짜에 표시
+ * (국세기본법 제5조. 2026-07-06 사장님 "부가세 7/25(토)면 27로 나와야지").
+ * ⚠️ 음력 공휴일·대체공휴일 계산은 안 함 — 겹치면 하루 더 밀릴 수 있음(라벨·툴팁에 명시).
+ * 전월 말일 기한이 주말 순연으로 이번 달 1일로 넘어오는 케이스(예: 5/31 일 → 6/1) 포함. */
+function _mtTaxSchedule(Y, M0){
+  const out={};
+  const months=[[M0===0?Y-1:Y, M0===0?11:M0-1],[Y,M0]];
+  for(const ym of months){
+    for(const it of _mtTaxRaw(ym[0], ym[1])){
+      let dt=new Date(ym[0], ym[1], it.d);
+      let shifted=false;
+      while(dt.getDay()===0||dt.getDay()===6){ dt=new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()+1); shifted=true; }
+      if(dt.getFullYear()===Y && dt.getMonth()===M0){
+        const day=dt.getDate();
+        (out[day]=out[day]||[]).push(it.label+(shifted?' (주말 순연)':''));
+      }
+    }
+  }
   return out;
 }
 /* 범위 토글: 내 할일 / 팀 전체 */
@@ -1076,7 +1095,7 @@ function _renderMtCalendar(list){
     cell+='<div class="mtd-dnum'+(isToday?' today':(dow===0?' sun':(dow===6?' sat':'')))+'">'+c.dt.getDate()+'</div>';
     if(!c.dim){
       (tax[c.dt.getDate()]||[]).forEach(t=>{
-        cell+='<div class="mtd-ev tax" title="'+escAttr(t+' — 주말·공휴일이면 다음 영업일 순연')+'">🏛 '+e(t)+'</div>';
+        cell+='<div class="mtd-ev tax" title="'+escAttr(t+' — 주말 순연 반영 (공휴일 겹치면 하루 더 밀릴 수 있음)')+'">🏛 '+e(t)+'</div>';
       });
     }
     const maxChips=_mtFull?5:3;
@@ -1096,7 +1115,7 @@ function _renderMtCalendar(list){
     +'<span><i style="background:#e6f4ea"></i>👤 거래처</span>'
     +'<span><i style="background:#f3e8fd"></i>💬 상담방</span>'
     +'<span><i style="background:#fff4e5"></i>📍 개인</span>'
-    +(_mtTaxOn?'<span><i style="background:#f1f3f4"></i>🏛 법정마감 (주말·공휴일 = 다음 영업일)</span>':'')
+    +(_mtTaxOn?'<span><i style="background:#f1f3f4"></i>🏛 법정마감 (주말 순연 반영)</span>':'')
     +'<span>· 점=미완료, 날짜 클릭=그 날 상세</span>'
     +'</div>';
   if(noDue.length){
@@ -1110,7 +1129,7 @@ function _renderMtCalendar(list){
   /* 선택한 날의 법정 마감 안내 배너 */
   if(_mtTaxOn && _mtSelDate.substring(0,7)===Y+'-'+String(M0+1).padStart(2,'0')){
     const selTax=tax[parseInt(_mtSelDate.substring(8,10),10)]||[];
-    if(selTax.length) html+='<div class="mtd-taxline">🏛 '+selTax.map(e).join(' · ')+' <span style="color:#9aa0a6">— 주말·공휴일이면 다음 영업일 순연</span></div>';
+    if(selTax.length) html+='<div class="mtd-taxline">🏛 '+selTax.map(e).join(' · ')+' <span style="color:#9aa0a6">— 주말 순연 반영 (공휴일 겹치면 하루 더)</span></div>';
   }
   html+=(selEvs.length?selEvs.map(_todoRow).join(''):'<div style="font-size:12.5px;color:#9aa0a6;padding:8px 10px">이 날 할 일이 없습니다 — 위 입력창에 적고 Enter</div>');
   html+=_mtDoneSection();
