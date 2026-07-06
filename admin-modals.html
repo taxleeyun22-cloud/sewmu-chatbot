@@ -1195,14 +1195,16 @@
 #myTodosModal .mtd-link{color:#1a73e8;font-size:12px;text-decoration:none}
 /* ---- 월 달력 (Google Calendar 미리보기 1:1) ---- */
 #myTodosModal .mtd-cal{background:#fff;border:1px solid #dadce0;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(60,64,67,.1);margin:6px 4px 0}
-#myTodosModal .mtd-wk{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid #e8eaed}
+/* 열 폭 강제 균등 (2026-07-06 사장님 "요일도 밑에랑 같이 움직여야"): 1fr 은 nowrap 칩이 길면
+ * 그 열이 늘어나 요일 헤더와 어긋남 → minmax(0,1fr)+min-width:0 으로 7칸 완전 동일 폭 고정 */
+#myTodosModal .mtd-wk{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-bottom:1px solid #e8eaed}
 /* 요일 헤더 = 날짜 칸과 같은 세로선 + 같은 좌측 정렬 (2026-07-06 사장님 "요일 개판" — 칸이랑 딱 맞게) */
 #myTodosModal .mtd-wk div{padding:10px 0 10px 10px;text-align:left;font-size:12px;font-weight:700;color:#70757a;border-right:1px solid #e8eaed}
 #myTodosModal .mtd-wk div:nth-child(7n){border-right:0}
 #myTodosModal .mtd-wk .sun{color:#d93025}
 #myTodosModal .mtd-wk .sat{color:#1a73e8}
-#myTodosModal .mtd-grid{display:grid;grid-template-columns:repeat(7,1fr)}
-#myTodosModal .mtd-cell{min-height:108px;border-right:1px solid #e8eaed;border-bottom:1px solid #e8eaed;padding:6px 6px 8px;cursor:pointer}
+#myTodosModal .mtd-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+#myTodosModal .mtd-cell{min-width:0;min-height:108px;border-right:1px solid #e8eaed;border-bottom:1px solid #e8eaed;padding:6px 6px 8px;cursor:pointer}
 #myTodosModal .mtd-cell:nth-child(7n){border-right:0}
 #myTodosModal .mtd-cell.dim{background:#fafafa}
 #myTodosModal .mtd-cell.sel{box-shadow:inset 0 0 0 2px #1a73e8}
