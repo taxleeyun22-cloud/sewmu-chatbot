@@ -287,12 +287,40 @@ function _hhToday(){
       +'<span style="background:#e8f3ff;color:var(--of-primary);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700">오늘 '+(t.today||0)+'</span>'
       +'<span style="background:#f2f4f6;color:var(--text-sub);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700">전체 '+(t.total||0)+'</span>'
       +'</div>';
+  /* 3) 안 읽은 상담방 (상위 3, 클릭=방 열기) */
+  var roomsInner;
+  if(_hhRooms==null){
+    roomsInner='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">불러오는 중…</div>';
+  }else if(!_hhRooms.top.length){
+    roomsInner='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">안 읽은 방 없음 ✅</div>';
+  }else{
+    roomsInner=_hhRooms.top.map(function(r){
+      return '<div onclick="event.stopPropagation();if(typeof openRoom===\'function\')openRoom(\''+escAttr(String(r.id))+'\')" onmouseover="this.style.background=\'#f8f9fa\'" onmouseout="this.style.background=\'transparent\'" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-main);margin-top:5px;padding:5px 8px;border-radius:10px;cursor:pointer" title="이 방 열기">'
+        +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">'+e(r.name)+'</span>'
+        +'<span style="background:var(--toss-red);color:#fff;border-radius:999px;padding:1px 8px;font-size:11.5px;font-weight:800;flex-shrink:0">'+r.unread+'</span>'
+        +'</div>';
+    }).join('');
+  }
+  var roomsHead='💬 안 읽은 상담방'+(_hhRooms&&_hhRooms.unreadRooms>0?' <span style="color:var(--toss-red);font-weight:800">'+_hhRooms.unreadRooms+'</span>':'');
+  /* 4) 미수금 청구서 */
+  var billInner;
+  if(_hhBill==null){
+    billInner='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">불러오는 중…</div>';
+  }else if(!_hhBill.count){
+    billInner='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">미수금 없음 🎉</div>';
+  }else{
+    billInner='<div style="font-size:23px;font-weight:800;letter-spacing:-.02em;margin-top:6px;color:var(--text-main)">₩'+(_hhBill.amount||0).toLocaleString()+'</div>'
+      +'<div style="font-size:12px;color:var(--text-mute);margin-top:4px">청구 전 '+_hhBill.pending+'건 · 청구 후 미납 '+_hhBill.sent+'건</div>';
+  }
   var open="if(typeof openMyTodos==='function')openMyTodos()";
+  var goRooms="(document.querySelector('[data-admin-tab=\\'rooms\\']')||{click:function(){}}).click()";
+  var goBill="window.open('https://sewmu-admin.pages.dev/admin/billing','_blank')";
   var hov=' onmouseover="this.style.boxShadow=\'0 6px 18px rgba(25,31,40,.12)\'" onmouseout="this.style.boxShadow=\'0 2px 10px rgba(25,31,40,.05)\'"';
+  var cardStyle='flex:1 1 300px;min-width:260px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer;transition:box-shadow .15s';
   box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
-    +'<div onclick="'+open+'"'+hov+' style="flex:1 1 300px;min-width:260px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer;transition:box-shadow .15s" title="클릭 → 내 할 일 달력">'
+    +'<div onclick="'+open+'"'+hov+' style="'+cardStyle+'" title="클릭 → 내 할 일 달력">'
     +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">🏛 다가오는 법정 마감 <span style="font-weight:500">(7일 · 주말이면 다음 영업일)</span></div>'+taxRows+'</div>'
-    +'<div onclick="'+open+'"'+hov+' style="flex:1 1 300px;min-width:260px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer;transition:box-shadow .15s" title="클릭 → 내 할 일">'
+    +'<div onclick="'+open+'"'+hov+' style="'+cardStyle+'" title="클릭 → 내 할 일">'
     +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">📋 내 할 일</div>'+todoLine
     /* 빠른 추가 — 홈에서 생각난 할일 바로 입력 (Enter). 기한은 달력에서 */
     +'<div onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:8px;background:#f2f4f6;border-radius:12px;padding:8px 13px;margin-top:11px">'
@@ -300,8 +328,46 @@ function _hhToday(){
     +'<input type="text" placeholder="할 일 빠른 추가 — Enter" onkeydown="_hhQuickAdd(event)" style="flex:1;min-width:0;border:none;background:transparent;font-size:13px;font-family:inherit;outline:none;color:var(--text-main)">'
     +'</div>'
     +'</div>'
+    +'<div onclick="'+goRooms+'"'+hov+' style="'+cardStyle+'" title="클릭 → 상담방 탭">'
+    +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">'+roomsHead+'</div>'+roomsInner+'</div>'
+    +'<div onclick="'+goBill+'"'+hov+' style="'+cardStyle+'" title="클릭 → 청구서 시스템 (새 탭)">'
+    +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">💰 미수금 청구서</div>'+billInner+'</div>'
     +'</div>';
   if(_hhTodo==null) _hhTodoFetch();
+  if(_hhRooms==null) _hhRoomsFetch();
+  if(_hhBill==null) _hhBillFetch();
+}
+/* 안 읽은 상담방 — /api/admin-rooms 재사용 (admin_unread_count) */
+var _hhRooms=null,_hhRoomsFetching=false,_hhBill=null,_hhBillFetching=false;
+async function _hhRoomsFetch(){
+  if(_hhRooms!==null || _hhRoomsFetching) return;
+  _hhRoomsFetching=true;
+  try{
+    var r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY));
+    var d=await r.json();
+    var rooms=(d&&d.rooms)||[];
+    var un=rooms.filter(function(x){return (x.admin_unread_count||0)>0});
+    un.sort(function(a,b){return (b.admin_unread_count||0)-(a.admin_unread_count||0)});
+    _hhRooms={ total:rooms.length, unreadRooms:un.length,
+      top:un.slice(0,3).map(function(x){return {id:x.id, name:x.name||('방 '+x.id), unread:x.admin_unread_count||0}}) };
+  }catch(_){ _hhRooms={total:0,unreadRooms:0,top:[]}; }
+  _hhRoomsFetching=false;
+  try{ _hhToday(); }catch(_){}
+}
+/* 미수금 — /api/billing-invoices 의 by_staff 집계 재사용 (pending+sent, outstanding_amount) */
+async function _hhBillFetch(){
+  if(_hhBill!==null || _hhBillFetching) return;
+  _hhBillFetching=true;
+  try{
+    var r=await fetch('/api/billing-invoices?key='+encodeURIComponent(KEY));
+    var d=await r.json();
+    var bs=(d&&d.by_staff)||[];
+    var pending=0,sent=0,amount=0;
+    bs.forEach(function(s){ pending+=(+s.pending||0); sent+=(+s.sent||0); amount+=(+s.outstanding_amount||0); });
+    _hhBill={ pending:pending, sent:sent, count:pending+sent, amount:amount };
+  }catch(_){ _hhBill={pending:0,sent:0,count:0,amount:0}; }
+  _hhBillFetching=false;
+  try{ _hhToday(); }catch(_){}
 }
 /* 홈 빠른 할일 추가 — Enter 로 즉시 저장 (기한 없음, 개인) */
 async function _hhQuickAdd(ev){
