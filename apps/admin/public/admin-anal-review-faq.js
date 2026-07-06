@@ -153,29 +153,88 @@ function _hIco(name){
   return '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+P+'</svg>';
 }
 var _hhTries=0, _hhData=null, _hhFetching=false, _hhTodo=null, _hhTodoFetching=false;
-/* KPI 박스 1개 HTML — 토스 톤: 아이콘 틴트 원형 배경 (2026-07-06 사장님 "홈 UI 개선") */
-function _hhKpi(ico,label,val,unit,color,onclick,tintBg,tintFg){
+/* 시간대별 인사 (KST 시각) — 토스 앱 톤 */
+function _hhGreet(h){
+  if(h>=5&&h<11) return '좋은 아침이에요, 사장님 ☀️';
+  if(h>=11&&h<14) return '점심은 챙겨 드셨어요, 사장님?';
+  if(h>=14&&h<18) return '오후도 화이팅입니다, 사장님.';
+  if(h>=18&&h<23) return '오늘 하루도 고생 많으셨어요, 사장님.';
+  return '늦은 시간까지 고생 많으세요, 사장님.';
+}
+/* 미니 스파크라인 (최근 7일 막대) — 마지막 막대만 진하게 */
+function _hhSpark(arr,color){
+  if(!arr||!arr.length) return '';
+  var mx=Math.max.apply(null,arr.concat([1]));
+  var bars='';
+  for(var i=0;i<arr.length;i++){
+    var h=Math.max(3,Math.round((arr[i]||0)/mx*24));
+    bars+='<rect x="'+(i*10)+'" y="'+(26-h)+'" width="6" height="'+h+'" rx="2" fill="'+color+'" opacity="'+(i===arr.length-1?'1':'.35')+'"/>';
+  }
+  return '<svg width="'+(arr.length*10-4)+'" height="26" style="display:block;flex-shrink:0" title="최근 7일">'+bars+'</svg>';
+}
+/* 숫자 카운트업 (0 → 목표, 550ms ease-out) — 토스 손맛 */
+function _hhCountUp(){
+  try{
+    var els=document.querySelectorAll('[data-hh-num]');
+    Array.prototype.forEach.call(els,function(el){
+      if(el.getAttribute('data-hh-done'))return;
+      el.setAttribute('data-hh-done','1');
+      var target=parseInt(el.getAttribute('data-hh-num'),10);
+      if(!isFinite(target)||target<=0){ el.textContent=isFinite(target)?String(target):el.getAttribute('data-hh-num'); return; }
+      var t0=null, dur=550;
+      function step(ts){
+        if(t0===null)t0=ts;
+        var p=Math.min(1,(ts-t0)/dur); p=1-Math.pow(1-p,3);
+        el.textContent=(p>=1?target:Math.round(target*p)).toLocaleString();
+        if(p<1)requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    });
+  }catch(_){}
+}
+/* KPI 박스 1개 HTML — 토스 톤: 아이콘 틴트 + 카운트업 숫자 + (옵션) 스파크라인 */
+function _hhKpi(ico,label,val,unit,color,onclick,tintBg,tintFg,spark){
+  var num=(typeof val==='number')?'<span data-hh-num="'+val+'">0</span>':val;
   return '<div onclick="'+(onclick||'')+'" style="flex:1 1 180px;min-width:160px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:'+(onclick?'pointer':'default')+'">'
     +'<div style="display:flex;align-items:center;gap:9px">'
     +'<span style="width:34px;height:34px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:'+(tintBg||'#f2f4f6')+';color:'+(tintFg||'var(--text-sub)')+';flex-shrink:0">'+_hIco(ico)+'</span>'
     +'<span style="font-size:12.5px;color:var(--text-mute);font-weight:700">'+label+'</span>'
     +'</div>'
-    +'<div style="font-size:27px;font-weight:800;letter-spacing:-.03em;margin-top:8px;color:'+color+'">'+val+'<span style="font-size:14px;font-weight:700;color:var(--text-sub)"> '+unit+'</span></div>'
-    +'</div>';
+    +'<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-top:8px">'
+    +'<div style="font-size:27px;font-weight:800;letter-spacing:-.03em;color:'+color+'">'+num+'<span style="font-size:14px;font-weight:700;color:var(--text-sub)"> '+unit+'</span></div>'
+    +(spark||'')
+    +'</div></div>';
+}
+/* 히어로 브리핑 칩 한 줄 — 🏛 오늘 마감 · 📋 할 일 · 👤 승인 대기 */
+function _hhBrief(){
+  var box=$g('homeBriefLine'); if(!box) return;
+  var KST=new Date(Date.now()+9*3600*1000);
+  var taxToday=0;
+  try{ if(typeof _mtTaxSchedule==='function'){ taxToday=(_mtTaxSchedule(KST.getUTCFullYear(),KST.getUTCMonth())[KST.getUTCDate()]||[]).length; } }catch(_){}
+  var chip=function(txt,hot){ return '<span style="background:rgba(255,255,255,'+(hot?'.24':'.13')+');border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700;color:#fff">'+txt+'</span>'; };
+  var t=_hhTodo, d=_hhData;
+  var todoN=t?((t.overdue||0)+(t.today||0)):'·';
+  box.innerHTML=chip('🏛 오늘 마감 '+taxToday+'건', taxToday>0)
+    +chip('📋 할 일 '+todoN+'건'+((t&&t.overdue>0)?' · 지남 '+t.overdue:''), !!(t&&t.overdue>0))
+    +chip('👤 승인 대기 '+(d?(d.pending||0):'·')+'명', !!(d&&d.pending>0));
 }
 /* KPI 채우기 — 캐시(_hhData) 있으면 숫자, 없으면 '·' 플레이스홀더. fetch 안 함(쌈). */
 function _hhFill(){
   var box=$g('homeKpis'); if(!box) return;
   var d=_hhData||{};
-  var P=function(v){ return (d && v!=null)?v:'·'; };
+  var P=function(v){ return (_hhData && v!=null)?v:'·'; };
   var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
   var pend=d.pending;
   box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
     +_hhKpi('people','기장거래처',P(d.approvedClient),'곳','var(--of-primary)',uTab,'#e8f3ff','var(--of-primary)')
     +_hhKpi('wait','승인 대기',P(pend),'명',(pend>0)?'var(--toss-red)':'var(--text-main)',uTab,(pend>0)?'#fdecec':'#f2f4f6',(pend>0)?'var(--toss-red)':'var(--text-sub)')
-    +_hhKpi('chat','오늘 챗봇 상담',P(d.todayCnt),'건','var(--text-main)','','#e6f4ea','#188038')
+    +_hhKpi('chat','오늘 챗봇 상담',P(d.todayCnt),'건','var(--text-main)','','#e6f4ea','#188038',_hhSpark(d.daily7,'#188038'))
     +_hhKpi('biz','전체 사용자',P(d.totalUsers),'명','var(--text-main)',uTab,'#f2f4f6','var(--text-sub)')
     +'</div>';
+  /* 가입 승인 숏컷 빨간 점 */
+  var dot=$g('hqPendingDot'); if(dot)dot.style.display=(pend>0)?'block':'none';
+  _hhCountUp();
+  try{ _hhBrief(); }catch(_){}
   try{ _hhToday(); }catch(_){}
 }
 /* ── 오늘의 브리핑 (2026-07-06): 좌 🏛 법정마감(7일) — admin.js _mtTaxSchedule 재사용 /
@@ -199,8 +258,12 @@ function _hhToday(){
       }
       taxRows=found.length
         ? found.map(function(f){
-            var dd=f.dday===0?'<b style="color:var(--toss-red)">오늘</b>':'D-'+f.dday;
-            return '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-main);margin-top:7px"><span style="font-weight:700;color:var(--text-sub);flex-shrink:0">'+f.m+'/'+f.d+' ('+f.w+')</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+f.label+'</span><span style="font-size:12px;font-weight:700;color:var(--text-mute)">'+dd+'</span></div>';
+            var dd=f.dday===0
+              ? '<span style="background:#fdecec;color:var(--toss-red);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:800">오늘</span>'
+              : (f.dday<=3
+                ? '<span style="background:#fff4e5;color:#e37400;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:800">D-'+f.dday+'</span>'
+                : '<span style="background:#f2f4f6;color:var(--text-sub);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:800">D-'+f.dday+'</span>');
+            return '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-main);margin-top:8px"><span style="font-weight:700;color:var(--text-sub);flex-shrink:0">'+f.m+'/'+f.d+' ('+f.w+')</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+f.label+'</span>'+dd+'</div>';
           }).join('')
         : '<div style="font-size:13px;color:var(--text-mute);margin-top:8px">7일 내 법정 마감 없음 🎉</div>';
     }
@@ -240,6 +303,7 @@ async function _hhTodoFetch(){
   }catch(_){ _hhTodo={overdue:0,today:0,total:0}; }
   _hhTodoFetching=false;
   try{ _hhToday(); }catch(_){}
+  try{ _hhBrief(); }catch(_){}
 }
 /* 데이터 1회만 fetch — 캐시 후 재호출 시 skip (2026-06-15 사장님 "불러오는중 느림":
  * 여러 트리거가 각각 fetch 3개씩 발사 → admin-approve 등 5~6중복 → D1 경합 → 전체 지연.
@@ -256,8 +320,11 @@ async function _hhFetch(){
     ]);
     var c=(rs[0]&&rs[0].counts)||{};
     var todayKey=now.toISOString().slice(0,10);
-    var dRow=((rs[1]&&rs[1].daily)||[]).find(function(d){return d.date===todayKey});
-    _hhData={ approvedClient:(c.approved_client||0), pending:(c.pending||0), todayCnt:(dRow?dRow.count:0), totalUsers:((rs[2]&&rs[2].total)||0) };
+    var daily=((rs[1]&&rs[1].daily)||[]).slice().sort(function(a,b){return String(a.date)<String(b.date)?-1:1});
+    var dRow=daily.find(function(d){return d.date===todayKey});
+    /* 최근 7일 상담 건수 (스파크라인용) */
+    var daily7=daily.slice(-7).map(function(x){return x.count||0});
+    _hhData={ approvedClient:(c.approved_client||0), pending:(c.pending||0), todayCnt:(dRow?dRow.count:0), totalUsers:((rs[2]&&rs[2].total)||0), daily7:daily7 };
   }catch(_){ _hhData=null; }
   _hhFetching=false;
   try{ _hhFill(); }catch(_){}
@@ -273,21 +340,30 @@ function renderHomeHero(){
     var days=['일','월','화','수','목','금','토'];
     var dateStr=(now.getUTCMonth()+1)+'월 '+now.getUTCDate()+'일 '+days[now.getUTCDay()]+'요일';
     var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
-    function qk(ico,label,onclick){
-      return '<button onclick="'+onclick+'" onmouseover="this.style.background=\'#e8ebee\'" onmouseout="this.style.background=\'#f2f4f6\'" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:8px;background:#f2f4f6;border:none;border-radius:14px;padding:13px 10px;font-size:13.5px;font-weight:700;color:var(--text-main);cursor:pointer;font-family:inherit">'
-        +'<span style="display:inline-flex;color:var(--of-primary)">'+_hIco(ico)+'</span>'+label+'</button>';
+    /* 뱅킹앱식 숏컷 — 틴트 원형 아이콘 + 라벨. 가입 승인은 대기>0 시 빨간 점(hqPendingDot) */
+    function qk(ico,label,onclick,tintBg,tintFg,dotId){
+      return '<button onclick="'+onclick+'" onmouseover="this.style.background=\'#fafbfc\'" onmouseout="this.style.background=\'#fff\'" style="flex:1;min-width:110px;background:#fff;border:none;border-radius:18px;padding:16px 8px 14px;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:9px;box-shadow:0 2px 10px rgba(25,31,40,.05)">'
+        +'<span style="width:46px;height:46px;border-radius:16px;background:'+tintBg+';color:'+tintFg+';display:inline-flex;align-items:center;justify-content:center;position:relative">'+_hIco(ico)
+        +(dotId?'<span id="'+dotId+'" style="display:none;position:absolute;top:-2px;right:-2px;width:10px;height:10px;border-radius:50%;background:var(--toss-red);border:2px solid #fff"></span>':'')
+        +'</span>'
+        +'<span style="font-size:13px;font-weight:700;color:var(--text-main)">'+label+'</span></button>';
     }
-    el.innerHTML='<div style="margin:4px 2px 18px">'
-      +'<div style="font-size:13px;color:var(--text-mute);font-weight:600">'+dateStr+'</div>'
-      +'<div style="font-size:24px;font-weight:800;letter-spacing:-.03em;color:var(--text-main);margin-top:3px">사장님, 오늘도 좋은 하루 되세요<span style="color:var(--of-primary)">.</span></div>'
-      +'</div><div id="homeKpis"></div>'
+    el.innerHTML=''
+      /* 다크 그라데이션 히어로 — 시간대 인사 + 오늘 브리핑 칩 (2026-07-06 사장님 "별거 없는데? 니가 해봐") */
+      +'<div style="background:linear-gradient(120deg,#1e2b45 0%,#28406c 55%,#3178e0 150%);border-radius:24px;padding:24px 26px;margin:2px 0 16px;color:#fff;box-shadow:0 8px 24px rgba(27,43,69,.22)">'
+      +'<div style="font-size:13px;font-weight:600;opacity:.72">'+dateStr+'</div>'
+      +'<div style="font-size:24px;font-weight:800;letter-spacing:-.03em;margin-top:5px">'+_hhGreet(now.getUTCHours())+'</div>'
+      +'<div id="homeBriefLine" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap"></div>'
+      +'</div>'
+      +'<div id="homeKpis"></div>'
       +'<div id="homeToday"></div>'
-      +'<div id="homeQuick"><div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">'
-      +qk('receipt','청구서 발행',"window.open('https://sewmu-admin.pages.dev/admin/billing/new','_blank')")
-      +qk('target','영업 타겟',"window.open('https://sewmu-admin.pages.dev/admin/sales-targets','_blank')")
-      +qk('usercheck','가입 승인',uTab)
-      +qk('doc','검토표 모아보기',"($g('sbReviewAllBtn')||{click:function(){}}).click()")
+      +'<div id="homeQuick"><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">'
+      +qk('receipt','청구서 발행',"window.open('https://sewmu-admin.pages.dev/admin/billing/new','_blank')",'#e8f3ff','var(--of-primary)')
+      +qk('target','영업 타겟',"window.open('https://sewmu-admin.pages.dev/admin/sales-targets','_blank')",'#e6f4ea','#188038')
+      +qk('usercheck','가입 승인',uTab,'#fff4e5','#e37400','hqPendingDot')
+      +qk('doc','검토표 모아보기',"($g('sbReviewAllBtn')||{click:function(){}}).click()",'#f3e8fd','#8430ce')
       +'</div></div>';
+    try{ _hhBrief(); }catch(_){}
     _hhFill();           /* 캐시 있으면 숫자, 없으면 '·' */
     if(!_hhData) _hhFetch();  /* 처음이면 1회 fetch → 끝나면 _hhFill 재적용 */
   }catch(_){/* 홈 헤더 실패해도 리스트는 정상 */}
