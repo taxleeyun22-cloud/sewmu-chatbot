@@ -7,7 +7,7 @@
  * - adminProcedure gate
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { setupDbMocks, makeCaller, seedBusiness } from './helpers';
+import { setupDbMocks, makeCaller, seedBusiness, seedUsers } from './helpers';
 import { marginalRateByTaxBase, incorporationGrade } from '../sales-targets';
 
 setupDbMocks();
@@ -269,6 +269,57 @@ describe('salesTargets router (integration)', () => {
       const r = await caller.salesTargets.years();
       expect(r.years).toEqual([2025, 2024]);
       expect(r.defaultYear).toBe(2025); // 2025=2건 > 2024=1건 → 가장 많은 연도
+    });
+  });
+
+  describe('contacts (연락 진행 상태)', () => {
+    it('setContact upsert → contacts 조회 + 같은 키 재설정 시 덮어쓰기', async () => {
+      const { caller, rawDb } = await makeCaller({ isOwner: true, userId: 1 });
+      seedUsers(rawDb);
+      /* 처음엔 비어 있음 (lazy 테이블 생성 포함) */
+      const empty = await caller.salesTargets.contacts({ target_type: 'expense' });
+      expect(empty.contacts).toEqual([]);
+
+      /* 연락중 기록 */
+      const r1 = await caller.salesTargets.setContact({
+        target_type: 'expense', owner_type: 'Person', owner_id: 3, status: 'contacted',
+      });
+      expect(r1.ok).toBe(true);
+      expect(r1.updated_by_name).toBe('이재윤'); /* seedUsers 의 real_name */
+
+      const after1 = await caller.salesTargets.contacts({ target_type: 'expense' });
+      expect(after1.contacts).toHaveLength(1);
+      expect(after1.contacts[0]).toMatchObject({ owner_type: 'Person', owner_id: 3, status: 'contacted' });
+
+      /* 같은 키 재설정 → 행 추가 없이 status 만 변경 (upsert) */
+      await caller.salesTargets.setContact({
+        target_type: 'expense', owner_type: 'Person', owner_id: 3, status: 'won',
+      });
+      const after2 = await caller.salesTargets.contacts({ target_type: 'expense' });
+      expect(after2.contacts).toHaveLength(1);
+      expect(after2.contacts[0].status).toBe('won');
+    });
+
+    it('탭(target_type)별로 분리 저장 — pension 기록이 expense 조회에 안 섞임', async () => {
+      const { caller, rawDb } = await makeCaller({ isOwner: true, userId: 1 });
+      seedUsers(rawDb);
+      await caller.salesTargets.setContact({
+        target_type: 'pension', owner_type: 'Person', owner_id: 3, status: 'consult',
+      });
+      const exp = await caller.salesTargets.contacts({ target_type: 'expense' });
+      expect(exp.contacts).toEqual([]);
+      const pen = await caller.salesTargets.contacts({ target_type: 'pension' });
+      expect(pen.contacts).toHaveLength(1);
+      expect(pen.contacts[0].status).toBe('consult');
+    });
+
+    it('잘못된 status 거부 (zod)', async () => {
+      const { caller } = await makeCaller({ isOwner: true, userId: 1 });
+      await expect(
+        caller.salesTargets.setContact({
+          target_type: 'expense', owner_type: 'Person', owner_id: 3, status: 'x' as never,
+        }),
+      ).rejects.toThrow();
     });
   });
 
