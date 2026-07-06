@@ -319,7 +319,7 @@ function _hhToday(){
   var cardStyle='flex:1 1 300px;min-width:260px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer;transition:box-shadow .15s';
   box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
     +'<div onclick="'+open+'"'+hov+' style="'+cardStyle+'" title="클릭 → 내 할 일 달력">'
-    +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">🏛 다가오는 법정 마감 <span style="font-weight:500">(7일 · 주말이면 다음 영업일)</span></div>'+taxRows+'</div>'
+    +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">🏛 다가오는 법정 마감 <span style="font-weight:500">(7일 · 주말 순연 반영)</span></div>'+taxRows+'</div>'
     +'<div onclick="'+open+'"'+hov+' style="'+cardStyle+'" title="클릭 → 내 할 일">'
     +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">📋 내 할 일</div>'+todoLine
     /* 빠른 추가 — 홈에서 생각난 할일 바로 입력 (Enter). 기한은 달력에서 */

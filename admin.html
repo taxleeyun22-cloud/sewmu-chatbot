@@ -297,7 +297,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=84', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=85', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -309,7 +309,7 @@ setTimeout(function(){
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=215"></script>
+<script src="/admin.js?v=216"></script>
 <!-- 모듈화 #3 Step9 (2026-05-18): PC 알림 admin.js 에서 분리 (classic, admin.js 다음 로드) -->
 <script src="/admin-pc-notify.js?v=1"></script>
 <!-- 모듈화 #3 Step10 (2026-05-18): owner 전체 내보내기 admin.js 에서 분리 -->
@@ -330,7 +330,7 @@ setTimeout(function(){
      사장님 명령 "lazy 의존 근본제거". 오늘 lazy 사고 4건(docsCustomers/$g/openRoomForCurrentCustomer/loadDocsTab)
      근본 원인 = 이 두 파일이 lazy 인데 cross-module 함수 노출. 다른 admin-*.js 처럼 항상 로드. -->
 <script src="/admin-docs.js?v=4"></script>
-<script src="/admin-anal-review-faq.js?v=15"></script>
+<script src="/admin-anal-review-faq.js?v=16"></script>
 <!-- Phase 2 (2026-05-07): 신고 검토표 시스템 (사장님 명세) -->
 <script src="/admin-filing-review.js?v=38"></script>
 
