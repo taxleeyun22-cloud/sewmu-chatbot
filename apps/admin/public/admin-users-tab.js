@@ -82,7 +82,8 @@ currentStatus=s;
 ['Pending','Client','Guest','Rejected','Terminated','Withdrawn','Rejoined','Admin'].forEach(k=>{
 const el=$g('uSt'+k);if(!el)return;
 const active=('uSt'+k).toLowerCase().indexOf(s.replace('approved_','').toLowerCase())>=0;
-el.style.background=active?(s==='rejected'?'#8b95a1':s==='terminated'?'#6b7280':s==='withdrawn'?'#7c3aed':s==='rejoined'?'#f59e0b':s==='approved_guest'?'#10b981':s==='pending'?'#f04452':s==='admin'?'#b45309':'#3182f6'):'#e5e8eb';
+/* 토스 정합화 (2026-07-06): 상태별 무지개(보라·주황·갈색…) → 통일. 대기=빨강(주의 환기), 나머지=검정 pill */
+el.style.background=active?(s==='pending'?'#f04452':'#191f28'):'#e5e8eb';
 el.style.color=active?'#fff':'#8b95a1';
 /* .on 클래스 동기화 — admin.html 의 html.embedded CSS 가 .on 으로 색상 결정 (!important).
    inline style 만 바꾸면 embedded 모드에서 색깔 안 바뀌는 버그 — 사장님 보고 (2026-04-29).

@@ -430,12 +430,12 @@
 <!-- FAQ 관리 (RAG) -->
 <div id="faqView" class="hidden">
 <!-- 📖 FAQ 관리 사용 설명서 (접었다 폈다 가능) -->
-<details id="faqHelpCard" style="background:#fffbea;border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;margin-bottom:12px">
-  <summary style="cursor:pointer;font-weight:700;color:var(--warn-text);font-size:.92em;list-style:none;display:flex;align-items:center;gap:6px">
+<details id="faqHelpCard" style="background:#f9fafb;border:1px solid var(--neutral-border);border-radius:12px;padding:12px 16px;margin-bottom:12px">
+  <summary style="cursor:pointer;font-weight:700;color:var(--text-sub);font-size:.92em;list-style:none;display:flex;align-items:center;gap:6px">
     <span>📖 FAQ 관리 사용 설명서</span>
-    <span style="font-size:.72em;color:#a16207;font-weight:500">(눌러서 펼치기/접기)</span>
+    <span style="font-size:.72em;color:var(--text-mute);font-weight:500">(눌러서 펼치기/접기)</span>
   </summary>
-  <div style="margin-top:10px;font-size:.82em;line-height:1.65;color:#78350f">
+  <div style="margin-top:10px;font-size:.82em;line-height:1.65;color:var(--text-sub)">
     <p style="margin:0 0 10px"><b>FAQ란?</b> 챗봇이 고객 질문에 답할 때 참고하는 <u>RAG(검색 증강 생성)</u> 데이터베이스. 법령·판례·실무 기준을 미리 저장해두면 AI가 답변할 때 먼저 찾아봄 → 할루시네이션 감소·정확도 상승.</p>
     <p style="margin:0 0 8px"><b>핵심 버튼 (좌 → 우 사용 순서)</b></p>
     <ul style="margin:0 0 10px 18px;padding:0">
@@ -472,13 +472,19 @@
     <div id="faqStatus" style="font-size:.72em;color:var(--text-mute)">불러오는 중...</div>
   </div>
   <button onclick="openFaqForm(null)" style="background:var(--of-primary);color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">＋ 새 FAQ</button>
-  <button onclick="migrateFaqs()" style="background:#f59e0b;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">🚀 마이그레이션</button>
-  <button onclick="seedFaqs('1')" style="background:var(--of-success);color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="간이과세·양도세·연말정산·퇴직금·증여세 50개">📦 배치 1 추가</button>
-  <button onclick="applyVerifyReport()" style="background:#7c3aed;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="Claude 삼중체크 결과를 FAQ에 일괄 반영">🔍 Claude 검증 적용</button>
-  <button onclick="syncFaqsToGithub()" style="background:var(--of-text-main);color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="의심·틀림 FAQ를 GitHub flagged-faqs.json 에 업로드 (Claude가 재검토·수정)">🚀 Claude 재검토 요청</button>
-  <button onclick="applyReverifyV1()" style="background:#ec4899;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="Claude 재검토 결과 V1 적용 (내용 수정 + 상태 승격)">✨ 재검증 V1 적용</button>
-  <button onclick="reembedAllFaqs()" style="background:#8b6914;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">♻️ 전체 재임베딩</button>
-  <button onclick="downloadBackup()" style="background:#059669;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="전체 데이터(D1) 백업 JSON 다운로드">📦 백업 다운로드</button>
+  <button onclick="downloadBackup()" style="background:#fff;color:var(--text-sub);border:1px solid var(--neutral-border);padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="전체 데이터(D1) 백업 JSON 다운로드">📦 백업 다운로드</button>
+  <!-- 토스 정합화 (2026-07-06): 원색 버튼 7종 → 자주 안 쓰는 1회성 관리 액션은 "관리 도구" 접이식으로. 라벨·onclick 불변 (JS textContent 복원 문자열과 일치 유지) -->
+  <details style="flex:0 0 auto">
+    <summary style="list-style:none;display:inline-flex;align-items:center;gap:6px;background:#fff;color:var(--text-sub);border:1px solid var(--neutral-border);padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer">⚙️ 관리 도구 ▾</summary>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button onclick="migrateFaqs()" style="background:#fff;color:var(--text-sub);border:1px solid var(--neutral-border);padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit">🚀 마이그레이션</button>
+      <button onclick="seedFaqs('1')" style="background:#fff;color:var(--text-sub);border:1px solid var(--neutral-border);padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="간이과세·양도세·연말정산·퇴직금·증여세 50개">📦 배치 1 추가</button>
+      <button onclick="applyVerifyReport()" style="background:#fff;color:var(--text-sub);border:1px solid var(--neutral-border);padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="Claude 삼중체크 결과를 FAQ에 일괄 반영">🔍 Claude 검증 적용</button>
+      <button onclick="syncFaqsToGithub()" style="background:#fff;color:var(--text-sub);border:1px solid var(--neutral-border);padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="의심·틀림 FAQ를 GitHub flagged-faqs.json 에 업로드 (Claude가 재검토·수정)">🚀 Claude 재검토 요청</button>
+      <button onclick="applyReverifyV1()" style="background:#fff;color:var(--text-sub);border:1px solid var(--neutral-border);padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="Claude 재검토 결과 V1 적용 (내용 수정 + 상태 승격)">✨ 재검증 V1 적용</button>
+      <button onclick="reembedAllFaqs()" style="background:#fff;color:var(--toss-red);border:1px solid #fca5a5;padding:8px 14px;border-radius:8px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit" title="전체 벡터 재생성 — 비용·시간 소요 (주의)">♻️ 전체 재임베딩</button>
+    </div>
+  </details>
 </div>
 <div style="background:#fff;border-radius:12px;padding:10px 14px;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
   <input id="faqSearchInput" type="text" placeholder="FAQ 검색 (질문·답변·근거)..." oninput="onFaqSearchInput()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--neutral-border);border-radius:8px;font-size:.85em;font-family:inherit;outline:none">

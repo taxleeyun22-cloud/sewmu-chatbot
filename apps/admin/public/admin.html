@@ -49,7 +49,7 @@ if ('serviceWorker' in navigator) {
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <!-- 토스 벤치마킹 (2026-06-12 사장님 명령): Pretendard 서체 (토스 톤) -->
 <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="/admin.css?v=31">
+<link rel="stylesheet" href="/admin.css?v=32">
 <!-- Phase S3c-1 (2026-05-04): office 사이드바 흡수 — office.css 사이드바 스타일 사용 -->
 <link rel="stylesheet" href="/office.css?v=7">
 <!-- 토스 벤치마킹 (2026-06-12): 토큰 라운드·그림자·사이드바 흰색. cache bump v=5→v=6. -->
@@ -292,7 +292,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=83', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=84', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -320,12 +320,12 @@ setTimeout(function(){
 <script src="/admin-rooms-list.js?v=11"></script>
 <script src="/admin-rooms-msg.js?v=7"></script>
 <script src="/admin-rooms-misc.js?v=3"></script>
-<script src="/admin-users-tab.js?v=32"></script>
+<script src="/admin-users-tab.js?v=33"></script>
 <!-- Phase 16 (2026-05-17) A 부채정리: admin-docs / admin-anal-review-faq lazy 근본제거.
      사장님 명령 "lazy 의존 근본제거". 오늘 lazy 사고 4건(docsCustomers/$g/openRoomForCurrentCustomer/loadDocsTab)
      근본 원인 = 이 두 파일이 lazy 인데 cross-module 함수 노출. 다른 admin-*.js 처럼 항상 로드. -->
-<script src="/admin-docs.js?v=3"></script>
-<script src="/admin-anal-review-faq.js?v=10"></script>
+<script src="/admin-docs.js?v=4"></script>
+<script src="/admin-anal-review-faq.js?v=11"></script>
 <!-- Phase 2 (2026-05-07): 신고 검토표 시스템 (사장님 명세) -->
 <script src="/admin-filing-review.js?v=38"></script>
 

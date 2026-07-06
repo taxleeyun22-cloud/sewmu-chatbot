@@ -152,12 +152,15 @@ function _hIco(name){
   }[name]||'';
   return '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+P+'</svg>';
 }
-var _hhTries=0, _hhData=null, _hhFetching=false;
-/* KPI 박스 1개 HTML */
-function _hhKpi(ico,label,val,unit,color,onclick){
-  return '<div onclick="'+(onclick||'')+'" style="flex:1 1 180px;min-width:160px;background:#fff;border-radius:20px;padding:18px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:'+(onclick?'pointer':'default')+'">'
-    +'<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-mute);font-weight:700">'+_hIco(ico)+label+'</div>'
-    +'<div style="font-size:27px;font-weight:800;letter-spacing:-.03em;margin-top:6px;color:'+color+'">'+val+'<span style="font-size:14px;font-weight:700;color:var(--text-sub)"> '+unit+'</span></div>'
+var _hhTries=0, _hhData=null, _hhFetching=false, _hhTodo=null, _hhTodoFetching=false;
+/* KPI 박스 1개 HTML — 토스 톤: 아이콘 틴트 원형 배경 (2026-07-06 사장님 "홈 UI 개선") */
+function _hhKpi(ico,label,val,unit,color,onclick,tintBg,tintFg){
+  return '<div onclick="'+(onclick||'')+'" style="flex:1 1 180px;min-width:160px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:'+(onclick?'pointer':'default')+'">'
+    +'<div style="display:flex;align-items:center;gap:9px">'
+    +'<span style="width:34px;height:34px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:'+(tintBg||'#f2f4f6')+';color:'+(tintFg||'var(--text-sub)')+';flex-shrink:0">'+_hIco(ico)+'</span>'
+    +'<span style="font-size:12.5px;color:var(--text-mute);font-weight:700">'+label+'</span>'
+    +'</div>'
+    +'<div style="font-size:27px;font-weight:800;letter-spacing:-.03em;margin-top:8px;color:'+color+'">'+val+'<span style="font-size:14px;font-weight:700;color:var(--text-sub)"> '+unit+'</span></div>'
     +'</div>';
 }
 /* KPI 채우기 — 캐시(_hhData) 있으면 숫자, 없으면 '·' 플레이스홀더. fetch 안 함(쌈). */
@@ -168,11 +171,75 @@ function _hhFill(){
   var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
   var pend=d.pending;
   box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
-    +_hhKpi('people','기장거래처',P(d.approvedClient),'곳','var(--of-primary)',uTab)
-    +_hhKpi('wait','승인 대기',P(pend),'명',(pend>0)?'var(--toss-red)':'var(--text-main)',uTab)
-    +_hhKpi('chat','오늘 챗봇 상담',P(d.todayCnt),'건','var(--text-main)','')
-    +_hhKpi('biz','전체 사용자',P(d.totalUsers),'명','var(--text-main)',uTab)
+    +_hhKpi('people','기장거래처',P(d.approvedClient),'곳','var(--of-primary)',uTab,'#e8f3ff','var(--of-primary)')
+    +_hhKpi('wait','승인 대기',P(pend),'명',(pend>0)?'var(--toss-red)':'var(--text-main)',uTab,(pend>0)?'#fdecec':'#f2f4f6',(pend>0)?'var(--toss-red)':'var(--text-sub)')
+    +_hhKpi('chat','오늘 챗봇 상담',P(d.todayCnt),'건','var(--text-main)','','#e6f4ea','#188038')
+    +_hhKpi('biz','전체 사용자',P(d.totalUsers),'명','var(--text-main)',uTab,'#f2f4f6','var(--text-sub)')
     +'</div>';
+  try{ _hhToday(); }catch(_){}
+}
+/* ── 오늘의 브리핑 (2026-07-06): 좌 🏛 법정마감(7일) — admin.js _mtTaxSchedule 재사용 /
+ *    우 📋 내 할일(지남·오늘) — /api/memos scope=my 재사용. 클릭 = 내 할일 모달. */
+function _hhToday(){
+  var box=$g('homeToday'); if(!box) return;
+  var KST=new Date(Date.now()+9*3600*1000);
+  var days=['일','월','화','수','목','금','토'];
+  /* 1) 법정마감 — 오늘부터 7일 */
+  var taxRows='';
+  try{
+    if(typeof _mtTaxSchedule==='function'){
+      var found=[];
+      for(var off=0; off<=7 && found.length<3; off++){
+        var dt=new Date(KST.getTime()); dt.setUTCDate(dt.getUTCDate()+off);
+        var sched=_mtTaxSchedule(dt.getUTCFullYear(), dt.getUTCMonth());
+        var items=sched[dt.getUTCDate()]||[];
+        for(var i=0;i<items.length && found.length<3;i++){
+          found.push({m:dt.getUTCMonth()+1,d:dt.getUTCDate(),w:days[dt.getUTCDay()],label:items[i],dday:off});
+        }
+      }
+      taxRows=found.length
+        ? found.map(function(f){
+            var dd=f.dday===0?'<b style="color:var(--toss-red)">오늘</b>':'D-'+f.dday;
+            return '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-main);margin-top:7px"><span style="font-weight:700;color:var(--text-sub);flex-shrink:0">'+f.m+'/'+f.d+' ('+f.w+')</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+f.label+'</span><span style="font-size:12px;font-weight:700;color:var(--text-mute)">'+dd+'</span></div>';
+          }).join('')
+        : '<div style="font-size:13px;color:var(--text-mute);margin-top:8px">7일 내 법정 마감 없음 🎉</div>';
+    }
+  }catch(_){ taxRows='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">·</div>'; }
+  /* 2) 내 할일 요약 */
+  var t=_hhTodo||{};
+  var todoLine=(_hhTodo==null)
+    ? '<div style="font-size:13px;color:var(--text-mute);margin-top:8px">불러오는 중…</div>'
+    : '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'
+      +((t.overdue>0)?'<span style="background:#fdecec;color:var(--toss-red);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700">지남 '+t.overdue+'</span>':'')
+      +'<span style="background:#e8f3ff;color:var(--of-primary);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700">오늘 '+(t.today||0)+'</span>'
+      +'<span style="background:#f2f4f6;color:var(--text-sub);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700">전체 '+(t.total||0)+'</span>'
+      +'</div>';
+  var open="if(typeof openMyTodos==='function')openMyTodos()";
+  box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<div onclick="'+open+'" style="flex:1 1 300px;min-width:260px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer" title="클릭 → 내 할 일 달력">'
+    +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">🏛 다가오는 법정 마감 <span style="font-weight:500">(7일 · 주말이면 다음 영업일)</span></div>'+taxRows+'</div>'
+    +'<div onclick="'+open+'" style="flex:1 1 300px;min-width:260px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer" title="클릭 → 내 할 일">'
+    +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">📋 내 할 일</div>'+todoLine+'</div>'
+    +'</div>';
+  if(_hhTodo==null) _hhTodoFetch();
+}
+async function _hhTodoFetch(){
+  if(_hhTodo!==null || _hhTodoFetching) return;
+  _hhTodoFetching=true;
+  try{
+    var r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my&only_mine=1');
+    var d=await r.json();
+    var memos=(d&&d.memos)||[];
+    var today=new Date(Date.now()+9*3600*1000).toISOString().substring(0,10);
+    var over=0, tod=0;
+    memos.forEach(function(m){
+      var due=m.due_date;
+      if(due && /^\d{4}-\d{2}-\d{2}$/.test(due)){ if(due<today)over++; else if(due===today)tod++; }
+    });
+    _hhTodo={overdue:over, today:tod, total:memos.length};
+  }catch(_){ _hhTodo={overdue:0,today:0,total:0}; }
+  _hhTodoFetching=false;
+  try{ _hhToday(); }catch(_){}
 }
 /* 데이터 1회만 fetch — 캐시 후 재호출 시 skip (2026-06-15 사장님 "불러오는중 느림":
  * 여러 트리거가 각각 fetch 3개씩 발사 → admin-approve 등 5~6중복 → D1 경합 → 전체 지연.
@@ -207,13 +274,14 @@ function renderHomeHero(){
     var dateStr=(now.getUTCMonth()+1)+'월 '+now.getUTCDate()+'일 '+days[now.getUTCDay()]+'요일';
     var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
     function qk(ico,label,onclick){
-      return '<button onclick="'+onclick+'" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:8px;background:#fff;border:none;border-radius:16px;padding:13px 10px;box-shadow:0 2px 10px rgba(25,31,40,.05);font-size:13.5px;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit">'
+      return '<button onclick="'+onclick+'" onmouseover="this.style.background=\'#e8ebee\'" onmouseout="this.style.background=\'#f2f4f6\'" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:8px;background:#f2f4f6;border:none;border-radius:14px;padding:13px 10px;font-size:13.5px;font-weight:700;color:var(--text-main);cursor:pointer;font-family:inherit">'
         +'<span style="display:inline-flex;color:var(--of-primary)">'+_hIco(ico)+'</span>'+label+'</button>';
     }
     el.innerHTML='<div style="margin:4px 2px 18px">'
       +'<div style="font-size:13px;color:var(--text-mute);font-weight:600">'+dateStr+'</div>'
       +'<div style="font-size:24px;font-weight:800;letter-spacing:-.03em;color:var(--text-main);margin-top:3px">사장님, 오늘도 좋은 하루 되세요<span style="color:var(--of-primary)">.</span></div>'
       +'</div><div id="homeKpis"></div>'
+      +'<div id="homeToday"></div>'
       +'<div id="homeQuick"><div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">'
       +qk('receipt','청구서 발행',"window.open('https://sewmu-admin.pages.dev/admin/billing/new','_blank')")
       +qk('target','영업 타겟',"window.open('https://sewmu-admin.pages.dev/admin/sales-targets','_blank')")

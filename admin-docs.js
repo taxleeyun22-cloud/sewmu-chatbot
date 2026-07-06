@@ -143,10 +143,10 @@ function renderCustomerList(){
     return '<button onclick="toggleDocsCustFilter('+(typeof key==='number'?key:"'"+key+"'")+')" style="background:'+bg+';color:'+fg+';border:none;padding:4px 9px;border-radius:5px;font-size:.72em;font-weight:'+(on?'700':'500')+';cursor:pointer;font-family:inherit">'+label+' '+cnt+'</button>';
   };
   const filterBar='<div style="padding:6px 10px;border-bottom:1px solid #f2f4f6;display:flex;gap:3px;flex-wrap:wrap;background:#fff;position:sticky;top:0;z-index:2">'
-    +fbtn(1,'🔴1','#dc2626',byPri[1])
-    +fbtn(2,'🟡2','#f59e0b',byPri[2])
-    +fbtn(3,'🟢3','#10b981',byPri[3])
-    +fbtn('none','⚪미분류','#6b7280',byPri['none'])
+    +fbtn(1,'1순위','#dc2626',byPri[1])
+    +fbtn(2,'2순위','#f59e0b',byPri[2])
+    +fbtn(3,'3순위','#10b981',byPri[3])
+    +fbtn('none','미분류','#6b7280',byPri['none'])
     +'</div>';
   // 정렬
   if(docsCustSort==='pending'){
