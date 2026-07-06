@@ -772,6 +772,21 @@ if(t==='rooms'){
 } else stopRoomsPolling();
 }
 
+/* 부팅 탭 재적용 (2026-07-06 사장님 "처음 들어가면 홈 밑에 채팅창 남아있네"):
+ * 부팅 시 tab() 은 admin-modals 주입 "전"에 돌아서 view 엘리먼트가 없어 통째로 throw→무시됨.
+ * 주입 후엔 chatView 기본 마크업(히어로+대화 리스트 둘 다)이 그대로 노출.
+ * → 주입 완료 신호(adminModalsLoaded)에 저장된 탭을 다시 적용. + 백업 타이머(이벤트 놓친 경우). */
+function _reapplyBootTab(){
+  try{
+    if(!$g('chatView'))return; /* 아직 주입 전이면 skip (백업 타이머가 재시도) */
+    var saved=localStorage.getItem('admin_last_tab');
+    var t=(saved&&['home','chat','live','rooms','users','anal','review','faq'].indexOf(saved)>=0)?saved:'home';
+    tab(t);
+  }catch(_){}
+}
+try{ document.addEventListener('adminModalsLoaded', _reapplyBootTab); }catch(_){}
+try{ [1200,2500].forEach(function(ms){ setTimeout(_reapplyBootTab, ms); }); }catch(_){}
+
 /* PC |�  L�  admin-pc-notify.js (��T #3 Step9, 2026-05-18) \ ��.
  * _pcNotifyEnabled / _pcNotifySet / _updatePcNotifyBtn / togglePcNotify /
  * _detectNewMessagesForNotify � |� t. classic global �| ّ. */
