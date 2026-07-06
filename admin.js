@@ -421,7 +421,7 @@ setInterval(refreshLiveBadge,10000);
 /* 이전 탭 복원 (유효한 owner 탭만) */
 try{
   var saved=localStorage.getItem('admin_last_tab');
-  if(saved&&['chat','live','rooms','users','anal','review','faq'].indexOf(saved)>=0)tab(saved);
+  if(saved&&['home','chat','live','rooms','users','anal','review','faq'].indexOf(saved)>=0)tab(saved);
 }catch{}
 return true;
 }catch{
@@ -683,7 +683,7 @@ async function doCookieLogin(whoamiData){
   try{ setInterval(function(){ try{ refreshSidebarCounts(); }catch(_){} }, 30000); }catch(_){}
   try{
     var saved=localStorage.getItem('admin_last_tab');
-    if(saved&&['chat','live','rooms','users','anal','review','faq'].indexOf(saved)>=0)tab(saved);
+    if(saved&&['home','chat','live','rooms','users','anal','review','faq'].indexOf(saved)>=0)tab(saved);
     else tab('rooms');
   }catch{ try{ tab('rooms'); }catch(_){} }
 }
@@ -736,7 +736,14 @@ $g('tabUsers').className=t==='users'?'on':'';
 $g('tabAnal').className=t==='anal'?'on':'';
 $g('tabReview').className=t==='review'?'on':'';
 $g('tabFaq').className=t==='faq'?'on':'';
-$g('chatView').style.display=t==='chat'?'block':'none';
+/* 홈/대화 분리 (2026-07-06 사장님 "홈에서 이 부분(대화 리스트) 지우고"):
+ * rooms/internal 처럼 chatView 를 두 탭이 재활용 — home=히어로(브리핑)만, chat=대화 리스트만 */
+$g('chatView').style.display=(t==='chat'||t==='home')?'block':'none';
+try{
+  var _hhEl=$g('homeHero'), _lsEl=$g('list');
+  if(_hhEl)_hhEl.style.display=(t==='home')?'block':'none';
+  if(_lsEl)_lsEl.style.display=(t==='chat')?'block':'none';
+}catch(_){}
 $g('detailView').style.display='none';
 $g('liveView').style.display=t==='live'?'block':'none';
 /* 상담방/관리자방은 같은 roomsView 재활용하되 모드만 다름 */
