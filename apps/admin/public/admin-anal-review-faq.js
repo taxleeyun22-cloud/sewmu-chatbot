@@ -216,7 +216,7 @@ function _hhBrief(){
   var taxToday=0;
   try{ if(typeof _mtTaxSchedule==='function'){ taxToday=(_mtTaxSchedule(KST.getUTCFullYear(),KST.getUTCMonth())[KST.getUTCDate()]||[]).length; } }catch(_){}
   /* 칩 = 버튼 (사장님 "사용자 편의": 누르면 바로 그 자리로) */
-  var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
+  var uTab="((document.querySelector('[data-admin-tab=\\'users-user\\']')||document.querySelector('[data-admin-tab^=\\'users\\']'))||{click:function(){}}).click()"; /* 사이드바 실제 값=users-user (2026-07-06 사장님 "전체 사용자 눌러도 아무것도 안 뜨네" 픽스) */
   var chip=function(txt,hot,onclick){
     return '<button onclick="'+onclick+'" onmouseover="this.style.background=\'rgba(255,255,255,.32)\'" onmouseout="this.style.background=\'rgba(255,255,255,'+(hot?'.24':'.13')+')\'" style="background:rgba(255,255,255,'+(hot?'.24':'.13')+');border:none;border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">'+txt+'</button>';
   };
@@ -232,7 +232,7 @@ function _hhFill(){
   var box=$g('homeKpis'); if(!box) return;
   var d=_hhData||{};
   var P=function(v){ return (_hhData && v!=null)?v:'·'; };
-  var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
+  var uTab="((document.querySelector('[data-admin-tab=\\'users-user\\']')||document.querySelector('[data-admin-tab^=\\'users\\']'))||{click:function(){}}).click()"; /* 사이드바 실제 값=users-user (2026-07-06 사장님 "전체 사용자 눌러도 아무것도 안 뜨네" 픽스) */
   var pend=d.pending;
   box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
     +_hhKpi('people','기장거래처',P(d.approvedClient),'곳','var(--of-primary)',uTab,'#e8f3ff','var(--of-primary)')
@@ -443,7 +443,7 @@ function renderHomeHero(){
     var now=new Date(Date.now()+9*3600*1000);
     var days=['일','월','화','수','목','금','토'];
     var dateStr=(now.getUTCMonth()+1)+'월 '+now.getUTCDate()+'일 '+days[now.getUTCDay()]+'요일';
-    var uTab="(document.querySelector('[data-admin-tab=\\'users\\']')||{click:function(){}}).click()";
+    var uTab="((document.querySelector('[data-admin-tab=\\'users-user\\']')||document.querySelector('[data-admin-tab^=\\'users\\']'))||{click:function(){}}).click()"; /* 사이드바 실제 값=users-user (2026-07-06 사장님 "전체 사용자 눌러도 아무것도 안 뜨네" 픽스) */
     /* 뱅킹앱식 숏컷 — 틴트 원형 아이콘 + 라벨. 가입 승인은 대기>0 시 빨간 점(hqPendingDot) */
     function qk(ico,label,onclick,tintBg,tintFg,dotId){
       return '<button onclick="'+onclick+'" onmouseover="this.style.background=\'#fafbfc\'" onmouseout="this.style.background=\'#fff\'" style="flex:1;min-width:110px;background:#fff;border:none;border-radius:18px;padding:16px 8px 14px;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:9px;box-shadow:0 2px 10px rgba(25,31,40,.05)">'
