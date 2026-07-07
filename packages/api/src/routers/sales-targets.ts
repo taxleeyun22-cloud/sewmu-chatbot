@@ -108,6 +108,8 @@ interface AutoFields {
   calculated_tax?: number | string;
   tax_base?: number | string;
   revenue?: number | string;
+  /** 종합소득금액 (종소세 검토표) — 소득률 탭 (2026-07-06) */
+  total_income?: number | string;
   공제감면?: Deduction[];
   deductions?: Deduction[];
   employee_note?: string;
@@ -568,7 +570,7 @@ export const salesTargetsRouter = router({
         )
         .run();
       await audit(ctx, 'salesTargets.setContact', {
-        target_type: input.owner_type.toLowerCase(),
+        target_type: input.owner_type === 'Business' ? 'business' : 'user',
         target_id: input.owner_id,
         after: { target_type: input.target_type, status: input.status },
       });
