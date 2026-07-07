@@ -615,16 +615,22 @@ export default function SalesTargetsPage() {
       {tab === 'incorporation' && (
         <div className="bg-white border border-gray-200 rounded-lg p-3 flex flex-wrap items-center gap-2">
           <span className="text-sm text-gray-600">과세표준 컷오프</span>
+          {/* 사장님 (2026-07-07): "0원 이상, 1,400 이상 이렇게 다 볼 수 있게" — 소득세 누진 구간 전체 개방 */}
           <select
             value={incorpThreshold}
             onChange={(e) => setIncorpThreshold(Number(e.target.value))}
             className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
           >
-            <option value={88_000_000}>8,800만 이상 (35%~)</option>
+            <option value={0}>전체 (0원 이상)</option>
+            <option value={14_000_000}>1,400만 이상 (15%~)</option>
+            <option value={50_000_000}>5,000만 이상 (24%~)</option>
+            <option value={88_000_000}>8,800만 이상 (35%~, 기본)</option>
             <option value={150_000_000}>1.5억 이상 (38%~, 핵심)</option>
             <option value={300_000_000}>3억 이상 (40%~, 최우선)</option>
+            <option value={500_000_000}>5억 이상 (42%~)</option>
+            <option value={1_000_000_000}>10억 이상 (45%)</option>
           </select>
-          <span className="text-xs text-gray-400">개인 종소세 과세표준 ≥ 컷오프 → 법인전환 실익 큰 순</span>
+          <span className="text-xs text-gray-400">개인 종소세 과세표준 ≥ 컷오프 → 법인전환 실익 큰 순 (구간 = 소득세 한계세율 경계)</span>
         </div>
       )}
 
