@@ -182,21 +182,72 @@ async function getClientFilings(db, userId) {
   }
 }
 
-function buildFilingContext(filings) {
-  if (!filings || filings.length === 0) return "";
+/* 본인 거래처 법인(Business) 검토표 조회 — 사장님 명령 (2026-07-07): "작년대비 영업이익 되도록".
+ * ⚠️ 격리: business_members 에서 본인(userId) 이 연결된(removed_at 없음) 법인만.
+ * Person 검토표와 동일한 스크래핑 검증 필터 적용. 테이블/컬럼 없으면 조용히 []. */
+async function getClientBizFilings(db, userId) {
+  if (!db || !userId) return [];
+  try {
+    const { results } = await db.prepare(
+      `SELECT f.type, f.fiscal_year, f.auto_fields, f.source, b.company_name AS biz_name
+       FROM business_members m
+       JOIN businesses b ON b.id = m.business_id AND (b.deleted_at IS NULL OR b.deleted_at = '')
+       JOIN filings f ON f.owner_type = 'Business' AND f.owner_id = m.business_id
+       WHERE m.user_id = ? AND (m.removed_at IS NULL OR m.removed_at = '')
+         AND (f.deleted_at IS NULL OR f.deleted_at = '')
+         AND (f.source = 'manual' OR f.source IS NULL OR f.verified_at IS NOT NULL)
+       ORDER BY f.fiscal_year DESC LIMIT 8`
+    ).bind(userId).all();
+    return results || [];
+  } catch { return []; }
+}
+
+/* 검토표 auto_fields → 챗봇 노출 필드 (2026-07-07 확장: 수입·결정세액만 → 전 항목.
+ * "작년 영업이익?", "영업이익 대비 세금 비율?" 답변용. 라벨 = 검토표 화면과 동일 용어). */
+const FIL_FIELDS_PERSON = [
+  ['revenue', '수입금액'],
+  ['total_income', '종합소득금액'],
+  ['tax_base', '과세표준'],
+  ['calculated_tax', '산출세액'],
+  ['decisive_tax', '결정세액(낸 세금)'],
+  ['prepaid_tax', '기납부세액'],
+  ['payable_tax', '납부할세액'],
+];
+const FIL_FIELDS_CORP = [
+  ['revenue', '매출액'],
+  ['net_income', '결산서당기순이익'],
+  ['business_income', '각사업연도소득금액'],
+  ['tax_base', '과세표준'],
+  ['calculated_tax', '산출세액'],
+  ['decisive_tax', '결정세액(낸 세금)'],
+  ['prepaid_tax', '기납부세액'],
+  ['payable_tax', '납부할세액'],
+];
+
+function filingLine(f) {
   const won = (n) => (Number(n) || 0).toLocaleString('ko-KR');
-  const lines = filings.map((f) => {
-    let af = {};
-    try { af = JSON.parse(f.auto_fields || '{}'); } catch {}
-    const parts = [`- ${f.fiscal_year}년 귀속 ${f.type}`];
-    if (af.revenue) parts.push(`수입금액 ${won(af.revenue)}원`);
-    if (af.decisive_tax) parts.push(`결정세액(낸 세금) ${won(af.decisive_tax)}원`);
-    /* 신고 제출 여부 (스크래핑 신고서 기준) — "신고됐어?" 질문 대응 */
-    if (typeof af.submitted === 'boolean') parts.push(af.submitted ? '신고 완료(제출됨)' : '아직 신고 전(미제출)');
-    if (f.source === 'scraped') parts.push('출처: 국세청 신고서');
-    return parts.join(' · ');
-  }).join('\n');
-  return `\n\n===== 본인(로그인 거래처)의 신고 검토표 데이터 [확정·권위 데이터] =====\n${lines}\n\n[필수 지침 — 반드시 따를 것]\n1. 위 목록은 "지금 로그인한 본인"의 확정 신고 데이터입니다. 사용자가 특정 연도 매출/세금(예: "2025년 매출", "작년 매출", "세금 얼마 냈어")을 물으면, 위 목록에서 해당 "N년 귀속" 줄을 찾아 그 수입금액·세액을 숫자 그대로 답하세요.\n2. 목록에 그 연도의 수입금액이 적혀 있으면 무조건 그 숫자로 답하세요. "아직 반영되지 않았다 / 신고 전이다 / 담당 세무사 확인 필요 / 확인되지 않습니다" 같은 회피·추론은 절대 하지 마세요 — 데이터가 이미 여기 있습니다. (귀속연도가 최근이어도 위에 숫자가 있으면 그대로 답하세요.)\n3. 위 목록에 아예 없는 연도만 "○○년 자료는 아직 없습니다"라고 답하세요.\n4. 다른 사람·다른 거래처의 매출/세금은 여기 없으며, 어떤 경우에도 만들어내거나 답하지 마세요.\n`;
+  let af = {};
+  try { af = JSON.parse(f.auto_fields || '{}'); } catch {}
+  const isCorp = String(f.type || '').includes('법인');
+  const parts = [`- ${f.biz_name ? `[${f.biz_name}] ` : ''}${f.fiscal_year}년 귀속 ${f.type}`];
+  const fields = isCorp ? FIL_FIELDS_CORP : FIL_FIELDS_PERSON;
+  for (const [key, label] of fields) {
+    const v = Number(af[key]);
+    if (af[key] !== undefined && af[key] !== null && af[key] !== '' && !Number.isNaN(v)) {
+      parts.push(`${label} ${won(v)}원`);
+    }
+  }
+  /* 신고 제출 여부 (스크래핑 신고서 기준) — "신고됐어?" 질문 대응 */
+  if (typeof af.submitted === 'boolean') parts.push(af.submitted ? '신고 완료(제출됨)' : '아직 신고 전(미제출)');
+  if (f.source === 'scraped') parts.push('출처: 국세청 신고서');
+  return parts.join(' · ');
+}
+
+function buildFilingContext(filings, bizFilings) {
+  const all = [...(filings || []), ...(bizFilings || [])];
+  if (all.length === 0) return "";
+  const lines = all.map(filingLine).join('\n');
+  return `\n\n===== 본인(로그인 거래처)의 신고 검토표 데이터 [확정·권위 데이터] =====\n${lines}\n\n[필수 지침 — 반드시 따를 것]\n1. 위 목록은 "지금 로그인한 본인"(및 본인이 연결된 법인)의 확정 신고 데이터입니다. 사용자가 특정 연도 매출/소득/세금(예: "2025년 매출", "작년 매출", "세금 얼마 냈어")을 물으면, 위 목록에서 해당 "N년 귀속" 줄을 찾아 그 숫자 그대로 답하세요.\n2. 목록에 그 연도의 숫자가 적혀 있으면 무조건 그 숫자로 답하세요. "아직 반영되지 않았다 / 신고 전이다 / 담당 세무사 확인 필요 / 확인되지 않습니다" 같은 회피·추론은 절대 하지 마세요 — 데이터가 이미 여기 있습니다. (귀속연도가 최근이어도 위에 숫자가 있으면 그대로 답하세요.)\n3. "영업이익" 질문: 신고 검토표에는 회계상 "영업이익" 항목이 따로 없습니다. 개인사업자는 "종합소득금액"(수입금액에서 필요경비를 뺀 소득), 법인은 "결산서당기순이익"이 가장 가까운 지표입니다. 그 숫자로 답하되, 반드시 "신고 검토표의 종합소득금액 기준" / "결산서 당기순이익 기준"이라고 기준을 한 줄 밝히세요. 그 지표조차 목록에 없으면 그때만 자료 없음으로 안내하세요.\n4. 전년 대비 비교("작년 대비", "얼마나 늘었어"): 두 연도의 같은 항목 숫자가 모두 있으면 증감액과 증감률(%)을 직접 계산해서 답하세요. 한쪽 연도가 없으면 있는 쪽만 알려주고 없는 연도는 자료 없음으로 안내.\n5. 비율 질문("소득 대비 세금 비율", "실효세율"): 결정세액 ÷ 해당 지표(수입금액 또는 종합소득금액/당기순이익)를 계산해 % 로 답하세요. 어떤 항목끼리 나눴는지 명시.\n6. 위 목록에 아예 없는 연도만 "○○년 자료는 아직 없습니다"라고 답하세요.\n7. 다른 사람·다른 거래처의 매출/세금은 여기 없으며, 어떤 경우에도 만들어내거나 답하지 마세요.\n8. 이 데이터로 답할 때 신뢰도는 [신뢰도: 높음] (세무사 작성 검토표 데이터).\n`;
 }
 
 // 승인상태별 일일 한도 (사장님 명령 2026-05-02: 일반승인 폐지, pending 5회로 인상)
@@ -682,9 +733,11 @@ export async function onRequestPost(context) {
         userRealName = u ? u.real_name : null;
         const businesses = await getClientBusinesses(db, userId);
         clientContext = buildClientContext(businesses, userRealName);
-        /* 본인 검토표(매출·세금) 추가 — WHERE owner = 본인(userId) 만 (2026-06-05) */
+        /* 본인 검토표(매출·세금) 추가 — WHERE owner = 본인(userId) 만 (2026-06-05).
+         * + 본인 연결 법인 검토표 (2026-07-07 사장님: "작년대비 영업이익 되도록") */
         const filings = await getClientFilings(db, userId);
-        clientContext += buildFilingContext(filings);
+        const bizFilings = await getClientBizFilings(db, userId);
+        clientContext += buildFilingContext(filings, bizFilings);
       } catch {}
       // 재무 데이터 (매출·매입·세금) — 세무사가 입력해 둔 client_finance 최근 12건
       try {
