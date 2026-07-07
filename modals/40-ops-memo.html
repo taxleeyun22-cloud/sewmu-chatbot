@@ -506,3 +506,122 @@
 </div>
 
 <!-- 🏢 업체 대시보드 모달 -->
+
+<!-- 📖 업무 가이드 모달 (2026-07-07 사장님: "부가세 주의사항 이런거 해서 직원들이 다 읽어볼수있도록" — 읽음확인 없음, 콘텐츠+가독성 중심) -->
+<style>
+#guidesModal .modal-card{max-width:1060px;width:96vw;height:88vh;max-height:88vh;display:flex;flex-direction:column;border-radius:20px;overflow:hidden}
+#guidesModal .gd-head{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--neutral-border);flex:none}
+#guidesModal .gd-head h2{margin:0;font-size:1.05em;font-weight:800;color:var(--text-main);white-space:nowrap}
+#guidesModal .gd-head-sub{font-size:.76em;color:var(--text-mute)}
+#guidesModal .gd-new-btn{margin-left:auto;display:inline-flex;align-items:center;gap:5px;background:var(--brand-primary);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:.82em;font-weight:700;cursor:pointer;font-family:inherit}
+#guidesModal .gd-new-btn:hover{filter:brightness(1.06)}
+#guidesModal .gd-x{background:none;border:none;font-size:1.15em;cursor:pointer;color:var(--text-mute);padding:2px 8px;font-family:inherit}
+#guidesModal .gd-body{flex:1;display:flex;min-height:0}
+#guidesModal .gd-side{width:288px;flex:none;border-right:1px solid var(--neutral-border);display:flex;flex-direction:column;min-height:0;background:#fafbfc}
+#guidesModal .gd-chips{display:flex;flex-wrap:wrap;gap:6px;padding:12px 14px 10px;flex:none}
+#guidesModal .gd-chip{border:1px solid var(--neutral-border);background:#fff;border-radius:999px;padding:5px 11px;font-size:.76em;font-weight:600;color:var(--text-sub);cursor:pointer;font-family:inherit}
+#guidesModal .gd-chip.on{background:#1e293b;border-color:#1e293b;color:#fff}
+#guidesModal .gd-chip-n{opacity:.65;font-weight:700;margin-left:2px}
+#guidesModal .gd-list{flex:1;overflow-y:auto;padding:2px 10px 14px;display:flex;flex-direction:column;gap:6px}
+#guidesModal .gd-item{text-align:left;border:1px solid transparent;background:transparent;border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;display:block;width:100%}
+#guidesModal .gd-item:hover{background:#f1f3f6}
+#guidesModal .gd-item.on{background:#fff;border-color:var(--neutral-border);box-shadow:0 1px 4px rgba(15,23,42,.06)}
+#guidesModal .gd-item-top{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+#guidesModal .gd-item-cat{font-size:.68em;font-weight:800;border-radius:6px;padding:2px 7px}
+#guidesModal .gd-item-date{font-size:.68em;color:var(--text-mute);margin-left:auto}
+#guidesModal .gd-pin{font-size:.75em}
+#guidesModal .gd-item-title{font-size:.86em;font-weight:700;color:var(--text-main);line-height:1.35;word-break:keep-all}
+#guidesModal .gd-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;background:#fff}
+#guidesModal .gd-reader{flex:1;overflow-y:auto;padding:26px 36px 48px}
+#guidesModal .gd-back{display:none;background:none;border:none;color:var(--brand-primary);font-weight:700;font-size:.85em;cursor:pointer;font-family:inherit;padding:0;margin-bottom:10px}
+#guidesModal .gd-read-meta-row{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+#guidesModal .gd-read-title{margin:0 0 8px;font-size:1.5em;font-weight:800;color:var(--text-main);line-height:1.3;word-break:keep-all}
+#guidesModal .gd-read-meta{font-size:.78em;color:var(--text-mute);padding-bottom:14px;border-bottom:1px solid var(--neutral-border);margin-bottom:18px}
+#guidesModal .gd-read-acts{margin-left:8px;display:inline-flex;gap:6px}
+#guidesModal .gd-mini-btn{background:#f1f3f6;border:none;border-radius:7px;padding:4px 9px;font-size:.94em;color:var(--text-sub);cursor:pointer;font-family:inherit;font-weight:600}
+#guidesModal .gd-mini-btn:hover{background:#e5e8ec}
+#guidesModal .gd-mini-btn.danger{color:var(--brand-danger)}
+#guidesModal .gd-empty{text-align:center;color:var(--text-sub);padding:34px 14px;font-size:.88em;line-height:1.6}
+/* 아티클 타이포 — 가독성 최우선 (사장님: "내용이 알차고 가독성 좋아야") */
+#guidesModal .gd-article{font-size:15px;line-height:1.8;color:#1f2937;word-break:keep-all;max-width:660px}
+#guidesModal .gd-article .gdm-h1{font-size:1.28em;font-weight:800;margin:26px 0 10px;color:var(--text-main);line-height:1.35}
+#guidesModal .gd-article .gdm-h2{font-size:1.1em;font-weight:800;margin:22px 0 8px;color:var(--text-main)}
+#guidesModal .gd-article .gdm-h3{font-size:1em;font-weight:700;margin:18px 0 6px;color:var(--text-main)}
+#guidesModal .gd-article .gdm-h1:first-child,#guidesModal .gd-article .gdm-h2:first-child{margin-top:2px}
+#guidesModal .gd-article .gdm-p{margin:0 0 12px}
+#guidesModal .gd-article ul.gdm-list{margin:0 0 12px;padding-left:22px;list-style:disc}
+#guidesModal .gd-article ol.gdm-list{margin:0 0 12px;padding-left:24px;list-style:decimal}
+#guidesModal .gd-article .gdm-list li{margin:4px 0}
+#guidesModal .gd-article .gdm-callout{background:#fffbeb;border:1px solid #fde68a;border-left:4px solid var(--brand-warn);border-radius:10px;padding:12px 14px 12px 40px;margin:0 0 12px;position:relative;font-size:.95em}
+#guidesModal .gd-article .gdm-callout:before{content:'⚠️';position:absolute;left:13px;top:11px}
+#guidesModal .gd-article .gdm-hr{border:none;border-top:1px solid var(--neutral-border);margin:20px 0}
+#guidesModal .gd-article strong{font-weight:800;color:#111827;background:linear-gradient(transparent 62%,#dbeafe 62%)}
+/* 에디터 */
+#guidesModal .gd-editor{flex:1;display:none;flex-direction:column;min-height:0}
+#guidesModal .gd-ed-top{display:flex;align-items:center;gap:8px;padding:14px 18px 10px;flex-wrap:wrap;flex:none}
+#guidesModal .gd-ed-top h3{margin:0;font-size:.95em;font-weight:800;color:var(--text-main);flex-basis:100%}
+#guidesModal .gd-ed-title{flex:1;min-width:200px;padding:10px 12px;border:1px solid var(--neutral-border);border-radius:10px;font-size:.95em;font-weight:700;font-family:inherit;box-sizing:border-box}
+#guidesModal .gd-ed-cat{padding:9px 10px;border:1px solid var(--neutral-border);border-radius:10px;font-size:.85em;font-family:inherit;background:#fff}
+#guidesModal .gd-ed-pin{display:inline-flex;align-items:center;gap:5px;font-size:.8em;color:var(--text-sub);cursor:pointer;white-space:nowrap}
+#guidesModal .gd-ed-split{flex:1;display:flex;min-height:0;border-top:1px solid var(--neutral-border)}
+#guidesModal .gd-ed-ta{flex:1;min-width:0;border:none;resize:none;padding:16px 18px;font-size:.9em;line-height:1.7;font-family:inherit;outline:none;background:#fafbfc}
+#guidesModal .gd-ed-pv{flex:1;min-width:0;overflow-y:auto;border-left:1px solid var(--neutral-border);padding:16px 20px}
+#guidesModal .gd-ed-foot{display:flex;align-items:center;gap:8px;padding:10px 18px;border-top:1px solid var(--neutral-border);flex:none}
+#guidesModal .gd-ed-hint{font-size:.72em;color:var(--text-mute);margin-right:auto}
+#guidesModal .gd-btn{border:none;border-radius:9px;padding:9px 16px;font-size:.85em;font-weight:700;cursor:pointer;font-family:inherit}
+#guidesModal .gd-btn.save{background:var(--brand-primary);color:#fff}
+#guidesModal .gd-btn.cancel{background:var(--neutral-border);color:var(--text-main)}
+#guidesModal .gd-btn.del{background:#fef2f2;color:var(--brand-danger)}
+#guidesModal .gd-btn:disabled{opacity:.6;cursor:default}
+@media (max-width:720px){
+  #guidesModal .modal-card{width:100vw;height:100vh;max-height:100vh;border-radius:0}
+  #guidesModal .gd-side{width:100%;border-right:none}
+  #guidesModal .gd-body.gd-reading .gd-side{display:none}
+  #guidesModal .gd-main{display:none}
+  #guidesModal .gd-body.gd-reading .gd-main{display:flex}
+  #guidesModal .gd-back{display:inline-block}
+  #guidesModal .gd-reader{padding:18px 18px 40px}
+  #guidesModal .gd-ed-split{flex-direction:column}
+  #guidesModal .gd-ed-pv{border-left:none;border-top:1px solid var(--neutral-border)}
+}
+</style>
+<div id="guidesModal" class="modal-overlay" style="z-index:11940;display:none">
+  <div class="modal-card">
+    <div class="gd-head">
+      <h2>📖 업무 가이드</h2>
+      <span class="gd-head-sub">부가세·원천세 등 실무 주의사항 — 직원 전체 열람</span>
+      <button type="button" id="gdNewBtn" class="gd-new-btn" onclick="_gdNew()" style="display:none">＋ 새 글</button>
+      <button type="button" class="gd-x" onclick="closeGuides()">✕</button>
+    </div>
+    <div class="gd-body" id="gdBody">
+      <aside class="gd-side">
+        <div class="gd-chips" id="gdChips"></div>
+        <div class="gd-list" id="gdList"><div class="gd-empty">불러오는 중...</div></div>
+      </aside>
+      <section class="gd-main">
+        <div class="gd-reader" id="gdReader"></div>
+        <div class="gd-editor" id="gdEditor">
+          <div class="gd-ed-top">
+            <h3 id="gdEdHead">＋ 새 가이드</h3>
+            <input id="gdTitle" class="gd-ed-title" placeholder="제목 — 예: 부가세 확정신고 주의사항" maxlength="200">
+            <select id="gdCatSel" class="gd-ed-cat">
+              <option>부가세</option><option>원천세</option><option>종소세</option>
+              <option>법인세</option><option>연말정산</option><option selected>공통</option>
+            </select>
+            <label class="gd-ed-pin"><input type="checkbox" id="gdPin">📌 고정</label>
+          </div>
+          <div class="gd-ed-split">
+            <textarea id="gdContent" class="gd-ed-ta" placeholder="# 큰 제목&#10;## 소제목&#10;- 항목&#10;1. 순서 항목&#10;**강조**&#10;> 주의/경고 박스&#10;--- (구분선)" oninput="_gdPreview()"></textarea>
+            <div class="gd-ed-pv" id="gdPreview"></div>
+          </div>
+          <div class="gd-ed-foot">
+            <button type="button" id="gdDelBtn" class="gd-btn del" onclick="_gdDelete(_gdEditId)" style="display:none">삭제</button>
+            <span class="gd-ed-hint"># 제목 · - 불릿 · **강조** · &gt; 주의박스 · --- 구분선</span>
+            <button type="button" class="gd-btn cancel" onclick="_gdCancelEdit()">취소</button>
+            <button type="button" id="gdSaveBtn" class="gd-btn save" onclick="_gdSave()">저장</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
