@@ -1089,6 +1089,12 @@ function _renderMtCalendar(list){
     if(d && /^\d{4}-\d{2}-\d{2}$/.test(d)){ (byDate[d]=byDate[d]||[]).push(m); }
     else noDue.push(m);
   }
+  /* 완료된 할일도 흐린 칩으로 그 날짜에 남김 (2026-07-07 사장님: "완료된거 살짝 흐린색으로 캘린더에 남아있음 좋을거같은데") */
+  const doneByDate={};
+  for(const m of _myTodosDone){
+    const d=m.due_date;
+    if(d && /^\d{4}-\d{2}-\d{2}$/.test(d)){ (doneByDate[d]=doneByDate[d]||[]).push(m); }
+  }
   const first=new Date(Y, M0, 1);
   const startDow=first.getDay();
   const daysInMonth=new Date(Y, M0+1, 0).getDate();
@@ -1114,12 +1120,20 @@ function _renderMtCalendar(list){
       });
     }
     const maxChips=_mtFull?5:3;
-    evs.slice(0,maxChips).forEach(m=>{
+    const shownOpen=evs.slice(0,maxChips);
+    shownOpen.forEach(m=>{
       const src=_mtSource(m);
       const cls=ds<today?'over':(src.k==='personal'?'self':src.k);
       cell+='<div class="mtd-ev '+cls+'" title="'+escAttr(m.content||'')+'"><span class="dot"></span>'+e(m.content||'')+'</div>';
     });
-    if(evs.length>maxChips) cell+='<div class="mtd-more">+'+(evs.length-maxChips)+'개</div>';
+    /* 완료 칩 — 미완료 먼저 채우고 남는 슬롯에만 (흐림+취소선) */
+    const dones=doneByDate[ds]||[];
+    const shownDone=dones.slice(0,Math.max(0,maxChips-shownOpen.length));
+    shownDone.forEach(m=>{
+      cell+='<div class="mtd-ev doneev" title="'+escAttr('완료됨 — '+(m.content||''))+'">✓ '+e(m.content||'')+'</div>';
+    });
+    const overflow=(evs.length-shownOpen.length)+(dones.length-shownDone.length);
+    if(overflow>0) cell+='<div class="mtd-more">+'+overflow+'개</div>';
     cell+='</div>';
     html+=cell;
   });
@@ -1131,6 +1145,7 @@ function _renderMtCalendar(list){
     +'<span><i style="background:#f3e8fd"></i>💬 상담방</span>'
     +'<span><i style="background:#fff4e5"></i>📍 개인</span>'
     +(_mtTaxOn?'<span><i style="background:#f1f3f4"></i>🏛 법정마감 (주말 순연 반영)</span>':'')
+    +'<span><i style="background:#f8f9fa"></i>✓ 완료 (흐림)</span>'
     +'<span>· 점=미완료, 날짜 클릭=그 날 상세</span>'
     +'</div>';
   if(noDue.length){
@@ -1147,6 +1162,15 @@ function _renderMtCalendar(list){
     if(selTax.length) html+='<div class="mtd-taxline">🏛 '+selTax.map(e).join(' · ')+' <span style="color:#9aa0a6">— 주말 순연 반영 (공휴일 겹치면 하루 더)</span></div>';
   }
   html+=(selEvs.length?selEvs.map(_todoRow).join(''):'<div style="font-size:12.5px;color:#9aa0a6;padding:8px 10px">이 날 할 일이 없습니다 — 위 입력창에 적고 Enter</div>');
+  /* 선택한 날의 완료된 할일 — 흐린 행 + 되돌리기 */
+  const selDone=doneByDate[_mtSelDate]||[];
+  if(selDone.length){
+    html+=selDone.map(m=>'<div class="mtd-row done">'
+      +'<button class="mtd-ck on" onclick="uncompleteTodo('+m.id+')" title="완료 해제 (할 일로 되돌리기)"></button>'
+      +'<div style="flex:1;min-width:0"><div class="mtd-t">'+e(m.content||'')+'</div>'
+      +'<div class="mtd-meta"><span class="mtd-who">✓ 완료됨'+(m.author_name?' · '+e(m.author_name):'')+'</span></div>'
+      +'</div></div>').join('');
+  }
   html+=_mtDoneSection();
   list.innerHTML=html;
 }
