@@ -247,27 +247,62 @@ export default function SalesTargetsPage() {
   }
 
   /* 행 안의 상태 select — 색 pill, 클릭이 행 클릭(대시보드 열기)으로 번지지 않게 stopPropagation */
-  function ContactCell({ ownerType, ownerId }: { ownerType: string; ownerId: number }) {
+  function ContactCell({ ownerType, ownerId, pipe }: {
+    ownerType: string; ownerId: number;
+    /* 💼 영업 파이프라인 연동 (2026-07-08): 있으면 ➕ 리드 추가 버튼 표시 */
+    pipe?: { name: string; phone?: string | null; company?: string | null; leadType: string };
+  }) {
     const key = `${ownerType}:${ownerId}`;
     const c = contactMap.get(key);
     const cur = c?.status || 'none';
     const opt = CONTACT_OPTS.find((o) => o.v === cur) || CONTACT_OPTS[0];
     return (
-      <select
-        value={cur}
-        disabled={savingKey === key}
-        onClick={(e) => e.stopPropagation()}
-        onChange={(e) => {
-          e.stopPropagation();
-          void setContact(ownerType, ownerId, e.target.value);
-        }}
-        title={c?.updated_at ? `${c.updated_by_name || '누군가'} · ${String(c.updated_at).slice(0, 10)}` : '연락 상태 기록'}
-        className={`rounded-full px-2 py-1 text-xs font-bold border-0 cursor-pointer appearance-none ${opt.cls}`}
-      >
-        {CONTACT_OPTS.map((o) => (
-          <option key={o.v} value={o.v}>{o.label}</option>
-        ))}
-      </select>
+      <span className="inline-flex items-center gap-1">
+        <select
+          value={cur}
+          disabled={savingKey === key}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            e.stopPropagation();
+            void setContact(ownerType, ownerId, e.target.value);
+          }}
+          title={c?.updated_at ? `${c.updated_by_name || '누군가'} · ${String(c.updated_at).slice(0, 10)}` : '연락 상태 기록'}
+          className={`rounded-full px-2 py-1 text-xs font-bold border-0 cursor-pointer appearance-none ${opt.cls}`}
+        >
+          {CONTACT_OPTS.map((o) => (
+            <option key={o.v} value={o.v}>{o.label}</option>
+          ))}
+        </select>
+        {pipe && (
+          <button
+            onClick={async (e) => {
+              e.stopPropagation();
+              try {
+                const r = await fetch('/api/sales-pipeline', {
+                  method: 'POST', credentials: 'same-origin',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    name: pipe.name, phone: pipe.phone || undefined, company: pipe.company || undefined,
+                    lead_type: pipe.leadType, source: 'target',
+                    ref_owner_type: ownerType === 'Business' ? 'Business' : 'User', ref_owner_id: ownerId,
+                    next_action: '첫 연락',
+                    next_action_date: new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10),
+                  }),
+                });
+                const d = (await r.json()) as { error?: string; existed?: boolean };
+                if (d.error) throw new Error(d.error);
+                toast.success(d.existed ? '이미 파이프라인에 진행중인 리드가 있어요' : `${pipe.name} — 파이프라인 추가 (첫 연락: 오늘)`);
+              } catch (err) {
+                toast.error((err as Error).message);
+              }
+            }}
+            title="영업 파이프라인에 리드로 추가"
+            className="rounded-full bg-blue-50 px-1.5 py-1 text-xs font-extrabold text-blue-600 hover:bg-blue-100"
+          >
+            ➕
+          </button>
+        )}
+      </span>
     );
   }
 
@@ -522,7 +557,7 @@ export default function SalesTargetsPage() {
                     <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                     <td className="px-3 py-2 font-medium text-blue-700 hover:underline">{t.name} ↗</td>
                     <td className="px-3 py-2 text-gray-600">{t.phone || '—'}</td>
-                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} /></td>
+                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} pipe={{ name: t.name, phone: t.phone, leadType: 'pension' }} /></td>
                     <td className="px-3 py-2 text-right font-semibold text-gray-900">{won(t.calculated_tax)}원</td>
                   </tr>
                 ))}
@@ -591,7 +626,7 @@ export default function SalesTargetsPage() {
                       ))}
                     </td>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{t.phone || '—'}</td>
-                    <td className="px-3 py-2 whitespace-nowrap"><ContactCell ownerType={t.owner_type} ownerId={t.owner_id} /></td>
+                    <td className="px-3 py-2 whitespace-nowrap"><ContactCell ownerType={t.owner_type} ownerId={t.owner_id} pipe={{ name: t.name, phone: t.phone, leadType: 'insurance' }} /></td>
                     <td className="px-3 py-2 text-gray-500 text-xs max-w-md">{t.note}</td>
                   </tr>
                 ))}
@@ -701,7 +736,7 @@ export default function SalesTargetsPage() {
                     <td className="px-3 py-2 text-right text-gray-600">{won(t.calculated_tax)}원</td>
                     <td className="px-3 py-2 text-right text-gray-500">{wonShort(t.revenue)}</td>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{t.phone || '—'}</td>
-                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} /></td>
+                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} pipe={{ name: t.name, phone: t.phone, leadType: 'incorporation' }} /></td>
                   </tr>
                 ))}
                 {!incorporation.count && (
@@ -791,7 +826,7 @@ export default function SalesTargetsPage() {
                     </td>
                     <td className="px-3 py-2 text-right text-gray-600">{won(t.calculated_tax)}원</td>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{t.phone || '—'}</td>
-                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} /></td>
+                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} pipe={{ name: t.name, phone: t.phone, leadType: 'income' }} /></td>
                   </tr>
                 ))}
                 {!income.count && (

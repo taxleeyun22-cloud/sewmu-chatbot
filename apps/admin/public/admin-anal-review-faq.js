@@ -312,9 +312,26 @@ function _hhToday(){
     billInner='<div style="font-size:23px;font-weight:800;letter-spacing:-.02em;margin-top:6px;color:var(--text-main)">₩'+(_hhBill.amount||0).toLocaleString()+'</div>'
       +'<div style="font-size:12px;color:var(--text-mute);margin-top:4px">청구 전 '+_hhBill.pending+'건 · 청구 후 미납 '+_hhBill.sent+'건</div>';
   }
+  /* 5) 영업 팔로업 (2026-07-08 영업 파이프라인) */
+  var salesInner;
+  if(_hhSales==null){
+    salesInner='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">불러오는 중…</div>';
+  }else if(!_hhSales.count){
+    salesInner='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">오늘 팔로업 없음 ✅</div>';
+  }else{
+    salesInner=_hhSales.top.map(function(s){
+      return '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-main);margin-top:6px">'
+        +(s.overdue?'<span style="background:#fdecec;color:var(--toss-red);border-radius:999px;padding:1px 8px;font-size:11px;font-weight:800;flex-shrink:0">지남</span>':'')
+        +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">'+e(s.name)+(s.company?' · '+e(s.company):'')+'</span>'
+        +'<span style="color:var(--text-mute);font-size:12px;flex-shrink:0;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(s.action||'')+'</span>'
+        +'</div>';
+    }).join('');
+  }
+  var salesHead='📞 오늘 영업 팔로업'+(_hhSales&&_hhSales.count>0?' <span style="color:var(--of-primary);font-weight:800">'+_hhSales.count+'</span>'+(_hhSales.overdue>0?' <span style="color:var(--toss-red);font-weight:800">(지남 '+_hhSales.overdue+')</span>':''):'');
   var open="if(typeof openMyTodos==='function')openMyTodos()";
   var goRooms="(document.querySelector('[data-admin-tab=\\'rooms\\']')||{click:function(){}}).click()";
   var goBill="window.open('https://sewmu-admin.pages.dev/admin/billing','_blank')";
+  var goSales="window.open('https://sewmu-admin.pages.dev/admin/sales-pipeline','_blank')";
   var hov=' onmouseover="this.style.boxShadow=\'0 6px 18px rgba(25,31,40,.12)\'" onmouseout="this.style.boxShadow=\'0 2px 10px rgba(25,31,40,.05)\'"';
   var cardStyle='flex:1 1 300px;min-width:260px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer;transition:box-shadow .15s';
   box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
@@ -332,10 +349,28 @@ function _hhToday(){
     +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">'+roomsHead+'</div>'+roomsInner+'</div>'
     +'<div onclick="'+goBill+'"'+hov+' style="'+cardStyle+'" title="클릭 → 청구서 시스템 (새 탭)">'
     +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">💰 미수금 청구서</div>'+billInner+'</div>'
+    +'<div onclick="'+goSales+'"'+hov+' style="'+cardStyle+'" title="클릭 → 영업 파이프라인 (새 탭)">'
+    +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">'+salesHead+'</div>'+salesInner+'</div>'
     +'</div>';
   if(_hhTodo==null) _hhTodoFetch();
   if(_hhRooms==null) _hhRoomsFetch();
   if(_hhBill==null) _hhBillFetch();
+  if(_hhSales==null) _hhSalesFetch();
+}
+/* 영업 팔로업 — /api/sales-pipeline?view=today (오늘·지난 다음액션) */
+var _hhSales=null,_hhSalesFetching=false;
+async function _hhSalesFetch(){
+  if(_hhSales!==null || _hhSalesFetching) return;
+  _hhSalesFetching=true;
+  try{
+    var r=await fetch('/api/sales-pipeline?view=today&key='+encodeURIComponent(KEY));
+    var d=await r.json();
+    var items=(d&&d.items)||[];
+    _hhSales={ count:d.count||0, overdue:d.overdue||0,
+      top:items.slice(0,3).map(function(x){return {name:x.name, company:x.company, action:x.next_action, overdue:x.next_action_date<d.today}}) };
+  }catch(_){ _hhSales={count:0,overdue:0,top:[]}; }
+  _hhSalesFetching=false;
+  try{ _hhToday(); }catch(_){}
 }
 /* 안 읽은 상담방 — /api/admin-rooms 재사용 (admin_unread_count) */
 var _hhRooms=null,_hhRoomsFetching=false,_hhBill=null,_hhBillFetching=false;
