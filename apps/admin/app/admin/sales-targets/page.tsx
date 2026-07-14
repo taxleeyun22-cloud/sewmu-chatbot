@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { trpcCall } from '@/lib/trpc';
 import { toast } from '@/components/ui/toast';
 import { SkeletonList } from '@/components/ui/skeleton';
+import { LeadPeek, type PeekEvidence } from '@/components/sales/lead-peek';
 
 type Tab = 'pension' | 'expense' | 'incorporation' | 'income';
 
@@ -121,6 +122,23 @@ function wonShort(n: number): string {
   }
   if (v >= 10_000) return `${Math.round(v / 10_000).toLocaleString('ko-KR')}만`;
   return v.toLocaleString('ko-KR');
+}
+
+/* 💼 파이프라인 단계 표기 (허브 통합 2026-07-08) */
+const PIPE_STAGE_LABEL: Record<string, string> = {
+  lead: '리드', contacted: '연락함', consulting: '상담중', proposal: '제안', won: '성사', hold: '보류', lost: '무산',
+};
+const PIPE_STAGE_CLS: Record<string, string> = {
+  lead: 'bg-gray-100 text-gray-600', contacted: 'bg-blue-50 text-blue-600', consulting: 'bg-violet-50 text-violet-600',
+  proposal: 'bg-amber-50 text-amber-700', won: 'bg-emerald-50 text-emerald-600', hold: 'bg-orange-50 text-orange-600', lost: 'bg-red-50 text-red-500',
+};
+interface PipeLead {
+  id: number; stage: string; next_action: string | null; next_action_date: string | null;
+  ref_owner_type: string | null; ref_owner_id: number | null;
+}
+interface PipeListResp {
+  ok: boolean; today: string; leads: PipeLead[];
+  summary: { today: number; overdue: number; noAction: number; active: number; wonMonth: number; stages: Record<string, number> };
 }
 
 const GRADE_CLS: Record<string, string> = {
@@ -230,6 +248,33 @@ export default function SalesTargetsPage() {
   }, [contactsQ.data]);
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
+  /* 💼 파이프라인 연동 (허브 통합) — 타겟마다 담김 여부·단계·다음액션을 인라인 표시 */
+  const pipeQ = useQuery<PipeListResp>({
+    queryKey: ['sp-list'],
+    queryFn: async () => {
+      const r = await fetch('/api/sales-pipeline?view=list', { credentials: 'same-origin' });
+      const d = (await r.json()) as PipeListResp & { error?: string };
+      if (d.error) throw new Error(d.error);
+      return d;
+    },
+    refetchInterval: 60000,
+  });
+  const pipeToday = pipeQ.data?.today || new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  /* ref 매핑: 진행중 > 성사 > 무산 우선 (무산은 다시 [담기] 가능하게 맵에서 제외) */
+  const pipeMap = useMemo(() => {
+    const m = new Map<string, PipeLead>();
+    const rank = (s: string) => (['lead', 'contacted', 'consulting', 'proposal', 'hold'].includes(s) ? 2 : s === 'won' ? 1 : 0);
+    (pipeQ.data?.leads || []).forEach((l) => {
+      if (!l.ref_owner_type || !l.ref_owner_id) return;
+      if (l.stage === 'lost') return;
+      const k = `${l.ref_owner_type}:${l.ref_owner_id}`;
+      const prev = m.get(k);
+      if (!prev || rank(l.stage) > rank(prev.stage)) m.set(k, l);
+    });
+    return m;
+  }, [pipeQ.data]);
+  const [peek, setPeek] = useState<{ leadId: number; evidence: PeekEvidence[]; pitch?: string } | null>(null);
+
   async function setContact(ownerType: string, ownerId: number, status: string) {
     const key = `${ownerType}:${ownerId}`;
     setSavingKey(key);
@@ -247,62 +292,92 @@ export default function SalesTargetsPage() {
   }
 
   /* 행 안의 상태 select — 색 pill, 클릭이 행 클릭(대시보드 열기)으로 번지지 않게 stopPropagation */
-  function ContactCell({ ownerType, ownerId, pipe }: {
-    ownerType: string; ownerId: number;
-    /* 💼 영업 파이프라인 연동 (2026-07-08): 있으면 ➕ 리드 추가 버튼 표시 */
-    pipe?: { name: string; phone?: string | null; company?: string | null; leadType: string };
-  }) {
+  function ContactCell({ ownerType, ownerId }: { ownerType: string; ownerId: number }) {
     const key = `${ownerType}:${ownerId}`;
     const c = contactMap.get(key);
     const cur = c?.status || 'none';
     const opt = CONTACT_OPTS.find((o) => o.v === cur) || CONTACT_OPTS[0];
     return (
-      <span className="inline-flex items-center gap-1">
-        <select
-          value={cur}
-          disabled={savingKey === key}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => {
-            e.stopPropagation();
-            void setContact(ownerType, ownerId, e.target.value);
-          }}
-          title={c?.updated_at ? `${c.updated_by_name || '누군가'} · ${String(c.updated_at).slice(0, 10)}` : '연락 상태 기록'}
-          className={`rounded-full px-2 py-1 text-xs font-bold border-0 cursor-pointer appearance-none ${opt.cls}`}
+      <select
+        value={cur}
+        disabled={savingKey === key}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          e.stopPropagation();
+          void setContact(ownerType, ownerId, e.target.value);
+        }}
+        title={c?.updated_at ? `${c.updated_by_name || '누군가'} · ${String(c.updated_at).slice(0, 10)}` : '연락 상태 기록'}
+        className={`rounded-full px-2 py-1 text-xs font-bold border-0 cursor-pointer appearance-none ${opt.cls}`}
+      >
+        {CONTACT_OPTS.map((o) => (
+          <option key={o.v} value={o.v}>{o.label}</option>
+        ))}
+      </select>
+    );
+  }
+
+  /* 💼 파이프라인 셀 (2026-07-08 허브 통합 — 사장님 "영업타겟에서 연동되게"):
+   * 이 타겟이 파이프라인에 담겼으면 단계 pill + 다음액션 → 클릭 = 우측 피크 패널.
+   * 미등록이면 [＋담기] → 그 자리에서 리드 생성 후 바로 피크 열림. 페이지 이동 0. */
+  function PipeCell({ ownerType, ownerId, name, phone, leadType, evidence, pitch }: {
+    ownerType: string; ownerId: number; name: string; phone?: string | null;
+    leadType: string; evidence: PeekEvidence[]; pitch?: string;
+  }) {
+    const refType = ownerType === 'Business' ? 'Business' : 'User';
+    const lead = pipeMap.get(`${refType}:${ownerId}`);
+    if (lead) {
+      const overdue = lead.next_action_date && lead.next_action_date < pipeToday && ['lead', 'contacted', 'consulting', 'proposal'].includes(lead.stage);
+      const isToday = lead.next_action_date === pipeToday;
+      return (
+        <button
+          onClick={(e) => { e.stopPropagation(); setPeek({ leadId: lead.id, evidence, pitch }); }}
+          title="파이프라인 상세 — 기록·타임라인"
+          className="inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-left hover:bg-gray-100"
         >
-          {CONTACT_OPTS.map((o) => (
-            <option key={o.v} value={o.v}>{o.label}</option>
-          ))}
-        </select>
-        {pipe && (
-          <button
-            onClick={async (e) => {
-              e.stopPropagation();
-              try {
-                const r = await fetch('/api/sales-pipeline', {
-                  method: 'POST', credentials: 'same-origin',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    name: pipe.name, phone: pipe.phone || undefined, company: pipe.company || undefined,
-                    lead_type: pipe.leadType, source: 'target',
-                    ref_owner_type: ownerType === 'Business' ? 'Business' : 'User', ref_owner_id: ownerId,
-                    next_action: '첫 연락',
-                    next_action_date: new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10),
-                  }),
-                });
-                const d = (await r.json()) as { error?: string; existed?: boolean };
-                if (d.error) throw new Error(d.error);
-                toast.success(d.existed ? '이미 파이프라인에 진행중인 리드가 있어요' : `${pipe.name} — 파이프라인 추가 (첫 연락: 오늘)`);
-              } catch (err) {
-                toast.error((err as Error).message);
-              }
-            }}
-            title="영업 파이프라인에 리드로 추가"
-            className="rounded-full bg-blue-50 px-1.5 py-1 text-xs font-extrabold text-blue-600 hover:bg-blue-100"
-          >
-            ➕
-          </button>
-        )}
-      </span>
+          <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-extrabold whitespace-nowrap ${PIPE_STAGE_CLS[lead.stage] || 'bg-gray-100 text-gray-600'}`}>
+            {PIPE_STAGE_LABEL[lead.stage] || lead.stage}{lead.stage === 'won' && ' 🎉'}
+          </span>
+          {['lead', 'contacted', 'consulting', 'proposal', 'hold'].includes(lead.stage) && (
+            lead.next_action_date ? (
+              <span className={`text-[11px] font-bold whitespace-nowrap ${overdue ? 'text-red-600' : isToday ? 'text-blue-600' : 'text-gray-500'}`}>
+                {overdue && '🔥 '}{isToday ? '오늘' : lead.next_action_date.slice(5).replace('-', '/')} {lead.next_action || ''}
+              </span>
+            ) : (
+              <span className="text-[11px] font-extrabold text-red-500">⚠ 액션 없음</span>
+            )
+          )}
+        </button>
+      );
+    }
+    return (
+      <button
+        onClick={async (e) => {
+          e.stopPropagation();
+          try {
+            const r = await fetch('/api/sales-pipeline', {
+              method: 'POST', credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name, phone: phone || undefined, lead_type: leadType, source: 'target',
+                ref_owner_type: refType, ref_owner_id: ownerId,
+                next_action: '첫 연락',
+                next_action_date: new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10),
+              }),
+            });
+            const d = (await r.json()) as { error?: string; id?: number; existed?: boolean };
+            if (d.error) throw new Error(d.error);
+            toast.success(d.existed ? '이미 담겨 있어요 — 상세를 열게요' : `${name} — 파이프라인에 담김 (첫 연락: 오늘)`);
+            await pipeQ.refetch();
+            if (d.id) setPeek({ leadId: d.id, evidence, pitch });
+          } catch (err) {
+            toast.error((err as Error).message);
+          }
+        }}
+        title="파이프라인에 리드로 담기"
+        className="rounded-lg bg-brand-primary px-2.5 py-1 text-[11px] font-extrabold text-white shadow-sm hover:opacity-90 whitespace-nowrap"
+      >
+        ＋ 담기
+      </button>
     );
   }
 
@@ -406,10 +481,27 @@ export default function SalesTargetsPage() {
 
   return (
     <div className="space-y-4">
-      {/* 헤더 */}
+      {/* 헤더 — 영업 허브 (2026-07-08: 발굴=여기, 파이프라인=진행판. 퍼널 요약으로 연결) */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 flex items-center flex-wrap gap-3">
-        <span className="font-bold text-gray-900 text-lg">🎯 영업 타겟</span>
-        <span className="text-xs text-gray-400">검토표 데이터 기반 영업 명단 추출</span>
+        <span className="font-bold text-gray-900 text-lg">💼 영업</span>
+        <span className="flex rounded-xl bg-gray-100 p-0.5 text-xs font-bold">
+          <span className="rounded-lg bg-white px-3 py-1.5 text-gray-900 shadow-sm">🎯 발굴</span>
+          <a href="/admin/sales-pipeline" className="rounded-lg px-3 py-1.5 text-gray-500 hover:text-gray-800">
+            📞 파이프라인{pipeQ.data ? ` ${pipeQ.data.summary.active}` : ''}
+          </a>
+        </span>
+        {pipeQ.data && (
+          <span className="hidden items-center gap-1.5 text-[11px] font-bold text-gray-500 md:flex">
+            <span className="rounded-lg bg-gray-50 px-2 py-1">파이프라인 <b className="text-blue-600">{pipeQ.data.summary.active}</b></span>
+            <span className="text-gray-300">›</span>
+            <span className="rounded-lg bg-gray-50 px-2 py-1">상담·제안 <b className="text-violet-600">{(pipeQ.data.summary.stages['consulting'] || 0) + (pipeQ.data.summary.stages['proposal'] || 0)}</b></span>
+            <span className="text-gray-300">›</span>
+            <span className="rounded-lg bg-emerald-50 px-2 py-1 text-emerald-700">이번달 성사 <b>{pipeQ.data.summary.wonMonth}</b> 🎉</span>
+            {pipeQ.data.summary.today + pipeQ.data.summary.overdue > 0 && (
+              <a href="/admin/sales-pipeline" className="rounded-lg bg-red-50 px-2 py-1 text-red-600 hover:bg-red-100">📞 오늘 팔로업 {pipeQ.data.summary.today + pipeQ.data.summary.overdue}</a>
+            )}
+          </span>
+        )}
         <span className="ml-auto flex items-center gap-2">
           <label className="text-sm text-gray-600">귀속연도</label>
           <select
@@ -543,6 +635,7 @@ export default function SalesTargetsPage() {
                   <th className="px-3 py-2 text-left">이름</th>
                   <th className="px-3 py-2 text-left">전화</th>
                   <th className="px-3 py-2 text-left w-28">연락</th>
+                  <th className="px-3 py-2 text-left w-44">💼 파이프라인</th>
                   <th className="px-3 py-2 text-right">산출세액</th>
                 </tr>
               </thead>
@@ -557,13 +650,19 @@ export default function SalesTargetsPage() {
                     <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                     <td className="px-3 py-2 font-medium text-blue-700 hover:underline">{t.name} ↗</td>
                     <td className="px-3 py-2 text-gray-600">{t.phone || '—'}</td>
-                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} pipe={{ name: t.name, phone: t.phone, leadType: 'pension' }} /></td>
+                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} /></td>
+                    <td className="px-3 py-2"><PipeCell ownerType="Person" ownerId={t.user_id} name={t.name} phone={t.phone} leadType="pension"
+                      evidence={[
+                        { label: '산출세액', value: won(t.calculated_tax) + '원' },
+                        { label: '연금저축·IRP 공제', value: '없음 ← 영업 포인트', hot: true },
+                      ]}
+                      pitch="연금저축·IRP 세액공제를 전혀 안 쓰고 계세요. 한도까지 넣으면 내년 세금이 바로 줄어듭니다." /></td>
                     <td className="px-3 py-2 text-right font-semibold text-gray-900">{won(t.calculated_tax)}원</td>
                   </tr>
                 ))}
                 {!pension.count && (
                   <tr>
-                    <td colSpan={5} className="px-3 py-8 text-center text-gray-400">
+                    <td colSpan={6} className="px-3 py-8 text-center text-gray-400">
                       조건에 맞는 거래처가 없습니다.
                     </td>
                   </tr>
@@ -604,6 +703,7 @@ export default function SalesTargetsPage() {
                   <th className="px-3 py-2 text-left">키워드</th>
                   <th className="px-3 py-2 text-left">전화</th>
                   <th className="px-3 py-2 text-left w-28">연락</th>
+                  <th className="px-3 py-2 text-left w-44">💼 파이프라인</th>
                   <th className="px-3 py-2 text-left">직원코멘트</th>
                 </tr>
               </thead>
@@ -626,13 +726,19 @@ export default function SalesTargetsPage() {
                       ))}
                     </td>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{t.phone || '—'}</td>
-                    <td className="px-3 py-2 whitespace-nowrap"><ContactCell ownerType={t.owner_type} ownerId={t.owner_id} pipe={{ name: t.name, phone: t.phone, leadType: 'insurance' }} /></td>
+                    <td className="px-3 py-2 whitespace-nowrap"><ContactCell ownerType={t.owner_type} ownerId={t.owner_id} /></td>
+                    <td className="px-3 py-2"><PipeCell ownerType={t.owner_type} ownerId={t.owner_id} name={t.name} phone={t.phone} leadType="insurance"
+                      evidence={[
+                        { label: '매칭 키워드', value: t.keywords.join(', ') || '—', hot: true },
+                        { label: '검토표 코멘트', value: (t.note || '—').slice(0, 60) },
+                      ]}
+                      pitch="검토표 경비 흐름상 보장성 보험 정비 여지가 보입니다. 코멘트 내용 짚으면서 제안하세요." /></td>
                     <td className="px-3 py-2 text-gray-500 text-xs max-w-md">{t.note}</td>
                   </tr>
                 ))}
                 {!expense.count && (
                   <tr>
-                    <td colSpan={7} className="px-3 py-8 text-center text-gray-400">
+                    <td colSpan={8} className="px-3 py-8 text-center text-gray-400">
                       키워드에 맞는 거래처가 없습니다.
                     </td>
                   </tr>
@@ -710,6 +816,7 @@ export default function SalesTargetsPage() {
                   <th className="px-3 py-2 text-right">수입금액</th>
                   <th className="px-3 py-2 text-left">전화</th>
                   <th className="px-3 py-2 text-left w-28">연락</th>
+                  <th className="px-3 py-2 text-left w-44">💼 파이프라인</th>
                 </tr>
               </thead>
               <tbody>
@@ -736,12 +843,19 @@ export default function SalesTargetsPage() {
                     <td className="px-3 py-2 text-right text-gray-600">{won(t.calculated_tax)}원</td>
                     <td className="px-3 py-2 text-right text-gray-500">{wonShort(t.revenue)}</td>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{t.phone || '—'}</td>
-                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} pipe={{ name: t.name, phone: t.phone, leadType: 'incorporation' }} /></td>
+                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} /></td>
+                    <td className="px-3 py-2"><PipeCell ownerType="Person" ownerId={t.user_id} name={t.name} phone={t.phone} leadType="incorporation"
+                      evidence={[
+                        { label: '과세표준', value: wonShort(t.tax_base) },
+                        { label: '한계세율', value: t.marginal_rate + '% 구간', hot: t.marginal_rate >= 38 },
+                        { label: '산출세액', value: won(t.calculated_tax) + '원' },
+                      ]}
+                      pitch="개인 한계세율 구간이 높습니다. 법인 전환 시 세부담 시뮬레이션 비교표가 설득력 있어요." /></td>
                   </tr>
                 ))}
                 {!incorporation.count && (
                   <tr>
-                    <td colSpan={9} className="px-3 py-8 text-center text-gray-400">
+                    <td colSpan={10} className="px-3 py-8 text-center text-gray-400">
                       컷오프 이상 과세표준 거래처가 없습니다. (컷오프를 낮춰보세요)
                     </td>
                   </tr>
@@ -803,6 +917,7 @@ export default function SalesTargetsPage() {
                   <th className="px-3 py-2 text-right">산출세액</th>
                   <th className="px-3 py-2 text-left">전화</th>
                   <th className="px-3 py-2 text-left w-28">연락</th>
+                  <th className="px-3 py-2 text-left w-44">💼 파이프라인</th>
                 </tr>
               </thead>
               <tbody>
@@ -826,12 +941,19 @@ export default function SalesTargetsPage() {
                     </td>
                     <td className="px-3 py-2 text-right text-gray-600">{won(t.calculated_tax)}원</td>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{t.phone || '—'}</td>
-                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} pipe={{ name: t.name, phone: t.phone, leadType: 'income' }} /></td>
+                    <td className="px-3 py-2"><ContactCell ownerType="Person" ownerId={t.user_id} /></td>
+                    <td className="px-3 py-2"><PipeCell ownerType="Person" ownerId={t.user_id} name={t.name} phone={t.phone} leadType="income"
+                      evidence={[
+                        { label: '수입금액', value: won(t.revenue) + '원' },
+                        { label: '소득금액', value: won(t.total_income) + '원' },
+                        { label: '소득률', value: t.rate + '%', hot: t.rate >= 40 },
+                      ]}
+                      pitch="소득률이 높은 편이라 경비 처리·절세 플랜 상담 여지가 큽니다. 소득률 숫자로 시작하세요." /></td>
                   </tr>
                 ))}
                 {!income.count && (
                   <tr>
-                    <td colSpan={8} className="px-3 py-8 text-center text-gray-400">
+                    <td colSpan={9} className="px-3 py-8 text-center text-gray-400">
                       컷오프 이상 소득률 거래처가 없습니다. (컷오프를 낮춰보세요)
                     </td>
                   </tr>
@@ -844,6 +966,17 @@ export default function SalesTargetsPage() {
             노란우산공제·연금계좌·비용 증빙 보강 등 <b>절세 컨설팅 1차 명단</b>입니다. (업종별 적정률은 별도 판단)
           </p>
         </>
+      )}
+
+      {/* 💼 파이프라인 피크 패널 — 담기/pill 클릭 시 우측에서 열림 (페이지 이동 0) */}
+      {peek && (
+        <LeadPeek
+          leadId={peek.leadId}
+          evidence={peek.evidence}
+          pitch={peek.pitch}
+          onClose={() => setPeek(null)}
+          onChanged={() => { void pipeQ.refetch(); }}
+        />
       )}
     </div>
   );
