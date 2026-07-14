@@ -105,6 +105,7 @@ export default function SalesPipelinePage() {
   const [q, setQ] = useState('');
   const [selId, setSelId] = useState<number | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [showStats, setShowStats] = useState(false);
 
   const listQ = useQuery<ListResp>({
     queryKey: ['sp-list'],
@@ -139,9 +140,19 @@ export default function SalesPipelinePage() {
 
   return (
     <div className="flex h-[calc(100vh-56px)] flex-col p-4 md:p-6">
-      {/* 헤더 + 요약 */}
+      {/* 헤더 + 요약 (허브 네비: 발굴=영업타겟 ↔ 파이프라인=여기) */}
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-extrabold text-gray-900">💼 영업 파이프라인</h1>
+        <h1 className="text-xl font-extrabold text-gray-900">💼 영업</h1>
+        <span className="flex rounded-xl bg-gray-100 p-0.5 text-xs font-bold">
+          <a href="/admin/sales-targets" className="rounded-lg px-3 py-1.5 text-gray-500 hover:text-gray-800">🎯 발굴</a>
+          <span className="rounded-lg bg-white px-3 py-1.5 text-gray-900 shadow-sm">📞 파이프라인</span>
+        </span>
+        <button
+          onClick={() => setShowStats((v) => !v)}
+          className={`rounded-lg px-3 py-1.5 text-xs font-bold ${showStats ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+        >
+          📊 성과
+        </button>
         {sum && (
           <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
             <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-blue-700">오늘 팔로업 {sum.today}</span>
@@ -188,6 +199,9 @@ export default function SalesPipelinePage() {
           ))}
         </div>
       )}
+
+      {/* 📊 성과 — 전부 기록에서 자동 집계 (별도 입력 없음) */}
+      {showStats && <StatsPanel leads={allLeads} />}
 
       <div className="flex min-h-0 flex-1 gap-4">
         {/* ── 좌: 리스트 ── */}
@@ -293,6 +307,76 @@ export default function SalesPipelinePage() {
           onCreated={(id) => { setShowNew(false); setSelId(id); refresh(); }}
         />
       )}
+    </div>
+  );
+}
+
+/* ── 📊 성과 패널 — leads 배열에서 클라이언트 집계 (직원별 전환율·평균 소요·유형/사유 톱) ── */
+function StatsPanel({ leads }: { leads: Lead[] }) {
+  const byAssignee = new Map<string, { total: number; won: number }>();
+  let wonDaysSum = 0, wonDaysN = 0;
+  const typeWins = new Map<string, number>();
+  const lostReasons = new Map<string, number>();
+  for (const l of leads) {
+    const who = l.assignee_name || '담당 없음';
+    const s = byAssignee.get(who) || { total: 0, won: 0 };
+    s.total++;
+    if (l.stage === 'won') s.won++;
+    byAssignee.set(who, s);
+    if (l.stage === 'won') {
+      typeWins.set(l.lead_type, (typeWins.get(l.lead_type) || 0) + 1);
+      if (l.won_at && l.created_at) {
+        const d = (new Date(l.won_at.slice(0, 10)).getTime() - new Date(l.created_at.slice(0, 10)).getTime()) / 86400000;
+        if (d >= 0) { wonDaysSum += d; wonDaysN++; }
+      }
+    }
+    if (l.stage === 'lost') {
+      const r = (l.lost_reason || '사유 미기록').slice(0, 20);
+      lostReasons.set(r, (lostReasons.get(r) || 0) + 1);
+    }
+  }
+  const rows = Array.from(byAssignee.entries()).sort((a, b) => b[1].won - a[1].won || b[1].total - a[1].total);
+  const maxTotal = Math.max(1, ...rows.map(([, s]) => s.total));
+  const topType = Array.from(typeWins.entries()).sort((a, b) => b[1] - a[1])[0];
+  const topLost = Array.from(lostReasons.entries()).sort((a, b) => b[1] - a[1])[0];
+  const totalAll = leads.length;
+  const wonAll = leads.filter((l) => l.stage === 'won').length;
+
+  return (
+    <div className="mb-3 flex flex-wrap gap-3 rounded-2xl border border-gray-200 bg-white p-4">
+      <div className="min-w-[260px] flex-1">
+        <div className="mb-2 text-xs font-extrabold text-gray-700">직원별 리드 → 성사</div>
+        {rows.length === 0 && <div className="text-xs text-gray-400">아직 데이터가 없습니다</div>}
+        {rows.map(([who, s]) => (
+          <div key={who} className="flex items-center gap-2 py-1 text-xs">
+            <span className="w-16 truncate font-extrabold text-gray-700">{who}</span>
+            <span className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+              <span className="block h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-500" style={{ width: `${Math.round((s.total / maxTotal) * 100)}%` }} />
+            </span>
+            <span className="w-32 text-right font-bold text-gray-500">
+              {s.total}건 → 성사 {s.won} ({s.total ? Math.round((s.won / s.total) * 100) : 0}%)
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-start gap-2">
+        <div className="rounded-xl bg-slate-50 px-3.5 py-2.5 text-center">
+          <div className="text-base font-extrabold text-gray-900">{totalAll ? Math.round((wonAll / totalAll) * 100) : 0}%</div>
+          <div className="text-[10px] font-bold text-gray-400">전체 성사율 ({wonAll}/{totalAll})</div>
+        </div>
+        <div className="rounded-xl bg-slate-50 px-3.5 py-2.5 text-center">
+          <div className="text-base font-extrabold text-gray-900">{wonDaysN ? Math.round(wonDaysSum / wonDaysN) : '—'}일</div>
+          <div className="text-[10px] font-bold text-gray-400">평균 성사 소요</div>
+        </div>
+        <div className="rounded-xl bg-emerald-50 px-3.5 py-2.5 text-center">
+          <div className="text-base font-extrabold text-emerald-600">{topType ? `${TYPE_LABEL[topType[0]] || topType[0]} ${topType[1]}건` : '—'}</div>
+          <div className="text-[10px] font-bold text-emerald-500">유형별 성사 1위</div>
+        </div>
+        <div className="rounded-xl bg-red-50 px-3.5 py-2.5 text-center">
+          <div className="text-base font-extrabold text-red-500">{topLost ? `${topLost[0]} ${topLost[1]}건` : '—'}</div>
+          <div className="text-[10px] font-bold text-red-400">거절 사유 1위</div>
+        </div>
+      </div>
     </div>
   );
 }
