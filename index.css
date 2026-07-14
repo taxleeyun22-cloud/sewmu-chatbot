@@ -21,7 +21,6 @@ body.dark .quick button{background:var(--card);border-color:var(--border);color:
 body.dark .input-bar{background:var(--card);border-top-color:var(--border)}
 body.dark .input-bar input,body.dark .input-bar textarea{background:var(--bg);border-color:var(--border);color:var(--text)}
 body.dark .cta-bar a{background:var(--card);border-color:var(--border)}
-body.dark .refund-btn{background:linear-gradient(135deg,#1a2a3f,#1e2d42);border-color:#2a3f5a}
 body.dark .login-screen{background:var(--bg)}
 body.dark .login-btn.kakao{background:#FEE500;color:#191f28}
 body.dark .welcome-logo{background:transparent}
@@ -149,13 +148,6 @@ body{font-family:'Pretendard','Noto Sans KR',-apple-system,'Malgun Gothic',sans-
 .quick button:active{transform:scale(.96)}
 
 /* ── 환급 조회 ── */
-.refund-bar{padding:2px 20px;background:var(--bg)}
-.refund-btn{display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#e8f3ff,#f0f7ff);border:1px solid #d0e4f7;border-radius:10px;padding:10px 14px;text-decoration:none;transition:.15s;box-shadow:var(--shadow)}
-.refund-btn:active{transform:scale(.99)}
-.refund-icon{font-size:1.1em}
-.refund-text{flex:1;display:flex;flex-direction:column;gap:1px}
-.refund-title{font-size:.78em;font-weight:700;color:var(--blue)}
-.refund-desc{font-size:.65em;color:var(--text2)}
 
 /* ── AI 고지 ── */
 .ai-notice{font-size:.72em;color:var(--blue);margin-top:14px;font-weight:500}
