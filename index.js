@@ -67,7 +67,6 @@ function showChat(){
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('chatArea').style.display='flex';
     document.getElementById('quickArea').style.display='flex';
-    document.getElementById('refundBar').style.display='block';
     document.getElementById('disclaimer').style.display='block';
     document.getElementById('ctaBar').style.display='block';
     document.getElementById('inputBar').style.display='flex';
@@ -433,7 +432,6 @@ function switchTab(tab){
   var isMy=tab==='mypage';
   document.getElementById('chatArea').style.display=isMy?'none':'flex';
   document.getElementById('quickArea').style.display=isMy?'none':(document.querySelectorAll('.msg').length>0?'none':'flex');
-  document.getElementById('refundBar').style.display=isMy?'none':'block';
   document.getElementById('disclaimer').style.display=isMy?'none':'block';
   document.getElementById('ctaBar').style.display=isMy?'none':'block';
   document.getElementById('inputBar').style.display=isMy?'none':'flex';

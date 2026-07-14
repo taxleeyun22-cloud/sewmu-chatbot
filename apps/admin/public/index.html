@@ -17,7 +17,7 @@
 <!-- 토스 벤치마킹 (2026-06-12 사장님 명령): Pretendard 서체 (토스 톤) -->
 <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <!-- Phase H4 (2026-05-04): 인라인 <style> 4개 블록 → index.css 외부화 -->
-<link rel="stylesheet" href="/index.css?v=4">
+<link rel="stylesheet" href="/index.css?v=5">
 <!-- 토스 벤치마킹 (2026-06-12): 토큰 라운드·그림자. cache bump v=3→v=4 -->
 <link rel="stylesheet" href="/assets/main.css?v=6">
 <script type="module" src="/assets/main.js?v=1"></script>
@@ -79,16 +79,7 @@
     <button onclick="askQuick(this)">종소세 가산세 얼마?</button>
 </div>
 
-<div class="refund-bar" id="refundBar" style="display:none">
-    <a href="https://taxfriends.etaxmate.co.kr/index_default?USERID=taxfriends" target="_blank" class="refund-btn">
-        <div class="refund-icon">💰</div>
-        <div class="refund-text">
-            <span class="refund-title">AI 자동 환급 조회</span>
-            <span class="refund-desc">내가 더 낸 세금, 무료로 확인해보세요</span>
-        </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b95a1" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-    </a>
-</div>
+<!-- AI 자동 환급 조회 배너 — 사장님 명령 (2026-07-08) 으로 제거 -->
 
 <div class="disclaimer" id="disclaimer" style="display:none">
     <p>본 서비스는 AI 기반 답변으로, 실제 세법 적용과 차이가 있을 수 있습니다. 정확한 세무 판단은 반드시 전문가와 상담하세요.</p>
@@ -401,6 +392,6 @@
 </script>
 
 <!-- Phase H3 (2026-05-04): 인라인 JS 3468줄 → index.js 외부화. 사장님 명령 "html여러개로 쪼개기". -->
-<script src="/index.js?v=9"></script>
+<script src="/index.js?v=10"></script>
 
 </html>
