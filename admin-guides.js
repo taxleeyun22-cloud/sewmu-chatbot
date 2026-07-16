@@ -14,8 +14,8 @@ var _gdCur = null;        // 열람 중인 글 id
 var _gdCanWrite = false;  // 서버 판정 (admin 이상)
 var _gdEditId = null;     // 수정 중인 글 id (null = 새 글)
 
-var _GD_CATS = ['부가세', '원천세', '종소세', '법인세', '연말정산', '공통'];
-var _GD_CAT_COLORS = { '부가세': '#3182f6', '원천세': '#8b5cf6', '종소세': '#f59e0b', '법인세': '#10b981', '연말정산': '#ec4899', '공통': '#64748b' };
+var _GD_CATS = ['부가세', '원천세', '종소세', '법인세', '연말정산', '공통', '사용법'];
+var _GD_CAT_COLORS = { '부가세': '#3182f6', '원천세': '#8b5cf6', '종소세': '#f59e0b', '법인세': '#10b981', '연말정산': '#ec4899', '공통': '#64748b', '사용법': '#0891b2' };
 
 function _gdKeyQS() {
   var k = (typeof KEY !== 'undefined' && KEY) ? KEY : '';
@@ -139,11 +139,16 @@ function _gdRenderList() {
   var el = document.getElementById('gdList');
   if (!el) return;
   var v = _gdVisible();
+  /* 사용법 카테고리 비어있으면 관리자에게 설명서 6편 원클릭 설치 제안 (2026-07-16) */
+  var seedBtn = '';
+  if (_gdCanWrite && !_gdAll.some(function (g) { return g.category === '사용법'; })) {
+    seedBtn = '<button type="button" class="gd-seed" onclick="_gdSeedManual(this)">📖 관리자 사용설명서 6편 설치<br><span style="font-weight:500;font-size:.86em;opacity:.8">홈·할일·상담방·검토표·사용자·영업 — 클릭 한 번</span></button>';
+  }
   if (!v.length) {
-    el.innerHTML = '<div class="gd-empty">아직 글이 없습니다' + (_gdCanWrite ? '<br><span style="font-size:.85em;color:var(--text-mute)">우측 상단 [＋ 새 글] 로 첫 가이드를 작성해보세요</span>' : '') + '</div>';
+    el.innerHTML = '<div class="gd-empty">아직 글이 없습니다' + (_gdCanWrite ? '<br><span style="font-size:.85em;color:var(--text-mute)">우측 상단 [＋ 새 글] 로 첫 가이드를 작성해보세요</span>' : '') + '</div>' + seedBtn;
     return;
   }
-  el.innerHTML = v.map(function (g) {
+  el.innerHTML = seedBtn + v.map(function (g) {
     var c = _GD_CAT_COLORS[g.category] || '#64748b';
     var date = String(g.updated_at || '').slice(0, 10).replace(/-/g, '.');
     return '<button type="button" class="gd-item' + (g.id === _gdCur ? ' on' : '') + '" onclick="_gdOpen(' + g.id + ')">'
@@ -290,4 +295,18 @@ async function _gdDelete(id) {
 function _gdCancelEdit() {
   _gdShowReader();
   _gdRenderReader();
+}
+/* 📖 관리자 사용설명서 6편 원클릭 설치 (서버 seed_manual — 제목 기준 중복 방지) */
+async function _gdSeedManual(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '설치 중...'; }
+  try {
+    var r = await fetch(_gdUrl('action=seed_manual'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: '{}' });
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'seed fail');
+    _gdCat = '사용법';
+    await _gdFetch();
+  } catch (e) {
+    alert('설치 실패: ' + (e.message || e));
+    if (btn) { btn.disabled = false; btn.textContent = '📖 관리자 사용설명서 6편 설치'; }
+  }
 }

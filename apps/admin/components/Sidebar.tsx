@@ -42,6 +42,9 @@ import {
   LogOut,
   ExternalLink,
   Receipt,
+  Target,
+  PhoneCall,
+  Home,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -78,10 +81,18 @@ interface NavItem {
 
 const SECTIONS: { title: string; items: NavItem[] }[] = [
   {
-    title: '방',
+    title: '상담',
     items: [
       { href: '/admin/rooms', icon: MessageSquare, label: '상담방', countKey: 'activeRooms' },
       { href: '/admin/internal', icon: Lock, label: '관리자방' },
+    ],
+  },
+  /* 💼 영업 (2026-07-16 사장님 "사이드바가 이상하잖아" — 영업 메뉴 없어서 길 잃음) */
+  {
+    title: '영업',
+    items: [
+      { href: '/admin/sales-targets', icon: Target, label: '영업 타겟' },
+      { href: '/admin/sales-pipeline', icon: PhoneCall, label: '영업 파이프라인' },
     ],
   },
   {
@@ -220,6 +231,15 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps = {}
 
       {/* 네비 */}
       <nav className="flex-1 overflow-y-auto py-2">
+        {/* 옛 관리자(admin.html) 복귀 — 직원들이 매일 쓰는 본 화면으로 (2026-07-16) */}
+        <a
+          href="/admin.html"
+          className="group mb-2 flex items-center gap-2 border-l-2 border-l-transparent px-3 py-2 text-[13px] font-medium leading-tight text-sb-text hover:bg-white hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+        >
+          <Home size={14} className="flex-shrink-0" strokeWidth={1.8} aria-hidden="true" />
+          <span className="flex-1 truncate">관리자 홈 (메인)</span>
+          <ExternalLink size={11} className="text-gray-300" aria-hidden="true" />
+        </a>
         {SECTIONS.map((section) => (
           <div key={section.title} className="mb-2">
             <h2 className="px-3 mb-0.5 mt-1 text-[10px] font-semibold text-sb-text-mute uppercase tracking-wider">
