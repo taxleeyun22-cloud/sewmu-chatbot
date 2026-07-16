@@ -71,9 +71,11 @@ describe('Sidebar', () => {
     localStorage.clear();
   });
 
-  it('섹션 라벨 5개 표시 (방/사용자·업체/문서·메모/관리/알림)', () => {
+  it('섹션 라벨 표시 (상담/영업/사용자·업체/문서·메모/관리/알림)', () => {
     renderSidebar();
-    expect(screen.getByText('방')).toBeInTheDocument();
+    expect(screen.getByText('상담')).toBeInTheDocument();
+    expect(screen.getByText('영업')).toBeInTheDocument();
+    expect(screen.getByText('영업 파이프라인')).toBeInTheDocument();
     expect(screen.getByText('사용자/업체')).toBeInTheDocument();
     expect(screen.getByText('문서·메모')).toBeInTheDocument();
     expect(screen.getByText('관리')).toBeInTheDocument();

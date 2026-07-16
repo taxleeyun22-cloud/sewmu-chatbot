@@ -4372,6 +4372,117 @@ async function loadImportHistory(){
     }).join('');
   }catch(err){ body.innerHTML = '<div style="color:var(--toss-red);padding:14px">오류: ' + e(err.message) + '</div>'; }
 }
+/* ===== 📤 위하고 엑셀 업로드 → 미리보기 → 커밋 (2026-07-16 사장님: "추가 바로 하면 안되고 시뮬레이션 돌리고 할거야") =====
+ * SheetJS lazy load (CDN) → 회사정보/대표자정보 파싱 → action=preview (DB 변경 0) → 사장님 확인 후 action=commit */
+var _wiRows=null,_wiFileName='',_wiBatchId=null,_wiPreviewSum=null;
+function _wiLoadXLSX(){
+  return new Promise(function(res,rej){
+    if(window.XLSX)return res();
+    var s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    s.onload=function(){res()};
+    s.onerror=function(){rej(new Error('엑셀 파서 로딩 실패 (네트워크)'))};
+    document.head.appendChild(s);
+  });
+}
+async function _wiParseFile(ev){
+  var f=ev.target.files&&ev.target.files[0];
+  var out=document.getElementById('wiParseResult');
+  if(!f||!out)return;
+  out.innerHTML='<div style="font-size:.8em;color:var(--text-mute)">파일 읽는 중...</div>';
+  try{
+    await _wiLoadXLSX();
+    var buf=await f.arrayBuffer();
+    var wb=window.XLSX.read(buf,{type:'array'});
+    var comp=wb.Sheets['회사정보'], rep=wb.Sheets['대표자정보'];
+    if(!comp){out.innerHTML='<div style="font-size:.8em;color:var(--toss-red)">"회사정보" 시트를 찾을 수 없습니다 — 위하고 거래처 export 파일인지 확인해주세요</div>';return}
+    var compRows=window.XLSX.utils.sheet_to_json(comp,{defval:''});
+    /* 대표자정보: 사업자번호 → 주민번호 (주대표 우선, 없으면 첫 행) */
+    var rrnMap={};
+    if(rep){
+      window.XLSX.utils.sheet_to_json(rep,{defval:''}).forEach(function(r){
+        var bn=String(r['사업자번호']||'').trim(), rrn=String(r['주민등록번호']||'').trim();
+        if(!bn||!rrn)return;
+        if(!rrnMap[bn]||String(r['주대표']||'').trim())rrnMap[bn]=rrn;
+      });
+    }
+    var skipClosed=document.getElementById('wiSkipClosed');
+    var skip=!skipClosed||skipClosed.checked;
+    var rows=[],closed=0,noName=0;
+    compRows.forEach(function(r,i){
+      var name=String(r['거래처명']||'').trim();
+      if(!name){noName++;return}
+      var isClosed=String(r['과세유형']||'').indexOf('폐업')>=0||String(r['폐업일']||'').trim();
+      if(skip&&isClosed){closed++;return}
+      var corp=String(r['구분']||'').trim()==='법인'?'법인':'개인';
+      var bn=String(r['사업자번호']||'').trim();
+      rows.push({
+        no:i+2, company:name, biz_no:bn, corp_or_indiv:corp,
+        resident_or_corp_no: corp==='법인'?String(r['법인번호']||'').trim():(rrnMap[bn]||''),
+        ceo:String(r['대표자명']||'').trim(), phone:String(r['대표연락처']||'').trim(),
+      });
+    });
+    _wiRows=rows;_wiFileName=f.name;_wiBatchId=null;
+    var withRrn=rows.filter(function(r){return r.corp_or_indiv==='개인'&&r.resident_or_corp_no}).length;
+    out.innerHTML='<div style="background:#fff;border:1px solid var(--neutral-border);border-radius:10px;padding:10px 14px;font-size:.8em;line-height:1.7">'
+      +'<b>'+e(f.name)+'</b> 파싱 완료 — 대상 <b>'+rows.length+'건</b>'
+      +(closed?' · 폐업 제외 '+closed:'')+(noName?' · 이름없음 제외 '+noName:'')
+      +'<br>개인 '+rows.filter(function(r){return r.corp_or_indiv==='개인'}).length+' (주민번호 확보 '+withRrn+') · 법인 '+rows.filter(function(r){return r.corp_or_indiv==='법인'}).length
+      +'<div style="margin-top:8px"><button onclick="_wiPreview()" style="background:var(--brand-primary);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:1em;font-weight:700;cursor:pointer;font-family:inherit">🔍 서버 미리보기 (DB 변경 0)</button></div>'
+      +'</div>';
+  }catch(err){out.innerHTML='<div style="font-size:.8em;color:var(--toss-red)">파싱 오류: '+e(err.message)+'</div>'}
+}
+async function _wiPreview(){
+  var out=document.getElementById('wiParseResult');
+  if(!_wiRows||!_wiRows.length||!out)return;
+  out.querySelectorAll('button').forEach(function(b){b.disabled=true});
+  try{
+    var r=await fetch('/api/admin-bulk-import-clients?action=preview&key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({source_file:_wiFileName,rows:_wiRows})});
+    var d=await r.json();
+    if(!d.ok)throw new Error(d.error||'preview 실패');
+    var p=d.preview||d;_wiBatchId=d.batch_id||p.batch_id;_wiPreviewSum=p;
+    var u=p.users||{},b2=p.businesses||{},bg=p.branch_groups||{};
+    var warns=(p.warnings||[]);
+    out.innerHTML='<div style="background:#fff;border:1px solid var(--neutral-border);border-radius:10px;padding:12px 14px;font-size:.8em;line-height:1.8">'
+      +'<div style="font-weight:800;font-size:1.05em">🔍 미리보기 결과 — 아직 아무것도 등록 안 됨</div>'
+      +'<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">'
+      +'<span>🏢 사업장: <b style="color:var(--brand-primary)">신규 '+(b2.new||0)+'</b> · 이미 있음 '+(b2.dedup||0)+'</span>'
+      +'<span>👤 거래처: <b style="color:var(--brand-primary)">신규 '+(u.new||0)+'</b> · 기존 매칭 '+(u.matched||0)+' · 정보 보강 '+(u.enriched||0)+'</span>'
+      +'<span>🏛 본점·지점: 자동 '+(bg.auto_ok||0)+' · 결정 필요 '+(bg.needs_decision||0)+'</span>'
+      +'</div>'
+      +(warns.length?'<div style="margin-top:6px;color:#b45309">⚠ 경고 '+warns.length+'건: '+warns.slice(0,5).map(e).join(' / ')+(warns.length>5?' ...':'')+'</div>':'')
+      +'<div style="margin-top:10px;display:flex;gap:8px;align-items:center">'
+      +'<button onclick="_wiCommit()" style="background:var(--brand-success);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer;font-family:inherit;font-size:1em">✅ 실제 등록 (커밋)</button>'
+      +'<span style="color:var(--text-mute)">커밋해도 이력에서 롤백 가능 · 기존 데이터·메모는 안 건드림 (빈 칸 보강만)</span>'
+      +'</div></div>';
+    loadImportHistory();
+  }catch(err){out.innerHTML+='<div style="font-size:.8em;color:var(--toss-red);margin-top:6px">미리보기 오류: '+e(err.message)+'</div>'}
+}
+async function _wiCommit(){
+  if(!_wiBatchId){alert('미리보기를 먼저 실행해주세요');return}
+  var p=_wiPreviewSum||{};var u=p.users||{},b2=p.businesses||{};
+  if(!confirm('실제 등록을 진행할까요?\n\n'
+    +'• 신규 사업장 '+(b2.new||0)+'개 생성\n'
+    +'• 신규 거래처(사용자) '+(u.new||0)+'명 생성\n'
+    +'• 기존 '+(u.matched||0)+'명은 빈 정보만 보강 (덮어쓰기 X)\n'
+    +'• 메모·검토표·기존 데이터 영향 0\n'
+    +'• 문제 시 이력에서 롤백 가능\n\n계속?'))return;
+  try{
+    var r=await fetch('/api/admin-bulk-import-clients?action=commit&key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({batch_id:_wiBatchId})});
+    var d=await r.json();
+    if(!d.ok)throw new Error(d.error||'commit 실패');
+    alert('✅ 등록 완료\n\nuser 신규: '+(d.stats?.inserted_users||0)+'\n사업장 신규: '+(d.stats?.inserted_businesses||0)+'\n매핑: '+(d.stats?.inserted_members||0)+'\n보강: '+(d.stats?.enriched_users||0));
+    _wiBatchId=null;_wiRows=null;
+    var out=document.getElementById('wiParseResult');if(out)out.innerHTML='';
+    var fi=document.getElementById('wiFile');if(fi)fi.value='';
+    loadImportHistory();
+    if(typeof mutationDone==='function')mutationDone({users:true,businesses:true});
+  }catch(err){alert('커밋 오류: '+err.message)}
+}
 async function rollbackImportBatch(batchId, batchUuid){
   if(!confirm('🔄 batch [' + batchUuid + '] 롤백:\n\n'
     + '• 그 batch 의 신규 user / 사업장 / 매핑 모두 hard delete\n'

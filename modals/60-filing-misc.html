@@ -159,6 +159,20 @@
       </div>
       <button onclick="closeImportHistory()" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--text-mute);padding:0 6px">✕</button>
     </div>
+    <!-- 📤 위하고 엑셀 업로드 → 미리보기(DB 변경 0) → 사장님 확정 커밋 (2026-07-16 사장님: "시뮬레이션 돌리고 할거야") -->
+    <div id="wiUploadSec" style="padding:12px 18px;border-bottom:1px solid var(--neutral-border);background:#f8fafc">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <label style="background:var(--brand-primary);color:#fff;border-radius:8px;padding:8px 14px;font-size:.82em;font-weight:700;cursor:pointer">
+          📤 위하고 엑셀 업로드
+          <input type="file" id="wiFile" accept=".xlsx" style="display:none" onchange="_wiParseFile(event)">
+        </label>
+        <label style="display:inline-flex;align-items:center;gap:5px;font-size:.78em;color:var(--text-sub);cursor:pointer">
+          <input type="checkbox" id="wiSkipClosed" checked> 폐업 사업장 제외
+        </label>
+        <span style="font-size:.72em;color:var(--text-mute)">회사정보·대표자정보 시트 자동 인식 → [미리보기]는 DB를 건드리지 않습니다. 실제 등록은 미리보기 확인 후 별도 버튼.</span>
+      </div>
+      <div id="wiParseResult" style="margin-top:8px"></div>
+    </div>
     <div id="importHistoryBody" style="flex:1;overflow-y:auto;padding:14px 18px">
       <div style="text-align:center;color:#9ca3af;padding:30px 0">불러오는 중...</div>
     </div>
