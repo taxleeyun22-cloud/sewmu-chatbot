@@ -126,6 +126,11 @@ function _gdRenderChips() {
     return '<button type="button" class="gd-chip' + (on ? ' on' : '') + '" onclick="_gdSetCat(\'' + c + '\')">'
       + (c === 'all' ? '전체' : _gdEsc(c)) + (n ? ' <span class="gd-chip-n">' + n + '</span>' : '') + '</button>';
   }).join('');
+  /* 📌 필수(고정) 글 중 안 읽은 게 있으면 배너 */
+  var unread = _gdAll.filter(function (g) { return g.pinned && !g.my_read; });
+  if (unread.length) {
+    el.innerHTML += '<div style="flex-basis:100%;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:8px 12px;font-size:.76em;font-weight:700;color:#c2410c;cursor:pointer" onclick="_gdOpen(' + unread[0].id + ')">📌 안 읽은 필수 가이드 <b>' + unread.length + '편</b> — 눌러서 읽고 체크해주세요</div>';
+  }
 }
 function _gdSetCat(c) {
   _gdCat = c;
@@ -151,10 +156,12 @@ function _gdRenderList() {
   el.innerHTML = seedBtn + v.map(function (g) {
     var c = _GD_CAT_COLORS[g.category] || '#64748b';
     var date = String(g.updated_at || '').slice(0, 10).replace(/-/g, '.');
+    var unread = g.pinned && !g.my_read;
     return '<button type="button" class="gd-item' + (g.id === _gdCur ? ' on' : '') + '" onclick="_gdOpen(' + g.id + ')">'
       + '<div class="gd-item-top">'
       + (g.pinned ? '<span class="gd-pin">📌</span>' : '')
       + '<span class="gd-item-cat" style="background:' + c + '1a;color:' + c + '">' + _gdEsc(g.category) + '</span>'
+      + (unread ? '<span style="background:#fef2f2;color:#dc2626;font-size:.66em;font-weight:800;border-radius:6px;padding:2px 7px">미확인</span>' : (g.my_read ? '<span style="color:#10b981;font-size:.7em;font-weight:800">✓</span>' : ''))
       + '<span class="gd-item-date">' + _gdEsc(date) + '</span>'
       + '</div>'
       + '<div class="gd-item-title">' + _gdEsc(g.title) + '</div>'
@@ -201,8 +208,30 @@ function _gdRenderReader() {
       : '')
     + '</div>'
     + '</div>'
-    + '<div class="gd-article">' + _gdRender(g.content) + '</div>';
+    + '<div class="gd-article">' + _gdRender(g.content) + '</div>'
+    /* ✅ 읽음 체크 (2026-07-16 사장님: "들어가면 체크체크 하면서 한번은 읽도록") */
+    + '<div style="max-width:660px;margin-top:26px;padding-top:16px;border-top:1px solid var(--neutral-border)">'
+    + (g.my_read
+      ? '<div style="display:inline-flex;align-items:center;gap:7px;background:#ecfdf5;color:#059669;border-radius:10px;padding:10px 16px;font-size:.85em;font-weight:800">✅ 읽음 확인 완료</div>'
+      : '<button type="button" onclick="_gdMarkRead(' + g.id + ', this)" style="background:var(--brand-primary);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:.88em;font-weight:800;cursor:pointer;font-family:inherit">✅ 다 읽었습니다 — 확인 체크</button>'
+        + '<div style="font-size:.72em;color:var(--text-mute);margin-top:6px">체크하면 읽은 사람 명단에 이름이 남습니다</div>')
+    + (_gdCanWrite && g.read_count
+      ? '<div style="font-size:.76em;color:var(--text-sub);margin-top:10px">👀 읽음 <b>' + g.read_count + '명</b>' + (g.readers && g.readers.length ? ' — ' + g.readers.map(_gdEsc).join(', ') : '') + '</div>'
+      : '')
+    + '</div>';
   el.scrollTop = 0;
+}
+async function _gdMarkRead(id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '체크 중...'; }
+  try {
+    var r = await fetch(_gdUrl('action=mark_read'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ id: id }) });
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'fail');
+    await _gdFetch();
+  } catch (e) {
+    alert('읽음 체크 실패: ' + (e.message || e));
+    if (btn) { btn.disabled = false; btn.textContent = '✅ 다 읽었습니다 — 확인 체크'; }
+  }
 }
 
 /* ── 에디터 (작성/수정 + 실시간 미리보기) ── */
