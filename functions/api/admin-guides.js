@@ -38,6 +38,21 @@ async function ensureTable(db) {
     deleted_at TEXT
   )`).run();
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_work_guides_list ON work_guides(deleted_at, pinned DESC, updated_at DESC)`).run(); } catch (_) {}
+  /* 읽음 확인 (2026-07-16 사장님: "올리고 들어가면 체크체크 하면서 한번은 읽도록") —
+   * ident = 세션 사용자 'u{id}', owner 키 로그인 'owner' */
+  await db.prepare(`CREATE TABLE IF NOT EXISTS work_guide_reads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guide_id INTEGER NOT NULL,
+    ident TEXT NOT NULL,
+    user_id INTEGER,
+    user_name TEXT,
+    created_at TEXT NOT NULL
+  )`).run();
+  try { await db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_wgr_uniq ON work_guide_reads(guide_id, ident)`).run(); } catch (_) {}
+}
+
+function readerIdent(auth) {
+  return auth.userId ? ('u' + auth.userId) : (auth.owner ? 'owner' : 'anon');
 }
 
 /** 작성자 표기 — owner(ADMIN_KEY/HMAC 쿠키) 는 사장님, 세션이면 real_name 조회. */
@@ -73,7 +88,28 @@ export async function onRequestGet(context) {
     }
     q += ` ORDER BY pinned DESC, updated_at DESC LIMIT 300`;
     const { results } = await db.prepare(q).bind(...binds).all();
-    return Response.json({ ok: true, guides: results || [], categories: CATEGORIES, canWrite: hasAdminRole(auth, 'admin') });
+    const guides = results || [];
+
+    /* 읽음 정보: 내가 읽은 글 + (canWrite) 글별 읽은 사람 명단 */
+    const ident = readerIdent(auth);
+    const myRead = new Set();
+    const readMap = {};
+    try {
+      const { results: reads } = await db.prepare(
+        `SELECT guide_id, ident, user_name, created_at FROM work_guide_reads`
+      ).all();
+      for (const r of (reads || [])) {
+        if (r.ident === ident) myRead.add(r.guide_id);
+        (readMap[r.guide_id] = readMap[r.guide_id] || []).push(r.user_name || r.ident);
+      }
+    } catch (_) {}
+    const canWrite = hasAdminRole(auth, 'admin');
+    for (const g of guides) {
+      g.my_read = myRead.has(g.id) ? 1 : 0;
+      g.read_count = (readMap[g.id] || []).length;
+      if (canWrite) g.readers = (readMap[g.id] || []).slice(0, 30);
+    }
+    return Response.json({ ok: true, guides, categories: CATEGORIES, canWrite });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
@@ -205,14 +241,36 @@ export async function onRequestPost(context) {
   if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
   if (!auth || !auth.ok) return adminUnauthorized();
-  if (!hasAdminRole(auth, 'admin')) return roleForbidden('admin');
 
   const db = context.env.DB;
   if (!db) return Response.json({ error: 'DB error' }, { status: 500 });
   await ensureTable(db);
 
-  /* 사용설명서 6편 원클릭 설치 — 제목 기준 idempotent */
   const __url = new URL(context.request.url);
+
+  /* ✅ 읽음 체크 — 열람 가능한 전원(viewer 직원 포함). admin 권한 불필요 */
+  if (__url.searchParams.get('action') === 'mark_read') {
+    try {
+      let body2;
+      try { body2 = await context.request.json(); } catch { body2 = {}; }
+      const gid = Number(body2.id);
+      if (!gid) return Response.json({ error: 'id required' }, { status: 400 });
+      const g = await db.prepare(`SELECT id FROM work_guides WHERE id = ? AND deleted_at IS NULL`).bind(gid).first();
+      if (!g) return Response.json({ error: '글을 찾을 수 없습니다' }, { status: 404 });
+      const name = await actorName(db, auth);
+      await db.prepare(
+        `INSERT OR IGNORE INTO work_guide_reads (guide_id, ident, user_id, user_name, created_at)
+         VALUES (?, ?, ?, ?, ?)`
+      ).bind(gid, readerIdent(auth), auth.userId || null, name, kst()).run();
+      return Response.json({ ok: true });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
+  if (!hasAdminRole(auth, 'admin')) return roleForbidden('admin');
+
+  /* 사용설명서 6편 원클릭 설치 — 제목 기준 idempotent */
   if (__url.searchParams.get('action') === 'seed_manual') {
     try {
       const now = kst();
