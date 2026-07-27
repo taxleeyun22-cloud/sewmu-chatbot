@@ -626,3 +626,80 @@
     </div>
   </div>
 </div>
+
+<!-- 💼 영업 파이프라인 모달 (2026-07-16 사장님: "그냥 한 곳에 있지 다른 사이트가 떠버리노" — 옛 admin 네이티브) -->
+<style>
+#salesPipeModal .modal-card{max-width:1100px;width:96vw;height:88vh;max-height:88vh;display:flex;flex-direction:column;border-radius:20px;overflow:hidden;background:#fff}
+#salesPipeModal .sp-left{background:#fff}
+#salesPipeModal .sp-top{display:flex;align-items:center;gap:10px;padding:14px 18px 10px;border-bottom:1px solid var(--neutral-border);flex:none;flex-wrap:wrap}
+#salesPipeModal .sp-top h2{margin:0;font-size:1.05em;font-weight:800;color:var(--text-main);white-space:nowrap}
+#salesPipeModal .sp-x{background:none;border:none;font-size:1.15em;cursor:pointer;color:var(--text-mute);padding:2px 8px;font-family:inherit;margin-left:auto}
+#salesPipeModal .sp-chip{border-radius:8px;padding:4px 10px;font-size:.74em;font-weight:800}
+#salesPipeModal .sp-chip.blue{background:#eff6ff;color:#1d4ed8}
+#salesPipeModal .sp-chip.red{background:#fef2f2;color:#dc2626}
+#salesPipeModal .sp-chip.gray{background:#f2f4f6;color:#4e5968}
+#salesPipeModal .sp-chip.green{background:#ecfdf5;color:#059669}
+#salesPipeModal .sp-mini{background:#f2f4f6;border:none;border-radius:8px;padding:6px 12px;font-size:.78em;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit;text-decoration:none;display:inline-flex;align-items:center}
+#salesPipeModal .sp-new{background:var(--brand-primary);color:#fff;border:none;border-radius:9px;padding:7px 14px;font-size:.8em;font-weight:800;cursor:pointer;font-family:inherit}
+#salesPipeModal .sp-pend{flex-basis:100%;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:7px 12px;font-size:.76em;font-weight:700;color:#92600a;margin-top:8px}
+#salesPipeModal .sp-pend button{background:#fff;border:none;border-radius:7px;padding:3px 9px;font-size:.95em;font-weight:800;color:#b45309;cursor:pointer;font-family:inherit;box-shadow:0 1px 2px rgba(0,0,0,.08);margin-left:4px}
+#salesPipeModal .sp-body{flex:1;display:flex;min-height:0}
+#salesPipeModal .sp-left{width:46%;min-width:300px;border-right:1px solid var(--neutral-border);display:flex;flex-direction:column;min-height:0}
+#salesPipeModal .sp-tabs{display:flex;gap:5px;padding:10px 12px;border-bottom:1px solid #f2f4f6;flex-wrap:wrap;flex:none;align-items:center}
+#salesPipeModal .sp-tab{background:#f2f4f6;border:none;border-radius:8px;padding:6px 11px;font-size:.76em;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit}
+#salesPipeModal .sp-tab.on{background:#191f28;color:#fff}
+#salesPipeModal .sp-search{margin-left:auto;border:1px solid var(--neutral-border);border-radius:8px;padding:6px 9px;font-size:.76em;font-family:inherit;outline:none;width:130px}
+#salesPipeModal .sp-rows{flex:1;overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:4px}
+#salesPipeModal .sp-row{display:flex;align-items:center;gap:8px;text-align:left;background:transparent;border:1px solid transparent;border-radius:10px;padding:9px 10px;cursor:pointer;font-family:inherit;width:100%}
+#salesPipeModal .sp-row:hover{background:#f8f9fa}
+#salesPipeModal .sp-row.on{background:#fff;border-color:var(--neutral-border);box-shadow:0 1px 4px rgba(15,23,42,.06)}
+#salesPipeModal .sp-nm{font-size:.86em;font-weight:800;color:var(--text-main)}
+#salesPipeModal .sp-co{font-weight:600;color:var(--text-mute);font-size:.9em}
+#salesPipeModal .sp-sub{font-size:.72em;color:var(--text-sub);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#salesPipeModal .sp-pill{border-radius:999px;padding:3px 9px;font-size:.68em;font-weight:800;white-space:nowrap;flex:none}
+#salesPipeModal .sp-pill.sm{font-size:.62em;padding:1px 6px}
+#salesPipeModal .sp-right{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;background:#fafbfc}
+#salesPipeModal .sp-detail{flex:1;overflow-y:auto;padding:16px 18px}
+#salesPipeModal .sp-empty{text-align:center;color:var(--text-mute);padding:30px 10px;font-size:.84em;line-height:1.6}
+#salesPipeModal .sp-dhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#salesPipeModal .sp-staff{margin-left:auto;border:1px solid var(--neutral-border);border-radius:8px;padding:4px 8px;font-size:.74em;font-family:inherit;background:#fff}
+#salesPipeModal .sp-dmeta{font-size:.76em;color:var(--text-sub);margin:5px 0 10px}
+#salesPipeModal .sp-track{display:flex;gap:4px;margin-bottom:10px}
+#salesPipeModal .sp-track span{flex:1;text-align:center;font-size:.64em;font-weight:800;padding:6px 2px;border-radius:7px;background:#f2f4f6;color:#adb5bf}
+#salesPipeModal .sp-track span.done{background:#dbeafe;color:#2563eb}
+#salesPipeModal .sp-track span.cur{background:#2563eb;color:#fff}
+#salesPipeModal .sp-note{border-radius:9px;padding:8px 12px;font-size:.78em;font-weight:700;margin-bottom:10px}
+#salesPipeModal .sp-rec{background:#fff;border:1px solid var(--neutral-border);border-radius:12px;padding:10px 12px;margin-bottom:12px}
+#salesPipeModal .sp-rec textarea{width:100%;border:1px solid var(--neutral-border);border-radius:8px;padding:8px 10px;font-size:.8em;font-family:inherit;resize:none;line-height:1.5;box-sizing:border-box;outline:none}
+#salesPipeModal .sp-recnext{display:flex;align-items:center;gap:6px;font-size:.7em;color:var(--text-mute);margin-top:7px;flex-wrap:wrap;font-weight:700}
+#salesPipeModal .sp-recnext input{border:1px solid var(--neutral-border);border-radius:7px;padding:4px 8px;font-size:1em;font-family:inherit;outline:none}
+#salesPipeModal .sp-recnext input:first-of-type{width:130px}
+#salesPipeModal .sp-btns{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+#salesPipeModal .sp-btns button{border:none;border-radius:8px;padding:6px 10px;font-size:.72em;font-weight:800;cursor:pointer;font-family:inherit}
+#salesPipeModal .sp-tl{border-left:2px solid #e8eaed;margin-left:5px;padding-left:14px}
+#salesPipeModal .sp-tli{position:relative;margin-bottom:12px}
+#salesPipeModal .sp-tli:before{content:'';position:absolute;left:-21px;top:3px;width:9px;height:9px;border-radius:50%;background:#fff;border:3px solid var(--brand-primary)}
+#salesPipeModal .sp-tlh{font-size:.76em;font-weight:800;color:var(--text-main)}
+#salesPipeModal .sp-tld{color:var(--text-mute);font-weight:600;font-size:.9em;margin-left:4px}
+#salesPipeModal .sp-tlb{font-size:.78em;color:var(--text-sub);line-height:1.55;margin-top:2px}
+#salesPipeModal .sp-form .row{display:flex;gap:6px;margin-top:8px}
+#salesPipeModal .sp-form input,#salesPipeModal .sp-form select,#salesPipeModal .sp-form textarea{flex:1;min-width:0;border:1px solid var(--neutral-border);border-radius:8px;padding:8px 10px;font-size:.8em;font-family:inherit;outline:none;background:#fff;box-sizing:border-box}
+#salesPipeModal .sp-form textarea{width:100%;margin-top:8px;resize:none;line-height:1.5}
+@media (max-width:720px){
+  #salesPipeModal .modal-card{width:100vw;height:100vh;max-height:100vh;border-radius:0}
+  #salesPipeModal .sp-left{width:44%;min-width:200px}
+}
+</style>
+<div id="salesPipeModal" class="modal-overlay" style="z-index:11930;display:none">
+  <div class="modal-card">
+    <div class="sp-top">
+      <h2>💼 영업 파이프라인</h2>
+      <div id="spHead" style="flex:1;min-width:0"></div>
+      <button type="button" class="sp-x" onclick="closeSalesPipe()">✕</button>
+    </div>
+    <div class="sp-body">
+      <div class="sp-left" id="spList"><div class="sp-empty">불러오는 중...</div></div>
+      <div class="sp-right"><div class="sp-detail" id="spDetail"></div></div>
+    </div>
+  </div>
+</div>

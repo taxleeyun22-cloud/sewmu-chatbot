@@ -331,7 +331,7 @@ function _hhToday(){
   var open="if(typeof openMyTodos==='function')openMyTodos()";
   var goRooms="(document.querySelector('[data-admin-tab=\\'rooms\\']')||{click:function(){}}).click()";
   var goBill="window.open('https://sewmu-admin.pages.dev/admin/billing','_blank')";
-  var goSales="window.open('https://sewmu-admin.pages.dev/admin/sales-pipeline','_blank')";
+  var goSales="if(typeof openSalesPipe==='function'){openSalesPipe()}else{window.open('https://sewmu-admin.pages.dev/admin/sales-pipeline','_blank')}";
   var hov=' onmouseover="this.style.boxShadow=\'0 6px 18px rgba(25,31,40,.12)\'" onmouseout="this.style.boxShadow=\'0 2px 10px rgba(25,31,40,.05)\'"';
   var cardStyle='flex:1 1 300px;min-width:260px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer;transition:box-shadow .15s';
   box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
