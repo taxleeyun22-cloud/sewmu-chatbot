@@ -40,6 +40,7 @@ const FILES = [
   'admin-memos.js',
   'admin-rooms-list.js',
   'admin-rooms-misc.js',
+  'admin-sales.js',
   'admin-rooms-msg.js',
   'admin-search-bulk.js',
   'admin-users-tab.js',
