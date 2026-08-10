@@ -24,7 +24,7 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with: { fetch-depth: 1 }
       - uses: actions/setup-node@v4
         with:
@@ -48,7 +48,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with: { fetch-depth: 1 }
       - uses: actions/setup-node@v4
         with:
@@ -75,7 +75,7 @@ jobs:
     needs: [typecheck] # typecheck 통과 후만 build (낭비 방지)
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with: { fetch-depth: 1 }
       - uses: actions/setup-node@v4
         with:
