@@ -2140,6 +2140,17 @@
       </div>
       <div id="wiParseResult" style="margin-top:8px"></div>
     </div>
+    <!-- 📥 검토표 JSON 심기 (2026-07-17 사장님: 신고서 → Claude 추출 → 여기서 확정) -->
+    <div style="padding:12px 18px;border-bottom:1px solid var(--neutral-border);background:#f0fdf4">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <label style="background:var(--brand-success);color:#fff;border-radius:8px;padding:8px 14px;font-size:.82em;font-weight:700;cursor:pointer">
+          📥 검토표 JSON 심기
+          <input type="file" id="fjFile" accept=".json" style="display:none" onchange="_fjParseFile(event)">
+        </label>
+        <span style="font-size:.72em;color:var(--text-mute)">신고서를 Claude 채팅에 올리면 추출·검수 후 JSON 으로 만들어줍니다. 여기 업로드 → 미리보기 → 확정하면 검토표에 심어지고 챗봇이 바로 답합니다. 수기 입력값은 절대 안 덮습니다 (owner 전용).</span>
+      </div>
+      <div id="fjResult" style="margin-top:8px"></div>
+    </div>
     <div id="importHistoryBody" style="flex:1;overflow-y:auto;padding:14px 18px">
       <div style="text-align:center;color:#9ca3af;padding:30px 0">불러오는 중...</div>
     </div>
