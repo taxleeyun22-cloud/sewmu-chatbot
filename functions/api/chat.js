@@ -9,23 +9,14 @@
 // FAQ 모듈 (Q1~Q70) - 별도 파일로 분리하여 관리 (_faq.js)
 import { FAQ_SECTION } from "./_faq.js";
 import { retrieveTopK, formatRetrievedFAQs } from "./_rag.js";
+import { rateLimit, getClientIP } from "./_ratelimit.js";
 
-// ===== Rate Limit (메모리 기반) =====
-const rateLimitMap = new Map();
-const RATE_LIMIT_WINDOW = 60000; // 1분
+// ===== Rate Limit =====
+// 2026-08-17: 메모리 Map 기반 → D1 기반(_ratelimit.js) 교체.
+// Workers isolate 는 요청마다 다르고 수시로 리셋되어 메모리 카운터는 실질 무력했음.
+// upload-file / upload-image 등과 같은 rate_limit 테이블 공유.
+const RATE_LIMIT_WINDOW_SEC = 60; // 1분
 const RATE_LIMIT_MAX = 10; // 최대 10회
-
-function checkRateLimit(ip) {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now - entry.start > RATE_LIMIT_WINDOW) {
-    rateLimitMap.set(ip, { start: now, count: 1 });
-    return true;
-  }
-  entry.count++;
-  if (entry.count > RATE_LIMIT_MAX) return false;
-  return true;
-}
 
 // ===== D1 DB 대화 저장 =====
 async function initDB(db) {
@@ -266,26 +257,23 @@ function getDailyLimit(status) {
 
 // 일일 사용량 체크 + 증가 (KST 기준)
 async function checkAndIncrementDaily(db, userId, limit) {
+  if (limit <= 0) return { ok: false, used: 0, limit }; // 방어: 0건 등급은 핸들러에서 이미 403 이지만 이중 차단
   const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   try {
+    /* 2026-08-17: SELECT 후 UPDATE → 원자적 upsert 교체.
+     * 기존엔 그날 첫 질문 2건이 동시에 오면 둘 다 INSERT 시도 → PK(user_id,date) 충돌
+     * → catch 의 fail-open 으로 한도가 열리는 연쇄가 있었음.
+     * WHERE count < limit 는 DO UPDATE 에만 걸리므로 한도 도달 시 RETURNING 이 비어 ok:false. */
     const row = await db.prepare(
-      `SELECT count FROM daily_usage WHERE user_id = ? AND date = ?`
-    ).bind(userId, today).first();
-    const current = row ? row.count : 0;
-    if (current >= limit) return { ok: false, used: current, limit };
-    if (row) {
-      await db.prepare(
-        `UPDATE daily_usage SET count = count + 1 WHERE user_id = ? AND date = ?`
-      ).bind(userId, today).run();
-    } else {
-      await db.prepare(
-        `INSERT INTO daily_usage (user_id, date, count) VALUES (?, ?, 1)`
-      ).bind(userId, today).run();
-    }
-    return { ok: true, used: current + 1, limit };
+      `INSERT INTO daily_usage (user_id, date, count) VALUES (?, ?, 1)
+       ON CONFLICT(user_id, date) DO UPDATE SET count = count + 1 WHERE count < ?
+       RETURNING count`
+    ).bind(userId, today, limit).first();
+    if (!row) return { ok: false, used: limit, limit }; // 한도 도달 — 증가 안 됨
+    return { ok: true, used: row.count, limit };
   } catch (e) {
     console.error("daily usage error:", e);
-    return { ok: true, used: 0, limit }; // DB 오류 시 통과
+    return { ok: true, used: 0, limit }; // DB 오류 시 통과 (가용성 우선 — 기존 정책 유지)
   }
 }
 
@@ -582,9 +570,12 @@ async function searchColumns(question, keywords, baseUrl) {
 
 // ===== 메인 핸들러 =====
 export async function onRequestPost(context) {
-  // Rate limit 체크
-  const clientIP = context.request.headers.get("CF-Connecting-IP") || context.request.headers.get("x-forwarded-for") || "unknown";
-  if (!checkRateLimit(clientIP)) {
+  const db = context.env.DB || null;
+
+  // Rate limit 체크 — D1 슬라이딩 윈도우, 분당 10회/IP (db 없으면 fail-open)
+  const clientIP = getClientIP(context.request);
+  const rl = await rateLimit(db, `chat:${clientIP}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_SEC);
+  if (!rl.ok) {
     return Response.json({ error: "요청이 너무 많습니다. 1분 후 다시 시도해주세요." }, { status: 429 });
   }
 
@@ -595,7 +586,6 @@ export async function onRequestPost(context) {
   if (context.env.LAW_API_OC) LAW_API_OC = context.env.LAW_API_OC;
 
   // D1 DB 초기화 (optional)
-  const db = context.env.DB || null;
   if (db) {
     try { await initDB(db); } catch (e) { console.error("DB init error:", e); }
   }
