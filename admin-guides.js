@@ -144,10 +144,12 @@ function _gdRenderList() {
   var el = document.getElementById('gdList');
   if (!el) return;
   var v = _gdVisible();
-  /* 사용법 카테고리 비어있으면 관리자에게 설명서 6편 원클릭 설치 제안 (2026-07-16) */
+  /* 설명서 원클릭 설치 제안 (2026-07-16).
+   * 2026-08-17: 조건을 "사용법 카테고리 비었을 때" → "0편(온보딩)이 없을 때" 로 변경.
+   * 기존 6편을 이미 설치한 사무실도 새로 추가된 편을 받을 수 있어야 함 (seed 는 제목 기준 idempotent). */
   var seedBtn = '';
-  if (_gdCanWrite && !_gdAll.some(function (g) { return g.category === '사용법'; })) {
-    seedBtn = '<button type="button" class="gd-seed" onclick="_gdSeedManual(this)">📖 관리자 사용설명서 6편 설치<br><span style="font-weight:500;font-size:.86em;opacity:.8">홈·할일·상담방·검토표·사용자·영업 — 클릭 한 번</span></button>';
+  if (_gdCanWrite && !_gdAll.some(function (g) { return String(g.title || '').indexOf('0. 신입 직원 온보딩') === 0; })) {
+    seedBtn = '<button type="button" class="gd-seed" onclick="_gdSeedManual(this)">📖 관리자 사용설명서 설치<br><span style="font-weight:500;font-size:.86em;opacity:.8">신입 온보딩 + 홈·할일·상담방·검토표·사용자·영업 — 클릭 한 번</span></button>';
   }
   if (!v.length) {
     el.innerHTML = '<div class="gd-empty">아직 글이 없습니다' + (_gdCanWrite ? '<br><span style="font-size:.85em;color:var(--text-mute)">우측 상단 [＋ 새 글] 로 첫 가이드를 작성해보세요</span>' : '') + '</div>' + seedBtn;
@@ -325,7 +327,7 @@ function _gdCancelEdit() {
   _gdShowReader();
   _gdRenderReader();
 }
-/* 📖 관리자 사용설명서 6편 원클릭 설치 (서버 seed_manual — 제목 기준 중복 방지) */
+/* 📖 관리자 사용설명서 원클릭 설치 (서버 seed_manual — 제목 기준 중복 방지) */
 async function _gdSeedManual(btn) {
   if (btn) { btn.disabled = true; btn.textContent = '설치 중...'; }
   try {
@@ -336,6 +338,6 @@ async function _gdSeedManual(btn) {
     await _gdFetch();
   } catch (e) {
     alert('설치 실패: ' + (e.message || e));
-    if (btn) { btn.disabled = false; btn.textContent = '📖 관리자 사용설명서 6편 설치'; }
+    if (btn) { btn.disabled = false; btn.textContent = '📖 관리자 사용설명서 설치'; }
   }
 }
