@@ -3,6 +3,7 @@
 // 인증: (1) 세션 쿠키 또는 (2) ?key=ADMIN_KEY
 
 import { rateLimit, getClientIP } from "./_ratelimit.js";
+import { checkAdmin } from "./_adminAuth.js";
 
 const MAX_SIZE = 20 * 1024 * 1024; // 20MB
 /* Phase R6 (2026-05-05 사장님 명령: "걍 다 올릴수있게"): 화이트리스트 대폭 확장 */
@@ -75,8 +76,19 @@ export async function onRequestPost(context) {
   const adminKey = context.env.ADMIN_KEY;
   const isAdmin = adminKey && url.searchParams.get("key") === adminKey;
 
+  /* 🗂️ 서식함 업로드 (2026-08-17) — ?scope=form.
+   * forms/ prefix 는 사내 공용 서식 전용이라 직원(checkAdmin 통과 = viewer 이상) 만 허용.
+   * 거래처 세션으로는 못 올림. file.js 가 forms/ 를 관리자 인증 필수로 서빙. */
+  const isFormScope = url.searchParams.get("scope") === "form";
+  let formStaffId = null;
+  if (isFormScope && !isAdmin) {
+    const staff = await checkAdmin(context);
+    if (!staff || !staff.ok) return Response.json({ error: "서식함 업로드 권한이 없습니다" }, { status: 403 });
+    formStaffId = staff.userId || null;
+  }
+
   let userId = null;
-  if (!isAdmin) {
+  if (!isAdmin && !isFormScope) {
     const cookie = context.request.headers.get("Cookie") || "";
     const match = cookie.match(/session=([^;]+)/);
     if (!match) return Response.json({ error: "로그인 필요" }, { status: 401 });
@@ -113,13 +125,13 @@ export async function onRequestPost(context) {
       return Response.json({ error: "이 파일 형식은 지원 안 됨 (지원: PDF·엑셀·워드·한글·PPT·이미지·영상·음성·압축 등 — 자세한 건 사장님께 문의)" }, { status: 400 });
     }
 
-    const prefix = isAdmin ? 'admin/files' : `u${userId}/files`;
+    const prefix = isFormScope ? 'forms' : (isAdmin ? 'admin/files' : `u${userId}/files`);
     const key = `${prefix}/${Date.now()}_${crypto.randomUUID().replace(/-/g,'').slice(0,12)}.${ext}`;
 
     await bucket.put(key, file.stream(), {
       httpMetadata: { contentType: type },
       customMetadata: {
-        user_id: isAdmin ? 'admin' : String(userId),
+        user_id: isFormScope ? ('staff' + (formStaffId || '')) : (isAdmin ? 'admin' : String(userId)),
         original_name: origName,
         uploaded_at: new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString(),
       }

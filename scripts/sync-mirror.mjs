@@ -37,6 +37,7 @@ const FILES = [
   'admin-docs.js',
   'admin-filing-review.js',
   'admin-guides.js',
+  'admin-forms.js',
   'admin-memos.js',
   'admin-rooms-list.js',
   'admin-rooms-misc.js',
