@@ -5,6 +5,7 @@
  * - 작성/수정/삭제: 사장님 + admin (서버 hasAdminRole 기준, GET 응답 canWrite 로 버튼 토글)
  * - 서식: XSS-safe 미니 마크다운 — # 제목 / ## 소제목 / - 불릿 / 1. 번호 / **강조** / > 주의박스 / ---
  *          + 표 (| a | b |) · 이미지 (![설명](R2키)) — 2026-08-17 추가 (홈택스 캡처·판단표용)
+ *          + 복사용 문구 (``` 로 감싸기) — 2026-08-19 추가 (거래처 발송 멘트 복붙용)
  *   (escape 먼저 → 자체 태그 생성. innerHTML 에 사용자 원문 직접 주입 절대 없음)
  */
 
@@ -53,7 +54,7 @@ function _gdRowCells(line) {
 }
 function _gdRender(src) {
   var lines = String(src || '').replace(/\r\n?/g, '\n').split('\n');
-  var out = [], para = [], list = null, quote = null, table = null;
+  var out = [], para = [], list = null, quote = null, table = null, copy = null;
   function flushPara() { if (para.length) { out.push('<p class="gdm-p">' + para.join('<br>') + '</p>'); para = []; } }
   function flushList() { if (list) { out.push('<' + list.tag + ' class="gdm-list">' + list.items.map(function (i) { return '<li>' + i + '</li>'; }).join('') + '</' + list.tag + '>'); list = null; } }
   function flushQuote() { if (quote) { out.push('<div class="gdm-callout">' + quote.join('<br>') + '</div>'); quote = null; } }
@@ -70,9 +71,26 @@ function _gdRender(src) {
     out.push('<div class="gdm-tw"><table class="gdm-table">' + h + b + '</table></div>');
     table = null;
   }
-  function flushAll() { flushPara(); flushList(); flushQuote(); flushTable(); }
+  /* 복사용 문구 (2026-08-19 사장님: "바로 복붙가능하게") — ``` 로 감싼 블록.
+   * 거래처에 그대로 보낼 카톡/문자 문구. [복사] 버튼으로 클립보드에. */
+  function flushCopy() {
+    if (!copy) return;
+    out.push('<div class="gdm-copy"><div class="gdm-copy-top"><span class="gdm-copy-lb">거래처 발송 문구</span>'
+      + '<button type="button" class="gdm-copy-btn" onclick="_gdCopyBlock(this)">복사</button></div>'
+      + '<pre class="gdm-copy-body">' + copy.map(_gdEsc).join('\n') + '</pre></div>');
+    copy = null;
+  }
+  function flushAll() { flushPara(); flushList(); flushQuote(); flushTable(); flushCopy(); }
   for (var i = 0; i < lines.length; i++) {
-    var t = lines[i].replace(/\s+$/, '').trim();
+    var raw = lines[i].replace(/\s+$/, '');
+    var t = raw.trim();
+    /* 복사블록 안에서는 다른 문법 해석 안 함 (문구 원문 그대로 보존) */
+    if (copy) {
+      if (/^```/.test(t)) { flushCopy(); continue; }
+      copy.push(raw);
+      continue;
+    }
+    if (/^```/.test(t)) { flushAll(); copy = []; continue; }
     if (!t) { flushAll(); continue; }
     var m;
     if ((m = t.match(/^(#{1,3})\s+(.*)$/))) {
@@ -83,7 +101,7 @@ function _gdRender(src) {
     }
     if (/^(---+|\*\*\*+|___+)$/.test(t)) { flushAll(); out.push('<hr class="gdm-hr">'); continue; }
     /* 이미지 — ![설명](R2키) 한 줄. 키 검증 통과분만 렌더, src 는 우리가 조립 (XSS 차단). */
-    if ((m = t.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/))) {
+    if ((m = t.match(/^!\[(.*?)\]\(([^)\s]+)\)$/))) {
       flushAll();
       var cap = m[1], key = m[2];
       if (_gdImgOk(key)) {
@@ -195,6 +213,36 @@ function _gdBindPaste() {
       }
     }
   });
+}
+
+/* 복사용 문구 → 클립보드 (2026-08-19). 실패해도 수동 선택은 되게 pre 를 선택해줌. */
+function _gdCopyBlock(btn) {
+  var box = btn && btn.closest ? btn.closest('.gdm-copy') : null;
+  var pre = box ? box.querySelector('.gdm-copy-body') : null;
+  if (!pre) return;
+  var text = pre.textContent || '';
+  function done(ok) {
+    btn.textContent = ok ? '복사됨 ✓' : '직접 복사하세요';
+    btn.classList.toggle('done', !!ok);
+    setTimeout(function () { btn.textContent = '복사'; btn.classList.remove('done'); }, 1800);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () { done(true); }, function () { _gdSelectPre(pre); done(false); });
+  } else {
+    _gdSelectPre(pre);
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) {}
+    done(ok);
+  }
+}
+function _gdSelectPre(pre) {
+  try {
+    var r = document.createRange();
+    r.selectNodeContents(pre);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+  } catch (_) {}
 }
 
 /* 본문 이미지 클릭 → 기존 전역 이미지 뷰어로 확대 */
