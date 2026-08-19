@@ -4,6 +4,7 @@
  * - 열람: admin 진입 가능 전원 (직원 포함)
  * - 작성/수정/삭제: 사장님 + admin (서버 hasAdminRole 기준, GET 응답 canWrite 로 버튼 토글)
  * - 서식: XSS-safe 미니 마크다운 — # 제목 / ## 소제목 / - 불릿 / 1. 번호 / **강조** / > 주의박스 / ---
+ *          + 표 (| a | b |) · 이미지 (![설명](R2키)) — 2026-08-17 추가 (홈택스 캡처·판단표용)
  *   (escape 먼저 → 자체 태그 생성. innerHTML 에 사용자 원문 직접 주입 절대 없음)
  */
 
@@ -33,13 +34,43 @@ function _gdEsc(s) {
 function _gdInline(escaped) {
   return escaped.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
 }
+
+/* 이미지 키 검증 (2026-08-17) — R2 키만 허용. 외부 URL·javascript: 등 원천 차단.
+ * 사용자 입력을 src 에 그대로 넣지 않고, 검증 통과한 키로 URL 을 우리가 조립. */
+var _GD_IMGKEY_RE = /^[A-Za-z0-9_\-]+(?:\/[A-Za-z0-9_\-.]+)+$/;
+function _gdImgOk(k) {
+  return !!k && k.length <= 200 && _GD_IMGKEY_RE.test(k) && k.indexOf('..') === -1;
+}
+
+/* 표 구분줄 판정 — | --- | :--- | ---: | 형태 */
+function _gdIsTableSep(cells) {
+  return cells.length > 0 && cells.every(function (c) { return /^:?-{2,}:?$/.test(c.trim()); });
+}
+/* | a | b | → ['a','b'] (앞뒤 파이프 제거) */
+function _gdRowCells(line) {
+  var t = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+  return t.split('|').map(function (c) { return c.trim(); });
+}
 function _gdRender(src) {
   var lines = String(src || '').replace(/\r\n?/g, '\n').split('\n');
-  var out = [], para = [], list = null, quote = null;
+  var out = [], para = [], list = null, quote = null, table = null;
   function flushPara() { if (para.length) { out.push('<p class="gdm-p">' + para.join('<br>') + '</p>'); para = []; } }
   function flushList() { if (list) { out.push('<' + list.tag + ' class="gdm-list">' + list.items.map(function (i) { return '<li>' + i + '</li>'; }).join('') + '</' + list.tag + '>'); list = null; } }
   function flushQuote() { if (quote) { out.push('<div class="gdm-callout">' + quote.join('<br>') + '</div>'); quote = null; } }
-  function flushAll() { flushPara(); flushList(); flushQuote(); }
+  /* 표 (2026-08-17) — | a | b | 형태. 구분줄(| --- |) 있으면 첫 줄이 머리글.
+   * 넓은 표는 가로 스크롤 래퍼로 감싸 본문이 밀리지 않게 함. */
+  function flushTable() {
+    if (!table) return;
+    var rows = table, head = null;
+    if (rows.length >= 2 && _gdIsTableSep(rows[1])) { head = rows[0]; rows = rows.slice(2); }
+    var h = head ? '<thead><tr>' + head.map(function (c) { return '<th>' + _gdInline(_gdEsc(c)) + '</th>'; }).join('') + '</tr></thead>' : '';
+    var b = rows.length ? '<tbody>' + rows.map(function (r) {
+      return '<tr>' + r.map(function (c) { return '<td>' + _gdInline(_gdEsc(c)) + '</td>'; }).join('') + '</tr>';
+    }).join('') + '</tbody>' : '';
+    out.push('<div class="gdm-tw"><table class="gdm-table">' + h + b + '</table></div>');
+    table = null;
+  }
+  function flushAll() { flushPara(); flushList(); flushQuote(); flushTable(); }
   for (var i = 0; i < lines.length; i++) {
     var t = lines[i].replace(/\s+$/, '').trim();
     if (!t) { flushAll(); continue; }
@@ -51,28 +82,127 @@ function _gdRender(src) {
       continue;
     }
     if (/^(---+|\*\*\*+|___+)$/.test(t)) { flushAll(); out.push('<hr class="gdm-hr">'); continue; }
+    /* 이미지 — ![설명](R2키) 한 줄. 키 검증 통과분만 렌더, src 는 우리가 조립 (XSS 차단). */
+    if ((m = t.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/))) {
+      flushAll();
+      var cap = m[1], key = m[2];
+      if (_gdImgOk(key)) {
+        out.push('<figure class="gdm-fig"><img class="gdm-img" src="/api/image?k=' + encodeURIComponent(key) + '" alt="' + _gdEsc(cap) + '" loading="lazy">'
+          + (cap ? '<figcaption class="gdm-cap">' + _gdInline(_gdEsc(cap)) + '</figcaption>' : '') + '</figure>');
+      } else {
+        out.push('<p class="gdm-p gdm-imgbad">[이미지를 표시할 수 없습니다]</p>');
+      }
+      continue;
+    }
+    /* 표 줄 — | 로 시작 */
+    if (t.charAt(0) === '|' && t.indexOf('|', 1) > 0) {
+      flushPara(); flushList(); flushQuote();
+      (table = table || []).push(_gdRowCells(t));
+      continue;
+    }
     if (t.charAt(0) === '>') {
-      flushPara(); flushList();
+      flushPara(); flushList(); flushTable();
       (quote = quote || []).push(_gdInline(_gdEsc(t.replace(/^>\s?/, ''))));
       continue;
     }
     if ((m = t.match(/^[-•]\s+(.*)$/))) {
-      flushPara(); flushQuote();
+      flushPara(); flushQuote(); flushTable();
       if (!list || list.tag !== 'ul') { flushList(); list = { tag: 'ul', items: [] }; }
       list.items.push(_gdInline(_gdEsc(m[1])));
       continue;
     }
     if ((m = t.match(/^\d+[.)]\s+(.*)$/))) {
-      flushPara(); flushQuote();
+      flushPara(); flushQuote(); flushTable();
       if (!list || list.tag !== 'ol') { flushList(); list = { tag: 'ol', items: [] }; }
       list.items.push(_gdInline(_gdEsc(m[1])));
       continue;
     }
-    flushList(); flushQuote();
+    flushList(); flushQuote(); flushTable();
     para.push(_gdInline(_gdEsc(t)));
   }
   flushAll();
   return out.join('');
+}
+
+/* ── 이미지 삽입 (2026-08-17 사장님: "홈택스 캡처 넣는 느낌으로") ──
+ * 업로드 = 기존 /api/upload-image?scope=guide (R2 guides/ prefix, 직원만).
+ * 편집창에 커서 위치로 ![](키) 삽입. Ctrl+V 붙여넣기도 동일 경로. */
+var _gdImgBusy = false;
+
+function _gdPickImage() {
+  var f = document.getElementById('gdImgFile');
+  if (f) { f.value = ''; f.click(); }
+}
+function _gdImgChosen(input) {
+  var f = input && input.files && input.files[0];
+  if (f) _gdUploadImage(f);
+}
+
+/* 편집창 커서 위치에 텍스트 삽입 */
+function _gdInsertAtCursor(text) {
+  var ta = document.getElementById('gdContent');
+  if (!ta) return;
+  var s = ta.selectionStart || 0, e = ta.selectionEnd || 0, v = ta.value;
+  var before = v.slice(0, s), after = v.slice(e);
+  /* 앞뒤로 빈 줄 보장 — 이미지는 한 줄 블록이어야 렌더됨 */
+  if (before && !/\n$/.test(before)) before += '\n';
+  if (after && !/^\n/.test(after)) after = '\n' + after;
+  ta.value = before + text + '\n' + after;
+  var pos = (before + text + '\n').length;
+  ta.selectionStart = ta.selectionEnd = pos;
+  ta.focus();
+  _gdPreview();
+}
+
+function _gdImgStatus(msg, busy) {
+  var b = document.getElementById('gdImgBtn');
+  if (b) { b.disabled = !!busy; b.textContent = msg || '🖼 이미지'; }
+}
+
+async function _gdUploadImage(file) {
+  if (_gdImgBusy) return;
+  if (!file || !/^image\//.test(file.type)) { alert('이미지 파일만 넣을 수 있습니다'); return; }
+  if (file.size > 10 * 1024 * 1024) { alert('10MB 이하 이미지만 가능합니다'); return; }
+  _gdImgBusy = true;
+  _gdImgStatus('올리는 중...', true);
+  try {
+    var fd = new FormData();
+    fd.append('file', file); /* 서버(upload-image.js) 가 읽는 필드명 */
+    var qs = [_gdKeyQS(), 'scope=guide'].filter(Boolean).join('&');
+    var r = await fetch('/api/upload-image?' + qs, { method: 'POST', credentials: 'same-origin', body: fd });
+    var d = await r.json();
+    if (!d.ok || !d.key) throw new Error(d.error || '업로드 실패');
+    _gdInsertAtCursor('![](' + d.key + ')');
+  } catch (e) {
+    alert('이미지 업로드 실패: ' + (e.message || e));
+  } finally {
+    _gdImgBusy = false;
+    _gdImgStatus('🖼 이미지', false);
+  }
+}
+
+/* 편집창 붙여넣기 — 캡처 이미지를 클립보드에서 바로 */
+function _gdBindPaste() {
+  var ta = document.getElementById('gdContent');
+  if (!ta || ta._gdPasteBound) return;
+  ta._gdPasteBound = true;
+  ta.addEventListener('paste', function (ev) {
+    var items = (ev.clipboardData || {}).items || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file' && /^image\//.test(items[i].type)) {
+        var f = items[i].getAsFile();
+        if (f) { ev.preventDefault(); _gdUploadImage(f); return; }
+      }
+    }
+  });
+}
+
+/* 본문 이미지 클릭 → 기존 전역 이미지 뷰어로 확대 */
+function _gdImgZoom(ev) {
+  var el = ev.target;
+  if (!el || !el.classList || !el.classList.contains('gdm-img')) return;
+  if (typeof window.openImgViewer === 'function') window.openImgViewer(el.src);
+  else window.open(el.src, '_blank', 'noopener');
 }
 
 /* ── 열기/닫기 ── */
@@ -221,6 +351,7 @@ function _gdRenderReader() {
       ? '<div style="font-size:.76em;color:var(--text-sub);margin-top:10px">👀 읽음 <b>' + g.read_count + '명</b>' + (g.readers && g.readers.length ? ' — ' + g.readers.map(_gdEsc).join(', ') : '') + '</div>'
       : '')
     + '</div>';
+  el.onclick = _gdImgZoom; /* 본문 이미지 클릭 → 확대 (2026-08-17) */
   el.scrollTop = 0;
 }
 async function _gdMarkRead(id, btn) {
@@ -249,6 +380,7 @@ function _gdShowEditor() {
   if (ed) ed.style.display = 'flex';
   var body = document.getElementById('gdBody');
   if (body) body.classList.add('gd-reading');
+  _gdBindPaste(); /* 캡처 Ctrl+V 업로드 */
 }
 function _gdNew() {
   _gdEditId = null;
@@ -281,7 +413,7 @@ function _gdPreview() {
   var src = x.value;
   pv.innerHTML = src.trim()
     ? '<div class="gd-article">' + _gdRender(src) + '</div>'
-    : '<div class="gd-empty" style="padding:40px 16px;font-size:.85em">여기에 미리보기가 실시간으로 표시됩니다<br><br><span style="color:var(--text-mute);text-align:left;display:inline-block"># 큰 제목<br>## 소제목<br>- 항목<br>1. 순서 항목<br>**강조**<br>&gt; 주의/경고 박스<br>--- 구분선</span></div>';
+    : '<div class="gd-empty" style="padding:40px 16px;font-size:.85em">여기에 미리보기가 실시간으로 표시됩니다<br><br><span style="color:var(--text-mute);text-align:left;display:inline-block"># 큰 제목<br>## 소제목<br>- 항목<br>1. 순서 항목<br>**강조**<br>&gt; 주의/경고 박스<br>--- 구분선<br><br>| 항목 | 부가세 | 조건 |<br>| --- | --- | --- |<br>| 식당 | O | 직원등록 |<br><br>이미지 = [🖼 이미지] 버튼 / Ctrl+V</span></div>';
 }
 async function _gdSave() {
   var t = document.getElementById('gdTitle'), c = document.getElementById('gdCatSel'), p = document.getElementById('gdPin'), x = document.getElementById('gdContent'), btn = document.getElementById('gdSaveBtn');

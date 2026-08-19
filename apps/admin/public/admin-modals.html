@@ -1613,6 +1613,23 @@
 #guidesModal .gd-article .gdm-callout:before{content:'⚠️';position:absolute;left:13px;top:11px}
 #guidesModal .gd-article .gdm-hr{border:none;border-top:1px solid var(--neutral-border);margin:20px 0}
 #guidesModal .gd-article strong{font-weight:800;color:#111827;background:linear-gradient(transparent 62%,#dbeafe 62%)}
+/* 표 (2026-08-17) — 넓은 표는 래퍼가 가로 스크롤 */
+#guidesModal .gd-article .gdm-tw{overflow-x:auto;margin:0 0 14px;border:1px solid var(--neutral-border);border-radius:10px;-webkit-overflow-scrolling:touch}
+#guidesModal .gd-article .gdm-table{border-collapse:collapse;width:100%;min-width:420px;font-size:.9em;line-height:1.55}
+#guidesModal .gd-article .gdm-table th,#guidesModal .gd-article .gdm-table td{border-bottom:1px solid #eef1f4;border-right:1px solid #eef1f4;padding:8px 11px;text-align:left;vertical-align:top;word-break:keep-all}
+#guidesModal .gd-article .gdm-table th{background:#f8fafc;font-weight:800;color:var(--text-main);white-space:nowrap}
+#guidesModal .gd-article .gdm-table tr:last-child td{border-bottom:none}
+#guidesModal .gd-article .gdm-table th:last-child,#guidesModal .gd-article .gdm-table td:last-child{border-right:none}
+#guidesModal .gd-article .gdm-table tbody tr:hover{background:#fafbfc}
+/* 이미지 — 홈택스 캡처 등. 클릭하면 원본 뷰어 */
+#guidesModal .gd-article .gdm-fig{margin:0 0 16px}
+#guidesModal .gd-article .gdm-img{max-width:100%;height:auto;display:block;border:1px solid var(--neutral-border);border-radius:10px;cursor:zoom-in;background:#fff}
+#guidesModal .gd-article .gdm-cap{font-size:.82em;color:var(--text-mute);margin-top:6px;line-height:1.5}
+#guidesModal .gd-article .gdm-imgbad{color:var(--brand-danger);font-size:.85em}
+/* 편집기 이미지 버튼 */
+#guidesModal .gd-img-btn{background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:7px 12px;font-size:.8em;font-weight:700;color:#4338ca;cursor:pointer;font-family:inherit;white-space:nowrap}
+#guidesModal .gd-img-btn:hover{background:#e0e7ff}
+#guidesModal .gd-img-btn:disabled{opacity:.6;cursor:default}
 /* 에디터 */
 #guidesModal .gd-editor{flex:1;display:none;flex-direction:column;min-height:0}
 #guidesModal .gd-ed-top{display:flex;align-items:center;gap:8px;padding:14px 18px 10px;flex-wrap:wrap;flex:none}
@@ -1666,6 +1683,8 @@
               <option>법인세</option><option>연말정산</option><option selected>공통</option>
             </select>
             <label class="gd-ed-pin"><input type="checkbox" id="gdPin">📌 고정</label>
+            <button type="button" class="gd-img-btn" id="gdImgBtn" onclick="_gdPickImage()" title="홈택스 캡처 등 이미지 삽입 — 캡처 후 편집창에 바로 붙여넣기(Ctrl+V)도 됩니다">🖼 이미지</button>
+            <input type="file" id="gdImgFile" accept="image/*" style="display:none" onchange="_gdImgChosen(this)">
           </div>
           <div class="gd-ed-split">
             <textarea id="gdContent" class="gd-ed-ta" placeholder="# 큰 제목&#10;## 소제목&#10;- 항목&#10;1. 순서 항목&#10;**강조**&#10;> 주의/경고 박스&#10;--- (구분선)" oninput="_gdPreview()"></textarea>
