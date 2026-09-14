@@ -181,7 +181,7 @@ export const salesTargetsRouter = router({
 
       let withTax = 0;
       let excludedPension = 0;
-      const pre: { owner_id: number; filing_id: number; calculated_tax: number }[] = [];
+      const pre: { owner_id: number; filing_id: number; calculated_tax: number; total_income: number }[] = [];
       for (const f of rows) {
         const af = parseAF(f.auto_fields);
         const ct = Number(af.calculated_tax) || 0;
@@ -200,7 +200,7 @@ export const salesTargetsRouter = router({
           continue;
         }
         if (f.owner_type === 'Person' && f.owner_id) {
-          pre.push({ owner_id: f.owner_id, filing_id: f.id, calculated_tax: ct });
+          pre.push({ owner_id: f.owner_id, filing_id: f.id, calculated_tax: ct, total_income: Number(af.total_income) || 0 });
         }
       }
 
@@ -229,6 +229,8 @@ export const salesTargetsRouter = router({
           name: umap.get(p.owner_id)?.name || `#${p.owner_id}`,
           phone: umap.get(p.owner_id)?.phone || null,
           calculated_tax: p.calculated_tax,
+          /* 안내물 소득구간(종합소득금액 4,500만원) 판정용 — 2026-09-14 */
+          total_income: p.total_income,
         }))
         .sort((a, b) => b.calculated_tax - a.calculated_tax);
 

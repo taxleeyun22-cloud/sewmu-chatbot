@@ -17,6 +17,7 @@ import { trpcCall } from '@/lib/trpc';
 import { toast } from '@/components/ui/toast';
 import { SkeletonList } from '@/components/ui/skeleton';
 import { LeadPeek, type PeekEvidence } from '@/components/sales/lead-peek';
+import { renderPensionCard, bracketOf, isUnderCredit } from '@/lib/pension-card';
 
 type Tab = 'pension' | 'expense' | 'incorporation' | 'income';
 
@@ -26,6 +27,7 @@ interface PensionTarget {
   name: string;
   phone: string | null;
   calculated_tax: number;
+  total_income: number;
 }
 interface PensionResult {
   year: number;
@@ -167,6 +169,9 @@ function downloadCsv(filename: string, headers: string[], rows: (string | number
 }
 
 export default function SalesTargetsPage() {
+  const [cardBusy, setCardBusy] = useState(false);
+  const [cardProg, setCardProg] = useState({ done: 0, total: 0 });
+  const [cardSkipped, setCardSkipped] = useState<PensionTarget[] | null>(null);
   const [tab, setTab] = useState<Tab>('pension');
   const [year, setYear] = useState<number>(0);
   /* 경비 키워드 자유 검색 (사장님 2026-06-18): 비우면 서버 기본 5종, 입력 시 그 키워드로.
@@ -440,6 +445,44 @@ export default function SalesTargetsPage() {
     window.open(url, '_blank', 'noopener');
   }
 
+  /* 💰 연금 안내물 일괄 생성 (2026-09-14 사장님: "일괄 출력할 수 있게")
+   * Cloudflare 에서 브라우저를 못 돌리므로 카드는 사장님 브라우저가 직접 그림.
+   * 산출세액 < 세액공제액 인 거래처는 제외 (안내물 수치가 과장이 됨) 후 명단 표시. */
+  async function generateCards() {
+    if (!pension?.targets.length || cardBusy) return;
+    const send = pension.targets.filter((t) => !isUnderCredit(t));
+    const skip = pension.targets.filter((t) => isUnderCredit(t));
+    if (!send.length) {
+      toast.error('생성 대상이 없습니다 (전원 산출세액 부족)');
+      setCardSkipped(skip);
+      return;
+    }
+    setCardBusy(true);
+    setCardSkipped(null);
+    setCardProg({ done: 0, total: send.length });
+    let fail = 0;
+    for (let i = 0; i < send.length; i++) {
+      try {
+        const blob = await renderPensionCard(send[i]);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `연금안내_${send[i].name}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch {
+        fail++;
+      }
+      setCardProg({ done: i + 1, total: send.length });
+      await new Promise((r) => setTimeout(r, 120)); /* 다운로드 큐 숨 고르기 */
+    }
+    setCardBusy(false);
+    setCardSkipped(skip);
+    toast.success(
+      `안내물 ${send.length - fail}장 생성${fail ? ` (실패 ${fail})` : ''}${skip.length ? ` · 제외 ${skip.length}명` : ''}`,
+    );
+  }
+
   function exportPension() {
     if (!pension?.targets.length) return;
     downloadCsv(
@@ -624,9 +667,34 @@ export default function SalesTargetsPage() {
               disabled={!pension.count}
               className="ml-auto bg-brand-primary text-white px-3 py-1.5 rounded text-xs font-bold disabled:bg-gray-300"
             >
-              ⬇ CSV 다운로드 ({pension.count})
+              ⬇ CSV ({pension.count})
+            </button>
+            <button
+              type="button"
+              onClick={generateCards}
+              disabled={!pension.count || cardBusy}
+              title="거래처별 개인화 안내물(PNG)을 한 번에 생성합니다. 산출세액이 공제액보다 적은 분은 자동 제외됩니다."
+              className="bg-brand-primary text-white px-3 py-1.5 rounded text-xs font-bold disabled:bg-gray-300"
+            >
+              {cardBusy ? `생성 중… ${cardProg.done}/${cardProg.total}` : `🖼 안내물 일괄 생성`}
             </button>
           </div>
+          {cardSkipped && cardSkipped.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+              <div className="font-bold text-amber-900 mb-1">
+                ⚠️ 안내물 제외 {cardSkipped.length}명 — 산출세액이 세액공제액보다 적어 안내물 수치가 과장이 됩니다
+              </div>
+              <div className="text-xs text-amber-800 space-y-0.5">
+                {cardSkipped.map((t) => (
+                  <div key={t.user_id}>
+                    · <b>{t.name}</b> — 산출세액 {t.calculated_tax.toLocaleString()}원 &lt; 공제예상{' '}
+                    {bracketOf(t.total_income).credit.toLocaleString()}원 → 실제 절세 가능액 약{' '}
+                    {Math.floor(t.calculated_tax / 10000).toLocaleString()}만원
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600 text-xs">
