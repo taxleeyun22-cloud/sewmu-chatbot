@@ -12,7 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: '20'
+  # node:sqlite 는 Node 22+ 내장 (packages/db/src/test-db.ts).
+  # Node 20 에서는 통합테스트 19개 suite 가 import 단계에서 전멸 — 2026-09-14 수정.
+  NODE_VERSION: '22'
 
 jobs:
   # ─────────────────────────────────────────────────────────────
