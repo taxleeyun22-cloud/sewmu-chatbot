@@ -4483,6 +4483,57 @@ async function _wiCommit(){
     if(typeof mutationDone==='function')mutationDone({users:true,businesses:true});
   }catch(err){alert('커밋 오류: '+err.message)}
 }
+/* ===== 📥 검토표 JSON 심기 (2026-07-17) — Claude 채팅에서 추출한 신고서 데이터 확정 반영 ===== */
+var _fjBatchId=null,_fjSummary=null;
+async function _fjParseFile(ev){
+  var f=ev.target.files&&ev.target.files[0];
+  var out=document.getElementById('fjResult');
+  if(!f||!out)return;
+  out.innerHTML='<div style="font-size:.8em;color:var(--text-mute)">읽는 중...</div>';
+  try{
+    var txt=await f.text();
+    var data=JSON.parse(txt);
+    if(!data||!Array.isArray(data.rows)||!data.rows.length)throw new Error('rows 배열이 없습니다 — Claude 가 준 JSON 파일인지 확인');
+    var r=await fetch('/api/admin-filing-import?action=preview&key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({source_file:data.source_file||f.name,rows:data.rows})});
+    var d=await r.json();
+    if(!d.ok)throw new Error(d.error||'preview 실패');
+    _fjBatchId=d.batch_id;_fjSummary=d.summary;
+    var s=d.summary||{};
+    var bad=(d.analysis||[]).filter(function(a){return a.status==='unmatched'||a.status==='error'});
+    out.innerHTML='<div style="background:#fff;border:1px solid var(--neutral-border);border-radius:10px;padding:12px 14px;font-size:.8em;line-height:1.8">'
+      +'<div style="font-weight:800;font-size:1.05em">🔍 미리보기 — 아직 아무것도 안 심어짐</div>'
+      +'<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:4px">'
+      +'<span>총 '+(s.total||0)+'건</span>'
+      +'<span style="color:var(--brand-primary);font-weight:800">신규 검토표 '+(s.newFiling||0)+'</span>'
+      +'<span style="color:#059669;font-weight:800">기존 빈칸 보강 '+(s.fillExisting||0)+'</span>'
+      +'<span style="color:var(--text-mute)">변화 없음 '+(s.noChange||0)+'</span>'
+      +(s.unmatched?'<span style="color:#dc2626;font-weight:800">매칭 실패 '+s.unmatched+'</span>':'')
+      +'</div>'
+      +(bad.length?'<div style="margin-top:6px;color:#b45309">⚠ '+bad.slice(0,6).map(function(a){return e((a.name||'?')+': '+(a.reason||''))}).join(' / ')+(bad.length>6?' ...':'')+'<br><span style="color:var(--text-mute)">→ 실패 건은 이번 확정에서 제외됩니다. Claude 채팅에 알려주면 user_id 지정해서 다시 뽑아줍니다.</span></div>':'')
+      +'<div style="margin-top:10px;display:flex;gap:8px;align-items:center">'
+      +'<button onclick="_fjCommit()" style="background:var(--brand-success);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer;font-family:inherit;font-size:1em">✅ 확정 심기 ('+((s.newFiling||0)+(s.fillExisting||0))+'건)</button>'
+      +'<span style="color:var(--text-mute)">확정 즉시 챗봇에 반영 · 수기 입력값은 안 덮음 · audit 기록</span>'
+      +'</div></div>';
+  }catch(err){out.innerHTML='<div style="font-size:.8em;color:var(--toss-red)">오류: '+e(err.message)+'</div>'}
+  ev.target.value='';
+}
+async function _fjCommit(){
+  if(!_fjBatchId){alert('미리보기를 먼저 실행해주세요');return}
+  var s=_fjSummary||{};
+  if(!confirm('검토표에 심습니다:\n\n• 신규 검토표 '+(s.newFiling||0)+'건 생성\n• 기존 검토표 빈칸 보강 '+(s.fillExisting||0)+'건\n• 수기 입력된 칸은 절대 안 덮음\n• 확정 즉시 해당 거래처 챗봇 답변에 반영\n\n계속?'))return;
+  try{
+    var r=await fetch('/api/admin-filing-import?action=commit&key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({batch_id:_fjBatchId})});
+    var d=await r.json();
+    if(!d.ok)throw new Error(d.error||'commit 실패');
+    alert('✅ 심기 완료\n\n신규 검토표: '+(d.stats?.created||0)+'\n빈칸 보강: '+(d.stats?.filled||0)+'\n제외: '+(d.stats?.skipped||0));
+    _fjBatchId=null;_fjSummary=null;
+    var out=document.getElementById('fjResult');if(out)out.innerHTML='';
+  }catch(err){alert('오류: '+err.message)}
+}
 async function rollbackImportBatch(batchId, batchUuid){
   if(!confirm('🔄 batch [' + batchUuid + '] 롤백:\n\n'
     + '• 그 batch 의 신규 user / 사업장 / 매핑 모두 hard delete\n'
