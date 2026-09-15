@@ -253,7 +253,7 @@ async function sendMessage(){
                                 bubble=document.getElementById("streamBubble");
                             }
                             fullText+=j.content;
-                            bubble.innerHTML=linkify(esc(fullText));
+                            bubble.innerHTML=linkify(esc(_stripYearPick(fullText).text));
                             c.scrollTop=c.scrollHeight;
                         }
                     }catch{}
@@ -268,9 +268,66 @@ async function sendMessage(){
           const lastUserMsg = [...messages].reverse().find((m,i)=>i>0 && m.role==='user');
           const q = lastUserMsg ? lastUserMsg.content : t;
           _attachChatbotShareBtn(msgDiv, q, fullText);
+          /* 연도 모호 → 연도 선택 버튼 (2026-09-15) */
+          const _pick=_stripYearPick(fullText);
+          if(_pick.years.length) _attachYearPicker(msgDiv, _pick.years, q);
         }
     }catch(e){hideDots();add("ai","오류가 발생했습니다: "+e.message)}
     finally{loading=false;document.getElementById("sendBtn").disabled=false;i.focus()}
+}
+
+/* ===== 📅 연도 선택 (2026-09-15 사장님: "올해 ㅇㅈㄹ하면 몇년도선택 띄워야겠네") =====
+   서버가 답변 끝에 [연도선택: 2025, 2024] 표식을 붙이면
+   → 화면에서는 표식을 감추고 연도 버튼으로 렌더. 클릭하면 그 연도로 다시 질문. */
+var _YEAR_PICK_RE = /\[연도선택:\s*([0-9,\s]+)\]/;
+function _stripYearPick(text){
+  var t = String(text || '');
+  var years = [];
+  var m = t.match(_YEAR_PICK_RE);
+  if(m){
+    years = m[1].split(',')
+      .map(function(x){return parseInt(x.trim(),10)})
+      .filter(function(n){return Number.isFinite(n) && n >= 2000 && n <= 2100});
+    t = t.replace(_YEAR_PICK_RE,'');
+  }
+  /* 스트리밍 중 아직 닫히지 않은 대괄호는 통째로 감춘다 — 표식이 한 글자씩
+     드러나며 깜빡이는 것을 막는다. ']' 가 도착하면 정상 렌더된다. */
+  t = t.replace(/\[[^\]\n]{0,20}$/,'');
+  /* 중복 제거 + 최신순 */
+  years = [...new Set(years)].sort(function(a,b){return b-a});
+  return { text: t.trimEnd(), years: years };
+}
+function _attachYearPicker(msgDiv, years, question){
+  try{
+    if(!msgDiv || !years || !years.length) return;
+    var wrap = msgDiv.querySelector('.msg-wrap') || msgDiv;
+    if(wrap.querySelector('.year-pick')) return;
+    var box = document.createElement('div');
+    box.className = 'year-pick';
+    box.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:8px';
+    years.slice(0,8).forEach(function(y){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = y + '년';
+      b.style.cssText = 'background:#fff;border:1px solid #3182f6;color:#3182f6;padding:6px 14px;border-radius:999px;font-size:.8em;font-weight:600;cursor:pointer;font-family:inherit';
+      b.onclick = function(){
+        box.remove();
+        var inp = document.getElementById('userInput');
+        if(!inp) return;
+        inp.value = y + '년 ' + _stripYear(question);
+        sendMessage();
+      };
+      box.appendChild(b);
+    });
+    wrap.appendChild(box);
+  }catch(e){ console.error('[year-pick] attach failed:', e); }
+}
+/* 원 질문에서 모호한 시점 표현을 떼어낸다 — "올해 매출 얼마야" → "매출 얼마야" */
+function _stripYear(q){
+  return String(q||'')
+    .replace(/20\d{2}\s*년도?/g,'')
+    .replace(/(올해|금년|이번\s*해|작년|재작년|지난해|최근|요즘)\s*/g,'')
+    .trim() || '매출 얼마야';
 }
 
 function askQuick(b){document.getElementById("userInput").value=b.textContent;sendMessage()}
