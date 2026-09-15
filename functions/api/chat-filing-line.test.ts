@@ -92,3 +92,19 @@ describe('filingLine — 기존 동작 회귀', () => {
     expect(out).toContain('출처: 국세청 신고서');
   });
 });
+
+/* 2026-09-15 사장님: "25년 매출 알려달라니까 1억이라 뜨네?"
+   → 개인 종소세 revenue 라벨에 "매출" 이라는 단어가 없어 GPT 가 매출 질문에
+      종합소득금액(1.1억)을 집어갈 수 있었다. 라벨을 부가세·법인과 통일. */
+describe('filingLine — 종소세 매출 라벨', () => {
+  it('개인 수입금액 라벨에 "매출" 이 들어간다', () => {
+    const out = mk('종소세', { revenue: 544_917_434, total_income: 117_110_935 });
+    expect(out).toContain('수입금액(매출) 544,917,434원');
+  });
+
+  it('수입금액과 종합소득금액이 서로 다른 항목으로 나온다', () => {
+    const out = mk('종소세', { revenue: 544_917_434, total_income: 117_110_935 });
+    expect(out).toContain('종합소득금액 117,110,935원');
+    expect(out.indexOf('수입금액(매출)')).toBeLessThan(out.indexOf('종합소득금액'));
+  });
+});

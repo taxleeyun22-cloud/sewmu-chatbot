@@ -133,3 +133,16 @@ describe('_stripYear — 재질문 문장 만들기', () => {
     expect(_stripYear('')).toBe('매출 얼마야');
   });
 });
+
+describe('buildFilingContext — 매출/소득 혼동 방지', () => {
+  it('"매출 = 수입금액" 규칙이 프롬프트에 있다', () => {
+    const out = buildFilingContext([filing(YEAR - 1)], []);
+    expect(out).toContain('"매출"은 수입금액입니다');
+    expect(out).toContain('종합소득금액·소득금액으로 답하면 절대 안 됩니다');
+  });
+
+  it('이익 계열은 여전히 소득금액으로 답하도록 남아 있다', () => {
+    const out = buildFilingContext([filing(YEAR - 1)], []);
+    expect(out).toContain('이익 계열 질문 전부 동일 처리');
+  });
+});
