@@ -6,7 +6,9 @@
  *       → filings upsert (verified_at 세팅 → 챗봇 즉시 노출. 미확정/미검증은 기존 게이트로 비노출)
  *
  * 원칙:
- *  - 사장님 수기 입력 절대 우선: 기존 검토표의 채워진 칸은 안 덮음. 빈 칸만 보강.
+ *  - 기본은 사장님 수기 입력 절대 우선: 기존 검토표의 채워진 칸은 안 덮고 빈 칸만 보강.
+ *  - overwrite:true (사장님이 모달에서 명시적으로 체크) 일 때만 기존 값도 신고서 값으로 교체.
+ *    이 경우 미리보기가 '무엇이 무엇으로' 바뀌는지 전부 보여주고, audit 에 before/after 가 남는다.
  *  - owner 매칭: 개인 = users 이름 정확·유일 일치 (또는 user_id 직접 지정),
  *    법인 = businesses 사업자번호 → 없으면 회사명 정확·유일 일치.
  *  - 전부 audit. owner 전용.
@@ -121,7 +123,9 @@ export async function onRequestPost(context) {
     if (rows.length > 300) return Response.json({ error: '한 번에 300건 이하로' }, { status: 400 });
 
     const analysis = [];
-    const sum = { total: rows.length, matched: 0, unmatched: 0, newFiling: 0, fillExisting: 0, noChange: 0 };
+    /* 사장님이 모달에서 명시적으로 체크했을 때만 기존 값 교체 (기본 false) */
+    const overwrite = body.overwrite === true;
+    const sum = { total: rows.length, matched: 0, unmatched: 0, newFiling: 0, fillExisting: 0, noChange: 0, overwritten: 0, overwrite };
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i] || {};
       const a = { idx: i, name: row.name, fiscal_year: Number(row.fiscal_year) || 0, type: row.type };
@@ -167,7 +171,17 @@ export async function onRequestPost(context) {
       if (existing) {
         let af = {};
         try { af = JSON.parse(existing.auto_fields || '{}'); } catch (_) {}
-        const willFill = Object.keys(fields).filter(k => af[k] === undefined || af[k] === null || af[k] === '' || Number(af[k]) === 0 && fields[k] !== 0);
+        const isEmpty = (k) => af[k] === undefined || af[k] === null || af[k] === '' || (Number(af[k]) === 0 && fields[k] !== 0);
+        /* 값이 실제로 다른가 — 객체(vat)는 JSON 비교 */
+        const differs = (k) => JSON.stringify(af[k]) !== JSON.stringify(fields[k]);
+        const willFill = Object.keys(fields).filter(k => isEmpty(k) || (overwrite && differs(k)));
+        /* 기존 값이 있는데 신고서 값으로 교체되는 것 — 미리보기에서 따로 보여준다 */
+        a.overwrites = overwrite
+          ? Object.keys(fields)
+              .filter(k => !isEmpty(k) && differs(k))
+              .map(k => ({ key: k, before: af[k], after: fields[k] }))
+          : [];
+        if (a.overwrites.length) sum.overwritten += a.overwrites.length;
         a.existing_id = existing.id;
         a.will_fill = willFill;
         a.kept = Object.keys(fields).filter(k => !willFill.includes(k));
@@ -196,7 +210,7 @@ export async function onRequestPost(context) {
     let analysis;
     try { analysis = JSON.parse(batch.preview_data || '[]'); } catch { return Response.json({ error: 'preview 데이터 손상' }, { status: 500 }); }
 
-    const stats = { created: 0, filled: 0, skipped: 0 };
+    const stats = { created: 0, filled: 0, skipped: 0, overwritten: 0 };
     for (const a of analysis) {
       if (a.status === 'new') {
         await db.prepare(
@@ -216,7 +230,9 @@ export async function onRequestPost(context) {
           `UPDATE filings SET auto_fields = ?, verified_at = COALESCE(verified_at, ?), updated_at = ? WHERE id = ?`
         ).bind(JSON.stringify(af), now, now, a.existing_id).run();
         stats.filled++;
-        logAudit(db, { actor: '사장님', action: 'filing_import_fill', entity_type: 'filing', entity_id: a.existing_id, before, after: JSON.stringify(af), request: context.request });
+        const ow = (a.overwrites || []).length;
+        if (ow) stats.overwritten += ow;
+        logAudit(db, { actor: '사장님', action: ow ? 'filing_import_overwrite' : 'filing_import_fill', entity_type: 'filing', entity_id: a.existing_id, before, after: JSON.stringify(af), request: context.request });
       } else {
         stats.skipped++;
       }

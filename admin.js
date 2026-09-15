@@ -4485,6 +4485,38 @@ async function _wiCommit(){
 }
 /* ===== 📥 검토표 JSON 심기 (2026-07-17) — Claude 채팅에서 추출한 신고서 데이터 확정 반영 ===== */
 var _fjBatchId=null,_fjSummary=null;
+/* 기존 값 교체 미리보기 — 무엇이 무엇으로 바뀌는지 확정 전에 전부 보여준다 (2026-09-15) */
+var _FJ_LABEL={revenue:'수입금액',total_income:'종합소득금액',income_deduction:'종합소득공제',tax_base:'과세표준',calculated_tax:'산출세액',deduction_total:'세액공제·감면',penalty_total:'가산세',decisive_tax:'결정세액',prepaid_tax:'기납부세액',payable_tax:'납부할세액',paid_tax:'납부세액',farmland_tax:'농특세 납부',net_income:'결산서당기순이익',adj_inclusion:'익금산입',adj_exclusion:'손금산입',business_income:'각사업연도소득금액',additional_tax:'감면분추가납부세액',vat:'부가세 세부'};
+function _fjNum(v){
+  if(v&&typeof v==='object')return JSON.stringify(v);
+  var n=Number(v);
+  return Number.isFinite(n)?n.toLocaleString('ko-KR'):String(v);
+}
+function _fjOverwriteHtml(analysis,sum){
+  var rows=[];
+  analysis.forEach(function(a){
+    (a.overwrites||[]).forEach(function(o){
+      rows.push({name:a.owner_label||a.name||'?',year:a.fiscal_year,type:a.type,
+                 label:_FJ_LABEL[o.key]||o.key,before:o.before,after:o.after});
+    });
+  });
+  if(!rows.length)return '';
+  var head='<div style="margin-top:10px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:10px 12px">'
+    +'<div style="font-weight:800;color:#b45309">⚠ 기존 값 '+rows.length+'개가 신고서 값으로 교체됩니다</div>'
+    +'<div style="color:var(--text-mute);margin-bottom:6px">확정 전에 반드시 확인하세요. 확정 후에는 이력에서 롤백해야 합니다.</div>';
+  var body=rows.slice(0,40).map(function(r){
+    return '<div style="display:flex;gap:6px;flex-wrap:wrap;padding:2px 0;border-top:1px dotted #fdba74">'
+      +'<span style="font-weight:700">'+e(r.name)+'</span>'
+      +'<span style="color:var(--text-mute)">'+e(String(r.year||''))+' '+e(String(r.type||''))+'</span>'
+      +'<span>'+e(r.label)+'</span>'
+      +'<span style="color:#dc2626;text-decoration:line-through">'+e(_fjNum(r.before))+'</span>'
+      +'<span>→</span>'
+      +'<span style="color:#059669;font-weight:700">'+e(_fjNum(r.after))+'</span>'
+      +'</div>';
+  }).join('');
+  var more=rows.length>40?'<div style="color:var(--text-mute);margin-top:4px">... 외 '+(rows.length-40)+'개</div>':'';
+  return head+body+more+'</div>';
+}
 async function _fjParseFile(ev){
   var f=ev.target.files&&ev.target.files[0];
   var out=document.getElementById('fjResult');
@@ -4494,9 +4526,11 @@ async function _fjParseFile(ev){
     var txt=await f.text();
     var data=JSON.parse(txt);
     if(!data||!Array.isArray(data.rows)||!data.rows.length)throw new Error('rows 배열이 없습니다 — Claude 가 준 JSON 파일인지 확인');
+    var _ow=document.getElementById('fjOverwrite');
+    var overwrite=!!(_ow&&_ow.checked);
     var r=await fetch('/api/admin-filing-import?action=preview&key='+encodeURIComponent(KEY),{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({source_file:data.source_file||f.name,rows:data.rows})});
+      body:JSON.stringify({source_file:data.source_file||f.name,rows:data.rows,overwrite:overwrite})});
     var d=await r.json();
     if(!d.ok)throw new Error(d.error||'preview 실패');
     _fjBatchId=d.batch_id;_fjSummary=d.summary;
@@ -4512,9 +4546,10 @@ async function _fjParseFile(ev){
       +(s.unmatched?'<span style="color:#dc2626;font-weight:800">매칭 실패 '+s.unmatched+'</span>':'')
       +'</div>'
       +(bad.length?'<div style="margin-top:6px;color:#b45309">⚠ '+bad.slice(0,6).map(function(a){return e((a.name||'?')+': '+(a.reason||''))}).join(' / ')+(bad.length>6?' ...':'')+'<br><span style="color:var(--text-mute)">→ 실패 건은 이번 확정에서 제외됩니다. Claude 채팅에 알려주면 user_id 지정해서 다시 뽑아줍니다.</span></div>':'')
+      +_fjOverwriteHtml(d.analysis||[],s)
       +'<div style="margin-top:10px;display:flex;gap:8px;align-items:center">'
       +'<button onclick="_fjCommit()" style="background:var(--brand-success);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer;font-family:inherit;font-size:1em">✅ 확정 심기 ('+((s.newFiling||0)+(s.fillExisting||0))+'건)</button>'
-      +'<span style="color:var(--text-mute)">확정 즉시 챗봇에 반영 · 수기 입력값은 안 덮음 · audit 기록</span>'
+      +'<span style="color:var(--text-mute)">확정 즉시 챗봇에 반영 · '+(overwrite?'<b style="color:#b45309">기존 값 교체 모드</b>':'수기 입력값은 안 덮음')+' · audit 기록</span>'
       +'</div></div>';
   }catch(err){out.innerHTML='<div style="font-size:.8em;color:var(--toss-red)">오류: '+e(err.message)+'</div>'}
   ev.target.value='';
@@ -4522,14 +4557,17 @@ async function _fjParseFile(ev){
 async function _fjCommit(){
   if(!_fjBatchId){alert('미리보기를 먼저 실행해주세요');return}
   var s=_fjSummary||{};
-  if(!confirm('검토표에 심습니다:\n\n• 신규 검토표 '+(s.newFiling||0)+'건 생성\n• 기존 검토표 빈칸 보강 '+(s.fillExisting||0)+'건\n• 수기 입력된 칸은 절대 안 덮음\n• 확정 즉시 해당 거래처 챗봇 답변에 반영\n\n계속?'))return;
+  var owN=s.overwritten||0;
+  if(!confirm('검토표에 심습니다:\n\n• 신규 검토표 '+(s.newFiling||0)+'건 생성\n• 기존 검토표 보강 '+(s.fillExisting||0)+'건\n'
+    +(owN?'• ⚠ 기존 값 '+owN+'개를 신고서 값으로 교체 (되돌리려면 이력에서 롤백)\n':'• 수기 입력된 칸은 절대 안 덮음\n')
+    +'• 확정 즉시 해당 거래처 챗봇 답변에 반영\n\n계속?'))return;
   try{
     var r=await fetch('/api/admin-filing-import?action=commit&key='+encodeURIComponent(KEY),{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({batch_id:_fjBatchId})});
     var d=await r.json();
     if(!d.ok)throw new Error(d.error||'commit 실패');
-    alert('✅ 심기 완료\n\n신규 검토표: '+(d.stats?.created||0)+'\n빈칸 보강: '+(d.stats?.filled||0)+'\n제외: '+(d.stats?.skipped||0));
+    alert('✅ 심기 완료\n\n신규 검토표: '+(d.stats?.created||0)+'\n보강: '+(d.stats?.filled||0)+'\n기존 값 교체: '+(d.stats?.overwritten||0)+'\n제외: '+(d.stats?.skipped||0));
     _fjBatchId=null;_fjSummary=null;
     var out=document.getElementById('fjResult');if(out)out.innerHTML='';
   }catch(err){alert('오류: '+err.message)}

@@ -2174,7 +2174,10 @@
           📥 검토표 JSON 심기
           <input type="file" id="fjFile" accept=".json" style="display:none" onchange="_fjParseFile(event)">
         </label>
-        <span style="font-size:.72em;color:var(--text-mute)">신고서를 Claude 채팅에 올리면 추출·검수 후 JSON 으로 만들어줍니다. 여기 업로드 → 미리보기 → 확정하면 검토표에 심어지고 챗봇이 바로 답합니다. 수기 입력값은 절대 안 덮습니다 (owner 전용).</span>
+        <label style="display:inline-flex;align-items:center;gap:5px;font-size:.78em;color:var(--text-sub);cursor:pointer">
+          <input type="checkbox" id="fjOverwrite"> 기존 값도 신고서 값으로 교체
+        </label>
+        <span style="font-size:.72em;color:var(--text-mute)">신고서를 Claude 채팅에 올리면 추출·검수 후 JSON 으로 만들어줍니다. 여기 업로드 → 미리보기 → 확정하면 검토표에 심어지고 챗봇이 바로 답합니다. 기본은 빈 칸만 보강하고 수기 입력값은 안 덮습니다 — 위 체크박스를 켜면 기존 값도 신고서 값으로 바꾸며, 무엇이 무엇으로 바뀌는지 미리보기에서 전부 확인한 뒤 확정합니다 (owner 전용).</span>
       </div>
       <div id="fjResult" style="margin-top:8px"></div>
     </div>
