@@ -3,6 +3,7 @@
 // 기본적으로 로그인 사용자만 업로드 가능
 
 import { rateLimit, getClientIP } from "./_ratelimit.js";
+import { checkAdmin } from "./_adminAuth.js";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic'];
@@ -25,8 +26,17 @@ export async function onRequestPost(context) {
   const adminKey = context.env.ADMIN_KEY;
   const isAdmin = adminKey && url.searchParams.get("key") === adminKey;
 
+  /* 📖 업무 가이드 본문 이미지 (2026-08-17) — ?scope=guide.
+   * guides/ prefix = 사내 가이드 전용이라 직원(checkAdmin 통과 = viewer 이상) 만 허용.
+   * 거래처 세션으로는 못 올림. image.js 가 guides/ 를 관리자 인증 필수로 서빙. */
+  const isGuideScope = url.searchParams.get("scope") === "guide";
+  if (isGuideScope && !isAdmin) {
+    const staff = await checkAdmin(context);
+    if (!staff || !staff.ok) return Response.json({ error: "가이드 이미지 업로드 권한이 없습니다" }, { status: 403 });
+  }
+
   let userId = null;
-  if (!isAdmin) {
+  if (!isAdmin && !isGuideScope) {
     const cookie = context.request.headers.get("Cookie") || "";
     const match = cookie.match(/session=([^;]+)/);
     if (!match) return Response.json({ error: "로그인 필요" }, { status: 401 });
@@ -62,7 +72,7 @@ export async function onRequestPost(context) {
        - original_name은 제어문자 제거하고 길이 제한 */
     const extMap = { 'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','image/heic':'heic' };
     const ext = extMap[type] || 'bin';
-    const prefix = isAdmin ? 'admin' : `u${userId}`;
+    const prefix = isGuideScope ? 'guides' : (isAdmin ? 'admin' : `u${userId}`);
     const key = `${prefix}/${Date.now()}_${crypto.randomUUID().replace(/-/g,'').slice(0,12)}.${ext}`;
 
     const safeName = (file.name || '').replace(/[\x00-\x1f\\\/]/g,'_').slice(0, 200);

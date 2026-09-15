@@ -9,23 +9,14 @@
 // FAQ 모듈 (Q1~Q70) - 별도 파일로 분리하여 관리 (_faq.js)
 import { FAQ_SECTION } from "./_faq.js";
 import { retrieveTopK, formatRetrievedFAQs } from "./_rag.js";
+import { rateLimit, getClientIP } from "./_ratelimit.js";
 
-// ===== Rate Limit (메모리 기반) =====
-const rateLimitMap = new Map();
-const RATE_LIMIT_WINDOW = 60000; // 1분
+// ===== Rate Limit =====
+// 2026-08-17: 메모리 Map 기반 → D1 기반(_ratelimit.js) 교체.
+// Workers isolate 는 요청마다 다르고 수시로 리셋되어 메모리 카운터는 실질 무력했음.
+// upload-file / upload-image 등과 같은 rate_limit 테이블 공유.
+const RATE_LIMIT_WINDOW_SEC = 60; // 1분
 const RATE_LIMIT_MAX = 10; // 최대 10회
-
-function checkRateLimit(ip) {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now - entry.start > RATE_LIMIT_WINDOW) {
-    rateLimitMap.set(ip, { start: now, count: 1 });
-    return true;
-  }
-  entry.count++;
-  if (entry.count > RATE_LIMIT_MAX) return false;
-  return true;
-}
 
 // ===== D1 DB 대화 저장 =====
 async function initDB(db) {
@@ -205,13 +196,22 @@ async function getClientBizFilings(db, userId) {
 /* 검토표 auto_fields → 챗봇 노출 필드 (2026-07-07 확장: 수입·결정세액만 → 전 항목.
  * "작년 영업이익?", "영업이익 대비 세금 비율?" 답변용. 라벨 = 검토표 화면과 동일 용어). */
 const FIL_FIELDS_PERSON = [
-  ['revenue', '수입금액'],
+  ['revenue', '수입금액(매출)'],
   ['total_income', '종합소득금액'],
   ['tax_base', '과세표준'],
   ['calculated_tax', '산출세액'],
   ['decisive_tax', '결정세액(낸 세금)'],
   ['prepaid_tax', '기납부세액'],
   ['payable_tax', '납부할세액'],
+  ['paid_tax', '납부세액'],          /* 스크래핑 신고서 경로 (_scrape.js) */
+];
+/* 부가세 (2026-09-15 사장님: "내 부가세 얼마 냈지?").
+ * 키는 _scrape.js normalizeToAutoFields 가 저장하는 것과 1:1.
+ * 종소세용 종합소득금액·과세표준 등은 부가세에 없으므로 뺀다. */
+const FIL_FIELDS_VAT = [
+  ['revenue', '수입금액(매출)'],
+  ['paid_tax', '납부세액'],
+  ['decisive_tax', '결정세액'],
 ];
 const FIL_FIELDS_CORP = [
   ['revenue', '매출액'],
@@ -222,20 +222,37 @@ const FIL_FIELDS_CORP = [
   ['decisive_tax', '결정세액(낸 세금)'],
   ['prepaid_tax', '기납부세액'],
   ['payable_tax', '납부할세액'],
+  ['paid_tax', '납부세액'],          /* 스크래핑 신고서 경로 */
 ];
 
 function filingLine(f) {
   const won = (n) => (Number(n) || 0).toLocaleString('ko-KR');
   let af = {};
   try { af = JSON.parse(f.auto_fields || '{}'); } catch {}
-  const isCorp = String(f.type || '').includes('법인');
+  const t = String(f.type || '');
+  const isCorp = t.includes('법인');
+  const isVat = t.includes('부가');
   const parts = [`- ${f.biz_name ? `[${f.biz_name}] ` : ''}${f.fiscal_year}년 귀속 ${f.type}`];
-  const fields = isCorp ? FIL_FIELDS_CORP : FIL_FIELDS_PERSON;
+  const fields = isVat ? FIL_FIELDS_VAT : isCorp ? FIL_FIELDS_CORP : FIL_FIELDS_PERSON;
   for (const [key, label] of fields) {
     const v = Number(af[key]);
     if (af[key] !== undefined && af[key] !== null && af[key] !== '' && !Number.isNaN(v)) {
       parts.push(`${label} ${won(v)}원`);
     }
+  }
+  /* 부가세 세부 (매출세액·매입세액 등) — 제공사별 키가 달라 화이트리스트 없이
+   * "숫자 값만" 통과시킨다. 제공사 응답이 프롬프트로 새지 않게 키도 길이·문자 제한. */
+  if (isVat && af.vat && typeof af.vat === 'object' && !Array.isArray(af.vat)) {
+    const detail = [];
+    for (const [k, v] of Object.entries(af.vat)) {
+      if (detail.length >= 8) break;
+      const key = String(k).trim();
+      if (!key || key.length > 20 || !/^[가-힣A-Za-z0-9_ ()]+$/.test(key)) continue;
+      const nv = Number(v);
+      if (v === null || v === '' || !Number.isFinite(nv)) continue;
+      detail.push(`${key} ${won(nv)}원`);
+    }
+    if (detail.length) parts.push(...detail);
   }
   /* 신고 제출 여부 (스크래핑 신고서 기준) — "신고됐어?" 질문 대응 */
   if (typeof af.submitted === 'boolean') parts.push(af.submitted ? '신고 완료(제출됨)' : '아직 신고 전(미제출)');
@@ -247,7 +264,31 @@ function buildFilingContext(filings, bizFilings) {
   const all = [...(filings || []), ...(bizFilings || [])];
   if (all.length === 0) return "";
   const lines = all.map(filingLine).join('\n');
-  return `\n\n===== 본인(로그인 거래처)의 신고 검토표 데이터 [확정·권위 데이터] =====\n${lines}\n\n[필수 지침 — 반드시 따를 것]\n1. 위 목록은 "지금 로그인한 본인"(및 본인이 연결된 법인)의 확정 신고 데이터입니다. 사용자가 특정 연도 매출/소득/세금(예: "2025년 매출", "작년 매출", "세금 얼마 냈어")을 물으면, 위 목록에서 해당 "N년 귀속" 줄을 찾아 그 숫자 그대로 답하세요.\n2. 목록에 그 연도의 숫자가 적혀 있으면 무조건 그 숫자로 답하세요. "아직 반영되지 않았다 / 신고 전이다 / 담당 세무사 확인 필요 / 확인되지 않습니다" 같은 회피·추론은 절대 하지 마세요 — 데이터가 이미 여기 있습니다. (귀속연도가 최근이어도 위에 숫자가 있으면 그대로 답하세요.)\n3. 이익 계열 질문 전부 동일 처리 — "영업이익", "당기순이익", "순이익", "순수익", "이익", "소득", "벌었어", "남았어", "마진": **개인사업자는 무조건 "소득금액"(= 위 목록의 종합소득금액)으로 답하세요.** 법인은 "결산서당기순이익"으로 답하세요. 위 목록에 그 숫자가 있으면 절대 "기재되어 있지 않다 / 항목이 없다"고 하지 말고 그 숫자로 바로 답하세요. 답변 형식(개인): "신고 기준 소득금액은 N원입니다. (영업이익·당기순이익 대신 세무 신고에서는 소득금액을 기준으로 봅니다)" 처럼 소득금액 용어로 자연스럽게 전환해서 답하세요.\n4. 이익률/수익률 계열 — "당기순이익률", "영업이익률", "이익률", "수익률", "소득률", "마진율": **개인사업자는 전부 "소득률"로 답하세요.** 소득률 = (종합소득금액 ÷ 수입금액) × 100. 답변 형식: "OO님의 2025년 소득률은 N%입니다. (소득금액 ○원 ÷ 수입금액 ○원 — 당기순이익률 대신 세무 신고에서는 소득률을 씁니다)". 법인은 당기순이익률 = (결산서당기순이익 ÷ 매출액) × 100. 두 숫자가 목록에 있으면 반드시 계산해서 답하고, "재무제표에서 확인 후 상담" 같은 회피 금지.\n5. 전년 대비 비교("작년 대비", "얼마나 늘었어"): 두 연도의 같은 항목 숫자가 모두 있으면 증감액과 증감률(%)을 직접 계산해서 답하세요. 한쪽 연도가 없으면 있는 쪽만 알려주고 없는 연도는 자료 없음으로 안내.\n6. 세금 비율 질문("소득 대비 세금 비율", "실효세율"): 결정세액 ÷ 해당 지표(수입금액 또는 종합소득금액/당기순이익)를 계산해 % 로 답하세요. 어떤 항목끼리 나눴는지 명시.\n7. 위 목록에 아예 없는 연도만 "○○년 자료는 아직 없습니다"라고 답하세요.\n8. 다른 사람·다른 거래처의 매출/세금은 여기 없으며, 어떤 경우에도 만들어내거나 답하지 마세요.\n9. 이 데이터로 답할 때 신뢰도는 [신뢰도: 높음] (세무사 작성 검토표 데이터).\n`;
+
+  /* 연도 모호성 방지 (2026-09-15 사장님: "올해 ㅇㅈㄹ하면 몇년도 선택 띄워야겠네").
+     "올해 매출" 을 물었는데 올해는 아직 신고 전 → 작년 숫자를 올해인 양 답하면 대형 사고.
+     보유 연도를 명시하고, 모호하면 되묻도록 강제. */
+  const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const curYear = nowKst.getUTCFullYear();
+  const curMonth = nowKst.getUTCMonth() + 1;
+  const years = [...new Set(all.map(f => Number(f.fiscal_year)).filter(Boolean))].sort((a, b) => b - a);
+  const yearList = years.join(', ');
+  const hasCurYear = years.includes(curYear);
+  const latest = years[0];
+
+  const yearRule = `\n[보유 연도] ${yearList} (오늘: ${curYear}년 ${curMonth}월 기준)\n`
+    + `0. **연도 확인이 최우선입니다.** 사용자가 연도를 명시하지 않았거나("매출 얼마야", "세금 얼마 냈어", "부가세 얼마 냈지") `
+    + `"올해·이번 해·최근·요즘" 처럼 모호하게 물으면, 임의로 한 연도를 골라 답하지 말고 아래처럼 되물으세요.\n`
+    + `   - 답변 본문: "어느 연도 기준으로 알려드릴까요? 현재 보유한 자료는 ${yearList}년입니다."\n`
+    + `   - 그리고 답변 맨 마지막 줄에 정확히 이 형식의 표식을 붙이세요: [연도선택: ${yearList}]\n`
+    + `   - 이 표식은 화면에 연도 버튼으로 바뀝니다. 다른 문장·설명·괄호 없이 마지막 줄에 단독으로 쓰세요.\n`
+    + `   - "작년"은 ${curYear - 1}년, "재작년"은 ${curYear - 2}년으로 확정 해석 — 이 경우는 되묻지 말고 바로 답하세요.\n`
+    + (hasCurYear
+        ? `   - ${curYear}년 자료는 보유하고 있으므로 "올해"를 물으면 ${curYear}년으로 답해도 됩니다. 단 부가세는 기수(1기·2기)를 구분해 안내하세요.\n`
+        : `   - **${curYear}년(올해) 확정 자료는 아직 없습니다.** "올해"를 물으면 "${curYear}년은 아직 신고 전이라 확정된 자료가 없습니다. 가장 최근 확정 자료는 ${latest}년입니다"라고 안내한 뒤 위 표식을 붙이세요. ${latest}년 숫자를 ${curYear}년 숫자인 것처럼 답하는 것은 절대 금지입니다.\n`)
+    + `   - 부가세는 1년에 여러 번 신고합니다. 연도만으로 특정되지 않으면 어느 기수인지도 함께 확인하세요.\n`;
+
+  return `\n\n===== 본인(로그인 거래처)의 신고 검토표 데이터 [확정·권위 데이터] =====\n${lines}\n${yearRule}\n[필수 지침 — 반드시 따를 것]\n1. 위 목록은 "지금 로그인한 본인"(및 본인이 연결된 법인)의 확정 신고 데이터입니다. 사용자가 특정 연도 매출/소득/세금(예: "2025년 매출", "작년 매출", "세금 얼마 냈어")을 물으면, 위 목록에서 해당 "N년 귀속" 줄을 찾아 그 숫자 그대로 답하세요.\n2. 목록에 그 연도의 숫자가 적혀 있으면 무조건 그 숫자로 답하세요. "아직 반영되지 않았다 / 신고 전이다 / 담당 세무사 확인 필요 / 확인되지 않습니다" 같은 회피·추론은 절대 하지 마세요 — 데이터가 이미 여기 있습니다. (귀속연도가 최근이어도 위에 숫자가 있으면 그대로 답하세요.)\n2-1. \"매출\"은 수입금액입니다 — 소득금액과 절대 혼동하지 마세요. \"매출\", \"매출액\", \"수입\", \"수입금액\", \"매출 얼마야\", \"얼마 팔았어\", \"거래액\" 질문에는 반드시 위 목록의 \"수입금액(매출)\" 숫자로 답하세요. 종합소득금액·소득금액으로 답하면 절대 안 됩니다 — 수입금액에서 필요경비를 뺀 것이 소득금액이라 금액이 크게 다릅니다. 반대로 아래 3번의 이익·소득 계열 질문에는 소득금액으로 답하세요. 둘은 서로 다른 숫자입니다.\n3. 이익 계열 질문 전부 동일 처리 — "영업이익", "당기순이익", "순이익", "순수익", "이익", "소득", "벌었어", "남았어", "마진": **개인사업자는 무조건 "소득금액"(= 위 목록의 종합소득금액)으로 답하세요.** 법인은 "결산서당기순이익"으로 답하세요. 위 목록에 그 숫자가 있으면 절대 "기재되어 있지 않다 / 항목이 없다"고 하지 말고 그 숫자로 바로 답하세요. 답변 형식(개인): "신고 기준 소득금액은 N원입니다. (영업이익·당기순이익 대신 세무 신고에서는 소득금액을 기준으로 봅니다)" 처럼 소득금액 용어로 자연스럽게 전환해서 답하세요.\n4. 이익률/수익률 계열 — "당기순이익률", "영업이익률", "이익률", "수익률", "소득률", "마진율": **개인사업자는 전부 "소득률"로 답하세요.** 소득률 = (종합소득금액 ÷ 수입금액) × 100. 답변 형식: "OO님의 2025년 소득률은 N%입니다. (소득금액 ○원 ÷ 수입금액 ○원 — 당기순이익률 대신 세무 신고에서는 소득률을 씁니다)". 법인은 당기순이익률 = (결산서당기순이익 ÷ 매출액) × 100. 두 숫자가 목록에 있으면 반드시 계산해서 답하고, "재무제표에서 확인 후 상담" 같은 회피 금지.\n5. 전년 대비 비교("작년 대비", "얼마나 늘었어"): 두 연도의 같은 항목 숫자가 모두 있으면 증감액과 증감률(%)을 직접 계산해서 답하세요. 한쪽 연도가 없으면 있는 쪽만 알려주고 없는 연도는 자료 없음으로 안내.\n6. 세금 비율 질문("소득 대비 세금 비율", "실효세율"): 결정세액 ÷ 해당 지표(수입금액 또는 종합소득금액/당기순이익)를 계산해 % 로 답하세요. 어떤 항목끼리 나눴는지 명시.\n7. 위 목록에 아예 없는 연도만 "○○년 자료는 아직 없습니다"라고 답하세요. 이때도 보유 연도를 알려주고 [연도선택: ...] 표식을 붙이세요.\n8. 다른 사람·다른 거래처의 매출/세금은 여기 없으며, 어떤 경우에도 만들어내거나 답하지 마세요.\n9. 이 데이터로 답할 때 신뢰도는 [신뢰도: 높음] (세무사 작성 검토표 데이터).\n`;
 }
 
 // 승인상태별 일일 한도 (사장님 명령 2026-05-02: 일반승인 폐지, pending 5회로 인상)
@@ -266,26 +307,23 @@ function getDailyLimit(status) {
 
 // 일일 사용량 체크 + 증가 (KST 기준)
 async function checkAndIncrementDaily(db, userId, limit) {
+  if (limit <= 0) return { ok: false, used: 0, limit }; // 방어: 0건 등급은 핸들러에서 이미 403 이지만 이중 차단
   const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   try {
+    /* 2026-08-17: SELECT 후 UPDATE → 원자적 upsert 교체.
+     * 기존엔 그날 첫 질문 2건이 동시에 오면 둘 다 INSERT 시도 → PK(user_id,date) 충돌
+     * → catch 의 fail-open 으로 한도가 열리는 연쇄가 있었음.
+     * WHERE count < limit 는 DO UPDATE 에만 걸리므로 한도 도달 시 RETURNING 이 비어 ok:false. */
     const row = await db.prepare(
-      `SELECT count FROM daily_usage WHERE user_id = ? AND date = ?`
-    ).bind(userId, today).first();
-    const current = row ? row.count : 0;
-    if (current >= limit) return { ok: false, used: current, limit };
-    if (row) {
-      await db.prepare(
-        `UPDATE daily_usage SET count = count + 1 WHERE user_id = ? AND date = ?`
-      ).bind(userId, today).run();
-    } else {
-      await db.prepare(
-        `INSERT INTO daily_usage (user_id, date, count) VALUES (?, ?, 1)`
-      ).bind(userId, today).run();
-    }
-    return { ok: true, used: current + 1, limit };
+      `INSERT INTO daily_usage (user_id, date, count) VALUES (?, ?, 1)
+       ON CONFLICT(user_id, date) DO UPDATE SET count = count + 1 WHERE count < ?
+       RETURNING count`
+    ).bind(userId, today, limit).first();
+    if (!row) return { ok: false, used: limit, limit }; // 한도 도달 — 증가 안 됨
+    return { ok: true, used: row.count, limit };
   } catch (e) {
     console.error("daily usage error:", e);
-    return { ok: true, used: 0, limit }; // DB 오류 시 통과
+    return { ok: true, used: 0, limit }; // DB 오류 시 통과 (가용성 우선 — 기존 정책 유지)
   }
 }
 
@@ -582,9 +620,12 @@ async function searchColumns(question, keywords, baseUrl) {
 
 // ===== 메인 핸들러 =====
 export async function onRequestPost(context) {
-  // Rate limit 체크
-  const clientIP = context.request.headers.get("CF-Connecting-IP") || context.request.headers.get("x-forwarded-for") || "unknown";
-  if (!checkRateLimit(clientIP)) {
+  const db = context.env.DB || null;
+
+  // Rate limit 체크 — D1 슬라이딩 윈도우, 분당 10회/IP (db 없으면 fail-open)
+  const clientIP = getClientIP(context.request);
+  const rl = await rateLimit(db, `chat:${clientIP}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_SEC);
+  if (!rl.ok) {
     return Response.json({ error: "요청이 너무 많습니다. 1분 후 다시 시도해주세요." }, { status: 429 });
   }
 
@@ -595,7 +636,6 @@ export async function onRequestPost(context) {
   if (context.env.LAW_API_OC) LAW_API_OC = context.env.LAW_API_OC;
 
   // D1 DB 초기화 (optional)
-  const db = context.env.DB || null;
   if (db) {
     try { await initDB(db); } catch (e) { console.error("DB init error:", e); }
   }

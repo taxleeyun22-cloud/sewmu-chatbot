@@ -6,7 +6,9 @@
  *       → filings upsert (verified_at 세팅 → 챗봇 즉시 노출. 미확정/미검증은 기존 게이트로 비노출)
  *
  * 원칙:
- *  - 사장님 수기 입력 절대 우선: 기존 검토표의 채워진 칸은 안 덮음. 빈 칸만 보강.
+ *  - 기본은 사장님 수기 입력 절대 우선: 기존 검토표의 채워진 칸은 안 덮고 빈 칸만 보강.
+ *  - overwrite:true (사장님이 모달에서 명시적으로 체크) 일 때만 기존 값도 신고서 값으로 교체.
+ *    이 경우 미리보기가 '무엇이 무엇으로' 바뀌는지 전부 보여주고, audit 에 before/after 가 남는다.
  *  - owner 매칭: 개인 = users 이름 정확·유일 일치 (또는 user_id 직접 지정),
  *    법인 = businesses 사업자번호 → 없으면 회사명 정확·유일 일치.
  *  - 전부 audit. owner 전용.
@@ -16,6 +18,11 @@
  *   "rows": [ { "name": "김영수", "user_id": 12(선택), "biz_no": "123-45-67890"(법인),
  *               "owner_type": "Person"|"Business", "fiscal_year": 2025, "type": "종소세",
  *               "fields": { "revenue": 240000000, "total_income": 90000000, ... } } ] }
+ *
+ * 부가세는 fields 에 "paid_tax"(납부세액) 와 "vat" 세부를 넣을 수 있다:
+ *   "fields": { "revenue": 500000000, "paid_tax": 12000000,
+ *               "vat": { "매출세액": 50000000, "매입세액": 38000000 } }
+ * vat 은 1단계 객체·숫자값만 통과 (키 20자 이하, 최대 8개) — chat.js 렌더 규칙과 동일.
  */
 
 import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
@@ -29,7 +36,7 @@ function normBiz(s) { return String(s || '').replace(/\D/g, ''); }
 const FILING_TYPES = ['종소세', '법인세', '부가세'];
 const FIELD_KEYS = [
   'revenue', 'total_income', 'income_deduction', 'tax_base', 'calculated_tax',
-  'deduction_total', 'penalty_total', 'decisive_tax', 'prepaid_tax', 'payable_tax',
+  'deduction_total', 'penalty_total', 'decisive_tax', 'prepaid_tax', 'payable_tax', 'paid_tax',
   'farmland_tax', 'net_income', 'adj_inclusion', 'adj_exclusion', 'business_income', 'additional_tax',
 ];
 
@@ -116,7 +123,9 @@ export async function onRequestPost(context) {
     if (rows.length > 300) return Response.json({ error: '한 번에 300건 이하로' }, { status: 400 });
 
     const analysis = [];
-    const sum = { total: rows.length, matched: 0, unmatched: 0, newFiling: 0, fillExisting: 0, noChange: 0 };
+    /* 사장님이 모달에서 명시적으로 체크했을 때만 기존 값 교체 (기본 false) */
+    const overwrite = body.overwrite === true;
+    const sum = { total: rows.length, matched: 0, unmatched: 0, newFiling: 0, fillExisting: 0, noChange: 0, overwritten: 0, overwrite };
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i] || {};
       const a = { idx: i, name: row.name, fiscal_year: Number(row.fiscal_year) || 0, type: row.type };
@@ -130,6 +139,23 @@ export async function onRequestPost(context) {
         if ((row.fields || {})[k] !== undefined && (row.fields || {})[k] !== null && !Number.isNaN(v)) fields[k] = v;
       }
       if (!Object.keys(fields).length) { a.status = 'error'; a.reason = '숫자 필드 없음'; sum.unmatched++; analysis.push(a); continue; }
+
+      /* 부가세 세부(매출세액·매입세액 등) — 1단계 객체만, 값은 유한 숫자만.
+         키 화이트리스트·개수 제한은 chat.js 렌더 규칙과 동일 (프롬프트 주입 차단). */
+      const rawVat = (row.fields || {}).vat;
+      if (rawVat && typeof rawVat === 'object' && !Array.isArray(rawVat)) {
+        const vat = {};
+        for (const [vk, vv] of Object.entries(rawVat)) {
+          if (Object.keys(vat).length >= 8) break;
+          const key = String(vk).trim();
+          if (!key || key.length > 20 || !/^[가-힣A-Za-z0-9_ ()]+$/.test(key)) continue;
+          const nv = Number(vv);
+          if (vv === null || vv === '' || !Number.isFinite(nv)) continue;
+          vat[key] = nv;
+        }
+        if (Object.keys(vat).length) fields.vat = vat;
+      }
+
       a.fields = fields;
 
       const m = await matchOwner(db, row);
@@ -145,7 +171,17 @@ export async function onRequestPost(context) {
       if (existing) {
         let af = {};
         try { af = JSON.parse(existing.auto_fields || '{}'); } catch (_) {}
-        const willFill = Object.keys(fields).filter(k => af[k] === undefined || af[k] === null || af[k] === '' || Number(af[k]) === 0 && fields[k] !== 0);
+        const isEmpty = (k) => af[k] === undefined || af[k] === null || af[k] === '' || (Number(af[k]) === 0 && fields[k] !== 0);
+        /* 값이 실제로 다른가 — 객체(vat)는 JSON 비교 */
+        const differs = (k) => JSON.stringify(af[k]) !== JSON.stringify(fields[k]);
+        const willFill = Object.keys(fields).filter(k => isEmpty(k) || (overwrite && differs(k)));
+        /* 기존 값이 있는데 신고서 값으로 교체되는 것 — 미리보기에서 따로 보여준다 */
+        a.overwrites = overwrite
+          ? Object.keys(fields)
+              .filter(k => !isEmpty(k) && differs(k))
+              .map(k => ({ key: k, before: af[k], after: fields[k] }))
+          : [];
+        if (a.overwrites.length) sum.overwritten += a.overwrites.length;
         a.existing_id = existing.id;
         a.will_fill = willFill;
         a.kept = Object.keys(fields).filter(k => !willFill.includes(k));
@@ -174,7 +210,7 @@ export async function onRequestPost(context) {
     let analysis;
     try { analysis = JSON.parse(batch.preview_data || '[]'); } catch { return Response.json({ error: 'preview 데이터 손상' }, { status: 500 }); }
 
-    const stats = { created: 0, filled: 0, skipped: 0 };
+    const stats = { created: 0, filled: 0, skipped: 0, overwritten: 0 };
     for (const a of analysis) {
       if (a.status === 'new') {
         await db.prepare(
@@ -194,7 +230,9 @@ export async function onRequestPost(context) {
           `UPDATE filings SET auto_fields = ?, verified_at = COALESCE(verified_at, ?), updated_at = ? WHERE id = ?`
         ).bind(JSON.stringify(af), now, now, a.existing_id).run();
         stats.filled++;
-        logAudit(db, { actor: '사장님', action: 'filing_import_fill', entity_type: 'filing', entity_id: a.existing_id, before, after: JSON.stringify(af), request: context.request });
+        const ow = (a.overwrites || []).length;
+        if (ow) stats.overwritten += ow;
+        logAudit(db, { actor: '사장님', action: ow ? 'filing_import_overwrite' : 'filing_import_fill', entity_type: 'filing', entity_id: a.existing_id, before, after: JSON.stringify(af), request: context.request });
       } else {
         stats.skipped++;
       }
