@@ -4486,8 +4486,13 @@ async function _wiCommit(){
 /* ===== 📥 검토표 JSON 심기 (2026-07-17) — Claude 채팅에서 추출한 신고서 데이터 확정 반영 ===== */
 var _fjBatchId=null,_fjSummary=null;
 /* 기존 값 교체 미리보기 — 무엇이 무엇으로 바뀌는지 확정 전에 전부 보여준다 (2026-09-15) */
-var _FJ_LABEL={revenue:'수입금액',total_income:'종합소득금액',income_deduction:'종합소득공제',tax_base:'과세표준',calculated_tax:'산출세액',deduction_total:'세액공제·감면',penalty_total:'가산세',decisive_tax:'결정세액',prepaid_tax:'기납부세액',payable_tax:'납부할세액',paid_tax:'납부세액',farmland_tax:'농특세 납부',net_income:'결산서당기순이익',adj_inclusion:'익금산입',adj_exclusion:'손금산입',business_income:'각사업연도소득금액',additional_tax:'감면분추가납부세액',vat:'부가세 세부'};
+var _FJ_LABEL={'공제감면':'공제·감면 내역','가산세':'가산세 내역',revenue:'수입금액',total_income:'종합소득금액',income_deduction:'종합소득공제',tax_base:'과세표준',calculated_tax:'산출세액',deduction_total:'세액공제·감면',penalty_total:'가산세',decisive_tax:'결정세액',prepaid_tax:'기납부세액',payable_tax:'납부할세액',paid_tax:'납부세액',farmland_tax:'농특세 납부',net_income:'결산서당기순이익',adj_inclusion:'익금산입',adj_exclusion:'손금산입',business_income:'각사업연도소득금액',additional_tax:'감면분추가납부세액',vat:'부가세 세부'};
 function _fjNum(v){
+  /* 공제감면·가산세 배열은 "N건 합계원" 으로 요약 — 원본 JSON 을 그대로 뿌리면 못 읽는다 */
+  if(Array.isArray(v)){
+    var sum=v.reduce(function(s,d){return s+(Number(d&&(d.amount||d.금액))||0)},0);
+    return v.length+'건 '+sum.toLocaleString('ko-KR')+'원';
+  }
   if(v&&typeof v==='object')return JSON.stringify(v);
   var n=Number(v);
   return Number.isFinite(n)?n.toLocaleString('ko-KR'):String(v);
