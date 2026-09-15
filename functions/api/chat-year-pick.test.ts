@@ -146,3 +146,16 @@ describe('buildFilingContext — 매출/소득 혼동 방지', () => {
     expect(out).toContain('이익 계열 질문 전부 동일 처리');
   });
 });
+
+
+describe('buildFilingContext — 공제 질문 규칙', () => {
+  it('공제 질문에 내역으로 답하라는 규칙이 있다', () => {
+    const out = buildFilingContext([filing(YEAR - 1)], []);
+    expect(out).toContain('"무슨 공제 받았어"');
+    expect(out).toContain('"확인이 필요합니다" 로 회피하지 마세요');
+  });
+
+  it('종합소득공제와 세액공제를 섞지 말라는 경고가 있다', () => {
+    expect(buildFilingContext([filing(YEAR - 1)], [])).toContain('다른 항목이니 섞지 마세요');
+  });
+});
