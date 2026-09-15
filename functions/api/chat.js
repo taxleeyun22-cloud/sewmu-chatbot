@@ -203,6 +203,15 @@ const FIL_FIELDS_PERSON = [
   ['decisive_tax', '결정세액(낸 세금)'],
   ['prepaid_tax', '기납부세액'],
   ['payable_tax', '납부할세액'],
+  ['paid_tax', '납부세액'],          /* 스크래핑 신고서 경로 (_scrape.js) */
+];
+/* 부가세 (2026-09-15 사장님: "내 부가세 얼마 냈지?").
+ * 키는 _scrape.js normalizeToAutoFields 가 저장하는 것과 1:1.
+ * 종소세용 종합소득금액·과세표준 등은 부가세에 없으므로 뺀다. */
+const FIL_FIELDS_VAT = [
+  ['revenue', '수입금액(매출)'],
+  ['paid_tax', '납부세액'],
+  ['decisive_tax', '결정세액'],
 ];
 const FIL_FIELDS_CORP = [
   ['revenue', '매출액'],
@@ -213,20 +222,37 @@ const FIL_FIELDS_CORP = [
   ['decisive_tax', '결정세액(낸 세금)'],
   ['prepaid_tax', '기납부세액'],
   ['payable_tax', '납부할세액'],
+  ['paid_tax', '납부세액'],          /* 스크래핑 신고서 경로 */
 ];
 
 function filingLine(f) {
   const won = (n) => (Number(n) || 0).toLocaleString('ko-KR');
   let af = {};
   try { af = JSON.parse(f.auto_fields || '{}'); } catch {}
-  const isCorp = String(f.type || '').includes('법인');
+  const t = String(f.type || '');
+  const isCorp = t.includes('법인');
+  const isVat = t.includes('부가');
   const parts = [`- ${f.biz_name ? `[${f.biz_name}] ` : ''}${f.fiscal_year}년 귀속 ${f.type}`];
-  const fields = isCorp ? FIL_FIELDS_CORP : FIL_FIELDS_PERSON;
+  const fields = isVat ? FIL_FIELDS_VAT : isCorp ? FIL_FIELDS_CORP : FIL_FIELDS_PERSON;
   for (const [key, label] of fields) {
     const v = Number(af[key]);
     if (af[key] !== undefined && af[key] !== null && af[key] !== '' && !Number.isNaN(v)) {
       parts.push(`${label} ${won(v)}원`);
     }
+  }
+  /* 부가세 세부 (매출세액·매입세액 등) — 제공사별 키가 달라 화이트리스트 없이
+   * "숫자 값만" 통과시킨다. 제공사 응답이 프롬프트로 새지 않게 키도 길이·문자 제한. */
+  if (isVat && af.vat && typeof af.vat === 'object' && !Array.isArray(af.vat)) {
+    const detail = [];
+    for (const [k, v] of Object.entries(af.vat)) {
+      if (detail.length >= 8) break;
+      const key = String(k).trim();
+      if (!key || key.length > 20 || !/^[가-힣A-Za-z0-9_ ()]+$/.test(key)) continue;
+      const nv = Number(v);
+      if (v === null || v === '' || !Number.isFinite(nv)) continue;
+      detail.push(`${key} ${won(nv)}원`);
+    }
+    if (detail.length) parts.push(...detail);
   }
   /* 신고 제출 여부 (스크래핑 신고서 기준) — "신고됐어?" 질문 대응 */
   if (typeof af.submitted === 'boolean') parts.push(af.submitted ? '신고 완료(제출됨)' : '아직 신고 전(미제출)');
