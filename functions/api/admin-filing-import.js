@@ -163,9 +163,17 @@ export async function onRequestPost(context) {
       /* 공제·감면 / 가산세 내역 (2026-09-15 사장님: "내가 뭔 공제 받았는지 이것도 들어가야지").
          검토표의 '세액공제·감면' 칸은 이 배열의 합계를 자동 계산해 보여주고,
          청구서 Section 3 도 이 배열을 끌어간다. 숫자 하나만으로는 부족.
+
+         ⚠ 저장 키는 반드시 한글('공제감면'/'가산세') — 검토표 화면이 저장할 때 쓰는 키이고
+         (admin-filing-review.js:1091,1099), 읽을 때도 `obj.공제감면 || obj.deductions` 로
+         한글 키가 먼저 이긴다. 영문 키로 심으면 기존 한글 키에 가려 화면에 반영되지 않는다.
+         청구서는 반대로 `af.deductions || af.공제감면` 이라 영문이 먼저인데, 영문 키를
+         안 만들어 두면 한글로 fallback 되므로 한쪽만 쓰는 편이 안전하다 (둘 다 쓰면
+         사장님이 화면에서 수정할 때 한글만 갱신돼 영문이 stale 로 남는다).
+         JSON 입력은 편의상 영문(deductions/penalties)도 받아서 한글 키로 저장한다.
          항목 shape 은 검토표·청구서가 읽는 것과 동일: { code?, name, amount } */
-      for (const [listKey, cap] of [['deductions', 30], ['penalties', 20]]) {
-        const raw = (row.fields || {})[listKey];
+      for (const [listKey, alias, cap] of [['공제감면', 'deductions', 30], ['가산세', 'penalties', 20]]) {
+        const raw = (row.fields || {})[listKey] ?? (row.fields || {})[alias];
         if (!Array.isArray(raw)) continue;
         const list = [];
         for (const it of raw) {
@@ -253,6 +261,11 @@ export async function onRequestPost(context) {
         try { af = JSON.parse(existing?.auto_fields || '{}'); } catch (_) {}
         const before = JSON.stringify(af);
         for (const k of (a.will_fill || [])) af[k] = a.fields[k];
+        /* 한글 키로 심었으면 영문 alias 는 지운다 — 청구서는 `af.deductions || af.공제감면`
+           순으로 읽어서, alias 가 남아 있으면 옛 내역을 계속 끌어간다. */
+        for (const [kr, en] of [['공제감면', 'deductions'], ['가산세', 'penalties']]) {
+          if (af[kr] !== undefined && af[en] !== undefined) delete af[en];
+        }
         await db.prepare(
           `UPDATE filings SET auto_fields = ?, verified_at = COALESCE(verified_at, ?), updated_at = ? WHERE id = ?`
         ).bind(JSON.stringify(af), now, now, a.existing_id).run();

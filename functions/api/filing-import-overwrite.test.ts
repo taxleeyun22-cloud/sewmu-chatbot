@@ -162,3 +162,68 @@ describe('공제·감면 내역 배열', () => {
     expect(list.reduce((s, d) => s + d.amount, 0)).toBe(17_441_652);
   });
 });
+
+
+/* 2026-09-15 사장님: 공제 내역이 안 바뀜.
+   원인은 키 이름 — 검토표 화면은 af.공제감면 / af.가산세 (한글) 로 저장하고,
+   읽을 때도 `obj.공제감면 || obj.deductions` 라 한글이 먼저 이긴다.
+   영문 키로 심으면 기존 한글 키에 가려 화면에 영영 반영되지 않는다. */
+function storeKeyOf(fields: Record<string, unknown>) {
+  const out: Record<string, unknown> = {};
+  for (const [kr, en] of [['공제감면', 'deductions'], ['가산세', 'penalties']]) {
+    const raw = fields[kr] ?? fields[en];
+    if (Array.isArray(raw) && raw.length) out[kr] = raw;
+  }
+  return out;
+}
+
+describe('공제·감면 저장 키', () => {
+  const item = [{ code: '244', name: '전자신고세액공제', amount: 1_790_000 }];
+
+  it('영문 키로 넣어도 한글 키로 저장된다', () => {
+    const r = storeKeyOf({ deductions: item });
+    expect(Object.keys(r)).toEqual(['공제감면']);
+    expect(r['공제감면']).toEqual(item);
+  });
+
+  it('한글 키로 넣어도 한글 키로 저장된다', () => {
+    expect(Object.keys(storeKeyOf({ 공제감면: item }))).toEqual(['공제감면']);
+  });
+
+  it('영문 키로는 절대 저장하지 않는다 (검토표 화면이 못 읽음)', () => {
+    const r = storeKeyOf({ deductions: item, penalties: [{ name: '무신고', amount: 0 }] });
+    expect(r).not.toHaveProperty('deductions');
+    expect(r).not.toHaveProperty('penalties');
+    expect(Object.keys(r).sort()).toEqual(['가산세', '공제감면']);
+  });
+
+  it('빈 배열은 키를 만들지 않는다', () => {
+    expect(storeKeyOf({ deductions: [] })).toEqual({});
+  });
+});
+
+/* 커밋 시 stale alias 제거 — 청구서는 `af.deductions || af.공제감면` 순이라
+   영문 alias 가 남아 있으면 옛 공제 내역을 계속 끌어간다. */
+function dropAlias(af: Record<string, unknown>) {
+  for (const [kr, en] of [['공제감면', 'deductions'], ['가산세', 'penalties']]) {
+    if (af[kr] !== undefined && af[en] !== undefined) delete af[en];
+  }
+  return af;
+}
+
+describe('stale alias 제거', () => {
+  it('한글 키가 있으면 영문 alias 를 지운다', () => {
+    const af = dropAlias({ 공제감면: [{ name: '새', amount: 1 }], deductions: [{ name: '옛', amount: 2 }] });
+    expect(af).not.toHaveProperty('deductions');
+    expect(af['공제감면']).toEqual([{ name: '새', amount: 1 }]);
+  });
+
+  it('한글 키가 없으면 영문 키를 건드리지 않는다', () => {
+    const af = dropAlias({ deductions: [{ name: '옛', amount: 2 }] });
+    expect(af).toHaveProperty('deductions');
+  });
+
+  it('가산세도 동일하게 처리된다', () => {
+    expect(dropAlias({ 가산세: [], penalties: [] })).not.toHaveProperty('penalties');
+  });
+});
