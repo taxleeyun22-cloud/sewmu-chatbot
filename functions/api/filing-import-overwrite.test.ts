@@ -90,3 +90,75 @@ describe('overwrite 동작 — 신고서 우선', () => {
     expect(judge({ vat: same }, { vat: { ...same } }, true).overwrites).toEqual([]);
   });
 });
+
+
+/* 2026-09-15 사장님: "내가 뭔 공제 받았는지 이것도 체크 들어가야지"
+   검토표의 '세액공제·감면' 칸은 deductions 배열의 합계를 자동 계산한다.
+   숫자(deduction_total)만 보내면 화면은 옛 배열 합계를 계속 보여준다. */
+function sanitizeList(raw: unknown, cap: number) {
+  if (!Array.isArray(raw)) return undefined;
+  const list: Array<{ name: string; amount: number; code?: string }> = [];
+  for (const it of raw as Array<Record<string, unknown>>) {
+    if (list.length >= cap) break;
+    if (!it || typeof it !== 'object' || Array.isArray(it)) continue;
+    const name = String(it.name ?? it['종류'] ?? '').trim();
+    if (!name || name.length > 40 || /[\x00-\x1f]/.test(name)) continue;
+    const amt = Number(it.amount ?? it['금액']);
+    if (!Number.isFinite(amt)) continue;
+    const item: { name: string; amount: number; code?: string } = { name, amount: amt };
+    const code = String(it.code ?? '').trim();
+    if (code && /^[A-Za-z0-9_-]{1,10}$/.test(code)) item.code = code;
+    list.push(item);
+  }
+  return list.length ? list : undefined;
+}
+
+describe('공제·감면 내역 배열', () => {
+  it('code·name·amount 가 그대로 통과한다', () => {
+    const r = sanitizeList([{ code: '244', name: '전자신고세액공제', amount: 1_790_000 }], 30);
+    expect(r).toEqual([{ name: '전자신고세액공제', amount: 1_790_000, code: '244' }]);
+  });
+
+  it('한글 키(종류·금액)도 받는다', () => {
+    expect(sanitizeList([{ 종류: '기장세액공제', 금액: 100_000 }], 30))
+      .toEqual([{ name: '기장세액공제', amount: 100_000 }]);
+  });
+
+  it('code 가 없으면 name 만 넣는다', () => {
+    expect(sanitizeList([{ name: '표준세액공제', amount: 120_000 }], 30))
+      .toEqual([{ name: '표준세액공제', amount: 120_000 }]);
+  });
+
+  it('이름 없음·금액 비숫자·제어문자는 버린다', () => {
+    expect(sanitizeList([{ name: '', amount: 1 }], 30)).toBeUndefined();
+    expect(sanitizeList([{ name: 'x', amount: 'abc' }], 30)).toBeUndefined();
+    expect(sanitizeList([{ name: 'a' + String.fromCharCode(7) + 'b', amount: 1 }], 30)).toBeUndefined();
+  });
+
+  it('이상한 code 는 이름만 남기고 code 를 버린다', () => {
+    expect(sanitizeList([{ code: '<script>', name: '공제', amount: 1 }], 30))
+      .toEqual([{ name: '공제', amount: 1 }]);
+  });
+
+  it('개수 상한을 넘기지 않는다', () => {
+    const many = Array.from({ length: 50 }, (_, i) => ({ name: 'd' + i, amount: i }));
+    expect(sanitizeList(many, 30)).toHaveLength(30);
+  });
+
+  it('배열이 아니면 무시한다', () => {
+    expect(sanitizeList('x', 30)).toBeUndefined();
+    expect(sanitizeList({ a: 1 }, 30)).toBeUndefined();
+  });
+
+  it('신고서 6개 항목 합이 세액공제·감면과 일치한다', () => {
+    const list = sanitizeList([
+      { code: '275', name: '연금계좌세액공제(퇴직연금)', amount: 360_000 },
+      { code: '276', name: '연금계좌세액공제(연금저축)', amount: 720_000 },
+      { code: '284', name: '표준세액공제', amount: 120_000 },
+      { code: '20X', name: '통합고용세액공제', amount: 13_251_652 },
+      { code: '244', name: '전자신고세액공제', amount: 1_790_000 },
+      { code: '267', name: '성실신고확인비용세액공제', amount: 1_200_000 },
+    ], 30)!;
+    expect(list.reduce((s, d) => s + d.amount, 0)).toBe(17_441_652);
+  });
+});

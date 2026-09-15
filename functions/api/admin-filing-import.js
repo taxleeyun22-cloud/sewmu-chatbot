@@ -23,6 +23,10 @@
  *   "fields": { "revenue": 500000000, "paid_tax": 12000000,
  *               "vat": { "매출세액": 50000000, "매입세액": 38000000 } }
  * vat 은 1단계 객체·숫자값만 통과 (키 20자 이하, 최대 8개) — chat.js 렌더 규칙과 동일.
+ *
+ * 공제·감면 / 가산세 내역은 배열로 넣는다 (검토표가 합계를 자동 계산, 청구서 Section 3 도 사용):
+ *   "fields": { "deductions": [{ "code": "244", "name": "전자신고세액공제", "amount": 20000 }],
+ *               "penalties":  [{ "name": "무신고가산세", "amount": 0 }] }
  */
 
 import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
@@ -154,6 +158,29 @@ export async function onRequestPost(context) {
           vat[key] = nv;
         }
         if (Object.keys(vat).length) fields.vat = vat;
+      }
+
+      /* 공제·감면 / 가산세 내역 (2026-09-15 사장님: "내가 뭔 공제 받았는지 이것도 들어가야지").
+         검토표의 '세액공제·감면' 칸은 이 배열의 합계를 자동 계산해 보여주고,
+         청구서 Section 3 도 이 배열을 끌어간다. 숫자 하나만으로는 부족.
+         항목 shape 은 검토표·청구서가 읽는 것과 동일: { code?, name, amount } */
+      for (const [listKey, cap] of [['deductions', 30], ['penalties', 20]]) {
+        const raw = (row.fields || {})[listKey];
+        if (!Array.isArray(raw)) continue;
+        const list = [];
+        for (const it of raw) {
+          if (list.length >= cap) break;
+          if (!it || typeof it !== 'object' || Array.isArray(it)) continue;
+          const name = String(it.name ?? it['종류'] ?? '').trim();
+          if (!name || name.length > 40 || /[\u0000-\u001f]/.test(name)) continue;
+          const amt = Number(it.amount ?? it['금액']);
+          if (!Number.isFinite(amt)) continue;
+          const item = { name, amount: amt };
+          const code = String(it.code ?? '').trim();
+          if (code && /^[A-Za-z0-9_-]{1,10}$/.test(code)) item.code = code;
+          list.push(item);
+        }
+        if (list.length) fields[listKey] = list;
       }
 
       a.fields = fields;
