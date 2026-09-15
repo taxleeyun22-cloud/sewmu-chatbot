@@ -4497,6 +4497,45 @@ function _fjNum(v){
   var n=Number(v);
   return Number.isFinite(n)?n.toLocaleString('ko-KR'):String(v);
 }
+/* 매칭 실패 목록 — 사장님 명령 (2026-09-15): "매칭되는거 없으면 내가 알 수 있도록 해라".
+   이전에는 앞 6건만 보여주고 잘랐다. 50건 올리면 놓친다. 전부 보여주고 복사까지 된다. */
+function _fjUnmatchedHtml(bad){
+  if(!bad||!bad.length)return '';
+  var rows=bad.map(function(a){
+    var who=(a.name||'?');
+    var what=[a.fiscal_year,a.type].filter(Boolean).join(' ');
+    var cand=(a.candidates&&a.candidates.length)?' · 후보: '+a.candidates.slice(0,4).join(', '):'';
+    return {who:who,what:what,reason:(a.reason||'사유 미상'),cand:cand};
+  });
+  var body=rows.map(function(r){
+    return '<div style="display:flex;gap:8px;flex-wrap:wrap;padding:3px 0;border-top:1px dotted #fca5a5">'
+      +'<span style="font-weight:700;min-width:70px">'+e(r.who)+'</span>'
+      +'<span style="color:var(--text-mute)">'+e(r.what)+'</span>'
+      +'<span style="color:#b91c1c">'+e(r.reason)+'</span>'
+      +(r.cand?'<span style="color:var(--text-mute)">'+e(r.cand)+'</span>':'')
+      +'</div>';
+  }).join('');
+  /* 복사용 텍스트 — 그대로 Claude 채팅에 붙여넣으면 user_id 지정본을 다시 받을 수 있다 */
+  var plain=rows.map(function(r){return r.who+' | '+r.what+' | '+r.reason+r.cand}).join('\n');
+  return '<div style="margin-top:10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px">'
+    +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+    +'<span style="font-weight:800;color:#b91c1c">⚠ 매칭 실패 '+rows.length+'건 — 이번 확정에서 제외됩니다</span>'
+    +'<button onclick="_fjCopyUnmatched(this)" data-plain="'+e(plain)+'" style="background:#fff;border:1px solid #b91c1c;color:#b91c1c;padding:3px 10px;border-radius:6px;font-size:.92em;font-weight:700;cursor:pointer;font-family:inherit">목록 복사</button>'
+    +'</div>'
+    +'<div style="color:var(--text-mute);margin-bottom:4px">거래처가 아직 등록 안 됐거나, 이름이 다르거나, 동명이인입니다.</div>'
+    +body
+    +'<div style="color:var(--text-mute);margin-top:6px">→ [목록 복사] 눌러서 Claude 채팅에 붙여넣으면 user_id 지정해서 다시 뽑아드립니다.</div>'
+    +'</div>';
+}
+function _fjCopyUnmatched(btn){
+  var t=btn.getAttribute('data-plain')||'';
+  try{
+    navigator.clipboard.writeText(t).then(function(){
+      var o=btn.textContent; btn.textContent='복사됨 ✓';
+      setTimeout(function(){btn.textContent=o},1500);
+    });
+  }catch(err){ alert(t) }
+}
 function _fjOverwriteHtml(analysis,sum){
   var rows=[];
   analysis.forEach(function(a){
@@ -4550,7 +4589,7 @@ async function _fjParseFile(ev){
       +'<span style="color:var(--text-mute)">변화 없음 '+(s.noChange||0)+'</span>'
       +(s.unmatched?'<span style="color:#dc2626;font-weight:800">매칭 실패 '+s.unmatched+'</span>':'')
       +'</div>'
-      +(bad.length?'<div style="margin-top:6px;color:#b45309">⚠ '+bad.slice(0,6).map(function(a){return e((a.name||'?')+': '+(a.reason||''))}).join(' / ')+(bad.length>6?' ...':'')+'<br><span style="color:var(--text-mute)">→ 실패 건은 이번 확정에서 제외됩니다. Claude 채팅에 알려주면 user_id 지정해서 다시 뽑아줍니다.</span></div>':'')
+      +_fjUnmatchedHtml(bad)
       +_fjOverwriteHtml(d.analysis||[],s)
       +'<div style="margin-top:10px;display:flex;gap:8px;align-items:center">'
       +'<button onclick="_fjCommit()" style="background:var(--brand-success);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer;font-family:inherit;font-size:1em">✅ 확정 심기 ('+((s.newFiling||0)+(s.fillExisting||0))+'건)</button>'
@@ -4563,8 +4602,10 @@ async function _fjCommit(){
   if(!_fjBatchId){alert('미리보기를 먼저 실행해주세요');return}
   var s=_fjSummary||{};
   var owN=s.overwritten||0;
+  var unN=s.unmatched||0;
   if(!confirm('검토표에 심습니다:\n\n• 신규 검토표 '+(s.newFiling||0)+'건 생성\n• 기존 검토표 보강 '+(s.fillExisting||0)+'건\n'
     +(owN?'• ⚠ 기존 값 '+owN+'개를 신고서 값으로 교체 (되돌리려면 이력에서 롤백)\n':'• 수기 입력된 칸은 절대 안 덮음\n')
+    +(unN?'• ⚠ 매칭 실패 '+unN+'건은 제외됩니다 (등록 안 된 거래처)\n':'')
     +'• 확정 즉시 해당 거래처 챗봇 답변에 반영\n\n계속?'))return;
   try{
     var r=await fetch('/api/admin-filing-import?action=commit&key='+encodeURIComponent(KEY),{
