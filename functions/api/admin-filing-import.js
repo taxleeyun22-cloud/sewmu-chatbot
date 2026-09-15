@@ -16,6 +16,11 @@
  *   "rows": [ { "name": "김영수", "user_id": 12(선택), "biz_no": "123-45-67890"(법인),
  *               "owner_type": "Person"|"Business", "fiscal_year": 2025, "type": "종소세",
  *               "fields": { "revenue": 240000000, "total_income": 90000000, ... } } ] }
+ *
+ * 부가세는 fields 에 "paid_tax"(납부세액) 와 "vat" 세부를 넣을 수 있다:
+ *   "fields": { "revenue": 500000000, "paid_tax": 12000000,
+ *               "vat": { "매출세액": 50000000, "매입세액": 38000000 } }
+ * vat 은 1단계 객체·숫자값만 통과 (키 20자 이하, 최대 8개) — chat.js 렌더 규칙과 동일.
  */
 
 import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
@@ -29,7 +34,7 @@ function normBiz(s) { return String(s || '').replace(/\D/g, ''); }
 const FILING_TYPES = ['종소세', '법인세', '부가세'];
 const FIELD_KEYS = [
   'revenue', 'total_income', 'income_deduction', 'tax_base', 'calculated_tax',
-  'deduction_total', 'penalty_total', 'decisive_tax', 'prepaid_tax', 'payable_tax',
+  'deduction_total', 'penalty_total', 'decisive_tax', 'prepaid_tax', 'payable_tax', 'paid_tax',
   'farmland_tax', 'net_income', 'adj_inclusion', 'adj_exclusion', 'business_income', 'additional_tax',
 ];
 
@@ -130,6 +135,23 @@ export async function onRequestPost(context) {
         if ((row.fields || {})[k] !== undefined && (row.fields || {})[k] !== null && !Number.isNaN(v)) fields[k] = v;
       }
       if (!Object.keys(fields).length) { a.status = 'error'; a.reason = '숫자 필드 없음'; sum.unmatched++; analysis.push(a); continue; }
+
+      /* 부가세 세부(매출세액·매입세액 등) — 1단계 객체만, 값은 유한 숫자만.
+         키 화이트리스트·개수 제한은 chat.js 렌더 규칙과 동일 (프롬프트 주입 차단). */
+      const rawVat = (row.fields || {}).vat;
+      if (rawVat && typeof rawVat === 'object' && !Array.isArray(rawVat)) {
+        const vat = {};
+        for (const [vk, vv] of Object.entries(rawVat)) {
+          if (Object.keys(vat).length >= 8) break;
+          const key = String(vk).trim();
+          if (!key || key.length > 20 || !/^[가-힣A-Za-z0-9_ ()]+$/.test(key)) continue;
+          const nv = Number(vv);
+          if (vv === null || vv === '' || !Number.isFinite(nv)) continue;
+          vat[key] = nv;
+        }
+        if (Object.keys(vat).length) fields.vat = vat;
+      }
+
       a.fields = fields;
 
       const m = await matchOwner(db, row);
