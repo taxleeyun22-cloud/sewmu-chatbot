@@ -280,3 +280,28 @@ describe('라벨 매칭 — 제목줄 오인 방지', () => {
     expect(r.fields.calculated_tax).toBe(20_000_000);
   });
 });
+
+describe('검산을 못 돌린 것은 통과가 아니다', () => {
+  /* 사장님: "기납부세액은 원래 내가 저기 입력 안 한 거고 원래 있어야 하는 게 맞음"
+     → 값이 비면 검산이 조용히 건너뛰어져 틀린 납부할세액이 통과할 뻔했다. */
+  const 기납부_공란 = SAMPLE
+    .replace('기       납             부         세                      액    32                                 3,000,000', '기       납             부         세                      액    32')
+    .replace('33                                10,000,000', '33                                13,000,000');
+
+  it('기납부세액이 비면 납부할세액 검산을 건너뛰고, 그것을 problems 에 남긴다', () => {
+    const r = parseFilingText(기납부_공란);
+    expect(r.fields.prepaid_tax).toBeUndefined();
+    expect(r.skipped_checks).toContain('납부할세액 = 결정세액 − 기납부세액');
+    expect(r.problems.join(' ')).toContain('검산 못 함 (값 누락)');
+  });
+
+  it('건너뛴 검산이 있으면 ok=false — 미검증 숫자를 심지 않는다', () => {
+    expect(parseFilingText(기납부_공란).ok).toBe(false);
+  });
+
+  it('정상 신고서는 건너뛴 검산이 없다', () => {
+    const r = parseFilingText(SAMPLE);
+    expect(r.skipped_checks).toEqual([]);
+    expect(r.ok).toBe(true);
+  });
+});

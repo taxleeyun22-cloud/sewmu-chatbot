@@ -63,7 +63,9 @@ export interface ParsedFiling {
   owner: ParsedFilingOwner;
   fields: ParsedFilingFields;
   checks: FilingCheck[];
-  /** 검산 전부 통과 + 필수 항목 존재 */
+  /** 값이 없어 아예 돌리지 못한 검산 — 통과가 아니다 */
+  skipped_checks: string[];
+  /** 검산 전부 통과 + 건너뛴 검산 없음 + 필수 항목 존재 */
   ok: boolean;
   /** ok=false 인 이유 (사람이 읽는 문장) */
   problems: string[];
@@ -305,8 +307,14 @@ export function parseFilingText(text: string): ParsedFiling {
 
   /* ── 검산 ── */
   const checks: FilingCheck[] = [];
+  const skipped: string[] = [];
+  /**
+   * 값이 없어서 "검증을 못 한 것" 과 "검증해서 맞은 것" 은 다르다.
+   * 조용히 건너뛰면 미검증 숫자가 통과한다 — 실제로 기납부세액이 비어 있던
+   * 출력물에서 틀린 납부할세액이 검산 없이 통과할 뻔했다. 건너뛴 것도 남긴다.
+   */
   const add = (label: string, a?: number, b?: number) => {
-    if (a === undefined || b === undefined) return;   /* 값이 없으면 검산 대상 아님 */
+    if (a === undefined || b === undefined) { skipped.push(label); return; }
     checks.push({ label, ok: a === b, ...(a === b ? {} : { diff: a - b }) });
   };
   add(
@@ -350,6 +358,9 @@ export function parseFilingText(text: string): ParsedFiling {
   for (const c of checks) {
     if (!c.ok) problems.push(`검산 불일치 — ${c.label} (차이 ${(c.diff ?? 0).toLocaleString('ko-KR')}원)`);
   }
+  for (const label of skipped) {
+    problems.push(`검산 못 함 (값 누락) — ${label}`);
+  }
   if (!checks.length) problems.push('검산할 수 있는 항목이 없습니다');
 
   return {
@@ -360,6 +371,7 @@ export function parseFilingText(text: string): ParsedFiling {
     owner,
     fields,
     checks,
+    skipped_checks: skipped,
     ok: problems.length === 0,
     problems,
   };
