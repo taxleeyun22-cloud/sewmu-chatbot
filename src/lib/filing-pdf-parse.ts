@@ -32,6 +32,8 @@ export interface ParsedFilingFields {
   prepaid_tax?: number;
   payable_tax?: number;
   farmland_tax?: number;
+  /** 감면분 추가납부세액 (항번 30) — 납부할세액 검산에 필요 */
+  additional_tax?: number;
   공제감면?: DeductionItem[];
 }
 
@@ -197,14 +199,21 @@ export function parseFilingText(text: string): ParsedFiling {
   put('tax_base', pick(calc, 21, '과세표준', ['확정신고', '계산서', '신고서']));
   put('calculated_tax', pick(calc, 23, '산출세액'));
 
-  const 감면 = pick(calc, 24, '세액감면') ?? 0;
-  const 공제 = pick(calc, 25, '세액공제') ?? 0;
-  fields.deduction_total = 감면 + 공제;
+  /* 세액감면(24)·세액공제(25) 는 따로 들고 있는다.
+     공제 내역 목록은 ⑬세액공제명세서 구간에서만 긁으므로, 내역 합은
+     '공제(25)' 하고만 맞춰야 한다. 합계(감면+공제)와 비교하면 감면 받은
+     거래처가 구조적으로 전부 반려된다. */
+  const 감면 = pick(calc, 24, '세액감면');
+  const 공제 = pick(calc, 25, '세액공제');
+  if (감면 !== null || 공제 !== null) fields.deduction_total = (감면 ?? 0) + (공제 ?? 0);
 
   /* 결정세액 — 홈택스는 항번 28, 위하고는 "합계" 줄. 위하고의 "합계" 는 여러 번
      나오므로 종합과세 줄을 먼저 본다. */
   put('decisive_tax', byItemNo(calc, 28) ?? byLabel(calc, '종합과세') ?? byLabel(calc, '합계'));
-  fields.penalty_total = pick(calc, 29, '가산세') ?? 0;
+  /* ?? 0 을 쓰지 않는다 — 못 읽었을 때 0 이 들어가면 "값 없어 못 돌린 검산은
+     통과가 아니다" 원칙이 이 필드에만 무력해지고, 챗봇이 "가산세 0원" 이라 단정한다. */
+  put('penalty_total', pick(calc, 29, '가산세'));
+  put('additional_tax', pick(calc, 30, '추가납부세액'));
   put('prepaid_tax', pick(calc, 32, '기납부세액'));
   put('payable_tax',
     byItemNo(calc, 33) ?? byItemNo(calc, 37)
@@ -217,16 +226,27 @@ export function parseFilingText(text: string): ParsedFiling {
   }
 
   /* ⑨ 총수입금액 — 사업장이 여러 개면 한 줄에 나란히 찍히므로 전부 합산 */
-  for (const ln of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
     if (!squash(ln).includes('총수입금액')) continue;
     const nums = (ln.match(/[\d,]{4,}/g) || []).map(toNum).filter((n): n is number => n !== null);
     if (!nums.length) continue;
     /* 위하고 출력물은 사업장 칸 뒤에 "계" 칸이 하나 더 붙는다. 그대로 합치면 2배가
        되므로, 마지막 숫자가 나머지의 합이면 그것을 계로 보고 채택한다.
        홈택스는 계 칸이 없어 이 조건이 성립하지 않으므로 그대로 합산된다. */
+    /* 매출이 같은 사업장 2곳이면 last === rest 가 우연히 참이 되어 매출이 절반이
+       된다 (계 칸 없는 홈택스 출력물에서 발생). revenue 는 검산 대상이 아니라
+       조용히 통과하므로, 사업소득명세서에 실제로 "계" 열이 있을 때만 채택한다. */
+    /* "계" 열 머리글은 ②일련번호 줄에 있고, 그 사이 ③사업장소재지가 여러 줄로
+       쪼개져 들어가므로 넉넉히 뒤로 본다. */
+    const hasTotalColumn = sq
+      .slice(Math.max(0, i - 20), i + 1)
+      .some((l) => /일련번호/.test(l) && /(^|[^가-힣])계($|[^가-힣])/.test(l));
     const last = nums[nums.length - 1];
     const rest = nums.slice(0, -1).reduce((a, b) => a + b, 0);
-    fields.revenue = nums.length > 1 && last === rest ? last : nums.reduce((a, b) => a + b, 0);
+    fields.revenue = hasTotalColumn && nums.length > 1 && last === rest
+      ? last
+      : nums.reduce((a, b) => a + b, 0);
     break;
   }
 
@@ -292,7 +312,9 @@ export function parseFilingText(text: string): ParsedFiling {
     return lines.slice(start, end);
   })();
   outer: for (const rawLn of bizSection) {
-    const ln = rawLn.replace(/(?<=\d)\s+(?=[\d-])|(?<=-)\s+(?=\d)/g, '');  /* 위하고 자간 제거 */
+    /* 위하고 자간 제거. lookbehind 는 구형 Safari(iOS ≤16.3)가 파싱조차 못 해
+       공용 번들 전체가 SyntaxError 로 죽는다 — 캡처 그룹으로 대체. */
+    const ln = rawLn.replace(/([\d-])\s+(?=[\d-])/g, '$1');
     for (const m of ln.matchAll(/(\d{3})-(\d{2})-(\d{5})/g)) {
       const bn = m[1] + m[2] + m[3];
       if (/^0+$/.test(bn)) continue;         /* 000-00-00000 = 사업자등록 없는 인적용역 */
@@ -329,17 +351,22 @@ export function parseFilingText(text: string): ParsedFiling {
     fields.calculated_tax !== undefined && fields.deduction_total !== undefined
       ? fields.calculated_tax - fields.deduction_total : undefined,
   );
+  /* 서식상 33 = 31 − 32 이고 31 = 28 + 29 + 30 이다.
+     가산세(29)를 빼먹고 검산하면 가산세가 붙은 정상 신고서가 전부 반려된다. */
   add(
-    '납부할세액 = 결정세액 − 기납부세액',
+    '납부할세액 = 결정세액 + 가산세 + 추가납부 − 기납부세액',
     fields.payable_tax,
     fields.decisive_tax !== undefined && fields.prepaid_tax !== undefined
-      ? fields.decisive_tax - fields.prepaid_tax : undefined,
+      ? fields.decisive_tax + (fields.penalty_total ?? 0) + (fields.additional_tax ?? 0) - fields.prepaid_tax
+      : undefined,
   );
+  /* 내역 목록은 ⑬세액공제명세서 구간에서만 긁으므로 '세액공제(25)' 와만 맞춘다.
+     감면(24)은 ⑫세액감면명세서에 따로 있어 목록에 안 들어온다. */
   if (fields.공제감면 && fields.공제감면.length) {
     add(
-      '공제 내역 합 = 공제·감면 합계',
+      '공제 내역 합 = 세액공제(감면 제외)',
       fields.공제감면.reduce((s, d) => s + d.amount, 0),
-      fields.deduction_total,
+      공제 ?? undefined,
     );
   }
 

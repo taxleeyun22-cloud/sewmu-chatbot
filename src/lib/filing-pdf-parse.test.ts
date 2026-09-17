@@ -291,7 +291,7 @@ describe('검산을 못 돌린 것은 통과가 아니다', () => {
   it('기납부세액이 비면 납부할세액 검산을 건너뛰고, 그것을 problems 에 남긴다', () => {
     const r = parseFilingText(기납부_공란);
     expect(r.fields.prepaid_tax).toBeUndefined();
-    expect(r.skipped_checks).toContain('납부할세액 = 결정세액 − 기납부세액');
+    expect(r.skipped_checks).toContain('납부할세액 = 결정세액 + 가산세 + 추가납부 − 기납부세액');
     expect(r.problems.join(' ')).toContain('검산 못 함 (값 누락)');
   });
 
@@ -303,5 +303,63 @@ describe('검산을 못 돌린 것은 통과가 아니다', () => {
     const r = parseFilingText(SAMPLE);
     expect(r.skipped_checks).toEqual([]);
     expect(r.ok).toBe(true);
+  });
+});
+
+
+describe('검산식 — 가산세·세액감면이 있는 정상 신고서가 반려되면 안 된다', () => {
+  /* 코드리뷰가 실측으로 잡은 결함 2건.
+     서식: 33 = (28 + 29 + 30) − 32  /  내역 목록은 ⑬세액공제명세서 구간만 긁는다 */
+  const 가산세_있음 = SAMPLE
+    .replace('29                                         0', '29                                   500,000')
+    .replace('33                                10,000,000', '33                                10,500,000')
+    .replace('37                                10,000,000', '37                                10,500,000');
+
+  it('가산세 50만원이 붙어도 납부할세액 검산이 통과한다', () => {
+    const r = parseFilingText(가산세_있음);
+    expect(r.fields.penalty_total).toBe(500_000);
+    expect(r.checks.find((c) => c.label.startsWith('납부할세액'))?.ok).toBe(true);
+    expect(r.ok).toBe(true);
+  });
+
+  const 감면_있음 = SAMPLE
+    .replace('24                                         0', '24                                 1,000,000')
+    .replace('28                                13,000,000', '28                                12,000,000')
+    .replace('33                                10,000,000', '33                                 9,000,000')
+    .replace('37                                10,000,000', '37                                 9,000,000');
+
+  it('세액감면 100만원이 있어도 공제 내역 합 검산이 통과한다', () => {
+    const r = parseFilingText(감면_있음);
+    expect(r.fields.deduction_total).toBe(8_000_000);   /* 감면 100만 + 공제 700만 */
+    const c = r.checks.find((x) => x.label.startsWith('공제 내역 합'));
+    expect(c?.ok).toBe(true);                            /* 내역 합 700만 = 공제(25) */
+    expect(r.ok).toBe(true);
+  });
+});
+
+describe('총수입금액 — 계 칸 오인 방지', () => {
+  it('매출이 같은 사업장 2곳이면 합산한다 (계 칸으로 오인 금지)', () => {
+    const 동일매출 = SAMPLE.replace(
+      '⑨총 수 입 금 액                                   400,000,000            50,000,000',
+      '⑨총 수 입 금 액                                   200,000,000           200,000,000',
+    );
+    expect(parseFilingText(동일매출).fields.revenue).toBe(400_000_000);
+  });
+
+  it('"계" 열이 실제로 있으면 계 값을 쓴다', () => {
+    const 계있음 = SAMPLE.replace(
+      '⑨총 수 입 금 액                                   400,000,000            50,000,000',
+      '②일련번호        1          2          계\n⑨총 수 입 금 액        200,000,000    200,000,000    400,000,000',
+    );
+    expect(parseFilingText(계있음).fields.revenue).toBe(400_000_000);
+  });
+});
+
+describe('구형 브라우저 — lookbehind 정규식 금지', () => {
+  it('소스에 lookbehind 가 없다 (iOS Safari ≤16.3 에서 번들 전체가 죽는다)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync('src/lib/filing-pdf-parse.ts', 'utf8');
+    expect(src).not.toContain('(?<=');
+    expect(src).not.toContain('(?<!');
   });
 });

@@ -4515,20 +4515,24 @@ function _fjUnmatchedHtml(bad){
       +(r.cand?'<span style="color:var(--text-mute)">'+e(r.cand)+'</span>':'')
       +'</div>';
   }).join('');
-  /* 복사용 텍스트 — 그대로 Claude 채팅에 붙여넣으면 user_id 지정본을 다시 받을 수 있다 */
-  var plain=rows.map(function(r){return r.who+' | '+r.what+' | '+r.reason+r.cand}).join('\n');
+  /* 복사용 텍스트 — 그대로 Claude 채팅에 붙여넣으면 user_id 지정본을 다시 받을 수 있다.
+     ⚠ data-* 속성에 넣지 않는다. e() 는 따옴표를 이스케이프하지 않아 상호에 " 하나만
+     있어도 속성이 끊기고, escAttr 은 개행을 공백으로 뭉개 복사 포맷이 깨진다.
+     모듈 변수에 담아두고 버튼은 그것만 읽는다. */
+  _fjUnmatchedText=rows.map(function(r){return r.who+' | '+r.what+' | '+r.reason+r.cand}).join('\n');
   return '<div style="margin-top:10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px">'
     +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
     +'<span style="font-weight:800;color:#b91c1c">⚠ 매칭 실패 '+rows.length+'건 — 이번 확정에서 제외됩니다</span>'
-    +'<button onclick="_fjCopyUnmatched(this)" data-plain="'+e(plain)+'" style="background:#fff;border:1px solid #b91c1c;color:#b91c1c;padding:3px 10px;border-radius:6px;font-size:.92em;font-weight:700;cursor:pointer;font-family:inherit">목록 복사</button>'
+    +'<button onclick="_fjCopyUnmatched(this)" style="background:#fff;border:1px solid #b91c1c;color:#b91c1c;padding:3px 10px;border-radius:6px;font-size:.92em;font-weight:700;cursor:pointer;font-family:inherit">목록 복사</button>'
     +'</div>'
     +'<div style="color:var(--text-mute);margin-bottom:4px">거래처가 아직 등록 안 됐거나, 이름이 다르거나, 동명이인입니다.</div>'
     +body
     +'<div style="color:var(--text-mute);margin-top:6px">→ [목록 복사] 눌러서 Claude 채팅에 붙여넣으면 user_id 지정해서 다시 뽑아드립니다.</div>'
     +'</div>';
 }
+var _fjUnmatchedText='';
 function _fjCopyUnmatched(btn){
-  var t=btn.getAttribute('data-plain')||'';
+  var t=_fjUnmatchedText||'';
   try{
     navigator.clipboard.writeText(t).then(function(){
       var o=btn.textContent; btn.textContent='복사됨 ✓';

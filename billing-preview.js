@@ -767,7 +767,7 @@ function syncCustPreview(){
   $('cpv-extra').textContent=extra?W(extra)+'원':'—';
   if(disc>0){$('cpv-disc-row').style.display='flex';$('cpv-disc').textContent='▼ '+W(disc)+'원'}else{$('cpv-disc-row').style.display='none'}
   $('cpv-total').textContent=total?W(total)+'원':'—';
-  $('cpv-s3-body').innerHTML=INV_S3.map(s3=>{var rt=s3.rule==='flat_5'?'5%':'U자 20·10·20%';return '<tr><td>'+esc(s3.name)+'</td><td style="color:#94a3b8;font-style:italic">감면 '+W(s3.amt)+' × '+rt+'</td><td>'+W(s3.gain||0)+'</td></tr>'}).join('') || '<tr><td colspan="3" style="text-align:center;color:#cbd5e1">—</td></tr>';
+  $('cpv-s3-body').innerHTML=INV_S3.map(s3=>{var rt=s3.rule==='flat_5'?'5%':'20·10·5%';return '<tr><td>'+esc(s3.name)+'</td><td style="color:#94a3b8;font-style:italic">감면 '+W(s3.amt)+' × '+rt+'</td><td>'+W(s3.gain||0)+'</td></tr>'}).join('') || '<tr><td colspan="3" style="text-align:center;color:#cbd5e1">—</td></tr>';
   /* 2장 (cust-page2) — 산출근거 헤더 정보 */
   $('cpv2-cn').textContent=b.name;
   $('cpv2-yr').textContent=yr;
@@ -899,7 +899,7 @@ function selectS3Pick(code){
   _s3PickCode=code; _s3PickName=c.name; _s3PickRule=c.rule||'progressive_u';
   $('s3PickSelectedName').textContent=c.name;
   $('s3PickSelectedMeta').textContent=catLabel(c.cat)+' · '+(c.law||'');
-  $('s3PickRuleLbl').textContent=_s3PickRule==='flat_5'?'5%':_s3PickRule==='progressive_u'?'U자(20·10·20%)':'없음';
+  $('s3PickRuleLbl').textContent=_s3PickRule==='flat_5'?'5%':_s3PickRule==='progressive_u'?'20·10·5%':'없음';
   $('s3PickAmtArea').style.display='block';
   updateS3PickGain();
   renderS3Picks();
