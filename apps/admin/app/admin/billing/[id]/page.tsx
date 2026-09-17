@@ -210,6 +210,8 @@ export default function InvoiceDetailPage() {
             name: it.name,
             amt: it.amt,
             rule: (it.rule as 'flat_5' | 'progressive_u' | 'none') || 'progressive_u',
+            /* 발행 시점 가산액을 그대로 넘긴다 — 요율이 바뀌어도 항목·소계가 어긋나지 않게 */
+            gain: it.gain,
           }))}
           template={template}
         />

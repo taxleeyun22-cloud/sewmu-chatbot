@@ -66,18 +66,26 @@ describe('calcBase — 사장님 원본 누진표 (invoice.zip, 가산률 % 단�
   });
 });
 
-describe('calcGain — Section 3 가산 (flat_5 / U자)', () => {
+describe('calcGain — Section 3 가산 (flat_5 / 체감 20·10·5)', () => {
   it('flat_5 = 5%', () => {
     expect(calcGain(10_000_000, 'flat_5')).toBe(500_000);
   });
-  it('U자 500↓ = 20%', () => {
+  it('500↓ = 20%', () => {
     expect(calcGain(4_000_000, 'progressive_u')).toBe(800_000);
   });
-  it('U자 500~1000 = 10%', () => {
+  it('500~1000 = 10%', () => {
     expect(calcGain(8_000_000, 'progressive_u')).toBe(800_000);
   });
-  it('U자 1000↑ = 20%', () => {
-    expect(calcGain(20_000_000, 'progressive_u')).toBe(4_000_000);
+  it('1000↑ = 5% (사장님 확인 2026-09-17 — 종전 20% 였다)', () => {
+    expect(calcGain(20_000_000, 'progressive_u')).toBe(1_000_000);
+    expect(calcGain(13_251_652, 'progressive_u')).toBe(662_582);
+  });
+
+  it('구간 경계 — 전체 금액에 그 구간 요율을 곱한다 (구간별 누진 아님)', () => {
+    expect(calcGain(5_000_000, 'progressive_u')).toBe(1_000_000);   /* 20% */
+    expect(calcGain(5_000_001, 'progressive_u')).toBe(500_000);     /* 10% */
+    expect(calcGain(10_000_000, 'progressive_u')).toBe(1_000_000);  /* 10% */
+    expect(calcGain(10_000_001, 'progressive_u')).toBe(500_000);    /* 5% */
   });
   it('none = 0', () => {
     expect(calcGain(10_000_000, 'none')).toBe(0);

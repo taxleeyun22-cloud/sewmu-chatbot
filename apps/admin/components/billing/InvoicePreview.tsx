@@ -38,6 +38,8 @@ export interface InvoicePreviewS3 {
   name: string;
   amt: number;
   rule: 'flat_5' | 'progressive_u' | 'none';
+  /** 발행 시점에 계산돼 저장된 가산액. 있으면 재계산하지 않는다 (요율 변경 후 소계와 어긋남 방지) */
+  gain?: number;
 }
 
 export interface InvoicePreviewTemplate {
@@ -322,11 +324,14 @@ export function InvoicePreview({
                   </thead>
                   <tbody>
                     {s3Visible.map((it, i) => {
-                      const gain = calcGain(it.amt, it.rule);
+                      /* 발행된 청구서는 그때 계산된 gain 이 저장돼 있다. 요율이 바뀐 뒤
+                         재계산하면 항목 줄(새 요율)과 소계·총액(저장값)이 서로 안 맞는다.
+                         저장값이 있으면 그것을 쓰고, 신규 작성(미저장)일 때만 계산한다. */
+                      const gain = typeof it.gain === 'number' ? it.gain : calcGain(it.amt, it.rule);
                       const ruleLbl =
                         it.rule === 'flat_5'
                           ? 'flat 5%'
-                          : 'U자 (500↓20% · 500~1000:10% · 1000↑20%)';
+                          : '체감 (500↓20% · 500~1000:10% · 1000↑5%)';
                       return (
                         <tr key={i}>
                           <td>{it.name}</td>
@@ -345,7 +350,7 @@ export function InvoicePreview({
                 </table>
 
                 <div className="dtbl-note">
-                  ※ 가산율 룰: 중특(중소기업특별세액감면) = flat 5% / 그 외 세액공제·감면 = U자(500만↓ 20% · 500만~1000만 10% · 1000만↑ 20%)
+                  ※ 가산율 룰: 중특(중소기업특별세액감면) = flat 5% / 그 외 세액공제·감면 = 체감(500만↓ 20% · 500만~1000만 10% · 1000만↑ 5%)
                   <br />
                   ※ 자연발생 공제(배당·기장·근로·자녀·연금·의료비·교육비·기부금·표준 등 신고서 본문) = 청구 가산 대상 아님(이 청구서에서 자동 제외됨)
                 </div>
