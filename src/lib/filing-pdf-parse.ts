@@ -56,6 +56,10 @@ export interface FilingCheck {
 export interface ParsedFiling {
   type: '종소세';
   fiscal_year?: number;
+  /** ⑨신고유형 코드 — 11 자기조정 / 12 외부조정 / 14 성실신고확인 / 20 간편장부 / 31 추계-기준율 / 32 추계-단순율 */
+  filing_type_code?: string;
+  /** 위 코드의 사람이 읽는 이름. 모르는 코드면 undefined */
+  filing_type_label?: string;
   owner: ParsedFilingOwner;
   fields: ParsedFilingFields;
   checks: FilingCheck[];
@@ -116,6 +120,19 @@ export function rrnToBirthDate(front6: string, centuryDigit: string): string | n
   return `${century}${yy}-${mm}-${dd}`;
 }
 
+/** ⑨신고유형 코드 → 이름. 서식 1면에 인쇄된 코드 그대로. */
+export const FILING_TYPE_LABEL: Record<string, string> = {
+  '11': '자기조정',
+  '12': '외부조정',
+  '13': '성실납세',
+  '14': '성실신고확인',
+  '20': '간편장부',
+  '31': '추계-기준율',
+  '32': '추계-단순율',
+  '35': '분리과세',
+  '40': '비사업자',
+};
+
 /* ── 본체 ── */
 
 export function parseFilingText(text: string): ParsedFiling {
@@ -127,9 +144,20 @@ export function parseFilingText(text: string): ParsedFiling {
 
   /* 귀속연도 — "(2025년귀속)" */
   let fiscal_year: number | undefined;
+  let filing_type_code: string | undefined;
   for (const l of sq) {
     const m = l.match(/\((20\d{2})년귀속\)/);
     if (m) { fiscal_year = Number(m[1]); break; }
+  }
+
+  /* ⑨신고유형 — 라벨 뒤 첫 2자리가 선택된 코드. 50건 결과를 유형별로 묶기 위해 읽는다.
+     (코드 목록 자체가 그 줄 아래에 또 인쇄되므로 "라벨 같은 줄" 로 한정) */
+  for (const ln of lines) {
+    const m = ln.match(/⑨\s*신\s*고\s*유\s*형\s+(\d{2})\b/);
+    if (m) {
+      filing_type_code = m[1];
+      break;
+    }
   }
 
   /* ❹ 세액의 계산 — 항목번호 앵커 */
@@ -278,6 +306,8 @@ export function parseFilingText(text: string): ParsedFiling {
   return {
     type: '종소세',
     fiscal_year,
+    filing_type_code,
+    filing_type_label: filing_type_code ? FILING_TYPE_LABEL[filing_type_code] : undefined,
     owner,
     fields,
     checks,

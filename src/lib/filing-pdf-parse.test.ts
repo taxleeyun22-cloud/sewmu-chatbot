@@ -233,3 +233,32 @@ describe('사업자등록번호 — 세무대리인 번호를 거래처 번호�
     expect(parseFilingText(noSec).owner.biz_no).toBeUndefined();
   });
 });
+
+describe('⑨신고유형 — 50건 결과를 유형별로 묶기 위해 읽는다', () => {
+  const withType = (code: string) =>
+    parseFilingText(SAMPLE.replace('❹ 세액의 계산', `⑨신고유형                      ${code}\n❹ 세액의 계산`));
+
+  it('성실신고확인(14)', () => {
+    const r = withType('14');
+    expect(r.filing_type_code).toBe('14');
+    expect(r.filing_type_label).toBe('성실신고확인');
+  });
+
+  it('간편장부(20) · 추계-기준율(31) · 추계-단순율(32)', () => {
+    expect(withType('20').filing_type_label).toBe('간편장부');
+    expect(withType('31').filing_type_label).toBe('추계-기준율');
+    expect(withType('32').filing_type_label).toBe('추계-단순율');
+  });
+
+  it('모르는 코드면 라벨만 비고 코드는 남긴다', () => {
+    const r = withType('99');
+    expect(r.filing_type_code).toBe('99');
+    expect(r.filing_type_label).toBeUndefined();
+  });
+
+  it('신고유형 줄이 없어도 파싱은 계속된다', () => {
+    const r = parseFilingText(SAMPLE);
+    expect(r.filing_type_code).toBeUndefined();
+    expect(r.ok).toBe(true);
+  });
+});
