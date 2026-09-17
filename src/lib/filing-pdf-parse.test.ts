@@ -126,7 +126,7 @@ describe('거래처 매칭 정보', () => {
   });
 
   it('000-00-00000(사업자등록 없는 인적용역)은 건너뛴다', () => {
-    const only = parseFilingText('⑤사업자등록번호   000-00-00000   987-65-43210');
+    const only = parseFilingText('❼ 사업소득명세서\n⑤사업자등록번호   000-00-00000   987-65-43210');
     expect(only.owner.biz_no).toBe('9876543210');
   });
 
@@ -214,5 +214,22 @@ describe('공제 항목 오인 방지', () => {
   it('세액공제명세서가 없으면 공제 목록이 빈다', () => {
     const noSec = SAMPLE.replace('⑬ 세액공제명세서', '⑬ 다른표');
     expect(parseFilingText(noSec).fields.공제감면).toEqual([]);
+  });
+});
+
+describe('사업자등록번호 — 세무대리인 번호를 거래처 번호로 오인하지 않는다', () => {
+  /* 실제 신고서 1면 ❸ 세무대리인 칸이 ❼ 사업소득명세서보다 먼저 나온다.
+     문서 순서대로 훑으면 세무사 본인 번호를 거래처 번호로 잡는다 (실측으로 잡힌 버그). */
+  const WITH_AGENT = `
+❸ 세 무 ⑬성 명 이도겸    ⑭ 사업자등록번호     401-12-95381    ⑮ 전화번호 02-6958-5515
+` + SAMPLE;
+
+  it('세무대리인 번호가 앞에 있어도 거래처 번호를 잡는다', () => {
+    expect(parseFilingText(WITH_AGENT).owner.biz_no).toBe('1234567890');
+  });
+
+  it('사업소득명세서 구간이 없으면 번호를 비워둔다 (엉뚱한 매칭보다 안전)', () => {
+    const noSec = '❸ 세 무 ⑭ 사업자등록번호  401-12-95381';
+    expect(parseFilingText(noSec).owner.biz_no).toBeUndefined();
   });
 });

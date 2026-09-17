@@ -202,8 +202,18 @@ export function parseFilingText(text: string): ParsedFiling {
     const m = ln.match(/\b(\d{6})\s*-\s*(\d)\d{6}\b/);
     if (m) { owner.birth_date = rrnToBirthDate(m[1], m[2]) ?? undefined; break; }
   }
-  /* 한 줄에 사업장이 여러 개 나란히 찍히므로 줄 안의 모든 번호를 훑는다 */
-  outer: for (const ln of lines) {
+  /* ⚠ 반드시 ❼ 사업소득명세서 구간 안에서만 찾는다. 신고서 1면의
+     ❸ 세무대리인 칸에 세무사 본인의 사업자등록번호가 먼저 찍혀 있어서,
+     문서 순서대로 훑으면 세무대리인 번호를 거래처 번호로 오인한다 (실측 확인).
+     한 줄에 사업장이 여러 개 나란히 오므로 줄 안의 모든 번호를 훑는다. */
+  const bizSection = (() => {
+    const start = sq.findIndex((l) => l.includes('사업소득명세서'));
+    if (start < 0) return [];
+    let end = sq.findIndex((l, i) => i > start && l.includes('종합소득금액및결손금'));
+    if (end < 0) end = Math.min(lines.length, start + 60);
+    return lines.slice(start, end);
+  })();
+  outer: for (const ln of bizSection) {
     for (const m of ln.matchAll(/\b(\d{3})-(\d{2})-(\d{5})\b/g)) {
       const bn = m[1] + m[2] + m[3];
       if (/^0+$/.test(bn)) continue;         /* 000-00-00000 = 사업자등록 없는 인적용역 */
@@ -211,7 +221,7 @@ export function parseFilingText(text: string): ParsedFiling {
       break outer;
     }
   }
-  for (const ln of lines) {
+  for (const ln of bizSection.length ? bizSection : lines) {
     const m = ln.match(/④\s*상\s*호\s+(\S.*?)(?:\s{2,}|\s*$)/);
     if (m) { owner.company_name = m[1].trim(); break; }
   }
