@@ -262,3 +262,21 @@ describe('⑨신고유형 — 50건 결과를 유형별로 묶기 위해 읽는�
     expect(r.ok).toBe(true);
   });
 });
+
+describe('라벨 매칭 — 제목줄 오인 방지', () => {
+  it('"과세표준확정신고및납부계산서" 제목의 연도를 과세표준으로 읽지 않는다', () => {
+    /* 항목번호가 없는 출력물(위하고)에서 라벨로 찾을 때 실제로 터졌던 버그 */
+    const noItemNo = `
+ 세액의 계산
+                         과세표준확정신고및납부계산서   ( 2025 년귀속)
+종   합   소    득   금   액                   100,000,000
+소      득      공      제                     5,000,000
+과 세 표 준 (        -   )                    95,000,000
+산      출      세      액                    20,000,000
+`;
+    const r = parseFilingText(noItemNo);
+    expect(r.fields.tax_base).toBe(95_000_000);
+    expect(r.fields.total_income).toBe(100_000_000);
+    expect(r.fields.calculated_tax).toBe(20_000_000);
+  });
+});

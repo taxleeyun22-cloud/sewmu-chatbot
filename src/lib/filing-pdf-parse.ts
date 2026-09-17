@@ -96,6 +96,29 @@ function byItemNo(lines: string[], no: number): number | null {
   return null;
 }
 
+/**
+ * 라벨로 금액을 찾는다 — 위하고 출력물용.
+ *
+ * 위하고는 항목번호를 인쇄하지 않는 대신 라벨이 한 줄에 온전히 들어간다.
+ * (홈택스는 반대로 번호는 있지만 라벨이 두 줄로 쪼개진다.)
+ * exclude 로 비슷한 라벨을 배제한다 — "산출세액" 이 "종합소득산출세액" 에 걸리는 식.
+ */
+function byLabel(lines: string[], label: string, exclude: string[] = []): number | null {
+  for (const ln of lines) {
+    const sqln = squash(ln);
+    if (!sqln.includes(label)) continue;
+    if (exclude.some((x) => sqln.includes(x))) continue;
+    const nums = (ln.match(/[\d,]{3,}/g) || []).map(toNum).filter((n): n is number => n !== null);
+    if (nums.length) return nums[0];   /* 첫 칸 = 종합소득세. 뒤는 농특세 */
+  }
+  return null;
+}
+
+/** 번호 우선, 없으면 라벨 — 홈택스/위하고 양쪽 대응 */
+function pick(lines: string[], no: number, label: string, exclude: string[] = []): number | null {
+  return byItemNo(lines, no) ?? byLabel(lines, label, exclude);
+}
+
 /** ❹ 세액의 계산 ~ ❼ 사업소득명세서 구간. 못 찾으면 전체를 준다. */
 function taxCalcSection(lines: string[], sq: string[]): string[] {
   const start = sq.findIndex((l) => l.includes('세액의계산'));
@@ -165,19 +188,25 @@ export function parseFilingText(text: string): ParsedFiling {
     if (v !== null) (fields as Record<string, unknown>)[k] = v;
   };
   const calc = taxCalcSection(lines, sq);
-  put('total_income', byItemNo(calc, 19));
-  put('income_deduction', byItemNo(calc, 20));
-  put('tax_base', byItemNo(calc, 21));
-  put('calculated_tax', byItemNo(calc, 23));
+  put('total_income', pick(calc, 19, '종합소득금액'));
+  put('income_deduction', pick(calc, 20, '소득공제'));
+  /* '과세표준' 은 서식 제목("과세표준확정신고및납부계산서")에도 들어 있어
+     제목줄의 연도(2025)를 금액으로 읽어버린다 — 제목 계열을 배제한다. */
+  put('tax_base', pick(calc, 21, '과세표준', ['확정신고', '계산서', '신고서']));
+  put('calculated_tax', pick(calc, 23, '산출세액'));
 
-  const 감면 = byItemNo(calc, 24) ?? 0;
-  const 공제 = byItemNo(calc, 25) ?? 0;
+  const 감면 = pick(calc, 24, '세액감면') ?? 0;
+  const 공제 = pick(calc, 25, '세액공제') ?? 0;
   fields.deduction_total = 감면 + 공제;
 
-  put('decisive_tax', byItemNo(calc, 28));
-  fields.penalty_total = byItemNo(calc, 29) ?? 0;
-  put('prepaid_tax', byItemNo(calc, 32));
-  put('payable_tax', byItemNo(calc, 33) ?? byItemNo(calc, 37));
+  /* 결정세액 — 홈택스는 항번 28, 위하고는 "합계" 줄. 위하고의 "합계" 는 여러 번
+     나오므로 종합과세 줄을 먼저 본다. */
+  put('decisive_tax', byItemNo(calc, 28) ?? byLabel(calc, '종합과세') ?? byLabel(calc, '합계'));
+  fields.penalty_total = pick(calc, 29, '가산세') ?? 0;
+  put('prepaid_tax', pick(calc, 32, '기납부세액'));
+  put('payable_tax',
+    byItemNo(calc, 33) ?? byItemNo(calc, 37)
+    ?? byLabel(calc, '신고기한내납부할세액') ?? byLabel(calc, '납부(환급)할총세액'));
 
   /* 농어촌특별세 — 오른쪽 열 항번 53 */
   for (const ln of calc) {
@@ -189,7 +218,14 @@ export function parseFilingText(text: string): ParsedFiling {
   for (const ln of lines) {
     if (!squash(ln).includes('총수입금액')) continue;
     const nums = (ln.match(/[\d,]{4,}/g) || []).map(toNum).filter((n): n is number => n !== null);
-    if (nums.length) { fields.revenue = nums.reduce((a, b) => a + b, 0); break; }
+    if (!nums.length) continue;
+    /* 위하고 출력물은 사업장 칸 뒤에 "계" 칸이 하나 더 붙는다. 그대로 합치면 2배가
+       되므로, 마지막 숫자가 나머지의 합이면 그것을 계로 보고 채택한다.
+       홈택스는 계 칸이 없어 이 조건이 성립하지 않으므로 그대로 합산된다. */
+    const last = nums[nums.length - 1];
+    const rest = nums.slice(0, -1).reduce((a, b) => a + b, 0);
+    fields.revenue = nums.length > 1 && last === rest ? last : nums.reduce((a, b) => a + b, 0);
+    break;
   }
 
   /* ⑬ 세액공제명세서 ~ ⑭ 준비금명세서 구간 안에서만 공제 항목을 찾는다.
@@ -221,14 +257,26 @@ export function parseFilingText(text: string): ParsedFiling {
   })();
 
   /* ── 거래처 매칭용 정보 ── */
+  /* 성명 — 홈택스는 "①성 명", 위하고는 "1 성      명". 세무대리인 칸(⑬성명)에도
+     같은 모양이 나오므로 기본사항 구간이 먼저 오는 것을 이용해 첫 매치만 쓴다. */
   for (const ln of lines) {
-    const m = ln.match(/①\s*성\s*명\s+(\S+)/) || ln.match(/성\s+명\s{2,}(\S{2,5})\s{2,}②/);
+    const m = ln.match(/(?:①|(?:^|\s)1)\s*성\s*명\s+(\S+)/) || ln.match(/성\s+명\s{2,}(\S{2,5})\s{2,}②/);
     if (m) { owner.name = m[1].trim(); break; }
   }
   /* 주민번호: 앞 6 + 뒤 첫 자리만 읽고 나머지는 버린다 */
+  /* 주민번호 — 위하고는 "9 3 0 5 1 0 - 1 6 8 5 4 2 0" 처럼 한 글자씩 띄워 찍는다.
+     숫자/하이픈만 남기고 비교한다. 앞 6 + 세기 1자리만 쓰고 나머지는 버린다. */
   for (const ln of lines) {
-    const m = ln.match(/\b(\d{6})\s*-\s*(\d)\d{6}\b/);
+    if (!squash(ln).includes('주민등록번호')) continue;
+    const digits = ln.replace(/[^\d-]/g, '');
+    const m = digits.match(/(\d{6})-(\d)\d{6}/);
     if (m) { owner.birth_date = rrnToBirthDate(m[1], m[2]) ?? undefined; break; }
+  }
+  if (!owner.birth_date) {
+    for (const ln of lines) {
+      const m = ln.match(/\b(\d{6})\s*-\s*(\d)\d{6}\b/);
+      if (m) { owner.birth_date = rrnToBirthDate(m[1], m[2]) ?? undefined; break; }
+    }
   }
   /* ⚠ 반드시 ❼ 사업소득명세서 구간 안에서만 찾는다. 신고서 1면의
      ❸ 세무대리인 칸에 세무사 본인의 사업자등록번호가 먼저 찍혀 있어서,
@@ -241,8 +289,9 @@ export function parseFilingText(text: string): ParsedFiling {
     if (end < 0) end = Math.min(lines.length, start + 60);
     return lines.slice(start, end);
   })();
-  outer: for (const ln of bizSection) {
-    for (const m of ln.matchAll(/\b(\d{3})-(\d{2})-(\d{5})\b/g)) {
+  outer: for (const rawLn of bizSection) {
+    const ln = rawLn.replace(/(?<=\d)\s+(?=[\d-])|(?<=-)\s+(?=\d)/g, '');  /* 위하고 자간 제거 */
+    for (const m of ln.matchAll(/(\d{3})-(\d{2})-(\d{5})/g)) {
       const bn = m[1] + m[2] + m[3];
       if (/^0+$/.test(bn)) continue;         /* 000-00-00000 = 사업자등록 없는 인적용역 */
       owner.biz_no = bn;
