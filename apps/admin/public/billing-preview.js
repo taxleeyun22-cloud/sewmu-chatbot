@@ -55,7 +55,7 @@ function showToast(m){var t=$('toast');t.textContent=m;t.classList.add('show');c
 function statusOf(inv){if(!inv.sent)return{cls:'st-gr',label:'발행X',code:'gr'};if(inv.paid)return{cls:'st-g',label:'🟢 수금',code:'g'};var d=new Date(inv.due);if(d<TODAY)return{cls:'st-r',label:'🔴 미수('+Math.floor((TODAY-d)/86400000)+'일)',code:'r'};return{cls:'st-y',label:'🟡 발송',code:'y'}}
 function catLabel(c){return{general:'일반',special:'특별공제',credit_invest:'투자',credit_rnd:'R&D',credit_employee:'고용',credit_general:'일반세액',exemption:'감면'}[c]||c}
 function calcBase(amount,form){var t=TARIFF[form];var row=t[0];for(var i=0;i<t.length;i++){if(amount>=t[i][0])row=t[i];else break}return Math.floor((row[1]+(amount-row[0])*((row[2]||0)/100))/1000)*1000}
-function calcGain(amt,rule){if(rule==='flat_5')return Math.floor(amt*0.05);if(rule==='progressive_u'){var g=0;if(amt<=5000000)g=amt*0.20;else if(amt<=10000000)g=amt*0.10;else g=amt*0.20;return Math.floor(g)}return 0}
+function calcGain(amt,rule){if(rule==='flat_5')return Math.floor(amt*0.05);if(rule==='progressive_u'){var g=0;if(amt<=5000000)g=amt*0.20;else if(amt<=10000000)g=amt*0.10;else g=amt*0.05;return Math.floor(g)}return 0}
 
 function nav(el){document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));el.classList.add('on');var v=el.dataset.v;document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));$('v-'+v).classList.add('on');$('bc').textContent={tpl:'청구서 양식 (템플릿)',list:'청구서 모아보기',cust:'거래처 dashboard — 청구서 발행',manual:'수기 청구서 발행'}[v];if(v==='tpl')renderTpl();if(v==='list'){loadInvoiceList();renderList();}if(v==='cust')renderCust();if(v==='manual')renderManual();window.scrollTo(0,0)}
 function filterStaff(){renderList();refreshAlert()}
@@ -91,13 +91,13 @@ function renderCatalog(){
   var list=CATALOG.filter(c=>{if(!c.applies||!c.applies.includes(curTplForm))return false;if(catF&&c.cat!==catF)return false;if(q){var h=(c.name+' '+c.code+' '+(c.law||'')+' '+(c.alias||[]).join(' ')).toLowerCase();if(!h.includes(q))return false}if(ft==='billable'&&!c.billable)return false;if(ft==='excluded'&&c.billable)return false;return true});
   $('catCnt').textContent=list.length;
   $('catBody').innerHTML=list.map(c=>{
-    var rc=c.rule==='flat_5'?'<span class="chip chip-flat">5%</span>':c.rule==='progressive_u'?'<span class="chip chip-u">U자</span>':'<span class="chip chip-none">none</span>';
+    var rc=c.rule==='flat_5'?'<span class="chip chip-flat">5%</span>':c.rule==='progressive_u'?'<span class="chip chip-u">20/10/5</span>':'<span class="chip chip-none">none</span>';
     var ac=c.applies.length===2?'<span class="chip chip-both">법·개</span>':c.applies[0]==='corp'?'<span class="chip chip-biz">법인만</span>':'<span class="chip chip-indv">개인만</span>';
     return '<tr><td><div style="font-weight:600;color:'+(c.billable?'#0B1F3A':'#9CA3AF')+';font-size:12px">'+esc(c.name)+'</div><div style="font-size:10px;color:#9CA3AF">'+esc(c.code)+'</div></td>'
       +'<td style="font-size:11px;color:#6B7280">'+esc(c.law||'')+'</td>'
       +'<td><span class="cat-cat">'+catLabel(c.cat)+'</span> '+ac+'</td>'
       +'<td><label class="tg"><input type="checkbox" '+(c.billable?'checked':'')+' onchange="catBill(\''+c.code+'\',this.checked)"><span class="tg-s"></span></label></td>'
-      +'<td><select class="seld" onchange="catRule(\''+c.code+'\',this.value)" '+(c.billable?'':'disabled')+'><option value="none"'+(c.rule==='none'?' selected':'')+'>none</option><option value="flat_5"'+(c.rule==='flat_5'?' selected':'')+'>5%</option><option value="progressive_u"'+(c.rule==='progressive_u'?' selected':'')+'>U자</option></select> '+rc+'</td>'
+      +'<td><select class="seld" onchange="catRule(\''+c.code+'\',this.value)" '+(c.billable?'':'disabled')+'><option value="none"'+(c.rule==='none'?' selected':'')+'>none</option><option value="flat_5"'+(c.rule==='flat_5'?' selected':'')+'>5%</option><option value="progressive_u"'+(c.rule==='progressive_u'?' selected':'')+'>20/10/5</option></select> '+rc+'</td>'
       +'</tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--mut)">카탈로그 fetch 중…</td></tr>';
 }
@@ -710,7 +710,7 @@ function renderS3(){
     var gain=calcGain(s3.amt,s3.rule);s3.gain=gain;
     return '<tr><td style="font-size:12px;font-weight:600">'+esc(s3.name)+'</td>'
       +'<td><input type="number" value="'+s3.amt+'" onchange="setS3('+idx+',\'amt\',+this.value)"></td>'
-      +'<td><select class="seld" onchange="setS3('+idx+',\'rule\',this.value)"><option value="flat_5"'+(s3.rule==='flat_5'?' selected':'')+'>5%</option><option value="progressive_u"'+(s3.rule==='progressive_u'?' selected':'')+'>U자</option></select></td>'
+      +'<td><select class="seld" onchange="setS3('+idx+',\'rule\',this.value)"><option value="flat_5"'+(s3.rule==='flat_5'?' selected':'')+'>5%</option><option value="progressive_u"'+(s3.rule==='progressive_u'?' selected':'')+'>20/10/5</option></select></td>'
       +'<td style="font-weight:700;color:#0B1F3A">'+W(gain)+'원</td>'
       +'<td><button class="btn-x" onclick="rmS3('+idx+')">✕</button></td></tr>';
   }).join('');
@@ -843,7 +843,7 @@ function renderManS3(){
     var gain=calcGain(s3.amt,s3.rule);s3.gain=gain;
     return '<tr><td style="font-size:12px;font-weight:600">'+esc(s3.name)+'</td>'
       +'<td><input type="number" value="'+s3.amt+'" onchange="setManS3('+idx+',\'amt\',+this.value)"></td>'
-      +'<td><select class="seld" onchange="setManS3('+idx+',\'rule\',this.value)"><option value="flat_5"'+(s3.rule==='flat_5'?' selected':'')+'>5%</option><option value="progressive_u"'+(s3.rule==='progressive_u'?' selected':'')+'>U자</option></select></td>'
+      +'<td><select class="seld" onchange="setManS3('+idx+',\'rule\',this.value)"><option value="flat_5"'+(s3.rule==='flat_5'?' selected':'')+'>5%</option><option value="progressive_u"'+(s3.rule==='progressive_u'?' selected':'')+'>20/10/5</option></select></td>'
       +'<td style="font-weight:700;color:#0B1F3A">'+W(gain)+'원</td>'
       +'<td><button class="btn-x" onclick="rmManS3('+idx+')">✕</button></td></tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--mut);padding:14px">+ 항목 추가로 직접 선택</td></tr>';

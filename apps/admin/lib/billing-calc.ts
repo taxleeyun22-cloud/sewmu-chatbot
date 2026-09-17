@@ -128,7 +128,11 @@ export function calcBase(amount: number, tariff: FeeRuleRow[]): number {
 }
 
 /* ─── Section 3 가산액 (감면액 × 룰) ─────────────────────
- * flat_5: 감면액 × 5% (중특) / progressive_u: U자 (500↓20% · 500~1000:10% · 1000↑20%) / none: 0 */
+ * flat_5: 감면액 × 5% (중특)
+ * progressive_u: 체감 20 / 10 / 5 (500↓20% · 500~1000:10% · 1000↑5%)
+ *   사장님 확인 (2026-09-17): "1천만 이상부터 5%" — 종전 코드는 1000↑ 도 20% 였다.
+ *   rule 값 'progressive_u' 는 발행된 청구서의 s3_items 에 저장돼 있어 그대로 둔다.
+ * none: 0 */
 export function calcGain(amt: number, rule: S3Rule): number {
   if (amt <= 0) return 0;
   if (rule === 'flat_5') return Math.floor(amt * 0.05);
@@ -136,7 +140,7 @@ export function calcGain(amt: number, rule: S3Rule): number {
     let g = 0;
     if (amt <= 5_000_000) g = amt * 0.2;
     else if (amt <= 10_000_000) g = amt * 0.1;
-    else g = amt * 0.2;
+    else g = amt * 0.05;
     return Math.floor(g);
   }
   return 0;
