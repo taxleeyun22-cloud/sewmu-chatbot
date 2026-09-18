@@ -1,7 +1,10 @@
 /**
  * 📥 검토표 JSON 심기 (2026-07-17 사장님: "신고서 올리면 니가 하드코딩으로 심고 챗봇이 답변" — 프리미엄 추출 루프)
  *
- * 흐름: 사장님이 신고서를 Claude 채팅에 업로드 → Claude 가 정밀 추출·검수 후 JSON 파일 제공
+ * 흐름 A (2026-09-17 추가, 기본): admin 에서 신고서 PDF 를 그대로 업로드 →
+ *       브라우저 안에서 pdf.js 로 글자만 뽑아 규칙 파서(src/lib/filing-pdf-parse.ts)로 읽고
+ *       검산까지 끝낸 뒤 숫자 결과만 이 API 로 전송. PDF 는 서버로 안 나가고 GPT 도 안 쓴다.
+ * 흐름 B: 사장님이 신고서를 Claude 채팅에 업로드 → Claude 가 정밀 추출·검수 후 JSON 파일 제공
  *       → admin (위하고 Import 모달) 에서 JSON 업로드 → 미리보기(DB 변경 0) → [확정 심기]
  *       → filings upsert (verified_at 세팅 → 챗봇 즉시 노출. 미확정/미검증은 기존 게이트로 비노출)
  *
@@ -9,8 +12,9 @@
  *  - 기본은 사장님 수기 입력 절대 우선: 기존 검토표의 채워진 칸은 안 덮고 빈 칸만 보강.
  *  - overwrite:true (사장님이 모달에서 명시적으로 체크) 일 때만 기존 값도 신고서 값으로 교체.
  *    이 경우 미리보기가 '무엇이 무엇으로' 바뀌는지 전부 보여주고, audit 에 before/after 가 남는다.
- *  - owner 매칭: 개인 = users 이름 정확·유일 일치 (또는 user_id 직접 지정),
- *    법인 = businesses 사업자번호 → 없으면 회사명 정확·유일 일치.
+ *  - owner 매칭: 개인 = user_id → 사업장 사업자등록번호(business_members 로 대표 조회)
+ *    → 이름+생년월일 → 이름 단독. 법인 = businesses 사업자번호 → 없으면 회사명 정확·유일 일치.
+ *    생년월일은 주민번호 앞 6자리에서만 나온다 — 뒤 7자리는 받지도 저장하지도 않는다.
  *  - 전부 audit. owner 전용.
  *
  * JSON 형식:
@@ -50,6 +54,8 @@ async function ensureCols(db) {
     `ALTER TABLE filings ADD COLUMN source TEXT`,
     `ALTER TABLE filings ADD COLUMN verified_at TEXT`,
     `ALTER TABLE filings ADD COLUMN verified_by TEXT`,
+    /* 생년월일 동명이인 판별용 — admin-approve.js 가 쓰는 것과 같은 컬럼 */
+    `ALTER TABLE users ADD COLUMN birth_date TEXT`,
   ]) { try { await db.prepare(sql).run(); } catch (_) {} }
   await db.prepare(`CREATE TABLE IF NOT EXISTS filing_import_batches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,33 +77,72 @@ async function matchOwner(db, row) {
       const { results } = await db.prepare(
         `SELECT id, company_name FROM businesses WHERE REPLACE(REPLACE(business_number,'-',''),' ','') = ? AND (deleted_at IS NULL OR deleted_at = '')`
       ).bind(bn).all();
-      if ((results || []).length === 1) return { ok: true, owner_type: 'Business', owner_id: results[0].id, label: results[0].company_name };
+      if ((results || []).length === 1) return { ok: true, owner_type: 'Business', owner_id: results[0].id, label: results[0].company_name, matched_by: '사업자번호' };
       if ((results || []).length > 1) return { ok: false, reason: '사업자번호 다중 매칭', candidates: results.map(b => b.company_name + '#' + b.id) };
     }
     if (name) {
       const { results } = await db.prepare(
         `SELECT id, company_name FROM businesses WHERE company_name = ? AND (deleted_at IS NULL OR deleted_at = '')`
       ).bind(name).all();
-      if ((results || []).length === 1) return { ok: true, owner_type: 'Business', owner_id: results[0].id, label: results[0].company_name };
+      if ((results || []).length === 1) return { ok: true, owner_type: 'Business', owner_id: results[0].id, label: results[0].company_name, matched_by: '회사명' };
       if ((results || []).length > 1) return { ok: false, reason: '회사명 다중 매칭 — biz_no 를 넣어주세요', candidates: results.map(b => b.company_name + '#' + b.id) };
     }
     return { ok: false, reason: '법인 매칭 실패 (사업자번호/회사명 확인)' };
   }
-  /* Person */
+  /* Person — 우선순위 (2026-09-17 사장님: "사업자등록번호 매칭하고 ... 주민등록번호 앞자리"):
+     user_id → 사업장 사업자등록번호 → 이름+생년월일 → 이름 단독.
+     생년월일은 주민번호 앞 6자리에서만 나오고, 뒤 7자리는 받지도 저장하지도 않는다. */
   if (row.user_id) {
     const u = await db.prepare(`SELECT id, COALESCE(real_name, name) AS n FROM users WHERE id = ?`).bind(Number(row.user_id)).first();
-    if (u) return { ok: true, owner_type: 'Person', owner_id: u.id, label: u.n };
+    if (u) return { ok: true, owner_type: 'Person', owner_id: u.id, label: u.n, matched_by: 'user_id' };
     return { ok: false, reason: 'user_id ' + row.user_id + ' 없음' };
+  }
+  /* 신고서의 사업장 사업자등록번호 → business_members 로 대표를 찾는다.
+     못 찾으면 에러로 끊지 않고 이름 매칭으로 넘어간다 (미등록 사업장일 수 있음). */
+  const pbn = normBiz(row.biz_no);
+  if (pbn) {
+    const { results: br } = await db.prepare(
+      `SELECT u.id AS id, COALESCE(u.real_name, u.name) AS n, MAX(COALESCE(m.is_primary, 0)) AS pri
+         FROM businesses b
+         JOIN business_members m ON m.business_id = b.id
+         JOIN users u ON u.id = m.user_id
+        WHERE REPLACE(REPLACE(b.business_number,'-',''),' ','') = ?
+          AND (b.deleted_at IS NULL OR b.deleted_at = '')
+          AND (m.removed_at IS NULL OR m.removed_at = '')
+          AND (u.approval_status IS NULL OR u.approval_status NOT IN ('deleted','merged','withdrawn'))
+        GROUP BY u.id`
+    ).bind(pbn).all();
+    const hits = br || [];
+    if (hits.length === 1) return { ok: true, owner_type: 'Person', owner_id: hits[0].id, label: hits[0].n, matched_by: '사업자등록번호' };
+    if (hits.length > 1 && name) {
+      /* 공동사업장 — 신고서 성명으로 좁힌다 */
+      const byName = hits.filter(u => u.n === name);
+      if (byName.length === 1) return { ok: true, owner_type: 'Person', owner_id: byName[0].id, label: byName[0].n, matched_by: '사업자등록번호+성명' };
+    }
+    if (hits.length > 1 && !name) {
+      return { ok: false, reason: '사업장 공동대표 ' + hits.length + '명 — 성명/user_id 필요', candidates: hits.map(u => u.n + '#' + u.id) };
+    }
   }
   if (!name) return { ok: false, reason: '이름 없음' };
   const { results } = await db.prepare(
-    `SELECT id, COALESCE(real_name, name) AS n FROM users
+    `SELECT id, COALESCE(real_name, name) AS n, birth_date FROM users
      WHERE (real_name = ? OR name = ?)
        AND (approval_status IS NULL OR approval_status NOT IN ('deleted','merged','withdrawn'))`
   ).bind(name, name).all();
   const list = results || [];
-  if (list.length === 1) return { ok: true, owner_type: 'Person', owner_id: list[0].id, label: list[0].n };
-  if (list.length > 1) return { ok: false, reason: '동명이인 ' + list.length + '명 — JSON 에 user_id 지정 필요', candidates: list.map(u => u.n + '#' + u.id) };
+  if (list.length === 1) return { ok: true, owner_type: 'Person', owner_id: list[0].id, label: list[0].n, matched_by: '성명' };
+  if (list.length > 1) {
+    const bd = String(row.birth_date || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(bd)) {
+      const narrowed = list.filter(u => String(u.birth_date || '').slice(0, 10) === bd);
+      if (narrowed.length === 1) return { ok: true, owner_type: 'Person', owner_id: narrowed[0].id, label: narrowed[0].n, matched_by: '성명+생년월일' };
+    }
+    return {
+      ok: false,
+      reason: '동명이인 ' + list.length + '명 — 생년월일로도 못 좁혔습니다 (user_id 지정 필요)',
+      candidates: list.map(u => u.n + '#' + u.id + (u.birth_date ? '(' + String(u.birth_date).slice(0, 10) + ')' : '')),
+    };
+  }
   return { ok: false, reason: '이름 매칭 실패' };
 }
 
@@ -196,6 +241,7 @@ export async function onRequestPost(context) {
       const m = await matchOwner(db, row);
       if (!m.ok) { a.status = 'unmatched'; a.reason = m.reason; a.candidates = m.candidates; sum.unmatched++; analysis.push(a); continue; }
       a.owner_type = m.owner_type; a.owner_id = m.owner_id; a.owner_label = m.label;
+      if (m.matched_by) a.matched_by = m.matched_by;
       sum.matched++;
 
       const existing = await db.prepare(

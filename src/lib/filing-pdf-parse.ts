@@ -94,6 +94,10 @@ const squash = (s: string): string => s.replace(/\s+/g, '');
 function byItemNo(lines: string[], no: number): number | null {
   const re = new RegExp('(?:^|\\s)' + no + '\\s+([\\d,]+)');
   for (const ln of lines) {
+    /* 서식 제목 "(2025년 귀속) 종합소득세…" 은 세액계산 행이 아니다.
+       브라우저(pdf.js)로 뽑으면 연도가 "20 25" 로 갈라져 나오는 출력물이 있어,
+       걸러내지 않으면 항목번호 20(소득공제) 의 금액이 25 로 잡힌다 (실측 확인). */
+    if (squash(ln).includes('년귀속')) continue;
     const m = ln.match(re);
     if (m) return toNum(m[1]);
   }
@@ -280,10 +284,14 @@ export function parseFilingText(text: string): ParsedFiling {
 
   /* ── 거래처 매칭용 정보 ── */
   /* 성명 — 홈택스는 "①성 명", 위하고는 "1 성      명". 세무대리인 칸(⑬성명)에도
-     같은 모양이 나오므로 기본사항 구간이 먼저 오는 것을 이용해 첫 매치만 쓴다. */
+     같은 모양이 나오므로 기본사항 구간이 먼저 오는 것을 이용해 첫 매치만 쓴다.
+     브라우저(pdf.js)로 뽑으면 서식의 자간이 살아나 "이 재 윤" 처럼 한 글자씩
+     떨어져 나온다. \S+ 로 받으면 "이" 만 잡혀 거래처 매칭이 통째로 틀어지므로
+     한 글자 + 공백 하나의 반복으로 받아 붙인다. */
   for (const ln of lines) {
-    const m = ln.match(/(?:①|(?:^|\s)1)\s*성\s*명\s+(\S+)/) || ln.match(/성\s+명\s{2,}(\S{2,5})\s{2,}②/);
-    if (m) { owner.name = m[1].trim(); break; }
+    const m = ln.match(/(?:①|(?:^|\s)1)\s*성\s*명\s+((?:[가-힣][ ]?){2,8})/)
+      || ln.match(/성\s+명\s{2,}((?:[가-힣][ ]?){2,5})\s{2,}②/);
+    if (m) { owner.name = m[1].replace(/\s+/g, ''); break; }
   }
   /* 주민번호: 앞 6 + 뒤 첫 자리만 읽고 나머지는 버린다 */
   /* 주민번호 — 위하고는 "9 3 0 5 1 0 - 1 6 8 5 4 2 0" 처럼 한 글자씩 띄워 찍는다.
@@ -322,9 +330,13 @@ export function parseFilingText(text: string): ParsedFiling {
       break outer;
     }
   }
+  /* 상호 — pdf.js 로 뽑으면 자간 때문에 "세 무회 계  이윤" 처럼 갈라진다.
+     칸 경계는 5칸 이상 띄움으로 잡고 (상호 안의 자간이 3칸까지 벌어진 출력물이 있다),
+     남은 자간은 전부 없애 두 경로가 같은 값을 내도록 한다
+     (표시용이라 띄어쓰기보다 일관성이 중요하다). */
   for (const ln of bizSection.length ? bizSection : lines) {
-    const m = ln.match(/④\s*상\s*호\s+(\S.*?)(?:\s{2,}|\s*$)/);
-    if (m) { owner.company_name = m[1].trim(); break; }
+    const m = ln.match(/④\s*상\s*호\s+(\S.*?)(?:\s{5,}|\s*$)/);
+    if (m) { owner.company_name = squash(m[1]); break; }
   }
 
   /* ── 검산 ── */

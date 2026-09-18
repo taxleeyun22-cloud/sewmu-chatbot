@@ -363,3 +363,35 @@ describe('구형 브라우저 — lookbehind 정규식 금지', () => {
     expect(src).not.toContain('(?<!');
   });
 });
+
+/* 2026-09-17: admin 에서 신고서 PDF 를 그대로 올리는 경로가 생겼다.
+   브라우저(pdf.js)로 뽑은 글자는 서식의 자간이 그대로 살아 나와
+   pdftotext 출력과 줄 모양이 다르다. 실제 신고서 2종(홈택스·위하고)에서
+   확인한 차이를 회귀로 고정한다. */
+describe('브라우저에서 뽑은 글자 — 자간이 살아 있는 출력물', () => {
+  it('성명이 한 글자씩 떨어져 나와도 붙여서 읽는다', () => {
+    const 자간 = SAMPLE.replace(
+      '①성      명                 홍길동',
+      '①  성   명          홍 길 동     ',
+    );
+    expect(parseFilingText(자간).owner.name).toBe('홍길동');
+  });
+
+  it('상호가 갈라져 나와도 한 상호로 읽는다', () => {
+    const 자간 = SAMPLE.replace(
+      '④상                 호                  테스트상사',
+      '④ 상         호            테스트   상사',
+    );
+    expect(parseFilingText(자간).owner.company_name).toBe('테스트상사');
+  });
+
+  it('서식 제목의 연도가 "20 25" 로 갈라져도 소득공제(항번 20)로 오인하지 않는다', () => {
+    const 갈라진연도 = SAMPLE.replace(
+      '❹ 세액의 계산',
+      '❹ 세액의 계산\n          ( 20 25  년  귀  속 )종 합 소 득 세 ㆍ 농 어 촌 특 별 세',
+    );
+    const r = parseFilingText(갈라진연도);
+    expect(r.fields.income_deduction).toBe(5_000_000);
+    expect(r.ok).toBe(true);
+  });
+});
