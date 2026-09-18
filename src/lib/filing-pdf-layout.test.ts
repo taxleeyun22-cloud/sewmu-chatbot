@@ -68,3 +68,35 @@ describe('_fpLayout — 칸 간격', () => {
     expect(out.split('\n').map((l) => l.trim())).toEqual(['위', '아래']);
   });
 });
+
+/* 2026-09-18: 실제 브라우저로 올려 보니 새로 추가한 필드가 라벨 없이
+   "expense_total 23,252,394" 처럼 영문 키 그대로 화면에 나왔다.
+   파서가 내보낼 수 있는 키는 전부 한글 라벨이 있어야 한다. */
+describe('admin 미리보기 — 필드 라벨', () => {
+  const src = readFileSync('admin.js', 'utf8');
+  const labelKeys = (name: string): string[] => {
+    const i = src.indexOf(`var ${name}=`);
+    if (i < 0) throw new Error(`${name} 를 admin.js 에서 못 찾았다`);
+    const body = src.slice(i, src.indexOf('};', i));
+    /* 키는 revenue: 처럼도, '공제감면': 처럼 따옴표로도 쓰여 있다 */
+    return Array.from(body.matchAll(/['"]?([A-Za-z_가-힣]+)['"]?\s*:/g)).map((m) => m[1]);
+  };
+  const labelled = new Set([...labelKeys('_FJ_LABEL'), ...labelKeys('_FP_LABEL_PERSON')]);
+
+  it('파서가 내보내는 모든 필드에 한글 라벨이 있다', () => {
+    const parserSrc = readFileSync('src/lib/filing-pdf-parse.ts', 'utf8');
+    const iface = parserSrc.slice(
+      parserSrc.indexOf('export interface ParsedFilingFields {'),
+      parserSrc.indexOf('export interface ParsedFilingOwner'),
+    );
+    const fields = Array.from(iface.matchAll(/^\s{2}([A-Za-z_가-힣]+)\??:/gm)).map((m) => m[1]);
+    expect(fields.length).toBeGreaterThan(10);
+    expect(fields.filter((f) => !labelled.has(f))).toEqual([]);
+  });
+
+  it('종소세에서는 business_income 을 "사업소득금액" 으로 바꿔 부른다', () => {
+    /* 같은 키가 법인세에서는 각사업연도소득금액이다 — 섞이면 안 된다 */
+    expect(src).toContain("_FP_LABEL_PERSON={business_income:'사업소득금액'}");
+    expect(src).toContain("business_income:'각사업연도소득금액'");
+  });
+});

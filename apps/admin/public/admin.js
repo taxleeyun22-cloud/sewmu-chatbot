@@ -4486,7 +4486,7 @@ async function _wiCommit(){
 /* ===== 📥 검토표 JSON 심기 (2026-07-17) — Claude 채팅에서 추출한 신고서 데이터 확정 반영 ===== */
 var _fjBatchId=null,_fjSummary=null;
 /* 기존 값 교체 미리보기 — 무엇이 무엇으로 바뀌는지 확정 전에 전부 보여준다 (2026-09-15) */
-var _FJ_LABEL={'공제감면':'공제·감면 내역','가산세':'가산세 내역',revenue:'수입금액',total_income:'종합소득금액',income_deduction:'종합소득공제',tax_base:'과세표준',calculated_tax:'산출세액',deduction_total:'세액공제·감면',penalty_total:'가산세',decisive_tax:'결정세액',prepaid_tax:'기납부세액',payable_tax:'납부할세액',paid_tax:'납부세액',farmland_tax:'농특세 납부',net_income:'결산서당기순이익',adj_inclusion:'익금산입',adj_exclusion:'손금산입',business_income:'각사업연도소득금액',additional_tax:'감면분추가납부세액',vat:'부가세 세부'};
+var _FJ_LABEL={'공제감면':'공제·감면 내역','가산세':'가산세 내역',revenue:'수입금액',expense_total:'필요경비',total_income:'종합소득금액',income_deduction:'종합소득공제',tax_base:'과세표준',calculated_tax:'산출세액',deduction_total:'세액공제·감면',penalty_total:'가산세',decisive_tax:'결정세액',prepaid_tax:'기납부세액',payable_tax:'납부할세액',paid_tax:'납부세액',farmland_tax:'농특세 납부',net_income:'결산서당기순이익',adj_inclusion:'익금산입',adj_exclusion:'손금산입',business_income:'각사업연도소득금액',additional_tax:'감면분추가납부세액',vat:'부가세 세부'};
 function _fjNum(v){
   /* 공제감면·가산세 배열은 "N건 합계원" 으로 요약 — 원본 JSON 을 그대로 뿌리면 못 읽는다 */
   if(Array.isArray(v)){
@@ -4794,13 +4794,19 @@ function _fpStatus(r){
   if(warn.length)return {kind:'warn',msgs:warn};
   return {kind:'ok',msgs:[]};
 }
+/* 같은 키라도 서식에 따라 뜻이 다르다 — business_income 은 종소세에서 ⑪사업소득금액,
+   법인세에서 107 각사업연도소득금액이다. 검토표 라벨(_FJ_LABEL)은 법인 기준이라
+   종소세일 때만 갈아끼운다. */
+var _FP_LABEL_PERSON={business_income:'사업소득금액'};
 function _fpFieldsHtml(p){
   var f=p.fields||{};
   var keys=Object.keys(f);
   if(!keys.length)return '';
+  var isCorp=p.type==='법인세';
   return '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;color:var(--text-sub)">'
     +keys.map(function(k){
-      return '<span>'+e(_FJ_LABEL[k]||k)+' <b>'+e(_fjNum(f[k]))+'</b></span>';
+      var label=(!isCorp&&_FP_LABEL_PERSON[k])||_FJ_LABEL[k]||k;
+      return '<span>'+e(label)+' <b>'+e(_fjNum(f[k]))+'</b></span>';
     }).join('')+'</div>';
 }
 function _fpRender(){
