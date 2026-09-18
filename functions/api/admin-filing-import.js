@@ -43,7 +43,7 @@ function normBiz(s) { return String(s || '').replace(/\D/g, ''); }
 
 const FILING_TYPES = ['종소세', '법인세', '부가세'];
 const FIELD_KEYS = [
-  'revenue', 'total_income', 'income_deduction', 'tax_base', 'calculated_tax',
+  'revenue', 'expense_total', 'total_income', 'income_deduction', 'tax_base', 'calculated_tax',
   'deduction_total', 'penalty_total', 'decisive_tax', 'prepaid_tax', 'payable_tax', 'paid_tax',
   'farmland_tax', 'net_income', 'adj_inclusion', 'adj_exclusion', 'business_income', 'additional_tax',
 ];

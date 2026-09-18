@@ -24,6 +24,10 @@ export interface ParsedFilingFields {
   revenue?: number;
   total_income?: number;
   income_deduction?: number;
+  /** ⑩필요경비 (사업장 합계) */
+  expense_total?: number;
+  /** ⑪사업소득금액 (사업장 합계) — 종합소득금액과 다르다 (근로·기타소득이 빠진 값) */
+  business_income?: number;
   tax_base?: number;
   calculated_tax?: number;
   deduction_total?: number;
@@ -265,33 +269,35 @@ export function parseFilingText(text: string): ParsedFiling {
     if (m) { put('farmland_tax', toNum(m[1])); break; }
   }
 
-  /* ⑨ 총수입금액 — 사업장이 여러 개면 한 줄에 나란히 찍히므로 전부 합산 */
-  for (let i = 0; i < lines.length; i++) {
-    const ln = lines[i];
-    /* 줄 아무데나 '총수입금액' 이 있으면 잡던 것 → 가산세 기준칸("공동사업장등록
-       불성실 … 총수입금액 0.5/100") 이나 표 머리글까지 걸린다. 항목 칸으로 한정한다.
-       ⑮조정후총수입금액 은 ❼명세서가 비어 있는 부동산임대 신고서의 대체 칸이다. */
-    if (!/^[⑧⑨⑮]?\s*(?:조정후)?총수입금액/.test(squash(ln))) continue;
-    const nums = (ln.match(/[\d,]{4,}/g) || []).map(toNum).filter((n): n is number => n !== null);
-    if (!nums.length) continue;
-    /* 위하고 출력물은 사업장 칸 뒤에 "계" 칸이 하나 더 붙는다. 그대로 합치면 2배가
-       되므로, 마지막 숫자가 나머지의 합이면 그것을 계로 보고 채택한다.
-       홈택스는 계 칸이 없어 이 조건이 성립하지 않으므로 그대로 합산된다. */
-    /* 매출이 같은 사업장 2곳이면 last === rest 가 우연히 참이 되어 매출이 절반이
-       된다 (계 칸 없는 홈택스 출력물에서 발생). revenue 는 검산 대상이 아니라
-       조용히 통과하므로, 사업소득명세서에 실제로 "계" 열이 있을 때만 채택한다. */
-    /* "계" 열 머리글은 ②일련번호 줄에 있고, 그 사이 ③사업장소재지가 여러 줄로
-       쪼개져 들어가므로 넉넉히 뒤로 본다. */
-    const hasTotalColumn = sq
-      .slice(Math.max(0, i - 20), i + 1)
-      .some((l) => /일련번호/.test(l) && /(^|[^가-힣])계($|[^가-힣])/.test(l));
-    const last = nums[nums.length - 1];
-    const rest = nums.slice(0, -1).reduce((a, b) => a + b, 0);
-    fields.revenue = hasTotalColumn && nums.length > 1 && last === rest
-      ? last
-      : nums.reduce((a, b) => a + b, 0);
-    break;
-  }
+  /* ❼ 사업소득명세서의 가로 한 줄 — 사업장이 여러 개면 나란히 찍히므로 전부 합산.
+     위하고 출력물은 사업장 칸 뒤에 "계" 칸이 하나 더 붙는다. 그대로 합치면 2배가
+     되므로, 마지막 숫자가 나머지의 합이면 그것을 계로 보고 채택한다. 단 매출이 같은
+     사업장 2곳이면 우연히 참이 되어 절반이 되므로, 실제로 "계" 열이 있을 때만 쓴다
+     ("계" 열 머리글은 ②일련번호 줄에 있다). */
+  const sumRow = (anchor: RegExp): number | undefined => {
+    for (let i = 0; i < lines.length; i++) {
+      if (!anchor.test(sq[i])) continue;
+      const nums = (lines[i].match(/[\d,]{4,}/g) || []).map(toNum).filter((n): n is number => n !== null);
+      if (!nums.length) continue;
+      const hasTotalColumn = sq
+        .slice(Math.max(0, i - 20), i + 1)
+        .some((l) => /일련번호/.test(l) && /(^|[^가-힣])계($|[^가-힣])/.test(l));
+      const last = nums[nums.length - 1];
+      const rest = nums.slice(0, -1).reduce((a, b) => a + b, 0);
+      return hasTotalColumn && nums.length > 1 && last === rest ? last : nums.reduce((a, b) => a + b, 0);
+    }
+    return undefined;
+  };
+
+  /* ⑨총수입금액. 줄 아무데나 '총수입금액' 이 있으면 잡던 것 → 가산세 기준칸
+     ("공동사업장등록 불성실 … 총수입금액 0.5/100") 이나 표 머리글까지 걸린다.
+     ⑮조정후총수입금액 은 ❼명세서가 비어 있는 부동산임대 신고서의 대체 칸이다. */
+  fields.revenue = sumRow(/^[⑧⑨⑮]?\s*(?:조정후)?총수입금액/);
+  /* ⑩필요경비 · ⑪소득금액 — 이걸 읽어야 수입금액에 검산이 걸린다.
+     안 걸어두면 매출만 조용히 틀린 채 통과한다 (다른 검산은 전부 세액 쪽이라
+     매출이 어긋나도 4/4 통과가 나온다 — 실측 확인). */
+  fields.expense_total = sumRow(/^[⑨⑩]?\s*필요경비/);
+  fields.business_income = sumRow(/^[⑩⑪]?\s*소득금액\(/);
 
   /* ⑬ 세액공제명세서 ~ ⑭ 준비금명세서 구간 안에서만 공제 항목을 찾는다.
      문서 전체를 훑으면 손익계산서 항목을 공제로 오인한다 (실측 확인). */
@@ -417,6 +423,12 @@ export function parseFilingText(text: string): ParsedFiling {
   );
   /* 서식상 33 = 31 − 32 이고 31 = 28 + 29 + 30 이다.
      가산세(29)를 빼먹고 검산하면 가산세가 붙은 정상 신고서가 전부 반려된다. */
+  add(
+    '사업소득금액 = 총수입금액 − 필요경비',
+    fields.business_income,
+    fields.revenue !== undefined && fields.expense_total !== undefined
+      ? fields.revenue - fields.expense_total : undefined,
+  );
   add(
     '납부할세액 = 결정세액 + 가산세 + 추가납부 − 기납부세액',
     fields.payable_tax,

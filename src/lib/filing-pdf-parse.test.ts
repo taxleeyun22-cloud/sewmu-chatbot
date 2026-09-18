@@ -49,6 +49,7 @@ const SAMPLE = `
 ⑤사업자등록번호                              123-45-67890          000-00-00000
 ⑨총 수 입 금 액                                   400,000,000            50,000,000
 ⑩필         요   경        비                    340,000,000            10,000,000
+⑪ 소 득 금 액(⑨ - ⑩)                              60,000,000            40,000,000
 
 ⑬ 세액공제명세서
               세액공제항목                                   ② 코드   공제대상금액        적용률        ③세액공제
@@ -103,8 +104,8 @@ describe('parseFilingText — 정상 신고서', () => {
     expect(sum).toBe(r.fields.deduction_total);
   });
 
-  it('검산 4개가 전부 통과한다', () => {
-    expect(r.checks.length).toBe(4);
+  it('검산 5개가 전부 통과한다', () => {
+    expect(r.checks.length).toBe(5);
     expect(r.checks.every((c) => c.ok)).toBe(true);
   });
 
@@ -454,5 +455,33 @@ describe('실제 신고서에서 잡힌 것 — 서식·마스킹·환급·적�
       '⑧공동사업장등록   미등록ㆍ허위등록   총 수 입 금 액    999,999,999    0.5/100\n⑬ 세액공제명세서',
     );
     expect(parseFilingText(가산세칸).fields.revenue).toBe(450_000_000);
+  });
+});
+
+describe('사업소득금액 — 종합소득금액과 다르다 (근로소득이 섞인 신고서)', () => {
+  it('⑩필요경비·⑪소득금액을 읽고 수입금액에 검산을 건다', () => {
+    const r = parseFilingText(SAMPLE);
+    expect(r.fields.expense_total).toBe(350_000_000);
+    expect(r.fields.business_income).toBe(100_000_000);
+    expect(r.checks.map((c) => c.label)).toContain('사업소득금액 = 총수입금액 − 필요경비');
+  });
+
+  it('매출만 틀리면 다른 검산은 다 맞아도 잡아낸다 (예전엔 조용히 통과했다)', () => {
+    const 매출틀림 = SAMPLE.replace(
+      '⑨총 수 입 금 액                                   400,000,000            50,000,000',
+      '⑨총 수 입 금 액                                   400,000,000            90,000,000',
+    );
+    const r = parseFilingText(매출틀림);
+    expect(r.ok).toBe(false);
+    expect(r.problems.join(' ')).toContain('사업소득금액 = 총수입금액 − 필요경비');
+  });
+
+  it('❼명세서가 비어 검산을 못 걸면 건너뛴 것으로 남긴다 (통과가 아니다)', () => {
+    const 명세서없음 = SAMPLE
+      .replace('⑩필         요   경        비                    340,000,000            10,000,000\n', '')
+      .replace('⑪ 소 득 금 액(⑨ - ⑩)                              60,000,000            40,000,000\n', '');
+    const r = parseFilingText(명세서없음);
+    expect(r.skipped_checks).toContain('사업소득금액 = 총수입금액 − 필요경비');
+    expect(r.ok).toBe(false);
   });
 });
