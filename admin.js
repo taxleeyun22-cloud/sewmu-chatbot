@@ -4772,6 +4772,9 @@ async function _fpPdfText(file){
 function _fpStatus(r){
   if(r.err)return {kind:'err',msgs:[r.err]};
   var p=r.p||{};
+  /* 종합소득세 신고서가 아니면 읽은 척하지 않는다 (법인세·부가세 서식이 섞여 들어온다) */
+  if(p.unsupported)return {kind:'err',msgs:[p.unsupported]};
+  if(p.masked)return {kind:'err',msgs:p.problems&&p.problems.length?p.problems:['마스킹된 출력물입니다']};
   if(!p.owner||!p.owner.name)return {kind:'err',msgs:['성명을 못 읽었습니다 — 종합소득세 신고서가 맞는지 확인']};
   if(!p.fiscal_year)return {kind:'err',msgs:['귀속연도를 못 읽었습니다']};
   var mismatch=(p.checks||[]).filter(function(c){return !c.ok});
@@ -4873,7 +4876,7 @@ async function _fpParseFiles(ev){
   _fpRender();
 }
 function _fpRows(){
-  return _fpParsed.filter(function(r){return r.include&&r.p}).map(function(r){
+  return _fpParsed.filter(function(r){return r.include&&r.p&&!r.p.unsupported&&!r.p.masked&&r.p.owner&&r.p.owner.name}).map(function(r){
     var p=r.p,f={};
     Object.keys(p.fields||{}).forEach(function(k){
       var v=p.fields[k];

@@ -126,7 +126,9 @@ describe('거래처 매칭 정보', () => {
   });
 
   it('000-00-00000(사업자등록 없는 인적용역)은 건너뛴다', () => {
-    const only = parseFilingText('❼ 사업소득명세서\n⑤사업자등록번호   000-00-00000   987-65-43210');
+    const only = parseFilingText(
+      '(2025년귀속)종합소득세ㆍ농어촌특별세\n❼ 사업소득명세서\n⑤사업자등록번호   000-00-00000   987-65-43210',
+    );
     expect(only.owner.biz_no).toBe('9876543210');
   });
 
@@ -185,10 +187,18 @@ describe('검산 — 틀리면 심지 않는다', () => {
   });
 
   it('필수 항목을 못 읽으면 사유가 남는다', () => {
-    const r = parseFilingText('아무 내용 없음');
+    /* 서식은 맞는데 ❹세액의계산이 통째로 안 읽힌 경우 */
+    const 머리만 = SAMPLE.slice(0, SAMPLE.indexOf('❹ 세액의 계산'));
+    const r = parseFilingText(머리만);
     expect(r.ok).toBe(false);
     expect(r.problems.join(' ')).toContain('수입금액');
-    expect(r.problems.join(' ')).toContain('귀속연도');
+  });
+
+  it('종합소득세 신고서가 아니면 읽기 전에 끊는다', () => {
+    const r = parseFilingText('아무 내용 없음');
+    expect(r.ok).toBe(false);
+    expect(r.unsupported).toBeTruthy();
+    expect(r.fields).toEqual({});
   });
 
   it('빈 입력에도 터지지 않는다', () => {
@@ -393,5 +403,56 @@ describe('브라우저에서 뽑은 글자 — 자간이 살아 있는 출력물
     const r = parseFilingText(갈라진연도);
     expect(r.fields.income_deduction).toBe(5_000_000);
     expect(r.ok).toBe(true);
+  });
+});
+
+/* 2026-09-18: 사장님이 준 실제 신고서 5건에서 나온 것들 */
+describe('실제 신고서에서 잡힌 것 — 서식·마스킹·환급·적용률', () => {
+  it('법인세 신고서는 읽지 않고 끊는다 (종소세로 오인해 숫자를 만들어내면 안 된다)', () => {
+    const 법인세 = `■ 법인세법 시행규칙 [별지 제1호서식]
+                     법인세 과세표준 및 세액신고서
+사 업 자 등 록 번 호        544-86-01500
+사   업   연   도            2025.01.01 ~ 2025.12.31`;
+    const r = parseFilingText(법인세);
+    expect(r.unsupported).toContain('법인세');
+    expect(r.fields).toEqual({});
+    expect(r.ok).toBe(false);
+  });
+
+  it('마스킹된 출력물은 "못 읽었다" 가 아니라 "가려졌다" 고 말한다', () => {
+    const 마스킹 = SAMPLE
+      .replace('①성      명                 홍길동', '①성      명                 홍***')
+      .replace('900101-1987654', '900101-*******');
+    const r = parseFilingText(마스킹);
+    expect(r.masked).toBe(true);
+    expect(r.owner.name).toBeUndefined();
+    expect(r.owner.birth_date).toBeUndefined();
+    expect(r.problems.join(' ')).toContain('마스킹');
+    expect(r.ok).toBe(false);
+  });
+
+  it('환급 신고서의 마이너스 부호를 버리지 않는다', () => {
+    const 환급 = SAMPLE.replace(
+      '납 부(환급) 할 총 세 액(                         31   －    32   )   33                                10,000,000',
+      '납 부(환급) 할 총 세 액(                         31   －    32   )   33                                -2,170,117',
+    );
+    expect(parseFilingText(환급).fields.payable_tax).toBe(-2_170_117);
+  });
+
+  it('공제 적용률 칸(12%)을 세액공제액으로 읽지 않는다', () => {
+    const 보장성 = SAMPLE.replace(
+      '                  표       준   세       액   공       제     284                               0',
+      '                  보   장   성                 277      1,000,000    12%          120,000',
+    );
+    const d = parseFilingText(보장성).fields.공제감면?.find((x) => x.code === '277');
+    expect(d?.amount).toBe(120_000);
+  });
+
+  it('가산세 기준칸의 "총수입금액" 을 매출로 읽지 않는다', () => {
+    const 가산세칸 = SAMPLE.replace(
+      '⑬ 세액공제명세서',
+      '⑧공동사업장등록   미등록ㆍ허위등록   총 수 입 금 액    999,999,999    0.5/100\n⑬ 세액공제명세서',
+    );
+    expect(parseFilingText(가산세칸).fields.revenue).toBe(450_000_000);
   });
 });

@@ -57,6 +57,10 @@ export interface FilingCheck {
 
 export interface ParsedFiling {
   type: '종소세';
+  /** 종합소득세 신고서가 아닐 때 그 이유 — 이 값이 있으면 절대 심으면 안 된다 */
+  unsupported?: string;
+  /** 주민번호·성명이 *** 로 가려진 출력물 — 거래처를 특정할 수 없다 */
+  masked?: boolean;
   fiscal_year?: number;
   /** ⑨신고유형 코드 — 11 자기조정 / 12 외부조정 / 14 성실신고확인 / 20 간편장부 / 31 추계-기준율 / 32 추계-단순율 */
   filing_type_code?: string;
@@ -77,9 +81,14 @@ export interface ParsedFiling {
 
 const toNum = (s: string | null | undefined): number | null => {
   if (s === null || s === undefined) return null;
-  const n = Number(String(s).replace(/[^\d-]/g, ''));
+  /* 환급은 서식에 "-2,170,117" 또는 "△2,170,117" 로 찍힌다. 부호를 버리면
+     환급 거래처가 납부로 뒤집혀 들어간다 (실측 확인). */
+  const n = Number(String(s).replace(/[△▲]/g, '-').replace(/[^\d-]/g, ''));
   return Number.isFinite(n) ? n : null;
 };
+
+/** 금액 토큰 (환급 부호 포함). 사업자번호 안 하이픈을 음수로 오인하지 않는다. */
+const AMOUNT = '[-△▲]?[\\d,]';
 
 /** 신고서는 "산      출  세   액" 처럼 글자 사이를 늘려 찍는다 — 공백 제거 후 비교 */
 const squash = (s: string): string => s.replace(/\s+/g, '');
@@ -92,7 +101,7 @@ const squash = (s: string): string => s.replace(/\s+/g, '');
  *   → ❹ 세액의 계산 구간으로 범위를 좁힌 뒤 항목번호만으로 찾는다.
  */
 function byItemNo(lines: string[], no: number): number | null {
-  const re = new RegExp('(?:^|\\s)' + no + '\\s+([\\d,]+)');
+  const re = new RegExp('(?:^|\\s)' + no + '\\s+(' + AMOUNT + '+)');
   for (const ln of lines) {
     /* 서식 제목 "(2025년 귀속) 종합소득세…" 은 세액계산 행이 아니다.
        브라우저(pdf.js)로 뽑으면 연도가 "20 25" 로 갈라져 나오는 출력물이 있어,
@@ -116,7 +125,8 @@ function byLabel(lines: string[], label: string, exclude: string[] = []): number
     const sqln = squash(ln);
     if (!sqln.includes(label)) continue;
     if (exclude.some((x) => sqln.includes(x))) continue;
-    const nums = (ln.match(/[\d,]{3,}/g) || []).map(toNum).filter((n): n is number => n !== null);
+    const nums = Array.from(ln.matchAll(new RegExp('(^|[^\\d])(' + AMOUNT + '{3,})', 'g')))
+      .map((m) => toNum(m[2])).filter((n): n is number => n !== null);
     if (nums.length) return nums[0];   /* 첫 칸 = 종합소득세. 뒤는 농특세 */
   }
   return null;
@@ -173,6 +183,32 @@ export function parseFilingText(text: string): ParsedFiling {
   const owner: ParsedFilingOwner = {};
   const problems: string[] = [];
 
+  /* ── 서식 판별 ──
+     종합소득세(별지 제40호서식) 외의 서식을 그대로 읽으면 엉뚱한 칸이 세금 숫자로
+     들어간다. 실제로 법인세 신고서(별지 제1호서식) 2건에서 과세표준 72원·추가납부
+     73원 같은 값이 만들어졌고 검산 하나가 우연히 통과했다. 읽기 전에 끊는다. */
+  const head = sq.slice(0, 200).join('|');
+  const UNSUPPORTED: Array<[RegExp, string]> = [
+    [/법인세과세표준및세액신고서|법인세법시행규칙\[별지제1호서식\]/, '법인세 신고서입니다 — 아직 종합소득세 신고서만 읽습니다'],
+    [/부가가치세.{0,6}(확정|예정)신고서|부가가치세법시행규칙\[별지제21호서식\]/, '부가가치세 신고서입니다 — 아직 종합소득세 신고서만 읽습니다'],
+    [/원천징수이행상황신고서/, '원천징수이행상황신고서입니다 — 아직 종합소득세 신고서만 읽습니다'],
+  ];
+  for (const [re, why] of UNSUPPORTED) {
+    if (re.test(head)) {
+      return {
+        type: '종소세', unsupported: why, owner: {}, fields: {},
+        checks: [], skipped_checks: [], ok: false, problems: [why],
+      };
+    }
+  }
+  if (!/종합소득세.{0,10}농어촌특별세|과세표준확정신고및납부계산서/.test(head)) {
+    const why = '종합소득세 신고서(별지 제40호서식)가 아닙니다';
+    return {
+      type: '종소세', unsupported: why, owner: {}, fields: {},
+      checks: [], skipped_checks: [], ok: false, problems: [why],
+    };
+  }
+
   /* 귀속연도 — "(2025년귀속)" */
   let fiscal_year: number | undefined;
   let filing_type_code: string | undefined;
@@ -225,14 +261,17 @@ export function parseFilingText(text: string): ParsedFiling {
 
   /* 농어촌특별세 — 오른쪽 열 항번 53 */
   for (const ln of calc) {
-    const m = ln.match(/\s53\s+([\d,]+)/);
+    const m = ln.match(new RegExp('\\s53\\s+(' + AMOUNT + '+)'));
     if (m) { put('farmland_tax', toNum(m[1])); break; }
   }
 
   /* ⑨ 총수입금액 — 사업장이 여러 개면 한 줄에 나란히 찍히므로 전부 합산 */
   for (let i = 0; i < lines.length; i++) {
     const ln = lines[i];
-    if (!squash(ln).includes('총수입금액')) continue;
+    /* 줄 아무데나 '총수입금액' 이 있으면 잡던 것 → 가산세 기준칸("공동사업장등록
+       불성실 … 총수입금액 0.5/100") 이나 표 머리글까지 걸린다. 항목 칸으로 한정한다.
+       ⑮조정후총수입금액 은 ❼명세서가 비어 있는 부동산임대 신고서의 대체 칸이다. */
+    if (!/^[⑧⑨⑮]?\s*(?:조정후)?총수입금액/.test(squash(ln))) continue;
     const nums = (ln.match(/[\d,]{4,}/g) || []).map(toNum).filter((n): n is number => n !== null);
     if (!nums.length) continue;
     /* 위하고 출력물은 사업장 칸 뒤에 "계" 칸이 하나 더 붙는다. 그대로 합치면 2배가
@@ -263,8 +302,15 @@ export function parseFilingText(text: string): ParsedFiling {
     if (end < 0) end = Math.min(lines.length, start + 120);
 
     const list: DeductionItem[] = [];
-    for (const ln of lines.slice(start, end)) {
-      /* "<항목명> <코드> <공제대상금액> [(적용률)] <세액공제액>" 또는 "<항목명> <코드> <세액공제액>" */
+    for (const raw of lines.slice(start, end)) {
+      /* 적용률 칸("12%", "(15%)", "40%)", "12/100") 과 ④사업자등록번호 칸을 먼저 지운다.
+         안 지우면 공제대상금액 다음 숫자인 적용률이 세액공제액으로 잡혀
+         보장성 120,000 이 12(%) 로, 일반기부금 7,500 이 40(%) 으로 들어간다 (실측 확인). */
+      const ln = raw
+        .replace(/\d{3}-\d{2}-\d{5}/g, ' ')
+        .replace(/\(?\s*\d+(?:\.\d+)?\s*%\s*[,)]?/g, ' ')
+        .replace(/\d+\s*\/\s*\d{2,3}(?!\d)/g, ' ');
+      /* "<항목명> <코드> <공제대상금액> <세액공제액>" 또는 "<항목명> <코드> <세액공제액>" */
       let m = ln.match(/^(.+?)\s{2,}(\d{2}[0-9A-Z])\s+([\d,]+)(?:\s*\([^)]*\))?\s+([\d,]+)/);
       let rawName: string, code: string, amount: number | null;
       if (m) { rawName = m[1]; code = m[2]; amount = toNum(m[4]); }
@@ -288,10 +334,15 @@ export function parseFilingText(text: string): ParsedFiling {
      브라우저(pdf.js)로 뽑으면 서식의 자간이 살아나 "이 재 윤" 처럼 한 글자씩
      떨어져 나온다. \S+ 로 받으면 "이" 만 잡혀 거래처 매칭이 통째로 틀어지므로
      한 글자 + 공백 하나의 반복으로 받아 붙인다. */
+  /* 홈택스 "개인정보 보호" 출력물은 성명을 "권***", 주민번호를 "920121-*******"
+     로 가려서 찍는다. 이러면 거래처를 특정할 방법이 아예 없다 — "못 읽었다" 가 아니라
+     "가려져 있다" 고 말해야 사장님이 다시 뽑는다. */
+  let masked = false;
   for (const ln of lines) {
     const m = ln.match(/(?:①|(?:^|\s)1)\s*성\s*명\s+((?:[가-힣][ ]?){2,8})/)
       || ln.match(/성\s+명\s{2,}((?:[가-힣][ ]?){2,5})\s{2,}②/);
     if (m) { owner.name = m[1].replace(/\s+/g, ''); break; }
+    if (/(?:①|(?:^|\s)1)\s*성\s*명\s+[가-힣]*\*{2,}/.test(ln)) { masked = true; break; }
   }
   /* 주민번호: 앞 6 + 뒤 첫 자리만 읽고 나머지는 버린다 */
   /* 주민번호 — 위하고는 "9 3 0 5 1 0 - 1 6 8 5 4 2 0" 처럼 한 글자씩 띄워 찍는다.
@@ -308,6 +359,7 @@ export function parseFilingText(text: string): ParsedFiling {
       if (m) { owner.birth_date = rrnToBirthDate(m[1], m[2]) ?? undefined; break; }
     }
   }
+  if (!owner.birth_date && lines.some((l) => /\d{6}\s*-\s*\*{3,}/.test(l))) masked = true;
   /* ⚠ 반드시 ❼ 사업소득명세서 구간 안에서만 찾는다. 신고서 1면의
      ❸ 세무대리인 칸에 세무사 본인의 사업자등록번호가 먼저 찍혀 있어서,
      문서 순서대로 훑으면 세무대리인 번호를 거래처 번호로 오인한다 (실측 확인).
@@ -393,7 +445,11 @@ export function parseFilingText(text: string): ParsedFiling {
     if (fields[k] === undefined) problems.push(`${label}을(를) 못 읽었습니다`);
   }
   if (!fiscal_year) problems.push('귀속연도를 못 읽었습니다');
-  if (!owner.name) problems.push('성명을 못 읽었습니다');
+  if (masked) {
+    problems.push('마스킹된 출력물입니다 (성명·주민번호가 *** 로 가려짐) — 거래처를 특정할 수 없습니다. 홈택스에서 마스킹 없이 다시 내려받아 주세요');
+  } else if (!owner.name) {
+    problems.push('성명을 못 읽었습니다');
+  }
   for (const c of checks) {
     if (!c.ok) problems.push(`검산 불일치 — ${c.label} (차이 ${(c.diff ?? 0).toLocaleString('ko-KR')}원)`);
   }
@@ -413,6 +469,7 @@ export function parseFilingText(text: string): ParsedFiling {
     skipped_checks: skipped,
     ok: problems.length === 0,
     problems,
+    ...(masked ? { masked: true } : {}),
   };
 }
 
