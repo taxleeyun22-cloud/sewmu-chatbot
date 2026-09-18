@@ -302,7 +302,17 @@ export function parseFilingText(text: string): ParsedFiling {
   /* ⑨총수입금액. 줄 아무데나 '총수입금액' 이 있으면 잡던 것 → 가산세 기준칸
      ("공동사업장등록 불성실 … 총수입금액 0.5/100") 이나 표 머리글까지 걸린다.
      ⑮조정후총수입금액 은 ❼명세서가 비어 있는 부동산임대 신고서의 대체 칸이다. */
-  fields.revenue = sumRow(/^[⑧⑨⑮]?\s*(?:조정후)?총수입금액/);
+  fields.revenue = sumRow(/^[⑧⑨]?\s*총수입금액/) ?? (() => {
+    /* ❼명세서가 비어 있는 출력물(부동산임대 등) 대체 칸. 사업장마다 조정후총수입금액
+       명세서가 따로 붙으므로 첫 장만 쓰면 사업장 하나치만 매출로 잡힌다 —
+       실측: 12,000,000 만 잡히고 483,487,698 이 빠졌다. 전부 더한다. */
+    const each = lines
+      .filter((_, i) => /^⑮?조정후총수입금액/.test(sq[i]))
+      .map((ln) => (ln.match(/[\d,]{4,}/g) || [])[0])
+      .map(toNum)
+      .filter((n): n is number => n !== null);
+    return each.length ? each.reduce((a, b) => a + b, 0) : undefined;
+  })();
   /* ⑩필요경비 · ⑪소득금액 — 이걸 읽어야 수입금액에 검산이 걸린다.
      안 걸어두면 매출만 조용히 틀린 채 통과한다 (다른 검산은 전부 세액 쪽이라
      매출이 어긋나도 4/4 통과가 나온다 — 실측 확인). */
@@ -376,6 +386,7 @@ export function parseFilingText(text: string): ParsedFiling {
     }
   }
   if (!owner.birth_date && lines.some((l) => /\d{6}\s*-\s*\*{3,}/.test(l))) masked = true;
+  if ((owner.company_name || '').includes('**')) { masked = true; owner.company_name = undefined; }
   /* ⚠ 반드시 ❼ 사업소득명세서 구간 안에서만 찾는다. 신고서 1면의
      ❸ 세무대리인 칸에 세무사 본인의 사업자등록번호가 먼저 찍혀 있어서,
      문서 순서대로 훑으면 세무대리인 번호를 거래처 번호로 오인한다 (실측 확인).
@@ -402,9 +413,25 @@ export function parseFilingText(text: string): ParsedFiling {
      칸 경계는 5칸 이상 띄움으로 잡고 (상호 안의 자간이 3칸까지 벌어진 출력물이 있다),
      남은 자간은 전부 없애 두 경로가 같은 값을 내도록 한다
      (표시용이라 띄어쓰기보다 일관성이 중요하다). */
-  for (const ln of bizSection.length ? bizSection : lines) {
-    const m = ln.match(/④\s*상\s*호\s+(\S.*?)(?:\s{5,}|\s*$)/);
-    if (m) { owner.company_name = squash(m[1]); break; }
+  /* 사업장이 둘 이상이면 "상호" 하나로 특정할 수 없다. 게다가 브라우저 추출에서는
+     칸이 두 줄인 상호끼리 글자가 섞여 나온다("경산중휴산대펜폰타성힐지즈옆점커폰").
+     여러 개면 아예 비워 둔다 — 틀린 상호를 보여주는 것보다 낫다. */
+  const 사업장수 = (() => {
+    for (const rawLn of bizSection) {
+      if (!squash(rawLn).startsWith('⑤사업자등록번호')) continue;
+      const ln = rawLn.replace(/([\d-])\s+(?=[\d-])/g, '$1');
+      const all = Array.from(ln.matchAll(/(\d{3})-(\d{2})-(\d{5})/g))
+        .map((m) => m[1] + m[2] + m[3])
+        .filter((bn) => !/^0+$/.test(bn));
+      return all.length;
+    }
+    return 0;
+  })();
+  if (사업장수 <= 1) {
+    for (const ln of bizSection.length ? bizSection : lines) {
+      const m = ln.match(/④\s*상\s*호\s+(\S.*?)(?:\s{5,}|\s*$)/);
+      if (m) { owner.company_name = squash(m[1]); break; }
+    }
   }
 
   /* ── 검산 ── */
