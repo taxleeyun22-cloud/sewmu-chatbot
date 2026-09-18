@@ -26,6 +26,13 @@ export interface ParsedFilingFields {
   income_deduction?: number;
   /** ⑩필요경비 (사업장 합계) */
   expense_total?: number;
+  /* ── 법인세 전용 (별지 제3호서식) ── */
+  /** 101 결산서상 당기순손익 */
+  net_income?: number;
+  /** 102 익금산입 */
+  adj_inclusion?: number;
+  /** 103 손금산입 */
+  adj_exclusion?: number;
   /** ⑪사업소득금액 (사업장 합계) — 종합소득금액과 다르다 (근로·기타소득이 빠진 값) */
   business_income?: number;
   tax_base?: number;
@@ -60,7 +67,7 @@ export interface FilingCheck {
 }
 
 export interface ParsedFiling {
-  type: '종소세';
+  type: '종소세' | '법인세';
   /** 종합소득세 신고서가 아닐 때 그 이유 — 이 값이 있으면 절대 심으면 안 된다 */
   unsupported?: string;
   /** 주민번호·성명이 *** 로 가려진 출력물 — 거래처를 특정할 수 없다 */
@@ -192,8 +199,11 @@ export function parseFilingText(text: string): ParsedFiling {
      들어간다. 실제로 법인세 신고서(별지 제1호서식) 2건에서 과세표준 72원·추가납부
      73원 같은 값이 만들어졌고 검산 하나가 우연히 통과했다. 읽기 전에 끊는다. */
   const head = sq.slice(0, 200).join('|');
+  /* 법인세(별지 제1호서식) 는 서식이 통째로 달라 전용 파서로 보낸다 */
+  if (/법인세과세표준및세액신고서|법인세법시행규칙\[별지제1호서식\]/.test(head)) {
+    return parseCorpFiling(lines, sq);
+  }
   const UNSUPPORTED: Array<[RegExp, string]> = [
-    [/법인세과세표준및세액신고서|법인세법시행규칙\[별지제1호서식\]/, '법인세 신고서입니다 — 아직 종합소득세 신고서만 읽습니다'],
     [/부가가치세.{0,6}(확정|예정)신고서|부가가치세법시행규칙\[별지제21호서식\]/, '부가가치세 신고서입니다 — 아직 종합소득세 신고서만 읽습니다'],
     [/원천징수이행상황신고서/, '원천징수이행상황신고서입니다 — 아직 종합소득세 신고서만 읽습니다'],
   ];
@@ -481,6 +491,184 @@ export function parseFilingText(text: string): ParsedFiling {
     skipped_checks: skipped,
     ok: problems.length === 0,
     problems,
+    ...(masked ? { masked: true } : {}),
+  };
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   법인세 — 별지 제1호서식(신고서) + 별지 제3호서식(세액조정계산서)
+
+   종소세와 달리 라벨이 아니라 "일련번호" 로 읽는다. 조정계산서는 행마다
+   01~64 의 일련번호가 있고 그 바로 뒤가 금액이라, 라벨이 두 줄로 쪼개지거나
+   좌·우 두 칸이 한 줄에 나란히 찍혀도 흔들리지 않는다.
+   서식 안 계산식은 전부 세 자리 코드(101＋102－103)로 쓰여 있어
+   일련번호와 섞이지 않는다.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/** 조정계산서 구간에서 일련번호 뒤 금액을 읽는다 */
+function bySeq(lines: string[], seq: number): number | null {
+  const re = new RegExp('(?:^|\\s)' + String(seq).padStart(2, '0') + '\\s+(' + AMOUNT + '+)');
+  for (const ln of lines) {
+    const m = ln.match(re);
+    if (m) {
+      const n = toNum(m[1]);
+      if (n !== null) return n;
+    }
+  }
+  return null;
+}
+
+function parseCorpFiling(lines: string[], sq: string[]): ParsedFiling {
+  const fields: ParsedFilingFields = {};
+  const owner: ParsedFilingOwner = {};
+  const problems: string[] = [];
+
+  /* ── 1면 (별지 제1호서식) ── */
+  const calcStart = sq.findIndex((l) => l.includes('세액조정계산서'));
+  const head = lines.slice(0, calcStart > 0 ? calcStart : lines.length);
+  let masked = false;
+  for (const ln of head) {
+    const s = squash(ln);
+    if (!owner.company_name) {
+      /* 칸 경계는 5칸 이상 띄움 — 브라우저(pdf.js)로 뽑으면 법인명 안 자간이 3칸까지
+         벌어져 "주식회사" 에서 잘린다. 자간은 한 칸으로 줄여 DB 회사명과 맞춘다. */
+      const m = ln.match(/법\s*인\s*명\s{2,}(\S.*?)(?:\s{5,}|\s*$)/);
+      if (m && s.startsWith('법인명')) owner.company_name = m[1].trim().replace(/\s+/g, ' ');
+    }
+    if (!owner.name) {
+      const m = ln.match(/대\s*표\s*자\s*성\s*명\s{2,}(\S.*?)(?:\s{5,}|\s*$)/);
+      if (m) owner.name = squash(m[1]);
+    }
+    /* ⚠ 사업자등록번호는 "법인등록번호와 같은 줄" 로만 읽는다. 문서 뒤쪽 조정자 칸에
+       세무사 사무실 번호가 찍혀 있어, 그냥 훑으면 마스킹된 신고서에서 거래처 번호
+       대신 세무회계 이윤 번호(549-79-00291)를 잡는다 (실측 확인). */
+    if (!owner.biz_no && s.includes('법인등록번호')) {
+      const m = ln.match(/(\d{3})\s*-\s*(\d{2})\s*-\s*(\d{5})/);
+      if (m) owner.biz_no = m[1] + m[2] + m[3];
+    }
+    if (fields.revenue === undefined && /^수입금액[(（]/.test(s)) {
+      const m = ln.match(new RegExp('(' + AMOUNT + '{4,})'));
+      if (m) { const n = toNum(m[1]); if (n !== null) fields.revenue = n; }
+    }
+  }
+  /* 조정계산서 머리글에도 법인의 사업자등록번호가 한 번 더 찍힌다 (1면이 안 읽힐 때 대비) */
+  if (!owner.biz_no && calcStart >= 0) {
+    for (const ln of lines.slice(calcStart, calcStart + 4)) {
+      if (!squash(ln).includes('사업자등록번호')) continue;
+      const m = ln.match(/(\d{3})\s*-\s*(\d{2})\s*-\s*(\d{5})/);
+      if (m) { owner.biz_no = m[1] + m[2] + m[3]; break; }
+    }
+  }
+  /* 마스킹 출력물 — 사업자번호·법인명이 *** 로 가려지면 어느 법인인지 특정할 수 없다 */
+  if (!owner.biz_no && head.some((l) => /\d{3}\s*-\s*\d{2}\s*-\s*\d*\*{2,}/.test(l))) masked = true;
+  if ((owner.company_name || '').includes('**')) { masked = true; owner.company_name = undefined; }
+
+  /* 사업연도 → 귀속연도. "2025.03.12 ~ 2025.12.31" 의 종료연도를 쓴다
+     (신설·폐업 법인은 개시연도와 다를 수 있다). */
+  let fiscal_year: number | undefined;
+  for (const ln of head) {
+    const m = ln.match(/(20\d{2})\s*[.\-/]\s*\d{1,2}\s*[.\-/]\s*\d{1,2}\s*~\s*(20\d{2})/);
+    if (m) { fiscal_year = Number(m[2]); break; }
+  }
+  if (!fiscal_year) {
+    for (const l of sq) {
+      const m = l.match(/~(20\d{2})[.\-/]\d{1,2}[.\-/]\d{1,2}/);
+      if (m) { fiscal_year = Number(m[1]); break; }
+    }
+  }
+
+  /* ── 별지 제3호서식 세액조정계산서 ── */
+  const calc = (() => {
+    const start = sq.findIndex((l) => l.includes('세액조정계산서'));
+    if (start < 0) return [];
+    let end = sq.findIndex((l, i) => i > start && /별지제2호서식|농어촌특별세과세표준/.test(l));
+    if (end < 0) end = Math.min(lines.length, start + 140);
+    return lines.slice(start, end);
+  })();
+
+  const put = (k: keyof ParsedFilingFields, v: number | null) => {
+    if (v !== null) (fields as Record<string, unknown>)[k] = v;
+  };
+  put('net_income', bySeq(calc, 1));        /* 101 결산서상 당기순손익 */
+  put('adj_inclusion', bySeq(calc, 2));     /* 102 익금산입 */
+  put('adj_exclusion', bySeq(calc, 3));     /* 103 손금산입 */
+  put('business_income', bySeq(calc, 6));   /* 107 각 사업연도 소득금액 */
+  put('tax_base', bySeq(calc, 56) ?? bySeq(calc, 10)); /* 113 과세표준(112+159), 없으면 112 */
+  put('calculated_tax', bySeq(calc, 16));   /* 119 합계(115+118) = 산출세액 */
+  put('penalty_total', bySeq(calc, 20));    /* 124 가산세액 */
+  put('decisive_tax', bySeq(calc, 21));     /* 125 가감계 = 총부담세액 */
+  put('prepaid_tax', bySeq(calc, 28));      /* 132 기납부세액 합계 */
+  put('additional_tax', bySeq(calc, 29));   /* 133 감면분 추가납부세액 */
+  put('payable_tax', bySeq(calc, 30));      /* 134 차감납부할세액 */
+
+  /* 공제·감면은 최저한세 적용대상(121)·적용제외(123) 둘로 나뉜다 — 합계로 본다 */
+  const 공제1 = bySeq(calc, 17);
+  const 공제2 = bySeq(calc, 19);
+  if (공제1 !== null || 공제2 !== null) fields.deduction_total = (공제1 ?? 0) + (공제2 ?? 0);
+
+  /* ── 검산 ── */
+  const checks: FilingCheck[] = [];
+  const skipped: string[] = [];
+  const add = (label: string, a?: number | null, b?: number | null) => {
+    if (a === undefined || a === null || b === undefined || b === null) { skipped.push(label); return; }
+    checks.push({ label, ok: a === b, ...(a === b ? {} : { diff: a - b }) });
+  };
+  const 차가감 = bySeq(calc, 4);            /* 104 */
+  const 기부금한도초과 = bySeq(calc, 5);     /* 105 */
+  const 기부금이월손금 = bySeq(calc, 54);    /* 106 */
+  const 이월결손금 = bySeq(calc, 7);         /* 109 */
+  const 비과세 = bySeq(calc, 8);             /* 110 */
+  const 소득공제 = bySeq(calc, 9);           /* 111 */
+  const 차감세액 = bySeq(calc, 18);          /* 122 */
+
+  add('차가감소득금액 = 당기순이익 + 익금산입 − 손금산입', 차가감,
+    fields.net_income !== undefined && fields.adj_inclusion !== undefined && fields.adj_exclusion !== undefined
+      ? fields.net_income + fields.adj_inclusion - fields.adj_exclusion : undefined);
+  add('각사업연도소득금액 = 차가감소득금액 + 기부금한도초과 − 기부금이월손금산입',
+    fields.business_income,
+    차가감 !== null ? 차가감 + (기부금한도초과 ?? 0) - (기부금이월손금 ?? 0) : undefined);
+  add('과세표준 = 각사업연도소득금액 − 이월결손금 − 비과세 − 소득공제',
+    fields.tax_base,
+    fields.business_income !== undefined
+      ? fields.business_income - (이월결손금 ?? 0) - (비과세 ?? 0) - (소득공제 ?? 0) : undefined);
+  add('차감세액 = 산출세액 − 최저한세 적용대상 공제·감면', 차감세액,
+    fields.calculated_tax !== undefined && 공제1 !== null ? fields.calculated_tax - 공제1 : undefined);
+  add('총부담세액 = 차감세액 − 최저한세 적용제외 공제·감면 + 가산세',
+    fields.decisive_tax,
+    차감세액 !== null ? 차감세액 - (공제2 ?? 0) + (fields.penalty_total ?? 0) : undefined);
+  add('납부할세액 = 총부담세액 − 기납부세액 + 감면분추가납부',
+    fields.payable_tax,
+    fields.decisive_tax !== undefined && fields.prepaid_tax !== undefined
+      ? fields.decisive_tax - fields.prepaid_tax + (fields.additional_tax ?? 0) : undefined);
+
+  const REQUIRED: Array<[keyof ParsedFilingFields, string]> = [
+    ['net_income', '결산서상 당기순이익'],
+    ['business_income', '각사업연도소득금액'],
+    ['tax_base', '과세표준'],
+    ['decisive_tax', '총부담세액'],
+  ];
+  for (const [k, label] of REQUIRED) {
+    if (fields[k] === undefined) problems.push(`${label}을(를) 못 읽었습니다`);
+  }
+  /* 매출액(1면 수입금액)은 조정계산서 어느 식에도 안 들어가 검산이 안 걸린다.
+     못 읽으면 조용히 비는 편이 틀린 값보다 낫다. */
+  if (fields.revenue === undefined) problems.push('매출액(1면 수입금액)을 못 읽었습니다');
+  if (!fiscal_year) problems.push('사업연도를 못 읽었습니다');
+  if (masked) {
+    problems.push('마스킹된 출력물입니다 (사업자등록번호·법인명이 *** 로 가려짐) — 거래처를 특정할 수 없습니다. 마스킹 없이 다시 내려받아 주세요');
+  } else if (!owner.biz_no && !owner.company_name) {
+    problems.push('법인 사업자등록번호·법인명을 못 읽었습니다');
+  }
+  for (const c of checks) {
+    if (!c.ok) problems.push(`검산 불일치 — ${c.label} (차이 ${(c.diff ?? 0).toLocaleString('ko-KR')}원)`);
+  }
+  for (const label of skipped) problems.push(`검산 못 함 (값 누락) — ${label}`);
+  if (!checks.length) problems.push('검산할 수 있는 항목이 없습니다');
+
+  return {
+    type: '법인세', fiscal_year, owner, fields, checks,
+    skipped_checks: skipped, ok: problems.length === 0, problems,
     ...(masked ? { masked: true } : {}),
   };
 }

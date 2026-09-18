@@ -409,14 +409,16 @@ describe('브라우저에서 뽑은 글자 — 자간이 살아 있는 출력물
 
 /* 2026-09-18: 사장님이 준 실제 신고서 5건에서 나온 것들 */
 describe('실제 신고서에서 잡힌 것 — 서식·마스킹·환급·적용률', () => {
-  it('법인세 신고서는 읽지 않고 끊는다 (종소세로 오인해 숫자를 만들어내면 안 된다)', () => {
+  it('법인세 신고서를 종소세로 읽어 숫자를 만들어내지 않는다', () => {
     const 법인세 = `■ 법인세법 시행규칙 [별지 제1호서식]
                      법인세 과세표준 및 세액신고서
 사 업 자 등 록 번 호        544-86-01500
 사   업   연   도            2025.01.01 ~ 2025.12.31`;
     const r = parseFilingText(법인세);
-    expect(r.unsupported).toContain('법인세');
-    expect(r.fields).toEqual({});
+    expect(r.type).toBe('법인세');
+    /* 조정계산서가 없으니 세액은 하나도 안 읽힌다 — 종소세 칸으로 지어내지 않는다 */
+    expect(r.fields.total_income).toBeUndefined();
+    expect(r.fields.tax_base).toBeUndefined();
     expect(r.ok).toBe(false);
   });
 
@@ -483,5 +485,130 @@ describe('사업소득금액 — 종합소득금액과 다르다 (근로소득�
     const r = parseFilingText(명세서없음);
     expect(r.skipped_checks).toContain('사업소득금액 = 총수입금액 − 필요경비');
     expect(r.ok).toBe(false);
+  });
+});
+
+/* ── 법인세 (별지 제1호서식 + 별지 제3호서식) ──
+   조정계산서는 행마다 일련번호(01~64)가 있고 그 뒤가 금액이다. 라벨이 두 줄로
+   쪼개지고 좌·우 두 칸이 한 줄에 나란히 찍혀도 일련번호는 안 흔들린다.
+   숫자는 실제 신고서에서 가져오되 법인명·사업자번호는 가상으로 바꿨다. */
+const CORP = `■ 법인세법 시행규칙 [별지 제1호서식]
+                              법인세 과세표준 및 세액신고서
+사 업 자 등 록 번 호     123-86-01234                  법 인 등 록 번 호     170111-0000000
+법     인     명       주식회사 테스트상사                  전 화 번 호       053-000-0000
+대 표 자 성 명           홍길동                            전 자 우 편 주 소   test@example.com
+사   업   연   도        2025.01.01 ~ 2025.12.31
+
+수   입   금   액                                                 ( 500,000,000 )
+과   세   표   준                              400,000,000
+산   출   세   액                               60,000,000
+
+                ~                 법인세 과세표준 및 세액조정계산서
+            2025.12.31                                     사업자등록번호           123-86-01234
+
+    101 결 산 서 상 당 기 순 손 익 01               390,000,000       133 감 면 분 추 가 납 부 세 액 29                0
+              102     익 금 산 입 02                20,000,000       134 차 감 납 부 할 세 액
+              103     손 금 산 입 03                10,000,000            (125-132+133)
+                                                                                30          48,000,000
+연   104 차 가 감 소 득 금 액
+                      04                   400,000,000
+도       (101＋102－103)
+득   105 기 부 금 한 도 초 과 액 05                          0
+산   106 기 부 금 한 도 초 과 이 월 액 54                      0
+    107 각 사 업 연 도 소 득 금 액
+                            06             400,000,000
+         (104+105-106)
+②   109 이     월       결       손   금 07              0
+세   110 비     과       세       소   득 08              0
+계   111 소        득        공       제 09              0
+    112 과     세    표              준
+                                      10   400,000,000
+       (108－109－110-111)
+    113   과 세 표 준(112+159) 56             400,000,000
+  114   세   율  ( % ) 11                         19.00
+산 115 산        출   세   액 12                  60,000,000
+    118 산        출        세       액 15              0
+    119 합 계 ( 1 1 5 ＋ 1 1 8 ) 16            60,000,000
+    120 산 출 세 액(120=119 )                   60,000,000
+    121 최 저 한 세           적용대상
+        공 제 감             면 세 액 17          10,000,000
+    122 차        감        세       액 18      50,000,000
+    123 최 저 한 세           적용제외
+        공 제 감             면 세 액 19                  0
+④ 124 가    산    세     액               20            0
+부 125 가 감 계(122-123+124)              21    50,000,000
+    130 소            계
+         (126＋127＋128+129)
+                           26                 2,000,000
+      131 신 고 납 부 전 가 산 세 액 27                      0
+      132 합      계 ( 1 3 0 + 1 3 1 ) 28       2,000,000
+■ 법인세법 시행규칙 [별지 제2호서식]
+`;
+
+describe('법인세 신고서', () => {
+  const r = parseFilingText(CORP);
+
+  it('법인세로 인식한다', () => {
+    expect(r.type).toBe('법인세');
+    expect(r.unsupported).toBeUndefined();
+  });
+
+  it('법인·사업연도를 읽는다', () => {
+    expect(r.owner.company_name).toBe('주식회사 테스트상사');
+    expect(r.owner.biz_no).toBe('1238601234');
+    expect(r.owner.name).toBe('홍길동');      /* 대표자 — 표시용 */
+    expect(r.fiscal_year).toBe(2025);
+  });
+
+  it('법인 검토표 칸을 전부 채운다', () => {
+    expect(r.fields).toMatchObject({
+      revenue: 500_000_000,
+      net_income: 390_000_000,
+      adj_inclusion: 20_000_000,
+      adj_exclusion: 10_000_000,
+      business_income: 400_000_000,
+      tax_base: 400_000_000,
+      calculated_tax: 60_000_000,
+      deduction_total: 10_000_000,
+      penalty_total: 0,
+      decisive_tax: 50_000_000,
+      prepaid_tax: 2_000_000,
+      additional_tax: 0,
+      payable_tax: 48_000_000,
+    });
+  });
+
+  it('검산 6개가 전부 통과한다', () => {
+    expect(r.checks.length).toBe(6);
+    expect(r.checks.every((c) => c.ok)).toBe(true);
+    expect(r.skipped_checks).toEqual([]);
+    expect(r.ok).toBe(true);
+  });
+
+  it('익금산입을 틀리게 읽으면 잡아낸다', () => {
+    const bad = CORP.replace('익 금 산 입 02                20,000,000', '익 금 산 입 02                25,000,000');
+    const b = parseFilingText(bad);
+    expect(b.ok).toBe(false);
+    expect(b.problems.join(' ')).toContain('차가감소득금액');
+  });
+
+  it('조정자(세무사 사무실) 사업자번호를 법인 번호로 오인하지 않는다', () => {
+    const 조정자 = CORP.replace(
+      '■ 법인세법 시행규칙 [별지 제2호서식]',
+      '조 정 자   성 명  세무회계 이윤\n           사업자등록번호   549-79-00291\n■ 법인세법 시행규칙 [별지 제2호서식]',
+    );
+    expect(parseFilingText(조정자).owner.biz_no).toBe('1238601234');
+  });
+
+  it('마스킹된 법인 신고서는 포함하지 않는다', () => {
+    const 마스킹 = CORP
+      .replace(/123-86-01234/g, '123-86-012**')
+      .replace('170111-0000000', '170111-*******')
+      .replace('법     인     명       주식회사 테스트상사', '법     인     명       주식*****');
+    const m = parseFilingText(마스킹);
+    expect(m.masked).toBe(true);
+    expect(m.owner.biz_no).toBeUndefined();
+    expect(m.owner.company_name).toBeUndefined();
+    expect(m.ok).toBe(false);
   });
 });

@@ -4775,7 +4775,13 @@ function _fpStatus(r){
   /* 종합소득세 신고서가 아니면 읽은 척하지 않는다 (법인세·부가세 서식이 섞여 들어온다) */
   if(p.unsupported)return {kind:'err',msgs:[p.unsupported]};
   if(p.masked)return {kind:'err',msgs:p.problems&&p.problems.length?p.problems:['마스킹된 출력물입니다']};
-  if(!p.owner||!p.owner.name)return {kind:'err',msgs:['성명을 못 읽었습니다 — 종합소득세 신고서가 맞는지 확인']};
+  var o=p.owner||{};
+  /* 법인은 사업자등록번호(없으면 법인명) 로 붙는다 — 대표자 성명으로는 못 붙인다 */
+  if(p.type==='법인세'){
+    if(!o.biz_no&&!o.company_name)return {kind:'err',msgs:['법인 사업자등록번호·법인명을 못 읽었습니다']};
+  }else if(!o.name){
+    return {kind:'err',msgs:['성명을 못 읽었습니다 — 종합소득세 신고서가 맞는지 확인']};
+  }
   if(!p.fiscal_year)return {kind:'err',msgs:['귀속연도를 못 읽었습니다']};
   var mismatch=(p.checks||[]).filter(function(c){return !c.ok});
   if(mismatch.length){
@@ -4808,10 +4814,12 @@ function _fpRender(){
     var p=r.p||{};
     var color=st.kind==='ok'?'#15803d':(st.kind==='warn'?'#b45309':'#b91c1c');
     var badge=st.kind==='ok'?'검산 통과':(st.kind==='warn'?'확인 필요':'포함 불가');
-    var who=(p.owner&&p.owner.name)?p.owner.name:'?';
+    var o=p.owner||{};
+    var who=(p.type==='법인세'?(o.company_name||o.name):o.name)||'?';
     var meta=[p.fiscal_year?p.fiscal_year+'년 귀속':'',p.type||'',p.filing_type_label||'',
-              (p.owner&&p.owner.biz_no)?_fpBizFmt(p.owner.biz_no):'',
-              (p.owner&&p.owner.birth_date)?p.owner.birth_date:''].filter(Boolean).join(' · ');
+              (p.type==='법인세'&&o.name)?'대표 '+o.name:'',
+              o.biz_no?_fpBizFmt(o.biz_no):'',
+              o.birth_date?o.birth_date:''].filter(Boolean).join(' · ');
     return '<div style="border-top:1px solid var(--neutral-border);padding:7px 0">'
       +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
       +(st.kind==='err'?'<span style="width:15px"></span>'
@@ -4876,15 +4884,24 @@ async function _fpParseFiles(ev){
   _fpRender();
 }
 function _fpRows(){
-  return _fpParsed.filter(function(r){return r.include&&r.p&&!r.p.unsupported&&!r.p.masked&&r.p.owner&&r.p.owner.name}).map(function(r){
+  return _fpParsed.filter(function(r){
+    return r.include&&r.p&&!r.p.unsupported&&!r.p.masked&&_fpStatus(r).kind!=='err';
+  }).map(function(r){
     var p=r.p,f={};
     Object.keys(p.fields||{}).forEach(function(k){
       var v=p.fields[k];
       if(v!==undefined&&v!==null)f[k]=v;
     });
-    var row={name:p.owner.name,owner_type:'Person',fiscal_year:p.fiscal_year,type:p.type||'종소세',fields:f};
+    var isCorp=p.type==='법인세';
+    var row={
+      /* 법인은 법인명으로, 개인은 성명으로 붙는다. 법인의 대표자 성명은 안 보낸다 —
+         대표자 이름으로 users 를 뒤지면 엉뚱한 개인 거래처에 법인 신고서가 붙는다. */
+      name:isCorp?(p.owner.company_name||''):p.owner.name,
+      owner_type:isCorp?'Business':'Person',
+      fiscal_year:p.fiscal_year,type:p.type||'종소세',fields:f
+    };
     if(p.owner.biz_no)row.biz_no=p.owner.biz_no;
-    if(p.owner.birth_date)row.birth_date=p.owner.birth_date;
+    if(!isCorp&&p.owner.birth_date)row.birth_date=p.owner.birth_date;
     return row;
   });
 }
