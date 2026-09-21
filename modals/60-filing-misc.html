@@ -173,6 +173,23 @@
       </div>
       <div id="wiParseResult" style="margin-top:8px"></div>
     </div>
+    <!-- 📄 신고서 PDF 올리기 (2026-09-17 사장님: "바로 pdf를 어드민에 올리는거??")
+         PDF 는 서버로 안 나갑니다 — 브라우저 안에서 pdf.js 로 글자만 뽑아
+         규칙 파서(window.__parseFilingText)로 읽고 검산까지 끝낸 뒤,
+         숫자 결과만 기존 미리보기 API 로 보냅니다. GPT 안 씁니다. -->
+    <div style="padding:12px 18px;border-bottom:1px solid var(--neutral-border);background:#eff6ff">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <label style="background:#2563eb;color:#fff;border-radius:8px;padding:8px 14px;font-size:.82em;font-weight:700;cursor:pointer">
+          📄 신고서 PDF 올리기
+          <input type="file" id="fpFile" accept="application/pdf,.pdf" multiple style="display:none" onchange="_fpParseFiles(event)">
+        </label>
+        <label style="display:inline-flex;align-items:center;gap:5px;font-size:.78em;color:var(--text-sub);cursor:pointer">
+          <input type="checkbox" id="fpOverwrite"> 기존 값도 신고서 값으로 교체
+        </label>
+        <span style="font-size:.72em;color:var(--text-mute)">홈택스·위하고에서 뽑은 종합소득세·법인세 신고서 PDF 를 그대로 올리세요 (여러 개 한꺼번에, 섞어서 가능 — 서식을 보고 자동으로 갈라집니다). PDF 자체는 서버로 올라가지 않고, 브라우저 안에서 글자만 읽어 규칙으로 파싱한 뒤 검산 4개를 자동으로 돌립니다. 검산이 어긋난 건은 자동 제외하고, 값이 없어 검산을 못 돌린 건은 사장님이 직접 체크해야 포함됩니다. 주민등록번호 뒤 7자리는 읽지도 보내지도 않습니다 (생년월일만). 법인은 사업자등록번호로 사업장에 붙습니다.</span>
+      </div>
+      <div id="fpResult" style="margin-top:8px"></div>
+    </div>
     <!-- 📥 검토표 JSON 심기 (2026-07-17 사장님: 신고서 → Claude 추출 → 여기서 확정) -->
     <div style="padding:12px 18px;border-bottom:1px solid var(--neutral-border);background:#f0fdf4">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">

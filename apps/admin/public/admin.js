@@ -4486,7 +4486,7 @@ async function _wiCommit(){
 /* ===== 📥 검토표 JSON 심기 (2026-07-17) — Claude 채팅에서 추출한 신고서 데이터 확정 반영 ===== */
 var _fjBatchId=null,_fjSummary=null;
 /* 기존 값 교체 미리보기 — 무엇이 무엇으로 바뀌는지 확정 전에 전부 보여준다 (2026-09-15) */
-var _FJ_LABEL={'공제감면':'공제·감면 내역','가산세':'가산세 내역',revenue:'수입금액',total_income:'종합소득금액',income_deduction:'종합소득공제',tax_base:'과세표준',calculated_tax:'산출세액',deduction_total:'세액공제·감면',penalty_total:'가산세',decisive_tax:'결정세액',prepaid_tax:'기납부세액',payable_tax:'납부할세액',paid_tax:'납부세액',farmland_tax:'농특세 납부',net_income:'결산서당기순이익',adj_inclusion:'익금산입',adj_exclusion:'손금산입',business_income:'각사업연도소득금액',additional_tax:'감면분추가납부세액',vat:'부가세 세부'};
+var _FJ_LABEL={'공제감면':'공제·감면 내역','가산세':'가산세 내역',revenue:'수입금액',expense_total:'필요경비',total_income:'종합소득금액',income_deduction:'종합소득공제',tax_base:'과세표준',calculated_tax:'산출세액',deduction_total:'세액공제·감면',penalty_total:'가산세',decisive_tax:'결정세액',prepaid_tax:'기납부세액',payable_tax:'납부할세액',paid_tax:'납부세액',farmland_tax:'농특세 납부',net_income:'결산서당기순이익',adj_inclusion:'익금산입',adj_exclusion:'손금산입',business_income:'각사업연도소득금액',additional_tax:'감면분추가납부세액',vat:'부가세 세부'};
 function _fjNum(v){
   /* 공제감면·가산세 배열은 "N건 합계원" 으로 요약 — 원본 JSON 을 그대로 뿌리면 못 읽는다 */
   if(Array.isArray(v)){
@@ -4565,6 +4565,56 @@ function _fjOverwriteHtml(analysis,sum){
   var more=rows.length>40?'<div style="color:var(--text-mute);margin-top:4px">... 외 '+(rows.length-40)+'개</div>':'';
   return head+body+more+'</div>';
 }
+/* 매칭 성공 목록 — 2026-09-17 사장님: 세무대리인 사업자번호가 거래처로 잘못 붙은 사고 이후.
+   "누가 누구한테 붙었는지" 를 확정 전에 눈으로 보고 넘어가야 한다. */
+function _fjMatchedHtml(analysis){
+  var rows=(analysis||[]).filter(function(a){return a.status==='new'||a.status==='fill'||a.status==='nochange'});
+  if(!rows.length)return '';
+  var body=rows.slice(0,60).map(function(a){
+    var st=a.status==='new'?['신규','var(--brand-primary)']:(a.status==='fill'?['빈칸 보강','#059669']:['변화 없음','var(--text-mute)']);
+    return '<div style="display:flex;gap:8px;flex-wrap:wrap;padding:2px 0;border-top:1px dotted #bbf7d0">'
+      +'<span style="font-weight:700;min-width:70px">'+e(a.name||'?')+'</span>'
+      +'<span>→ '+e(a.owner_label||'')+'</span>'
+      +(a.matched_by?'<span style="color:var(--text-mute)">('+e(a.matched_by)+')</span>':'')
+      +'<span style="color:var(--text-mute)">'+e(String(a.fiscal_year||''))+' '+e(String(a.type||''))+'</span>'
+      +'<span style="color:'+st[1]+';font-weight:700">'+st[0]+'</span>'
+      +'</div>';
+  }).join('');
+  var more=rows.length>60?'<div style="color:var(--text-mute);margin-top:4px">... 외 '+(rows.length-60)+'건</div>':'';
+  return '<div style="margin-top:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px">'
+    +'<div style="font-weight:800;color:#15803d;margin-bottom:4px">✔ 매칭된 '+rows.length+'건 — 사람이 맞는지 확인하고 확정하세요</div>'
+    +body+more+'</div>';
+}
+function _fjPreviewHtml(d,overwrite){
+  var s=d.summary||{};
+  var bad=(d.analysis||[]).filter(function(a){return a.status==='unmatched'||a.status==='error'});
+  return '<div style="background:#fff;border:1px solid var(--neutral-border);border-radius:10px;padding:12px 14px;font-size:.8em;line-height:1.8">'
+    +'<div style="font-weight:800;font-size:1.05em">🔍 미리보기 — 아직 아무것도 안 심어짐</div>'
+    +'<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:4px">'
+    +'<span>총 '+(s.total||0)+'건</span>'
+    +'<span style="color:var(--brand-primary);font-weight:800">신규 검토표 '+(s.newFiling||0)+'</span>'
+    +'<span style="color:#059669;font-weight:800">기존 빈칸 보강 '+(s.fillExisting||0)+'</span>'
+    +'<span style="color:var(--text-mute)">변화 없음 '+(s.noChange||0)+'</span>'
+    +(s.unmatched?'<span style="color:#dc2626;font-weight:800">매칭 실패 '+s.unmatched+'</span>':'')
+    +'</div>'
+    +_fjUnmatchedHtml(bad)
+    +_fjMatchedHtml(d.analysis||[])
+    +_fjOverwriteHtml(d.analysis||[],s)
+    +'<div style="margin-top:10px;display:flex;gap:8px;align-items:center">'
+    +'<button onclick="_fjCommit()" style="background:var(--brand-success);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer;font-family:inherit;font-size:1em">✅ 확정 심기 ('+((s.newFiling||0)+(s.fillExisting||0))+'건)</button>'
+    +'<span style="color:var(--text-mute)">확정 즉시 챗봇에 반영 · '+(overwrite?'<b style="color:#b45309">기존 값 교체 모드</b>':'수기 입력값은 안 덮음')+' · audit 기록</span>'
+    +'</div></div>';
+}
+/* rows → preview API → 미리보기 렌더. JSON 심기와 PDF 올리기가 같이 쓴다 (DB 변경 0). */
+async function _fjPreviewRows(sourceFile,rows,overwrite,out){
+  var r=await fetch('/api/admin-filing-import?action=preview&key='+encodeURIComponent(KEY),{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({source_file:sourceFile,rows:rows,overwrite:overwrite})});
+  var d=await r.json();
+  if(!d.ok)throw new Error(d.error||'preview 실패');
+  _fjBatchId=d.batch_id;_fjSummary=d.summary;
+  out.innerHTML=_fjPreviewHtml(d,overwrite);
+}
 async function _fjParseFile(ev){
   var f=ev.target.files&&ev.target.files[0];
   var out=document.getElementById('fjResult');
@@ -4576,29 +4626,7 @@ async function _fjParseFile(ev){
     if(!data||!Array.isArray(data.rows)||!data.rows.length)throw new Error('rows 배열이 없습니다 — Claude 가 준 JSON 파일인지 확인');
     var _ow=document.getElementById('fjOverwrite');
     var overwrite=!!(_ow&&_ow.checked);
-    var r=await fetch('/api/admin-filing-import?action=preview&key='+encodeURIComponent(KEY),{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({source_file:data.source_file||f.name,rows:data.rows,overwrite:overwrite})});
-    var d=await r.json();
-    if(!d.ok)throw new Error(d.error||'preview 실패');
-    _fjBatchId=d.batch_id;_fjSummary=d.summary;
-    var s=d.summary||{};
-    var bad=(d.analysis||[]).filter(function(a){return a.status==='unmatched'||a.status==='error'});
-    out.innerHTML='<div style="background:#fff;border:1px solid var(--neutral-border);border-radius:10px;padding:12px 14px;font-size:.8em;line-height:1.8">'
-      +'<div style="font-weight:800;font-size:1.05em">🔍 미리보기 — 아직 아무것도 안 심어짐</div>'
-      +'<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:4px">'
-      +'<span>총 '+(s.total||0)+'건</span>'
-      +'<span style="color:var(--brand-primary);font-weight:800">신규 검토표 '+(s.newFiling||0)+'</span>'
-      +'<span style="color:#059669;font-weight:800">기존 빈칸 보강 '+(s.fillExisting||0)+'</span>'
-      +'<span style="color:var(--text-mute)">변화 없음 '+(s.noChange||0)+'</span>'
-      +(s.unmatched?'<span style="color:#dc2626;font-weight:800">매칭 실패 '+s.unmatched+'</span>':'')
-      +'</div>'
-      +_fjUnmatchedHtml(bad)
-      +_fjOverwriteHtml(d.analysis||[],s)
-      +'<div style="margin-top:10px;display:flex;gap:8px;align-items:center">'
-      +'<button onclick="_fjCommit()" style="background:var(--brand-success);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer;font-family:inherit;font-size:1em">✅ 확정 심기 ('+((s.newFiling||0)+(s.fillExisting||0))+'건)</button>'
-      +'<span style="color:var(--text-mute)">확정 즉시 챗봇에 반영 · '+(overwrite?'<b style="color:#b45309">기존 값 교체 모드</b>':'수기 입력값은 안 덮음')+' · audit 기록</span>'
-      +'</div></div>';
+    await _fjPreviewRows(data.source_file||f.name,data.rows,overwrite,out);
   }catch(err){out.innerHTML='<div style="font-size:.8em;color:var(--toss-red)">오류: '+e(err.message)+'</div>'}
   ev.target.value='';
 }
@@ -4621,6 +4649,281 @@ async function _fjCommit(){
     _fjBatchId=null;_fjSummary=null;
     var out=document.getElementById('fjResult');if(out)out.innerHTML='';
   }catch(err){alert('오류: '+err.message)}
+}
+
+/* ===== 📄 신고서 PDF 올리기 (2026-09-17 사장님: "바로 pdf를 어드민에 올리는거??") =====
+ *
+ * 흐름: PDF 선택 → 브라우저 안에서 pdf.js 로 글자만 추출 (PDF 는 서버로 안 나간다)
+ *       → window.__parseFilingText (src/lib/filing-pdf-parse.ts) 규칙 파싱 + 검산
+ *       → 사장님이 포함할 건 고름 → 기존 preview API → 확정 심기
+ *
+ * 원칙:
+ *  - GPT 안 쓴다. 전부 규칙 파싱 + 검산. 검산이 어긋나면 파싱이 틀린 것이므로 아예 못 넣는다.
+ *  - 값이 없어 검산을 못 돌린 건은 "통과" 가 아니다 — 사장님이 직접 체크해야 포함된다.
+ *  - 주민등록번호 뒤 7자리는 파서가 읽지도 반환하지도 않는다. 생년월일(YYYY-MM-DD) 만 매칭에 쓴다.
+ *  - 거래처 자동 생성 X. 매칭 실패는 목록으로 보여주고 사장님이 직접 등록한다.
+ */
+var _FP_PDFJS_VER='3.11.174';
+var _FP_PDFJS_BASE='https://cdn.jsdelivr.net/npm/pdfjs-dist@'+_FP_PDFJS_VER+'/legacy/build/';
+var _fpPdfjsPromise=null;
+var _fpParsed=[];
+function _fpLoadPdfjs(){
+  if(window.pdfjsLib)return Promise.resolve(window.pdfjsLib);
+  if(_fpPdfjsPromise)return _fpPdfjsPromise;
+  _fpPdfjsPromise=new Promise(function(res,rej){
+    var s=document.createElement('script');
+    s.src=_FP_PDFJS_BASE+'pdf.min.js';
+    s.crossOrigin='anonymous';
+    s.onload=function(){
+      if(!window.pdfjsLib){_fpPdfjsPromise=null;rej(new Error('pdf.js 로드 실패'));return}
+      try{window.pdfjsLib.GlobalWorkerOptions.workerSrc=_FP_PDFJS_BASE+'pdf.worker.min.js'}catch(_){}
+      res(window.pdfjsLib);
+    };
+    s.onerror=function(){_fpPdfjsPromise=null;rej(new Error('pdf.js 를 못 불러왔습니다 — 네트워크 확인'))};
+    document.head.appendChild(s);
+  });
+  return _fpPdfjsPromise;
+}
+/* pdf.js 의 글자 조각(위치·폭) → pdftotext -layout 과 같은 모양의 줄 텍스트.
+   파서가 "라벨 ... 숫자" 를 같은 줄에서 찾고 한 줄 안 여러 숫자를 순서로 읽으므로
+   칸 간격이 살아 있어야 한다. 폭(width) 으로 칸 끝을 계산해 한글(2칸) 도 안 밀린다. */
+function _fpLayout(items){
+  var cells=[],widths=[];
+  for(var i=0;i<items.length;i++){
+    var it=items[i];
+    if(!it||typeof it.str!=='string'||!it.str.length)continue;
+    if(!it.str.trim())continue;
+    var tr=it.transform||[1,0,0,1,0,0];
+    var w=Math.abs(Number(it.width))||0;
+    var h=Math.abs(Number(it.height))||Math.abs(Number(tr[3]))||10;
+    cells.push({x:Number(tr[4])||0,y:Number(tr[5])||0,w:w,h:h,s:it.str});
+    if(w>0)widths.push(w/it.str.length);
+  }
+  if(!cells.length)return '';
+  /* 칸 너비 단위 — 중앙값을 쓰면 한글(넓은 글자) 쪽으로 끌려가 칸이 압축되고
+     옆 칸 금액끼리 들러붙는다. 좁은 글자(숫자·영문) 기준인 20 퍼센타일을 쓴다. */
+  widths.sort(function(a,b){return a-b});
+  var unit=widths.length?widths[Math.floor(widths.length*0.2)]:5;
+  if(!(unit>0.5))unit=5;
+  cells.sort(function(a,b){return (b.y-a.y)||(a.x-b.x)});
+  /* 줄 묶기 — 바로 앞 조각의 y 와 비교한다 (줄 첫 조각과만 비교하면 한 칸이 두 줄 높이인
+     칸에서 라벨·항번·금액의 기준선이 조금씩 어긋나며 한 줄이 두세 줄로 찢어지고,
+     그러면 "항번 다음 숫자" 를 찾는 파서가 옆 칸 항번(48)을 금액으로 읽는다 — 실측 확인). */
+  var lines=[],cur=null;
+  for(var j=0;j<cells.length;j++){
+    var c=cells[j];
+    if(!cur||Math.abs(cur.lastY-c.y)>Math.max(2,Math.min(cur.lastH,c.h)*0.5)){
+      cur={y:c.y,cells:[]};lines.push(cur);
+    }
+    cur.cells.push(c);cur.lastY=c.y;cur.lastH=c.h;
+  }
+  return lines.map(function(ln){
+    ln.cells.sort(function(a,b){return a.x-b.x});
+    var s='',prevEnd=null,padTo=0;
+    for(var k=0;k<ln.cells.length;k++){
+      var cc=ln.cells[k];
+      /* 앞 조각 끝에 딱 붙어 있으면 한 글자다 — pdf.js 가 숫자 하나를 여러 조각으로
+         쪼개 주는 경우가 있어 여기서 공백을 넣으면 금액이 두 개로 찢어진다.
+         숫자끼리는 자간이 조금 더 벌어져도 한 수로 본다 ("(2025년" 이 "20 25" 로
+         갈라지면 항목번호 20 을 찾는 파서가 25 를 금액으로 읽는다 — 실측 확인).
+         칸이 다른 금액끼리는 이보다 훨씬 멀어서 붙지 않는다. */
+      var gap=prevEnd===null?Infinity:(cc.x-prevEnd);
+      var numJoin=prevEnd!==null&&gap<=unit*0.9&&/[\d,]$/.test(s)&&/^[\d,]/.test(cc.s);
+      if(gap<=unit*0.3||numJoin){
+        s+=cc.s;
+      }else{
+        /* 눈에 보이는 간격이 있으면 반드시 최소 한 칸 띄운다 — 안 띄우면 옆 칸 금액끼리
+           들러붙어 (예: 11,023 + 143,541 → 11023143541) 검산이 통째로 어긋난다. */
+        var col=Math.round(cc.x/unit);
+        if(col<padTo)col=padTo;
+        if(col<=s.length)col=s.length+(s.length?1:0);
+        while(s.length<col)s+=' ';
+        s+=cc.s;
+      }
+      prevEnd=cc.x+cc.w;
+      /* 글자 실제 폭(한글은 글자 수보다 넓다) 을 다음 칸 위치에만 반영한다.
+         여기서 문자열에 바로 공백을 채우면 붙여 써야 할 숫자 사이에 공백이 끼어
+         한 금액이 둘로 찢어진다 ("544,917,434" → "54 4,917,434" — 실측 확인). */
+      padTo=Math.max(s.length,Math.round(prevEnd/unit));
+    }
+    return s.replace(/\s+$/,'');
+  }).join('\n');
+}
+async function _fpPdfText(file){
+  var lib=await _fpLoadPdfjs();
+  var buf=await file.arrayBuffer();
+  var task=lib.getDocument({data:new Uint8Array(buf),isEvalSupported:false,disableFontFace:true});
+  var pdf=await task.promise;
+  var pages=[];
+  try{
+    for(var p=1;p<=pdf.numPages;p++){
+      var page=await pdf.getPage(p);
+      var tc=await page.getTextContent();
+      pages.push(_fpLayout(tc.items||[]));
+      try{page.cleanup()}catch(_){}
+    }
+  }finally{ try{await pdf.destroy()}catch(_){} }
+  return pages.join('\n');
+}
+/* 파싱 결과 → 포함 가능 여부.
+   err  = 아예 못 넣음 (검산 불일치 = 파싱이 틀렸다는 뜻)
+   warn = 사장님이 직접 체크해야 포함 (검산 못 돌림 / 필수 칸 누락)
+   ok   = 기본 포함 */
+function _fpStatus(r){
+  if(r.err)return {kind:'err',msgs:[r.err]};
+  var p=r.p||{};
+  /* 종합소득세 신고서가 아니면 읽은 척하지 않는다 (법인세·부가세 서식이 섞여 들어온다) */
+  if(p.unsupported)return {kind:'err',msgs:[p.unsupported]};
+  if(p.masked)return {kind:'err',msgs:p.problems&&p.problems.length?p.problems:['마스킹된 출력물입니다']};
+  var o=p.owner||{};
+  /* 법인은 사업자등록번호(없으면 법인명) 로 붙는다 — 대표자 성명으로는 못 붙인다 */
+  if(p.type==='법인세'){
+    if(!o.biz_no&&!o.company_name)return {kind:'err',msgs:['법인 사업자등록번호·법인명을 못 읽었습니다']};
+  }else if(!o.name){
+    return {kind:'err',msgs:['성명을 못 읽었습니다 — 종합소득세 신고서가 맞는지 확인']};
+  }
+  if(!p.fiscal_year)return {kind:'err',msgs:['귀속연도를 못 읽었습니다']};
+  var mismatch=(p.checks||[]).filter(function(c){return !c.ok});
+  if(mismatch.length){
+    return {kind:'err',msgs:mismatch.map(function(c){
+      return '검산 불일치 — '+c.label+' (차이 '+Number(c.diff||0).toLocaleString('ko-KR')+'원)';
+    })};
+  }
+  if(!(p.fields&&Object.keys(p.fields).length))return {kind:'err',msgs:['읽어낸 숫자가 없습니다']};
+  var warn=(p.problems||[]).filter(function(m){return !/검산 불일치/.test(m)});
+  if(warn.length)return {kind:'warn',msgs:warn};
+  return {kind:'ok',msgs:[]};
+}
+/* 같은 키라도 서식에 따라 뜻이 다르다 — business_income 은 종소세에서 ⑪사업소득금액,
+   법인세에서 107 각사업연도소득금액이다. 검토표 라벨(_FJ_LABEL)은 법인 기준이라
+   종소세일 때만 갈아끼운다. */
+var _FP_LABEL_PERSON={business_income:'사업소득금액'};
+function _fpFieldsHtml(p){
+  var f=p.fields||{};
+  var keys=Object.keys(f);
+  if(!keys.length)return '';
+  var isCorp=p.type==='법인세';
+  return '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;color:var(--text-sub)">'
+    +keys.map(function(k){
+      var label=(!isCorp&&_FP_LABEL_PERSON[k])||_FJ_LABEL[k]||k;
+      return '<span>'+e(label)+' <b>'+e(_fjNum(f[k]))+'</b></span>';
+    }).join('')+'</div>';
+}
+function _fpRender(){
+  var out=document.getElementById('fpResult');
+  if(!out)return;
+  if(!_fpParsed.length){out.innerHTML='';return}
+  var nOk=0,nWarn=0,nErr=0;
+  var body=_fpParsed.map(function(r,i){
+    var st=_fpStatus(r);
+    if(st.kind==='ok')nOk++;else if(st.kind==='warn')nWarn++;else nErr++;
+    var p=r.p||{};
+    var color=st.kind==='ok'?'#15803d':(st.kind==='warn'?'#b45309':'#b91c1c');
+    var badge=st.kind==='ok'?'검산 통과':(st.kind==='warn'?'확인 필요':'포함 불가');
+    var o=p.owner||{};
+    var who=(p.type==='법인세'?(o.company_name||o.name):o.name)||'?';
+    var meta=[p.fiscal_year?p.fiscal_year+'년 귀속':'',p.type||'',p.filing_type_label||'',
+              (p.type==='법인세'&&o.name)?'대표 '+o.name:'',
+              o.biz_no?_fpBizFmt(o.biz_no):'',
+              o.birth_date?o.birth_date:''].filter(Boolean).join(' · ');
+    return '<div style="border-top:1px solid var(--neutral-border);padding:7px 0">'
+      +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      +(st.kind==='err'?'<span style="width:15px"></span>'
+        :'<input type="checkbox" '+(r.include?'checked':'')+' onchange="_fpToggle('+i+',this.checked)">')
+      +'<span style="font-weight:800">'+e(who)+'</span>'
+      +'<span style="color:var(--text-mute)">'+e(meta)+'</span>'
+      +'<span style="color:'+color+';font-weight:700">'+badge+'</span>'
+      +'<span style="color:var(--text-mute);font-size:.92em">'+e(r.name)+'</span>'
+      +'</div>'
+      +(st.msgs.length?'<div style="color:'+color+';margin-left:23px">· '+st.msgs.map(e).join('<br>· ')+'</div>':'')
+      +(st.kind!=='err'?'<div style="margin-left:23px">'+_fpFieldsHtml(p)+'</div>':'')
+      +'</div>';
+  }).join('');
+  var nSel=_fpParsed.filter(function(r){return r.include}).length;
+  out.innerHTML='<div style="background:#fff;border:1px solid var(--neutral-border);border-radius:10px;padding:12px 14px;font-size:.8em;line-height:1.7">'
+    +'<div style="font-weight:800;font-size:1.05em">📄 PDF 읽기 완료 — 아직 아무것도 안 심어짐</div>'
+    +'<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:2px">'
+    +'<span style="color:#15803d;font-weight:800">검산 통과 '+nOk+'</span>'
+    +'<span style="color:#b45309;font-weight:800">확인 필요 '+nWarn+'</span>'
+    +'<span style="color:#b91c1c;font-weight:800">포함 불가 '+nErr+'</span>'
+    +'</div>'
+    +'<div style="color:var(--text-mute)">검산이 어긋난 건은 파싱이 틀린 것이라 넣을 수 없습니다. "확인 필요" 는 값이 없어 검산을 못 돌린 건이라 직접 체크해야 포함됩니다.</div>'
+    +body
+    +'<div style="margin-top:10px;display:flex;gap:8px;align-items:center;border-top:1px solid var(--neutral-border);padding-top:9px">'
+    +'<button onclick="_fpPreview()" '+(nSel?'':'disabled ')+'style="background:'+(nSel?'var(--brand-primary)':'#cbd5e1')+';color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:'+(nSel?'pointer':'default')+';font-family:inherit;font-size:1em">🔍 선택한 '+nSel+'건 미리보기</button>'
+    +'<span style="color:var(--text-mute)">미리보기는 DB 를 안 건드립니다 · 확정은 그 다음 단계</span>'
+    +'</div></div>';
+}
+function _fpBizFmt(bn){
+  var s=String(bn||'').replace(/\D/g,'');
+  return s.length===10?s.slice(0,3)+'-'+s.slice(3,5)+'-'+s.slice(5):s;
+}
+function _fpToggle(i,on){
+  if(_fpParsed[i])_fpParsed[i].include=!!on;
+  _fpRender();
+}
+async function _fpParseFiles(ev){
+  var files=Array.prototype.slice.call((ev.target&&ev.target.files)||[]);
+  if(ev.target)ev.target.value='';
+  var out=document.getElementById('fpResult');
+  if(!files.length||!out)return;
+  if(typeof window.__parseFilingText!=='function'){
+    out.innerHTML='<div style="font-size:.8em;color:var(--toss-red)">신고서 파서가 아직 안 올라왔습니다 — 페이지를 새로고침한 뒤 다시 시도해 주세요.</div>';
+    return;
+  }
+  if(files.length>50){
+    out.innerHTML='<div style="font-size:.8em;color:var(--toss-red)">한 번에 50개까지만 올려주세요 (지금 '+files.length+'개).</div>';
+    return;
+  }
+  _fpParsed=[];
+  for(var i=0;i<files.length;i++){
+    out.innerHTML='<div style="font-size:.8em;color:var(--text-mute)">읽는 중 '+(i+1)+'/'+files.length+' — '+e(files[i].name)+'</div>';
+    var rec={name:files[i].name,include:false};
+    try{
+      var txt=await _fpPdfText(files[i]);
+      if(!txt||txt.replace(/\s/g,'').length<200)throw new Error('글자를 못 읽었습니다 — 스캔 이미지 PDF 로 보입니다. 홈택스에서 다시 내려받아 주세요');
+      rec.p=window.__parseFilingText(txt);
+    }catch(err){ rec.err=(err&&err.message)||String(err) }
+    rec.include=_fpStatus(rec).kind==='ok';
+    _fpParsed.push(rec);
+  }
+  _fpRender();
+}
+function _fpRows(){
+  return _fpParsed.filter(function(r){
+    return r.include&&r.p&&!r.p.unsupported&&!r.p.masked&&_fpStatus(r).kind!=='err';
+  }).map(function(r){
+    var p=r.p,f={};
+    Object.keys(p.fields||{}).forEach(function(k){
+      var v=p.fields[k];
+      if(v!==undefined&&v!==null)f[k]=v;
+    });
+    var isCorp=p.type==='법인세';
+    var row={
+      /* 법인은 법인명으로, 개인은 성명으로 붙는다. 법인의 대표자 성명은 안 보낸다 —
+         대표자 이름으로 users 를 뒤지면 엉뚱한 개인 거래처에 법인 신고서가 붙는다. */
+      name:isCorp?(p.owner.company_name||''):p.owner.name,
+      owner_type:isCorp?'Business':'Person',
+      fiscal_year:p.fiscal_year,type:p.type||'종소세',fields:f
+    };
+    if(p.owner.biz_no)row.biz_no=p.owner.biz_no;
+    if(!isCorp&&p.owner.birth_date)row.birth_date=p.owner.birth_date;
+    return row;
+  });
+}
+async function _fpPreview(){
+  var out=document.getElementById('fpResult');
+  if(!out)return;
+  var rows=_fpRows();
+  if(!rows.length){alert('포함할 건을 하나 이상 체크해 주세요');return}
+  var _ow=document.getElementById('fpOverwrite');
+  var overwrite=!!(_ow&&_ow.checked);
+  var prev=out.innerHTML;
+  try{
+    await _fjPreviewRows('신고서 PDF '+rows.length+'건',rows,overwrite,out);
+  }catch(err){
+    out.innerHTML=prev+'<div style="font-size:.8em;color:var(--toss-red);margin-top:6px">오류: '+e(err.message)+'</div>';
+  }
 }
 async function rollbackImportBatch(batchId, batchUuid){
   if(!confirm('🔄 batch [' + batchUuid + '] 롤백:\n\n'

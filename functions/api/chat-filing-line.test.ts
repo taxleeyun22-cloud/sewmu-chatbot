@@ -184,3 +184,29 @@ describe('filingLine — 공제·감면', () => {
     expect(mk('법인세', { deduction_total: 3_000_000 })).toContain('공제·감면 합계 3,000,000원');
   });
 });
+
+/* 2026-09-18 실측: 근로소득이 있는 간편장부 거래처의 신고서.
+   매출 26,363,636 · 사업소득 3,111,242 · 종합소득 84,561,242 (차액은 근로소득).
+   사업소득금액 줄이 없으면 챗봇이 소득률을 84,561,242 ÷ 26,363,636 = 320% 로 답한다. */
+describe('filingLine — 사업소득금액과 종합소득금액을 구분한다', () => {
+  it('필요경비·사업소득금액이 종합소득금액과 함께 나온다', () => {
+    const out = mk('종소세', {
+      revenue: 26_363_636, expense_total: 23_252_394,
+      business_income: 3_111_242, total_income: 84_561_242,
+    });
+    expect(out).toContain('수입금액(매출) 26,363,636원');
+    expect(out).toContain('필요경비 23,252,394원');
+    expect(out).toContain('사업소득금액 3,111,242원');
+    expect(out).toContain('종합소득금액 84,561,242원');
+  });
+
+  it('환급(마이너스) 납부할세액이 부호 그대로 나간다', () => {
+    expect(mk('종소세', { payable_tax: -1_084_106 })).toContain('납부할세액 -1,084,106원');
+  });
+
+  it('법인세에는 필요경비·사업소득금액이 안 섞인다', () => {
+    const out = mk('법인세', { revenue: 1_000_000_000, expense_total: 900_000_000, business_income: 100_000_000 });
+    expect(out).not.toContain('필요경비');
+    expect(out).toContain('각사업연도소득금액 100,000,000원');
+  });
+});

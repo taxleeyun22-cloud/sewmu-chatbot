@@ -153,6 +153,33 @@ function _hIco(name){
   return '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+P+'</svg>';
 }
 var _hhTries=0, _hhData=null, _hhFetching=false, _hhTodo=null, _hhTodoFetching=false;
+/* ⚠ 홈 숫자는 "못 읽은 것" 과 "0" 을 반드시 구분한다 (2026-09-21 사장님:
+   기장거래처 150+ 인데 화면엔 "0곳", 사이드바엔 271 이 떠 있었다).
+   예전엔 fetch 가 실패해도 빈 객체/0 을 캐시에 박아서 진짜 값처럼 그렸고,
+   캐시가 한 번 굳으면 새로고침 전까지 다시 안 불렀다. */
+async function _hhJson(url){
+  var r=await fetch(url);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  var d=await r.json();
+  if(d&&d.ok===false) throw new Error(d.error||'api error');
+  return d||{};
+}
+/* 실패 표시 + [다시] 버튼. 캐시를 비우고 다시 부른다. */
+function _hhErr(which){
+  return '<div style="font-size:13px;color:var(--toss-red);margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+    +'<span>⚠ 불러오지 못했습니다</span>'
+    +'<button onclick="event.stopPropagation();_hhRetry(\''+which+'\')" style="background:#fff;border:1px solid var(--toss-red);color:var(--toss-red);border-radius:8px;padding:2px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">다시</button>'
+    +'</div>';
+}
+function _hhRetry(which){
+  if(which==='kpi'){ _hhData=null; _hhFetching=false; _hhFetch(); }
+  else if(which==='todo'){ _hhTodo=null; _hhTodoFetching=false; _hhTodoFetch(); }
+  else if(which==='rooms'){ _hhRooms=null; _hhRoomsFetching=false; _hhRoomsFetch(); }
+  else if(which==='bill'){ _hhBill=null; _hhBillFetching=false; _hhBillFetch(); }
+  else if(which==='sales'){ _hhSales=null; _hhSalesFetching=false; _hhSalesFetch(); }
+  else if(which==='filings'){ _hhFil=null; _hhFilFetching=false; _hhFilFetch(); }
+  try{ _hhFill(); }catch(_){}
+}
 /* 시간대별 인사 (KST 시각) — 토스 앱 톤 */
 function _hhGreet(h){
   if(h>=5&&h<11) return '좋은 아침이에요, 사장님 ☀️';
@@ -222,140 +249,258 @@ function _hhBrief(){
   };
   var openTodos="if(typeof openMyTodos==='function')openMyTodos()";
   var t=_hhTodo, d=_hhData;
-  var todoN=t?((t.overdue||0)+(t.today||0)):'·';
+  var todoN=(t&&!t.error)?((t.overdue||0)+(t.today||0)):'·';
   box.innerHTML=chip('🏛 오늘 마감 '+taxToday+'건 ›', taxToday>0, openTodos)
-    +chip('📋 할 일 '+todoN+'건'+((t&&t.overdue>0)?' · 지남 '+t.overdue:'')+' ›', !!(t&&t.overdue>0), openTodos)
-    +chip('👤 승인 대기 '+(d?(d.pending||0):'·')+'명 ›', !!(d&&d.pending>0), uTab);
+    +chip('📋 할 일 '+todoN+'건'+((t&&!t.error&&t.overdue>0)?' · 지남 '+t.overdue:'')+' ›', !!(t&&!t.error&&t.overdue>0), openTodos)
+    +chip('👤 승인 대기 '+((d&&!d.error)?(d.pending||0):'·')+'명 ›', !!(d&&!d.error&&d.pending>0), uTab);
 }
-/* KPI 채우기 — 캐시(_hhData) 있으면 숫자, 없으면 '·' 플레이스홀더. fetch 안 함(쌈). */
+/* KPI 4칸 — 사장님이 "오늘 뭘 해야 하나" 를 보는 자리 (2026-09-21 재배치).
+ * 예전 4칸은 기장거래처·승인대기·오늘 챗봇 상담·전체 사용자였다. 기장거래처·전체
+ * 사용자는 사이드바에 이미 숫자가 있어 중복이고, 챗봇은 최상위 거래처에만 열기로
+ * 해서 대부분 0 이 찍힌다 — 제일 좋은 자리를 안 움직이는 숫자가 먹고 있었다.
+ * 지금은 손이 가야 하는 것만 올린다: 법정마감 · 지남 할 일 · 미수금 · 검토표 진행.
+ * 밀려난 숫자들은 바로 아래 한 줄(_hhMini)에 모아 둔다. */
 function _hhFill(){
   var box=$g('homeKpis'); if(!box) return;
   var d=_hhData||{};
-  var P=function(v){ return (_hhData && v!=null)?v:'·'; };
-  var uTab="((document.querySelector('[data-admin-tab=\\'users-user\\']')||document.querySelector('[data-admin-tab^=\\'users\\']'))||{click:function(){}}).click()"; /* 사이드바 실제 값=users-user (2026-07-06 사장님 "전체 사용자 눌러도 아무것도 안 뜨네" 픽스) */
-  var pend=d.pending;
-  box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
-    +_hhKpi('people','기장거래처',P(d.approvedClient),'곳','var(--of-primary)',uTab,'#e8f3ff','var(--of-primary)')
-    +_hhKpi('wait','승인 대기',P(pend),'명',(pend>0)?'var(--toss-red)':'var(--text-main)',uTab,(pend>0)?'#fdecec':'#f2f4f6',(pend>0)?'var(--toss-red)':'var(--text-sub)','',
-      (pend>0&&d.pendingNames&&d.pendingNames.length)?('👉 '+d.pendingNames.join(' · ')+(pend>d.pendingNames.length?' 외 '+(pend-d.pendingNames.length)+'명':'')):'')
-    +_hhKpi('chat','오늘 챗봇 상담',P(d.todayCnt),'건','var(--text-main)','','#e6f4ea','#188038',_hhSpark(d.daily7,'#188038'))
-    +_hhKpi('biz','전체 사용자',P(d.totalUsers),'명','var(--text-main)',uTab,'#f2f4f6','var(--text-sub)')
-    +'</div>';
+  var err=!!d.error;
+  var P=function(v){ return (_hhData && !err && v!=null)?v:'·'; };
+  var uTab="((document.querySelector('[data-admin-tab=\\'users-user\\']')||document.querySelector('[data-admin-tab^=\\'users\\']'))||{click:function(){}}).click()";
+  var openTodos="if(typeof openMyTodos==='function')openMyTodos()";
+  var goBill="window.open('https://sewmu-admin.pages.dev/admin/billing','_blank')";
+  var goFilings="if(typeof openFilingList==='function'){openFilingList()}else{(document.querySelector('[data-admin-tab^=\\'filing\\']')||{click:function(){}}).click()}";
+
+  /* 1) 법정 마감 (7일) — fetch 없음 */
+  var tax=_hhTaxUpcoming();
+  var taxN=tax?tax.length:null;
+  var taxToday=tax?tax.filter(function(f){return f.dday===0}).length:0;
+  var taxSub=tax?(taxToday>0?('오늘 '+taxToday+'건'):(tax.length?('가장 빠른 것 D-'+tax[0].dday):'7일 내 없음')):'';
+
+  /* 2) 할 일 — 지남이 핵심 */
+  var t=_hhTodo;
+  var todoErr=!!(t&&t.error);
+  var over=(t&&!todoErr)?(t.overdue||0):null;
+
+  /* 3) 미수금 */
+  var bl=_hhBill;
+  var billErr=!!(bl&&bl.error);
+  var billAmt=(bl&&!billErr)?(bl.amount||0):null;
+
+  /* 4) 검토표 진행 */
+  var fl=_hhFil;
+  var filErr=!!(fl&&fl.error);
+  var filN=(fl&&!filErr)?(fl.count||0):null;
+
+  var man=function(v,e2){ return e2?'·':((v==null)?'·':v); };
+  var won=function(n){ return (n==null)?'·':('₩'+Number(n).toLocaleString('ko-KR')); };
+
+  box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px">'
+    +_hhKpi('wait','법정 마감 (7일)',(taxN==null?'·':taxN),'건',
+        (taxToday>0)?'var(--toss-red)':'var(--text-main)',openTodos,
+        (taxToday>0)?'#fdecec':'#fff4e5',(taxToday>0)?'var(--toss-red)':'#e37400','',taxSub)
+    +_hhKpi('doc','지난 할 일',man(over,todoErr),'건',
+        (over>0)?'var(--toss-red)':'var(--text-main)',openTodos,
+        (over>0)?'#fdecec':'#f2f4f6',(over>0)?'var(--toss-red)':'var(--text-sub)','',
+        todoErr?'⚠ 불러오지 못함':((t&&!todoErr)?('오늘 '+(t.today||0)+'건 · 전체 '+(t.total||0)+'건'):''))
+    +_hhKpi('biz','미수금',won(billAmt),'',
+        (billAmt>0)?'var(--toss-red)':'var(--text-main)',goBill,
+        (billAmt>0)?'#fdecec':'#f2f4f6',(billAmt>0)?'var(--toss-red)':'var(--text-sub)','',
+        billErr?'⚠ 불러오지 못함':((bl&&!billErr&&bl.count)?('청구 전 '+bl.pending+'건 · 미납 '+bl.sent+'건'):''))
+    +_hhKpi('people','검토표 진행',man(filN,filErr),'건','var(--of-primary)',goFilings,'#e8f3ff','var(--of-primary)','',
+        filErr?'⚠ 불러오지 못함':((fl&&!filErr)?('작성중 '+fl.writing+' · 결재대기 '+fl.approving):''))
+    +'</div>'
+    + _hhMini(d,err,uTab);
+
   /* 가입 승인 숏컷 빨간 점 */
+  var pend=err?0:d.pending;
   var dot=$g('hqPendingDot'); if(dot)dot.style.display=(pend>0)?'block':'none';
   _hhCountUp();
+  if(_hhTodo==null) _hhTodoFetch();
+  if(_hhBill==null) _hhBillFetch();
+  if(_hhFil==null) _hhFilFetch();
   try{ _hhBrief(); }catch(_){}
   try{ _hhToday(); }catch(_){}
 }
-/* ── 오늘의 브리핑 (2026-07-06): 좌 🏛 법정마감(7일) — admin.js _mtTaxSchedule 재사용 /
- *    우 📋 내 할일(지남·오늘) — /api/memos scope=my 재사용. 클릭 = 내 할일 모달. */
+/* 4칸에서 밀려난 숫자 한 줄 — 거래처 규모·챗봇 사용량. 안 움직이는 숫자라 작게. */
+function _hhMini(d,err,uTab){
+  if(err){
+    return '<div style="background:#fff;border-radius:16px;padding:11px 18px;box-shadow:0 2px 10px rgba(25,31,40,.05);margin-bottom:12px">'
+      +'<div style="font-size:13px;color:var(--toss-red);display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+      +'<span>⚠ 거래처·챗봇 숫자를 불러오지 못했습니다</span>'
+      +'<button onclick="_hhRetry(\'kpi\')" style="background:#fff;border:1px solid var(--toss-red);color:var(--toss-red);border-radius:8px;padding:2px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">다시</button>'
+      +'</div></div>';
+  }
+  var dot='<span style="color:var(--neutral-border)">·</span>';
+  var it=function(label,val,unit,onclick,hot){
+    var inner='<span style="color:var(--text-mute)">'+label+'</span> <b style="color:'+(hot?'var(--toss-red)':'var(--text-main)')+'">'+val+'</b><span style="color:var(--text-sub)">'+(unit||'')+'</span>';
+    return onclick?('<button onclick="'+onclick+'" style="background:none;border:none;padding:0;font:inherit;font-size:13px;cursor:pointer">'+inner+'</button>')
+                  :('<span style="font-size:13px">'+inner+'</span>');
+  };
+  var has=!!_hhData;
+  var P=function(v){ return (has&&v!=null)?Number(v).toLocaleString('ko-KR'):'·'; };
+  var chat=(has&&d.todayCnt!=null)?(d.todayCnt+'건'):'·';
+  var wk=(has&&d.daily7&&d.daily7.length)?(' <span style="color:var(--text-mute)">(7일 '+d.daily7.reduce(function(a,b){return a+b},0)+')</span>'):'';
+  var rm=_hhRooms;
+  var unread=(rm&&!rm.error)?rm.unreadRooms:null;
+  return '<div style="background:#fff;border-radius:16px;padding:11px 18px;box-shadow:0 2px 10px rgba(25,31,40,.05);margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">'
+    +it('🏢 기장거래처',P(d.approvedClient),'곳',uTab)+dot
+    +it('👤 전체 사용자',P(d.totalUsers),'명',uTab)+dot
+    +it('🙋 승인 대기',P(d.pending),'명',uTab,(d.pending>0))+dot
+    +it('💬 챗봇 오늘',chat,wk,'')
+    +((unread!=null&&unread>0)?(dot+it('📨 안 읽은 방',unread,'개',"(document.querySelector('[data-admin-tab=\\'rooms\\']')||{click:function(){}}).click()",true)):'')
+    +'</div>';
+}
+/* ── 아래 카드 (2026-09-21 재정리) ──────────────────────────────
+ * 법정 마감·내 할 일은 내용이 있어야 쓸모 있으니 카드로 두고,
+ * 상담방·미수금·영업 팔로업은 "없음 🎉" 빈 카드 3개가 화면을 먹던 것을
+ * 한 줄로 합친다. 단 실패는 절대 숨기지 않는다 — 비어 있는 것과 다르다. */
 function _hhToday(){
   var box=$g('homeToday'); if(!box) return;
-  var KST=new Date(Date.now()+9*3600*1000);
-  var days=['일','월','화','수','목','금','토'];
-  /* 1) 법정마감 — 오늘부터 7일 */
-  var taxRows='';
-  try{
-    if(typeof _mtTaxSchedule==='function'){
-      var found=[];
-      for(var off=0; off<=7 && found.length<3; off++){
-        var dt=new Date(KST.getTime()); dt.setUTCDate(dt.getUTCDate()+off);
-        var sched=_mtTaxSchedule(dt.getUTCFullYear(), dt.getUTCMonth());
-        var items=sched[dt.getUTCDate()]||[];
-        for(var i=0;i<items.length && found.length<3;i++){
-          found.push({m:dt.getUTCMonth()+1,d:dt.getUTCDate(),w:days[dt.getUTCDay()],label:items[i],dday:off});
-        }
-      }
-      taxRows=found.length
-        ? found.map(function(f){
-            var dd=f.dday===0
-              ? '<span style="background:#fdecec;color:var(--toss-red);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:800">오늘</span>'
-              : (f.dday<=3
-                ? '<span style="background:#fff4e5;color:#e37400;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:800">D-'+f.dday+'</span>'
-                : '<span style="background:#f2f4f6;color:var(--text-sub);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:800">D-'+f.dday+'</span>');
-            return '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-main);margin-top:8px"><span style="font-weight:700;color:var(--text-sub);flex-shrink:0">'+f.m+'/'+f.d+' ('+f.w+')</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+f.label+'</span>'+dd+'</div>';
-          }).join('')
-        : '<div style="font-size:13px;color:var(--text-mute);margin-top:8px">7일 내 법정 마감 없음 🎉</div>';
-    }
-  }catch(_){ taxRows='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">·</div>'; }
+  /* 1) 법정마감 — 오늘부터 7일 중 앞 3건 */
+  var tax=_hhTaxUpcoming();
+  var taxRows;
+  if(tax==null){ taxRows='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">·</div>'; }
+  else if(!tax.length){ taxRows='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">7일 내 법정 마감 없음 🎉</div>'; }
+  else{
+    taxRows=tax.slice(0,3).map(function(f){
+      var dd=f.dday===0
+        ? '<span style="background:#fdecec;color:var(--toss-red);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:800">오늘</span>'
+        : (f.dday<=3
+          ? '<span style="background:#fff4e5;color:#e37400;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:800">D-'+f.dday+'</span>'
+          : '<span style="background:#f2f4f6;color:var(--text-sub);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:800">D-'+f.dday+'</span>');
+      return '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-main);margin-top:8px"><span style="font-weight:700;color:var(--text-sub);flex-shrink:0">'+f.m+'/'+f.d+' ('+f.w+')</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+f.label+'</span>'+dd+'</div>';
+    }).join('');
+  }
   /* 2) 내 할일 요약 */
-  var t=_hhTodo||{};
-  var todoLine=(_hhTodo==null)
-    ? '<div style="font-size:13px;color:var(--text-mute);margin-top:8px">불러오는 중…</div>'
-    : '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'
+  var t=_hhTodo;
+  var todoLine;
+  if(t==null){ todoLine='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">불러오는 중…</div>'; }
+  else if(t.error){ todoLine=_hhErr('todo'); }
+  else{
+    todoLine='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'
       +((t.overdue>0)?'<span style="background:#fdecec;color:var(--toss-red);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700">지남 '+t.overdue+'</span>':'')
       +'<span style="background:#e8f3ff;color:var(--of-primary);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700">오늘 '+(t.today||0)+'</span>'
       +'<span style="background:#f2f4f6;color:var(--text-sub);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700">전체 '+(t.total||0)+'</span>'
       +'</div>';
-  /* 3) 안 읽은 상담방 (상위 3, 클릭=방 열기) */
-  var roomsInner;
-  if(_hhRooms==null){
-    roomsInner='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">불러오는 중…</div>';
-  }else if(!_hhRooms.top.length){
-    roomsInner='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">안 읽은 방 없음 ✅</div>';
-  }else{
-    roomsInner=_hhRooms.top.map(function(r){
-      return '<div onclick="event.stopPropagation();if(typeof openRoom===\'function\')openRoom(\''+escAttr(String(r.id))+'\')" onmouseover="this.style.background=\'#f8f9fa\'" onmouseout="this.style.background=\'transparent\'" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-main);margin-top:5px;padding:5px 8px;border-radius:10px;cursor:pointer" title="이 방 열기">'
-        +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">'+e(r.name)+'</span>'
-        +'<span style="background:var(--toss-red);color:#fff;border-radius:999px;padding:1px 8px;font-size:11.5px;font-weight:800;flex-shrink:0">'+r.unread+'</span>'
-        +'</div>';
-    }).join('');
   }
-  var roomsHead='💬 안 읽은 상담방'+(_hhRooms&&_hhRooms.unreadRooms>0?' <span style="color:var(--toss-red);font-weight:800">'+_hhRooms.unreadRooms+'</span>':'');
-  /* 4) 미수금 청구서 */
-  var billInner;
-  if(_hhBill==null){
-    billInner='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">불러오는 중…</div>';
-  }else if(!_hhBill.count){
-    billInner='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">미수금 없음 🎉</div>';
-  }else{
-    billInner='<div style="font-size:23px;font-weight:800;letter-spacing:-.02em;margin-top:6px;color:var(--text-main)">₩'+(_hhBill.amount||0).toLocaleString()+'</div>'
-      +'<div style="font-size:12px;color:var(--text-mute);margin-top:4px">청구 전 '+_hhBill.pending+'건 · 청구 후 미납 '+_hhBill.sent+'건</div>';
-  }
-  /* 5) 영업 팔로업 (2026-07-08 영업 파이프라인) */
-  var salesInner;
-  if(_hhSales==null){
-    salesInner='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">불러오는 중…</div>';
-  }else if(!_hhSales.count){
-    salesInner='<div style="font-size:13px;color:var(--text-mute);margin-top:8px">오늘 팔로업 없음 ✅</div>';
-  }else{
-    salesInner=_hhSales.top.map(function(s){
-      return '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-main);margin-top:6px">'
-        +(s.overdue?'<span style="background:#fdecec;color:var(--toss-red);border-radius:999px;padding:1px 8px;font-size:11px;font-weight:800;flex-shrink:0">지남</span>':'')
-        +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">'+e(s.name)+(s.company?' · '+e(s.company):'')+'</span>'
-        +'<span style="color:var(--text-mute);font-size:12px;flex-shrink:0;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(s.action||'')+'</span>'
-        +'</div>';
-    }).join('');
-  }
-  var salesHead='📞 오늘 영업 팔로업'+(_hhSales&&_hhSales.count>0?' <span style="color:var(--of-primary);font-weight:800">'+_hhSales.count+'</span>'+(_hhSales.overdue>0?' <span style="color:var(--toss-red);font-weight:800">(지남 '+_hhSales.overdue+')</span>':''):'');
   var open="if(typeof openMyTodos==='function')openMyTodos()";
   var goRooms="(document.querySelector('[data-admin-tab=\\'rooms\\']')||{click:function(){}}).click()";
   var goBill="window.open('https://sewmu-admin.pages.dev/admin/billing','_blank')";
   var goSales="if(typeof openSalesPipe==='function'){openSalesPipe()}else{window.open('https://sewmu-admin.pages.dev/admin/sales-pipeline','_blank')}";
   var hov=' onmouseover="this.style.boxShadow=\'0 6px 18px rgba(25,31,40,.12)\'" onmouseout="this.style.boxShadow=\'0 2px 10px rgba(25,31,40,.05)\'"';
   var cardStyle='flex:1 1 300px;min-width:260px;background:#fff;border-radius:20px;padding:16px 20px;box-shadow:0 2px 10px rgba(25,31,40,.05);cursor:pointer;transition:box-shadow .15s';
+
+  /* 3) 상담방 · 미수금 · 영업 팔로업 — 내용 있는 것만 카드로, 없으면 한 줄 */
+  var cards='', quiet=[], busy=false, loading=false;
+  var rm=_hhRooms, bl=_hhBill, sl=_hhSales;
+  if(rm==null||bl==null||sl==null) loading=true;
+
+  if(rm&&rm.error){
+    cards+='<div style="'+cardStyle+';cursor:default"><div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">💬 안 읽은 상담방</div>'+_hhErr('rooms')+'</div>';
+  }else if(rm&&rm.top&&rm.top.length){
+    busy=true;
+    cards+='<div onclick="'+goRooms+'"'+hov+' style="'+cardStyle+'" title="클릭 → 상담방 탭">'
+      +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">💬 안 읽은 상담방 <span style="color:var(--toss-red);font-weight:800">'+rm.unreadRooms+'</span></div>'
+      +rm.top.map(function(r){
+        return '<div onclick="event.stopPropagation();if(typeof openRoom===\'function\')openRoom(\''+escAttr(String(r.id))+'\')" onmouseover="this.style.background=\'#f8f9fa\'" onmouseout="this.style.background=\'transparent\'" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-main);margin-top:5px;padding:5px 8px;border-radius:10px;cursor:pointer" title="이 방 열기">'
+          +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">'+e(r.name)+'</span>'
+          +'<span style="background:var(--toss-red);color:#fff;border-radius:999px;padding:1px 8px;font-size:11.5px;font-weight:800;flex-shrink:0">'+r.unread+'</span>'
+          +'</div>';
+      }).join('')+'</div>';
+  }else if(rm){ quiet.push({t:'💬 안 읽은 상담방 없음',c:goRooms}); }
+
+  if(bl&&bl.error){
+    cards+='<div style="'+cardStyle+';cursor:default"><div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">💰 미수금 청구서</div>'+_hhErr('bill')+'</div>';
+  }else if(bl&&bl.count){
+    busy=true;
+    cards+='<div onclick="'+goBill+'"'+hov+' style="'+cardStyle+'" title="클릭 → 청구서 시스템 (새 탭)">'
+      +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">💰 미수금 청구서</div>'
+      +'<div style="font-size:23px;font-weight:800;letter-spacing:-.02em;margin-top:6px;color:var(--text-main)">₩'+(bl.amount||0).toLocaleString()+'</div>'
+      +'<div style="font-size:12px;color:var(--text-mute);margin-top:4px">청구 전 '+bl.pending+'건 · 청구 후 미납 '+bl.sent+'건</div></div>';
+  }else if(bl){ quiet.push({t:'💰 미수금 없음',c:goBill}); }
+
+  if(sl&&sl.error){
+    cards+='<div style="'+cardStyle+';cursor:default"><div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">📞 오늘 영업 팔로업</div>'+_hhErr('sales')+'</div>';
+  }else if(sl&&sl.count){
+    busy=true;
+    cards+='<div onclick="'+goSales+'"'+hov+' style="'+cardStyle+'" title="클릭 → 영업 파이프라인 (새 탭)">'
+      +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">📞 오늘 영업 팔로업 <span style="color:var(--of-primary);font-weight:800">'+sl.count+'</span>'
+      +(sl.overdue>0?' <span style="color:var(--toss-red);font-weight:800">(지남 '+sl.overdue+')</span>':'')+'</div>'
+      +sl.top.map(function(x){
+        return '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-main);margin-top:6px">'
+          +(x.overdue?'<span style="background:#fdecec;color:var(--toss-red);border-radius:999px;padding:1px 8px;font-size:11px;font-weight:800;flex-shrink:0">지남</span>':'')
+          +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">'+e(x.name)+(x.company?' · '+e(x.company):'')+'</span>'
+          +'<span style="color:var(--text-mute);font-size:12px;flex-shrink:0;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(x.action||'')+'</span>'
+          +'</div>';
+      }).join('')+'</div>';
+  }else if(sl){ quiet.push({t:'📞 오늘 영업 팔로업 없음',c:goSales}); }
+
+  /* 비어 있는 것들 — 카드 하나씩 쓰지 말고 한 줄로 */
+  var quietLine='';
+  if(quiet.length){
+    quietLine='<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:#fff;border-radius:16px;padding:11px 18px;box-shadow:0 2px 10px rgba(25,31,40,.05);margin-bottom:12px">'
+      +(quiet.length===3&&!busy?'<span style="font-size:13px;font-weight:700;color:#188038">✅ 오늘 처리할 것 없습니다</span><span style="color:var(--neutral-border)">·</span>':'')
+      +quiet.map(function(q,i){
+        return (i?'<span style="color:var(--neutral-border)">·</span>':'')
+          +'<button onclick="'+q.c+'" style="background:none;border:none;padding:0;font:inherit;font-size:13px;color:var(--text-mute);cursor:pointer">'+q.t+'</button>';
+      }).join('')
+      +(loading?'<span style="color:var(--neutral-border)">·</span><span style="font-size:13px;color:var(--text-mute)">불러오는 중…</span>':'')
+      +'</div>';
+  }else if(loading){
+    quietLine='<div style="background:#fff;border-radius:16px;padding:11px 18px;box-shadow:0 2px 10px rgba(25,31,40,.05);margin-bottom:12px;font-size:13px;color:var(--text-mute)">불러오는 중…</div>';
+  }
+
   box.innerHTML='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
     +'<div onclick="'+open+'"'+hov+' style="'+cardStyle+'" title="클릭 → 내 할 일 달력">'
     +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">🏛 다가오는 법정 마감 <span style="font-weight:500">(7일 · 주말 순연 반영)</span></div>'+taxRows+'</div>'
     +'<div onclick="'+open+'"'+hov+' style="'+cardStyle+'" title="클릭 → 내 할 일">'
     +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">📋 내 할 일</div>'+todoLine
-    /* 빠른 추가 — 홈에서 생각난 할일 바로 입력 (Enter). 기한은 달력에서 */
     +'<div onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:8px;background:#f2f4f6;border-radius:12px;padding:8px 13px;margin-top:11px">'
     +'<span style="color:var(--of-primary);font-weight:800;line-height:1">＋</span>'
     +'<input type="text" placeholder="할 일 빠른 추가 — Enter" onkeydown="_hhQuickAdd(event)" style="flex:1;min-width:0;border:none;background:transparent;font-size:13px;font-family:inherit;outline:none;color:var(--text-main)">'
     +'</div>'
     +'</div>'
-    +'<div onclick="'+goRooms+'"'+hov+' style="'+cardStyle+'" title="클릭 → 상담방 탭">'
-    +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">'+roomsHead+'</div>'+roomsInner+'</div>'
-    +'<div onclick="'+goBill+'"'+hov+' style="'+cardStyle+'" title="클릭 → 청구서 시스템 (새 탭)">'
-    +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">💰 미수금 청구서</div>'+billInner+'</div>'
-    +'<div onclick="'+goSales+'"'+hov+' style="'+cardStyle+'" title="클릭 → 영업 파이프라인 (새 탭)">'
-    +'<div style="font-size:12.5px;font-weight:700;color:var(--text-mute)">'+salesHead+'</div>'+salesInner+'</div>'
-    +'</div>';
+    +cards
+    +'</div>'
+    +quietLine;
   if(_hhTodo==null) _hhTodoFetch();
   if(_hhRooms==null) _hhRoomsFetch();
   if(_hhBill==null) _hhBillFetch();
   if(_hhSales==null) _hhSalesFetch();
+}
+/* 검토표 진행 — 기존 목록 API 재사용. 보관완료 전(작성중·결재대기) 건수. */
+var _hhFil=null,_hhFilFetching=false;
+async function _hhFilFetch(){
+  if(_hhFil!==null || _hhFilFetching) return;
+  _hhFilFetching=true;
+  try{
+    var rs=await Promise.all([
+      _hhJson('/api/admin-filings?all=1&status='+encodeURIComponent('작성중')+'&key='+encodeURIComponent(KEY)),
+      _hhJson('/api/admin-filings?all=1&status='+encodeURIComponent('결재대기')+'&key='+encodeURIComponent(KEY)),
+    ]);
+    var w=((rs[0]&&rs[0].filings)||[]).length, a=((rs[1]&&rs[1].filings)||[]).length;
+    _hhFil={ writing:w, approving:a, count:w+a };
+  }catch(_){ _hhFil={error:true}; }
+  _hhFilFetching=false;
+  try{ _hhFill(); }catch(_){}
+}
+/* 법정 마감 — 오늘부터 7일 (fetch 없음, admin.js _mtTaxSchedule 재사용) */
+function _hhTaxUpcoming(){
+  var KST=new Date(Date.now()+9*3600*1000);
+  var days=['일','월','화','수','목','금','토'];
+  var found=[];
+  try{
+    if(typeof _mtTaxSchedule!=='function') return null;
+    for(var off=0; off<=7; off++){
+      var dt=new Date(KST.getTime()); dt.setUTCDate(dt.getUTCDate()+off);
+      var sched=_mtTaxSchedule(dt.getUTCFullYear(), dt.getUTCMonth());
+      var items=sched[dt.getUTCDate()]||[];
+      for(var i=0;i<items.length;i++){
+        found.push({m:dt.getUTCMonth()+1,d:dt.getUTCDate(),w:days[dt.getUTCDay()],label:items[i],dday:off});
+      }
+    }
+  }catch(_){ return null; }
+  return found;
 }
 /* 영업 팔로업 — /api/sales-pipeline?view=today (오늘·지난 다음액션) */
 var _hhSales=null,_hhSalesFetching=false;
@@ -363,12 +508,11 @@ async function _hhSalesFetch(){
   if(_hhSales!==null || _hhSalesFetching) return;
   _hhSalesFetching=true;
   try{
-    var r=await fetch('/api/sales-pipeline?view=today&key='+encodeURIComponent(KEY));
-    var d=await r.json();
+    var d=await _hhJson('/api/sales-pipeline?view=today&key='+encodeURIComponent(KEY));
     var items=(d&&d.items)||[];
     _hhSales={ count:d.count||0, overdue:d.overdue||0,
       top:items.slice(0,3).map(function(x){return {name:x.name, company:x.company, action:x.next_action, overdue:x.next_action_date<d.today}}) };
-  }catch(_){ _hhSales={count:0,overdue:0,top:[]}; }
+  }catch(_){ _hhSales={error:true}; }
   _hhSalesFetching=false;
   try{ _hhToday(); }catch(_){}
 }
@@ -378,14 +522,13 @@ async function _hhRoomsFetch(){
   if(_hhRooms!==null || _hhRoomsFetching) return;
   _hhRoomsFetching=true;
   try{
-    var r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY));
-    var d=await r.json();
+    var d=await _hhJson('/api/admin-rooms?key='+encodeURIComponent(KEY));
     var rooms=(d&&d.rooms)||[];
     var un=rooms.filter(function(x){return (x.admin_unread_count||0)>0});
     un.sort(function(a,b){return (b.admin_unread_count||0)-(a.admin_unread_count||0)});
     _hhRooms={ total:rooms.length, unreadRooms:un.length,
       top:un.slice(0,3).map(function(x){return {id:x.id, name:x.name||('방 '+x.id), unread:x.admin_unread_count||0}}) };
-  }catch(_){ _hhRooms={total:0,unreadRooms:0,top:[]}; }
+  }catch(_){ _hhRooms={error:true}; }
   _hhRoomsFetching=false;
   try{ _hhToday(); }catch(_){}
 }
@@ -394,13 +537,12 @@ async function _hhBillFetch(){
   if(_hhBill!==null || _hhBillFetching) return;
   _hhBillFetching=true;
   try{
-    var r=await fetch('/api/billing-invoices?key='+encodeURIComponent(KEY));
-    var d=await r.json();
+    var d=await _hhJson('/api/billing-invoices?key='+encodeURIComponent(KEY));
     var bs=(d&&d.by_staff)||[];
     var pending=0,sent=0,amount=0;
     bs.forEach(function(s){ pending+=(+s.pending||0); sent+=(+s.sent||0); amount+=(+s.outstanding_amount||0); });
     _hhBill={ pending:pending, sent:sent, count:pending+sent, amount:amount };
-  }catch(_){ _hhBill={pending:0,sent:0,count:0,amount:0}; }
+  }catch(_){ _hhBill={error:true}; }
   _hhBillFetching=false;
   try{ _hhToday(); }catch(_){}
 }
@@ -427,8 +569,7 @@ async function _hhTodoFetch(){
   if(_hhTodo!==null || _hhTodoFetching) return;
   _hhTodoFetching=true;
   try{
-    var r=await fetch('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my&only_mine=1');
-    var d=await r.json();
+    var d=await _hhJson('/api/memos?key='+encodeURIComponent(KEY)+'&scope=my&only_mine=1');
     var memos=(d&&d.memos)||[];
     var today=new Date(Date.now()+9*3600*1000).toISOString().substring(0,10);
     var over=0, tod=0;
@@ -437,7 +578,7 @@ async function _hhTodoFetch(){
       if(due && /^\d{4}-\d{2}-\d{2}$/.test(due)){ if(due<today)over++; else if(due===today)tod++; }
     });
     _hhTodo={overdue:over, today:tod, total:memos.length};
-  }catch(_){ _hhTodo={overdue:0,today:0,total:0}; }
+  }catch(_){ _hhTodo={error:true}; }
   _hhTodoFetching=false;
   try{ _hhToday(); }catch(_){}
   try{ _hhBrief(); }catch(_){}
@@ -450,10 +591,12 @@ async function _hhFetch(){
   _hhFetching=true;
   try{
     var now=new Date(Date.now()+9*3600*1000);
+    /* 승인/사용자 카운트가 이 화면의 본체다 — 실패하면 0 으로 그리지 않고 에러로 남긴다.
+       analytics(챗봇 건수) 는 곁가지라 실패해도 나머지는 살린다. */
     var rs=await Promise.all([
-      fetch('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=pending').then(function(r){return r.json()}).catch(function(){return {}}),
-      fetch('/api/analytics?key='+encodeURIComponent(KEY)).then(function(r){return r.json()}).catch(function(){return {}}),
-      fetch('/api/admin-users?key='+encodeURIComponent(KEY)+'&page=1').then(function(r){return r.json()}).catch(function(){return {}}),
+      _hhJson('/api/admin-approve?key='+encodeURIComponent(KEY)+'&status=pending'),
+      _hhJson('/api/analytics?key='+encodeURIComponent(KEY)).catch(function(){return null}),
+      _hhJson('/api/admin-users?key='+encodeURIComponent(KEY)+'&page=1'),
     ]);
     var c=(rs[0]&&rs[0].counts)||{};
     var todayKey=now.toISOString().slice(0,10);
@@ -463,8 +606,10 @@ async function _hhFetch(){
     var daily7=daily.slice(-7).map(function(x){return x.count||0});
     /* 대기자 이름 미리보기 (상위 3명) — 홈에서 누가 기다리는지 바로 보이게 */
     var pNames=((rs[0]&&rs[0].users)||[]).slice(0,3).map(function(u){return u.real_name||u.name||'이름없음'});
-    _hhData={ approvedClient:(c.approved_client||0), pending:(c.pending||0), todayCnt:(dRow?dRow.count:0), totalUsers:((rs[2]&&rs[2].total)||0), daily7:daily7, pendingNames:pNames };
-  }catch(_){ _hhData=null; }
+    _hhData={ approvedClient:(c.approved_client||0), pending:(c.pending||0),
+      todayCnt:(rs[1]?(dRow?dRow.count:0):null), totalUsers:((rs[2]&&rs[2].total)||0),
+      daily7:daily7, pendingNames:pNames };
+  }catch(_){ _hhData={error:true}; }
   _hhFetching=false;
   try{ _hhFill(); }catch(_){}
 }
@@ -473,7 +618,8 @@ async function _hhFetch(){
 function renderHomeHero(){
   var el=$g('homeHero');
   if(!el){ if(_hhTries++<20) setTimeout(renderHomeHero,400); return; }
-  if(el.querySelector('#homeKpis')){ if(_hhData) return; _hhFill(); if(!_hhData) _hhFetch(); return; }
+  /* 에러로 굳은 캐시는 "불러온 것" 이 아니다 — 탭 다시 들어오면 재시도한다 */
+  if(el.querySelector('#homeKpis')){ if(_hhData&&!_hhData.error) return; _hhFill(); if(!_hhData||_hhData.error){ _hhData=null; _hhFetch(); } return; }
   try{
     var now=new Date(Date.now()+9*3600*1000);
     var days=['일','월','화','수','목','금','토'];
