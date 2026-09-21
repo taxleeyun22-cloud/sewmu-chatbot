@@ -104,8 +104,8 @@ describe('parseFilingText — 정상 신고서', () => {
     expect(sum).toBe(r.fields.deduction_total);
   });
 
-  it('검산 5개가 전부 통과한다', () => {
-    expect(r.checks.length).toBe(5);
+  it('검산 6개가 전부 통과한다', () => {
+    expect(r.checks.length).toBe(6);
     expect(r.checks.every((c) => c.ok)).toBe(true);
   });
 
@@ -640,5 +640,56 @@ describe('사업장이 여러 개인 신고서', () => {
 
   it('사업장이 하나면 상호를 그대로 읽는다', () => {
     expect(parseFilingText(SAMPLE).owner.company_name).toBe('테스트상사');
+  });
+});
+
+/* 2026-09-21 사장님: "근로소득이랑 사업매출은 구분되야할거야."
+   실측: 사업 매출 26,363,636 인데 종합소득금액은 84,561,242 — 차액 8,145만이
+   근로소득이다. ❺명세서의 소득구분코드 51 행을 읽어 따로 세운다. */
+describe('근로소득 — 사업 매출과 섞이면 안 된다', () => {
+  const 근로 = SAMPLE.replace(
+    '❼ 사업소득명세서',
+    `          소득의 지급자
+소득    ②                    ⑤ 총수입금액 (근로소득공 ⑦ 소득금액
+코드         ④ 사업자등록번호                 공제)
+51   1                      30,000,000 10,000,000   20,000,000  1,000,000         0
+❾ 종합소득금액 및 결손금ㆍ이월결손금공제명세서
+
+❼ 사업소득명세서`,
+  ).replace(
+    '            액         금                      19                               100,000,000',
+    '            액         금                      19                               120,000,000',
+  ).replace(
+    '과   세    표   준 ( 19 － 20 )                                  21                                95,000,000',
+    '과   세    표   준 ( 19 － 20 )                                  21                               115,000,000',
+  );
+
+  it('근로소득 총급여·소득금액을 따로 읽는다', () => {
+    const r = parseFilingText(근로);
+    expect(r.fields.salary_gross).toBe(30_000_000);
+    expect(r.fields.salary_income).toBe(20_000_000);
+    /* 매출은 사업 것만 — 급여를 더하지 않는다 */
+    expect(r.fields.revenue).toBe(450_000_000);
+    expect(r.fields.business_income).toBe(100_000_000);
+  });
+
+  it('종합소득금액 = 사업소득 + 근로소득 을 검산한다', () => {
+    const r = parseFilingText(근로);
+    expect(r.checks.map((c) => c.label)).toContain('종합소득금액 = 사업소득금액 + 사업 외 소득(근로 등)');
+    expect(r.checks.find((c) => c.label.startsWith('종합소득금액 ='))?.ok).toBe(true);
+  });
+
+  it('근로소득을 빠뜨리면 잡아낸다', () => {
+    /* ❺명세서가 안 읽히면 종합소득금액이 사업소득보다 커서 검산이 어긋난다 */
+    const 누락 = 근로.replace('51   1                      30,000,000 10,000,000   20,000,000  1,000,000         0\n', '');
+    const r = parseFilingText(누락);
+    expect(r.ok).toBe(false);
+    expect(r.problems.join(' ')).toContain('종합소득금액 = 사업소득금액');
+  });
+
+  it('기부금명세서의 비슷한 줄을 근로소득으로 읽지 않는다', () => {
+    /* 문서 뒤쪽에 "40  2025  50,000 …" 처럼 같은 모양의 줄이 있다 */
+    const 기부금 = SAMPLE + '\n⑭ 기부금명세서\n 40    2025         50,000                    0             50,000                0\n';
+    expect(parseFilingText(기부금).fields.salary_income).toBeUndefined();
   });
 });
