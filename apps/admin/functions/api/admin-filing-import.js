@@ -31,6 +31,13 @@
  * 공제·감면 / 가산세 내역은 배열로 넣는다 (검토표가 합계를 자동 계산, 청구서 Section 3 도 사용):
  *   "fields": { "deductions": [{ "code": "244", "name": "전자신고세액공제", "amount": 20000 }],
  *               "penalties":  [{ "name": "무신고가산세", "amount": 0 }] }
+ *
+ * 사업장별 내역(종소세, 사업장 여러 곳인 대표님) — ❼사업소득명세서의 칸 하나가 사업장 하나다:
+ *   "fields": { "revenue": 400000000,
+ *               "businesses": [{ "biz_no": "405-27-02160", "income_code": "40",
+ *                                "revenue": 350000000, "expense": 180000000, "income": 170000000 }, ...] }
+ * 쪼갠 합이 revenue 와 다르면 통째로 버린다 (틀린 분해는 없느니만 못하다).
+ * 상호는 안 받는다 — D1 businesses.company_name 을 사업자번호로 찾아 채운다.
  */
 
 import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
@@ -235,6 +242,64 @@ export async function onRequestPost(context) {
           list.push(item);
         }
         if (list.length) fields[listKey] = list;
+      }
+
+      /* ── 사업장별 내역 (2026-09-21 사장님: "사업장별 매출 이거도 해보자") ──
+         대표 한 명이 사업장을 여러 개 가진 경우, ❼사업소득명세서의 칸 하나가 사업장 하나다.
+         합계만 저장하면 "OO점 매출만 얼마야" 에 답할 수가 없다.
+         shape: { biz_no?, income_code?, name?, revenue, expense?, income? }
+         ⚠ 같은 사업자번호가 두 번 올 수 있다 (부동산임대 30 / 사업 40 분리신고) —
+           biz_no 를 키로 쓰지 말고 배열 순서를 그대로 지킨다. */
+      {
+        const raw = (row.fields || {}).businesses;
+        if (Array.isArray(raw)) {
+          const list = [];
+          for (const it of raw) {
+            if (list.length >= 20) break;
+            if (!it || typeof it !== 'object' || Array.isArray(it)) continue;
+            const rev = Number(it.revenue);
+            if (!Number.isFinite(rev)) continue;
+            const b = { revenue: rev };
+            const bn = normBiz(it.biz_no);
+            /* 000-00-00000 = 사업자등록 없는 인적용역. 자리는 지키되 번호로는 안 쓴다 */
+            if (/^\d{10}$/.test(bn) && !/^0+$/.test(bn)) b.biz_no = bn;
+            const ic = String(it.income_code || '').trim();
+            if (/^\d{2}$/.test(ic)) b.income_code = ic;
+            for (const k of ['expense', 'income']) {
+              const v = Number(it[k]);
+              if (it[k] !== undefined && it[k] !== null && Number.isFinite(v)) b[k] = v;
+            }
+            list.push(b);
+          }
+          /* 쪼갠 합이 총수입금액과 안 맞으면 통째로 버린다 — 틀린 분해는 없느니만 못하다.
+             (챗봇이 "OO점 매출" 을 틀리게 답하면 검산이 걸리지 않는 구간이다) */
+          const sumRev = list.reduce((acc, b) => acc + b.revenue, 0);
+          if (!list.length) { /* 저장할 것 없음 */ }
+          else if (fields.revenue !== undefined && sumRev !== fields.revenue) {
+            a.biz_split_dropped = '사업장별 합(' + sumRev + ') ≠ 총수입금액(' + fields.revenue + ')';
+          } else {
+            /* 상호는 신고서에서 안 읽는다 (칸이 두 줄이면 글자가 섞여 나온다).
+               D1 에 등록된 회사명이 더 정확하므로 사업자번호로 채운다. */
+            const bns = Array.from(new Set(list.map(b => b.biz_no).filter(Boolean)));
+            if (bns.length) {
+              const ph = bns.map(() => '?').join(',');
+              const { results } = await db.prepare(
+                `SELECT REPLACE(REPLACE(business_number,'-',''),' ','') AS bn, company_name
+                   FROM businesses
+                  WHERE REPLACE(REPLACE(business_number,'-',''),' ','') IN (${ph})
+                    AND (deleted_at IS NULL OR deleted_at = '')`
+              ).bind(...bns).all();
+              const nameOf = {};
+              for (const r of (results || [])) {
+                /* 같은 번호로 회사가 둘이면 어느 쪽인지 모른다 — 비워 둔다 */
+                if (r.bn in nameOf) { nameOf[r.bn] = null; continue; }
+                nameOf[r.bn] = r.company_name || null;
+              }
+              for (const b of list) if (b.biz_no && nameOf[b.biz_no]) b.name = nameOf[b.biz_no];
+            }
+            fields.businesses = list;
+          }
+        }
       }
 
       a.fields = fields;

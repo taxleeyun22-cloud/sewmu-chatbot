@@ -104,8 +104,9 @@ describe('parseFilingText — 정상 신고서', () => {
     expect(sum).toBe(r.fields.deduction_total);
   });
 
-  it('검산 6개가 전부 통과한다', () => {
-    expect(r.checks.length).toBe(6);
+  it('검산 7개가 전부 통과한다', () => {
+    /* 2026-09-21 사업장별 수입금액 합 검산이 늘어 6 → 7 */
+    expect(r.checks.length).toBe(7);
     expect(r.checks.every((c) => c.ok)).toBe(true);
   });
 
@@ -691,5 +692,97 @@ describe('근로소득 — 사업 매출과 섞이면 안 된다', () => {
     /* 문서 뒤쪽에 "40  2025  50,000 …" 처럼 같은 모양의 줄이 있다 */
     const 기부금 = SAMPLE + '\n⑭ 기부금명세서\n 40    2025         50,000                    0             50,000                0\n';
     expect(parseFilingText(기부금).fields.salary_income).toBeUndefined();
+  });
+});
+
+/* 2026-09-21 사장님: "사업장별 매출 이거도 해보자 나누는거 충분히 될건데??"
+   ❼명세서의 한 칸이 사업장 하나다. 합계만 저장하면 "OO점 매출" 에 답할 수가 없다.
+   ⚠ 여기서 틀리면 검산이 못 잡는 구간이 생긴다 — 합이 총수입금액과 맞는지 반드시 건다. */
+describe('사업장별 내역', () => {
+  it('SAMPLE 의 사업장 2곳을 칸 순서대로 나눈다', () => {
+    const r = parseFilingText(SAMPLE);
+    expect(r.fields.businesses).toEqual([
+      { revenue: 400_000_000, biz_no: '1234567890', expense: 340_000_000, income: 60_000_000 },
+      { revenue: 50_000_000, biz_no: '0000000000', expense: 10_000_000, income: 40_000_000 },
+    ]);
+  });
+
+  it('사업장별 합 = 총수입금액 검산이 걸린다', () => {
+    const r = parseFilingText(SAMPLE);
+    const c = r.checks.find((x) => x.label === '사업장별 수입금액 합 = 총수입금액');
+    expect(c?.ok).toBe(true);
+    expect(r.fields.businesses!.reduce((a, b) => a + b.revenue, 0)).toBe(r.fields.revenue);
+  });
+
+  /* 실측(이상환 님): 같은 사업자번호가 두 번 — 부동산임대(30)와 사업(40)을 나눠 신고.
+     사업자번호를 키로 쓰면 한 칸이 사라진다. 칸 순서로 잡아야 한다. */
+  it('같은 사업자등록번호가 두 번 나와도 두 칸으로 유지한다', () => {
+    const 임대 = SAMPLE.replace(
+      '⑤사업자등록번호                              123-45-67890          000-00-00000',
+      `①소득구분코드                                      30                    40
+⑤사업자등록번호                              123-45-67890          123-45-67890`,
+    );
+    const r = parseFilingText(임대);
+    expect(r.fields.businesses).toHaveLength(2);
+    expect(r.fields.businesses!.map((b) => b.biz_no)).toEqual(['1234567890', '1234567890']);
+    expect(r.fields.businesses!.map((b) => b.income_code)).toEqual(['30', '40']);
+    expect(r.fields.businesses!.map((b) => b.revenue)).toEqual([400_000_000, 50_000_000]);
+  });
+
+  it('사업장 3곳도 칸 순서가 어긋나지 않는다', () => {
+    const 삼 = SAMPLE
+      .replace(
+        '⑤사업자등록번호                              123-45-67890          000-00-00000',
+        `①소득구분코드                                      32                    40                    40
+⑤사업자등록번호                              000-00-00000          123-45-67890          222-33-44444`,
+      )
+      .replace('⑨총 수 입 금 액                                   400,000,000            50,000,000',
+        '⑨총 수 입 금 액                                    30,000,000            20,000,000           400,000,000')
+      .replace('⑩필         요   경        비                    340,000,000            10,000,000',
+        '⑩필         요   경        비                     20,000,000            10,000,000           320,000,000')
+      .replace('⑪ 소 득 금 액(⑨ - ⑩)                              60,000,000            40,000,000',
+        '⑪ 소 득 금 액(⑨ - ⑩)                              10,000,000            10,000,000            80,000,000');
+    const r = parseFilingText(삼);
+    expect(r.fields.revenue).toBe(450_000_000);
+    expect(r.fields.businesses).toEqual([
+      { revenue: 30_000_000, biz_no: '0000000000', income_code: '32', expense: 20_000_000, income: 10_000_000 },
+      { revenue: 20_000_000, biz_no: '1234567890', income_code: '40', expense: 10_000_000, income: 10_000_000 },
+      { revenue: 400_000_000, biz_no: '2223344444', income_code: '40', expense: 320_000_000, income: 80_000_000 },
+    ]);
+    expect(r.checks.find((c) => c.label === '사업장별 수입금액 합 = 총수입금액')?.ok).toBe(true);
+  });
+
+  /* 칸 수가 어긋나면 엉뚱한 사업장에 금액이 붙는다 — 틀리느니 아예 안 내놓는다 */
+  it('⑩⑪ 칸 수가 ⑨와 다르면 통째로 포기한다', () => {
+    const 어긋남 = SAMPLE.replace(
+      '⑩필         요   경        비                    340,000,000            10,000,000',
+      '⑩필         요   경        비                    350,000,000',
+    );
+    const r = parseFilingText(어긋남);
+    expect(r.fields.businesses).toBeUndefined();
+    /* 나머지 합계 검산은 그대로 살아 있어야 한다 */
+    expect(r.fields.revenue).toBe(450_000_000);
+  });
+
+  it('사업자번호 칸 수가 안 맞으면 금액만 남기고 번호는 안 붙인다', () => {
+    const 번호부족 = SAMPLE.replace(
+      '⑤사업자등록번호                              123-45-67890          000-00-00000',
+      '⑤사업자등록번호                              123-45-67890',
+    );
+    const r = parseFilingText(번호부족);
+    expect(r.fields.businesses).toEqual([
+      { revenue: 400_000_000, expense: 340_000_000, income: 60_000_000 },
+      { revenue: 50_000_000, expense: 10_000_000, income: 40_000_000 },
+    ]);
+  });
+
+  it('④상호는 읽지 않는다 (칸이 섞여 나온다 — DB 회사명을 쓴다)', () => {
+    const r = parseFilingText(SAMPLE);
+    expect(r.fields.businesses!.every((b) => !('name' in b))).toBe(true);
+  });
+
+  it('법인세에는 사업장별 내역이 없다', () => {
+    const r = parseFilingText(SAMPLE);
+    expect(r.type).toBe('종소세');
   });
 });

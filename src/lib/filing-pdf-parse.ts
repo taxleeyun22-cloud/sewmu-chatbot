@@ -20,6 +20,20 @@ export interface DeductionItem {
   amount: number;
 }
 
+/** ❼사업소득명세서 한 칸 = 사업장 하나 (소득구분이 다르면 같은 사업자번호도 따로 선다) */
+export interface FilingBusiness {
+  /** ①소득구분코드 — 30 부동산임대 / 32 주택임대 / 40 사업 */
+  income_code?: string;
+  /** ⑤사업자등록번호. '0000000000' 은 사업자등록 없는 인적용역 */
+  biz_no?: string;
+  /** ⑨총수입금액 */
+  revenue: number;
+  /** ⑩필요경비 */
+  expense?: number;
+  /** ⑪소득금액 */
+  income?: number;
+}
+
 export interface ParsedFilingFields {
   revenue?: number;
   total_income?: number;
@@ -35,6 +49,8 @@ export interface ParsedFilingFields {
   adj_exclusion?: number;
   /** ⑪사업소득금액 (사업장 합계) — 종합소득금액과 다르다 (근로·기타소득이 빠진 값) */
   business_income?: number;
+  /** 사업장별 내역. 합계(revenue/expense_total/business_income)와 반드시 맞아떨어진다. */
+  businesses?: FilingBusiness[];
   /** ❺명세서 소득구분코드 51 — 근로소득 총급여액 */
   salary_gross?: number;
   /** ❺명세서 소득구분코드 51 — 근로소득금액 (총급여 − 근로소득공제) */
@@ -303,6 +319,36 @@ export function parseFilingText(text: string): ParsedFiling {
     return undefined;
   };
 
+  /* ⚠ 반드시 ❼ 사업소득명세서 구간 안에서만 찾는다. 신고서 1면의
+     ❸ 세무대리인 칸에 세무사 본인의 사업자등록번호가 먼저 찍혀 있어서,
+     문서 순서대로 훑으면 세무대리인 번호를 거래처 번호로 오인한다 (실측 확인).
+     한 줄에 사업장이 여러 개 나란히 오므로 줄 안의 모든 번호를 훑는다. */
+  const bizSection = (() => {
+    const start = sq.findIndex((l) => l.includes('사업소득명세서'));
+    if (start < 0) return [];
+    let end = sq.findIndex((l, i) => i > start && l.includes('종합소득금액및결손금'));
+    if (end < 0) end = Math.min(lines.length, start + 60);
+    return lines.slice(start, end);
+  })();
+
+  /* 같은 행을 "칸 배열" 그대로 읽는다 (합치지 않고). 사업장별로 답하려면 이게 필요하다.
+     ⑨⑩⑪ 은 칸 순서가 ⑤사업자등록번호 행과 1:1 로 맞다 (실측 3건 확인). */
+  const rowCells = (anchor: RegExp): number[] | undefined => {
+    for (let i = 0; i < lines.length; i++) {
+      if (!anchor.test(sq[i])) continue;
+      const nums = (lines[i].match(/[\d,]{4,}/g) || []).map(toNum).filter((n): n is number => n !== null);
+      if (!nums.length) continue;
+      const hasTotalColumn = sq
+        .slice(Math.max(0, i - 20), i + 1)
+        .some((l) => /일련번호/.test(l) && /(^|[^가-힣])계($|[^가-힣])/.test(l));
+      const last = nums[nums.length - 1];
+      const rest = nums.slice(0, -1).reduce((a, b) => a + b, 0);
+      /* 위하고 출력물의 "계" 칸은 사업장이 아니다 — 떼어 낸다 */
+      return hasTotalColumn && nums.length > 1 && last === rest ? nums.slice(0, -1) : nums;
+    }
+    return undefined;
+  };
+
   /* ⑨총수입금액. 줄 아무데나 '총수입금액' 이 있으면 잡던 것 → 가산세 기준칸
      ("공동사업장등록 불성실 … 총수입금액 0.5/100") 이나 표 머리글까지 걸린다.
      ⑮조정후총수입금액 은 ❼명세서가 비어 있는 부동산임대 신고서의 대체 칸이다. */
@@ -317,6 +363,50 @@ export function parseFilingText(text: string): ParsedFiling {
       .filter((n): n is number => n !== null);
     return each.length ? each.reduce((a, b) => a + b, 0) : undefined;
   })();
+  /* ── 사업장별 내역 (2026-09-21 사장님: "사업장별 매출 이거도 해보자") ──
+     ❼명세서는 사업장 하나가 한 칸(열)이다. ⑤사업자등록번호 · ⑨총수입금액 ·
+     ⑩필요경비 · ⑪소득금액 행의 칸 순서가 서로 1:1 로 맞는다 (실측 3건 확인).
+
+     ⚠ 같은 사업자번호가 두 번 나올 수 있다 — 부동산임대(①30)와 사업(①40)을
+       따로 신고하는 경우다. 그래서 사업자번호를 키로 쓰면 안 되고 칸 순서로 잡는다.
+     ⚠ ④상호는 안 읽는다. 칸이 두 줄인 상호끼리 글자가 섞여 나오고(실측),
+       DB 에 있는 회사명이 더 정확하다 — 서버가 사업자번호로 채워 넣는다. */
+  fields.businesses = (() => {
+    const rev = rowCells(/^[⑧⑨]?\s*총수입금액/);
+    if (!rev || !rev.length) return undefined;
+    const exp = rowCells(/^[⑨⑩]?\s*필요경비/);
+    const inc = rowCells(/^[⑩⑪]?\s*소득금액\(/);
+    /* 칸 수가 안 맞으면 어긋나게 붙을 수 있다 — 통째로 포기한다 (틀리느니 없는 게 낫다) */
+    if ((exp && exp.length !== rev.length) || (inc && inc.length !== rev.length)) return undefined;
+
+    /* ⑤사업자등록번호 — 칸 순서 그대로. 000-00-00000 도 자리를 지킨다 */
+    const bizNos: string[] = (() => {
+      for (const rawLn of bizSection) {
+        if (!squash(rawLn).startsWith('⑤사업자등록번호')) continue;
+        const ln = rawLn.replace(/([\d-])\s+(?=[\d-])/g, '$1');
+        return Array.from(ln.matchAll(/(\d{3})-(\d{2})-(\d{5})/g)).map((m) => m[1] + m[2] + m[3]);
+      }
+      return [];
+    })();
+    /* ①소득구분코드 — 30 부동산임대 / 32 주택임대 / 40 사업 */
+    const codes: string[] = (() => {
+      for (const rawLn of bizSection) {
+        if (!squash(rawLn).startsWith('①소득구분코드')) continue;
+        return Array.from(rawLn.matchAll(/(?:^|\s)(3[0-9]|4[0-9])(?=\s|$)/g)).map((m) => m[1]);
+      }
+      return [];
+    })();
+
+    return rev.map((r, i) => {
+      const b: FilingBusiness = { revenue: r };
+      if (bizNos.length === rev.length && bizNos[i]) b.biz_no = bizNos[i];
+      if (codes.length === rev.length && codes[i]) b.income_code = codes[i];
+      if (exp) b.expense = exp[i];
+      if (inc) b.income = inc[i];
+      return b;
+    });
+  })();
+
   /* ⑩필요경비 · ⑪소득금액 — 이걸 읽어야 수입금액에 검산이 걸린다.
      안 걸어두면 매출만 조용히 틀린 채 통과한다 (다른 검산은 전부 세액 쪽이라
      매출이 어긋나도 4/4 통과가 나온다 — 실측 확인). */
@@ -421,17 +511,6 @@ export function parseFilingText(text: string): ParsedFiling {
   }
   if (!owner.birth_date && lines.some((l) => /\d{6}\s*-\s*\*{3,}/.test(l))) masked = true;
   if ((owner.company_name || '').includes('**')) { masked = true; owner.company_name = undefined; }
-  /* ⚠ 반드시 ❼ 사업소득명세서 구간 안에서만 찾는다. 신고서 1면의
-     ❸ 세무대리인 칸에 세무사 본인의 사업자등록번호가 먼저 찍혀 있어서,
-     문서 순서대로 훑으면 세무대리인 번호를 거래처 번호로 오인한다 (실측 확인).
-     한 줄에 사업장이 여러 개 나란히 오므로 줄 안의 모든 번호를 훑는다. */
-  const bizSection = (() => {
-    const start = sq.findIndex((l) => l.includes('사업소득명세서'));
-    if (start < 0) return [];
-    let end = sq.findIndex((l, i) => i > start && l.includes('종합소득금액및결손금'));
-    if (end < 0) end = Math.min(lines.length, start + 60);
-    return lines.slice(start, end);
-  })();
   outer: for (const rawLn of bizSection) {
     /* 위하고 자간 제거. lookbehind 는 구형 Safari(iOS ≤16.3)가 파싱조차 못 해
        공용 번들 전체가 SyntaxError 로 죽는다 — 캡처 그룹으로 대체. */
@@ -503,6 +582,14 @@ export function parseFilingText(text: string): ParsedFiling {
       ? fields.business_income + otherIncome.reduce((a, r) => a + r.income, 0)
       : undefined,
   );
+  /* 사업장별로 쪼갠 게 합계와 맞는지 — 칸이 어긋나면 여기서 걸린다 */
+  if (fields.businesses && fields.businesses.length > 1) {
+    add(
+      '사업장별 수입금액 합 = 총수입금액',
+      fields.businesses.reduce((a, b) => a + b.revenue, 0),
+      fields.revenue,
+    );
+  }
   add(
     '사업소득금액 = 총수입금액 − 필요경비',
     fields.business_income,
