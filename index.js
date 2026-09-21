@@ -332,9 +332,17 @@ function _stripYear(q){
 
 function askQuick(b){document.getElementById("userInput").value=b.textContent;sendMessage()}
 
+/* ===== 상담방 화면 내리기 (2026-09-21 사장님: "상담방 내리고 카톡연결로 가자") =====
+ * 사장님이 상담방 채팅을 안 쓰는 상태라 화면에서만 내린다.
+ * 방 자체 · 웹푸시 · D-day 알림 · 단체발송 · 영수증/서류 업로드 · 검토표 연결은
+ * 전부 방을 배관으로 쓰므로 그대로 살려 둔다. 되살리려면 이 값만 true.
+ * 딥링크(/?room=ID)·알림 클릭은 계속 동작한다 — 이미 받은 알림이 먹통이 되면 안 된다. */
+var ROOMS_UI = false;
+/* 문의 창구 — 팀채팅 등으로 바꾸려면 이 줄만 고치면 된다 (chat.js 에도 같은 상수가 있다) */
+var KAKAO_CHAT_URL = 'http://pf.kakao.com/_sgnsxj/chat';
+
 /* ===== 📤 챗봇 Q&A → 내 상담방에 공유 =====
-   마지막 질문·답변을 사용자의 기장 상담방에 [CHATBOT_SHARE] 포맷으로 전송.
-   상담방 렌더에서 특수 카드로 표시. */
+   ROOMS_UI=false 면 대신 "카톡으로 문의" 버튼이 붙는다. */
 function _attachChatbotShareBtn(msgDiv, question, answer){
   try{
     if(!msgDiv)return;
@@ -343,14 +351,38 @@ function _attachChatbotShareBtn(msgDiv, question, answer){
     if(wrap.querySelector('.chatbot-share-btn'))return;
     var btn = document.createElement('button');
     btn.className = 'chatbot-share-btn';
-    btn.innerHTML = '📤 상담방에 공유';
     /* display:block + 명시적 너비 지정으로 확실하게 렌더 */
-    btn.style.cssText = 'display:block;margin-top:8px;background:#eff6ff;border:1px dashed #3182f6;color:#3182f6;padding:6px 12px;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit;width:fit-content';
-    btn.onclick = function(){shareChatbotToRoom(question, answer, btn);};
+    btn.style.cssText = 'display:block;margin-top:8px;background:#fef8e3;border:1px dashed #e0b400;color:#8a6d00;padding:6px 12px;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit;width:fit-content';
+    if(ROOMS_UI){
+      btn.innerHTML = '📤 상담방에 공유';
+      btn.style.cssText = 'display:block;margin-top:8px;background:#eff6ff;border:1px dashed #3182f6;color:#3182f6;padding:6px 12px;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit;width:fit-content';
+      btn.onclick = function(){shareChatbotToRoom(question, answer, btn);};
+    }else{
+      /* 답변을 들고 카톡으로 — 질문만 복사해 주고 카톡을 연다 (카톡은 본문 주입이 안 된다) */
+      btn.innerHTML = '💬 이 내용으로 세무사에게 문의';
+      btn.onclick = function(){askTaxAccountantOnKakao(question, btn);};
+    }
     wrap.appendChild(btn);
   }catch(e){
     console.error('[share-btn] attach failed:', e);
   }
+}
+/* 카톡으로 문의 — 질문을 클립보드에 담아 주고 카톡 채널을 연다.
+   카톡은 외부에서 본문을 채워 줄 수 없어서, 붙여넣기만 하면 되게 만든다. */
+async function askTaxAccountantOnKakao(question, btn){
+  var q = String(question||'').trim().slice(0, 500);
+  try{
+    if(q && navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(q);
+      if(btn){
+        var o=btn.innerHTML;
+        btn.innerHTML='✅ 질문 복사됨 — 카톡에 붙여넣기';
+        setTimeout(function(){btn.innerHTML=o},2500);
+      }
+    }
+  }catch(_){ /* 클립보드 막혀 있어도 카톡은 연다 */ }
+  try{ window.open(KAKAO_CHAT_URL, '_blank', 'noopener'); }
+  catch(_){ location.href = KAKAO_CHAT_URL; }
 }
 async function shareChatbotToRoom(question, answer, btn){
   if(!question || !answer){alert('공유할 내용이 없습니다');return}
@@ -886,6 +918,13 @@ function openDocDetail(docId){
 }
 
 async function loadMyRooms(){
+  /* 화면에서 내렸다 — 목록을 안 그린다. 단 뱃지·푸시·딥링크는 그대로 둔다
+     (이미 받은 알림을 눌렀을 때 방이 열려야 한다). */
+  if(!ROOMS_UI){
+    var _sec=document.getElementById('mpRoomsSection');
+    if(_sec)_sec.style.display='none';
+    return;
+  }
   try{
     var r=await fetch('/api/my-rooms');
     if(r.status===403){
@@ -2866,7 +2905,7 @@ function showLimitExceeded(err){
   var headline='오늘 무료 상담 '+lim+'건을 다 쓰셨어요';
   var subline=st==='pending'
     ? '내일 0시에 다시 '+lim+'건이 충전돼요.<br>세무회계 이윤 <b>기장거래처</b>는 횟수 제한 없이 상담하실 수 있어요.'
-    : '내일 0시에 다시 이용하실 수 있어요.<br>급하시면 상담방으로 세무사에게 직접 문의해 주세요.';
+    : '내일 0시에 다시 이용하실 수 있어요.<br>급하시면 <a href="'+KAKAO_CHAT_URL+'" target="_blank" rel="noopener" style="color:var(--blue);font-weight:700">카톡으로 세무사에게 직접 문의</a>해 주세요.';
   var html=''
     +'<div class="msg msg-ai"><div class="msg-avatar"><img src="logo-icon.png" alt=""></div>'
     +'<div class="msg-wrap"><div class="msg-name">세무회계 이윤</div>'
