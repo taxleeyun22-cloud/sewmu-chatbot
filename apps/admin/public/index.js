@@ -332,9 +332,27 @@ function _stripYear(q){
 
 function askQuick(b){document.getElementById("userInput").value=b.textContent;sendMessage()}
 
+/* ===== 상담방 화면 내리기 (2026-09-21 사장님: "상담방 내리고 카톡연결로 가자") =====
+ * 사장님이 상담방 채팅을 안 쓰는 상태라 화면에서만 내린다.
+ * 방 자체 · 웹푸시 · D-day 알림 · 단체발송 · 영수증/서류 업로드 · 검토표 연결은
+ * 전부 방을 배관으로 쓰므로 그대로 살려 둔다. 되살리려면 이 값만 true.
+ * 딥링크(/?room=ID)·알림 클릭은 계속 동작한다 — 이미 받은 알림이 먹통이 되면 안 된다. */
+var ROOMS_UI = false;
+/* 영수증 사진 업로드(AI 자동 분류) — 2026-09-21 사장님 "영수증첨부도 다 일단 없애고 보류".
+ * 업로드 버튼과 내 문서함 진입점만 내린다. 이미 올라온 문서·R2 원본은 그대로 두고,
+ * 서버 API(/api/documents)도 살려 둔다 — 되살리려면 이 값만 true. */
+var RECEIPTS_UI = false;
+/* 문의 창구 (2026-09-21 사장님: "그냥 카카오톡어플로 들어가게").
+ * 모바일은 카톡 앱을 바로 열고, 안 열리면 대체 경로로 떨어진다.
+ * ⚠ kakaotalk:// 는 "앱을 여는" 것까지만 된다 — 특정 상대와의 채팅방을 바로 열 수는 없다.
+ *   사장님과 친구가 아닌 거래처는 앱 안에서 사장님을 못 찾는다.
+ *   오픈채팅 링크가 생기면 KAKAO_CHAT_URL 한 줄만 바꾸면 그 문제가 사라진다. */
+var KAKAO_APP_SCHEME = 'kakaotalk://';
+var KAKAO_CHAT_URL = 'http://pf.kakao.com/_sgnsxj/chat';  /* 앱이 안 열릴 때 대체 */
+var OFFICE_PHONE = '053-269-1213';
+
 /* ===== 📤 챗봇 Q&A → 내 상담방에 공유 =====
-   마지막 질문·답변을 사용자의 기장 상담방에 [CHATBOT_SHARE] 포맷으로 전송.
-   상담방 렌더에서 특수 카드로 표시. */
+   ROOMS_UI=false 면 대신 "카톡으로 문의" 버튼이 붙는다. */
 function _attachChatbotShareBtn(msgDiv, question, answer){
   try{
     if(!msgDiv)return;
@@ -343,14 +361,66 @@ function _attachChatbotShareBtn(msgDiv, question, answer){
     if(wrap.querySelector('.chatbot-share-btn'))return;
     var btn = document.createElement('button');
     btn.className = 'chatbot-share-btn';
-    btn.innerHTML = '📤 상담방에 공유';
     /* display:block + 명시적 너비 지정으로 확실하게 렌더 */
-    btn.style.cssText = 'display:block;margin-top:8px;background:#eff6ff;border:1px dashed #3182f6;color:#3182f6;padding:6px 12px;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit;width:fit-content';
-    btn.onclick = function(){shareChatbotToRoom(question, answer, btn);};
+    btn.style.cssText = 'display:block;margin-top:8px;background:#fef8e3;border:1px dashed #e0b400;color:#8a6d00;padding:6px 12px;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit;width:fit-content';
+    if(ROOMS_UI){
+      btn.innerHTML = '📤 상담방에 공유';
+      btn.style.cssText = 'display:block;margin-top:8px;background:#eff6ff;border:1px dashed #3182f6;color:#3182f6;padding:6px 12px;border-radius:8px;font-size:.78em;font-weight:600;cursor:pointer;font-family:inherit;width:fit-content';
+      btn.onclick = function(){shareChatbotToRoom(question, answer, btn);};
+    }else{
+      /* 답변을 들고 카톡으로 — 질문만 복사해 주고 카톡을 연다 (카톡은 본문 주입이 안 된다) */
+      btn.innerHTML = '💬 이 내용으로 세무사에게 문의';
+      btn.onclick = function(){askTaxAccountantOnKakao(question, btn);};
+    }
     wrap.appendChild(btn);
   }catch(e){
     console.error('[share-btn] attach failed:', e);
   }
+}
+/* 카톡으로 문의 — 질문을 클립보드에 담아 주고 카톡을 연다.
+   카톡은 외부에서 본문을 채워 줄 수 없어서, 붙여넣기만 하면 되게 만든다. */
+function _isMobile(){
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'');
+}
+async function askTaxAccountantOnKakao(question, btn){
+  var q = String(question||'').trim().slice(0, 500);
+  var copied = false;
+  try{
+    if(q && navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(q);
+      copied = true;
+      if(btn){
+        var o=btn.innerHTML;
+        btn.innerHTML='✅ 질문 복사됨 — 카톡에 붙여넣기';
+        setTimeout(function(){btn.innerHTML=o},2500);
+      }
+    }
+  }catch(_){ /* 클립보드가 막혀 있어도 카톡은 연다 */ }
+  openKakao(copied);
+}
+/* 카톡 열기 — 모바일이면 앱 먼저, 안 열리면 대체 경로.
+   앱이 열리면 브라우저 탭이 백그라운드로 가서 document.hidden 이 true 가 된다.
+   그걸로 "열렸는지" 를 판단한다 (스킴 실패는 아무 이벤트도 안 준다). */
+function openKakao(copied){
+  if(!_isMobile()){
+    /* PC 는 kakaotalk:// 가 아무 반응 없이 먹는다 — 바로 대체 경로 */
+    try{ window.open(KAKAO_CHAT_URL, '_blank', 'noopener'); }
+    catch(_){ location.href = KAKAO_CHAT_URL; }
+    return;
+  }
+  var landed = false;
+  var onHide = function(){ if(document.hidden) landed = true; };
+  document.addEventListener('visibilitychange', onHide);
+  /* ⚠ location.href 로 스킴을 때리면 앱이 없을 때 이 페이지가 통째로 날아가고
+     폴백 타이머도 같이 죽는다. 새 창으로 던져서 이 페이지를 살려 둔다. */
+  var w = null;
+  try{ w = window.open(KAKAO_APP_SCHEME, '_blank'); }catch(_){}
+  setTimeout(function(){
+    document.removeEventListener('visibilitychange', onHide);
+    if(landed) return;                       /* 앱이 열렸다 — 아무것도 더 하지 않는다 */
+    try{ if(w && !w.closed) w.close(); }catch(_){}
+    location.href = KAKAO_CHAT_URL;          /* 앱이 없다 — 대체 경로 */
+  }, 1200);
 }
 async function shareChatbotToRoom(question, answer, btn){
   if(!question || !answer){alert('공유할 내용이 없습니다');return}
@@ -773,6 +843,11 @@ async function saveOnboardHometax(bizId){
 }
 
 async function loadMyDocs(){
+  if(!RECEIPTS_UI){
+    var _ds=document.getElementById('mpDocsSection');
+    if(_ds)_ds.style.display='none';
+    return;
+  }
   if(!currentUser||currentUser.approval_status!=='approved_client'){
     document.getElementById('mpDocsSection').style.display='none';
     return;
@@ -856,7 +931,8 @@ function renderDocsList(){
   var el=document.getElementById('docsList');
   var list=docsFilter==='all'?docsList:docsList.filter(function(x){return x.status===docsFilter});
   if(!list.length){
-    el.innerHTML='<div style="text-align:center;color:var(--text2);padding:60px 0;font-size:.88em">문서가 없습니다.<br><br>상담방 + 버튼에서 영수증·계약서 등을<br>올리시면 여기에 쌓입니다.</div>';
+    /* 상담방·영수증 업로드를 내린 상태라 "상담방 + 버튼에서 올리세요" 는 안내가 안 된다 */
+    el.innerHTML='<div style="text-align:center;color:var(--text2);padding:60px 0;font-size:.88em">문서가 없습니다.</div>';
     return;
   }
   el.innerHTML=list.map(function(d){
@@ -886,6 +962,13 @@ function openDocDetail(docId){
 }
 
 async function loadMyRooms(){
+  /* 화면에서 내렸다 — 목록을 안 그린다. 단 뱃지·푸시·딥링크는 그대로 둔다
+     (이미 받은 알림을 눌렀을 때 방이 열려야 한다). */
+  if(!ROOMS_UI){
+    var _sec=document.getElementById('mpRoomsSection');
+    if(_sec)_sec.style.display='none';
+    return;
+  }
   try{
     var r=await fetch('/api/my-rooms');
     if(r.status===403){
@@ -949,10 +1032,11 @@ async function openMyRoom(roomId){
   rcRoomId=roomId;
   document.getElementById('roomChatView').classList.add('open');
   document.body.style.overflow='hidden';
-  /* 영수증·프리랜서 업로드 메뉴는 approved_client(기장 거래처)에게만 노출 */
+  /* 영수증·프리랜서 업로드 메뉴는 approved_client(기장 거래처)에게만 노출.
+     영수증은 RECEIPTS_UI=false 로 보류 중이라 기장거래처여도 안 보인다. */
   var isClient=currentUser&&currentUser.approval_status==='approved_client';
   var receiptAttach=document.getElementById('rcReceiptAttach');
-  if(receiptAttach)receiptAttach.style.display=isClient?'':'none';
+  if(receiptAttach)receiptAttach.style.display=(isClient&&RECEIPTS_UI)?'':'none';
   var freelancerAttach=document.getElementById('rcFreelancerAttach');
   if(freelancerAttach)freelancerAttach.style.display=isClient?'':'none';
   await loadRoomChat();
@@ -2051,6 +2135,11 @@ async function sendRoomPhoto(fileInput){
 
 /* 영수증(OCR) 업로드 — 여러 장 */
 async function sendRoomReceiptMulti(fileInput){
+  if(!RECEIPTS_UI){
+    alert('영수증 사진 접수는 잠시 중단했습니다.\n담당 세무사에게 직접 문의해 주세요.');
+    if(fileInput)fileInput.value='';
+    return;
+  }
   if(!rcRoomId||!rcIsActive)return;
   var all=Array.from(fileInput.files||[]);
   fileInput.value='';
@@ -2866,7 +2955,11 @@ function showLimitExceeded(err){
   var headline='오늘 무료 상담 '+lim+'건을 다 쓰셨어요';
   var subline=st==='pending'
     ? '내일 0시에 다시 '+lim+'건이 충전돼요.<br>세무회계 이윤 <b>기장거래처</b>는 횟수 제한 없이 상담하실 수 있어요.'
-    : '내일 0시에 다시 이용하실 수 있어요.<br>급하시면 상담방으로 세무사에게 직접 문의해 주세요.';
+    /* 링크가 아니라 openKakao() 로 — 모바일은 카톡 앱이 바로 열린다.
+       전화는 앱이 없든 PC 든 100% 되는 길이라 같이 둔다. */
+    : '내일 0시에 다시 이용하실 수 있어요.<br>'
+      +'<a href="javascript:void(0)" onclick="openKakao()" style="color:var(--blue);font-weight:700">💬 카톡으로 문의</a>'
+      +' · <a href="tel:'+OFFICE_PHONE.replace(/-/g,'')+'" style="color:var(--blue);font-weight:700">📞 '+OFFICE_PHONE+'</a>';
   var html=''
     +'<div class="msg msg-ai"><div class="msg-avatar"><img src="logo-icon.png" alt=""></div>'
     +'<div class="msg-wrap"><div class="msg-name">세무회계 이윤</div>'
@@ -2942,10 +3035,11 @@ function detectPlatform(){
 /* 친구에게 알리기 — 카톡·메시지 등 공유시트 */
 async function shareToFriend(){
   var url='https://sewmu-chatbot.pages.dev/';
-  var msg='📂 서랍에 쌓이는 영수증,\n'
-    +'이제 사진 한 장이면 끝! 📸\n\n'
-    +'🧾 영수증 → AI 자동 분류\n'
-    +'💬 세무 질문 → 24시간 답변\n'
+  /* 2026-09-21 사장님: 영수증 사진 접수는 보류 — 문구에서 뺀다.
+     지금 실제로 되는 것만 적는다 (없는 기능을 적으면 문의만 늘어난다). */
+  var msg='💬 세무 질문, 아무 때나 물어보세요\n\n'
+    +'📊 내 매출·소득·세금 바로 확인\n'
+    +'🧮 세무 질문 → 24시간 답변\n'
     +'🔔 신고 기한 → 자동 알림\n\n'
     +'세무가 이렇게 간단해집니다 ✨\n\n'
     +'🏢 세무회계 이윤\n'+url;

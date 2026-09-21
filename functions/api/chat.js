@@ -195,6 +195,12 @@ async function getClientBizFilings(db, userId) {
 
 /* 검토표 auto_fields → 챗봇 노출 필드 (2026-07-07 확장: 수입·결정세액만 → 전 항목.
  * "작년 영업이익?", "영업이익 대비 세금 비율?" 답변용. 라벨 = 검토표 화면과 동일 용어). */
+/* 문의 창구 (2026-09-21 사장님: "상담방 내리고 카톡연결로 가자").
+   상담방 채팅 UI 를 내리면서 거래처 문의는 전부 여기로 보낸다.
+   팀채팅 등으로 바꾸려면 이 두 줄만 고치면 된다. */
+const KAKAO_CHAT_URL = "http://pf.kakao.com/_sgnsxj/chat";
+const OFFICE_PHONE = "053-269-1213";
+
 const FIL_FIELDS_PERSON = [
   ['revenue', '수입금액(매출)'],
   ['expense_total', '필요경비'],
@@ -767,11 +773,11 @@ export async function onRequestPost(context) {
     if (!usage.ok) {
       let msg;
       if (approvalStatus === 'pending') {
-        msg = `오늘 무료 상담 ${dailyLimit}건을 모두 이용하셨습니다.\n\n더 자세한 상담은 세무회계 이윤 세무사에게 바로 문의해 주세요.\n\n💬 카톡상담: http://pf.kakao.com/_sgnsxj/chat\n📞 전화: 053-269-1213\n\n기장거래처이신 경우 담당자에게 말씀하시면 무제한 이용이 가능합니다.`;
+        msg = `오늘 무료 상담 ${dailyLimit}건을 모두 이용하셨습니다.\n\n더 자세한 상담은 세무회계 이윤 세무사에게 바로 문의해 주세요.\n\n💬 카톡상담: ${KAKAO_CHAT_URL}\n📞 전화: ${OFFICE_PHONE}\n\n기장거래처이신 경우 담당자에게 말씀하시면 무제한 이용이 가능합니다.`;
       } else if (approvalStatus === 'approved_guest') {
-        msg = `오늘 무료 상담 ${dailyLimit}건을 모두 이용하셨습니다.\n\n더 자세한 상담은 세무회계 이윤 세무사에게 바로 문의해 주세요.\n\n💬 카톡상담: http://pf.kakao.com/_sgnsxj/chat\n📞 전화: 053-269-1213`;
+        msg = `오늘 무료 상담 ${dailyLimit}건을 모두 이용하셨습니다.\n\n더 자세한 상담은 세무회계 이윤 세무사에게 바로 문의해 주세요.\n\n💬 카톡상담: ${KAKAO_CHAT_URL}\n📞 전화: ${OFFICE_PHONE}`;
       } else {
-        msg = `오늘 이용 한도(${dailyLimit}건)를 모두 사용하셨습니다.\n\n💬 카톡상담: http://pf.kakao.com/_sgnsxj/chat\n📞 전화: 053-269-1213`;
+        msg = `오늘 이용 한도(${dailyLimit}건)를 모두 사용하셨습니다.\n\n💬 카톡상담: ${KAKAO_CHAT_URL}\n📞 전화: ${OFFICE_PHONE}`;
       }
       return Response.json({
         error: msg,
@@ -779,7 +785,7 @@ export async function onRequestPost(context) {
         used: usage.used,
         limit: dailyLimit,
         approval_status: approvalStatus,
-        kakao_channel: "http://pf.kakao.com/_sgnsxj/chat",
+        kakao_channel: KAKAO_CHAT_URL,
         phone: "053-269-1213"
       }, { status: 429 });
     }
@@ -855,7 +861,7 @@ ${lines.join('\n')}
 - 매월 기장료를 내는 정식 고객. 영업 대상 아님.
 - "수수료/상담료 없이 초기 상담 가능" 같은 영업 문구 절대 금지 (기장거래처는 이미 계약돼있음).
 - "기장 대행 도와드립니다" "사무실로 연락주세요 053-269-1213" 같은 신규 유치 멘트 금지.
-  → 대신 "담당 세무사가 확인해드릴게요" 또는 "이 건은 상담방에서 같이 정리해보시죠" 처럼 안내.
+  → 대신 "담당 세무사가 확인해드릴게요" 또는 "이 건은 카톡으로 문의 주시면 같이 정리해보겠습니다" 처럼 안내.
 
 [호칭 — 반드시 적용]
 - ${userRealName ? `사용자 본명: "${userRealName}"` : '사용자 본명 정보 없음'}
@@ -867,7 +873,7 @@ ${lines.join('\n')}
 - "${userRealName ? userRealName + ' 대표님' : '대표님'}이 문의주신 ○○ 건은..." 처럼 자연스러운 호명.
 - 일반 정보보다 **이 거래처의 사업 특성에 맞춰** 답변 (clientContext 참조).
 - 답변 끝에 신규 유치용 영업 멘트 (053-269-1213 등 전화번호 강조) 빼기.
-- 대신 "추가로 궁금하신 거 있으시면 상담방에 편하게 남겨주세요" 식으로 마무리.
+- 대신 "추가로 궁금하신 거 있으시면 카톡으로 편하게 문의 주세요" 식으로 마무리.
 
 [금지 멘트]
 - ❌ "상담료 없이 초기 상담 가능합니다" → 이미 거래처라 무의미
@@ -875,7 +881,7 @@ ${lines.join('\n')}
 - ❌ "전화 053-269-1213로 연락주세요" 강조 → 이미 담당 있음
 
 [대신 사용]
-- ✅ "담당 세무사 확인 후 상담방에서 안내드릴게요"
+- ✅ "담당 세무사 확인 후 카톡으로 안내드릴게요"
 - ✅ "이 건은 매달 처리 중인 부분이라 ○○ 패턴이에요"
 - ✅ "${userRealName ? userRealName + ' 대표님' : '대표님'}의 ○○사업장 기준으로는..."
 ` : '';

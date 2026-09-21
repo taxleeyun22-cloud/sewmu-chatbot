@@ -703,6 +703,38 @@ var _tabBypassPushState = false;
  * @param {string} t - 'chat' | 'live' | 'rooms' | 'users' | 'docs' | 'anal' | 'review' | 'faq' | 'internal'
  * @returns {void}
  */
+/* ===== 상담방 화면 내리기 (2026-09-21 사장님: "상담방 내리고 카톡연결로 가자") =====
+ * 사장님이 상담방 채팅을 안 쓰는 상태라 사이드바·탭에서만 내린다.
+ * 방 자체와 그 위에 얹힌 것들(웹푸시 · D-day 알림 · 단체발송 · 영수증/서류 업로드 ·
+ * 검토표 ↔ 거래처 연결 · 거래처 대시보드의 방 조회)은 전부 그대로 살아 있다.
+ * tab('rooms') 자체는 계속 동작한다 — PC 알림 클릭과 #tab=rooms&room=ID 딥링크가
+ * 먹통이 되면 안 되기 때문. 되살리려면 이 값만 true. */
+var ROOMS_UI = false;
+function _hideRoomsUi(){
+  if(ROOMS_UI) return;
+  try{
+    var sb=document.querySelector('[data-admin-tab="rooms"]');
+    if(sb)sb.style.display='none';
+    var tb=document.getElementById('tabRooms');
+    if(tb)tb.style.display='none';
+    /* 방 섹션에 상담방만 남으면 섹션 머리글도 같이 숨긴다 (관리자방은 남긴다) */
+    var grp=document.querySelector('[data-grp="rooms"]');
+    if(grp){
+      var alive=Array.prototype.filter.call(grp.children,function(el){
+        return el.style.display!=='none';
+      });
+      if(!alive.length){
+        var head=document.querySelector('.of-sb-section[data-section-key="rooms"]');
+        if(head)head.style.display='none';
+        grp.style.display='none';
+      }
+    }
+  }catch(_){}
+}
+try{ document.addEventListener('DOMContentLoaded', _hideRoomsUi); }catch(_){}
+try{ document.addEventListener('adminModalsLoaded', _hideRoomsUi); }catch(_){}
+try{ [300,1200,3000].forEach(function(ms){ setTimeout(_hideRoomsUi, ms); }); }catch(_){}
+
 function tab(t){
 /* SPA history push — popstate 호출 시 skip */
 if(!_tabBypassPushState){
