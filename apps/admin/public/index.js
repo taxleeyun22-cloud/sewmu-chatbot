@@ -342,8 +342,14 @@ var ROOMS_UI = false;
  * 업로드 버튼과 내 문서함 진입점만 내린다. 이미 올라온 문서·R2 원본은 그대로 두고,
  * 서버 API(/api/documents)도 살려 둔다 — 되살리려면 이 값만 true. */
 var RECEIPTS_UI = false;
-/* 문의 창구 — 팀채팅 등으로 바꾸려면 이 줄만 고치면 된다 (chat.js 에도 같은 상수가 있다) */
-var KAKAO_CHAT_URL = 'http://pf.kakao.com/_sgnsxj/chat';
+/* 문의 창구 (2026-09-21 사장님: "그냥 카카오톡어플로 들어가게").
+ * 모바일은 카톡 앱을 바로 열고, 안 열리면 대체 경로로 떨어진다.
+ * ⚠ kakaotalk:// 는 "앱을 여는" 것까지만 된다 — 특정 상대와의 채팅방을 바로 열 수는 없다.
+ *   사장님과 친구가 아닌 거래처는 앱 안에서 사장님을 못 찾는다.
+ *   오픈채팅 링크가 생기면 KAKAO_CHAT_URL 한 줄만 바꾸면 그 문제가 사라진다. */
+var KAKAO_APP_SCHEME = 'kakaotalk://';
+var KAKAO_CHAT_URL = 'http://pf.kakao.com/_sgnsxj/chat';  /* 앱이 안 열릴 때 대체 */
+var OFFICE_PHONE = '053-269-1213';
 
 /* ===== 📤 챗봇 Q&A → 내 상담방에 공유 =====
    ROOMS_UI=false 면 대신 "카톡으로 문의" 버튼이 붙는다. */
@@ -371,22 +377,50 @@ function _attachChatbotShareBtn(msgDiv, question, answer){
     console.error('[share-btn] attach failed:', e);
   }
 }
-/* 카톡으로 문의 — 질문을 클립보드에 담아 주고 카톡 채널을 연다.
+/* 카톡으로 문의 — 질문을 클립보드에 담아 주고 카톡을 연다.
    카톡은 외부에서 본문을 채워 줄 수 없어서, 붙여넣기만 하면 되게 만든다. */
+function _isMobile(){
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'');
+}
 async function askTaxAccountantOnKakao(question, btn){
   var q = String(question||'').trim().slice(0, 500);
+  var copied = false;
   try{
     if(q && navigator.clipboard && navigator.clipboard.writeText){
       await navigator.clipboard.writeText(q);
+      copied = true;
       if(btn){
         var o=btn.innerHTML;
         btn.innerHTML='✅ 질문 복사됨 — 카톡에 붙여넣기';
         setTimeout(function(){btn.innerHTML=o},2500);
       }
     }
-  }catch(_){ /* 클립보드 막혀 있어도 카톡은 연다 */ }
-  try{ window.open(KAKAO_CHAT_URL, '_blank', 'noopener'); }
-  catch(_){ location.href = KAKAO_CHAT_URL; }
+  }catch(_){ /* 클립보드가 막혀 있어도 카톡은 연다 */ }
+  openKakao(copied);
+}
+/* 카톡 열기 — 모바일이면 앱 먼저, 안 열리면 대체 경로.
+   앱이 열리면 브라우저 탭이 백그라운드로 가서 document.hidden 이 true 가 된다.
+   그걸로 "열렸는지" 를 판단한다 (스킴 실패는 아무 이벤트도 안 준다). */
+function openKakao(copied){
+  if(!_isMobile()){
+    /* PC 는 kakaotalk:// 가 아무 반응 없이 먹는다 — 바로 대체 경로 */
+    try{ window.open(KAKAO_CHAT_URL, '_blank', 'noopener'); }
+    catch(_){ location.href = KAKAO_CHAT_URL; }
+    return;
+  }
+  var landed = false;
+  var onHide = function(){ if(document.hidden) landed = true; };
+  document.addEventListener('visibilitychange', onHide);
+  /* ⚠ location.href 로 스킴을 때리면 앱이 없을 때 이 페이지가 통째로 날아가고
+     폴백 타이머도 같이 죽는다. 새 창으로 던져서 이 페이지를 살려 둔다. */
+  var w = null;
+  try{ w = window.open(KAKAO_APP_SCHEME, '_blank'); }catch(_){}
+  setTimeout(function(){
+    document.removeEventListener('visibilitychange', onHide);
+    if(landed) return;                       /* 앱이 열렸다 — 아무것도 더 하지 않는다 */
+    try{ if(w && !w.closed) w.close(); }catch(_){}
+    location.href = KAKAO_CHAT_URL;          /* 앱이 없다 — 대체 경로 */
+  }, 1200);
 }
 async function shareChatbotToRoom(question, answer, btn){
   if(!question || !answer){alert('공유할 내용이 없습니다');return}
@@ -2921,7 +2955,11 @@ function showLimitExceeded(err){
   var headline='오늘 무료 상담 '+lim+'건을 다 쓰셨어요';
   var subline=st==='pending'
     ? '내일 0시에 다시 '+lim+'건이 충전돼요.<br>세무회계 이윤 <b>기장거래처</b>는 횟수 제한 없이 상담하실 수 있어요.'
-    : '내일 0시에 다시 이용하실 수 있어요.<br>급하시면 <a href="'+KAKAO_CHAT_URL+'" target="_blank" rel="noopener" style="color:var(--blue);font-weight:700">카톡으로 세무사에게 직접 문의</a>해 주세요.';
+    /* 링크가 아니라 openKakao() 로 — 모바일은 카톡 앱이 바로 열린다.
+       전화는 앱이 없든 PC 든 100% 되는 길이라 같이 둔다. */
+    : '내일 0시에 다시 이용하실 수 있어요.<br>'
+      +'<a href="javascript:void(0)" onclick="openKakao()" style="color:var(--blue);font-weight:700">💬 카톡으로 문의</a>'
+      +' · <a href="tel:'+OFFICE_PHONE.replace(/-/g,'')+'" style="color:var(--blue);font-weight:700">📞 '+OFFICE_PHONE+'</a>';
   var html=''
     +'<div class="msg msg-ai"><div class="msg-avatar"><img src="logo-icon.png" alt=""></div>'
     +'<div class="msg-wrap"><div class="msg-name">세무회계 이윤</div>'

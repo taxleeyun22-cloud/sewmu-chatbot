@@ -3,7 +3,7 @@
  */
 /* eslint-disable */
 export default {
-  "generated_at": "2026-09-21T05:19:40.761Z",
+  "generated_at": "2026-09-21T05:30:28.786Z",
   "version": "dev",
   "permissions": {
     "admin:user:set_admin": "owner",

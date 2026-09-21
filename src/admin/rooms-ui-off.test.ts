@@ -61,6 +61,25 @@ describe('문의 창구 — 카톡', () => {
     expect(indexJs).toContain('이 내용으로 세무사에게 문의');
   });
 
+  it('모바일은 카톡 앱을 열고, 안 열리면 대체 경로로 떨어진다', () => {
+    const fn = indexJs.slice(indexJs.indexOf('function openKakao('));
+    expect(fn.slice(0, 900)).toContain('KAKAO_APP_SCHEME');
+    /* 스킴 실패는 아무 이벤트도 안 주므로 타이머로 판단한다 —
+       이게 없으면 앱 없는 거래처는 눌러도 아무 일도 안 일어난다 */
+    expect(fn.slice(0, 900)).toContain('visibilitychange');
+    expect(fn.slice(0, 900)).toContain('KAKAO_CHAT_URL');
+  });
+
+  it('PC 는 앱 스킴을 시도하지 않는다 (먹통이 된다)', () => {
+    const fn = indexJs.slice(indexJs.indexOf('function openKakao('));
+    expect(fn.slice(0, 400)).toContain('if(!_isMobile())');
+  });
+
+  it('전화 경로도 남겨 둔다 (앱이 없어도 되는 길)', () => {
+    expect(indexJs).toContain("var OFFICE_PHONE = '053-269-1213';");
+    expect(indexJs).toContain("tel:'+OFFICE_PHONE.replace(");
+  });
+
   it('프롬프트가 더 이상 상담방으로 유도하지 않는다', () => {
     const body = chatJs.slice(chatJs.indexOf('const FIL_FIELDS_PERSON'));
     expect(body).not.toContain('상담방');
