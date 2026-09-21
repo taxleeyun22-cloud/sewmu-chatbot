@@ -338,6 +338,10 @@ function askQuick(b){document.getElementById("userInput").value=b.textContent;se
  * 전부 방을 배관으로 쓰므로 그대로 살려 둔다. 되살리려면 이 값만 true.
  * 딥링크(/?room=ID)·알림 클릭은 계속 동작한다 — 이미 받은 알림이 먹통이 되면 안 된다. */
 var ROOMS_UI = false;
+/* 영수증 사진 업로드(AI 자동 분류) — 2026-09-21 사장님 "영수증첨부도 다 일단 없애고 보류".
+ * 업로드 버튼과 내 문서함 진입점만 내린다. 이미 올라온 문서·R2 원본은 그대로 두고,
+ * 서버 API(/api/documents)도 살려 둔다 — 되살리려면 이 값만 true. */
+var RECEIPTS_UI = false;
 /* 문의 창구 — 팀채팅 등으로 바꾸려면 이 줄만 고치면 된다 (chat.js 에도 같은 상수가 있다) */
 var KAKAO_CHAT_URL = 'http://pf.kakao.com/_sgnsxj/chat';
 
@@ -805,6 +809,11 @@ async function saveOnboardHometax(bizId){
 }
 
 async function loadMyDocs(){
+  if(!RECEIPTS_UI){
+    var _ds=document.getElementById('mpDocsSection');
+    if(_ds)_ds.style.display='none';
+    return;
+  }
   if(!currentUser||currentUser.approval_status!=='approved_client'){
     document.getElementById('mpDocsSection').style.display='none';
     return;
@@ -888,7 +897,8 @@ function renderDocsList(){
   var el=document.getElementById('docsList');
   var list=docsFilter==='all'?docsList:docsList.filter(function(x){return x.status===docsFilter});
   if(!list.length){
-    el.innerHTML='<div style="text-align:center;color:var(--text2);padding:60px 0;font-size:.88em">문서가 없습니다.<br><br>상담방 + 버튼에서 영수증·계약서 등을<br>올리시면 여기에 쌓입니다.</div>';
+    /* 상담방·영수증 업로드를 내린 상태라 "상담방 + 버튼에서 올리세요" 는 안내가 안 된다 */
+    el.innerHTML='<div style="text-align:center;color:var(--text2);padding:60px 0;font-size:.88em">문서가 없습니다.</div>';
     return;
   }
   el.innerHTML=list.map(function(d){
@@ -988,10 +998,11 @@ async function openMyRoom(roomId){
   rcRoomId=roomId;
   document.getElementById('roomChatView').classList.add('open');
   document.body.style.overflow='hidden';
-  /* 영수증·프리랜서 업로드 메뉴는 approved_client(기장 거래처)에게만 노출 */
+  /* 영수증·프리랜서 업로드 메뉴는 approved_client(기장 거래처)에게만 노출.
+     영수증은 RECEIPTS_UI=false 로 보류 중이라 기장거래처여도 안 보인다. */
   var isClient=currentUser&&currentUser.approval_status==='approved_client';
   var receiptAttach=document.getElementById('rcReceiptAttach');
-  if(receiptAttach)receiptAttach.style.display=isClient?'':'none';
+  if(receiptAttach)receiptAttach.style.display=(isClient&&RECEIPTS_UI)?'':'none';
   var freelancerAttach=document.getElementById('rcFreelancerAttach');
   if(freelancerAttach)freelancerAttach.style.display=isClient?'':'none';
   await loadRoomChat();
@@ -2090,6 +2101,11 @@ async function sendRoomPhoto(fileInput){
 
 /* 영수증(OCR) 업로드 — 여러 장 */
 async function sendRoomReceiptMulti(fileInput){
+  if(!RECEIPTS_UI){
+    alert('영수증 사진 접수는 잠시 중단했습니다.\n담당 세무사에게 직접 문의해 주세요.');
+    if(fileInput)fileInput.value='';
+    return;
+  }
   if(!rcRoomId||!rcIsActive)return;
   var all=Array.from(fileInput.files||[]);
   fileInput.value='';
@@ -2981,10 +2997,11 @@ function detectPlatform(){
 /* 친구에게 알리기 — 카톡·메시지 등 공유시트 */
 async function shareToFriend(){
   var url='https://sewmu-chatbot.pages.dev/';
-  var msg='📂 서랍에 쌓이는 영수증,\n'
-    +'이제 사진 한 장이면 끝! 📸\n\n'
-    +'🧾 영수증 → AI 자동 분류\n'
-    +'💬 세무 질문 → 24시간 답변\n'
+  /* 2026-09-21 사장님: 영수증 사진 접수는 보류 — 문구에서 뺀다.
+     지금 실제로 되는 것만 적는다 (없는 기능을 적으면 문의만 늘어난다). */
+  var msg='💬 세무 질문, 아무 때나 물어보세요\n\n'
+    +'📊 내 매출·소득·세금 바로 확인\n'
+    +'🧮 세무 질문 → 24시간 답변\n'
     +'🔔 신고 기한 → 자동 알림\n\n'
     +'세무가 이렇게 간단해집니다 ✨\n\n'
     +'🏢 세무회계 이윤\n'+url;

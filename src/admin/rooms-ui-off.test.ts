@@ -66,3 +66,40 @@ describe('문의 창구 — 카톡', () => {
     expect(body).not.toContain('상담방');
   });
 });
+
+/* 2026-09-21 사장님: "영수증첨부도 다 일단 없애고 보류할예정" */
+describe('영수증 사진 접수 — 보류', () => {
+  it('플래그 하나로 되살릴 수 있다', () => {
+    expect(indexJs).toContain('var RECEIPTS_UI = false;');
+  });
+
+  it('업로드 버튼과 내 문서함 진입점을 내린다', () => {
+    expect(indexJs).toContain('(isClient&&RECEIPTS_UI)');
+    const fn = indexJs.slice(indexJs.indexOf('async function loadMyDocs('));
+    expect(fn.slice(0, 300)).toContain('if(!RECEIPTS_UI)');
+  });
+
+  it('업로드 함수 자체도 막는다 (구버전 캐시·딥링크 대비)', () => {
+    const fn = indexJs.slice(indexJs.indexOf('async function sendRoomReceiptMulti('));
+    expect(fn.slice(0, 300)).toContain('if(!RECEIPTS_UI)');
+  });
+
+  it('서버 API 와 이미 올라온 문서는 안 건드린다', () => {
+    /* 보류지 삭제가 아니다 — 되살리면 기존 문서가 그대로 보여야 한다 */
+    expect(indexJs).toContain("fetch('/api/documents')");
+  });
+});
+
+describe('초대 문구 — 안 되는 기능을 광고하지 않는다', () => {
+  it('영수증 사진 문구를 뺐다', () => {
+    const fn = indexJs.slice(indexJs.indexOf('async function shareToFriend('), indexJs.indexOf('function showInstallGuide('));
+    expect(fn).not.toContain('서랍에 쌓이는 영수증');
+    expect(fn).not.toContain('AI 자동 분류');
+  });
+
+  it('실제로 되는 것만 적는다', () => {
+    const fn = indexJs.slice(indexJs.indexOf('async function shareToFriend('), indexJs.indexOf('function showInstallGuide('));
+    expect(fn).toContain('세무 질문');
+    expect(fn).toContain('신고 기한');
+  });
+});
