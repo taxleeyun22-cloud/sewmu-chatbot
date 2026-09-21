@@ -35,6 +35,10 @@ export interface ParsedFilingFields {
   adj_exclusion?: number;
   /** ⑪사업소득금액 (사업장 합계) — 종합소득금액과 다르다 (근로·기타소득이 빠진 값) */
   business_income?: number;
+  /** ❺명세서 소득구분코드 51 — 근로소득 총급여액 */
+  salary_gross?: number;
+  /** ❺명세서 소득구분코드 51 — 근로소득금액 (총급여 − 근로소득공제) */
+  salary_income?: number;
   tax_base?: number;
   calculated_tax?: number;
   deduction_total?: number;
@@ -319,6 +323,36 @@ export function parseFilingText(text: string): ParsedFiling {
   fields.expense_total = sumRow(/^[⑨⑩]?\s*필요경비/);
   fields.business_income = sumRow(/^[⑩⑪]?\s*소득금액\(/);
 
+  /* ❺ 종합소득금액명세서 — 사업 외 소득(근로·연금·기타)이 한 줄씩 들어온다.
+     "사업 매출" 과 "근로소득" 은 완전히 다른 돈인데, 이걸 안 읽으면 종합소득금액에
+     뭉뚱그려져 챗봇이 둘을 구분해서 답할 수가 없다 (사장님 2026-09-21).
+     행 모양: <소득구분코드> <일련번호> <총수입금액(총급여)> <필요경비> <소득금액> ...
+     ⚠ 문서 뒤쪽 기부금명세서에도 "40 2025 50,000 …" 처럼 같은 모양의 줄이 있어
+     반드시 이 표 구간 안에서만 읽는다. */
+  const otherIncome = (() => {
+    const end = sq.findIndex((l) => l.includes('종합소득금액및결손금'));
+    if (end < 0) return [];
+    let start = -1;
+    for (let i = end - 1; i >= 0 && i >= end - 40; i--) {
+      if (sq[i].includes('소득의지급자')) { start = i; break; }
+    }
+    if (start < 0) return [];
+    const rows: Array<{ code: string; gross: number; income: number }> = [];
+    for (const ln of lines.slice(start, end)) {
+      const m = ln.match(/^\s*(\d{2})\s+\d+\s+([\d,]{4,})\s+([\d,]+)\s+([\d,]+)/);
+      if (!m) continue;
+      const gross = toNum(m[2]), income = toNum(m[4]);
+      if (gross === null || income === null) continue;
+      rows.push({ code: m[1], gross, income });
+    }
+    return rows;
+  })();
+  const salary = otherIncome.filter((r) => r.code === '51');
+  if (salary.length) {
+    fields.salary_gross = salary.reduce((a, r) => a + r.gross, 0);
+    fields.salary_income = salary.reduce((a, r) => a + r.income, 0);
+  }
+
   /* ⑬ 세액공제명세서 ~ ⑭ 준비금명세서 구간 안에서만 공제 항목을 찾는다.
      문서 전체를 훑으면 손익계산서 항목을 공제로 오인한다 (실측 확인). */
   fields.공제감면 = (() => {
@@ -460,6 +494,15 @@ export function parseFilingText(text: string): ParsedFiling {
   );
   /* 서식상 33 = 31 − 32 이고 31 = 28 + 29 + 30 이다.
      가산세(29)를 빼먹고 검산하면 가산세가 붙은 정상 신고서가 전부 반려된다. */
+  /* 사업 매출과 근로소득이 섞이지 않았는지 — 종합소득금액이 둘의 합과 맞아야 한다.
+     실측 9건 전부 맞았다 (근로소득 없는 신고서는 사업소득 = 종합소득). */
+  add(
+    '종합소득금액 = 사업소득금액 + 사업 외 소득(근로 등)',
+    fields.total_income,
+    fields.business_income !== undefined
+      ? fields.business_income + otherIncome.reduce((a, r) => a + r.income, 0)
+      : undefined,
+  );
   add(
     '사업소득금액 = 총수입금액 − 필요경비',
     fields.business_income,

@@ -210,3 +210,26 @@ describe('filingLine — 사업소득금액과 종합소득금액을 구분한�
     expect(out).toContain('각사업연도소득금액 100,000,000원');
   });
 });
+
+/* 2026-09-21 사장님: "근로소득이랑 사업매출은 구분되야할거야." */
+describe('filingLine — 근로소득을 사업 매출과 섞지 않는다', () => {
+  it('근로소득 총급여·소득금액이 따로 나간다', () => {
+    const out = mk('종소세', {
+      revenue: 26_363_636, business_income: 3_111_242,
+      salary_gross: 96_000_000, salary_income: 81_450_000,
+      total_income: 84_561_242,
+    });
+    expect(out).toContain('수입금액(매출) 26,363,636원');
+    /* 사장님 지시: 근로소득은 총급여액 기준 — 총급여액이 먼저 나온다 */
+    expect(out).toContain('근로소득(총급여액) 96,000,000원');
+    expect(out).toContain('근로소득금액(총급여액−근로소득공제) 81,450,000원');
+    expect(out.indexOf('총급여액) 96')).toBeLessThan(out.indexOf('81,450,000'));
+    expect(out).toContain('사업소득금액 3,111,242원');
+    /* 매출과 급여를 합친 숫자는 어디에도 없어야 한다 */
+    expect(out).not.toContain('122,363,636');
+  });
+
+  it('법인에는 근로소득 칸이 안 붙는다', () => {
+    expect(mk('법인세', { revenue: 1_000_000_000, salary_gross: 50_000_000 })).not.toContain('근로소득');
+  });
+});
