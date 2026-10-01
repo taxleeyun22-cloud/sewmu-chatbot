@@ -49,7 +49,7 @@ if ('serviceWorker' in navigator) {
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <!-- 토스 벤치마킹 (2026-06-12 사장님 명령): Pretendard 서체 (토스 톤) -->
 <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="/admin.css?v=32">
+<link rel="stylesheet" href="/admin.css?v=33">
 <!-- Phase S3c-1 (2026-05-04): office 사이드바 흡수 — office.css 사이드바 스타일 사용 -->
 <link rel="stylesheet" href="/office.css?v=7">
 <!-- 토스 벤치마킹 (2026-06-12): 토큰 라운드·그림자·사이드바 흰색. cache bump v=5→v=6. -->
@@ -175,9 +175,6 @@ if ('serviceWorker' in navigator) {
       <button class="of-sb-item" data-admin-tab="rooms" type="button">
         <span class="ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h14v10H8l-4 3.5V4z"/></svg></span><span class="lb">상담방</span>
       </button>
-      <button class="of-sb-item" data-admin-tab="internal" type="button">
-        <span class="ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="9" width="10" height="8" rx="1.5"/><path d="M7 9V6.5a3 3 0 016 0V9"/></svg></span><span class="lb">관리자방</span>
-      </button>
     </div>
 
     <!-- ===== 사용자/업체 (Phase M9 2026-05-05 사장님 명령: 5개 status → 2개 토글로 단순화) ===== -->
@@ -274,7 +271,6 @@ if ('serviceWorker' in navigator) {
 <button class="on" id="tabChat" onclick="tab('chat')">대화</button>
 <button id="tabLive" onclick="tab('live')" style="position:relative">📡 실시간<span id="liveBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
 <button id="tabRooms" onclick="tab('rooms')">💬 상담방</button>
-<button id="tabInternal" onclick="tab('internal')" title="관리자·직원 내부 업무방 (거래처 노출 X)">🔐 관리자방</button>
 <button id="tabDocs" onclick="tab('docs')" style="position:relative">📄 문서<span id="docsPendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
 <button id="tabUsers" onclick="tab('users')">🏢 거래처<span id="pendingBadge" style="display:none;background:#f04452;color:#fff;border-radius:10px;padding:1px 6px;font-size:.75em;margin-left:4px">0</span></button>
 <button id="tabAnal" onclick="tab('anal')">분석</button>
@@ -309,7 +305,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=97', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=98', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -321,7 +317,7 @@ setTimeout(function(){
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=231"></script>
+<script src="/admin.js?v=232"></script>
 <!-- 모듈화 #3 Step9 (2026-05-18): PC 알림 admin.js 에서 분리 (classic, admin.js 다음 로드) -->
 <script src="/admin-pc-notify.js?v=1"></script>
 <!-- 모듈화 #3 Step10 (2026-05-18): owner 전체 내보내기 admin.js 에서 분리 -->
@@ -330,11 +326,11 @@ setTimeout(function(){
 <script src="/admin-custdash-grid.js?v=1"></script>
 <!-- Phase B-1 (2026-05-17): paste-drop classic 제거 → src/lib/paste-drop.ts (assets/main.js 번들).
      window.attachPasteDrop self-register 로 classic 소비자(admin-memos 등) 호환 -->
-<script src="/admin-memos.js?v=22"></script>
+<script src="/admin-memos.js?v=23"></script>
 <script src="/admin-customer-dash.js?v=38"></script>
 <script src="/admin-business-tab.js?v=13"></script>
 <script src="/admin-search-bulk.js?v=5"></script>
-<script src="/admin-rooms-list.js?v=11"></script>
+<script src="/admin-rooms-list.js?v=12"></script>
 <script src="/admin-rooms-msg.js?v=7"></script>
 <script src="/admin-rooms-misc.js?v=3"></script>
 <script src="/admin-users-tab.js?v=33"></script>

@@ -13,11 +13,11 @@ import {
 } from './tabs';
 
 describe('ADMIN_TABS 상수', () => {
-  it('9종 (chat / live / rooms / users / docs / anal / review / faq / internal)', () => {
-    expect(ADMIN_TABS.length).toBe(9);
+  it('8종 (chat / live / rooms / users / docs / anal / review / faq) — 관리자방(internal)은 2026-10-01 폐지', () => {
+    expect(ADMIN_TABS.length).toBe(8);
     expect(ADMIN_TABS).toContain('chat');
     expect(ADMIN_TABS).toContain('users');
-    expect(ADMIN_TABS).toContain('internal');
+    expect(ADMIN_TABS).not.toContain('internal');
   });
 });
 

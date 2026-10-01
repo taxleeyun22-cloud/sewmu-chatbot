@@ -46,8 +46,8 @@ declare global {
   let currentRoomPhone: string | null;
   /** 현재 상담방 멤버 list */
   let currentRoomMembers: Array<{ user_id: number; name: string; role: string }>;
-  /** 상담방 모드 ('external' | 'internal') */
-  let _roomsMode: 'external' | 'internal';
+  /** 상담방 모드 — 관리자방 폐지(2026-10-01) 후 'external' 뿐 */
+  let _roomsMode: 'external';
 
   /* === 거래처 dashboard (admin-customer-dash.js) === */
   /** 현재 열린 거래처 dashboard 의 user_id */
@@ -82,7 +82,7 @@ declare global {
    * Tab 전환 (admin.js)
    * ============================================================ */
 
-  /** admin 탭 전환 — 'chat' | 'live' | 'rooms' | 'users' | 'docs' | 'anal' | 'review' | 'faq' | 'internal' */
+  /** admin 탭 전환 — 'chat' | 'live' | 'rooms' | 'users' | 'docs' | 'anal' | 'review' | 'faq' */
   function tab(name: string): void;
   /** 사용자 status 탭 전환 */
   function setClientTabMode(mode: 'user' | 'business'): void;

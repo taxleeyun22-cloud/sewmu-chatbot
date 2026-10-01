@@ -13,6 +13,7 @@
 import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
 import { checkRole, roleForbidden } from "./_authz.js";
 import { notifyUser } from "./_webpush.js";
+import { logAudit } from "./_audit.js";
 
 async function ensureTables(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS chat_rooms (
@@ -342,8 +343,7 @@ export async function onRequestGet(context) {
        과거 배포 환경에서 ALTER 누락되지 않도록 방어적으로 시도 */
     try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN business_id INTEGER`).run(); } catch {}
     try { await db.prepare(`ALTER TABLE chat_rooms ADD COLUMN is_internal INTEGER DEFAULT 0`).run(); } catch {}
-    /* 🔐 internal=1 이면 관리자방만, 기본은 외부 상담방만 */
-    const internalMode = url.searchParams.get('internal') === '1';
+    /* 관리자방 폐지(2026-10-01) — 목록은 외부 상담방만. is_internal 행이 혹시 남아 있어도 안 보인다 */
     /* unread badge 사장님 보고 (2026-05-05): "안 읽은거 숫자가 안 뜨네"
      * 기존 client 의 localStorage seen 기반 → server last_read_at 기반으로 정확화.
      * 현재 admin 의 user_id 추출: cookie 세션이면 auth.userId, ADMIN_KEY 면 사장님 user_id=1 fallback. */
@@ -379,7 +379,7 @@ export async function onRequestGet(context) {
                last_msg_at DESC NULLS LAST,
                r.created_at DESC
       LIMIT 200
-    `).bind(adminUid, internalMode ? 1 : 0).all();
+    `).bind(adminUid, 0).all();
 
     /* 각 방의 첫 멤버 정보 (아바타용) 일괄 조회 */
     const roomIds = (results || []).map(r => r.id);
@@ -465,7 +465,7 @@ export async function onRequestPost(context) {
         if (!exists) break;
       }
 
-      const isInternal = body.is_internal ? 1 : 0;
+      const isInternal = 0;   /* 관리자방 폐지(2026-10-01) — 내부방은 더 만들지 않는다 */
       await db.prepare(`
         INSERT INTO chat_rooms (id, name, created_by_admin, max_members, ai_mode, status, is_internal, created_at)
         VALUES (?, ?, 1, ?, 'on', 'active', ?, ?)
@@ -498,6 +498,83 @@ export async function onRequestPost(context) {
       } catch {}
 
       return Response.json({ ok: true, room_id: roomId });
+    }
+
+    /* 🔐 관리자방 영구삭제 (2026-10-01 사장님: "관리자방 영구삭제하자 채팅을 여기서 안할거니까")
+       사장님 전용. body.confirm 이 없으면 건수만 센다(dry-run), {confirm:true} 면 실제로 지운다.
+       방 행만 지우면 안 된다 — 메시지·첨부(R2)·북마크·메모(+댓글)·공지·요약·연결업체·근로자·서류까지.
+       R2 키는 메시지 본문([IMG]/api/image?k=… · [FILE]{"url":"/api/file?k=…"})에만 있어서 지우기 전에
+       뽑아 두고, 다른 방 메시지도 쓰는 키는 남긴다. room_id 는 안 받는다 — is_internal=1 전부. */
+    if (action === "purge_internal") {
+      if (!auth.owner) return ownerOnly();
+      const { results: roomRows } = await db.prepare(`SELECT id FROM chat_rooms WHERE is_internal = 1`).all();
+      const ids = (roomRows || []).map(r => r.id);
+      const zero = { rooms: 0, messages: 0, attachments: 0, members: 0, bookmarks: 0, memos: 0, notices: 0, summaries: 0, businesses: 0, employees: 0, documents: 0 };
+      if (!ids.length) return Response.json({ ok: true, deleted: false, ...zero });
+      const ph = ids.map(() => '?').join(',');
+      const cnt = async (table) => {
+        try { const r = await db.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE room_id IN (${ph})`).bind(...ids).first(); return Number(r && r.c) || 0; }
+        catch { return 0; }   /* 테이블이 아직 없는 환경 */
+      };
+      const counts = {
+        rooms: ids.length,
+        messages: await cnt('conversations'), members: await cnt('room_members'), bookmarks: await cnt('message_bookmarks'),
+        memos: await cnt('memos'), notices: await cnt('room_notices'), summaries: await cnt('room_summaries'),
+        businesses: await cnt('room_businesses'), employees: await cnt('room_employees'), documents: await cnt('documents'),
+      };
+      /* R2 키 수집 — 메시지 본문 + documents.image_key */
+      const keys = new Set();
+      try {
+        const { results } = await db.prepare(
+          `SELECT content FROM conversations WHERE room_id IN (${ph}) AND (content LIKE '[IMG]%' OR content LIKE '[FILE]%')`
+        ).bind(...ids).all();
+        for (const row of (results || [])) {
+          for (const m of String(row.content || '').matchAll(/\/api\/(?:image|file)\?k=([^"'\s&\\]+)/g)) {
+            try { keys.add(decodeURIComponent(m[1])); } catch { keys.add(m[1]); }
+            if (keys.size >= 1000) break;
+          }
+        }
+      } catch {}
+      try {
+        const { results } = await db.prepare(`SELECT image_key FROM documents WHERE room_id IN (${ph}) AND image_key IS NOT NULL`).bind(...ids).all();
+        for (const row of (results || [])) if (row.image_key) keys.add(row.image_key);
+      } catch {}
+      /* 다른 방(외부 상담방) 메시지가 같은 키를 쓰면 남긴다 */
+      const own = [];
+      for (const k of keys) {
+        let shared = false;
+        try {
+          /* 본문엔 키가 그대로(또는 인코딩돼) 박혀 있다 — 둘 다 본다 */
+          const r = await db.prepare(
+            `SELECT COUNT(*) AS c FROM conversations WHERE room_id NOT IN (${ph}) AND (content LIKE ? OR content LIKE ?)`
+          ).bind(...ids, '%k=' + k + '%', '%k=' + encodeURIComponent(k) + '%').first();
+          shared = Number(r && r.c) > 0;
+          if (!shared) {
+            const r2 = await db.prepare(`SELECT COUNT(*) AS c FROM documents WHERE (room_id IS NULL OR room_id NOT IN (${ph})) AND image_key = ?`).bind(...ids, k).first();
+            shared = Number(r2 && r2.c) > 0;
+          }
+        } catch {}
+        if (!shared) own.push(k);
+      }
+      counts.attachments = own.length;
+      if (body.confirm !== true) return Response.json({ ok: true, deleted: false, ...counts });
+
+      /* ── 실제 삭제 ── R2 먼저 (행을 지우면 키를 다시 못 찾는다), 그다음 DB */
+      const bucket = context.env.MEDIA_BUCKET;
+      let r2Deleted = 0;
+      if (bucket) for (const k of own) { try { await bucket.delete(k); r2Deleted++; } catch {} }
+      const del = async (sql, args) => { try { await db.prepare(sql).bind(...args).run(); } catch {} };
+      await del(`DELETE FROM memo_comments WHERE memo_id IN (SELECT id FROM memos WHERE room_id IN (${ph}))`, ids);
+      for (const t of ['memos', 'message_bookmarks', 'room_notices', 'room_summaries', 'room_businesses', 'room_employees', 'documents', 'conversations', 'room_members']) {
+        await del(`DELETE FROM ${t} WHERE room_id IN (${ph})`, ids);
+      }
+      await del(`DELETE FROM chat_rooms WHERE is_internal = 1`, []);
+      /* 업무 가이드에 박힌 "관리자방에 물어보세요" 문구도 같이 (seed 로 DB 에 들어간 사본) */
+      await del(`UPDATE work_guides SET content = REPLACE(REPLACE(content, ?, ''), ?, ?) WHERE content LIKE '%관리자방%'`,
+        ['- **관리자방** — 직원끼리 내부 채팅. 궁금한 건 여기서 물어보세요\n', '모르면 관리자방에 물어보세요', '모르면 사장님께 물어보세요']);
+      logAudit(db, { actor: '사장님', action: 'internal_room_purge', entity_type: 'chat_room', entity_id: null,
+        before: { rooms: ids, ...counts }, after: { deleted: true, r2_deleted: r2Deleted }, request: context.request });
+      return Response.json({ ok: true, deleted: true, ...counts, r2_deleted: r2Deleted });
     }
 
     const roomId = body.room_id;

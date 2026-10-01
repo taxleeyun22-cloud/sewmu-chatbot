@@ -235,6 +235,8 @@
     <div style="padding:10px 16px;border-bottom:1px solid var(--gray-100);background:#fffbeb;font-size:.78em;color:var(--warn-text)">
       ⚠️ 삭제된 메모 200건 (최근 삭제순). <b>복원</b> = 다시 살림 / <b>영구 삭제</b> = 완전 제거 (되돌릴 수 없음).
     </div>
+    <!-- 🔐 관리자방 영구삭제 (2026-10-01 사장님: "관리자방 영구삭제하자") — 사장님 전용, 데이터가 남아 있을 때만 보임. admin-memos.js _trashInternalRow -->
+    <div id="trashInternal" style="display:none;padding:10px 16px;border-bottom:1px solid var(--gray-100);background:#faf5ff;font-size:.8em;line-height:1.6"></div>
     <!-- Phase M3 (2026-05-05 사장님 명령): 일괄 액션 바 — 체크박스 + 전체 선택 + 일괄 복원·삭제 -->
     <div style="padding:8px 16px;border-bottom:1px solid var(--gray-100);background:var(--neutral-bg);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <label style="display:flex;align-items:center;gap:6px;font-size:.82em;cursor:pointer;font-weight:600">

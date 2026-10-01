@@ -39,20 +39,6 @@ describe('rooms router (integration)', () => {
       expect(sajang?.role).toBe('admin');
     });
 
-    it('is_internal=true creates 관리자방', async () => {
-      const { caller, rawDb } = await makeCaller({ isOwner: true });
-      seedUsers(rawDb);
-      const r = await caller.rooms.create({
-        name: '관리자방',
-        member_user_ids: [2],
-        is_internal: true,
-      });
-      const room = rawDb.prepare('SELECT is_internal FROM chat_rooms WHERE id = ?').get(r.room_id) as {
-        is_internal: number;
-      };
-      expect(room.is_internal).toBe(1);
-    });
-
     it('rejects empty name', async () => {
       const { caller } = await makeCaller({ isOwner: true });
       await expect(
@@ -76,16 +62,6 @@ describe('rooms router (integration)', () => {
       expect(r.labels[0].name).toBe('예슬');
     });
 
-    it('internal=true filter', async () => {
-      const { caller, rawDb } = await makeCaller({ isOwner: true });
-      seedUsers(rawDb);
-      await caller.rooms.create({ name: '일반방', member_user_ids: [3] });
-      await caller.rooms.create({ name: '관리자방', member_user_ids: [2], is_internal: true });
-
-      const r = await caller.rooms.list({ internal: true });
-      expect(r.rooms).toHaveLength(1);
-      expect(r.rooms[0].name).toBe('관리자방');
-    });
   });
 
   describe('get (방 진입)', () => {

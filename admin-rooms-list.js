@@ -243,13 +243,13 @@ async function loadRoomList(){
   /* Phase 3.5.A (2026-05-08): rooms-store loading 시작 — UI 변화 0 (인프라만) */
   try { if(window.__roomsStore) window.__roomsStore.setLoading(); } catch(_){}
   try{
-    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY)+(_roomsMode==='internal'?'&internal=1':''));
+    const r=await fetch('/api/admin-rooms?key='+encodeURIComponent(KEY));
     const d=await r.json();
     const el=$g('roomList');
     /* Phase 3.5.A: store 에 list + 모드 + 라벨 (라벨은 _ensureRoomLabels 후 별도 set) 갱신 */
     try {
       if(window.__roomsStore) {
-        window.__roomsStore.setMode(_roomsMode==='internal'?'internal':'normal');
+        window.__roomsStore.setMode('normal');
         window.__roomsStore.setList(d.rooms || [], []);  /* 라벨은 아래에서 별도 set */
       }
     } catch(_){}

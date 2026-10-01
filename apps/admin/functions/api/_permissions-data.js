@@ -3,7 +3,7 @@
  */
 /* eslint-disable */
 export default {
-  "generated_at": "2026-10-01T14:47:13.306Z",
+  "generated_at": "2026-10-01T15:04:47.188Z",
   "version": "dev",
   "permissions": {
     "admin:user:set_admin": "owner",
@@ -17,7 +17,6 @@ export default {
     "admin:room:msg_bulk_delete": "owner",
     "admin:attendance:edit": "owner",
     "admin:leave:approve": "owner",
-    "admin:internal:read": "admin",
     "admin:user:approve": "admin",
     "admin:user:write": "admin",
     "admin:business:write": "admin",
