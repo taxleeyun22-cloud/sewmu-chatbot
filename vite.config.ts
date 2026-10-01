@@ -173,6 +173,9 @@ export default defineConfig({
         { src: 'memo-all.html', dest: '.' },
         { src: 'review-all.html', dest: '.' },
         { src: 'billing-preview.html', dest: '.' },
+        /* 2026-10-01 직원 출근·당번·연차 (폰 전용). 빠지면 _redirects SPA fallback 이
+           /attend.html 을 index.html(거래처 챗봇)로 조용히 보여준다 — 반드시 복사 */
+        { src: 'attend.html', dest: '.' },
         // Phase X (2026-05-20): billing-preview CSS/JS 분리
         { src: 'billing-preview.css', dest: '.' },
         { src: 'billing-preview.js', dest: '.' },

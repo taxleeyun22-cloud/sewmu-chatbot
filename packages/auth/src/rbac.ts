@@ -61,7 +61,7 @@ export function hasRole(userRole: Role, requiredRole: Role): boolean {
  *   'customer' = 거래처 자기 데이터만
  */
 export const PERMISSIONS = {
-  // === Owner only (8개) — 사장님 명시 결정 2026-05-11 ===
+  // === Owner only (11개) — 사장님 명시 결정 2026-05-11 (+set_role 05-12, +근태·연차 2 10-01) ===
   'admin:user:set_admin': 'owner' as Role,                  // admin 권한 부여/회수
   'admin:user:set_role': 'owner' as Role,                   // admin_role 변경 (노션 권한 단계)
   'admin:business:delete': 'owner' as Role,                 // 업체 영구 삭제
@@ -71,6 +71,9 @@ export const PERMISSIONS = {
   'admin:memo:bulk_delete': 'owner' as Role,                // 메모 일괄삭제
   'admin:trash:purge': 'owner' as Role,                     // 휴지통 영구 삭제
   'admin:room:msg_bulk_delete': 'owner' as Role,            // 메시지 일괄삭제
+  /* 2026-10-01 근태·연차: 기록 수정·연차 승인/부여는 사장님만 ("사장님만 수정 가능") */
+  'admin:attendance:edit': 'owner' as Role,                 // 출근 기록 수정 · 당번 지정 · 기준시각
+  'admin:leave:approve': 'owner' as Role,                   // 연차 승인/반려 · 부여일수 확정
 
   // === Admin (정직원 + owner) ===
   'admin:internal:read': 'admin' as Role,                   // 관리자방 진입
@@ -81,6 +84,8 @@ export const PERMISSIONS = {
   'admin:room:close': 'admin' as Role,                      // 상담방 close/reopen
   'admin:bulk_send': 'admin' as Role,                       // 단체발송
   'admin:filing:approve': 'admin' as Role,                  // 신고 결재
+  /* ⚠ editor/viewer 로 두면 scripts/export-permissions.mjs 정규식이 버려 deny 된다 — admin 유지 */
+  'admin:attendance:read': 'admin' as Role,                 // 근태·당번·연차 전원 조회
 
   // === Editor (편집 가능 — admin 아래 단계) ===
   'admin:room:send': 'editor' as Role,                      // 메시지 전송 (editor 이상)

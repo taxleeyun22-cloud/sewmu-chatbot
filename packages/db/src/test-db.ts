@@ -37,6 +37,8 @@ const { DatabaseSync } = nodeRequire('node:sqlite') as {
 export interface D1Compat {
   prepare(sql: string): D1PreparedStatement;
   exec(sql: string): Promise<{ count: number; duration: number }>;
+  /** D1 batch — 한 트랜잭션으로 실행 (하나라도 실패하면 전부 롤백, D1 과 동일) */
+  batch(stmts: D1PreparedStatement[]): Promise<Array<{ success: boolean; meta: { changes: number; last_row_id: number } }>>;
 }
 
 export interface D1PreparedStatement {
@@ -85,6 +87,18 @@ function makeD1Compat(rawDb: RawDb): D1Compat {
     async exec(sql: string) {
       rawDb.exec(sql);
       return { count: 0, duration: 0 };
+    },
+    async batch(stmts: D1PreparedStatement[]) {
+      rawDb.exec('BEGIN');
+      try {
+        const out = [];
+        for (const s of stmts) out.push(await s.run());
+        rawDb.exec('COMMIT');
+        return out;
+      } catch (e) {
+        rawDb.exec('ROLLBACK');
+        throw e;
+      }
     },
   };
 }

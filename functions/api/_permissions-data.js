@@ -3,7 +3,7 @@
  */
 /* eslint-disable */
 export default {
-  "generated_at": "2026-09-21T05:30:28.786Z",
+  "generated_at": "2026-10-01T10:27:08.348Z",
   "version": "dev",
   "permissions": {
     "admin:user:set_admin": "owner",
@@ -15,6 +15,8 @@ export default {
     "admin:memo:bulk_delete": "owner",
     "admin:trash:purge": "owner",
     "admin:room:msg_bulk_delete": "owner",
+    "admin:attendance:edit": "owner",
+    "admin:leave:approve": "owner",
     "admin:internal:read": "admin",
     "admin:user:approve": "admin",
     "admin:user:write": "admin",
@@ -23,6 +25,7 @@ export default {
     "admin:room:close": "admin",
     "admin:bulk_send": "admin",
     "admin:filing:approve": "admin",
+    "admin:attendance:read": "admin",
     "customer:chat": "customer",
     "customer:upload_doc": "customer",
     "customer:mypage": "customer"

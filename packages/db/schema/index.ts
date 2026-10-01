@@ -26,3 +26,4 @@ export * from './business-members';
 export * from './error-logs';
 export * from './audit-logs';
 export * from './billing-invoices';
+export * from './staff';
