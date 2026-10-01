@@ -4518,10 +4518,15 @@ async function _wiCommit(){
 /* ===== 📥 검토표 JSON 심기 (2026-07-17) — Claude 채팅에서 추출한 신고서 데이터 확정 반영 ===== */
 var _fjBatchId=null,_fjSummary=null;
 /* 기존 값 교체 미리보기 — 무엇이 무엇으로 바뀌는지 확정 전에 전부 보여준다 (2026-09-15) */
-var _FJ_LABEL={'공제감면':'공제·감면 내역','가산세':'가산세 내역',revenue:'수입금액',expense_total:'필요경비',salary_gross:'근로소득(총급여액)',salary_income:'근로소득금액',total_income:'종합소득금액',income_deduction:'종합소득공제',tax_base:'과세표준',calculated_tax:'산출세액',deduction_total:'세액공제·감면',penalty_total:'가산세',decisive_tax:'결정세액',prepaid_tax:'기납부세액',payable_tax:'납부할세액',paid_tax:'납부세액',farmland_tax:'농특세 납부',net_income:'결산서당기순이익',adj_inclusion:'익금산입',adj_exclusion:'손금산입',business_income:'각사업연도소득금액',additional_tax:'감면분추가납부세액',vat:'부가세 세부'};
+var _FJ_LABEL={'공제감면':'공제·감면 내역','가산세':'가산세 내역',revenue:'수입금액',expense_total:'필요경비',salary_gross:'근로소득(총급여액)',salary_income:'근로소득금액',total_income:'종합소득금액',income_deduction:'종합소득공제',tax_base:'과세표준',calculated_tax:'산출세액',deduction_total:'세액공제·감면',penalty_total:'가산세',decisive_tax:'결정세액',prepaid_tax:'기납부세액',payable_tax:'납부할세액',paid_tax:'납부세액',farmland_tax:'농특세 납부',net_income:'결산서당기순이익',adj_inclusion:'익금산입',adj_exclusion:'손금산입',business_income:'각사업연도소득금액',businesses:'사업장별 내역',additional_tax:'감면분추가납부세액',vat:'부가세 세부'};
 function _fjNum(v){
   /* 공제감면·가산세 배열은 "N건 합계원" 으로 요약 — 원본 JSON 을 그대로 뿌리면 못 읽는다 */
   if(Array.isArray(v)){
+    /* 사업장별 내역은 금액 키가 revenue 다 — 공제감면과 같은 식으로 더하면 전부 0원이 된다 */
+    if(v.length&&v[0]&&v[0].revenue!==undefined){
+      var rs=v.reduce(function(s,d){return s+(Number(d&&d.revenue)||0)},0);
+      return v.length+'곳 수입금액 합 '+rs.toLocaleString('ko-KR')+'원';
+    }
     var sum=v.reduce(function(s,d){return s+(Number(d&&(d.amount||d.금액))||0)},0);
     return v.length+'건 '+sum.toLocaleString('ko-KR')+'원';
   }
@@ -4830,16 +4835,34 @@ function _fpStatus(r){
    법인세에서 107 각사업연도소득금액이다. 검토표 라벨(_FJ_LABEL)은 법인 기준이라
    종소세일 때만 갈아끼운다. */
 var _FP_LABEL_PERSON={business_income:'사업소득금액'};
+var _FP_CODE_LABEL={'30':'부동산임대','32':'주택임대','40':'사업'};
+/* 사업장별 내역은 칩 한 칸에 욱여넣으면 못 읽는다 — 줄로 따로 뺀다.
+   같은 사업자번호가 두 번 나올 수 있다 (부동산임대/사업 분리신고) — 순서 그대로 보여준다. */
+function _fpBizHtml(list){
+  if(!Array.isArray(list)||!list.length)return '';
+  return '<div style="margin-top:4px;color:var(--text-sub)">'
+    +'<span style="font-weight:700">사업장별 '+list.length+'곳</span>'
+    +list.map(function(b){
+      var who=b.name||(b.biz_no?_fpBizFmt(b.biz_no):'사업자등록 없음');
+      var code=_FP_CODE_LABEL[String(b.income_code||'')];
+      var seg=[e(who)+(code?'('+e(code)+')':'')+' 수입 <b>'+e(_fjNum(b.revenue))+'</b>'];
+      if(b.expense!==undefined&&b.expense!==null)seg.push('경비 '+e(_fjNum(b.expense)));
+      if(b.income!==undefined&&b.income!==null)seg.push('소득 '+e(_fjNum(b.income)));
+      return '<div style="margin-left:10px">· '+seg.join(' · ')+'</div>';
+    }).join('')+'</div>';
+}
 function _fpFieldsHtml(p){
   var f=p.fields||{};
-  var keys=Object.keys(f);
-  if(!keys.length)return '';
+  /* businesses 는 배열이라 칩으로 못 뿌린다 — 아래 _fpBizHtml 이 따로 그린다 */
+  var keys=Object.keys(f).filter(function(k){return k!=='businesses'});
+  if(!keys.length&&!(f.businesses||[]).length)return '';
   var isCorp=p.type==='법인세';
   return '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;color:var(--text-sub)">'
     +keys.map(function(k){
       var label=(!isCorp&&_FP_LABEL_PERSON[k])||_FJ_LABEL[k]||k;
       return '<span>'+e(label)+' <b>'+e(_fjNum(f[k]))+'</b></span>';
-    }).join('')+'</div>';
+    }).join('')+'</div>'
+    +_fpBizHtml(f.businesses);
 }
 function _fpRender(){
   var out=document.getElementById('fpResult');

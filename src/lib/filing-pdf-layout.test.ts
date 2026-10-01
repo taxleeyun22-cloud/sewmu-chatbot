@@ -100,3 +100,63 @@ describe('admin 미리보기 — 필드 라벨', () => {
     expect(src).toContain("business_income:'각사업연도소득금액'");
   });
 });
+
+/* 2026-09-21 사장님: "사업장별 매출 이거도 해보자".
+   businesses 는 배열이라 숫자 칩으로 못 뿌린다 — 칩에서 빼고 따로 줄로 그린다.
+   (_fjNum 이 공제감면처럼 amount 로 더하면 전부 "0원" 으로 나온다) */
+describe('admin 미리보기 — 사업장별 내역', () => {
+  const src = readFileSync('admin.js', 'utf8');
+  const ev = <T,>(names: string[]): T => {
+    let body = '';
+    for (const n of names) {
+      const i = src.indexOf(`function ${n}(`);
+      if (i < 0) throw new Error(`${n} 를 admin.js 에서 못 찾았다`);
+      /* 함수 하나만 떼려면 다음 최상위 선언 직전까지 자른다 */
+      const j = src.indexOf('\nfunction ', i + 1);
+      const k = src.indexOf('\nvar ', i + 1);
+      body += src.slice(i, Math.min(...[j, k].filter((x) => x > 0))) + '\n';
+    }
+    const code = src.slice(src.indexOf('var _FP_CODE_LABEL='), src.indexOf('\n', src.indexOf('var _FP_CODE_LABEL=')));
+    return new Function(
+      'var e=function(s){return String(s)};' + code + '\n' + body + '\nreturn {' + names.join(',') + '};',
+    )() as T;
+  };
+  const { _fpBizHtml, _fjNum } = ev<{ _fpBizHtml: (l: unknown) => string; _fjNum: (v: unknown) => string }>(
+    ['_fpBizHtml', '_fpBizFmt', '_fjNum'],
+  );
+
+  it('사업장 수와 각 칸의 금액이 나온다', () => {
+    const html = _fpBizHtml([
+      { name: '테스트상사', income_code: '40', revenue: 350_000_000, expense: 180_000_000, income: 170_000_000 },
+      { biz_no: '2946300497', income_code: '32', revenue: 29_000_000 },
+      { revenue: 5_000_000 },
+    ]);
+    expect(html).toContain('사업장별 3곳');
+    expect(html).toContain('테스트상사(사업)');
+    expect(html).toContain('350,000,000');
+    expect(html).toContain('경비 180,000,000');
+    /* 상호가 없으면 사업자등록번호를 하이픈 넣어 보여준다 */
+    expect(html).toContain('294-63-00497(주택임대)');
+    /* 사업자등록 없는 인적용역도 칸을 지킨다 */
+    expect(html).toContain('사업자등록 없음');
+  });
+
+  it('비어 있으면 아무것도 안 그린다', () => {
+    expect(_fpBizHtml(undefined)).toBe('');
+    expect(_fpBizHtml([])).toBe('');
+  });
+
+  it('_fjNum 이 사업장 배열을 "N곳 수입금액 합" 으로 요약한다', () => {
+    /* 금액 키가 revenue 라 공제감면 방식으로 더하면 0원이 된다 */
+    expect(_fjNum([{ revenue: 350_000_000 }, { revenue: 50_000_000 }])).toBe('2곳 수입금액 합 400,000,000원');
+  });
+
+  it('_fjNum 이 공제감면 배열은 예전대로 "N건 합계" 로 요약한다', () => {
+    expect(_fjNum([{ name: '전자신고', amount: 20_000 }])).toBe('1건 20,000원');
+  });
+
+  it('칩 목록에서 businesses 를 빼고 _fpBizHtml 을 붙인다', () => {
+    expect(src).toContain("Object.keys(f).filter(function(k){return k!=='businesses'})");
+    expect(src).toContain('+_fpBizHtml(f.businesses);');
+  });
+});

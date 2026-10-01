@@ -640,6 +640,9 @@ function renderHomeHero(){
       +'<div style="font-size:24px;font-weight:800;letter-spacing:-.03em;margin-top:5px">'+_hhGreet(now.getUTCHours())+'</div>'
       +'<div id="homeBriefLine" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap"></div>'
       +'</div>'
+      /* 🕘 출근 카드 (2026-10-01 사장님 "관리자만 근태 출첵 … 바로 떠야지") — admin-attend.js _atHomeCard 가 채운다.
+         세션 로그인한 직원에게만 그려지고, 사장님 비번 접속·근태 대상 아님이면 비어 있다. */
+      +'<div id="homeAttend"></div>'
       +'<div id="homeKpis"></div>'
       +'<div id="homeToday"></div>'
       +'<div id="homeQuick"><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">'
@@ -649,6 +652,7 @@ function renderHomeHero(){
       +qk('doc','검토표 모아보기',"($g('sbReviewAllBtn')||{click:function(){}}).click()",'#f3e8fd','#8430ce')
       +'</div></div>';
     try{ _hhBrief(); }catch(_){}
+    try{ if(typeof _atHomeCard==='function') _atHomeCard(); }catch(_){}   /* 히어로를 새로 그렸으니 출근 카드도 */
     _hhFill();           /* 캐시 있으면 숫자, 없으면 '·' */
     if(!_hhData) _hhFetch();  /* 처음이면 1회 fetch → 끝나면 _hhFill 재적용 */
   }catch(_){/* 홈 헤더 실패해도 리스트는 정상 */}

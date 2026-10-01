@@ -47,6 +47,7 @@ const FILES = [
   'admin-pc-notify.js',
   'admin-owner-export.js',
   'admin-custdash-grid.js',
+  'admin-attend.js',            // 근태·당번·연차 사장님 모달 (2026-10-01)
   // 거래처/공통
   'business.js',
   'index.js',
@@ -71,6 +72,7 @@ const FILES = [
   'billing-preview.js',
   'office.html',
   'staff.html',
+  'attend.html',                // 직원 출근 화면 (폰, 2026-10-01)
   // CSS
   'admin.css',
   'business.css',

@@ -127,6 +127,10 @@ if ('serviceWorker' in navigator) {
       <button class="of-sb-item" type="button" id="sbSearchBtn" style="font-weight:700">
         <span class="ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2 17 17"/></svg></span><span class="lb">전역 검색</span><span style="margin-left:auto;font-size:10px;color:#94a3b8;border:1px solid #e5e8eb;border-radius:5px;padding:1px 5px;font-weight:600">Ctrl K</span>
       </button>
+      <!-- 🕘 근태·연차 (2026-10-01 사장님: "관리자만 근태 출첵" — 직원이 매일 누르는 메뉴라 맨 위) — admin-attend.js -->
+      <button class="of-sb-item" type="button" id="sbAttendBtn" style="font-weight:700" onclick="if(typeof openAttend==='function')openAttend()" title="근태·당번·연차 — 직원 출근 현황, 당번표, 연차 승인">
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 5.5V10l3 2"/></svg></span><span class="lb">근태·연차</span><span class="cnt" id="sbCntLeave" style="display:none">0</span>
+      </button>
     </div>
 
     <div class="of-sb-divider"></div>
@@ -305,7 +309,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=95', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=97', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -317,7 +321,7 @@ setTimeout(function(){
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=230"></script>
+<script src="/admin.js?v=231"></script>
 <!-- 모듈화 #3 Step9 (2026-05-18): PC 알림 admin.js 에서 분리 (classic, admin.js 다음 로드) -->
 <script src="/admin-pc-notify.js?v=1"></script>
 <!-- 모듈화 #3 Step10 (2026-05-18): owner 전체 내보내기 admin.js 에서 분리 -->
@@ -338,9 +342,11 @@ setTimeout(function(){
      사장님 명령 "lazy 의존 근본제거". 오늘 lazy 사고 4건(docsCustomers/$g/openRoomForCurrentCustomer/loadDocsTab)
      근본 원인 = 이 두 파일이 lazy 인데 cross-module 함수 노출. 다른 admin-*.js 처럼 항상 로드. -->
 <script src="/admin-docs.js?v=4"></script>
-<script src="/admin-anal-review-faq.js?v=19"></script>
+<script src="/admin-anal-review-faq.js?v=20"></script>
 <script src="/admin-guides.js?v=3"></script>
 <script src="/admin-sales.js?v=1"></script>
+<!-- 🕘 근태·당번·연차 (2026-10-01) — 모달은 modals/45-attend.html -->
+<script src="/admin-attend.js?v=2"></script>
 <!-- Phase 2 (2026-05-07): 신고 검토표 시스템 (사장님 명세) -->
 <script src="/admin-filing-review.js?v=38"></script>
 

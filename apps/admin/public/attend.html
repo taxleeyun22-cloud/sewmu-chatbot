@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#3182f6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="출근">
+<link rel="icon" href="/logo-icon.png">
+<link rel="apple-touch-icon" href="/logo-icon.png">
+<title>출근 · 세무회계 이윤</title>
+<!--
+  직원 출근 · 당번 · 연차 (2026-10-01 사장님: "출근시간 … 바로 찍을수있는거")
+  폰 홈화면에 추가해두고 열자마자 [출근] 한 번. 외부 의존 0 — 빨리 뜨는 게 전부인 화면.
+  인증 = 기존 로그인 세션 쿠키 (카톡/네이버 로그인 + 사용자 탭 👑 관리자).
+  판정(당번·지각·잔여)은 전부 서버 (/api/attendance, _attendance-core.js) — 여기선 그리기만.
+-->
+<style>
+:root{
+  --primary:#3182f6;--primary-d:#1f6fdb;--danger:#dc2626;--warn-bg:#fff7ed;--warn-fg:#9a3412;
+  --ok:#10b981;--bg:#f2f4f6;--card:#fff;--border:#e5e8eb;--text:#191f28;--sub:#4b5563;--mute:#8b95a1;
+  --chip:#f2f4f6;--duty-bg:#eff6ff;--duty-fg:#1d4ed8;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0f1115;--card:#1a1d23;--border:#2b2f36;--text:#eceef1;--sub:#b3b9c2;--mute:#7c8591;
+    --chip:#24282f;--duty-bg:#172036;--duty-fg:#8db4ff;--warn-bg:#2a1d12;--warn-fg:#fdba74}
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text)}
+body{font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;
+  -webkit-text-size-adjust:100%;line-height:1.45;
+  padding:max(12px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
+.wrap{max-width:480px;margin:0 auto}
+.top{display:flex;align-items:center;gap:8px;margin:2px 0 12px}
+.top h1{font-size:17px;margin:0;font-weight:800;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top button{background:none;border:0;color:var(--mute);font-size:13px;padding:6px;font-family:inherit}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:12px}
+.card h2{font-size:14px;margin:0 0 10px;font-weight:800;color:var(--sub)}
+.muted{color:var(--mute);font-size:13px}
+.row{display:flex;align-items:center;gap:8px}
+.grow{flex:1;min-width:0}
+.date{font-size:15px;font-weight:700}
+.clock{font-size:40px;font-weight:800;letter-spacing:-1px;font-variant-numeric:tabular-nums;margin:2px 0 6px}
+.badge{display:inline-block;font-size:12px;font-weight:800;padding:3px 9px;border-radius:999px;background:var(--chip);color:var(--sub)}
+.badge.duty{background:var(--duty-bg);color:var(--duty-fg)}
+.badge.late{background:#fee2e2;color:var(--danger)}
+.badge.ok{background:#d1fae5;color:#047857}
+.badge.leave{background:#ede9fe;color:#6d28d9}
+.punch{display:block;width:100%;min-height:88px;border:0;border-radius:16px;background:var(--primary);color:#fff;
+  font-size:24px;font-weight:800;font-family:inherit;margin-top:12px;cursor:pointer;touch-action:manipulation}
+.punch:active{background:var(--primary-d)}
+.punch[disabled]{opacity:.6}
+.done{margin-top:12px;border-radius:16px;padding:18px;text-align:center;background:var(--chip)}
+.done b{font-size:28px;font-variant-numeric:tabular-nums}
+.btn{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;padding:8px 12px;
+  font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.danger{color:var(--danger)}
+.btn.sm{padding:6px 10px;font-size:13px}
+.alert{background:var(--warn-bg);color:var(--warn-fg);border-color:transparent}
+.alert .btn{margin-top:8px}
+.week{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:6px}
+.week div{text-align:center;padding:6px 2px;border-radius:8px;background:var(--chip);font-size:12px;min-width:0}
+.week div b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.week div.me{background:var(--duty-bg);color:var(--duty-fg)}
+.week div.today{outline:2px solid var(--primary);outline-offset:-2px}
+.list{list-style:none;margin:6px 0 0;padding:0}
+.list li{display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--border);font-size:14px}
+.list li:first-child{border-top:0}
+.chips{display:flex;gap:6px;flex-wrap:wrap;flex:1;min-width:0}
+.chip{border:1px solid var(--border);background:var(--card);color:var(--duty-fg);border-radius:10px;min-width:44px;height:40px;
+  font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;touch-action:manipulation}
+.chip.wait{display:inline-flex;align-items:center;justify-content:center;background:var(--chip);color:var(--mute);border-color:transparent;cursor:default}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.stats div{background:var(--chip);border-radius:10px;padding:10px 4px}
+.stats b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.stats span{font-size:12px;color:var(--mute)}
+.center{text-align:center;padding:48px 16px}
+.err{color:var(--danger);font-size:13px;margin-top:8px}
+/* 바텀시트 */
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:10}
+.sheet-bg.on{display:flex}
+.sheet{background:var(--card);width:100%;max-width:480px;border-radius:20px 20px 0 0;
+  padding:18px 16px max(18px,env(safe-area-inset-bottom));max-height:88vh;overflow-y:auto}
+.sheet h3{margin:0 0 12px;font-size:17px}
+.sheet label{display:block;font-size:13px;font-weight:700;color:var(--sub);margin:10px 0 4px}
+.sheet input,.sheet select,.sheet textarea{width:100%;font-size:16px;padding:10px;border:1px solid var(--border);
+  border-radius:10px;background:var(--card);color:var(--text);font-family:inherit}
+.sheet textarea{resize:none;line-height:1.4}
+.sheet .acts{display:flex;gap:8px;margin-top:16px}
+.sheet .acts .btn{flex:1;padding:12px}
+.toast{position:fixed;left:50%;bottom:max(24px,env(safe-area-inset-bottom));transform:translateX(-50%);background:#191f28;
+  color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;font-weight:700;display:none;z-index:20;max-width:90vw}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><h1>세무회계 이윤 · 출근</h1><button type="button" onclick="load()">새로고침</button></div>
+  <div id="app"><div class="center muted">불러오는 중...</div></div>
+</div>
+
+<div class="sheet-bg" id="sheetBg" onclick="if(event.target===this)closeSheet()"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+var D = null;               // 마지막 /api/attendance?view=me 응답
+var API = '/api/attendance';
+var WD = ['일','월','화','수','목','금','토'];
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function wd(d){return new Date(d+'T00:00:00Z').getUTCDay()}
+function md(d){return Number(d.slice(5,7))+'/'+Number(d.slice(8,10))+'('+WD[wd(d)]+')'}
+function days(n){var v=Math.round(Number(n||0)*10)/10;return (v%1===0?String(v):v.toFixed(1))+'일'}
+function mondayOf(d){var w=wd(d);return addDays(d,w===0?-6:1-w)}
+function addDays(d,n){return new Date(Date.parse(d+'T00:00:00Z')+n*86400000).toISOString().slice(0,10)}
+function weekdaysBetween(a,b){var o=[];if(!a||!b||a>b)return o;for(var d=a,i=0;d<=b&&i<62;d=addDays(d,1),i++){var w=wd(d);if(w>=1&&w<=5)o.push(d)}return o}
+function toast(m){var t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(toast._t);toast._t=setTimeout(function(){t.style.display='none'},2200)}
+
+async function api(method, qs, body){
+  var r = await fetch(API+'?'+qs, {
+    method: method, credentials: 'same-origin', cache: 'no-store',
+    headers: body ? {'Content-Type':'application/json'} : undefined,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  var d = {}; try { d = await r.json(); } catch(_){}
+  d._status = r.status;
+  return d;
+}
+
+async function load(){
+  var app = document.getElementById('app');
+  try{
+    var d = await api('GET', 'view=me');
+    if (d._status === 401) return gate();
+    if (d.error) { app.innerHTML = '<div class="card center"><div style="font-size:15px;font-weight:700">'+esc(d.error)+'</div></div>'; return; }
+    D = d; render();
+  }catch(e){
+    app.innerHTML = '<div class="card center"><div>연결이 안 됩니다</div><button class="btn" style="margin-top:12px" onclick="load()">다시 시도</button></div>';
+  }
+}
+
+/* 401 — 로그인을 안 했는지, 했는데 직원이 아닌지 구분 */
+async function gate(){
+  var app = document.getElementById('app'), logged = false;
+  try { var r = await fetch('/api/auth/me', {credentials:'same-origin', cache:'no-store'}); var m = await r.json(); logged = !!(m && m.logged_in); } catch(_){}
+  app.innerHTML = logged
+    ? '<div class="card center"><div style="font-size:16px;font-weight:800">직원 전용 화면입니다</div><div class="muted" style="margin-top:6px">사장님이 관리자로 등록해야 사용할 수 있어요</div></div>'
+    : '<div class="card center"><div style="font-size:16px;font-weight:800">로그인이 필요합니다</div><div class="muted" style="margin-top:6px">카카오·네이버로 로그인한 뒤 이 화면으로 다시 오세요</div>'
+      + '<a class="btn primary" style="display:inline-block;margin-top:14px;text-decoration:none" href="/index.html">로그인하러 가기</a></div>';
+}
+
+function render(){
+  var d = D, t = d.today_cell, h = '';
+
+  /* 1. 받은 교체 요청 — 상대가 기다리고 있으니 맨 위 */
+  (d.swaps.received||[]).forEach(function(s){
+    h += '<div class="card alert"><div style="font-weight:800">'+esc(s.from_name)+' 님이 '+md(s.duty_date)+' 당번 교체를 요청했어요</div>'
+      + (s.return_date ? '<div style="font-size:13px;margin-top:2px">대신 '+md(s.return_date)+' 내 당번을 '+esc(s.from_name)+' 님이 서요 (맞교환)</div>' : '')
+      + (s.reason ? '<div style="font-size:13px;margin-top:2px">사유: '+esc(s.reason)+'</div>' : '')
+      + '<div class="row"><button class="btn primary" onclick="swapRespond('+s.id+',true)">수락</button><button class="btn" onclick="swapRespond('+s.id+',false)">거절</button></div></div>';
+  });
+
+  /* 2. 오늘 + 출근 버튼 */
+  var badge = t.duty ? '<span class="badge duty">오늘 당번 · '+esc(t.start)+'</span>' : '<span class="badge">오늘 기준 '+esc(t.start)+'</span>';
+  if (t.leave === 'approved') badge += ' <span class="badge leave">오늘 연차</span>';
+  h += '<div class="card"><div class="row"><div class="grow"><div class="date">'+esc(d.me.name)+' 님</div>'
+    + '<div class="muted">'+md(d.today)+'</div></div>'+badge+'</div>'
+    + '<div class="clock" id="clock">'+esc(d.now.slice(11,16))+'</div>';
+  if (t.check_in) {
+    h += '<div class="done"><div class="muted">출근 완료</div><b>'+esc(t.check_in)+'</b> '
+      + (t.late ? '<span class="badge late">지각</span>' : '<span class="badge ok">정상</span>') + '</div>';
+  } else {
+    h += '<button class="punch" id="punchBtn" onclick="punch()">출근</button>';
+    if (!d.weekday) h += '<div class="muted" style="margin-top:8px;text-align:center">오늘은 주말입니다</div>';
+  }
+  h += '</div>';
+
+  /* 3. 당번 */
+  h += '<div class="card"><h2>당번 (09:00 출근)</h2>' + weekHtml('이번 주', d.duty.this_week) + weekHtml('다음 주', d.duty.next_week);
+  var mine = d.duty.mine || [];
+  var pendingDates = {}; (d.swaps.sent||[]).forEach(function(s){ if(s.status==='pending') pendingDates[s.duty_date]=1 });
+  if (mine.length) {
+    /* 주 단위 당번이라 하루씩 줄로 늘어놓으면 2주만 돼도 한 화면이 넘는다 — 주별 한 줄 + 요일 칩 */
+    var byWeek = {};
+    mine.forEach(function(x){ var w = mondayOf(x); (byWeek[w] = byWeek[w] || []).push(x); });
+    h += '<div style="margin-top:12px;font-size:13px;font-weight:700;color:var(--sub)">내 당번 날 — 바꿀 날을 누르세요</div><ul class="list">';
+    Object.keys(byWeek).sort().forEach(function(w){
+      h += '<li><span style="min-width:62px;font-size:13px;color:var(--sub)">'+md(w).replace(/\(.\)/,'')+' 주</span><span class="chips">'
+        + byWeek[w].map(function(x){
+            return pendingDates[x]
+              ? '<span class="chip wait" title="교체 요청 중">'+WD[wd(x)]+'</span>'
+              : '<button class="chip" onclick="openSwap(\''+x+'\')" aria-label="'+md(x)+' 교체 요청">'+WD[wd(x)]+'</button>';
+          }).join('') + '</span></li>';
+    });
+    h += '</ul>';
+    if (Object.keys(pendingDates).length) h += '<div class="muted" style="margin-top:4px">회색 = 교체 요청 중</div>';
+  } else if (d.duty.this_week.every(function(x){return !x.user_id})) {
+    h += '<div class="muted" style="margin-top:8px">아직 당번 순서가 정해지지 않았어요</div>';
+  }
+  var sent = (d.swaps.sent||[]).slice(0,5);
+  if (sent.length) {
+    h += '<div style="margin-top:12px;font-size:13px;font-weight:700;color:var(--sub)">보낸 교체 요청</div><ul class="list">';
+    sent.forEach(function(s){
+      var st = {pending:'대기',accepted:'수락됨',declined:'거절됨',cancelled:'취소'}[s.status]||s.status;
+      h += '<li><span class="grow">'+md(s.duty_date)+' → '+esc(s.to_name)+(s.return_date?' (맞교환 '+md(s.return_date)+')':'')+'</span>'
+        + '<span class="badge'+(s.status==='accepted'?' ok':'')+'">'+st+'</span>'
+        + (s.status==='pending' ? '<button class="btn sm danger" onclick="swapCancel('+s.id+')">취소</button>' : '') + '</li>';
+    });
+    h += '</ul>';
+  }
+  h += '</div>';
+
+  /* 4. 연차 */
+  var L = d.leave;
+  h += '<div class="card"><h2>'+L.year+'년 연차</h2>';
+  if (L.days == null) {
+    h += '<div class="muted">사장님이 올해 연차를 아직 확정하지 않았어요. 확정되면 신청할 수 있습니다.</div>';
+  } else {
+    h += '<div class="stats"><div><b>'+days(L.days)+'</b><span>부여</span></div><div><b>'+days(L.approved)+'</b><span>사용</span></div>'
+      + '<div><b style="color:var(--primary)">'+days(L.remaining)+'</b><span>잔여</span></div></div>'
+      + (L.pending ? '<div class="muted" style="margin-top:6px">승인 대기 '+L.pending+'일</div>' : '')
+      + '<button class="btn primary" style="width:100%;margin-top:12px;padding:12px" onclick="openLeave()">연차 신청</button>';
+  }
+  var reqs = (L.requests||[]).filter(function(r){return r.status!=='cancelled'}).slice(0,10);
+  if (reqs.length) {
+    h += '<ul class="list" style="margin-top:10px">';
+    reqs.forEach(function(r){
+      var st = {pending:'대기',approved:'승인',rejected:'반려'}[r.status]||r.status;
+      h += '<li><span class="grow">'+md(r.leave_date)+(r.review_note?' <span class="muted">· '+esc(r.review_note)+'</span>':'')+'</span>'
+        + '<span class="badge'+(r.status==='approved'?' ok':(r.status==='rejected'?' late':''))+'">'+st+'</span>'
+        + (r.status==='pending' ? '<button class="btn sm danger" onclick="leaveCancel('+r.id+')">취소</button>' : '') + '</li>';
+    });
+    h += '</ul>';
+  }
+  h += '</div>';
+
+  /* 5. 이번 달 */
+  h += '<div class="card"><h2>이번 달</h2><div class="stats" style="grid-template-columns:repeat(2,1fr)">'
+    + '<div><b>'+d.month.checked+'</b><span>출근</span></div><div><b'+(d.month.late?' style="color:var(--danger)"':'')+'>'+d.month.late+'</b><span>지각</span></div></div>'
+    + '<div class="muted" style="margin-top:8px">지각 기준: 당번 '+esc(d.settings.duty_start)+' · 일반 '+esc(d.settings.normal_start)+' (유예 '+d.settings.grace_minutes+'분)</div></div>';
+
+  h += '<div class="muted" style="text-align:center;margin:4px 0 8px">홈 화면에 추가하면 바로 열립니다 (공유 → 홈 화면에 추가)</div>';
+  document.getElementById('app').innerHTML = h;
+}
+
+function weekHtml(label, list){
+  var me = D.me.id, today = D.today;
+  return '<div style="margin-top:8px;font-size:12px;color:var(--mute)">'+label+'</div><div class="week">'
+    + (list||[]).map(function(x){
+        return '<div class="'+(x.user_id===me?'me ':'')+(x.date===today?'today':'')+'">'+WD[wd(x.date)]+'<b>'+esc(x.name||'—')+'</b></div>';
+      }).join('') + '</div>';
+}
+
+/* 시계 — 서버 시각에서 출발해 1초씩. 폰 시계가 틀려도 화면은 서버 기준 */
+var _clockBase = 0, _clockAt = 0;
+setInterval(function(){
+  var el = document.getElementById('clock'); if (!el || !D) return;
+  if (!_clockBase || _clockBase.src !== D.now) { _clockBase = { src: D.now, ms: Date.parse(D.now.replace(' ','T')+'Z') }; _clockAt = Date.now(); }
+  var t = new Date(_clockBase.ms + (Date.now() - _clockAt));
+  el.textContent = t.toISOString().slice(11,16);
+}, 1000);
+/* 다음 날 홈화면에서 다시 열면 어제 화면이 남아 있다 — 다시 보일 때 새로 받는다 */
+document.addEventListener('visibilitychange', function(){ if (!document.hidden) load(); });
+
+async function punch(){
+  var b = document.getElementById('punchBtn'); if (b) { b.disabled = true; b.textContent = '찍는 중...'; }
+  var r = await api('POST', 'action=punch', {});
+  if (r.error) { toast(r.error); if (b) { b.disabled = false; b.textContent = '출근'; } return; }
+  toast(r.already ? '이미 '+r.check_in+' 에 출근했어요' : r.check_in+' 출근 완료');
+  load();
+}
+async function swapRespond(id, accept){
+  if (!accept && !confirm('거절할까요?')) return;
+  var r = await api('POST', 'action=swap_respond', {id:id, accept:accept});
+  if (r.error) return toast(r.error);
+  toast(accept ? '교체를 수락했어요' : '거절했어요'); load();
+}
+async function swapCancel(id){
+  if (!confirm('교체 요청을 취소할까요?')) return;
+  var r = await api('POST', 'action=swap_cancel', {id:id});
+  if (r.error) return toast(r.error);
+  load();
+}
+async function leaveCancel(id){
+  if (!confirm('연차 신청을 취소할까요?')) return;
+  var r = await api('POST', 'action=leave_cancel', {id:id});
+  if (r.error) return toast(r.error);
+  load();
+}
+
+/* ── 시트 ── */
+function openSheet(html){ document.getElementById('sheet').innerHTML = html; document.getElementById('sheetBg').classList.add('on'); }
+function closeSheet(){ document.getElementById('sheetBg').classList.remove('on'); }
+
+function openSwap(date){
+  var opts = (D.colleagues||[]).map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+'</option>'}).join('');
+  if (!opts) return toast('교체할 동료가 없습니다');
+  openSheet('<h3>'+md(date)+' 당번 교체 요청</h3>'
+    + '<label>대신 서줄 동료</label><select id="swTo">'+opts+'</select>'
+    + '<label>맞교환 (선택) — 상대 당번 날을 내가 대신</label><input type="date" id="swRet" min="'+D.today+'">'
+    + '<label>사유 (선택)</label><textarea id="swReason" rows="2" maxlength="200"></textarea>'
+    + '<div class="muted" style="margin-top:6px">상대가 수락하면 바로 바뀝니다</div><div class="err" id="swErr"></div>'
+    + '<div class="acts"><button class="btn" onclick="closeSheet()">닫기</button><button class="btn primary" onclick="sendSwap(\''+date+'\')">요청 보내기</button></div>');
+}
+async function sendSwap(date){
+  var body = { duty_date: date, to_user: Number(document.getElementById('swTo').value),
+    return_date: document.getElementById('swRet').value || null, reason: document.getElementById('swReason').value };
+  var r = await api('POST', 'action=swap_request', body);
+  if (r.error) { document.getElementById('swErr').textContent = r.error; return; }
+  closeSheet(); toast('교체 요청을 보냈어요'); load();
+}
+
+function openLeave(){
+  openSheet('<h3>연차 신청</h3>'
+    + '<label>시작일</label><input type="date" id="lvFrom" min="'+D.today+'" onchange="leavePreview()">'
+    + '<label>종료일</label><input type="date" id="lvTo" min="'+D.today+'" onchange="leavePreview()">'
+    + '<div class="muted" id="lvPrev" style="margin-top:6px">주말은 자동으로 빠집니다. 공휴일은 직접 빼고 신청해주세요.</div>'
+    + '<label>사유 (선택)</label><textarea id="lvReason" rows="2" maxlength="200"></textarea>'
+    + '<div class="err" id="lvErr"></div><div id="lvFix"></div>'
+    + '<div class="acts"><button class="btn" onclick="closeSheet()">닫기</button><button class="btn primary" onclick="sendLeave()">신청</button></div>');
+}
+function leaveDates(){
+  var a = document.getElementById('lvFrom').value, b = document.getElementById('lvTo').value || a;
+  return weekdaysBetween(a, b);
+}
+function leavePreview(){
+  var f = document.getElementById('lvFrom'), t = document.getElementById('lvTo');
+  if (f.value && (!t.value || t.value < f.value)) t.value = f.value;
+  var list = leaveDates(), mine = D.duty.mine || [];
+  var duty = list.filter(function(x){return mine.indexOf(x) >= 0});
+  document.getElementById('lvPrev').innerHTML = list.length
+    ? '평일 <b>'+list.length+'일</b> 신청 · 잔여 '+days(D.leave.remaining - D.leave.pending)
+      + (duty.length ? '<br><span style="color:var(--danger)">'+duty.map(md).join(', ')+' 은 내 당번 — 교체를 먼저 잡아야 해요</span>' : '')
+    : '평일이 없습니다';
+}
+async function sendLeave(){
+  var list = leaveDates();
+  if (!list.length) { document.getElementById('lvErr').textContent = '날짜를 골라주세요'; return; }
+  var r = await api('POST', 'action=leave_request', { dates: list, reason: document.getElementById('lvReason').value });
+  if (r.error) {
+    document.getElementById('lvErr').textContent = r.error;
+    /* 당번 날이면 그 날짜로 바로 교체 요청 */
+    document.getElementById('lvFix').innerHTML = r.duty_date
+      ? '<button class="btn" style="margin-top:8px" onclick="openSwap(\''+r.duty_date+'\')">'+md(r.duty_date)+' 교체 요청하기</button>' : '';
+    return;
+  }
+  closeSheet(); toast(r.count+'일 신청했어요 — 사장님 승인 대기'); load();
+}
+
+load();
+</script>
+</body>
+</html>
