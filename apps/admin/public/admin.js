@@ -689,7 +689,6 @@ async function doCookieLogin(whoamiData){
   }catch{ try{ tab('home'); }catch(_){} }
 }
 
-/* 🔐 상담방 목록 모드: 'external'(기본) | 'internal'(관리자방) */
 /* SPA 뒤로가기 지원 — 메타 12종 #7 Phase S3b (2026-05-04, 사장님 명령)
  *  - tab 클릭 시 history.pushState — 뒤로가기 시 이전 탭 복원
  *  - popstate (브라우저 뒤로가기/앞으로가기) → 자동 tab 호출
@@ -700,7 +699,7 @@ var _tabBypassPushState = false;
  * admin 탭 전환 — SPA history push + 사이드바 active state + view 표시.
  * Phase #7 (2026-05-06): broadcastTabChange 호출로 다른 모듈 자동 알림.
  *
- * @param {string} t - 'chat' | 'live' | 'rooms' | 'users' | 'docs' | 'anal' | 'review' | 'faq' | 'internal'
+ * @param {string} t - 'chat' | 'live' | 'rooms' | 'users' | 'docs' | 'anal' | 'review' | 'faq'
  * @returns {void}
  */
 /* ===== 상담방 화면 내리기 (2026-09-21 사장님: "상담방 내리고 카톡연결로 가자") =====
@@ -717,7 +716,7 @@ function _hideRoomsUi(){
     if(sb)sb.style.display='none';
     var tb=document.getElementById('tabRooms');
     if(tb)tb.style.display='none';
-    /* 방 섹션에 상담방만 남으면 섹션 머리글도 같이 숨긴다 (관리자방은 남긴다) */
+    /* 방 섹션에 남는 게 없으면 섹션 머리글도 같이 숨긴다 (관리자방은 2026-10-01 폐지) */
     var grp=document.querySelector('[data-grp="rooms"]');
     if(grp){
       var alive=Array.prototype.filter.call(grp.children,function(el){
@@ -763,7 +762,6 @@ try{ if(window.__broadcastTabChange) window.__broadcastTabChange(t); }catch(_){}
 $g('tabChat').className=t==='chat'?'on':'';
 $g('tabLive').className=t==='live'?'on':'';
 $g('tabRooms').className=t==='rooms'?'on':'';
-if($g('tabInternal'))$g('tabInternal').className=t==='internal'?'on':'';
 if($g('tabDocs').className!==undefined)$g('tabDocs').className=t==='docs'?'on':'';
 $g('tabUsers').className=t==='users'?'on':'';
 $g('tabAnal').className=t==='anal'?'on':'';
@@ -779,8 +777,8 @@ try{
 }catch(_){}
 $g('detailView').style.display='none';
 $g('liveView').style.display=t==='live'?'block':'none';
-/* 상담방/관리자방은 같은 roomsView 재활용하되 모드만 다름 */
-$g('roomsView').style.display=(t==='rooms'||t==='internal')?'block':'none';
+/* 상담방 (관리자방은 2026-10-01 폐지) */
+$g('roomsView').style.display=t==='rooms'?'block':'none';
 $g('docsView').style.display=t==='docs'?'block':'none';
 document.body.classList.toggle('docs-wide', t==='docs');
 $g('usersView').style.display=t==='users'?'block':'none';
@@ -795,13 +793,8 @@ if(t==='docs')loadDocsTab();
 if(t==='live')startLivePolling();
 else stopLivePolling();
 /* 모드 전환 시 현재 열린 방이 성격이 다르면 해제, 같으면 유지 */
-if(t==='rooms'){
-  if(_roomsMode!=='external')currentRoomId=null;
-  _roomsMode='external';startRoomsPolling();
-} else if(t==='internal'){
-  if(_roomsMode!=='internal')currentRoomId=null;
-  _roomsMode='internal';startRoomsPolling();
-} else stopRoomsPolling();
+if(t==='rooms'){ _roomsMode='external';startRoomsPolling(); }
+else stopRoomsPolling();
 }
 
 /* 부팅 탭 재적용 (2026-07-06 사장님 "처음 들어가면 홈 밑에 채팅창 남아있네"):
@@ -3842,6 +3835,7 @@ window.addEventListener('popstate', function(e){
     if(!t){
       var mTab = location.hash.match(/^#tab=(\w+)/);
       if(mTab) t = mTab[1];
+      if(t==='internal') t='home';   /* 관리자방 폐지(2026-10-01) — 옛 북마크·푸시 링크 */
       var mCust = location.hash.match(/[#&]cust=(\d+)/);
       if(mCust) custFromHash = Number(mCust[1]);
       var mRoom = location.hash.match(/[#&]room=([^&]+)/);
@@ -3913,40 +3907,8 @@ function _adminSidebarClick(e){
     return;
   }
 
-  /* Phase M8 (2026-05-05 사장님 명령): 관리자방 — internal 방 자동 진입
-   * Phase M8-fix (loadRoomDetail args 무시): openRoom(roomId) 사용
-   * Phase M12 (2026-05-05 사장님 보고: "사이드바 색깔 안 칠해지고 + 관리자방이다 딱 알수있도록"):
-   *   - tab('rooms') 후 active 유지 (tab 함수가 data-admin-tab='rooms' 로 set 해버려서 다시 fix)
-   *   - body.internal-room-mode 추가 — UI 단순화 (상담방개설·액션·라벨탭 hide) */
-  if(it.dataset.adminTab === 'internal'){
-    document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
-    it.classList.add('on');
-    fetch('/api/admin-internal-room?key=' + encodeURIComponent(KEY))
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        if(!d.ok){ alert('관리자방 진입 실패: ' + (d.error || 'unknown')); return; }
-        document.body.classList.add('internal-room-mode');
-        if(typeof tab === 'function') tab('rooms');
-        setTimeout(function(){
-          if(typeof openRoom === 'function') openRoom(d.room_id);
-          else if(typeof loadRoomDetail === 'function'){ window.currentRoomId = d.room_id; loadRoomDetail(); }
-          /* M12 fix: tab() 가 active 를 'rooms' 로 set 했으니 internal 로 재조정 */
-          document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
-          var internalBtn = document.querySelector('.of-sb-item[data-admin-tab="internal"]');
-          if(internalBtn) internalBtn.classList.add('on');
-        }, 300);
-      })
-      .catch(function(e){ alert('오류: ' + e.message); });
-    return;
-  }
-
-  /* Phase M12: internal 모드에서 다른 사이드바 항목 클릭 시 internal-room-mode 해제 */
-  if(it.dataset.adminTab && it.dataset.adminTab !== 'internal'){
-    document.body.classList.remove('internal-room-mode');
-  }
-  if(it.dataset.mode || it.id === 'sbSearchBtn' || it.id === 'sbTrashBtn' || it.id === 'sbMyTodosBtn' || it.id === 'sbBulkSendBtn'){
-    document.body.classList.remove('internal-room-mode');
-  }
+  /* 관리자방(internal) 사이드바 진입은 2026-10-01 폐지 — 사장님: "채팅을 여기서 안 할 거니까".
+     방 데이터 영구삭제는 휴지통 모달의 사장님 전용 버튼 (admin-memos.js _trashInternalRow). */
 
   /* Phase M17 (2026-05-05 사장님 보고: "관리자방 → 상담방 들어가면 자동으로 관리자방 카톡이 남아있음.. 처음 상담방 들어가면 목록만 뜨도록"):
    * data-admin-tab="rooms" 클릭 시 detail view 강제 reset (currentRoomId / roomMessages / show-chat / polling). */

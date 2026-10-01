@@ -20,7 +20,6 @@ export const ADMIN_TABS = [
   'anal',
   'review',
   'faq',
-  'internal',
 ] as const;
 
 export type AdminTab = (typeof ADMIN_TABS)[number];

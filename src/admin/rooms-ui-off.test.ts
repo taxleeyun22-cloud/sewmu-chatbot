@@ -8,7 +8,7 @@
  * classic script 라 import 할 수 없어 소스로 검사한다.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 
 const adminJs = readFileSync('admin.js', 'utf8');
 const indexJs = readFileSync('index.js', 'utf8');
@@ -25,13 +25,14 @@ describe('상담방 — 화면에서만 내린다', () => {
     expect(adminJs).toContain("getElementById('tabRooms')");
   });
 
-  it('관리자방(내부 업무방)은 안 내린다', () => {
-    /* 거래처 상담방만 내리는 것이지 직원 내부방은 그대로다.
-       admin.js 다른 곳에서는 internal 탭을 정상적으로 쓰므로 숨김 함수만 본다. */
-    const i = adminJs.indexOf('function _hideRoomsUi()');
-    const fn = adminJs.slice(i, adminJs.indexOf('\nfunction tab(t){', i));
-    expect(fn).toContain('[data-admin-tab="rooms"]');
-    expect(fn).not.toContain('[data-admin-tab="internal"]');
+  it('관리자방(내부 업무방)은 2026-10-01 폐지됐다 — 사장님: "채팅을 여기서 안 할 거니까"', () => {
+    const adminHtml = readFileSync('admin.html', 'utf8');
+    expect(adminHtml).not.toContain('data-admin-tab="internal"');
+    expect(adminHtml).not.toContain('id="tabInternal"');
+    /* 방을 다시 만들던 API 가 없어야 "지워도 다음 클릭에 다시 생기는" 일이 없다 */
+    expect(existsSync('functions/api/admin-internal-room.js')).toBe(false);
+    expect(adminJs).not.toContain('admin-internal-room');
+    expect(adminJs).not.toContain('internal-room-mode');
   });
 
   it('딥링크·푸시 클릭 경로는 살려 둔다', () => {

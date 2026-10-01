@@ -137,7 +137,6 @@ export const roomsRouter = router({
       z.object({
         name: z.string().min(1),
         member_user_ids: z.array(z.number().int().positive()),
-        is_internal: z.boolean().default(false),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -162,7 +161,7 @@ export const roomsRouter = router({
         id: roomId,
         name: input.name,
         status: 'active',
-        is_internal: input.is_internal ? 1 : 0,
+        is_internal: 0,   /* 관리자방 폐지(2026-10-01) — 내부방은 더 만들지 않는다 */
         created_by_user_id: ctx.auth.userId,
         created_at: now,
         updated_at: now,

@@ -76,7 +76,6 @@ export const PERMISSIONS = {
   'admin:leave:approve': 'owner' as Role,                   // 연차 승인/반려 · 부여일수 확정
 
   // === Admin (정직원 + owner) ===
-  'admin:internal:read': 'admin' as Role,                   // 관리자방 진입
   'admin:user:approve': 'admin' as Role,                    // 사용자 승인/거절
   'admin:user:write': 'admin' as Role,                      // 사용자 정보 수정
   'admin:business:write': 'admin' as Role,                  // 업체 정보 수정 (14필드)

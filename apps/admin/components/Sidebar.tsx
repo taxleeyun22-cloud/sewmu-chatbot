@@ -22,7 +22,6 @@ import { Avatar } from '@/components/ui/avatar';
 import { confirm } from '@/components/ui/confirm-dialog';
 import {
   MessageSquare,
-  Lock,
   User,
   Building2,
   FileText,
@@ -84,7 +83,6 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     title: '상담',
     items: [
       { href: '/admin/rooms', icon: MessageSquare, label: '상담방', countKey: 'activeRooms' },
-      { href: '/admin/internal', icon: Lock, label: '관리자방' },
     ],
   },
   /* 💼 영업 (2026-07-16 사장님 "사이드바가 이상하잖아" — 영업 메뉴 없어서 길 잃음) */

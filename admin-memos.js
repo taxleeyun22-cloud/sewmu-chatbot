@@ -446,6 +446,7 @@ async function deleteCustomerInfo(id, userId){ return deleteCdMemo(id); }
 
 function openTrash(){
   const m = $g('trashModal'); if(!m){ alert('휴지통 모달 element 없음'); return; }
+  if(typeof _trashInternalRow==='function')_trashInternalRow();   /* 🔐 관리자방 영구삭제 줄 (사장님 전용) */
   m.style.display = 'flex';
   document.body.style.overflow = 'hidden';
   loadTrash();
@@ -1019,3 +1020,39 @@ function cdOpenMemoWindow(){
     }
   });
 })();
+
+/* ===== 🔐 관리자방 영구삭제 (2026-10-01 사장님: "관리자방 영구삭제하자 채팅을 여기서 안할거니까") =====
+ * 사이드바·API 는 코드에서 뺐고(다시 안 생김), DB 에 남은 방·메시지·첨부는 여기서 사장님이 한 번 지운다.
+ * 먼저 건수만 받아 보여주고(dry-run), 확인하면 삭제. 다 지워지면 줄이 저절로 사라진다. */
+async function _trashInternalRow(){
+  var el=$g('trashInternal'); if(!el)return;
+  el.style.display='none';
+  if(typeof IS_OWNER!=='undefined' && !IS_OWNER)return;
+  try{
+    var r=await fetch('/api/admin-rooms?action=purge_internal&key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:'{}'});
+    if(!r.ok)return;                      /* 403 = 사장님 아님 */
+    var d=await r.json();
+    if(!d.ok||!d.rooms)return;            /* 남은 게 없으면 줄 자체를 안 보여준다 */
+    window._trashInternalCounts=d;
+    el.innerHTML='<b>🔐 관리자방 데이터가 남아 있습니다</b> — 방 '+d.rooms+' · 메시지 '+d.messages+' · 첨부파일 '+d.attachments
+      +' · 메모 '+d.memos+' · 북마크 '+d.bookmarks+' · 공지 '+d.notices
+      +' <button onclick="_trashInternalPurge()" style="margin-left:8px;background:#fff;color:var(--of-danger);border:1px solid var(--of-danger);padding:4px 12px;border-radius:6px;font-size:.95em;font-weight:700;cursor:pointer;font-family:inherit">영구삭제</button>'
+      +'<div style="color:var(--gray-500);margin-top:2px">관리자방 화면은 이미 내렸습니다. 지우면 되돌릴 수 없습니다 — 필요하면 먼저 사이드바 "전체 내보내기"로 백업하세요.</div>';
+    el.style.display='block';
+  }catch(_){}
+}
+async function _trashInternalPurge(){
+  var d=window._trashInternalCounts||{};
+  if(!confirm('관리자방을 영구삭제합니다.\n\n방 '+(d.rooms||0)+'개 · 메시지 '+(d.messages||0)+'건 · 첨부파일 '+(d.attachments||0)+'개 · 메모 '+(d.memos||0)+'건\n\n되돌릴 수 없습니다. 계속할까요?'))return;
+  if(!confirm('정말 지웁니다. 마지막 확인입니다.'))return;
+  try{
+    var r=await fetch('/api/admin-rooms?action=purge_internal&key='+encodeURIComponent(KEY),{
+      method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({confirm:true})});
+    var res=await r.json();
+    if(!res.ok)throw new Error(res.error||'실패');
+    if(typeof showAdminToast==='function')showAdminToast('🔐 관리자방 영구삭제 완료 — 메시지 '+res.messages+'건 · 첨부 '+(res.r2_deleted||0)+'개');
+    if(typeof mutationDone==='function')mutationDone({rooms:true});
+    _trashInternalRow();
+  }catch(e){alert('삭제 실패: '+(e.message||e))}
+}

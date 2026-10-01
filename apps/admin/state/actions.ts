@@ -43,7 +43,7 @@ export async function openRoomSafe(roomId: string): Promise<boolean> {
  * 탭 전환 안전 호출.
  */
 export function navigateToTab(
-  name: 'chat' | 'live' | 'rooms' | 'users' | 'docs' | 'anal' | 'review' | 'faq' | 'internal',
+  name: 'chat' | 'live' | 'rooms' | 'users' | 'docs' | 'anal' | 'review' | 'faq',
 ): boolean {
   if (typeof tab !== 'function') {
     console.warn('[admin/actions] tab() not loaded yet');
