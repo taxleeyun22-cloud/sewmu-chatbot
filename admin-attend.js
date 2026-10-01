@@ -29,7 +29,8 @@ function openAttend() {
   if (!_atYear) _atYear = Number(_atToday().slice(0, 4));
   if (!_atDutyFrom) _atDutyFrom = _atMonday(_atToday());
   /* 처음 열 때: 직원(세션 로그인 · 근태 대상)이면 '내 근태', 아니면 '오늘' (사장님) */
-  if (!_atOpened) { _atOpened = true; _atTab = _atMeOk ? 'me' : 'today'; }
+  /* 직원이 '오늘' 로 열리면 403 — 직원 기본은 내 근태, 그마저 없으면(사장님 세션·근태 대상 아님) 당번표 */
+  if (!_atOpened) { _atOpened = true; _atTab = _atMeOk ? 'me' : (_atOwner ? 'today' : 'duty'); }
   _atGo(_atTab);
   _atBadge();            // 열 때마다 대기 건수 새로 — 5분 주기만 믿으면 방금 들어온 신청이 안 보인다
 }
@@ -42,10 +43,13 @@ function closeAttend() {
 /* 탭은 사람에 따라 다르다 — 직원: 내 근태 + 조회 / 사장님: 조회 + 승인함·부여.
    owner 는 서버 응답(d.owner)으로 안다 (IS_OWNER 는 whoami 전 기본값 true 라 못 믿는다). */
 function _atTabList(owner, meOk) {
+  /* 직원 = 내 근태 · 당번표. 동료 출근·지각·연차는 사장님만 (사장님: "지는 지꺼만 보게").
+     서버도 같은 기준으로 막는다 — 여기는 안 보이게만. */
   var t = [];
   if (meOk) t.push(['me', '내 근태']);
-  t.push(['today', '오늘'], ['month', '월별'], ['duty', '당번표'], ['leave', owner ? '연차 승인함' : '연차 현황']);
-  if (owner) t.push(['grant', '연차 부여']);
+  if (owner) t.push(['today', '오늘'], ['month', '월별']);
+  t.push(['duty', '당번표']);
+  if (owner) t.push(['leave', '연차 승인함'], ['grant', '연차 현황·부여']);
   return t;
 }
 function _atTabsHtml(active, pending, owner, meOk, mySwaps) {
@@ -271,7 +275,10 @@ function _atGrantHtml(d) {
       + '<td>' + (own ? '<input type="number" step="0.5" min="0" max="40" style="width:70px" id="atG' + r.id + '" value="' + (r.days != null ? r.days : (r.suggested != null ? r.suggested : '')) + '">'
         + ' <button class="at-btn pri" onclick="_atGrant(' + r.id + ')">' + (r.days != null ? '수정' : '확정') + '</button>'
         + (r.days == null ? ' <span class="pill late">미확정</span>' : '') : _atDays(r.days)) + '</td>'
-      + '<td>' + _atDays(r.approved) + '</td><td>' + (r.pending || '') + '</td><td><b>' + _atDays(r.remaining) + '</b></td></tr>';
+      + '<td>' + _atDays(r.approved)
+      + ((r.requests || []).length ? ' <button type="button" class="at-btn" style="padding:3px 8px" onclick="_atGrantToggle(' + r.id + ')">' + (_atGrantOpen[r.id] ? '접기 ▴' : '내역 ▾') + '</button>' : '')
+      + '</td><td>' + (r.pending || '') + '</td><td><b>' + _atDays(r.remaining) + '</b></td></tr>';
+    if (_atGrantOpen[r.id]) h += '<tr class="at-sub"><td colspan="8">' + _atLeaveDetailHtml(r, d.owner) + '</td></tr>';
   });
   h += '</tbody></table>';
   h += '<div class="at-sec">출근 기준</div>';
@@ -287,6 +294,28 @@ function _atGrantHtml(d) {
   return h + _atLinkHtml();
 }
 
+/* 사람별 연차 내역 (사장님: "누가 몇 개 남았고 언제 썼고 이런 걸 개별로 좀 보면") */
+var _atGrantOpen = {};
+function _atGrantToggle(id) { _atGrantOpen[id] = !_atGrantOpen[id]; _atRender(); }
+function _atLeaveDetailHtml(r, owner) {
+  var ST = { approved: ['승인', 'ok'], pending: ['대기', 'gray'], rejected: ['반려', 'late'] };
+  var used = (r.requests || []).filter(function (x) { return x.status === 'approved'; }).map(function (x) { return x.leave_date; }).sort();
+  var h = '<div style="background:#fafbfc;border-radius:10px;padding:10px 12px;margin:2px 0 6px">'
+    + '<div style="margin-bottom:6px"><b>' + _atEsc(r.name) + '</b> · 부여 ' + _atDays(r.days) + ' · 사용 ' + _atDays(r.approved) + ' · 잔여 <b>' + _atDays(r.remaining) + '</b>'
+    + (used.length ? ' <span style="color:var(--text-mute)">— 쓴 날: ' + used.map(_atMd).join(', ') + '</span>' : '') + '</div>';
+  if (!(r.requests || []).length) return h + '<div style="color:var(--text-mute)">신청 내역 없음</div></div>';
+  h += '<table style="width:auto"><thead><tr><th>날짜</th><th>상태</th><th>사유</th><th>신청</th><th>처리</th><th>메모</th>' + (owner ? '<th></th>' : '') + '</tr></thead><tbody>';
+  r.requests.forEach(function (x) {
+    var st = ST[x.status] || [x.status, 'gray'];
+    h += '<tr><td>' + _atMd(x.leave_date) + '</td><td><span class="pill ' + st[1] + '">' + _atEsc(st[0]) + '</span></td><td>' + _atEsc(x.reason || '') + '</td>'
+      + '<td style="color:var(--text-mute)">' + _atEsc(String(x.requested_at || '').slice(5, 10)) + '</td>'
+      + '<td style="color:var(--text-mute)">' + _atEsc(String(x.reviewed_at || '').slice(5, 10)) + '</td><td>' + _atEsc(x.review_note || '') + '</td>'
+      + (owner ? '<td>' + (x.status === 'approved' ? '<button class="at-btn dng" onclick="_atLeaveCancel(' + x.id + ')">승인 취소</button>'
+        : x.status === 'pending' ? '<button class="at-btn pri" onclick="_atReview(' + x.id + ',true)">승인</button> <button class="at-btn dng" onclick="_atReview(' + x.id + ',false)">반려</button>' : '') + '</td>' : '')
+      + '</tr>';
+  });
+  return h + '</tbody></table></div>';
+}
 function _atYearOpts(y) {
   var now = Number(_atToday().slice(0, 4)), o = '';
   for (var i = now - 2; i <= now + 1; i++) o += '<option value="' + i + '"' + (i === y ? ' selected' : '') + '>' + i + '년</option>';
@@ -374,11 +403,11 @@ async function _atDutySet(date, val) {
 async function _atReview(id, approve) {
   var note = '';
   if (!approve) { note = prompt('반려 사유 (직원에게 보입니다)', ''); if (note === null) return; }
-  if (await _atPost('leave_review', { id: id, approve: approve, note: note }, approve ? '✅ 연차 승인' : '반려됨')) _atGo('leave');
+  if (await _atPost('leave_review', { id: id, approve: approve, note: note }, approve ? '✅ 연차 승인' : '반려됨')) _atGo(_atTab === 'grant' ? 'grant' : 'leave');
 }
 async function _atLeaveCancel(id) {
   if (!confirm('승인된 연차를 취소할까요? 잔여 일수가 돌아갑니다.')) return;
-  if (await _atPost('leave_cancel', { id: id }, '연차 취소됨')) _atGo('leave');
+  if (await _atPost('leave_cancel', { id: id }, '연차 취소됨')) _atGo(_atTab === 'grant' ? 'grant' : 'leave');
 }
 async function _atGrant(userId) {
   var v = Number((document.getElementById('atG' + userId) || {}).value);

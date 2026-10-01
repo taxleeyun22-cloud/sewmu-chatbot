@@ -258,11 +258,55 @@ describe('admin 홈 출근 카드 · 내 근태 탭', () => {
     expect(lv2).toContain('10/12(월) 교체 요청하기');
   });
 
-  it('탭: 직원은 내 근태 + 조회(연차 현황), 사장님은 승인함·부여', () => {
-    expect(M2._atTabList(false, true).map((t: string[]) => t[0])).toEqual(['me', 'today', 'month', 'duty', 'leave']);
+  it('탭: 직원은 내 근태·당번표만, 사장님은 오늘·월별·승인함·부여까지', () => {
+    expect(M2._atTabList(false, true).map((t: string[]) => t[0])).toEqual(['me', 'duty']);
     expect(M2._atTabList(true, false).map((t: string[]) => t[0])).toEqual(['today', 'month', 'duty', 'leave', 'grant']);
     expect(M2._atTabsHtml('me', 3, false, true, 2)).toContain('내 근태<span class="n">2</span>');
-    expect(M2._atTabsHtml('me', 3, false, true, 2)).not.toContain('연차 현황<span');
+    expect(M2._atTabsHtml('me', 3, false, true, 2)).not.toContain('오늘');
     expect(M2._atTabsHtml('today', 3, true, false, 0)).toContain('연차 승인함<span class="n">3</span>');
+  });
+});
+
+/* 사장님: "연차는 누가 몇 개 남았고 언제 썼고 이런 걸 개별로 좀 보면 좋겠네" */
+describe('연차 현황·부여 — 사람별 내역', () => {
+  const src = readFileSync('admin-attend.js', 'utf8');
+  const M3 = new Function('setTimeout', 'setInterval', 'fetch', 'document', 'location',
+    src + '\n_atGrantOpen[11] = true;\nreturn { _atGrantHtml, _atLeaveDetailHtml };')(
+    () => 0, () => 0, () => Promise.reject(new Error('no fetch')),
+    { addEventListener: () => {}, getElementById: () => null, querySelector: () => null }, { origin: 'https://x.test' },
+  ) as Record<string, (...a: unknown[]) => any>;
+  const row = (id: number, name: string, requests: unknown[]) => ({
+    id, name, hire_date: '2023-03-02', tracked: true, suggested: 16, basis: 'x', days: 16, approved: 2, pending: 1, remaining: 14, requests,
+  });
+  const reqs = [
+    { id: 1, leave_date: '2026-10-15', status: 'pending', reason: '가족 행사', requested_at: '2026-10-01 09:00:00', reviewed_at: null, review_note: null },
+    { id: 2, leave_date: '2026-10-02', status: 'approved', reason: '병원', requested_at: '2026-09-28 10:00:00', reviewed_at: '2026-09-28 11:00:00', review_note: null },
+    { id: 3, leave_date: '2026-09-10', status: 'approved', reason: null, requested_at: '2026-09-01 10:00:00', reviewed_at: '2026-09-01 11:00:00', review_note: null },
+    { id: 4, leave_date: '2026-08-20', status: 'rejected', reason: '여행', requested_at: '2026-08-01 10:00:00', reviewed_at: '2026-08-02 11:00:00', review_note: '신고 마감 주' },
+  ];
+
+  it('펼치면 쓴 날짜·대기·반려가 날짜별로 보인다', () => {
+    const h = M3._atGrantHtml({ owner: true, year: 2026, settings, rows: [row(11, '김가영', reqs), row(12, '박나래', [reqs[1]])] });
+    expect(h).toContain('내역 ▾');                       // 박나래 (닫힘, 내역 있음)
+    expect(h).toContain('접기 ▴');                       // 김가영 (열림)
+    expect(h).toContain('쓴 날: 9/10(목), 10/2(금)');
+    expect(h).toContain('10/15(목)');
+    expect(h).toContain('pill late">반려');
+    expect(h).toContain('신고 마감 주');
+    /* 열린 행에서 바로 승인·취소 */
+    expect(h).toContain('_atReview(1,true)');
+    expect(h).toContain('_atLeaveCancel(2)');
+  });
+
+  it('내역이 없으면 토글 자체가 없다', () => {
+    const h = M3._atGrantHtml({ owner: true, year: 2026, settings, rows: [row(12, '박나래', [])] });
+    expect(h).not.toContain('_atGrantToggle(12)');
+  });
+
+  it('사장님이 아니면 상세에 승인·취소 버튼이 없다', () => {
+    const h = M3._atLeaveDetailHtml(row(11, '김가영', reqs), false);
+    expect(h).toContain('10/2(금)');
+    expect(h).not.toContain('_atReview(');
+    expect(h).not.toContain('_atLeaveCancel(');
   });
 });

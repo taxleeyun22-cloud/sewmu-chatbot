@@ -8,10 +8,10 @@
  * 판정 로직은 전부 _attendance-core.js (순수함수, 테스트로 고정). 여기는 DB 입출력만.
  *
  * GET  ?view=me                                  본인 화면 (attend.html)
- * GET  ?view=today                               오늘 전원              (👑 관리자 누구나)
- * GET  ?view=month&month=YYYY-MM[&format=csv]    월별 / CSV             (〃)
- * GET  ?view=duty&from=YYYY-MM-DD&weeks=N        당번표 + 교체 기록       (〃)
- * GET  ?view=leave&year=YYYY                     연차 부여·사용·대기      (〃)
+ * GET  ?view=duty&from=YYYY-MM-DD&weeks=N        당번표 + 교체 기록       (👑 관리자 누구나 — 교체에 필요)
+ * GET  ?view=today                               오늘 전원              (owner)
+ * GET  ?view=month&month=YYYY-MM[&format=csv]    월별 / CSV             (owner)
+ * GET  ?view=leave&year=YYYY                     연차 부여·사용·대기      (owner)
  * GET  ?view=badge                               사이드바 뱃지 (승인 대기 · 나에게 온 교체)
  *
  * POST ?action=punch                                          출근 (본인)
@@ -202,23 +202,28 @@ export async function onRequestGet(context) {
 
   try {
     if (view === 'me') return await viewMe(db, auth, today);
-    /* 조회는 👑 관리자(checkAdmin 통과)면 누구나 — 사장님: "직원은 관리자". 3명이 서로 당번·출근을
-       봐야 교체가 성립한다. admin_role 이 editor/viewer 인 직원이 403 보던 것 제거.
-       수정·승인·확정은 POST 쪽에서 owner 로 막는다. */
-    /* 사이드바 뱃지 — 연도 무관 (12월에 낸 1월 연차도 세야 한다).
-       my_swaps = 나에게 온 교체 요청 (세션 직원만). 사장님은 승인 대기, 직원은 내가 답할 것. */
+    /* 직원(👑 관리자, admin_role 무관)은 내 것 + 당번표만. 사장님: "지는 지꺼만 보게 해야 될 듯.
+       나머지 직원이 지각했니 마니 하는 건 좋지 않다." 동료 출근시각·지각·연차 잔여는 owner 전용.
+       화면에서만 숨기면 주소로 열리므로 여기서 막는다. 당번표는 교체에 필요하니 직원도 본다. */
+    /* 사이드바 뱃지 — my_swaps = 나에게 온 교체 요청 (세션 직원만).
+       pending_leave 는 사장님에게만 (직원이 동료 연차 신청 건수를 셀 이유가 없다). 연도 무관. */
     if (view === 'badge') {
-      const r = await db.prepare(`SELECT COUNT(*) AS c FROM staff_leave_requests WHERE status = 'pending'`).first();
+      let pendingLeave = 0;
+      if (auth.owner) {
+        const r = await db.prepare(`SELECT COUNT(*) AS c FROM staff_leave_requests WHERE status = 'pending'`).first();
+        pendingLeave = Number(r && r.c) || 0;
+      }
       let mySwaps = 0;
       if (auth.userId) {
         const s = await db.prepare(`SELECT COUNT(*) AS c FROM staff_duty_swaps WHERE to_user = ? AND status = 'pending' AND duty_date >= ?`).bind(auth.userId, today).first();
         mySwaps = Number(s && s.c) || 0;
       }
-      return json({ ok: true, owner: !!auth.owner, pending_leave: Number(r && r.c) || 0, my_swaps: mySwaps });
+      return json({ ok: true, owner: !!auth.owner, pending_leave: pendingLeave, my_swaps: mySwaps });
     }
+    if (view === 'duty') return await viewDuty(db, auth, url, today);
+    if (!auth.owner) return ownerOnly();
     if (view === 'today') return await viewToday(db, auth, today);
     if (view === 'month') return await viewMonth(db, auth, url, today);
-    if (view === 'duty') return await viewDuty(db, auth, url, today);
     if (view === 'leave') return await viewLeave(db, auth, url, today);
     return bad('unknown view');
   } catch (e) {
@@ -429,6 +434,10 @@ async function viewLeave(db, auth, url, today) {
       days: g ? Number(g.days) : null, confirmed_at: g ? g.confirmed_at : null,
       approved, pending: mine.filter((r) => r.status === 'pending').length,
       remaining: g ? Number(g.days) - approved : null,
+      /* 사람별 내역 — 사장님: "누가 몇 개 남았고 언제 썼고 이런 걸 개별로". 취소 건은 뺀다 */
+      requests: mine.filter((r) => r.status !== 'cancelled').sort((a, b) => (a.leave_date < b.leave_date ? 1 : -1)).slice(0, 60)
+        .map((r) => ({ id: r.id, leave_date: r.leave_date, status: r.status, reason: r.reason || null,
+          review_note: r.review_note || null, requested_at: r.requested_at || null, reviewed_at: r.reviewed_at || null })),
     };
   });
   const nameOf = Object.fromEntries(rows.map((r) => [r.id, r.name]));

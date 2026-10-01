@@ -236,11 +236,15 @@ describe('사장님 수정 · 월별 · CSV', () => {
 
 /* 2026-10-01 사장님: "직원은 관리자" — admin_role 이 editor/viewer 여도 조회는 되고 수정은 안 된다 */
 describe('직원 권한 — 조회 OK · 수정 403', () => {
-  it('editor 직원도 오늘·당번표·연차 현황을 보고, 수정·승인·확정은 못 한다', async () => {
+  it('직원은 당번표만 보고, 동료 출근·지각·연차는 못 본다 (사장님: "지는 지꺼만")', async () => {
     await d1.prepare(`UPDATE users SET admin_role = 'editor' WHERE id = ?`).bind(na).run();
-    expect((await get(d1, NA, 'view=today')).status).toBe(200);
     expect((await get(d1, NA, 'view=duty&from=2026-10-05&weeks=1')).status).toBe(200);
-    expect((await get(d1, NA, 'view=leave&year=2026')).body.owner).toBe(false);
+    expect((await get(d1, NA, 'view=today')).status).toBe(403);
+    expect((await get(d1, NA, 'view=month&month=2026-10')).status).toBe(403);
+    expect((await get(d1, NA, 'view=month&month=2026-10&format=csv')).status).toBe(403);
+    expect((await get(d1, NA, 'view=leave&year=2026')).status).toBe(403);
+    /* 사장님은 전부 */
+    expect((await get(d1, 'key', 'view=today')).status).toBe(200);
     expect((await post(d1, NA, 'edit', { user_id: na, work_date: '2026-10-05', check_in: '08:00' })).status).toBe(403);
     expect((await post(d1, NA, 'leave_grant', { user_id: na, year: 2026, days: 30 })).status).toBe(403);
     expect((await post(d1, NA, 'rotation', { members: [na], effective_from: '2026-10-12' })).status).toBe(403);
@@ -249,7 +253,25 @@ describe('직원 권한 — 조회 OK · 수정 403', () => {
   it('뱃지: 직원에겐 나에게 온 교체, 사장님에겐 승인 대기', async () => {
     await post(d1, GA, 'swap_request', { to_user: na, duty_date: '2026-10-07' });
     await post(d1, DA, 'leave_request', { dates: ['2026-10-08'] });
-    expect((await get(d1, NA, 'view=badge')).body).toMatchObject({ owner: false, my_swaps: 1, pending_leave: 1 });
+    /* 직원 뱃지엔 동료 연차 대기 건수가 안 실린다 */
+    expect((await get(d1, NA, 'view=badge')).body).toMatchObject({ owner: false, my_swaps: 1, pending_leave: 0 });
     expect((await get(d1, 'key', 'view=badge')).body).toMatchObject({ owner: true, my_swaps: 0, pending_leave: 1 });
+  });
+});
+
+describe('연차 현황 — 사람별 내역', () => {
+  it('view=leave 행마다 날짜별 신청 내역이 실린다 (취소 건 제외, 최신순)', async () => {
+    await post(d1, DA, 'leave_request', { dates: ['2026-10-08', '2026-10-09'] });
+    const ids = (await get(d1, 'key', 'view=leave&year=2026')).body.pending.map((p: any) => p.id);
+    await post(d1, 'key', 'leave_review', { id: ids[0], approve: true });
+    await post(d1, 'key', 'leave_review', { id: ids[1], approve: false, note: '마감 주' });
+    /* 10/19 주는 다의 당번 주라 10/20 은 거부된다 — 나의 주(10/13)로 */
+    await post(d1, DA, 'leave_request', { dates: ['2026-10-13'] });
+    const id3 = (await get(d1, 'key', 'view=leave&year=2026')).body.pending[0].id;
+    await post(d1, DA, 'leave_cancel', { id: id3 });
+    const row = (await get(d1, 'key', 'view=leave&year=2026')).body.rows.find((r: any) => r.id === da);
+    expect(row.requests.map((r: any) => [r.leave_date, r.status])).toEqual([['2026-10-09', 'rejected'], ['2026-10-08', 'approved']]);
+    expect(row.requests[0].review_note).toBe('마감 주');
+    expect(row).toMatchObject({ approved: 1, pending: 0, remaining: 14 });
   });
 });
