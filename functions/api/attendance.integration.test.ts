@@ -233,3 +233,23 @@ describe('사장님 수정 · 월별 · CSV', () => {
     expect((await post(d1, DA, 'leave_request', { dates: ['2027-01-05'] })).body.error).toContain('확정');
   });
 });
+
+/* 2026-10-01 사장님: "직원은 관리자" — admin_role 이 editor/viewer 여도 조회는 되고 수정은 안 된다 */
+describe('직원 권한 — 조회 OK · 수정 403', () => {
+  it('editor 직원도 오늘·당번표·연차 현황을 보고, 수정·승인·확정은 못 한다', async () => {
+    await d1.prepare(`UPDATE users SET admin_role = 'editor' WHERE id = ?`).bind(na).run();
+    expect((await get(d1, NA, 'view=today')).status).toBe(200);
+    expect((await get(d1, NA, 'view=duty&from=2026-10-05&weeks=1')).status).toBe(200);
+    expect((await get(d1, NA, 'view=leave&year=2026')).body.owner).toBe(false);
+    expect((await post(d1, NA, 'edit', { user_id: na, work_date: '2026-10-05', check_in: '08:00' })).status).toBe(403);
+    expect((await post(d1, NA, 'leave_grant', { user_id: na, year: 2026, days: 30 })).status).toBe(403);
+    expect((await post(d1, NA, 'rotation', { members: [na], effective_from: '2026-10-12' })).status).toBe(403);
+  });
+
+  it('뱃지: 직원에겐 나에게 온 교체, 사장님에겐 승인 대기', async () => {
+    await post(d1, GA, 'swap_request', { to_user: na, duty_date: '2026-10-07' });
+    await post(d1, DA, 'leave_request', { dates: ['2026-10-08'] });
+    expect((await get(d1, NA, 'view=badge')).body).toMatchObject({ owner: false, my_swaps: 1, pending_leave: 1 });
+    expect((await get(d1, 'key', 'view=badge')).body).toMatchObject({ owner: true, my_swaps: 0, pending_leave: 1 });
+  });
+});

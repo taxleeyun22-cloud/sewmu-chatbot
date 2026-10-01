@@ -8,10 +8,11 @@
  * 판정 로직은 전부 _attendance-core.js (순수함수, 테스트로 고정). 여기는 DB 입출력만.
  *
  * GET  ?view=me                                  본인 화면 (attend.html)
- * GET  ?view=today                               오늘 전원              (admin↑)
- * GET  ?view=month&month=YYYY-MM[&format=csv]    월별 / CSV             (admin↑)
- * GET  ?view=duty&from=YYYY-MM-DD&weeks=N        당번표 + 교체 기록       (admin↑)
- * GET  ?view=leave&year=YYYY                     연차 부여·사용·대기      (admin↑)
+ * GET  ?view=today                               오늘 전원              (👑 관리자 누구나)
+ * GET  ?view=month&month=YYYY-MM[&format=csv]    월별 / CSV             (〃)
+ * GET  ?view=duty&from=YYYY-MM-DD&weeks=N        당번표 + 교체 기록       (〃)
+ * GET  ?view=leave&year=YYYY                     연차 부여·사용·대기      (〃)
+ * GET  ?view=badge                               사이드바 뱃지 (승인 대기 · 나에게 온 교체)
  *
  * POST ?action=punch                                          출근 (본인)
  * POST ?action=swap_request  {to_user, duty_date, return_date?, reason}   (본인)
@@ -28,7 +29,7 @@
  * POST ?action=settings      {duty_start, normal_start, grace_minutes}  owner
  */
 
-import { checkAdmin, adminUnauthorized, ownerOnly, hasAdminRole, roleForbidden, checkOriginCsrf } from "./_adminAuth.js";
+import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
 import { logAudit } from "./_audit.js";
 import {
   validYmd, validHm, addDays, isWeekday, mondayOf, weekdaysBetween,
@@ -201,11 +202,19 @@ export async function onRequestGet(context) {
 
   try {
     if (view === 'me') return await viewMe(db, auth, today);
-    if (!hasAdminRole(auth, 'admin')) return roleForbidden('admin');
-    /* 사이드바 뱃지 — 연도 무관 (12월에 낸 1월 연차도 세야 한다) */
+    /* 조회는 👑 관리자(checkAdmin 통과)면 누구나 — 사장님: "직원은 관리자". 3명이 서로 당번·출근을
+       봐야 교체가 성립한다. admin_role 이 editor/viewer 인 직원이 403 보던 것 제거.
+       수정·승인·확정은 POST 쪽에서 owner 로 막는다. */
+    /* 사이드바 뱃지 — 연도 무관 (12월에 낸 1월 연차도 세야 한다).
+       my_swaps = 나에게 온 교체 요청 (세션 직원만). 사장님은 승인 대기, 직원은 내가 답할 것. */
     if (view === 'badge') {
       const r = await db.prepare(`SELECT COUNT(*) AS c FROM staff_leave_requests WHERE status = 'pending'`).first();
-      return json({ ok: true, pending_leave: Number(r && r.c) || 0 });
+      let mySwaps = 0;
+      if (auth.userId) {
+        const s = await db.prepare(`SELECT COUNT(*) AS c FROM staff_duty_swaps WHERE to_user = ? AND status = 'pending' AND duty_date >= ?`).bind(auth.userId, today).first();
+        mySwaps = Number(s && s.c) || 0;
+      }
+      return json({ ok: true, owner: !!auth.owner, pending_leave: Number(r && r.c) || 0, my_swaps: mySwaps });
     }
     if (view === 'today') return await viewToday(db, auth, today);
     if (view === 'month') return await viewMonth(db, auth, url, today);

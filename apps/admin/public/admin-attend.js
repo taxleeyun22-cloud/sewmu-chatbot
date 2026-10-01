@@ -28,19 +28,32 @@ function openAttend() {
   if (!_atMonth) _atMonth = _atToday().slice(0, 7);
   if (!_atYear) _atYear = Number(_atToday().slice(0, 4));
   if (!_atDutyFrom) _atDutyFrom = _atMonday(_atToday());
+  /* 처음 열 때: 직원(세션 로그인 · 근태 대상)이면 '내 근태', 아니면 '오늘' (사장님) */
+  if (!_atOpened) { _atOpened = true; _atTab = _atMeOk ? 'me' : 'today'; }
   _atGo(_atTab);
   _atBadge();            // 열 때마다 대기 건수 새로 — 5분 주기만 믿으면 방금 들어온 신청이 안 보인다
 }
+var _atOpened = false, _atOwner = null, _atMeOk = false, _atMe = null, _atMeForm = null, _atMyErr = '';
 function closeAttend() {
   var m = document.getElementById('attendModal');
   if (m) m.style.display = 'none';
 }
 
-var _AT_TABS = [['today', '오늘'], ['month', '월별'], ['duty', '당번표'], ['leave', '연차 승인함'], ['grant', '연차 부여']];
-function _atTabsHtml(active, pending) {
-  return _AT_TABS.map(function (t) {
+/* 탭은 사람에 따라 다르다 — 직원: 내 근태 + 조회 / 사장님: 조회 + 승인함·부여.
+   owner 는 서버 응답(d.owner)으로 안다 (IS_OWNER 는 whoami 전 기본값 true 라 못 믿는다). */
+function _atTabList(owner, meOk) {
+  var t = [];
+  if (meOk) t.push(['me', '내 근태']);
+  t.push(['today', '오늘'], ['month', '월별'], ['duty', '당번표'], ['leave', owner ? '연차 승인함' : '연차 현황']);
+  if (owner) t.push(['grant', '연차 부여']);
+  return t;
+}
+function _atTabsHtml(active, pending, owner, meOk, mySwaps) {
+  if (owner === undefined) owner = _atOwner; if (meOk === undefined) meOk = _atMeOk; if (mySwaps === undefined) mySwaps = _atMySwaps;
+  return _atTabList(!!owner, !!meOk).map(function (t) {
+    var n = t[0] === 'leave' && owner ? pending : (t[0] === 'me' ? mySwaps : 0);
     return '<button type="button" class="at-tab' + (t[0] === active ? ' on' : '') + '" onclick="_atGo(\'' + t[0] + '\')">' + t[1]
-      + (t[0] === 'leave' && pending ? '<span class="n">' + pending + '</span>' : '') + '</button>';
+      + (n ? '<span class="n">' + n + '</span>' : '') + '</button>';
   }).join('');
 }
 
@@ -49,15 +62,17 @@ async function _atGo(tab) {
   var body = document.getElementById('atBody'), tabs = document.getElementById('atTabs');
   if (tabs) tabs.innerHTML = _atTabsHtml(tab, _atBadgeN);
   if (body) body.innerHTML = '<div class="at-empty">불러오는 중...</div>';
-  var qs = { today: 'view=today', month: 'view=month&month=' + _atMonth, duty: 'view=duty&weeks=8&from=' + _atDutyFrom,
+  var qs = { me: 'view=me', today: 'view=today', month: 'view=month&month=' + _atMonth, duty: 'view=duty&weeks=8&from=' + _atDutyFrom,
     leave: 'view=leave&year=' + _atYear, grant: 'view=leave&year=' + _atYear }[tab];
   try {
     var r = await fetch(_atUrl(qs), { credentials: 'same-origin', cache: 'no-store' });
     var d = await r.json();
     if (d.error) throw new Error(d.error);
     if (_atTab !== tab) return;           // 그 사이 다른 탭을 눌렀다
-    _atData = d;
+    if (tab === 'me') { _atMe = d; _atMeOk = true; _atMeForm = null; _atMyErr = ''; }
+    else { _atData = d; if (typeof d.owner === 'boolean') _atOwner = d.owner; }
     if (tab === 'duty') _atOrder = null;
+    if (tabs) tabs.innerHTML = _atTabsHtml(tab, _atBadgeN);   // owner 를 이제 알았으니 탭 다시
     _atRender();
   } catch (e) {
     if (body) body.innerHTML = '<div class="at-empty">불러오기 실패: ' + _atEsc(e.message) + '</div>';
@@ -65,7 +80,9 @@ async function _atGo(tab) {
 }
 function _atRender() {
   var body = document.getElementById('atBody');
-  if (!body || !_atData) return;
+  if (!body) return;
+  if (_atTab === 'me') { if (_atMe) body.innerHTML = _atMeHtml(_atMe, _atMeForm, _atMyErr); return; }
+  if (!_atData) return;
   var d = _atData;
   body.innerHTML = _atTab === 'today' ? _atTodayHtml(d)
     : _atTab === 'month' ? _atMonthHtml(d)
@@ -379,18 +396,271 @@ async function _atSaveSettings() {
 }
 
 /* ── 사이드바 뱃지 — 연차 승인 대기 ── */
-var _atBadgeN = 0;
+var _atBadgeN = 0, _atMySwaps = 0;
 async function _atBadge() {
   try {
     var r = await fetch(_atUrl('view=badge'), { credentials: 'same-origin', cache: 'no-store' });
     if (!r.ok) return;
     var d = await r.json();
+    if (typeof d.owner === 'boolean') _atOwner = d.owner;
     _atBadgeN = Number(d.pending_leave) || 0;
+    _atMySwaps = Number(d.my_swaps) || 0;
+    /* 사이드바 숫자 = 내가 처리할 것: 직원은 나에게 온 교체, 사장님은 그것 + 승인 대기 */
+    var n = _atMySwaps + (_atOwner ? _atBadgeN : 0);
     var el = document.getElementById('sbCntLeave');
-    if (el) { el.textContent = _atBadgeN; el.style.display = _atBadgeN ? '' : 'none'; }
+    if (el) { el.textContent = n; el.style.display = n ? '' : 'none'; }
     var tabs = document.getElementById('atTabs');
     if (tabs && document.getElementById('attendModal') && document.getElementById('attendModal').style.display === 'flex') tabs.innerHTML = _atTabsHtml(_atTab, _atBadgeN);
   } catch (_) {}
 }
 setTimeout(_atBadge, 2000);
 setInterval(function () { if (!document.hidden) _atBadge(); }, 5 * 60 * 1000);
+
+/* ═══════════════════════ 직원 — 홈 출근 카드 · 내 근태 탭 ═══════════════════════
+ * 2026-10-01 사장님: "나를 관리자로 보냈어 바로떠야지 관리자만 근태 출첵이라니까"
+ * 직원 = 👑 관리자 = admin.html 사용자. 출근 버튼은 admin 홈을 열면 그 자리에 있어야 한다.
+ * 데이터는 전부 /api/attendance?view=me (세션 직원만 성공). 사장님 비번 접속·근태 대상 아님 → 조용히 비움. */
+
+var _AT_WDN = _AT_WD;   /* _atDays · _AT_WD 는 파일 상단 공용 */
+function _atWeekdays(a, b) { var o = []; if (!a || !b || a > b) return o; for (var d = a, i = 0; d <= b && i < 62; d = _atAdd(d, 1), i++) { var w = _atWd(d); if (w >= 1 && w <= 5) o.push(d); } return o; }
+
+async function _atMeApi(qs, body) {
+  var r = await fetch(_atUrl(qs), { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+  var d = {}; try { d = await r.json(); } catch (_) {}
+  d._status = r.status;
+  return d;
+}
+
+/* ── 홈 카드 ── */
+function _atHomeCardHtml(d) {
+  if (!d || !d.ok) return '';
+  var t = d.today_cell || {};
+  var h = '';
+  var rec = (d.swaps && d.swaps.received) || [];
+  if (rec.length) {
+    var s = rec[0];
+    h += '<div class="ha-band"><span>' + _atEsc(s.from_name) + ' 님이 ' + _atMd(s.duty_date) + ' 당번 교체를 요청했어요' + (rec.length > 1 ? ' 외 ' + (rec.length - 1) + '건' : '') + '</span>'
+      + '<button type="button" class="ha-mini" onclick="_atOpenMe()">보기</button></div>';
+  }
+  var badge = t.duty ? '<span class="ha-pill duty">오늘 당번 · ' + _atEsc(t.start) + '</span>' : '<span class="ha-pill">오늘 기준 ' + _atEsc(t.start) + '</span>';
+  if (t.leave === 'approved') badge += ' <span class="ha-pill leave">오늘 연차</span>';
+  h += '<div class="ha-card"><div class="ha-head"><div class="ha-who"><b>' + _atEsc(d.me.name) + ' 님</b><span>' + _atMd(d.today) + '</span></div>' + badge + '</div>';
+  if (t.check_in) {
+    h += '<div class="ha-done"><span>출근 완료</span><b>' + _atEsc(t.check_in) + '</b>' + (t.late ? '<span class="ha-pill late">지각</span>' : '<span class="ha-pill ok">정상</span>') + '</div>';
+  } else if (!d.weekday) {
+    h += '<div class="ha-done"><span>오늘은 주말입니다</span></div>';
+  } else {
+    h += '<button type="button" class="ha-punch" id="haPunch" onclick="_atHomePunch()">출근</button>';
+  }
+  var L = d.leave || {};
+  h += '<div class="ha-foot"><span>' + (L.days == null ? '연차 확정 전' : '연차 잔여 <b>' + _atDays(L.remaining) + '</b>')
+    + (d.month ? ' · 이번 달 출근 ' + d.month.checked + '일' + (d.month.late ? ' · 지각 <b style="color:var(--brand-danger)">' + d.month.late + '</b>' : '') : '') + '</span>'
+    + '<button type="button" class="ha-mini" onclick="_atOpenMe()">당번·연차 →</button></div></div>';
+  return h;
+}
+var _atHomeBusy = false;
+async function _atHomeCard(force) {
+  var el = document.getElementById('homeAttend');
+  if (!el) return;
+  if (el.dataset.loaded && !force) return;
+  if (_atMe && !force) { el.innerHTML = _atHomeCardHtml(_atMe); el.dataset.loaded = '1'; return; }   // 캐시로 먼저
+  if (_atHomeBusy) return;
+  _atHomeBusy = true;
+  try {
+    var d = await _atMeApi('view=me');
+    el = document.getElementById('homeAttend'); if (!el) return;
+    if (!d.ok) { el.innerHTML = ''; el.dataset.loaded = '1'; _atMeOk = false; return; }   // 사장님 비번·대상 아님·직원 아님
+    _atMe = d; _atMeOk = true;
+    el.innerHTML = _atHomeCardHtml(d); el.dataset.loaded = '1';
+    if (_atTab === 'me' && document.getElementById('attendModal') && document.getElementById('attendModal').style.display === 'flex') _atRender();
+    _atBadge();   /* 받은 교체 요청이 있으면 사이드바 숫자도 바로 — 2초 타이머·5분 주기만으론 늦다 */
+  } catch (_) {} finally { _atHomeBusy = false; }
+}
+async function _atHomePunch() {
+  var b = document.getElementById('haPunch'); if (b) { b.disabled = true; b.textContent = '찍는 중...'; }
+  var r = await _atMeApi('action=punch', {});
+  if (r.error) { alert(r.error); if (b) { b.disabled = false; b.textContent = '출근'; } return; }
+  if (typeof showAdminToast === 'function') showAdminToast(r.already ? '이미 ' + r.check_in + ' 에 출근했어요' : '✅ ' + r.check_in + ' 출근 완료');
+  _atHomeCard(true);
+}
+function _atOpenMe() { _atOpened = true; _atTab = 'me'; openAttend(); }
+/* 홈 히어로와 같은 훅 — 모달 주입 이벤트 + 백업 폴링 (멱등: 그려져 있으면 skip) */
+try { document.addEventListener('adminModalsLoaded', function () { try { _atHomeCard(); } catch (_) {} }); } catch (_) {}
+try { [800, 1800, 3500, 6000].forEach(function (ms) { setTimeout(function () { try { _atHomeCard(); } catch (_) {} }, ms); }); } catch (_) {}
+/* 다음 날 폰에서 다시 열면 어제 카드가 남아 있다 — 다시 보일 때 새로 */
+try { document.addEventListener('visibilitychange', function () { if (!document.hidden && _atMe) _atHomeCard(true); }); } catch (_) {}
+
+/* ── 내 근태 탭 (렌더는 순수 — d·form·err 만 본다) ── */
+function _atMeHtml(d, form, err) {
+  var t = d.today_cell || {}, h = '';
+  var rec = (d.swaps && d.swaps.received) || [], sent = (d.swaps && d.swaps.sent) || [];
+  rec.forEach(function (s) {
+    h += '<div class="at-band"><div><b>' + _atEsc(s.from_name) + ' 님이 ' + _atMd(s.duty_date) + ' 당번 교체를 요청했어요</b>'
+      + (s.return_date ? '<div>대신 ' + _atMd(s.return_date) + ' 내 당번을 ' + _atEsc(s.from_name) + ' 님이 서요 (맞교환)</div>' : '')
+      + (s.reason ? '<div>사유: ' + _atEsc(s.reason) + '</div>' : '') + '</div>'
+      + '<div class="at-band-acts"><button class="at-btn pri" onclick="_atMeSwapRespond(' + s.id + ',true)">수락</button><button class="at-btn" onclick="_atMeSwapRespond(' + s.id + ',false)">거절</button></div></div>';
+  });
+
+  /* 오늘 */
+  var badge = t.duty ? '<span class="pill duty">오늘 당번 · ' + _atEsc(t.start) + '</span>' : '<span class="pill gray">오늘 기준 ' + _atEsc(t.start) + '</span>';
+  if (t.leave === 'approved') badge += ' <span class="pill leave">오늘 연차</span>';
+  h += '<div class="at-me-card"><div class="at-bar" style="margin-bottom:6px"><b style="font-size:1.1em">' + _atEsc(d.me.name) + ' 님</b><span style="color:var(--text-mute)">' + _atMd(d.today) + '</span><span class="sp"></span>' + badge + '</div>';
+  if (t.check_in) h += '<div class="at-done">출근 완료 <b>' + _atEsc(t.check_in) + '</b> ' + (t.late ? '<span class="pill late">지각</span>' : '<span class="pill ok">정상</span>') + '</div>';
+  else if (!d.weekday) h += '<div class="at-done">오늘은 주말입니다</div>';
+  else h += '<button type="button" class="at-punch" id="atMePunch" onclick="_atMePunch()">출근</button>';
+  h += '</div>';
+
+  /* 당번 */
+  var me = d.me.id, mine = (d.duty && d.duty.mine) || [];
+  var pendingDates = {}; sent.forEach(function (s) { if (s.status === 'pending') pendingDates[s.duty_date] = 1; });
+  var week = function (label, list) {
+    return '<div class="at-wk-label">' + label + '</div><div class="at-week">' + (list || []).map(function (x) {
+      return '<div class="' + (x.user_id === me ? 'me ' : '') + (x.date === d.today ? 'today' : '') + '">' + _AT_WDN[_atWd(x.date)] + '<b>' + _atEsc(x.name || '—') + '</b></div>';
+    }).join('') + '</div>';
+  };
+  h += '<div class="at-me-card"><div class="at-sec" style="margin-top:0">당번 (' + _atEsc((d.settings || {}).duty_start || '09:00') + ' 출근)</div>'
+    + week('이번 주', d.duty && d.duty.this_week) + week('다음 주', d.duty && d.duty.next_week);
+  if (form && form.kind === 'swap') h += _atSwapFormHtml(d, form.date, err);
+  if (mine.length) {
+    var byWeek = {};
+    mine.forEach(function (x) { var w = _atMonday(x); (byWeek[w] = byWeek[w] || []).push(x); });
+    h += '<div class="at-wk-label" style="margin-top:10px">내 당번 날 — 바꿀 날을 누르세요</div>';
+    Object.keys(byWeek).sort().forEach(function (w) {
+      h += '<div class="at-chips-row"><span class="at-chips-wk">' + _atMd(w).replace(/\(.\)/, '') + ' 주</span><span class="at-chips">'
+        + byWeek[w].map(function (x) {
+          return pendingDates[x] ? '<span class="at-chip wait" title="교체 요청 중">' + _AT_WDN[_atWd(x)] + '</span>'
+            : '<button type="button" class="at-chip' + (form && form.kind === 'swap' && form.date === x ? ' on' : '') + '" onclick="_atMeOpenSwap(\'' + x + '\')" aria-label="' + _atMd(x) + ' 교체 요청">' + _AT_WDN[_atWd(x)] + '</button>';
+        }).join('') + '</span></div>';
+    });
+    if (Object.keys(pendingDates).length) h += '<div style="color:var(--text-mute);font-size:.9em">회색 = 교체 요청 중</div>';
+  } else if (d.duty && (d.duty.this_week || []).every(function (x) { return !x.user_id; })) {
+    h += '<div style="color:var(--text-mute)">아직 당번 순서가 정해지지 않았어요</div>';
+  }
+  var sentShow = sent.slice(0, 5);
+  if (sentShow.length) {
+    var ST = { pending: '대기', accepted: '수락됨', declined: '거절됨', cancelled: '취소' };
+    h += '<div class="at-wk-label" style="margin-top:10px">보낸 교체 요청</div>';
+    sentShow.forEach(function (s) {
+      h += '<div class="at-row"><span class="sp">' + _atMd(s.duty_date) + ' → ' + _atEsc(s.to_name) + (s.return_date ? ' (맞교환 ' + _atMd(s.return_date) + ')' : '') + '</span>'
+        + '<span class="pill ' + (s.status === 'accepted' ? 'ok' : 'gray') + '">' + (ST[s.status] || _atEsc(s.status)) + '</span>'
+        + (s.status === 'pending' ? '<button class="at-btn dng" onclick="_atMeSwapCancel(' + s.id + ')">취소</button>' : '') + '</div>';
+    });
+  }
+  h += '</div>';
+
+  /* 연차 */
+  var L = d.leave || {};
+  h += '<div class="at-me-card"><div class="at-sec" style="margin-top:0">' + L.year + '년 연차</div>';
+  if (L.days == null) h += '<div style="color:var(--text-mute)">사장님이 올해 연차를 아직 확정하지 않았어요. 확정되면 신청할 수 있습니다.</div>';
+  else {
+    h += '<div class="at-stats"><div><b>' + _atDays(L.days) + '</b><span>부여</span></div><div><b>' + _atDays(L.approved) + '</b><span>사용</span></div><div><b style="color:var(--brand-primary)">' + _atDays(L.remaining) + '</b><span>잔여</span></div></div>'
+      + (L.pending ? '<div style="color:var(--text-mute);margin-top:4px">승인 대기 ' + L.pending + '일</div>' : '');
+    if (form && form.kind === 'leave') h += _atLeaveFormHtml(d, form, err);
+    else h += '<button type="button" class="at-btn pri" style="width:100%;margin-top:10px;padding:11px" onclick="_atMeOpenLeave()">연차 신청</button>';
+  }
+  var reqs = (L.requests || []).filter(function (r) { return r.status !== 'cancelled'; }).slice(0, 10);
+  if (reqs.length) {
+    var LS = { pending: '대기', approved: '승인', rejected: '반려' };
+    h += '<div style="margin-top:8px">';
+    reqs.forEach(function (r) {
+      h += '<div class="at-row"><span class="sp">' + _atMd(r.leave_date) + (r.review_note ? ' <span style="color:var(--text-mute)">· ' + _atEsc(r.review_note) + '</span>' : '') + '</span>'
+        + '<span class="pill ' + (r.status === 'approved' ? 'ok' : r.status === 'rejected' ? 'late' : 'gray') + '">' + (LS[r.status] || _atEsc(r.status)) + '</span>'
+        + (r.status === 'pending' ? '<button class="at-btn dng" onclick="_atMeLeaveCancel(' + r.id + ')">취소</button>' : '') + '</div>';
+    });
+    h += '</div>';
+  }
+  h += '</div>';
+
+  /* 이번 달 */
+  h += '<div class="at-me-card"><div class="at-sec" style="margin-top:0">이번 달</div><div class="at-stats two"><div><b>' + ((d.month || {}).checked || 0) + '</b><span>출근</span></div>'
+    + '<div><b' + ((d.month || {}).late ? ' style="color:var(--brand-danger)"' : '') + '>' + ((d.month || {}).late || 0) + '</b><span>지각</span></div></div>'
+    + '<div style="color:var(--text-mute);margin-top:6px;font-size:.9em">지각 기준: 당번 ' + _atEsc((d.settings || {}).duty_start) + ' · 일반 ' + _atEsc((d.settings || {}).normal_start) + ' (유예 ' + _atEsc((d.settings || {}).grace_minutes) + '분)</div>'
+    + '<div style="color:var(--text-mute);margin-top:6px;font-size:.9em">폰 홈 화면 바로가기: <b>' + _atEsc(location.origin) + '/attend.html</b></div></div>';
+  return h;
+}
+function _atSwapFormHtml(d, date, err) {
+  var opts = (d.colleagues || []).map(function (c) { return '<option value="' + c.id + '">' + _atEsc(c.name) + '</option>'; }).join('');
+  return '<div class="at-form"><div class="at-form-title">' + _atMd(date) + ' 당번 교체 요청</div>'
+    + (opts ? '<label>대신 서줄 동료</label><select id="atSwTo">' + opts + '</select>' : '<div style="color:var(--brand-danger)">교체할 동료가 없습니다</div>')
+    + '<label>맞교환 (선택) — 상대 당번 날을 내가 대신</label><input type="date" id="atSwRet" min="' + _atEsc(d.today) + '">'
+    + '<label>사유 (선택)</label><textarea id="atSwReason" rows="2" maxlength="200"></textarea>'
+    + '<div style="color:var(--text-mute);font-size:.9em;margin-top:4px">상대가 수락하면 바로 바뀝니다</div>'
+    + (err ? '<div class="at-err">' + _atEsc(err) + '</div>' : '')
+    + '<div class="at-form-acts"><button type="button" class="at-btn" onclick="_atMeCloseForm()">닫기</button>'
+    + (opts ? '<button type="button" class="at-btn pri" onclick="_atMeSendSwap(\'' + date + '\')">요청 보내기</button>' : '') + '</div></div>';
+}
+function _atLeaveFormHtml(d, form, err) {
+  return '<div class="at-form"><div class="at-form-title">연차 신청</div>'
+    + '<label>시작일</label><input type="date" id="atLvFrom" min="' + _atEsc(d.today) + '" value="' + _atEsc(form.from || '') + '" onchange="_atMeLeavePreview()">'
+    + '<label>종료일</label><input type="date" id="atLvTo" min="' + _atEsc(d.today) + '" value="' + _atEsc(form.to || '') + '" onchange="_atMeLeavePreview()">'
+    + '<div id="atLvPrev" style="color:var(--text-mute);font-size:.9em;margin-top:4px">주말은 자동으로 빠집니다. 공휴일은 직접 빼고 신청해주세요.</div>'
+    + '<label>사유 (선택)</label><textarea id="atLvReason" rows="2" maxlength="200">' + _atEsc(form.reason || '') + '</textarea>'
+    + (err ? '<div class="at-err">' + _atEsc(err) + '</div>' : '')
+    + (form.duty_date ? '<button type="button" class="at-btn" style="margin-top:6px" onclick="_atMeOpenSwap(\'' + form.duty_date + '\')">' + _atMd(form.duty_date) + ' 교체 요청하기</button>' : '')
+    + '<div class="at-form-acts"><button type="button" class="at-btn" onclick="_atMeCloseForm()">닫기</button><button type="button" class="at-btn pri" onclick="_atMeSendLeave()">신청</button></div></div>';
+}
+
+/* ── 내 근태 액션 ── */
+async function _atMeRefresh() { await _atGo('me'); _atHomeCard(true); _atBadge(); }
+async function _atMePunch() {
+  var b = document.getElementById('atMePunch'); if (b) { b.disabled = true; b.textContent = '찍는 중...'; }
+  var r = await _atMeApi('action=punch', {});
+  if (r.error) { alert(r.error); if (b) { b.disabled = false; b.textContent = '출근'; } return; }
+  if (typeof showAdminToast === 'function') showAdminToast(r.already ? '이미 ' + r.check_in + ' 에 출근했어요' : '✅ ' + r.check_in + ' 출근 완료');
+  _atMeRefresh();
+}
+async function _atMeSwapRespond(id, accept) {
+  if (!accept && !confirm('거절할까요?')) return;
+  var r = await _atMeApi('action=swap_respond', { id: id, accept: accept });
+  if (r.error) return alert(r.error);
+  if (typeof showAdminToast === 'function') showAdminToast(accept ? '교체를 수락했어요' : '거절했어요');
+  _atMeRefresh();
+}
+async function _atMeSwapCancel(id) {
+  if (!confirm('교체 요청을 취소할까요?')) return;
+  var r = await _atMeApi('action=swap_cancel', { id: id });
+  if (r.error) return alert(r.error);
+  _atMeRefresh();
+}
+async function _atMeLeaveCancel(id) {
+  if (!confirm('연차 신청을 취소할까요?')) return;
+  var r = await _atMeApi('action=leave_cancel', { id: id });
+  if (r.error) return alert(r.error);
+  _atMeRefresh();
+}
+function _atMeOpenSwap(date) { _atMeForm = { kind: 'swap', date: date }; _atMyErr = ''; _atRender(); var f = document.querySelector('#atBody .at-form'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'nearest' }); }
+function _atMeOpenLeave() { _atMeForm = { kind: 'leave' }; _atMyErr = ''; _atRender(); }
+function _atMeCloseForm() { _atMeForm = null; _atMyErr = ''; _atRender(); }
+function _atMeLeaveDates() {
+  var a = (document.getElementById('atLvFrom') || {}).value, b = (document.getElementById('atLvTo') || {}).value || a;
+  return _atWeekdays(a, b);
+}
+function _atMeLeavePreview() {
+  var f = document.getElementById('atLvFrom'), t = document.getElementById('atLvTo'), p = document.getElementById('atLvPrev');
+  if (!f || !t || !p) return;
+  if (f.value && (!t.value || t.value < f.value)) t.value = f.value;
+  var list = _atMeLeaveDates(), mine = (_atMe && _atMe.duty && _atMe.duty.mine) || [], L = (_atMe && _atMe.leave) || {};
+  var duty = list.filter(function (x) { return mine.indexOf(x) >= 0; });
+  p.innerHTML = list.length
+    ? '평일 <b>' + list.length + '일</b> 신청 · 잔여 ' + _atDays((L.remaining || 0) - (L.pending || 0))
+      + (duty.length ? '<br><span style="color:var(--brand-danger)">' + duty.map(_atMd).join(', ') + ' 은 내 당번 — 교체를 먼저 잡아야 해요</span>' : '')
+    : '평일이 없습니다';
+}
+async function _atMeSendSwap(date) {
+  var body = { duty_date: date, to_user: Number((document.getElementById('atSwTo') || {}).value),
+    return_date: (document.getElementById('atSwRet') || {}).value || null, reason: (document.getElementById('atSwReason') || {}).value };
+  var r = await _atMeApi('action=swap_request', body);
+  if (r.error) { _atMyErr = r.error; _atRender(); return; }
+  if (typeof showAdminToast === 'function') showAdminToast('교체 요청을 보냈어요');
+  _atMeRefresh();
+}
+async function _atMeSendLeave() {
+  var list = _atMeLeaveDates();
+  var keep = { kind: 'leave', from: (document.getElementById('atLvFrom') || {}).value, to: (document.getElementById('atLvTo') || {}).value, reason: (document.getElementById('atLvReason') || {}).value };
+  if (!list.length) { _atMeForm = keep; _atMyErr = '날짜를 골라주세요'; _atRender(); return; }
+  var r = await _atMeApi('action=leave_request', { dates: list, reason: keep.reason });
+  if (r.error) { keep.duty_date = r.duty_date || null; _atMeForm = keep; _atMyErr = r.error; _atRender(); return; }
+  if (typeof showAdminToast === 'function') showAdminToast(r.count + '일 신청했어요 — 사장님 승인 대기');
+  _atMeRefresh();
+}

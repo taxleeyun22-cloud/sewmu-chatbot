@@ -167,3 +167,102 @@ describe('연차 부여', () => {
     expect(M._atGrantHtml(d(true))).toContain('09:01 까지 정상');
   });
 });
+
+/* 2026-10-01 사장님: "나를 관리자로 보냈어 바로떠야지 관리자만 근태 출첵이라니까"
+   직원 = 👑 관리자 = admin 사용자. 출근 버튼은 admin 홈을 열면 그 자리에 있어야 한다.
+   여기서 지키는 것:
+    1. 홈 카드는 view=me 가 성공한 직원에게만 그려진다 — 실패(사장님 비번·대상 아님)면 빈 문자열
+    2. 출근 전엔 큰 [출근], 찍은 뒤엔 시각 + 정상/지각, 주말엔 버튼 없음
+    3. 받은 교체 요청은 홈 카드 위 띠, 내 근태 탭에서는 맨 위
+    4. 내 근태 탭: 내 당번 날은 요일 칩, 연차 미확정이면 신청 버튼 없음, 당번 날 연차 거부 시 교체 바로가기 */
+describe('admin 홈 출근 카드 · 내 근태 탭', () => {
+  const src = readFileSync('admin-attend.js', 'utf8');
+  const M2 = new Function('setTimeout', 'setInterval', 'fetch', 'document', 'location',
+    src + '\nreturn { _atHomeCardHtml, _atMeHtml, _atTabsHtml, _atTabList };')(
+    () => 0, () => 0, () => Promise.reject(new Error('no fetch')),
+    { addEventListener: () => {}, getElementById: () => null, querySelector: () => null }, { origin: 'https://x.test' },
+  ) as Record<string, (...a: unknown[]) => any>;
+
+  const me = (over: Record<string, unknown> = {}) => ({
+    ok: true, today: '2026-10-05', now: '2026-10-05 08:50:00', weekday: true,
+    me: { id: 12, name: '박나래' }, settings,
+    today_cell: cell({ start: '09:30' }),
+    duty: {
+      this_week: ['05', '06', '07', '08', '09'].map((x) => ({ date: '2026-10-' + x, user_id: 11, name: '김가영' })),
+      next_week: ['12', '13', '14', '15', '16'].map((x) => ({ date: '2026-10-' + x, user_id: 12, name: '박나래' })),
+      mine: ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16'],
+    },
+    swaps: { received: [], sent: [] },
+    colleagues: [{ id: 11, name: '김가영' }, { id: 13, name: '최다인' }],
+    leave: { year: 2026, days: 15, approved: 1, pending: 0, remaining: 14, requests: [] },
+    month: { checked: 3, late: 1 },
+    ...over,
+  });
+
+  it('홈 카드: 출근 전 — 큰 [출근] 버튼 + 기준시각 + 잔여 연차', () => {
+    const h = M2._atHomeCardHtml(me());
+    expect(h).toContain('id="haPunch"');
+    expect(h).toContain('오늘 기준 09:30');
+    expect(h).toContain('연차 잔여 <b>14일</b>');
+    expect(h).toContain('박나래 님');
+  });
+
+  it('홈 카드: 찍은 뒤 — 시각과 지각', () => {
+    const h = M2._atHomeCardHtml(me({ today_cell: cell({ duty: true, start: '09:00', check_in: '09:05', late: true }) }));
+    expect(h).not.toContain('haPunch');
+    expect(h).toContain('<b>09:05</b>');
+    expect(h).toContain('ha-pill late">지각');
+    expect(h).toContain('오늘 당번 · 09:00');
+  });
+
+  it('홈 카드: 주말엔 버튼 없음, 실패 응답이면 빈 문자열', () => {
+    expect(M2._atHomeCardHtml(me({ weekday: false }))).not.toContain('haPunch');
+    expect(M2._atHomeCardHtml(me({ weekday: false }))).toContain('주말');
+    expect(M2._atHomeCardHtml({ error: '세션 로그인 후 사용해주세요', _status: 400 })).toBe('');
+    expect(M2._atHomeCardHtml(null)).toBe('');
+  });
+
+  it('홈 카드: 받은 교체 요청은 띠로', () => {
+    const h = M2._atHomeCardHtml(me({ swaps: { received: [{ id: 1, from_name: '김가영', duty_date: '2026-10-07' }, { id: 2, from_name: '최다인', duty_date: '2026-10-08' }], sent: [] } }));
+    expect(h).toContain('ha-band');
+    expect(h).toContain('김가영 님이 10/7(수) 당번 교체를 요청했어요 외 1건');
+    expect(h.indexOf('ha-band')).toBeLessThan(h.indexOf('ha-card'));
+  });
+
+  it('내 근태: 받은 요청이 맨 위, 내 당번 날은 요일 칩, 요청 중인 날은 회색', () => {
+    const d = me({ swaps: { received: [{ id: 1, from_name: '김가영', duty_date: '2026-10-07', reason: '병원' }], sent: [{ id: 5, status: 'pending', duty_date: '2026-10-13', to_name: '최다인' }] } });
+    const h = M2._atMeHtml(d, null, '');
+    expect(h.indexOf('at-band')).toBeLessThan(h.indexOf('at-me-card'));
+    expect(h).toContain('_atMeSwapRespond(1,true)');
+    expect(h).toContain('aria-label="10/12(월) 교체 요청"');
+    expect(h).toContain('class="at-chip wait"');           // 10/13 요청 중
+    expect(h).not.toContain('aria-label="10/13(화) 교체 요청"');
+    expect(h).toContain('_atMeSwapCancel(5)');
+  });
+
+  it('내 근태: 연차 미확정이면 신청 버튼이 없다', () => {
+    const h = M2._atMeHtml(me({ leave: { year: 2026, days: null, approved: 0, pending: 0, remaining: null, requests: [] } }), null, '');
+    expect(h).toContain('확정하지 않았어요');
+    expect(h).not.toContain('_atMeOpenLeave');
+  });
+
+  it('내 근태: 교체 폼은 동료 select, 연차 폼은 당번 거부 시 교체 바로가기', () => {
+    const sw = M2._atMeHtml(me(), { kind: 'swap', date: '2026-10-12' }, '');
+    expect(sw).toContain('id="atSwTo"');
+    expect(sw).toContain('<option value="11">김가영</option>');
+    expect(sw).toContain('class="at-chip on"');
+    const lv = M2._atMeHtml(me(), { kind: 'leave', from: '2026-10-12', to: '2026-10-12' }, '10/12(월) 은 당번입니다. 먼저 교체를 잡아주세요');
+    expect(lv).toContain('at-err');
+    expect(lv).not.toContain('교체 요청하기');   // duty_date 없으면 폼 안 바로가기 없음 (당번 칩의 onclick 과는 별개)
+    const lv2 = M2._atMeHtml(me(), { kind: 'leave', duty_date: '2026-10-12' }, '당번');
+    expect(lv2).toContain('10/12(월) 교체 요청하기');
+  });
+
+  it('탭: 직원은 내 근태 + 조회(연차 현황), 사장님은 승인함·부여', () => {
+    expect(M2._atTabList(false, true).map((t: string[]) => t[0])).toEqual(['me', 'today', 'month', 'duty', 'leave']);
+    expect(M2._atTabList(true, false).map((t: string[]) => t[0])).toEqual(['today', 'month', 'duty', 'leave', 'grant']);
+    expect(M2._atTabsHtml('me', 3, false, true, 2)).toContain('내 근태<span class="n">2</span>');
+    expect(M2._atTabsHtml('me', 3, false, true, 2)).not.toContain('연차 현황<span');
+    expect(M2._atTabsHtml('today', 3, true, false, 0)).toContain('연차 승인함<span class="n">3</span>');
+  });
+});
