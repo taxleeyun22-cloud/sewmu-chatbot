@@ -48,6 +48,7 @@ const FILES = [
   'admin-owner-export.js',
   'admin-custdash-grid.js',
   'admin-attend.js',            // 근태·당번·연차 사장님 모달 (2026-10-01)
+  'admin-ptr.js',               // 폰 당겨서 새로고침 (2026-10-02)
   // 거래처/공통
   'business.js',
   'index.js',

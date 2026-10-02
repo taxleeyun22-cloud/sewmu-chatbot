@@ -305,7 +305,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=101', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=102', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -318,6 +318,8 @@ setTimeout(function(){
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script src="/admin.js?v=233"></script>
+<!-- 📱 폰 당겨서 새로고침 (2026-10-02 사장님) — body overflow:hidden + PWA 라 브라우저 기본 기능이 안 뜬다 -->
+<script src="/admin-ptr.js?v=1"></script>
 <!-- 모듈화 #3 Step9 (2026-05-18): PC 알림 admin.js 에서 분리 (classic, admin.js 다음 로드) -->
 <script src="/admin-pc-notify.js?v=1"></script>
 <!-- 모듈화 #3 Step10 (2026-05-18): owner 전체 내보내기 admin.js 에서 분리 -->
@@ -342,7 +344,7 @@ setTimeout(function(){
 <script src="/admin-guides.js?v=3"></script>
 <script src="/admin-sales.js?v=1"></script>
 <!-- 🕘 근태·당번·연차 (2026-10-01) — 모달은 modals/45-attend.html -->
-<script src="/admin-attend.js?v=9"></script>
+<script src="/admin-attend.js?v=10"></script>
 <!-- Phase 2 (2026-05-07): 신고 검토표 시스템 (사장님 명세) -->
 <script src="/admin-filing-review.js?v=38"></script>
 
