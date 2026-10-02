@@ -188,8 +188,12 @@ function _atDutyHtml(d, order) {
   var h = '<div class="at-bar"><button class="at-btn" onclick="_atDutyFrom=_atAdd(_atDutyFrom,-28);_atGo(\'duty\')">◀ 4주</button>'
     + '<b>' + _atMd(d.from) + ' 부터 ' + d.weeks + '주</b>'
     + '<button class="at-btn" onclick="_atDutyFrom=_atAdd(_atDutyFrom,28);_atGo(\'duty\')">4주 ▶</button>'
-    + '<span class="sp"></span><span style="color:var(--text-mute)">당번 ' + '09:00 · 나머지 09:30</span></div>';
+    + '<span class="sp"></span><span style="color:var(--text-mute)">당번 09:00 · 나머지 09:30 · 당번 없는 날은 전원 09:00</span></div>';
   if (!d.staff.length) return h + _atNoStaffHtml();
+  /* 사장님 2026-10-02 "당번표에서 교체 요청 이런 거 있음 좋을 듯" — 내 당번 칸(오늘 이후)에 [교체] 버튼.
+     이미 보낸 요청이 대기 중이면 버튼 대신 "요청 중". 요청 폼은 내 근태 탭의 것을 그대로 연다. */
+  var meId = d.me_id || null, swapPending = {};
+  (d.swaps || []).forEach(function (s) { if (s.status === 'pending' && s.from_user === meId) swapPending[s.duty_date] = 1; });
 
   /* 순서 */
   var cur = d.rotation;
@@ -250,12 +254,16 @@ function _atDutyHtml(d, order) {
           + d.staff.map(function (s) { return '<option value="' + s.id + '"' + (s.id === x.user_id ? ' selected' : '') + '>' + _atEsc(s.name) + '</option>'; }).join('')
           + '</select>' + tag + warn + '</td>';
       } else {
-        h += '<td' + today + '>' + _atEsc(x.name || '—') + tag + warn + '</td>';
+        var mine = meId && x.user_id === meId && x.date >= d.today;
+        var act = !mine ? '' : swapPending[x.date] ? ' <span class="pill gray">요청 중</span>'
+          : ' <button type="button" class="at-btn at-swapbtn" onclick="_atDutySwap(\'' + x.date + '\')" aria-label="' + _atMd(x.date) + ' 당번 교체 요청">교체</button>';
+        h += '<td' + today + (mine ? ' class="mine"' : '') + '>' + _atEsc(x.name || '—') + tag + warn + act + '</td>';
       }
     });
     h += '</tr>';
   });
   h += '</tbody></table>';
+  if (!d.owner && meId) h += '<div style="color:var(--text-mute);font-size:.9em;margin-top:6px">내 당번 날의 [교체] 를 누르면 동료에게 교체를 요청합니다. 상대가 수락하면 바로 바뀝니다.</div>';
 
   /* 교체 기록 */
   var ST = { pending: '대기', accepted: '수락', declined: '거절', cancelled: '취소' };
@@ -971,6 +979,8 @@ async function _atMeLeaveCancel(id) {
   _atMeRefresh();
 }
 function _atMeOpenSwap(date) { _atMeForm = { kind: 'swap', date: date }; _atMyErr = ''; _atRender(); var f = document.querySelector('#atBody .at-form'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'nearest' }); }
+/* 당번표 [교체] → 내 근태 탭으로 넘어가 그 날짜의 교체 폼을 연다 (사장님 2026-10-02) */
+async function _atDutySwap(date) { await _atGo('me'); if (_atTab !== 'me' || !_atMe) return; _atMeOpenSwap(date); }
 function _atMeOpenLeave() { _atMeForm = { kind: 'leave' }; _atMyErr = ''; _atRender(); }
 function _atMeCloseForm() { _atMeForm = null; _atMyErr = ''; _atRender(); }
 /* 달력 다시 그리기 전에 적어둔 사유를 잃지 않게 */

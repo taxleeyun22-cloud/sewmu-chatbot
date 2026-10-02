@@ -151,6 +151,25 @@ describe('당번표', () => {
     expect(viewer).not.toContain('_atOrdMove');
   });
 
+  /* 사장님 2026-10-02: "당번표에서 교체 요청 이런 거 있음 좋을 듯" */
+  it('직원: 내 당번 칸(오늘 이후)에만 [교체] 버튼, 보낸 요청이 대기 중이면 "요청 중"', () => {
+    const x = { ...d(false), me_id: 11, today: '2026-10-06',
+      swaps: [{ id: 2, from_user: 11, to_user: 12, from_name: '가', to_name: '나', duty_date: '2026-10-08', return_date: null, reason: '', status: 'pending', requested_at: '2026-10-05 10:00:00' }] };
+    const h = M._atDutyHtml(x, null);
+    expect(h).not.toContain("_atDutySwap('2026-10-05')");     // 지난 날
+    expect(h).toContain("_atDutySwap('2026-10-06')");         // 오늘
+    expect(h).not.toContain("_atDutySwap('2026-10-07')");     // 나(12) 당번
+    expect(h).not.toContain("_atDutySwap('2026-10-08')");     // 요청 중
+    expect(h).toContain('요청 중');
+    expect(h).toContain("_atDutySwap('2026-10-09')");
+    expect(h).toContain('내 당번 날의 [교체]');
+  });
+
+  it('me_id 가 없으면(사장님 비번 접속) 교체 버튼 없음, owner 화면에도 없음', () => {
+    expect(M._atDutyHtml({ ...d(false), me_id: null }, null)).not.toContain('_atDutySwap');
+    expect(M._atDutyHtml({ ...d(true), me_id: 11 }, null)).not.toContain('_atDutySwap');
+  });
+
   it('공휴일 칸은 "휴" + 이름, select 없음', () => {
     const x = d(true);
     x.grid[0].days[4] = { ...x.grid[0].days[4], holiday: '한글날', user_id: null, name: null } as any;
