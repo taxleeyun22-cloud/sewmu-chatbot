@@ -190,10 +190,21 @@ function _atDutyHtml(d, order) {
   }
 
   /* 표 */
-  h += '<div class="at-sec">당번표' + (d.owner ? ' — 칸에서 하루만 다른 사람으로 바꿀 수 있습니다' : '') + '</div>'
-    + '<table class="at-grid"><thead><tr><th class="nm">주</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr></thead><tbody>';
+  h += '<div class="at-sec">당번표' + (d.owner ? ' — 칸에서 하루만, [주 전체] 로 그 주 월~금을 한 번에 바꿀 수 있습니다' : '') + '</div>'
+    + '<table class="at-grid"><thead><tr><th class="nm">주</th>' + (d.owner ? '<th>주 전체</th>' : '') + '<th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr></thead><tbody>';
   d.grid.forEach(function (w) {
-    h += '<tr><td class="nm">' + _atMd(w.monday).replace(/\(.\)/, '') + '~</td>';
+    var wkLabel = _atMd(w.monday).replace(/\(.\)/, '');
+    h += '<tr><td class="nm">' + wkLabel + '~</td>';
+    if (d.owner) {
+      /* 월~금 전부 사장님 지정이고 같은 사람이면 그 사람이 선택된 상태로 */
+      var ov = w.days.map(function (x) { return x.override === 'owner' ? x.user_id : null; });
+      var wkUser = ov.length && ov.every(function (u) { return u && u === ov[0]; }) ? ov[0] : null;
+      var anyOv = w.days.some(function (x) { return x.override; });
+      h += '<td><select onchange="_atDutySetWeek(\'' + w.monday + '\',this.value)" aria-label="' + wkLabel + ' 주 전체 당번">'
+        + '<option value="">' + (anyOv ? '↺ 순서대로' : '주 전체') + '</option>'
+        + d.staff.map(function (s) { return '<option value="' + s.id + '"' + (s.id === wkUser ? ' selected' : '') + '>' + _atEsc(s.name) + '</option>'; }).join('')
+        + '</select></td>';
+    }
     w.days.forEach(function (x) {
       var tag = x.override === 'swap' ? ' <span class="pill gray">교체</span>' : x.override === 'owner' ? ' <span class="pill gray">지정</span>' : '';
       var warn = x.on_leave ? ' <span class="pill late">연차</span>' : '';
@@ -396,6 +407,15 @@ async function _atSaveRotation() {
 async function _atDutySet(date, val) {
   var ok = val ? await _atPost('duty_set', { duty_date: date, user_id: Number(val) }, '✅ ' + _atMd(date) + ' 당번 지정됨')
     : await _atPost('duty_set', { duty_date: date, clear: true }, '↺ ' + _atMd(date) + ' 순서대로');
+  _atGo('duty');
+  return ok;
+}
+/* 사장님 2026-10-02: "한주씩 일괄지정" — 그 주 월~금 5칸을 한 번에 */
+async function _atDutySetWeek(monday, val) {
+  var wk = _atMd(monday).replace(/\(.\)/, '') + ' 주';
+  if (!val && !confirm(wk + ' 월~금 지정(교체 포함)을 모두 지우고 순서대로 돌릴까요?')) { _atGo('duty'); return false; }
+  var ok = val ? await _atPost('duty_set_week', { monday: monday, user_id: Number(val) }, '✅ ' + wk + ' 월~금 당번 지정됨')
+    : await _atPost('duty_set_week', { monday: monday, clear: true }, '↺ ' + wk + ' 순서대로');
   _atGo('duty');
   return ok;
 }

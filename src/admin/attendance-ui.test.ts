@@ -111,6 +111,21 @@ describe('당번표', () => {
     expect(viewer).not.toContain('_atDutySet(');
     expect(viewer).not.toContain('_atOrdMove');
   });
+
+  it('owner 만 [주 전체] 일괄 지정이 보이고, 월~금 전부 같은 사람 지정이면 그 사람이 선택돼 있다', () => {
+    const x = d(true);
+    const h0 = M._atDutyHtml(x, null);
+    expect(h0).toContain("_atDutySetWeek('2026-10-05'");
+    expect(h0).toContain('<th>주 전체</th>');
+    expect(M._atDutyHtml(d(false), null)).not.toContain('_atDutySetWeek');
+    expect(M._atDutyHtml(d(false), null)).not.toContain('주 전체');
+    x.grid[0].days.forEach((c) => { c.user_id = 13; c.name = '다'; c.override = 'owner'; });
+    const h = M._atDutyHtml(x, null);
+    const i = h.indexOf('_atDutySetWeek');
+    const wk = h.slice(i, h.indexOf('</select>', i));
+    expect(wk).toContain('value="13" selected');
+    expect(wk).toContain('↺ 순서대로');
+  });
 });
 
 describe('연차 승인함', () => {

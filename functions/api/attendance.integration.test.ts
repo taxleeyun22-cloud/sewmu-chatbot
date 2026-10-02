@@ -215,6 +215,30 @@ describe('사장님 수정 · 월별 · CSV', () => {
     expect((await post(d1, 'key', 'duty_set', { duty_date: '2026-10-08', user_id: da, force: true })).body.ok).toBe(true);
   });
 
+  it('주 전체 일괄 지정 — 월~금 5칸, 연차 끼면 확인, 지우면 순서대로, 직원은 403', async () => {
+    const r = await post(d1, 'key', 'duty_set_week', { monday: '2026-10-12', user_id: da });
+    expect(r.body).toMatchObject({ ok: true, days: 5 });
+    let duty = (await get(d1, 'key', 'view=duty&from=2026-10-12&weeks=1')).body;
+    expect(duty.grid[0].days.map((x: any) => [x.user_id, x.override])).toEqual(Array(5).fill([da, 'owner']));
+    /* 월요일이 아니면 거절 */
+    expect((await post(d1, 'key', 'duty_set_week', { monday: '2026-10-13', user_id: da })).status).toBe(400);
+    /* 그 주에 연차 승인된 사람을 넣으면 한 번 더 확인 (어느 날인지 알려준다) */
+    await post(d1, NA, 'leave_request', { dates: ['2026-10-14'] });
+    const id = (await get(d1, 'key', 'view=leave&year=2026')).body.pending[0].id;
+    await post(d1, 'key', 'leave_review', { id, approve: true });
+    const c = await post(d1, 'key', 'duty_set_week', { monday: '2026-10-12', user_id: na });
+    expect(c.status).toBe(409);
+    expect(c.body).toMatchObject({ need_force: true, leave_dates: ['2026-10-14'] });
+    expect((await post(d1, 'key', 'duty_set_week', { monday: '2026-10-12', user_id: na, force: true })).body.ok).toBe(true);
+    /* 지우면 그 주는 다시 순서대로 (10/12 주 = 나 차례) */
+    expect((await post(d1, 'key', 'duty_set_week', { monday: '2026-10-12', clear: true })).body.ok).toBe(true);
+    duty = (await get(d1, 'key', 'view=duty&from=2026-10-12&weeks=1')).body;
+    expect(duty.grid[0].days.every((x: any) => x.user_id === na && !x.override)).toBe(true);
+    /* 다른 주는 손대지 않았다 */
+    expect((await get(d1, 'key', 'view=duty&from=2026-10-05&weeks=1')).body.grid[0].days.every((x: any) => x.user_id === ga && !x.override)).toBe(true);
+    expect((await post(d1, GA, 'duty_set_week', { monday: '2026-10-12', user_id: ga })).status).toBe(403);
+  });
+
   it('순서를 바꿔도 지난 주 당번은 그대로', async () => {
     await post(d1, 'key', 'rotation', { members: [da, ga, na], effective_from: '2026-10-19' });
     const duty = (await get(d1, 'key', 'view=duty&from=2026-10-05&weeks=3')).body;
