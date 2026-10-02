@@ -109,12 +109,16 @@ function _atCellHtml(c) {
   return s;
 }
 
+/* 주말 / 공휴일 안내 문구 (오늘 화면·홈 카드·내 근태 공통) */
+function _atOffdayText(d) {
+  return d.holiday ? '오늘은 공휴일입니다 (' + _atEsc(d.holiday) + ')' : '오늘은 주말입니다';
+}
 function _atTodayHtml(d) {
   var h = '<div class="at-bar"><b>' + _atMd(d.today) + '</b>'
     + (d.duty_name ? '<span class="pill duty">당번 ' + _atEsc(d.duty_name) + ' · ' + _atEsc(d.settings.duty_start) + '</span>' : '')
     + '<span style="color:var(--text-mute)">일반 ' + _atEsc(d.settings.normal_start) + ' · 유예 ' + d.settings.grace_minutes + '분</span>'
     + '<span class="sp"></span><button class="at-btn" onclick="_atGo(\'today\')">새로고침</button></div>';
-  if (!d.weekday) h += '<div class="at-note">오늘은 주말입니다.</div>';
+  if (!d.weekday) h += '<div class="at-note">' + _atOffdayText(d) + '.</div>';
   if (!d.rows.length) return h + _atNoStaffHtml();
   h += '<table><thead><tr><th>직원</th><th>기준</th><th>출근</th><th>상태</th></tr></thead><tbody>';
   d.rows.forEach(function (r) {
@@ -137,20 +141,42 @@ function _atMonthHtml(d) {
     + '<span style="color:var(--text-mute)"><span class="dot"></span>당번 · <span class="late">빨강</span> 지각' + (d.owner ? ' · 칸을 누르면 수정' : '') + '</span>'
     + '<span class="sp"></span><button class="at-btn pri" onclick="_atCsv()">엑셀(CSV) 받기</button></div>';
   if (!d.rows.length) return h + _atNoStaffHtml();
+  var hol = d.holidays || {};
   h += '<div style="overflow-x:auto"><table class="at-grid"><thead><tr><th class="nm">직원</th>';
-  dates.forEach(function (x) { h += '<th>' + Number(x.slice(8)) + '<br>' + _AT_WD[_atWd(x)] + '</th>'; });
+  dates.forEach(function (x) { h += '<th' + (hol[x] ? ' class="holi" title="' + _atEsc(hol[x]) + '"' : '') + '>' + Number(x.slice(8)) + '<br>' + _AT_WD[_atWd(x)] + '</th>'; });
   h += '<th>출근</th><th>지각</th><th>연차</th><th>당번</th></tr></thead><tbody>';
   d.rows.forEach(function (r) {
     h += '<tr><td class="nm"><b>' + _atEsc(r.name) + '</b></td>';
     dates.forEach(function (x) {
-      var c = r.cells[x], we = _atWd(x) === 0 || _atWd(x) === 6;
+      var c = r.cells[x], we = _atWd(x) === 0 || _atWd(x) === 6 || !!hol[x];
       h += '<td class="' + (we ? 'we ' : '') + (d.owner ? 'click' : '') + '"'
         + (d.owner ? ' onclick="_atEdit(' + r.id + ',\'' + x + '\')"' : '')
         + (c && c.note ? ' title="' + _atEsc(c.note) + '"' : '') + '>' + _atCellHtml(c) + '</td>';
     });
     h += '<td>' + r.sum.checked + '</td><td class="' + (r.sum.late ? 'late' : '') + '">' + r.sum.late + '</td><td>' + r.sum.leave + '</td><td>' + r.sum.duty + '</td></tr>';
   });
-  return h + '</tbody></table></div>';
+  h += '</tbody></table></div>';
+  var holList = Object.keys(hol).sort();
+  if (holList.length) h += '<div style="color:var(--text-mute);font-size:.9em;margin-top:6px">공휴일: ' + holList.map(function (x) { return _atMd(x) + ' ' + _atEsc(hol[x]); }).join(' · ') + '</div>';
+  return h + _atMonthLeaveHtml(d);
+}
+/* 사장님 2026-10-02: "월별로 직원별로 연차 언제 썼는지 체크 좀 하자" */
+function _atMonthLeaveHtml(d) {
+  var h = '<div class="at-sec">이달 연차 — 직원별</div>';
+  var any = false;
+  h += '<table><thead><tr><th>직원</th><th>연차(승인)</th><th>대기</th><th>합계</th></tr></thead><tbody>';
+  d.rows.forEach(function (r) {
+    var ap = [], pd = [];
+    Object.keys(r.cells).sort().forEach(function (x) { var c = r.cells[x]; if (c.leave === 'approved') ap.push(x); else if (c.leave === 'pending') pd.push(x); });
+    if (ap.length || pd.length) any = true;
+    h += '<tr><td><b>' + _atEsc(r.name) + '</b></td>'
+      + '<td>' + (ap.length ? ap.map(function (x) { return '<span class="pill leave" style="margin:1px 2px 1px 0">' + _atMd(x) + '</span>'; }).join('') : '<span style="color:var(--text-mute)">—</span>') + '</td>'
+      + '<td>' + (pd.length ? pd.map(function (x) { return '<span class="pill gray" style="margin:1px 2px 1px 0">' + _atMd(x) + '</span>'; }).join('') : '') + '</td>'
+      + '<td><b>' + ap.length + '</b>일' + (pd.length ? ' <span style="color:var(--text-mute)">(+대기 ' + pd.length + ')</span>' : '') + '</td></tr>';
+  });
+  h += '</tbody></table>';
+  if (!any) h += '<div style="color:var(--text-mute)">이달에 쓴 연차가 없습니다</div>';
+  return h;
 }
 
 function _atDutyHtml(d, order) {
@@ -209,6 +235,10 @@ function _atDutyHtml(d, order) {
       var tag = x.override === 'swap' ? ' <span class="pill gray">교체</span>' : x.override === 'owner' ? ' <span class="pill gray">지정</span>' : '';
       var warn = x.on_leave ? ' <span class="pill late">연차</span>' : '';
       var today = x.date === d.today ? ' style="outline:2px solid var(--brand-primary);outline-offset:-2px"' : '';
+      if (x.holiday) {
+        h += '<td class="we holi"' + today + ' title="' + _atEsc(x.holiday) + '"><span class="pill late">휴</span><div style="font-size:.78em;color:var(--text-mute);white-space:normal;max-width:90px">' + _atEsc(x.holiday) + '</div></td>';
+        return;
+      }
       if (d.owner) {
         h += '<td' + today + '><select onchange="_atDutySet(\'' + x.date + '\',this.value)">'
           + '<option value="">' + (x.override ? '↺ 순서대로' : '—') + '</option>'
@@ -302,7 +332,47 @@ function _atGrantHtml(d) {
   } else {
     h += '<div>당번 ' + _atEsc(s.duty_start) + ' · 일반 ' + _atEsc(s.normal_start) + ' · 유예 ' + _atEsc(s.grace_minutes) + '분</div>';
   }
-  return h + _atLinkHtml();
+  return h + _atHolidaysHtml(d) + _atLinkHtml();
+}
+
+/* 사장님 2026-10-02: "법정공휴일은 체크 안되나" — 공휴일엔 당번·연차가 없다.
+ * 날짜 고정 공휴일·대체공휴일은 코드가 계산하고, 음력 명절·선거일·임시공휴일은 여기서 등록한다. */
+function _atHolidaysHtml(d) {
+  var list = d.holidays || [], y = d.year;
+  var SRC = { fixed: ['법정', 'gray'], substitute: ['대체', 'gray'], seed: ['등록', 'leave'], owner: ['등록', 'leave'] };
+  var h = '<div class="at-sec">' + y + '년 공휴일 — 당번 없음 · 연차에서 빠짐</div>'
+    + '<div class="at-note">날짜가 정해진 공휴일(신정·삼일절·어린이날·현충일·광복절·개천절·한글날·성탄절)과 대체공휴일은 자동입니다. '
+    + '<b>설날·추석·부처님오신날(음력)과 선거일·임시공휴일은 해마다 여기서 등록</b>해주세요. 2026년 명절은 넣어 두었으니 틀린 게 있으면 지우고 다시 넣으면 됩니다.</div>';
+  if (!list.length) h += '<div style="color:var(--text-mute)">등록된 공휴일이 없습니다</div>';
+  else {
+    h += '<div style="display:flex;flex-wrap:wrap;gap:4px 10px">';
+    list.forEach(function (x) {
+      var s = SRC[x.source] || [x.source, 'gray'];
+      h += '<span class="at-row" style="border:0;padding:3px 0;gap:6px"><span style="min-width:62px">' + _atMd(x.ymd) + '</span><b>' + _atEsc(x.name) + '</b>'
+        + '<span class="pill ' + s[1] + '">' + s[0] + '</span>'
+        + (d.owner && (x.source === 'owner' || x.source === 'seed') ? '<button type="button" class="at-btn dng" style="padding:2px 7px" onclick="_atHolidayDel(\'' + x.ymd + '\')" aria-label="' + _atMd(x.ymd) + ' 공휴일 삭제">삭제</button>' : '')
+        + '</span>';
+    });
+    h += '</div>';
+  }
+  if (d.owner) {
+    h += '<div class="at-bar" style="margin-top:8px"><input type="date" id="atHolYmd" min="' + y + '-01-01" max="' + (y + 1) + '-12-31">'
+      + '<input type="text" id="atHolName" placeholder="이름 (예: 설날 연휴)" maxlength="30" style="width:160px">'
+      + '<select id="atHolSub"><option value="">대체공휴일 없음</option><option value="weekend">토·일 겹치면 대체</option><option value="sunday">일요일·다른 공휴일 겹치면 대체 (설·추석)</option></select>'
+      + '<button class="at-btn pri" onclick="_atHolidayAdd()">공휴일 추가</button></div>';
+  }
+  return h;
+}
+async function _atHolidayAdd() {
+  var ymd = (document.getElementById('atHolYmd') || {}).value, name = ((document.getElementById('atHolName') || {}).value || '').trim();
+  var sub = (document.getElementById('atHolSub') || {}).value || null;
+  if (!ymd) { alert('날짜를 골라주세요'); return; }
+  if (!name) { alert('공휴일 이름을 적어주세요'); return; }
+  if (await _atPost('holiday_add', { ymd: ymd, name: name, sub: sub }, '✅ ' + _atMd(ymd) + ' ' + name + ' 등록')) _atGo('grant');
+}
+async function _atHolidayDel(ymd) {
+  if (!confirm(_atMd(ymd) + ' 공휴일 등록을 지울까요? (그날 당번이 다시 생기고 연차 신청이 됩니다)')) return;
+  if (await _atPost('holiday_del', { ymd: ymd }, '삭제됨')) _atGo('grant');
 }
 
 /* 사람별 연차 내역 (사장님: "누가 몇 개 남았고 언제 썼고 이런 걸 개별로 좀 보면") */
@@ -497,7 +567,7 @@ function _atHomeCardHtml(d) {
   if (t.check_in) {
     h += '<div class="ha-done"><span>출근 완료</span><b>' + _atEsc(t.check_in) + '</b>' + (t.late ? '<span class="ha-pill late">지각</span>' : '<span class="ha-pill ok">정상</span>') + '</div>';
   } else if (!d.weekday) {
-    h += '<div class="ha-done"><span>오늘은 주말입니다</span></div>';
+    h += '<div class="ha-done"><span>' + _atOffdayText(d) + '</span></div>';
   } else {
     h += '<button type="button" class="ha-punch" id="haPunch" onclick="_atHomePunch()">출근</button>';
   }
@@ -555,7 +625,7 @@ function _atMeHtml(d, form, err) {
   if (t.leave === 'approved') badge += ' <span class="pill leave">오늘 연차</span>';
   h += '<div class="at-me-card"><div class="at-bar" style="margin-bottom:6px"><b style="font-size:1.1em">' + _atEsc(d.me.name) + ' 님</b><span style="color:var(--text-mute)">' + _atMd(d.today) + '</span><span class="sp"></span>' + badge + '</div>';
   if (t.check_in) h += '<div class="at-done">출근 완료 <b>' + _atEsc(t.check_in) + '</b> ' + (t.late ? '<span class="pill late">지각</span>' : '<span class="pill ok">정상</span>') + '</div>';
-  else if (!d.weekday) h += '<div class="at-done">오늘은 주말입니다</div>';
+  else if (!d.weekday) h += '<div class="at-done">' + _atOffdayText(d) + '</div>';
   else h += '<button type="button" class="at-punch" id="atMePunch" onclick="_atMePunch()">출근</button>';
   h += '</div>';
 
@@ -564,7 +634,8 @@ function _atMeHtml(d, form, err) {
   var pendingDates = {}; sent.forEach(function (s) { if (s.status === 'pending') pendingDates[s.duty_date] = 1; });
   var week = function (label, list) {
     return '<div class="at-wk-label">' + label + '</div><div class="at-week">' + (list || []).map(function (x) {
-      return '<div class="' + (x.user_id === me ? 'me ' : '') + (x.date === d.today ? 'today' : '') + '">' + _AT_WDN[_atWd(x.date)] + '<b>' + _atEsc(x.name || '—') + '</b></div>';
+      return '<div class="' + (x.holiday ? 'holi ' : x.user_id === me ? 'me ' : '') + (x.date === d.today ? 'today' : '') + '"' + (x.holiday ? ' title="' + _atEsc(x.holiday) + '"' : '') + '>'
+        + _AT_WDN[_atWd(x.date)] + '<b>' + (x.holiday ? '휴' : _atEsc(x.name || '—')) + '</b></div>';
     }).join('') + '</div>';
   };
   h += '<div class="at-me-card"><div class="at-sec" style="margin-top:0">당번 (' + _atEsc((d.settings || {}).duty_start || '09:00') + ' 출근)</div>'
@@ -607,7 +678,8 @@ function _atMeHtml(d, form, err) {
     if (form && form.kind === 'leave') h += _atLeaveFormHtml(d, form, err);
     else h += '<button type="button" class="at-btn pri" style="width:100%;margin-top:10px;padding:11px" onclick="_atMeOpenLeave()">연차 신청</button>';
   }
-  var reqs = (L.requests || []).filter(function (r) { return r.status !== 'cancelled'; }).slice(0, 10);
+  /* 대기·반려 건은 줄로 (취소 가능), 승인 건은 아래 달력·월별 묶음에서 */
+  var reqs = (L.requests || []).filter(function (r) { return r.status === 'pending' || r.status === 'rejected'; }).slice(0, 10);
   if (reqs.length) {
     var LS = { pending: '대기', approved: '승인', rejected: '반려' };
     h += '<div style="margin-top:8px">';
@@ -618,6 +690,7 @@ function _atMeHtml(d, form, err) {
     });
     h += '</div>';
   }
+  if (!(form && form.kind === 'leave')) h += _atMyLeaveHtml(d);
   h += '</div>';
 
   /* 이번 달 */
@@ -641,35 +714,69 @@ function _atSwapFormHtml(d, date, err) {
 /* 사장님 2026-10-02: "연차 시작일·종료일 … 걍 달력 들어가서 체크체크 — 한번에 뛰엄뛰엄 두곳 들어갈 수 있음"
  * 월 달력에서 쉴 날을 눌러 고른다. 주말·지난 날·이미 신청(대기/승인)한 날은 못 누르고, 내 당번 날엔 점. */
 var _AT_CAL_WD = ['일', '월', '화', '수', '목', '금', '토'];
-function _atCalHtml(d, form) {
+/* mode 'pick' = 연차 신청(눌러 고르기, 오늘 이후만) · 'view' = 내 연차 달력(올해 전체 보기, 사장님: "직원 본인도 본인 건 언제 쓰는지") */
+function _atCalHtml(d, form, mode) {
+  var pick = mode !== 'view';
   var month = form.month || d.today.slice(0, 7), sel = form.dates || [];
   var taken = {}; ((d.leave && d.leave.requests) || []).forEach(function (r) { if (r.status === 'pending' || r.status === 'approved') taken[r.leave_date] = r.status; });
   var mine = {}; ((d.duty && d.duty.mine) || []).forEach(function (x) { mine[x] = 1; });
+  var hol = d.holidays || {};
   var first = month + '-01', lead = _atWd(first);
-  var minMonth = d.today.slice(0, 7), maxMonth = _atAdd(d.today, 365).slice(0, 7);
+  var minMonth = pick ? d.today.slice(0, 7) : d.today.slice(0, 4) + '-01', maxMonth = _atAdd(d.today, 365).slice(0, 7);
+  var nav = pick ? '_atLvMonth' : '_atLvViewMonth';
   var h = '<div class="at-cal"><div class="at-cal-head">'
-    + '<button type="button" class="at-btn" onclick="_atLvMonth(-1)" aria-label="이전 달"' + (month <= minMonth ? ' disabled' : '') + '>‹</button>'
+    + '<button type="button" class="at-btn" onclick="' + nav + '(-1)" aria-label="이전 달"' + (month <= minMonth ? ' disabled' : '') + '>‹</button>'
     + '<b>' + month.slice(0, 4) + '년 ' + Number(month.slice(5)) + '월</b>'
-    + '<button type="button" class="at-btn" onclick="_atLvMonth(1)" aria-label="다음 달"' + (month >= maxMonth ? ' disabled' : '') + '>›</button></div>'
+    + '<button type="button" class="at-btn" onclick="' + nav + '(1)" aria-label="다음 달"' + (month >= maxMonth ? ' disabled' : '') + '>›</button></div>'
     + '<div class="at-cal-grid">' + _AT_CAL_WD.map(function (n, i) { return '<span class="at-cal-wd' + (i === 0 || i === 6 ? ' we' : '') + '">' + n + '</span>'; }).join('');
   for (var i = 0; i < lead; i++) h += '<span></span>';
   for (var day = first; day.slice(0, 7) === month; day = _atAdd(day, 1)) {
-    var n = Number(day.slice(8)), w = _atWd(day);
-    if (w === 0 || w === 6) { h += '<span class="at-cal-d we">' + n + '</span>'; continue; }
-    if (day < d.today) { h += '<span class="at-cal-d past">' + n + '</span>'; continue; }
-    if (taken[day]) { h += '<span class="at-cal-d taken" title="' + (taken[day] === 'approved' ? '승인된 연차' : '승인 대기') + '">' + n + '</span>'; continue; }
+    var n = Number(day.slice(8)), w = _atWd(day), tod = day === d.today ? ' today' : '';
+    if (w === 0 || w === 6) { h += '<span class="at-cal-d we' + tod + '">' + n + '</span>'; continue; }
+    if (hol[day]) { h += '<span class="at-cal-d holi' + tod + '" title="' + _atEsc(hol[day]) + '">' + n + '</span>'; continue; }
+    if (taken[day]) { h += '<span class="at-cal-d taken' + (taken[day] === 'pending' ? ' wait' : '') + tod + '" title="' + (taken[day] === 'approved' ? '승인된 연차' : '승인 대기') + '">' + n + '</span>'; continue; }
+    if (!pick || day < d.today) { h += '<span class="at-cal-d' + (pick ? ' past' : '') + (mine[day] ? ' duty' : '') + tod + '">' + n + '</span>'; continue; }
     var on = sel.indexOf(day) >= 0;
-    h += '<button type="button" class="at-cal-d' + (on ? ' on' : '') + (mine[day] ? ' duty' : '') + (day === d.today ? ' today' : '')
+    h += '<button type="button" class="at-cal-d' + (on ? ' on' : '') + (mine[day] ? ' duty' : '') + tod
       + '" onclick="_atLvToggle(\'' + day + '\')" aria-pressed="' + on + '" aria-label="' + _atMd(day) + (mine[day] ? ' 내 당번' : '') + '">' + n + '</button>';
   }
-  return h + '</div><div style="color:var(--text-mute);font-size:.82em;margin-top:6px">보라 = 이미 신청·승인된 날 · 점 = 내 당번 (교체 먼저)</div></div>';
+  /* 이 달 공휴일 이름 */
+  var holNames = Object.keys(hol).filter(function (x) { return x.slice(0, 7) === month; }).sort().map(function (x) { return Number(x.slice(8)) + '일 ' + _atEsc(hol[x]); });
+  return h + '</div><div style="color:var(--text-mute);font-size:.82em;margin-top:6px">보라 = 연차(승인) · 연보라 = 승인 대기 · 빨강 = 공휴일' + (pick ? ' · 점 = 내 당번 (교체 먼저)' : '')
+    + (holNames.length ? '<br>공휴일: ' + holNames.join(', ') : '') + '</div></div>';
+}
+/* 내 연차 달력 (보기 전용) — 사장님 2026-10-02: "직원 본인도 본인 건 언제 쓰는지 볼 수 있도록" */
+var _atLvView = null;   // { month }
+function _atLvViewMonth(n) {
+  if (!_atLvView) _atLvView = { month: _atMe.today.slice(0, 7) };
+  var p = _atLvView.month.split('-');
+  _atLvView.month = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1 + n, 1)).toISOString().slice(0, 7);
+  _atRender();
+}
+function _atMyLeaveHtml(d) {
+  var L = d.leave || {};
+  var reqs = (L.requests || []).filter(function (r) { return r.status === 'approved' || r.status === 'pending'; });
+  var byMonth = {};
+  reqs.forEach(function (r) { var m = r.leave_date.slice(0, 7); (byMonth[m] = byMonth[m] || []).push(r); });
+  var h = '<div class="at-wk-label" style="margin-top:12px">내 연차 달력 — 언제 썼고 언제 쓰는지</div>'
+    + _atCalHtml(d, { month: (_atLvView || {}).month || d.today.slice(0, 7) }, 'view');
+  var months = Object.keys(byMonth).sort();
+  if (months.length) {
+    h += '<div style="margin-top:8px;font-size:.92em">' + months.map(function (m) {
+      var list = byMonth[m].sort(function (a, b) { return a.leave_date < b.leave_date ? -1 : 1; });
+      return '<div class="at-row"><span style="min-width:44px;color:var(--text-sub);font-weight:700">' + Number(m.slice(5)) + '월</span><span class="sp">'
+        + list.map(function (r) { return '<span class="pill ' + (r.status === 'approved' ? 'leave' : 'gray') + '" style="margin:1px 2px 1px 0">' + _atMd(r.leave_date) + (r.status === 'pending' ? ' 대기' : '') + '</span>'; }).join('')
+        + '</span><span style="color:var(--text-mute)">' + list.filter(function (r) { return r.status === 'approved'; }).length + '일</span></div>';
+    }).join('') + '</div>';
+  }
+  return h;
 }
 function _atLeaveFormHtml(d, form, err) {
   var sel = (form.dates || []).slice().sort(), mine = (d.duty && d.duty.mine) || [], L = d.leave || {};
   var duty = sel.filter(function (x) { return mine.indexOf(x) >= 0; });
   return '<div class="at-form"><div class="at-form-title">연차 신청</div>'
-    + '<div style="color:var(--text-mute);font-size:.9em">쉴 날을 눌러 고르세요. 떨어진 날도 한 번에 됩니다. 공휴일은 빼고 눌러주세요.</div>'
-    + _atCalHtml(d, form)
+    + '<div style="color:var(--text-mute);font-size:.9em">쉴 날을 눌러 고르세요. 떨어진 날도 한 번에 됩니다. 주말·공휴일은 자동으로 빠집니다.</div>'
+    + _atCalHtml(d, form, 'pick')
     + '<div id="atLvPrev" style="font-size:.9em;margin-top:8px">' + (sel.length
       ? '<b>' + sel.length + '일</b> 선택 — ' + sel.map(function (x) { return '<button type="button" class="at-lv-sel" onclick="_atLvToggle(\'' + x + '\')" aria-label="' + _atMd(x) + ' 빼기">' + _atMd(x) + ' ×</button>'; }).join(' ')
         + '<div style="color:var(--text-mute);margin-top:4px">잔여 ' + _atDays((L.remaining || 0) - (L.pending || 0)) + '</div>'

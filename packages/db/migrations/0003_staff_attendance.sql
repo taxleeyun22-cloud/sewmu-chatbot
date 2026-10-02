@@ -102,5 +102,16 @@ CREATE TABLE IF NOT EXISTS staff_attendance_settings (
 );
 INSERT OR IGNORE INTO staff_attendance_settings (id) VALUES (1);
 
+-- 2026-10-02 공휴일 등록분 (음력 명절 · 선거일 · 임시공휴일). 날짜 고정 공휴일·대체공휴일은 코드가 계산한다.
+-- 2026 음력 명절은 attendance.js 가 첫 호출에 한 번 seed 한다 (holidays_seeded 플래그).
+CREATE TABLE IF NOT EXISTS staff_holidays (
+  ymd TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  sub TEXT,                 -- 대체공휴일 규칙: 'weekend' (토·일 겹침) | 'sunday' (일요일·다른 공휴일 겹침) | NULL
+  source TEXT NOT NULL DEFAULT 'owner',   -- 'owner' | 'seed'
+  created_at TEXT
+);
+-- ALTER TABLE staff_attendance_settings ADD COLUMN holidays_seeded INTEGER DEFAULT 0;  (lazy — 코드가 넣는다)
+
 INSERT OR IGNORE INTO _migrations (name, applied_at, checksum)
 VALUES ('0003_staff_attendance', datetime('now'), 'attendance-v1');

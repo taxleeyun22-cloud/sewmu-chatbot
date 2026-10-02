@@ -100,6 +100,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretend
   background:var(--card);border:1px solid var(--border);color:var(--text);cursor:pointer;touch-action:manipulation;position:relative;padding:0}
 .cal-d.we,.cal-d.past{border-color:transparent;background:transparent;color:var(--mute);opacity:.5;cursor:default}
 .cal-d.taken{border-color:transparent;background:#ede9fe;color:#6d28d9;cursor:default;font-weight:800}
+.cal-d.taken.wait{background:transparent;color:#8b5cf6;border:1px dashed #c4b5fd}
+.cal-d.holi{border-color:transparent;background:#fee2e2;color:var(--danger);cursor:default;font-weight:800}
+.week div.holi{background:#fee2e2;color:var(--danger)}
+.lv-month{display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px solid var(--border);font-size:13px}
+.lv-month b{min-width:34px;color:var(--sub)}
+.lv-month .badge{margin:1px 2px 1px 0}
 .cal-d.today{outline:2px solid var(--primary);outline-offset:-2px}
 .cal-d.on{background:var(--primary);color:#fff;border-color:var(--primary)}
 .cal-d.duty::after{content:"";position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--duty-fg)}
@@ -186,7 +192,7 @@ function render(){
       + (t.late ? '<span class="badge late">지각</span>' : '<span class="badge ok">정상</span>') + '</div>';
   } else {
     h += '<button class="punch" id="punchBtn" onclick="punch()">출근</button>';
-    if (!d.weekday) h += '<div class="muted" style="margin-top:8px;text-align:center">오늘은 주말입니다</div>';
+    if (!d.weekday) h += '<div class="muted" style="margin-top:8px;text-align:center">' + (d.holiday ? '오늘은 공휴일입니다 ('+esc(d.holiday)+')' : '오늘은 주말입니다') + '</div>';
   }
   h += '</div>';
 
@@ -236,7 +242,8 @@ function render(){
       + (L.pending ? '<div class="muted" style="margin-top:6px">승인 대기 '+L.pending+'일</div>' : '')
       + '<button class="btn primary" style="width:100%;margin-top:12px;padding:12px" onclick="openLeave()">연차 신청</button>';
   }
-  var reqs = (L.requests||[]).filter(function(r){return r.status!=='cancelled'}).slice(0,10);
+  /* 대기·반려는 줄로 (대기는 취소 가능), 승인 건은 아래 달력·월별 묶음에서 */
+  var reqs = (L.requests||[]).filter(function(r){return r.status==='pending'||r.status==='rejected'}).slice(0,10);
   if (reqs.length) {
     h += '<ul class="list" style="margin-top:10px">';
     reqs.forEach(function(r){
@@ -247,6 +254,7 @@ function render(){
     });
     h += '</ul>';
   }
+  h += myLeaveHtml();
   h += '</div>';
 
   /* 5. 이번 달 */
@@ -262,8 +270,30 @@ function weekHtml(label, list){
   var me = D.me.id, today = D.today;
   return '<div style="margin-top:8px;font-size:12px;color:var(--mute)">'+label+'</div><div class="week">'
     + (list||[]).map(function(x){
-        return '<div class="'+(x.user_id===me?'me ':'')+(x.date===today?'today':'')+'">'+WD[wd(x.date)]+'<b>'+esc(x.name||'—')+'</b></div>';
+        return '<div class="'+(x.holiday?'holi ':(x.user_id===me?'me ':''))+(x.date===today?'today':'')+'"'+(x.holiday?' title="'+esc(x.holiday)+'"':'')+'>'
+          + WD[wd(x.date)]+'<b>'+(x.holiday?'휴':esc(x.name||'—'))+'</b></div>';
       }).join('') + '</div>';
+}
+
+/* 내 연차 달력 (보기 전용) — 사장님 2026-10-02: "직원 본인도 본인 건 언제 쓰는지 볼 수 있도록" */
+var LVV = null;   // { month }
+function lvViewMonth(n){ if (!LVV) LVV = { month: D.today.slice(0,7) }; var p = LVV.month.split('-'); LVV.month = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1 + n, 1)).toISOString().slice(0,7); render(); }
+function myLeaveHtml(){
+  var reqs = (D.leave.requests||[]).filter(function(r){ return r.status === 'approved' || r.status === 'pending'; });
+  var byMonth = {};
+  reqs.forEach(function(r){ var m = r.leave_date.slice(0,7); (byMonth[m] = byMonth[m] || []).push(r); });
+  var h = '<div style="margin-top:12px;font-size:13px;font-weight:700;color:var(--sub)">내 연차 달력 — 언제 썼고 언제 쓰는지</div>'
+    + calHtml('view', (LVV || {}).month || D.today.slice(0,7));
+  var months = Object.keys(byMonth).sort();
+  if (months.length) {
+    h += '<div style="margin-top:6px">' + months.map(function(m){
+      var list = byMonth[m].sort(function(a,b){ return a.leave_date < b.leave_date ? -1 : 1; });
+      return '<div class="lv-month"><b>'+Number(m.slice(5))+'월</b><span class="grow">'
+        + list.map(function(r){ return '<span class="badge'+(r.status==='approved'?' leave':'')+'">'+md(r.leave_date)+(r.status==='pending'?' 대기':'')+'</span>'; }).join('')
+        + '</span><span class="muted">'+list.filter(function(r){return r.status==='approved'}).length+'일</span></div>';
+    }).join('') + '</div>';
+  }
+  return h;
 }
 
 /* 시계 — 서버 시각에서 출발해 1초씩. 폰 시계가 틀려도 화면은 서버 기준 */
@@ -332,34 +362,41 @@ function openLeave(){ LV = { dates: [], month: D.today.slice(0,7), reason: '' };
 function lvKeep(){ var t = document.getElementById('lvReason'); if (t && LV) LV.reason = t.value; }
 function lvToggle(d){ if (!LV) return; lvKeep(); var i = LV.dates.indexOf(d); if (i >= 0) LV.dates.splice(i, 1); else LV.dates.push(d); renderLeave('', null); }
 function lvMonth(n){ if (!LV) return; lvKeep(); var p = LV.month.split('-'); LV.month = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1 + n, 1)).toISOString().slice(0,7); renderLeave('', null); }
-function calHtml(){
-  var month = LV.month, first = month+'-01', lead = wd(first);
+/* mode 'pick' = 연차 신청(눌러 고르기) · 'view' = 내 연차 달력(보기 전용, 올해 전체) */
+function calHtml(mode, viewMonth){
+  var pick = mode !== 'view';
+  var month = pick ? LV.month : viewMonth, first = month+'-01', lead = wd(first);
   var taken = {}; (D.leave.requests||[]).forEach(function(r){ if (r.status === 'pending' || r.status === 'approved') taken[r.leave_date] = r.status; });
   var mine = {}; (D.duty.mine||[]).forEach(function(x){ mine[x] = 1; });
-  var minM = D.today.slice(0,7), maxM = addDays(D.today, 365).slice(0,7);
-  var h = '<div class="cal"><div class="cal-head"><button type="button" class="btn" onclick="lvMonth(-1)" aria-label="이전 달"'+(month <= minM ? ' disabled' : '')+'>‹</button>'
+  var hol = D.holidays || {};
+  var minM = pick ? D.today.slice(0,7) : D.today.slice(0,4)+'-01', maxM = addDays(D.today, 365).slice(0,7);
+  var nav = pick ? 'lvMonth' : 'lvViewMonth';
+  var h = '<div class="cal"><div class="cal-head"><button type="button" class="btn" onclick="'+nav+'(-1)" aria-label="이전 달"'+(month <= minM ? ' disabled' : '')+'>‹</button>'
     + '<b>'+month.slice(0,4)+'년 '+Number(month.slice(5))+'월</b>'
-    + '<button type="button" class="btn" onclick="lvMonth(1)" aria-label="다음 달"'+(month >= maxM ? ' disabled' : '')+'>›</button></div><div class="cal-grid">'
+    + '<button type="button" class="btn" onclick="'+nav+'(1)" aria-label="다음 달"'+(month >= maxM ? ' disabled' : '')+'>›</button></div><div class="cal-grid">'
     + WD.map(function(n, i){ return '<span class="cal-wd'+(i === 0 || i === 6 ? ' we' : '')+'">'+n+'</span>'; }).join('');
   for (var i = 0; i < lead; i++) h += '<span></span>';
   for (var day = first; day.slice(0,7) === month; day = addDays(day, 1)) {
-    var n = Number(day.slice(8)), w = wd(day);
-    if (w === 0 || w === 6) { h += '<span class="cal-d we">'+n+'</span>'; continue; }
-    if (day < D.today) { h += '<span class="cal-d past">'+n+'</span>'; continue; }
-    if (taken[day]) { h += '<span class="cal-d taken" title="'+(taken[day] === 'approved' ? '승인된 연차' : '승인 대기')+'">'+n+'</span>'; continue; }
+    var n = Number(day.slice(8)), w = wd(day), tod = day === D.today ? ' today' : '';
+    if (w === 0 || w === 6) { h += '<span class="cal-d we'+tod+'">'+n+'</span>'; continue; }
+    if (hol[day]) { h += '<span class="cal-d holi'+tod+'" title="'+esc(hol[day])+'">'+n+'</span>'; continue; }
+    if (taken[day]) { h += '<span class="cal-d taken'+(taken[day] === 'pending' ? ' wait' : '')+tod+'" title="'+(taken[day] === 'approved' ? '승인된 연차' : '승인 대기')+'">'+n+'</span>'; continue; }
+    if (!pick || day < D.today) { h += '<span class="cal-d'+(pick ? ' past' : '')+(mine[day] ? ' duty' : '')+tod+'">'+n+'</span>'; continue; }
     var on = LV.dates.indexOf(day) >= 0;
-    h += '<button type="button" class="cal-d'+(on ? ' on' : '')+(mine[day] ? ' duty' : '')+(day === D.today ? ' today' : '')
+    h += '<button type="button" class="cal-d'+(on ? ' on' : '')+(mine[day] ? ' duty' : '')+tod
       + '" onclick="lvToggle(\''+day+'\')" aria-pressed="'+on+'" aria-label="'+md(day)+(mine[day] ? ' 내 당번' : '')+'">'+n+'</button>';
   }
-  return h + '</div><div class="muted" style="margin-top:6px;font-size:12px">보라 = 이미 신청·승인된 날 · 점 = 내 당번 (교체 먼저)</div></div>';
+  var holNames = Object.keys(hol).filter(function(x){ return x.slice(0,7) === month; }).sort().map(function(x){ return Number(x.slice(8))+'일 '+esc(hol[x]); });
+  return h + '</div><div class="muted" style="margin-top:6px;font-size:12px">보라 = 연차(승인) · 연보라 = 승인 대기 · 빨강 = 공휴일'+(pick ? ' · 점 = 내 당번 (교체 먼저)' : '')
+    + (holNames.length ? '<br>공휴일: '+holNames.join(', ') : '') + '</div></div>';
 }
 function renderLeave(err, dutyDate){
   var sel = LV.dates.slice().sort(), mine = D.duty.mine || [];
   var duty = sel.filter(function(x){ return mine.indexOf(x) >= 0; });
   var sheetEl = document.getElementById('sheet'), top = sheetEl.scrollTop;
   openSheet('<h3>연차 신청</h3>'
-    + '<div class="muted">쉴 날을 눌러 고르세요. 떨어진 날도 한 번에 됩니다. 공휴일은 빼고 눌러주세요.</div>'
-    + calHtml()
+    + '<div class="muted">쉴 날을 눌러 고르세요. 떨어진 날도 한 번에 됩니다. 주말·공휴일은 자동으로 빠집니다.</div>'
+    + calHtml('pick')
     + '<div style="margin-top:8px;font-size:14px">' + (sel.length
         ? '<b>'+sel.length+'일</b> 선택 — ' + sel.map(function(x){ return '<button type="button" class="lv-sel" onclick="lvToggle(\''+x+'\')" aria-label="'+md(x)+' 빼기">'+md(x)+' ×</button>'; }).join(' ')
           + '<div class="muted" style="margin-top:4px">잔여 '+days(D.leave.remaining - D.leave.pending)+'</div>'

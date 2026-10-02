@@ -82,5 +82,16 @@ export const staffAttendanceSettings = sqliteTable('staff_attendance_settings', 
   duty_start: text('duty_start').default('09:00'),
   normal_start: text('normal_start').default('09:30'),
   grace_minutes: integer('grace_minutes').default(1),
+  holidays_seeded: integer('holidays_seeded').default(0),   // 2026 음력 명절 seed 1회 플래그
   updated_at: text('updated_at'),
+});
+
+/* 2026-10-02 공휴일 등록분 (음력 명절 · 선거일 · 임시공휴일).
+   날짜 고정 공휴일·대체공휴일은 _attendance-core.js holidayMap 이 계산한다. */
+export const staffHolidays = sqliteTable('staff_holidays', {
+  ymd: text('ymd').primaryKey(),                       // YYYY-MM-DD
+  name: text('name').notNull(),
+  sub: text('sub'),                                    // 'weekend' | 'sunday' | null — 대체공휴일 규칙
+  source: text('source').notNull().default('owner'),   // 'owner' | 'seed'
+  created_at: text('created_at'),
 });
