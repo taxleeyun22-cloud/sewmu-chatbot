@@ -16,7 +16,24 @@
   'use strict';
   var THRESHOLD = 90;      // 이만큼 끌어야 새로고침 (px, 손가락 이동 기준)
   var MAX_PULL = 130;      // 알약이 내려오는 최대 거리
-  var IGNORE = '.modal, .sheet-bg, .sheet, [role="dialog"], [aria-modal="true"], .ptr-ignore, textarea, input, select';
+  var IGNORE = '.modal, .modal-overlay, .sheet-bg, .sheet, [role="dialog"], [aria-modal="true"], .ptr-ignore, textarea, input, select';
+
+  /* 2026-10-02 사고: admin 모달(.modal-overlay, position:fixed)들이 #mainView 안에 들어 있다 (admin.html 모달 슬롯).
+   * 근태 모달 안에서 위로 당겨 스크롤하면 #mainView 는 scrollTop 0 이라 여기가 가로채 페이지를 새로고침해 버렸다
+   * ("스크롤도 안 된다"). 터치 시작점에서 #mainView 까지 올라가며 고정 레이어·자체 스크롤 영역이 있으면 무시한다. */
+  function insideOwnScroller(target, el) {
+    var win = (el.ownerDocument || document).defaultView || window;
+    for (var n = target; n && n !== el; n = n.parentElement) {
+      if (n.nodeType !== 1) continue;
+      if (n.matches && n.matches(IGNORE)) return true;
+      var cs;
+      try { cs = win.getComputedStyle(n); } catch (e) { cs = null; }
+      if (!cs) continue;
+      if (cs.position === 'fixed') return true;
+      if (/(auto|scroll)/.test(cs.overflowY || '') && n.scrollHeight > n.clientHeight + 1) return true;
+    }
+    return false;
+  }
 
   function pt(e) {
     var t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
@@ -63,7 +80,7 @@
       if (y == null) return;
       if (el.scrollTop > 0) { st.startY = null; return; }
       var tg = e.target;
-      if (tg && tg.closest && tg.closest(IGNORE)) { st.startY = null; return; }
+      if (tg && insideOwnScroller(tg, el)) { st.startY = null; return; }
       st.startY = y; st.dy = 0; st.armed = false;
     }
     function onMove(e) {
