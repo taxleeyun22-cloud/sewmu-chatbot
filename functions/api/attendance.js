@@ -485,8 +485,6 @@ async function viewDuty(db, auth, url, today) {
   const upcoming = rotations.filter((r) => r.effective_from > mondayOf(today));
   return json({
     ok: true, owner: !!auth.owner, from, weeks, today, staff: staff.map((s) => ({ id: s.id, name: s.name })),
-    /* 사장님 2026-10-02 "당번표에서 교체 요청 이런 거 있음 좋을 듯" — 화면이 내 당번 칸을 알아보려면 내 id 가 필요하다 */
-    me_id: auth.userId ? Number(auth.userId) : null,
     rotation: current ? { ...current, names: current.members.map((id) => nameOf[id] || ('#' + id)) } : null,
     upcoming: upcoming.map((r) => ({ ...r, names: r.members.map((id) => nameOf[id] || ('#' + id)) })),
     grid,

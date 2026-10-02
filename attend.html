@@ -206,17 +206,16 @@ function render(){
     /* 주 단위 당번이라 하루씩 줄로 늘어놓으면 2주만 돼도 한 화면이 넘는다 — 주별 한 줄 + 요일 칩 */
     var byWeek = {};
     mine.forEach(function(x){ var w = mondayOf(x); (byWeek[w] = byWeek[w] || []).push(x); });
-    h += '<div style="margin-top:12px;font-size:13px;font-weight:700;color:var(--sub)">내 당번 날 — 바꿀 날을 누르세요</div><ul class="list">';
+    /* 사장님 2026-10-02 "교체는 연차 쓸 때만 뜨도록" — 칩은 보기만, 교체 요청은 연차 신청 시트 안에서 */
+    h += '<div style="margin-top:12px;font-size:13px;font-weight:700;color:var(--sub)">내 당번 날</div><ul class="list">';
     Object.keys(byWeek).sort().forEach(function(w){
       h += '<li><span style="min-width:62px;font-size:13px;color:var(--sub)">'+md(w).replace(/\(.\)/,'')+' 주</span><span class="chips">'
         + byWeek[w].map(function(x){
-            return pendingDates[x]
-              ? '<span class="chip wait" title="교체 요청 중">'+WD[wd(x)]+'</span>'
-              : '<button class="chip" onclick="openSwap(\''+x+'\')" aria-label="'+md(x)+' 교체 요청">'+WD[wd(x)]+'</button>';
+            return '<span class="chip'+(pendingDates[x] ? ' wait' : '')+'" title="'+md(x)+(pendingDates[x] ? ' 교체 요청 중' : ' 내 당번')+'">'+WD[wd(x)]+'</span>';
           }).join('') + '</span></li>';
     });
     h += '</ul>';
-    if (Object.keys(pendingDates).length) h += '<div class="muted" style="margin-top:4px">회색 = 교체 요청 중</div>';
+    h += '<div class="muted" style="margin-top:4px">'+(Object.keys(pendingDates).length ? '회색 = 교체 요청 중 · ' : '')+'당번 날에 쉬려면 연차 신청에서 그 날을 고르세요 — 교체 요청이 거기서 뜹니다</div>';
   } else if (d.duty.this_week.every(function(x){return !x.user_id})) {
     h += '<div class="muted" style="margin-top:8px">아직 당번 순서가 정해지지 않았어요</div>';
   }
@@ -342,19 +341,25 @@ function closeSheet(){ document.getElementById('sheetBg').classList.remove('on')
 function openSwap(date){
   var opts = (D.colleagues||[]).map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+'</option>'}).join('');
   if (!opts) return toast('교체할 동료가 없습니다');
-  openSheet('<h3>'+md(date)+' 당번 교체 요청</h3>'
-    + '<label>대신 서줄 동료</label><select id="swTo">'+opts+'</select>'
-    + '<label>맞교환 (선택) — 상대 당번 날을 내가 대신</label><input type="date" id="swRet" min="'+D.today+'">'
+  /* 사장님 2026-10-02 "교체는 연차 쓸 때만" — 연차 신청 시트에서만 들어오고, 닫으면 연차 시트로 돌아간다 */
+  /* 맞교환 없음 — 내 연차 날 하루를 상대가 대신 선다 (사장님 2026-10-02 "날짜별로 요청") */
+  openSheet('<h3>'+md(date)+' 당번 교체 요청 — 연차 쓰려면 먼저</h3>'
+    + '<label>이 날 내 당번을 대신 서줄 동료</label><select id="swTo">'+opts+'</select>'
     + '<label>사유 (선택)</label><textarea id="swReason" rows="2" maxlength="200"></textarea>'
-    + '<div class="muted" style="margin-top:6px">상대가 수락하면 바로 바뀝니다</div><div class="err" id="swErr"></div>'
-    + '<div class="acts"><button class="btn" onclick="closeSheet()">닫기</button><button class="btn primary" onclick="sendSwap(\''+date+'\')">요청 보내기</button></div>');
+    + '<div class="muted" style="margin-top:6px">상대가 수락하면 '+md(date)+' 당번이 그 동료로 바뀝니다. 여러 날이면 날짜마다 따로 요청하세요.</div><div class="err" id="swErr"></div>'
+    + '<div class="acts"><button class="btn" onclick="swapBack()">닫기</button><button class="btn primary" onclick="sendSwap(\''+date+'\')">요청 보내기</button></div>');
 }
+function swapBack(){ if (LV) renderLeave('', null); else closeSheet(); }
 async function sendSwap(date){
   var body = { duty_date: date, to_user: Number(document.getElementById('swTo').value),
-    return_date: document.getElementById('swRet').value || null, reason: document.getElementById('swReason').value };
+    return_date: null, reason: document.getElementById('swReason').value };
   var r = await api('POST', 'action=swap_request', body);
   if (r.error) { document.getElementById('swErr').textContent = r.error; return; }
-  closeSheet(); toast('교체 요청을 보냈어요'); load();
+  toast('교체 요청을 보냈어요 — 상대가 수락하면 연차를 신청하세요');
+  /* 연차 시트(고른 날짜·사유)로 돌아간다 — 데이터는 새로 받아 그 날이 "요청 중" 으로 */
+  var p = load();
+  var back = function(){ if (LV) renderLeave('', null); else closeSheet(); };
+  if (p && p.then) p.then(back, back); else back();
 }
 
 /* 사장님 2026-10-02: "연차 시작일·종료일 … 걍 달력 들어가서 체크체크 — 한번에 뛰엄뛰엄 두곳 들어갈 수 있음"
@@ -395,6 +400,11 @@ function calHtml(mode, viewMonth){
 function renderLeave(err, dutyDate){
   var sel = LV.dates.slice().sort(), mine = D.duty.mine || [];
   var duty = sel.filter(function(x){ return mine.indexOf(x) >= 0; });
+  if (dutyDate && duty.indexOf(dutyDate) < 0) duty.push(dutyDate);
+  var pend = {}; (D.swaps.sent||[]).forEach(function(s){ if (s.status === 'pending') pend[s.duty_date] = 1; });
+  /* 사장님 2026-10-02 "교체는 연차 쓸 때만 뜨도록 — 본인 연차인데 본인이 당번일 때": 고른 날이 내 당번이면 여기서 바로 교체 요청 */
+  var dutyHtml = !duty.length ? '' : '<div class="err">'+duty.map(md).join(', ')+' 은 내 당번 — 교체를 먼저 잡아야 해요</div><div class="chips" style="margin-top:4px">'
+    + duty.map(function(x){ return pend[x] ? '<span class="badge">'+md(x)+' 교체 요청 중</span>' : '<button class="btn sm" onclick="openSwap(\''+x+'\')" aria-label="'+md(x)+' 교체 요청">'+md(x)+' 교체 요청</button>'; }).join(' ') + '</div>';
   var sheetEl = document.getElementById('sheet'), top = sheetEl.scrollTop;
   openSheet('<h3>연차 신청</h3>'
     + '<div class="muted">쉴 날을 눌러 고르세요. 떨어진 날도 한 번에 됩니다. 주말·공휴일은 자동으로 빠집니다.</div>'
@@ -402,12 +412,9 @@ function renderLeave(err, dutyDate){
     + '<div style="margin-top:8px;font-size:14px">' + (sel.length
         ? '<b>'+sel.length+'일</b> 선택 — ' + sel.map(function(x){ return '<button type="button" class="lv-sel" onclick="lvToggle(\''+x+'\')" aria-label="'+md(x)+' 빼기">'+md(x)+' ×</button>'; }).join(' ')
           + '<div class="muted" style="margin-top:4px">잔여 '+days(D.leave.remaining - D.leave.pending)+'</div>'
-          + (duty.length ? '<div class="err">'+duty.map(md).join(', ')+' 은 내 당번 — 교체를 먼저 잡아야 해요</div>' : '')
-        : '<span class="muted">아직 고른 날이 없어요</span>') + '</div>'
+        : '<span class="muted">아직 고른 날이 없어요</span>') + dutyHtml + '</div>'
     + '<label>사유 (선택)</label><textarea id="lvReason" rows="2" maxlength="200">'+esc(LV.reason)+'</textarea>'
-    + '<div class="err" id="lvErr">'+esc(err || '')+'</div><div id="lvFix">'
-    /* 당번 날이면 그 날짜로 바로 교체 요청 */
-    + (dutyDate ? '<button class="btn" style="margin-top:8px" onclick="openSwap(\''+dutyDate+'\')">'+md(dutyDate)+' 교체 요청하기</button>' : '') + '</div>'
+    + '<div class="err" id="lvErr">'+esc(err || '')+'</div>'
     + '<div class="acts"><button class="btn" onclick="closeSheet()">닫기</button><button class="btn primary" onclick="sendLeave()">신청</button></div>');
   sheetEl.scrollTop = top;
 }

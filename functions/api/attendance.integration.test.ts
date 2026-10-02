@@ -174,9 +174,6 @@ describe('당번 날 연차 → 교체 → 승인', () => {
     const duty = (await get(d1, 'key', 'view=duty&from=2026-10-12&weeks=1')).body;
     const wed = duty.grid[0].days.find((x: any) => x.date === '2026-10-14');
     expect(wed).toMatchObject({ user_id: na, override: 'swap' });
-    /* 당번표에서 [교체] 를 띄우려면 내 id — 세션 직원은 본인 id, 사장님 비번 접속은 null */
-    expect(duty.me_id).toBeNull();
-    expect((await get(d1, GA, 'view=duty&from=2026-10-12&weeks=1')).body.me_id).toBe(ga);
 
     /* 3. 이제 가 연차 신청 통과 */
     r = await post(d1, GA, 'leave_request', { dates: ['2026-10-14'], reason: '병원' });
