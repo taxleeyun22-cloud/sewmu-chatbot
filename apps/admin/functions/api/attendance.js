@@ -27,6 +27,7 @@
  * POST ?action=duty_set      {duty_date, user_id | clear, force?}  owner
  * POST ?action=duty_set_week {monday, user_id | clear, force?}     owner  — 월~금 5칸 일괄
  * POST ?action=edit          {user_id, work_date, check_in?: 'HH:MM'|null, note?}  owner
+ * POST ?action=leave_review_many {ids[], approve, note?}  owner  — 묶음 승인·반려 ({done, failed[]})
  * POST ?action=settings      {duty_start, normal_start, grace_minutes}  owner
  * GET  ?view=holidays&year=YYYY                   그 해 공휴일 표 (법정·등록·대체)   (직원도)
  * POST ?action=holiday_add   {ymd, name, sub?}    owner  — 음력 명절·선거일·임시공휴일 등록
@@ -518,13 +519,13 @@ async function viewLeave(db, auth, url, today) {
     dutyOf = (await dutyCtx(db, ds[0], ds[ds.length - 1])).dutyOf;
   }
   return json({
-    ok: true, year, owner: !!auth.owner, settings, rows,
+    ok: true, year, today, owner: !!auth.owner, settings, rows,
     holidays: await holidayList(db, year),
     pending: pending.map((r) => ({
       ...r, name: nameOf[r.user_id] || '?', is_duty: dutyOf(r.leave_date) === Number(r.user_id),
       remaining: (rows.find((x) => x.id === r.user_id) || {}).remaining ?? null,
     })),
-    recent: (reqs || []).filter((r) => r.status !== 'pending').slice(-30).reverse().map((r) => ({ ...r, name: nameOf[r.user_id] || '?' })),
+    recent: (reqs || []).filter((r) => r.status !== 'pending').slice(-80).reverse().map((r) => ({ ...r, name: nameOf[r.user_id] || '?' })),
   });
 }
 
@@ -656,24 +657,23 @@ export async function onRequestPost(context) {
     if (!auth.owner) return ownerOnly();
 
     if (action === 'leave_review') {
-      const req = await db.prepare(`SELECT * FROM staff_leave_requests WHERE id = ?`).bind(Number(body.id)).first();
-      if (!req) return bad('신청을 찾을 수 없습니다', 404);
-      if (req.status !== 'pending') return bad('이미 처리된 신청입니다 (' + req.status + ')');
       const note = String(body.note || '').trim().slice(0, 200) || null;
-      if (body.approve) {
-        const year = req.leave_date.slice(0, 4);
-        const grant = await grantOf(db, req.user_id, year);
-        const lv = await leaveTaken(db, req.user_id, year);
-        const { dutyOf } = await dutyCtx(db, req.leave_date, req.leave_date);
-        const err = checkLeaveApprove({ userId: Number(req.user_id), date: req.leave_date, dutyOf, grant, approved: lv.approved });
-        if (err) return bad(err);
+      const r = await reviewLeave(db, Number(body.id), !!body.approve, note, auth, now, audit);
+      if (r.error) return bad(r.error, r.status);
+      return json({ ok: true, status: r.result });
+    }
+    /* 묶음 승인·반려 — 사장님 2026-10-02 "깔쌈하게": 한 번에 신청한 여러 날을 카드 한 장에서 한 번에 */
+    if (action === 'leave_review_many') {
+      const ids = Array.isArray(body.ids) ? Array.from(new Set(body.ids.map(Number).filter(Boolean))).slice(0, 62) : [];
+      if (!ids.length) return bad('ids 가 비었습니다');
+      const note = String(body.note || '').trim().slice(0, 200) || null;
+      const failed = [];
+      let done = 0;
+      for (const id of ids) {
+        const r = await reviewLeave(db, id, !!body.approve, note, auth, now, audit);
+        if (r.error) failed.push({ id, error: r.error }); else done++;
       }
-      const status = body.approve ? 'approved' : 'rejected';
-      await db.prepare(
-        `UPDATE staff_leave_requests SET status = ?, reviewed_by = ?, reviewed_at = ?, review_note = ? WHERE id = ? AND status = 'pending'`
-      ).bind(status, auth.userId || null, now, note, req.id).run();
-      audit('leave_' + status, 'staff_leave_request', req.id, 'pending', { status, user_id: req.user_id, leave_date: req.leave_date, note });
-      return json({ ok: true, status });
+      return json({ ok: true, done, failed });
     }
 
     if (action === 'leave_grant') {
@@ -864,6 +864,27 @@ export async function onRequestPost(context) {
   }
 }
 
+/** 승인·반려 한 건. 성공 { result: 'approved'|'rejected' } / 실패 { error, status? } */
+async function reviewLeave(db, id, approve, note, auth, now, audit) {
+  const req = await db.prepare(`SELECT * FROM staff_leave_requests WHERE id = ?`).bind(id).first();
+  if (!req) return { error: '신청을 찾을 수 없습니다 (#' + id + ')', status: 404 };
+  if (req.status !== 'pending') return { error: fmtMd(req.leave_date) + ' 은 이미 처리된 신청입니다 (' + req.status + ')' };
+  if (approve) {
+    const year = req.leave_date.slice(0, 4);
+    const grant = await grantOf(db, req.user_id, year);
+    const lv = await leaveTaken(db, req.user_id, year);
+    const { dutyOf } = await dutyCtx(db, req.leave_date, req.leave_date);
+    const err = checkLeaveApprove({ userId: Number(req.user_id), date: req.leave_date, dutyOf, grant, approved: lv.approved });
+    if (err) return { error: err };
+  }
+  const status = approve ? 'approved' : 'rejected';
+  await db.prepare(
+    `UPDATE staff_leave_requests SET status = ?, reviewed_by = ?, reviewed_at = ?, review_note = ? WHERE id = ? AND status = 'pending'`
+  ).bind(status, auth.userId || null, now, note, req.id).run();
+  audit('leave_' + status, 'staff_leave_request', req.id, 'pending', { status, user_id: req.user_id, leave_date: req.leave_date, note });
+  return { result: status };
+}
+
 /** 본인 대기 건 취소 / owner 는 대기·승인 건 모두 취소 */
 async function leaveCancel(db, body, selfId, now, audit) {
   const req = await db.prepare(`SELECT * FROM staff_leave_requests WHERE id = ?`).bind(Number(body.id)).first();
@@ -874,7 +895,13 @@ async function leaveCancel(db, body, selfId, now, audit) {
   } else if (!['pending', 'approved'].includes(req.status)) {
     return bad('이미 처리된 신청입니다 (' + req.status + ')');
   }
-  await db.prepare(`UPDATE staff_leave_requests SET status = 'cancelled', reviewed_at = ? WHERE id = ?`).bind(now, req.id).run();
-  if (selfId == null) audit('leave_cancel', 'staff_leave_request', req.id, req.status, 'cancelled');
+  /* 누가 취소했는지 화면에서 구분 — 사장님 취소는 메모에 남기고, 본인 취소는 메모 없음 */
+  if (selfId == null) {
+    await db.prepare(`UPDATE staff_leave_requests SET status = 'cancelled', reviewed_at = ?, review_note = COALESCE(review_note, '사장님 취소') WHERE id = ?`)
+      .bind(now, req.id).run();
+    audit('leave_cancel', 'staff_leave_request', req.id, req.status, 'cancelled');
+  } else {
+    await db.prepare(`UPDATE staff_leave_requests SET status = 'cancelled', reviewed_at = ? WHERE id = ?`).bind(now, req.id).run();
+  }
   return json({ ok: true });
 }

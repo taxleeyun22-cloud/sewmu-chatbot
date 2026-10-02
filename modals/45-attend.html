@@ -26,6 +26,10 @@
 #attendModal .at-grid td.we{background:#fafbfc}
 #attendModal .at-grid td.click{cursor:pointer}
 #attendModal .at-grid td.click:hover{background:#eff6ff}
+#attendModal td.click{cursor:pointer}
+#attendModal td.click:hover{background:#eff6ff}
+#attendModal .at-editico{color:#c4c9d1;font-size:.9em;margin-left:4px}
+#attendModal td.click:hover .at-editico{color:var(--brand-primary)}
 #attendModal .late{color:var(--brand-danger);font-weight:800}
 #attendModal .miss{color:#adb5bf}
 #attendModal .pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:.86em;font-weight:800;white-space:nowrap}
@@ -89,6 +93,34 @@
 #attendModal .at-cal-d.taken.wait{background:#f5f3ff;color:#8b5cf6;border:1px dashed #c4b5fd}
 #attendModal .at-cal-d.holi{border-color:transparent;background:#fef2f2;color:var(--brand-danger);cursor:default;font-weight:800}
 #attendModal .at-grid th.holi{color:var(--brand-danger)}
+/* 연차 승인함 — 요약 띠 · 잔여 막대 · 묶음 카드 · 팀 달력 · 필터 */
+#attendModal .at-sec-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#attendModal .at-kpi{background:#f2f4f6;border-radius:999px;padding:4px 12px;font-size:.9em;color:var(--text-sub);white-space:nowrap}
+#attendModal .at-kpi b{color:var(--text-main);font-size:1.08em;margin-right:2px}
+#attendModal .at-bars{display:flex;flex-direction:column;gap:6px;margin-bottom:4px}
+#attendModal .at-barrow{display:flex;align-items:center;gap:8px;font-size:.9em}
+#attendModal .at-barrow .nm{min-width:56px;font-weight:700}
+#attendModal .at-track{flex:1;height:8px;background:#f2f4f6;border-radius:999px;overflow:hidden;min-width:80px}
+#attendModal .at-fill{display:block;height:100%;border-radius:999px}
+#attendModal .at-barrow .num{color:var(--text-sub);white-space:nowrap}
+#attendModal .at-dotc{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+#attendModal .at-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+#attendModal .at-card{background:#fff;border:1px solid var(--neutral-border);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;box-shadow:0 1px 4px rgba(25,31,40,.04)}
+#attendModal .at-card-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#attendModal .at-card-dates{font-size:1.02em}
+#attendModal .at-warn{background:#fef2f2;color:var(--brand-danger);border-radius:8px;padding:5px 9px;font-size:.88em;font-weight:700}
+#attendModal .at-warn.soft{background:#fffbeb;color:#92600a}
+#attendModal .at-card-acts{display:flex;gap:6px;justify-content:flex-end;margin-top:4px}
+#attendModal .at-card-acts .at-btn{padding:8px 16px}
+#attendModal .at-chipbtn{border:1px solid var(--neutral-border);background:#fff;border-radius:999px;padding:3px 10px;font-size:.85em;font-weight:700;color:var(--text-sub);cursor:pointer;font-family:inherit}
+#attendModal .at-chipbtn.on{background:#191f28;color:#fff;border-color:#191f28}
+#attendModal .at-teamcal .at-cal-d{height:48px;flex-direction:column;gap:3px;cursor:default;border-color:transparent;background:#fafbfc;font-size:.9em}
+#attendModal .at-teamcal .at-cal-d.we{background:transparent}
+#attendModal .at-teamcal .at-cal-d.holi{background:#fef2f2}
+#attendModal .at-dots{display:flex;gap:3px;flex-wrap:wrap;justify-content:center;min-height:7px}
+#attendModal .at-dot{width:7px;height:7px;border-radius:50%;display:inline-block;border:2px solid transparent;box-sizing:border-box}
+#attendModal .at-dot.pend{background:transparent!important}
+#attendModal .at-legend{display:flex;gap:10px;flex-wrap:wrap;font-size:.85em;color:var(--text-sub);margin-top:6px}
 #attendModal .at-week div.holi{background:#fef2f2;color:var(--brand-danger)}
 #attendModal .at-cal-d.today{outline:2px solid var(--brand-primary);outline-offset:-2px}
 #attendModal .at-cal-d.on{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
