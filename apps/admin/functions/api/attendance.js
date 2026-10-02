@@ -39,7 +39,7 @@ import { logAudit } from "./_audit.js";
 import {
   validYmd, validHm, addDays, isWeekday, mondayOf, weekdaysBetween,
   holidayMap, isWorkday, workdaysBetween, HOLIDAY_SUB_RULES,
-  dutyFor, expectedStart, isLate,
+  dutyFor, startFor, noDutyDay, isLate,
   checkSwapRequest, checkSwapAccept, checkLeaveRequest, checkLeaveApprove,
   suggestLeave, buildCsv, fmtMd,
 } from "./_attendance-core.js";
@@ -230,13 +230,19 @@ async function holidayList(db, year) {
   }));
 }
 
-/** 하루 한 사람의 판정 묶음 */
-function dayCell(userId, date, att, duty, leave, settings) {
+/** 그날 당번이 승인 연차라 안 나오는지 — lv: leaveMap 결과 */
+function dutyAbsentOn(duty, date, lv) {
+  return duty != null && lv[duty + '|' + date] === 'approved';
+}
+
+/** 하루 한 사람의 판정 묶음. opts: { workday, dutyAbsent } — 당번 없는 평일은 전원 당번 시각 (사장님 2026-10-02) */
+function dayCell(userId, date, att, duty, leave, settings, opts) {
   const isDuty = duty === userId;
-  const start = expectedStart(isDuty, settings);
+  const start = startFor(userId, duty, settings, opts);
   const ci = att ? att.check_in_at : null;
   return {
     duty: isDuty,
+    no_duty: noDutyDay(duty, opts),   // 당번 없음·당번 연차 → 전원 duty_start 인 날
     start,
     check_in: ci ? ci.slice(11, 16) : null,
     late: ci ? isLate(ci, start, settings.grace_minutes) : false,
@@ -341,9 +347,12 @@ async function viewMe(db, auth, today) {
     `SELECT work_date, check_in_at FROM staff_attendance WHERE user_id = ? AND work_date BETWEEN ? AND ?`
   ).bind(me.id, monthFrom, today).all();
   const monthDuty = await dutyCtx(db, monthFrom, today);
+  /* 당번이 연차인 날은 전원 당번 시각 — 당번들의 승인 연차만 본다 */
+  const monthLv = await leaveMap(db, monthFrom, today, ['approved']);
+  const cellOpts = (d, ctx) => ({ workday: isWorkday(d, ctx.holidays), dutyAbsent: dutyAbsentOn(ctx.dutyOf(d), d, monthLv) });
   let lateCount = 0;
   for (const a of monthAtt || []) {
-    const st = expectedStart(monthDuty.dutyOf(a.work_date) === me.id, settings);
+    const st = startFor(me.id, monthDuty.dutyOf(a.work_date), settings, cellOpts(a.work_date, monthDuty));
     if (isLate(a.check_in_at, st, settings.grace_minutes)) lateCount++;
   }
 
@@ -352,7 +361,7 @@ async function viewMe(db, auth, today) {
     today, now: kst(),
     me: { id: me.id, name: me.name },
     settings,
-    today_cell: dayCell(me.id, today, att, dutyOf(today), todayLeave, settings),
+    today_cell: dayCell(me.id, today, att, dutyOf(today), todayLeave, settings, cellOpts(today, { dutyOf, holidays })),
     weekday: isWorkday(today, holidays),
     holiday: holidayNames[today] || null,
     holidays: calHol.names,
@@ -378,10 +387,12 @@ async function viewToday(db, auth, today) {
   const attBy = Object.fromEntries((results || []).map((a) => [a.user_id, a]));
   const lv = await leaveMap(db, today, today, ['approved', 'pending']);
   const duty = dutyOf(today);
+  const opts = { workday: isWorkday(today, holidays), dutyAbsent: dutyAbsentOn(duty, today, lv) };
   return json({
-    ok: true, today, weekday: isWorkday(today, holidays), holiday: holidayNames[today] || null, settings, owner: !!auth.owner,
+    ok: true, today, weekday: opts.workday, holiday: holidayNames[today] || null, settings, owner: !!auth.owner,
     duty_user: duty, duty_name: (staff.find((s) => s.id === duty) || {}).name || null,
-    rows: staff.map((s) => ({ id: s.id, name: s.name, ...dayCell(s.id, today, attBy[s.id], duty, lv[s.id + '|' + today], settings) })),
+    duty_absent: opts.dutyAbsent, no_duty: noDutyDay(duty, opts),
+    rows: staff.map((s) => ({ id: s.id, name: s.name, ...dayCell(s.id, today, attBy[s.id], duty, lv[s.id + '|' + today], settings, opts) })),
   });
 }
 
@@ -407,7 +418,8 @@ async function monthData(db, month, today) {
     for (const d of days) {
       /* 주말·공휴일은 출근 기록이 있을 때만 칸을 만든다 */
       if (!isWorkday(d, holidays) && !att[s.id + '|' + d]) continue;
-      const c = dayCell(s.id, d, att[s.id + '|' + d], dutyOf(d), lv[s.id + '|' + d], settings);
+      const du = dutyOf(d);
+      const c = dayCell(s.id, d, att[s.id + '|' + d], du, lv[s.id + '|' + d], settings, { workday: isWorkday(d, holidays), dutyAbsent: dutyAbsentOn(du, d, lv) });
       cells[d] = c;
       if (c.check_in) sum.checked++;
       if (c.late) sum.late++;

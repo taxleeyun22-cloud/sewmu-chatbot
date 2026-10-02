@@ -115,8 +115,11 @@ function _atOffdayText(d) {
 }
 function _atTodayHtml(d) {
   var h = '<div class="at-bar"><b>' + _atMd(d.today) + '</b>'
-    + (d.duty_name ? '<span class="pill duty">당번 ' + _atEsc(d.duty_name) + ' · ' + _atEsc(d.settings.duty_start) + '</span>' : '')
-    + '<span style="color:var(--text-mute)">일반 ' + _atEsc(d.settings.normal_start) + ' · 1분이라도 늦으면 지각</span>'
+    /* 사장님 2026-10-02 "당번이 다 없으면 9시가 출근" — 당번 없음·당번 연차인 평일은 전원 당번 시각 */
+    + (d.no_duty ? '<span class="pill late">' + (d.duty_name ? '당번 ' + _atEsc(d.duty_name) + ' 연차' : '당번 없음') + ' · 전원 ' + _atEsc(d.settings.duty_start) + '</span>'
+      : d.duty_name ? '<span class="pill duty">당번 ' + _atEsc(d.duty_name) + ' · ' + _atEsc(d.settings.duty_start) + '</span>' : '')
+    + (d.no_duty ? '<span style="color:var(--text-mute)">1분이라도 늦으면 지각</span>'
+      : '<span style="color:var(--text-mute)">일반 ' + _atEsc(d.settings.normal_start) + ' · 1분이라도 늦으면 지각</span>')
     + '<span class="sp"></span><button class="at-btn" onclick="_atGo(\'today\')">새로고침</button></div>';
   if (!d.weekday) h += '<div class="at-note">' + _atOffdayText(d) + '.</div>';
   if (!d.rows.length) return h + _atNoStaffHtml();
@@ -445,9 +448,9 @@ function _atGrantHtml(d) {
     h += '<div class="at-bar">당번 <input type="time" id="atSDuty" value="' + _atEsc(s.duty_start) + '">'
       + ' 일반 <input type="time" id="atSNorm" value="' + _atEsc(s.normal_start) + '">'
       + ' <button class="at-btn pri" onclick="_atSaveSettings()">저장</button></div>'
-      + '<div style="color:var(--text-mute)">유예 없음 — 당번 ' + _atEsc(s.duty_start) + ' · 일반 ' + _atEsc(s.normal_start) + ' 정각까지 정상, 1분이라도 늦으면 지각.</div>';
+      + '<div style="color:var(--text-mute)">유예 없음 — 당번 ' + _atEsc(s.duty_start) + ' · 일반 ' + _atEsc(s.normal_start) + ' 정각까지 정상, 1분이라도 늦으면 지각. 당번이 없는 날(순서 미지정·당번 연차)은 전원 ' + _atEsc(s.duty_start) + '.</div>';
   } else {
-    h += '<div>당번 ' + _atEsc(s.duty_start) + ' · 일반 ' + _atEsc(s.normal_start) + ' · 유예 없음</div>';
+    h += '<div>당번 ' + _atEsc(s.duty_start) + ' · 일반 ' + _atEsc(s.normal_start) + ' · 유예 없음 · 당번 없는 날은 전원 ' + _atEsc(s.duty_start) + '</div>';
   }
   return h + _atHolidaysHtml(d) + _atLinkHtml();
 }
@@ -708,7 +711,9 @@ function _atHomeCardHtml(d) {
     h += '<div class="ha-band"><span>' + _atEsc(s.from_name) + ' 님이 ' + _atMd(s.duty_date) + ' 당번 교체를 요청했어요' + (rec.length > 1 ? ' 외 ' + (rec.length - 1) + '건' : '') + '</span>'
       + '<button type="button" class="ha-mini" onclick="_atOpenMe()">보기</button></div>';
   }
-  var badge = t.duty ? '<span class="ha-pill duty">오늘 당번 · ' + _atEsc(t.start) + '</span>' : '<span class="ha-pill">오늘 기준 ' + _atEsc(t.start) + '</span>';
+  var badge = t.duty ? '<span class="ha-pill duty">오늘 당번 · ' + _atEsc(t.start) + '</span>'
+    : t.no_duty ? '<span class="ha-pill duty">오늘 당번 없음 · 전원 ' + _atEsc(t.start) + '</span>'
+    : '<span class="ha-pill">오늘 기준 ' + _atEsc(t.start) + '</span>';
   if (t.leave === 'approved') badge += ' <span class="ha-pill leave">오늘 연차</span>';
   h += '<div class="ha-card"><div class="ha-head"><div class="ha-who"><b>' + _atEsc(d.me.name) + ' 님</b><span>' + _atMd(d.today) + '</span></div>' + badge + '</div>';
   if (t.check_in) {
@@ -768,7 +773,9 @@ function _atMeHtml(d, form, err) {
   });
 
   /* 오늘 */
-  var badge = t.duty ? '<span class="pill duty">오늘 당번 · ' + _atEsc(t.start) + '</span>' : '<span class="pill gray">오늘 기준 ' + _atEsc(t.start) + '</span>';
+  var badge = t.duty ? '<span class="pill duty">오늘 당번 · ' + _atEsc(t.start) + '</span>'
+    : t.no_duty ? '<span class="pill duty">오늘 당번 없음 · 전원 ' + _atEsc(t.start) + '</span>'
+    : '<span class="pill gray">오늘 기준 ' + _atEsc(t.start) + '</span>';
   if (t.leave === 'approved') badge += ' <span class="pill leave">오늘 연차</span>';
   h += '<div class="at-me-card"><div class="at-bar" style="margin-bottom:6px"><b style="font-size:1.1em">' + _atEsc(d.me.name) + ' 님</b><span style="color:var(--text-mute)">' + _atMd(d.today) + '</span><span class="sp"></span>' + badge + '</div>';
   if (t.check_in) h += '<div class="at-done">출근 완료 <b>' + _atEsc(t.check_in) + '</b> ' + (t.late ? '<span class="pill late">지각</span>' : '<span class="pill ok">정상</span>') + '</div>';
@@ -843,7 +850,7 @@ function _atMeHtml(d, form, err) {
   /* 이번 달 */
   h += '<div class="at-me-card"><div class="at-sec" style="margin-top:0">이번 달</div><div class="at-stats two"><div><b>' + ((d.month || {}).checked || 0) + '</b><span>출근</span></div>'
     + '<div><b' + ((d.month || {}).late ? ' style="color:var(--brand-danger)"' : '') + '>' + ((d.month || {}).late || 0) + '</b><span>지각</span></div></div>'
-    + '<div style="color:var(--text-mute);margin-top:6px;font-size:.9em">지각 기준: 당번 ' + _atEsc((d.settings || {}).duty_start) + ' · 일반 ' + _atEsc((d.settings || {}).normal_start) + ' (1분이라도 늦으면 지각)</div>'
+    + '<div style="color:var(--text-mute);margin-top:6px;font-size:.9em">지각 기준: 당번 ' + _atEsc((d.settings || {}).duty_start) + ' · 일반 ' + _atEsc((d.settings || {}).normal_start) + ' · 당번 없는 날은 전원 ' + _atEsc((d.settings || {}).duty_start) + ' (1분이라도 늦으면 지각)</div>'
     + '<div style="color:var(--text-mute);margin-top:6px;font-size:.9em">폰 홈 화면 바로가기: <b>' + _atEsc(location.origin) + '/attend.html</b></div></div>';
   return h;
 }

@@ -153,6 +153,28 @@ export function expectedStart(isDuty, settings) {
 }
 
 /**
+ * 그날 한 사람의 출근 기준시각. 사장님 2026-10-02: "당번이 다 없으면 9시가 출근임".
+ *   - 당번이면 duty_start, 아니면 normal_start
+ *   - 그날 출근할 당번이 없으면(순서 미지정으로 duty 가 null · 당번이 연차) 전원 duty_start
+ *   - 주말·공휴일(workday=false) 은 당번 제도 밖이라 normal_start 그대로
+ * duty: 그날 당번 user_id 또는 null · opts.dutyAbsent: 당번이 승인 연차라 안 나오는 날
+ */
+export function startFor(userId, duty, settings, opts) {
+  const o = opts || {};
+  const workday = o.workday !== false;
+  if (!workday) return expectedStart(false, settings);
+  if (duty == null || o.dutyAbsent) return expectedStart(true, settings);
+  return expectedStart(Number(duty) === Number(userId), settings);
+}
+
+/** 그날 당번 자리가 비는지 — 당번 없음 또는 당번 연차. 평일에만 뜻이 있다 */
+export function noDutyDay(duty, opts) {
+  const o = opts || {};
+  if (o.workday === false) return false;
+  return duty == null || !!o.dutyAbsent;
+}
+
+/**
  * 지각 여부. 출근시각은 "분 단위로 버림" — 화면에 보이는 HH:MM 과 판정이 같아야 한다
  * (09:01:59 는 화면에 09:01 로 보이니 1분 유예 안이다).
  * checkInAt: 'YYYY-MM-DD HH:MM:SS' 또는 'HH:MM'
