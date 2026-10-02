@@ -28,7 +28,11 @@ let main: HTMLElement; let pill: HTMLElement; let reload: ReturnType<typeof vi.f
 beforeEach(() => {
   vi.useFakeTimers();
   document.body.innerHTML = '<main><div id="mainView" style="overflow-y:auto;height:300px"><div style="height:2000px">'
-    + '<input id="inp"><div class="modal on"><p id="inModal">x</p></div><p id="plain">본문</p></div></div></main>';
+    + '<input id="inp"><div class="modal on"><p id="inModal">x</p></div><p id="plain">본문</p>'
+    /* admin.html 모달 슬롯은 #mainView 안 — 근태 모달(.modal-overlay, fixed) 과 그 안의 스크롤 영역 */
+    + '<div id="adminModalsSlot"><div id="attendModal" class="modal-overlay" style="position:fixed"><div class="at-body" style="overflow:auto"><p id="inAttend">근태</p></div></div>'
+    + '<div id="fixedOnly" style="position:fixed"><p id="inFixed">f</p></div></div>'
+    + '</div></div></main>';
   main = document.getElementById('mainView') as HTMLElement;
   pill = document.createElement('div');
   reload = vi.fn();
@@ -84,6 +88,24 @@ describe('당겨서 새로고침', () => {
     }
     vi.advanceTimersByTime(100);
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  /* 2026-10-02 사고: 근태 모달 안에서 위로 당기면 페이지가 새로고침됐다 ("스크롤도 안 된다") */
+  it('#mainView 안에 들어 있는 모달(.modal-overlay)·고정 레이어 안에서 시작한 터치는 무시', () => {
+    for (const id of ['inAttend', 'inFixed']) {
+      const t = document.getElementById(id)!;
+      touch(main, 'touchstart', 100, t);
+      touch(main, 'touchmove', 400, t);
+      expect(pill.style.opacity).not.toBe('1');
+      touch(main, 'touchend', 400, t);
+    }
+    vi.advanceTimersByTime(100);
+    expect(reload).not.toHaveBeenCalled();
+    /* 본문에서 시작하면 여전히 된다 */
+    const p = document.getElementById('plain')!;
+    touch(main, 'touchstart', 100, p); touch(main, 'touchmove', 400, p); touch(main, 'touchend', 400, p);
+    vi.advanceTimersByTime(100);
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 
   it('끌다가 다시 올리면 취소', () => {
