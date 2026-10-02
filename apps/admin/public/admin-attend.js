@@ -471,7 +471,6 @@ setInterval(function () { if (!document.hidden) _atBadge(); }, 5 * 60 * 1000);
  * 데이터는 전부 /api/attendance?view=me (세션 직원만 성공). 사장님 비번 접속·근태 대상 아님 → 조용히 비움. */
 
 var _AT_WDN = _AT_WD;   /* _atDays · _AT_WD 는 파일 상단 공용 */
-function _atWeekdays(a, b) { var o = []; if (!a || !b || a > b) return o; for (var d = a, i = 0; d <= b && i < 62; d = _atAdd(d, 1), i++) { var w = _atWd(d); if (w >= 1 && w <= 5) o.push(d); } return o; }
 
 async function _atMeApi(qs, body) {
   var r = await fetch(_atUrl(qs), { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
@@ -639,11 +638,43 @@ function _atSwapFormHtml(d, date, err) {
     + '<div class="at-form-acts"><button type="button" class="at-btn" onclick="_atMeCloseForm()">닫기</button>'
     + (opts ? '<button type="button" class="at-btn pri" onclick="_atMeSendSwap(\'' + date + '\')">요청 보내기</button>' : '') + '</div></div>';
 }
+/* 사장님 2026-10-02: "연차 시작일·종료일 … 걍 달력 들어가서 체크체크 — 한번에 뛰엄뛰엄 두곳 들어갈 수 있음"
+ * 월 달력에서 쉴 날을 눌러 고른다. 주말·지난 날·이미 신청(대기/승인)한 날은 못 누르고, 내 당번 날엔 점. */
+var _AT_CAL_WD = ['일', '월', '화', '수', '목', '금', '토'];
+function _atCalHtml(d, form) {
+  var month = form.month || d.today.slice(0, 7), sel = form.dates || [];
+  var taken = {}; ((d.leave && d.leave.requests) || []).forEach(function (r) { if (r.status === 'pending' || r.status === 'approved') taken[r.leave_date] = r.status; });
+  var mine = {}; ((d.duty && d.duty.mine) || []).forEach(function (x) { mine[x] = 1; });
+  var first = month + '-01', lead = _atWd(first);
+  var minMonth = d.today.slice(0, 7), maxMonth = _atAdd(d.today, 365).slice(0, 7);
+  var h = '<div class="at-cal"><div class="at-cal-head">'
+    + '<button type="button" class="at-btn" onclick="_atLvMonth(-1)" aria-label="이전 달"' + (month <= minMonth ? ' disabled' : '') + '>‹</button>'
+    + '<b>' + month.slice(0, 4) + '년 ' + Number(month.slice(5)) + '월</b>'
+    + '<button type="button" class="at-btn" onclick="_atLvMonth(1)" aria-label="다음 달"' + (month >= maxMonth ? ' disabled' : '') + '>›</button></div>'
+    + '<div class="at-cal-grid">' + _AT_CAL_WD.map(function (n, i) { return '<span class="at-cal-wd' + (i === 0 || i === 6 ? ' we' : '') + '">' + n + '</span>'; }).join('');
+  for (var i = 0; i < lead; i++) h += '<span></span>';
+  for (var day = first; day.slice(0, 7) === month; day = _atAdd(day, 1)) {
+    var n = Number(day.slice(8)), w = _atWd(day);
+    if (w === 0 || w === 6) { h += '<span class="at-cal-d we">' + n + '</span>'; continue; }
+    if (day < d.today) { h += '<span class="at-cal-d past">' + n + '</span>'; continue; }
+    if (taken[day]) { h += '<span class="at-cal-d taken" title="' + (taken[day] === 'approved' ? '승인된 연차' : '승인 대기') + '">' + n + '</span>'; continue; }
+    var on = sel.indexOf(day) >= 0;
+    h += '<button type="button" class="at-cal-d' + (on ? ' on' : '') + (mine[day] ? ' duty' : '') + (day === d.today ? ' today' : '')
+      + '" onclick="_atLvToggle(\'' + day + '\')" aria-pressed="' + on + '" aria-label="' + _atMd(day) + (mine[day] ? ' 내 당번' : '') + '">' + n + '</button>';
+  }
+  return h + '</div><div style="color:var(--text-mute);font-size:.82em;margin-top:6px">보라 = 이미 신청·승인된 날 · 점 = 내 당번 (교체 먼저)</div></div>';
+}
 function _atLeaveFormHtml(d, form, err) {
+  var sel = (form.dates || []).slice().sort(), mine = (d.duty && d.duty.mine) || [], L = d.leave || {};
+  var duty = sel.filter(function (x) { return mine.indexOf(x) >= 0; });
   return '<div class="at-form"><div class="at-form-title">연차 신청</div>'
-    + '<label>시작일</label><input type="date" id="atLvFrom" min="' + _atEsc(d.today) + '" value="' + _atEsc(form.from || '') + '" onchange="_atMeLeavePreview()">'
-    + '<label>종료일</label><input type="date" id="atLvTo" min="' + _atEsc(d.today) + '" value="' + _atEsc(form.to || '') + '" onchange="_atMeLeavePreview()">'
-    + '<div id="atLvPrev" style="color:var(--text-mute);font-size:.9em;margin-top:4px">주말은 자동으로 빠집니다. 공휴일은 직접 빼고 신청해주세요.</div>'
+    + '<div style="color:var(--text-mute);font-size:.9em">쉴 날을 눌러 고르세요. 떨어진 날도 한 번에 됩니다. 공휴일은 빼고 눌러주세요.</div>'
+    + _atCalHtml(d, form)
+    + '<div id="atLvPrev" style="font-size:.9em;margin-top:8px">' + (sel.length
+      ? '<b>' + sel.length + '일</b> 선택 — ' + sel.map(function (x) { return '<button type="button" class="at-lv-sel" onclick="_atLvToggle(\'' + x + '\')" aria-label="' + _atMd(x) + ' 빼기">' + _atMd(x) + ' ×</button>'; }).join(' ')
+        + '<div style="color:var(--text-mute);margin-top:4px">잔여 ' + _atDays((L.remaining || 0) - (L.pending || 0)) + '</div>'
+        + (duty.length ? '<div style="color:var(--brand-danger)">' + duty.map(_atMd).join(', ') + ' 은 내 당번 — 교체를 먼저 잡아야 해요</div>' : '')
+      : '<span style="color:var(--text-mute)">아직 고른 날이 없어요</span>') + '</div>'
     + '<label>사유 (선택)</label><textarea id="atLvReason" rows="2" maxlength="200">' + _atEsc(form.reason || '') + '</textarea>'
     + (err ? '<div class="at-err">' + _atEsc(err) + '</div>' : '')
     + (form.duty_date ? '<button type="button" class="at-btn" style="margin-top:6px" onclick="_atMeOpenSwap(\'' + form.duty_date + '\')">' + _atMd(form.duty_date) + ' 교체 요청하기</button>' : '')
@@ -681,20 +712,23 @@ async function _atMeLeaveCancel(id) {
 function _atMeOpenSwap(date) { _atMeForm = { kind: 'swap', date: date }; _atMyErr = ''; _atRender(); var f = document.querySelector('#atBody .at-form'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'nearest' }); }
 function _atMeOpenLeave() { _atMeForm = { kind: 'leave' }; _atMyErr = ''; _atRender(); }
 function _atMeCloseForm() { _atMeForm = null; _atMyErr = ''; _atRender(); }
-function _atMeLeaveDates() {
-  var a = (document.getElementById('atLvFrom') || {}).value, b = (document.getElementById('atLvTo') || {}).value || a;
-  return _atWeekdays(a, b);
+/* 달력 다시 그리기 전에 적어둔 사유를 잃지 않게 */
+function _atLvKeep() {
+  if (!_atMeForm || _atMeForm.kind !== 'leave') return false;
+  var t = document.getElementById('atLvReason'); if (t) _atMeForm.reason = t.value;
+  return true;
 }
-function _atMeLeavePreview() {
-  var f = document.getElementById('atLvFrom'), t = document.getElementById('atLvTo'), p = document.getElementById('atLvPrev');
-  if (!f || !t || !p) return;
-  if (f.value && (!t.value || t.value < f.value)) t.value = f.value;
-  var list = _atMeLeaveDates(), mine = (_atMe && _atMe.duty && _atMe.duty.mine) || [], L = (_atMe && _atMe.leave) || {};
-  var duty = list.filter(function (x) { return mine.indexOf(x) >= 0; });
-  p.innerHTML = list.length
-    ? '평일 <b>' + list.length + '일</b> 신청 · 잔여 ' + _atDays((L.remaining || 0) - (L.pending || 0))
-      + (duty.length ? '<br><span style="color:var(--brand-danger)">' + duty.map(_atMd).join(', ') + ' 은 내 당번 — 교체를 먼저 잡아야 해요</span>' : '')
-    : '평일이 없습니다';
+function _atLvToggle(date) {
+  if (!_atLvKeep()) return;
+  var s = (_atMeForm.dates || []).slice(), i = s.indexOf(date);
+  if (i >= 0) s.splice(i, 1); else s.push(date);
+  _atMeForm.dates = s; _atMyErr = ''; _atRender();
+}
+function _atLvMonth(n) {
+  if (!_atLvKeep()) return;
+  var p = (_atMeForm.month || _atMe.today.slice(0, 7)).split('-');
+  _atMeForm.month = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1 + n, 1)).toISOString().slice(0, 7);
+  _atRender();
 }
 async function _atMeSendSwap(date) {
   var body = { duty_date: date, to_user: Number((document.getElementById('atSwTo') || {}).value),
@@ -705,10 +739,10 @@ async function _atMeSendSwap(date) {
   _atMeRefresh();
 }
 async function _atMeSendLeave() {
-  var list = _atMeLeaveDates();
-  var keep = { kind: 'leave', from: (document.getElementById('atLvFrom') || {}).value, to: (document.getElementById('atLvTo') || {}).value, reason: (document.getElementById('atLvReason') || {}).value };
-  if (!list.length) { _atMeForm = keep; _atMyErr = '날짜를 골라주세요'; _atRender(); return; }
-  var r = await _atMeApi('action=leave_request', { dates: list, reason: keep.reason });
+  if (!_atLvKeep()) return;
+  var keep = _atMeForm, list = (keep.dates || []).slice().sort();
+  if (!list.length) { _atMyErr = '달력에서 쉴 날을 눌러주세요'; _atRender(); return; }
+  var r = await _atMeApi('action=leave_request', { dates: list, reason: keep.reason || '' });
   if (r.error) { keep.duty_date = r.duty_date || null; _atMeForm = keep; _atMyErr = r.error; _atRender(); return; }
   if (typeof showAdminToast === 'function') showAdminToast(r.count + '일 신청했어요 — 사장님 승인 대기');
   _atMeRefresh();
