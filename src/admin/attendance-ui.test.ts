@@ -55,6 +55,14 @@ describe('오늘', () => {
     expect(M._atTodayHtml({ ...d(true), rows: [] })).toContain('👑 관리자');
   });
 
+  /* 사장님 2026-10-02: "출근시간 내가 수정하는 거 없어졌네?" — 오늘 탭에서도 출근 칸을 누르면 수정 */
+  it('owner 는 오늘 탭 출근 칸을 눌러 수정, 직원은 아니다', () => {
+    const h = M._atTodayHtml(d(true));
+    expect(h).toContain('onclick="_atEdit(11,\'2026-10-05\')"');
+    expect(h).toContain('(누르면 수정)');
+    expect(M._atTodayHtml(d(false))).not.toContain('_atEdit(');
+  });
+
   it('공휴일이면 이름과 함께 안내', () => {
     expect(M._atTodayHtml({ ...d(true), weekday: false, holiday: '한글날' })).toContain('오늘은 공휴일입니다 (한글날)');
     expect(M._atTodayHtml({ ...d(true), weekday: false })).toContain('오늘은 주말입니다');
@@ -159,27 +167,80 @@ describe('당번표', () => {
   });
 });
 
+/* 사장님 2026-10-02: "뭔가 확실하게 … 깔쌈하게" — 요약 띠 · 잔여 막대 · 묶음 카드 · 팀 달력 · 필터 */
 describe('연차 승인함', () => {
+  const row = (id: number, name: string, o: Record<string, unknown> = {}) => ({
+    id, name, tracked: true, hire_date: null, suggested: null, basis: null, days: 15, approved: 0, pending: 0, remaining: 15, requests: [] as any[], ...o,
+  });
   const d = (owner: boolean) => ({
-    owner, year: 2026, settings, rows: [],
-    pending: [
-      { id: 1, user_id: 12, name: '나', leave_date: '2026-10-09', reason: '가족 행사', remaining: 10, is_duty: false },
-      { id: 2, user_id: 11, name: '가', leave_date: '2026-10-08', reason: '', remaining: 5, is_duty: true },
+    owner, year: 2026, today: '2026-10-05', settings, holidays: [{ ymd: '2026-10-09', name: '한글날', source: 'fixed', sub_rule: null }],
+    rows: [
+      row(11, '가', { approved: 3, remaining: 12, pending: 1 }),
+      row(12, '나', { pending: 2, requests: [{ id: 1, leave_date: '2026-10-13', status: 'pending' }, { id: 2, leave_date: '2026-10-14', status: 'pending' }] }),
+      row(13, '다', { approved: 2, remaining: 13, requests: [{ id: 3, leave_date: '2026-10-13', status: 'approved' }, { id: 5, leave_date: '2026-09-15', status: 'approved' }] }),
     ],
-    recent: [{ id: 3, user_id: 13, name: '다', leave_date: '2026-10-02', status: 'approved', review_note: null }],
+    pending: [
+      { id: 1, user_id: 12, name: '나', leave_date: '2026-10-13', reason: '가족 행사', remaining: 15, is_duty: false, requested_at: '2026-10-01 09:00:00' },
+      { id: 2, user_id: 12, name: '나', leave_date: '2026-10-14', reason: '가족 행사', remaining: 15, is_duty: false, requested_at: '2026-10-01 09:00:00' },
+      { id: 4, user_id: 11, name: '가', leave_date: '2026-10-08', reason: '', remaining: 12, is_duty: true, requested_at: '2026-10-02 10:00:00' },
+    ],
+    recent: [
+      { id: 3, user_id: 13, name: '다', leave_date: '2026-10-13', status: 'approved', review_note: null, requested_at: '2026-09-28 10:00:00', reviewed_at: '2026-09-29 11:00:00' },
+      { id: 7, user_id: 13, name: '다', leave_date: '2026-09-15', status: 'cancelled', review_note: null, requested_at: '2026-09-01 10:00:00', reviewed_at: '2026-09-02 11:00:00' },
+    ],
   });
 
-  it('당번 날 신청은 승인 대신 "교체 먼저"', () => {
+  it('요약 띠 + 직원별 잔여 막대', () => {
     const h = M._atLeaveHtml(d(true));
-    expect(h).toContain('_atReview(1,true)');
-    expect(h).not.toContain('_atReview(2,true)');
-    expect(h).toContain('교체 먼저');
+    expect(h).toContain('<b>3</b>건 승인 대기');
+    expect(h).toContain('<b>1</b>일 이달 연차');     // 다 10/13 승인
+    expect(h).toContain('<b>2</b>일 올해 사용');     // 다 9/15 + 10/13
+    expect(h).toContain('class="at-fill" style="width:20%');   // 가 3/15
+    expect(h).toContain('3일 / 15일 · 잔여 <b>12일</b>');
   });
 
-  it('owner 가 아니면 승인·반려·승인취소 버튼이 없다', () => {
+  it('한 번에 신청한 여러 날은 카드 한 장, 묶음 승인·반려 / 당번 날은 경고 + 승인 없음 / 전부 승인', () => {
+    const h = M._atLeaveHtml(d(true));
+    expect(h).toContain('<b>10/13(화)~10/14(수)</b> <span class="pill leave">2일</span>');
+    expect(h).toContain('_atReviewMany([1,2],true)');
+    expect(h).toContain('_atReviewMany([1,2],false)');
+    expect(h).toContain('사유: 가족 행사');
+    expect(h).toContain('10/8(목) 당번 — 교체가 먼저입니다');
+    expect(h).not.toContain('_atReviewMany([4],true)');
+    expect(h).toContain('_atReviewMany([4],false)');
+    expect(h).toContain('전부 승인 (2)');                      // 당번 날은 빼고
+    expect(h).toContain('같은 날 연차: 10/13(화) 다');          // 나의 10/13 ↔ 다 승인
+  });
+
+  it('팀 달력: 승인은 찬 점, 대기는 빈 점, 공휴일 빨강', () => {
+    const h = M._atLeaveHtml(d(true));
+    expect(h).toContain('2026년 10월');
+    expect(h).toContain('class="at-dot" style="background:#d97706" title="다"');          // 10/13 다 승인 (3번째 색)
+    expect(h).toContain('class="at-dot pend" style="border-color:#059669" title="나 (대기)"');
+    expect(h).toContain('class="at-cal-d holi" title="한글날"');
+    expect(h).toContain('onclick="_atTeamMonthGo(1)"');
+  });
+
+  it('최근 처리: 기본은 취소 숨김, 묶음 + 처리일·처리자, 승인 취소 버튼', () => {
+    const h = M._atLeaveHtml(d(true));
+    expect(h).toContain('09-29 사장님');
+    expect(h).toContain('_atLeaveCancelMany([3])');
+    expect(h).not.toContain('pill gray">취소');
+    expect(h).toContain('class="at-chipbtn on" onclick="_atLvFilter=\'all\'');
+  });
+
+  it('대기 0건이면 빈 상태 + 다음 연차', () => {
+    const h = M._atLeaveHtml({ ...d(true), pending: [] });
+    expect(h).toContain('대기 중인 신청이 없어요');
+    expect(h).toContain('다음 연차: <b>10/13(화) 다</b>');
+    expect(h).not.toContain('전부 승인');
+  });
+
+  it('owner 가 아니면 승인·반려·취소 버튼이 없다', () => {
     const h = M._atLeaveHtml(d(false));
-    expect(h).not.toContain('_atReview(');
-    expect(h).not.toContain('_atLeaveCancel(');
+    expect(h).not.toContain('_atReviewMany(');
+    expect(h).not.toContain('_atLeaveCancelMany(');
+    expect(h).toContain('사장님 승인');
   });
 });
 

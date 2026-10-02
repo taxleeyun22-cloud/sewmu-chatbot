@@ -120,7 +120,8 @@ function _atTodayHtml(d) {
     + '<span class="sp"></span><button class="at-btn" onclick="_atGo(\'today\')">새로고침</button></div>';
   if (!d.weekday) h += '<div class="at-note">' + _atOffdayText(d) + '.</div>';
   if (!d.rows.length) return h + _atNoStaffHtml();
-  h += '<table><thead><tr><th>직원</th><th>기준</th><th>출근</th><th>상태</th></tr></thead><tbody>';
+  /* 사장님 2026-10-02 "출근시간 내가 수정하는 거 없어졌네?" — 월별 탭뿐 아니라 오늘 탭에서도 출근 칸을 누르면 수정 */
+  h += '<table><thead><tr><th>직원</th><th>기준</th><th>출근' + (d.owner ? ' <span style="color:var(--text-mute);font-weight:400">(누르면 수정)</span>' : '') + '</th><th>상태</th></tr></thead><tbody>';
   d.rows.forEach(function (r) {
     var st = r.check_in ? (r.late ? '<span class="pill late">지각</span>' : '<span class="pill ok">정상</span>')
       : r.leave === 'approved' ? '<span class="pill leave">연차</span>'
@@ -128,8 +129,9 @@ function _atTodayHtml(d) {
       : '<span class="pill gray">미출근</span>';
     h += '<tr><td><b>' + _atEsc(r.name) + '</b>' + (r.duty ? ' <span class="pill duty">당번</span>' : '') + '</td>'
       + '<td>' + _atEsc(r.start) + '</td>'
-      + '<td>' + (r.check_in ? '<span class="' + (r.late ? 'late' : '') + '">' + _atEsc(r.check_in) + '</span>' : '<span class="miss">—</span>')
-      + (r.edited ? ' <span style="color:var(--text-mute);font-size:.85em">(수정)</span>' : '') + '</td>'
+      + '<td' + (d.owner ? ' class="click" onclick="_atEdit(' + r.id + ',\'' + d.today + '\')" title="출근시각 수정"' : '') + '>'
+      + (r.check_in ? '<span class="' + (r.late ? 'late' : '') + '">' + _atEsc(r.check_in) + '</span>' : '<span class="miss">—</span>')
+      + (r.edited ? ' <span style="color:var(--text-mute);font-size:.85em">(수정)</span>' : '') + (d.owner ? ' <span class="at-editico">✎</span>' : '') + '</td>'
       + '<td>' + st + (r.note ? ' <span style="color:var(--text-mute)">' + _atEsc(r.note) + '</span>' : '') + '</td></tr>';
   });
   return h + '</tbody></table>' + _atLinkHtml();
@@ -268,35 +270,151 @@ function _atDutyHtml(d, order) {
   return h;
 }
 
+/* ── 연차 승인함 — 사장님 2026-10-02 "뭔가 확실하게 … 깔쌈하게": 요약 띠 · 직원별 잔여 막대 · 묶음 카드 · 팀 달력 · 필터 ── */
+var _atLvFilter = 'all', _atTeamMonth = null;
+var _AT_COLORS = ['#1d4ed8', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#ea580c'];
+/* 날짜 목록 → "10/13(화)~10/14(수), 10/20(화)" (주말만 건너뛴 연속은 한 묶음) */
+function _atLvRuns(dates) {
+  var runs = [];
+  dates.slice().sort().forEach(function (x) {
+    var r = runs[runs.length - 1];
+    if (r && (_atAdd(r.to, 1) === x || (_atWd(r.to) === 5 && _atAdd(r.to, 3) === x))) r.to = x;
+    else runs.push({ from: x, to: x });
+  });
+  return runs.map(function (r) { return r.from === r.to ? _atMd(r.from) : _atMd(r.from) + '~' + _atMd(r.to); }).join(', ');
+}
+/* 같은 사람 · 같은 신청 시각 · 같은 상태 = 한 번에 신청한 묶음 */
+function _atLvGroups(list) {
+  var m = {}, out = [];
+  (list || []).forEach(function (r) {
+    var k = r.user_id + '|' + (r.requested_at || '') + '|' + r.status;
+    if (!m[k]) {
+      m[k] = { user_id: r.user_id, name: r.name, status: r.status, reason: r.reason || null, review_note: r.review_note || null,
+        requested_at: r.requested_at || null, reviewed_at: r.reviewed_at || null, remaining: r.remaining, items: [] };
+      out.push(m[k]);
+    }
+    m[k].items.push(r);
+  });
+  out.forEach(function (g) { g.items.sort(function (a, b) { return a.leave_date < b.leave_date ? -1 : 1; }); g.dates = g.items.map(function (x) { return x.leave_date; }); });
+  return out;
+}
 function _atLeaveHtml(d) {
-  var h = '<div class="at-bar"><select onchange="_atYear=Number(this.value);_atGo(\'leave\')">' + _atYearOpts(d.year) + '</select>'
+  var today = d.today || _atToday(), thisMonth = today.slice(0, 7);
+  var rows = d.rows || [], pending = d.pending || [], recent = d.recent || [];
+  var color = {}; rows.forEach(function (r, i) { color[r.id] = _AT_COLORS[i % _AT_COLORS.length]; });
+  var allReq = [];
+  rows.forEach(function (r) { (r.requests || []).forEach(function (x) { allReq.push({ user_id: r.id, name: r.name, leave_date: x.leave_date, status: x.status }); }); });
+  var monthUsed = allReq.filter(function (x) { return x.status === 'approved' && x.leave_date.slice(0, 7) === thisMonth; }).length;
+  var yearUsed = allReq.filter(function (x) { return x.status === 'approved'; }).length;
+
+  /* 1. 요약 띠 */
+  var h = '<div class="at-bar"><select onchange="_atYear=Number(this.value);_atTeamMonth=null;_atGo(\'leave\')">' + _atYearOpts(d.year) + '</select>'
+    + '<span class="at-kpi"><b>' + pending.length + '</b>건 승인 대기</span>'
+    + '<span class="at-kpi"><b>' + monthUsed + '</b>일 이달 연차</span>'
+    + '<span class="at-kpi"><b>' + yearUsed + '</b>일 올해 사용</span>'
     + '<span class="sp"></span><button class="at-btn" onclick="_atGo(\'leave\')">새로고침</button></div>';
-  h += '<div class="at-sec">승인 대기 ' + d.pending.length + '건</div>';
-  if (!d.pending.length) h += '<div style="color:var(--text-mute)">대기 중인 신청이 없습니다</div>';
-  else {
-    h += '<table><thead><tr><th>직원</th><th>날짜</th><th>사유</th><th>잔여</th><th></th></tr></thead><tbody>';
-    d.pending.forEach(function (r) {
-      var act = !d.owner ? '<span style="color:var(--text-mute)">사장님 승인</span>'
-        : r.is_duty ? '<span class="pill late">이날 당번 — 교체 먼저</span> <button class="at-btn dng" onclick="_atReview(' + r.id + ',false)">반려</button>'
-        : '<button class="at-btn pri" onclick="_atReview(' + r.id + ',true)">승인</button> <button class="at-btn dng" onclick="_atReview(' + r.id + ',false)">반려</button>';
-      h += '<tr><td><b>' + _atEsc(r.name) + '</b></td><td>' + _atMd(r.leave_date) + '</td><td>' + _atEsc(r.reason || '') + '</td>'
-        + '<td>' + _atDays(r.remaining) + '</td><td>' + act + '</td></tr>';
-    });
-    h += '</tbody></table>';
+  var tracked = rows.filter(function (r) { return r.tracked !== false && r.days != null; });
+  if (tracked.length) {
+    h += '<div class="at-bars">' + tracked.map(function (r) {
+      var pct = r.days ? Math.min(100, Math.round(100 * r.approved / r.days)) : 0;
+      return '<div class="at-barrow"><span class="at-dotc" style="background:' + color[r.id] + '"></span><span class="nm">' + _atEsc(r.name) + '</span>'
+        + '<span class="at-track"><span class="at-fill" style="width:' + pct + '%;background:' + color[r.id] + '"></span></span>'
+        + '<span class="num">' + _atDays(r.approved) + ' / ' + _atDays(r.days) + ' · 잔여 <b>' + _atDays(r.remaining) + '</b>' + (r.pending ? ' <span class="pill gray">대기 ' + r.pending + '</span>' : '') + '</span></div>';
+    }).join('') + '</div>';
   }
-  var ST = { approved: '승인', rejected: '반려', cancelled: '취소' };
-  h += '<div class="at-sec">최근 처리</div>';
-  if (!d.recent.length) h += '<div style="color:var(--text-mute)">없습니다</div>';
+
+  /* 2. 승인 대기 — 묶음 카드 */
+  var groups = _atLvGroups(pending);
+  var okIds = pending.filter(function (r) { return !r.is_duty; }).map(function (r) { return r.id; });
+  h += '<div class="at-sec at-sec-row">승인 대기 <span class="pill ' + (pending.length ? 'late' : 'gray') + '">' + pending.length + '</span><span class="sp"></span>'
+    + (d.owner && okIds.length > 1 ? '<button class="at-btn pri" onclick="_atReviewMany([' + okIds.join(',') + '],true)">전부 승인 (' + okIds.length + ')</button>' : '') + '</div>';
+  if (!groups.length) {
+    var next = allReq.filter(function (x) { return x.status === 'approved' && x.leave_date >= today; }).sort(function (a, b) { return a.leave_date < b.leave_date ? -1 : 1; })[0];
+    h += '<div class="at-empty">대기 중인 신청이 없어요 🎉' + (next ? '<div style="margin-top:4px;color:var(--text-sub)">다음 연차: <b>' + _atMd(next.leave_date) + ' ' + _atEsc(next.name) + '</b></div>' : '') + '</div>';
+  } else {
+    h += '<div class="at-cards">';
+    groups.forEach(function (g) {
+      var dutyDays = g.items.filter(function (x) { return x.is_duty; });
+      var okItems = g.items.filter(function (x) { return !x.is_duty; });
+      var overlaps = [];
+      g.dates.forEach(function (dt) {
+        allReq.forEach(function (x) { if (x.leave_date === dt && x.user_id !== g.user_id && (x.status === 'approved' || x.status === 'pending')) overlaps.push(_atMd(dt) + ' ' + _atEsc(x.name) + (x.status === 'pending' ? '(대기)' : '')); });
+      });
+      h += '<div class="at-card"><div class="at-card-head"><span class="at-dotc" style="background:' + (color[g.user_id] || '#999') + '"></span><b>' + _atEsc(g.name) + '</b>'
+        + '<span style="color:var(--text-mute)">잔여 ' + _atDays(g.remaining) + '</span><span class="sp"></span>'
+        + '<span style="color:var(--text-mute);font-size:.85em">' + _atEsc(String(g.requested_at || '').slice(5, 10)) + ' 신청</span></div>'
+        + '<div class="at-card-dates"><b>' + _atLvRuns(g.dates) + '</b> <span class="pill leave">' + g.dates.length + '일</span></div>'
+        + (g.reason ? '<div style="color:var(--text-sub)">사유: ' + _atEsc(g.reason) + '</div>' : '')
+        + (dutyDays.length ? '<div class="at-warn">⚠ ' + dutyDays.map(function (x) { return _atMd(x.leave_date); }).join(', ') + ' 당번 — 교체가 먼저입니다</div>' : '')
+        + (overlaps.length ? '<div class="at-warn soft">⚠ 같은 날 연차: ' + overlaps.join(' · ') + '</div>' : '')
+        + (d.owner
+          ? '<div class="at-card-acts"><button class="at-btn dng" onclick="_atReviewMany([' + g.items.map(function (x) { return x.id; }).join(',') + '],false)">반려</button>'
+            + (okItems.length ? '<button class="at-btn pri" onclick="_atReviewMany([' + okItems.map(function (x) { return x.id; }).join(',') + '],true)">승인' + (okItems.length < g.items.length ? ' (' + okItems.length + '일만)' : '') + '</button>' : '') + '</div>'
+          : '<div style="color:var(--text-mute)">사장님 승인</div>')
+        + '</div>';
+    });
+    h += '</div>';
+  }
+
+  /* 3. 팀 연차 달력 */
+  h += _atTeamCalHtml(d, rows, allReq, color, today);
+
+  /* 4. 최근 처리 — 필터 + 묶음 */
+  var FL = [['all', '전체'], ['approved', '승인'], ['rejected', '반려'], ['cancelled', '취소']];
+  var rec = recent.filter(function (r) { return _atLvFilter === 'all' ? r.status !== 'cancelled' : r.status === _atLvFilter; });
+  h += '<div class="at-sec at-sec-row">최근 처리<span class="sp"></span>'
+    + FL.map(function (f) { return '<button type="button" class="at-chipbtn' + (_atLvFilter === f[0] ? ' on' : '') + '" onclick="_atLvFilter=\'' + f[0] + '\';_atRender()">' + f[1] + '</button>'; }).join('') + '</div>';
+  if (!rec.length) h += '<div style="color:var(--text-mute)">' + (_atLvFilter === 'all' ? '처리한 건이 없습니다' : '없습니다') + '</div>';
   else {
-    h += '<table><thead><tr><th>직원</th><th>날짜</th><th>상태</th><th>메모</th><th></th></tr></thead><tbody>';
-    d.recent.forEach(function (r) {
-      h += '<tr><td>' + _atEsc(r.name) + '</td><td>' + _atMd(r.leave_date) + '</td><td>' + (ST[r.status] || _atEsc(r.status)) + '</td>'
-        + '<td>' + _atEsc(r.review_note || '') + '</td><td>'
-        + (d.owner && r.status === 'approved' ? '<button class="at-btn dng" onclick="_atLeaveCancel(' + r.id + ')">승인 취소</button>' : '') + '</td></tr>';
+    var ST = { approved: ['승인', 'ok'], rejected: ['반려', 'late'], cancelled: ['취소', 'gray'] };
+    h += '<table><thead><tr><th>직원</th><th>날짜</th><th>상태</th><th>처리</th><th>메모</th>' + (d.owner ? '<th></th>' : '') + '</tr></thead><tbody>';
+    _atLvGroups(rec).forEach(function (g) {
+      var st = ST[g.status] || [g.status, 'gray'];
+      var who = g.status === 'cancelled' ? (g.review_note === '사장님 취소' ? '사장님' : '본인') : '사장님';
+      var note = g.review_note === '사장님 취소' ? '' : (g.review_note || '');
+      h += '<tr><td><span class="at-dotc" style="background:' + (color[g.user_id] || '#999') + '"></span><b>' + _atEsc(g.name) + '</b></td>'
+        + '<td>' + _atLvRuns(g.dates) + ' <span class="pill gray">' + g.dates.length + '일</span></td>'
+        + '<td><span class="pill ' + st[1] + '">' + st[0] + '</span></td>'
+        + '<td style="color:var(--text-mute)">' + _atEsc(String(g.reviewed_at || '').slice(5, 10)) + ' ' + who + '</td>'
+        + '<td>' + _atEsc(note) + '</td>'
+        + (d.owner ? '<td>' + (g.status === 'approved' ? '<button class="at-btn dng" onclick="_atLeaveCancelMany([' + g.items.map(function (x) { return x.id; }).join(',') + '])">승인 취소</button>' : '') + '</td>' : '')
+        + '</tr>';
     });
     h += '</tbody></table>';
   }
   return h;
+}
+/* 팀 연차 달력 — 날마다 직원 색 점 (빈 점 = 대기), 공휴일 빨강 */
+function _atTeamCalHtml(d, rows, allReq, color, today) {
+  var Y = String(d.year);
+  var month = _atTeamMonth && _atTeamMonth.slice(0, 4) === Y ? _atTeamMonth : (today.slice(0, 4) === Y ? today.slice(0, 7) : Y + '-01');
+  _atTeamMonth = month;
+  var hol = {}; (d.holidays || []).forEach(function (x) { hol[x.ymd] = x.name; });
+  var byDay = {}; allReq.forEach(function (x) { if (x.status === 'approved' || x.status === 'pending') (byDay[x.leave_date] = byDay[x.leave_date] || []).push(x); });
+  var first = month + '-01', lead = _atWd(first);
+  var h = '<div class="at-sec">팀 연차 달력</div><div class="at-cal at-teamcal"><div class="at-cal-head">'
+    + '<button type="button" class="at-btn" onclick="_atTeamMonthGo(-1)" aria-label="이전 달"' + (month <= Y + '-01' ? ' disabled' : '') + '>‹</button>'
+    + '<b>' + Y + '년 ' + Number(month.slice(5)) + '월</b>'
+    + '<button type="button" class="at-btn" onclick="_atTeamMonthGo(1)" aria-label="다음 달"' + (month >= Y + '-12' ? ' disabled' : '') + '>›</button></div>'
+    + '<div class="at-cal-grid">' + _AT_WD.map(function (n, i) { return '<span class="at-cal-wd' + (i === 0 || i === 6 ? ' we' : '') + '">' + n + '</span>'; }).join('');
+  for (var i = 0; i < lead; i++) h += '<span></span>';
+  for (var day = first; day.slice(0, 7) === month; day = _atAdd(day, 1)) {
+    var w = _atWd(day), n = Number(day.slice(8));
+    var cls = 'at-cal-d' + (w === 0 || w === 6 ? ' we' : '') + (hol[day] ? ' holi' : '') + (day === today ? ' today' : '');
+    var dots = (byDay[day] || []).map(function (x) {
+      var c = color[x.user_id] || '#999';
+      return '<i class="at-dot' + (x.status === 'pending' ? ' pend' : '') + '" style="' + (x.status === 'pending' ? 'border-color:' : 'background:') + c + '" title="' + _atEsc(x.name) + (x.status === 'pending' ? ' (대기)' : '') + '"></i>';
+    }).join('');
+    h += '<span class="' + cls + '"' + (hol[day] ? ' title="' + _atEsc(hol[day]) + '"' : '') + '><span>' + n + '</span><span class="at-dots">' + dots + '</span></span>';
+  }
+  h += '</div><div class="at-legend">' + rows.filter(function (r) { return r.tracked !== false; }).map(function (r) { return '<span><span class="at-dotc" style="background:' + color[r.id] + '"></span>' + _atEsc(r.name) + '</span>'; }).join('')
+    + '<span style="color:var(--text-mute)">빈 점 = 승인 대기 · 빨강 = 공휴일</span></div></div>';
+  return h;
+}
+function _atTeamMonthGo(n) {
+  var p = (_atTeamMonth || _atToday().slice(0, 7)).split('-');
+  _atTeamMonth = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1 + n, 1)).toISOString().slice(0, 7);
+  _atRender();
 }
 
 function _atGrantHtml(d) {
@@ -433,16 +551,17 @@ async function _atPost(action, body, okMsg) {
   }
 }
 
+/* 출근시각 수정 — 월별 탭(칸) · 오늘 탭(출근 칸) 공용. 오늘 탭 행은 cells 없이 바로 check_in/note 를 가진다 */
 async function _atEdit(userId, date) {
   var row = (_atData.rows || []).find(function (r) { return r.id === userId; });
-  var c = row && row.cells[date];
+  var c = row ? (row.cells ? row.cells[date] : row) : null;
   var v = prompt((row ? row.name : '') + ' ' + _atMd(date) + ' 출근시각 (HH:MM, 비우면 삭제)', c && c.check_in ? c.check_in : '');
   if (v === null) return;
   v = v.trim();
   if (v && !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) { alert('HH:MM 형식으로 입력해주세요 (예: 09:05)'); return; }
   var note = prompt('메모 (선택 — 외근·반차 사유 등)', c && c.note ? c.note : '');
   if (note === null) return;
-  if (await _atPost('edit', { user_id: userId, work_date: date, check_in: v || null, note: note }, '✏️ 출근 기록 수정됨')) _atGo('month');
+  if (await _atPost('edit', { user_id: userId, work_date: date, check_in: v || null, note: note }, '✏️ 출근 기록 수정됨')) _atGo(_atTab === 'today' ? 'today' : 'month');
 }
 
 async function _atCsv() {
@@ -498,6 +617,36 @@ async function _atReview(id, approve) {
 async function _atLeaveCancel(id) {
   if (!confirm('승인된 연차를 취소할까요? 잔여 일수가 돌아갑니다.')) return;
   if (await _atPost('leave_cancel', { id: id }, '연차 취소됨')) _atGo(_atTab === 'grant' ? 'grant' : 'leave');
+}
+/* 묶음 승인·반려 (승인함 카드) — 한 번에 신청한 여러 날을 한 번에 */
+async function _atReviewMany(ids, approve) {
+  var note = '';
+  if (!approve) { note = prompt('반려 사유 (직원에게 보입니다)', ''); if (note === null) return; }
+  else if (ids.length > 1 && !confirm(ids.length + '일을 한 번에 승인할까요?')) return;
+  var r = await _atPostBody('leave_review_many', { ids: ids, approve: approve, note: note });
+  if (!r) return;
+  var failed = r.failed || [];
+  if (failed.length) alert((r.done || 0) + '일 처리, ' + failed.length + '일 실패:\n' + failed.map(function (f) { return '· ' + f.error; }).join('\n'));
+  else if (typeof showAdminToast === 'function') showAdminToast((approve ? '✅ ' : '') + (r.done || 0) + '일 ' + (approve ? '승인' : '반려'));
+  _atGo(_atTab === 'grant' ? 'grant' : 'leave');
+}
+async function _atLeaveCancelMany(ids) {
+  if (!confirm('승인된 연차 ' + ids.length + '일을 취소할까요? 잔여 일수가 돌아갑니다.')) return;
+  var n = 0;
+  for (var i = 0; i < ids.length; i++) { var r = await _atPostBody('leave_cancel', { id: ids[i] }); if (r && r.ok) n++; }
+  if (typeof showAdminToast === 'function') showAdminToast(n + '일 취소됨');
+  _atGo(_atTab === 'grant' ? 'grant' : 'leave');
+}
+/* 응답 본문이 필요한 POST (묶음 처리 결과) — 실패면 alert 후 null */
+async function _atPostBody(action, body) {
+  try {
+    var r = await fetch(_atUrl('action=' + action), { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body) });
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || '실패');
+    if (typeof mutationDone === 'function') mutationDone({});
+    _atBadge();
+    return d;
+  } catch (e) { alert('처리 실패: ' + (e.message || e)); return null; }
 }
 async function _atGrant(userId) {
   var v = Number((document.getElementById('atG' + userId) || {}).value);

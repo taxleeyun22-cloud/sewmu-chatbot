@@ -300,6 +300,37 @@ describe('연차 현황 — 사람별 내역', () => {
   });
 });
 
+/* 2026-10-02 사장님 "깔쌈하게": 묶음 승인·반려 */
+describe('묶음 승인·반려', () => {
+  it('leave_review_many — 되는 건 처리하고 안 되는 건 사유와 함께 돌려준다, 직원은 403', async () => {
+    await post(d1, DA, 'leave_request', { dates: ['2026-10-14', '2026-10-15'] });   // 다: 나 당번 주
+    await post(d1, NA, 'leave_request', { dates: ['2026-10-29'] });                 // 나: 다 당번 주
+    const pend = (await get(d1, 'key', 'view=leave&year=2026')).body.pending;
+    const ids = pend.map((p: any) => p.id);
+    expect(ids).toHaveLength(3);
+    expect((await post(d1, NA, 'leave_review_many', { ids, approve: true })).status).toBe(403);
+    const r = await post(d1, 'key', 'leave_review_many', { ids: [...ids, 9999], approve: true });
+    expect(r.body).toMatchObject({ ok: true, done: 3 });
+    expect(r.body.failed).toHaveLength(1);
+    expect(r.body.failed[0].error).toContain('#9999');
+    const lv = (await get(d1, 'key', 'view=leave&year=2026')).body;
+    expect(lv.pending).toHaveLength(0);
+    expect(lv.recent.filter((x: any) => x.status === 'approved')).toHaveLength(3);
+    /* 이미 처리된 건은 실패로 */
+    const again = await post(d1, 'key', 'leave_review_many', { ids: [ids[0]], approve: false, note: 'x' });
+    expect(again.body).toMatchObject({ done: 0 });
+    expect(again.body.failed[0].error).toContain('이미 처리');
+    /* 사장님 취소 → 메모 "사장님 취소", 본인 취소 → 메모 없음 */
+    await post(d1, 'key', 'leave_cancel', { id: ids[0] });
+    await post(d1, NA, 'leave_request', { dates: ['2026-10-30'] });
+    const mine = (await get(d1, NA, 'view=me')).body.leave.requests.find((x: any) => x.leave_date === '2026-10-30');
+    await post(d1, NA, 'leave_cancel', { id: mine.id });
+    const rec = (await get(d1, 'key', 'view=leave&year=2026')).body.recent;
+    expect(rec.find((x: any) => x.id === ids[0])).toMatchObject({ status: 'cancelled', review_note: '사장님 취소' });
+    expect(rec.find((x: any) => x.id === mine.id)).toMatchObject({ status: 'cancelled', review_note: null });
+  });
+});
+
 /* 2026-10-02 사장님: "법정공휴일은 체크 안되나??" */
 describe('공휴일', () => {
   it('공휴일 표 — 법정 고정 + 대체 + 2026 음력 seed, 직원도 조회', async () => {
