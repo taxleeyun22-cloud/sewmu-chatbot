@@ -25,6 +25,7 @@
  * POST ?action=profile       {user_id, hire_date?, tracked?}  owner
  * POST ?action=rotation      {members:[…], effective_from}    owner
  * POST ?action=duty_set      {duty_date, user_id | clear, force?}  owner
+ * POST ?action=duty_set_week {monday, user_id | clear, force?}     owner  — 월~금 5칸 일괄
  * POST ?action=edit          {user_id, work_date, check_in?: 'HH:MM'|null, note?}  owner
  * POST ?action=settings      {duty_start, normal_start, grace_minutes}  owner
  */
@@ -678,6 +679,40 @@ export async function onRequestPost(context) {
       ).bind(d, userId, now).run();
       audit('duty_set', 'staff_duty_override', null, before ? { duty_date: d, ...before } : null, { duty_date: d, user_id: userId });
       return json({ ok: true });
+    }
+
+    if (action === 'duty_set_week') {
+      /* 사장님 2026-10-02: "한주씩 일괄지정하는거도 있음 좋겟어" — 그 주 월~금 5칸을 한 번에 */
+      const mon = String(body.monday || '');
+      if (!validYmd(mon) || mondayOf(mon) !== mon) return bad('월요일 날짜를 골라주세요');
+      const days = weekdaysBetween(mon, addDays(mon, 4));
+      const fri = days[days.length - 1];
+      const { results: beforeRows } = await db.prepare(
+        `SELECT duty_date, user_id, source FROM staff_duty_overrides WHERE duty_date BETWEEN ? AND ? ORDER BY duty_date`
+      ).bind(mon, fri).all();
+      const before = (beforeRows || []).length ? beforeRows : null;
+      if (body.clear) {
+        await db.prepare(`DELETE FROM staff_duty_overrides WHERE duty_date BETWEEN ? AND ?`).bind(mon, fri).run();
+        audit('duty_set_week', 'staff_duty_override', null, before, { monday: mon, cleared: true });
+        return json({ ok: true, days: days.length });
+      }
+      const userId = Number(body.user_id);
+      const staffIds = (await loadStaff(db)).map((s) => s.id);
+      if (!staffIds.includes(userId)) return bad('근태 대상 직원이 아닙니다');
+      const { results: lv } = await db.prepare(
+        `SELECT leave_date FROM staff_leave_requests WHERE user_id = ? AND leave_date BETWEEN ? AND ? AND status = 'approved' ORDER BY leave_date`
+      ).bind(userId, mon, fri).all();
+      const leaveDates = (lv || []).map((r) => r.leave_date);
+      if (leaveDates.length && !body.force) {
+        const md = leaveDates.map((x) => x.slice(5).replace('-', '/')).join(', ');
+        return json({ error: md + ' 에 연차가 승인된 직원입니다. 그래도 이 주 전체를 지정할까요?', need_force: true, leave_dates: leaveDates }, 409);
+      }
+      await db.batch(days.map((d) => db.prepare(
+        `INSERT INTO staff_duty_overrides (duty_date, user_id, source, swap_id, updated_at) VALUES (?, ?, 'owner', NULL, ?)
+         ON CONFLICT(duty_date) DO UPDATE SET user_id = excluded.user_id, source = 'owner', swap_id = NULL, updated_at = excluded.updated_at`
+      ).bind(d, userId, now)));
+      audit('duty_set_week', 'staff_duty_override', null, before, { monday: mon, user_id: userId, days });
+      return json({ ok: true, days: days.length });
     }
 
     if (action === 'edit') {
