@@ -41,6 +41,65 @@ export function weekdaysBetween(from, to) {
   return out;
 }
 
+/* ───────────── 공휴일 ───────────── */
+
+/**
+ * 사장님 2026-10-02: "법정공휴일은 체크 안되나??"
+ *
+ * ⚠ 관공서의 공휴일에 관한 규정을 기억으로 옮긴 것이다 (작성 세션에서 법령·달력 사이트 접속이 막혀
+ *   원문 대조를 못 했다). 그래서 공휴일 표는 사장님이 [연차 부여] 탭에서 추가·삭제할 수 있게 했다.
+ *   - 날짜 고정: 1/1 신정 · 3/1 삼일절 · 5/5 어린이날 · 6/6 현충일 · 8/15 광복절 · 10/3 개천절 · 10/9 한글날 · 12/25 기독탄신일
+ *   - 음력(해마다 다름): 설날 연휴 3일 · 부처님오신날 · 추석 연휴 3일 → 코드로 못 구하니 등록 (2026 은 seed)
+ *   - 선거일 · 임시공휴일 → 사장님 등록
+ *   - 대체공휴일: 삼일절·어린이날·광복절·개천절·한글날·기독탄신일·부처님오신날 은 토·일과 겹치면,
+ *               설날·추석 연휴는 일요일 또는 다른 공휴일과 겹치면 → 그 다음 첫 번째 비공휴일(평일).
+ *               신정·현충일은 대체공휴일 없음.
+ */
+const FIXED_HOLIDAYS = [
+  ['01-01', '신정', null], ['03-01', '삼일절', 'weekend'], ['05-05', '어린이날', 'weekend'], ['06-06', '현충일', null],
+  ['08-15', '광복절', 'weekend'], ['10-03', '개천절', 'weekend'], ['10-09', '한글날', 'weekend'], ['12-25', '기독탄신일', 'weekend'],
+];
+export const HOLIDAY_SUB_RULES = ['weekend', 'sunday'];
+
+/**
+ * 그 해 공휴일 표 { 'YYYY-MM-DD': { name, sub } } — sub=true 면 대체공휴일.
+ * custom: [{ ymd, name, sub: 'weekend' | 'sunday' | null }] — DB 등록분. 그 해 것만 쓴다.
+ */
+export function holidayMap(year, custom) {
+  const Y = String(year);
+  const base = FIXED_HOLIDAYS.map(([md, name, sub]) => ({ ymd: Y + '-' + md, name, sub }));
+  for (const c of custom || []) {
+    if (!c || !validYmd(c.ymd) || c.ymd.slice(0, 4) !== Y) continue;
+    base.push({ ymd: c.ymd, name: String(c.name || '공휴일'), sub: HOLIDAY_SUB_RULES.includes(c.sub) ? c.sub : null });
+  }
+  base.sort((a, b) => (a.ymd < b.ymd ? -1 : a.ymd > b.ymd ? 1 : 0));
+  const map = {};
+  for (const h of base) if (!map[h.ymd]) map[h.ymd] = { name: h.name, sub: false };
+  /* 대체공휴일 — 날짜순으로 보되, 이미 공휴일인 날은 건너뛰고 다음 평일로 */
+  for (const h of base) {
+    const w = weekday(h.ymd);
+    const clash = h.sub === 'weekend' ? (w === 0 || w === 6)
+      : h.sub === 'sunday' ? (w === 0 || base.some((o) => o !== h && o.ymd === h.ymd))
+      : false;
+    if (!clash) continue;
+    let d = addDays(h.ymd, 1);
+    while (map[d] || !isWeekday(d)) d = addDays(d, 1);
+    map[d] = { name: h.name + ' 대체공휴일', sub: true };
+  }
+  return map;
+}
+
+/** 평일이고 공휴일이 아닌 날. holidays: holidayMap 결과 (없으면 평일만 본다) */
+export function isWorkday(d, holidays) {
+  return isWeekday(d) && !(holidays && holidays[d]);
+}
+export function workdaysBetween(from, to, holidays) {
+  return weekdaysBetween(from, to).filter((d) => !(holidays && holidays[d]));
+}
+function holidayErr(d, holidays) {
+  return holidays && holidays[d] ? fmtMd(d) + ' 은 공휴일(' + holidays[d].name + ')입니다' : null;
+}
+
 /* ───────────── 당번 ───────────── */
 
 /**
@@ -70,11 +129,11 @@ export function weeklyDuty(d, rotations) {
 }
 
 /**
- * 그날 실제 당번 = 하루 덮어쓰기(사장님 지정·교체 수락) > 주 순서.
- * overrides: { 'YYYY-MM-DD': user_id }
+ * 그날 실제 당번 = 하루 덮어쓰기(사장님 지정·교체 수락) > 주 순서. 공휴일엔 당번이 없다.
+ * overrides: { 'YYYY-MM-DD': user_id } · holidays: holidayMap 결과 (선택)
  */
-export function dutyFor(d, rotations, overrides) {
-  if (!validYmd(d) || !isWeekday(d)) return null;
+export function dutyFor(d, rotations, overrides, holidays) {
+  if (!validYmd(d) || !isWorkday(d, holidays)) return null;
   if (overrides && Object.prototype.hasOwnProperty.call(overrides, d) && overrides[d] != null) return Number(overrides[d]);
   const w = weeklyDuty(d, rotations);
   return w == null ? null : Number(w);
@@ -115,15 +174,17 @@ export function isLate(checkInAt, start, graceMinutes) {
  *   ctx.dutyOf(date) → 그날 현재 당번 user_id
  *   ctx.staffIds     → 근태 대상 직원 id 배열
  */
-export function checkSwapRequest({ fromUser, toUser, dutyDate, returnDate, today, dutyOf, staffIds }) {
+export function checkSwapRequest({ fromUser, toUser, dutyDate, returnDate, today, dutyOf, staffIds, holidays }) {
   if (!validYmd(dutyDate)) return '날짜가 올바르지 않습니다';
   if (!isWeekday(dutyDate)) return '주말에는 당번이 없습니다';
+  if (holidayErr(dutyDate, holidays)) return holidayErr(dutyDate, holidays) + ' — 당번이 없습니다';
   if (dutyDate < today) return '지난 날짜는 교체할 수 없습니다';
   if (!toUser || Number(toUser) === Number(fromUser)) return '교체할 동료를 골라주세요';
   if (!(staffIds || []).map(Number).includes(Number(toUser))) return '근태 대상 직원이 아닙니다';
   if (Number(dutyOf(dutyDate)) !== Number(fromUser)) return fmtMd(dutyDate) + ' 은 내 당번이 아닙니다';
   if (returnDate) {
     if (!validYmd(returnDate) || !isWeekday(returnDate)) return '맞교환 날짜가 올바르지 않습니다';
+    if (holidayErr(returnDate, holidays)) return '맞교환 날짜 ' + holidayErr(returnDate, holidays);
     if (returnDate < today) return '맞교환 날짜가 지났습니다';
     if (returnDate === dutyDate) return '맞교환 날짜가 같은 날입니다';
     if (Number(dutyOf(returnDate)) !== Number(toUser)) return fmtMd(returnDate) + ' 은 상대방 당번이 아닙니다';
@@ -135,10 +196,10 @@ export function checkSwapRequest({ fromUser, toUser, dutyDate, returnDate, today
  * 수락 시 재검사 — 요청 이후 사장님이 당번을 바꿨거나 연차가 잡혔을 수 있다.
  *   ctx.hasLeave(userId, date) → 그날 대기·승인 연차가 있는지
  */
-export function checkSwapAccept({ swap, today, dutyOf, staffIds, hasLeave }) {
+export function checkSwapAccept({ swap, today, dutyOf, staffIds, hasLeave, holidays }) {
   const err = checkSwapRequest({
     fromUser: swap.from_user, toUser: swap.to_user, dutyDate: swap.duty_date,
-    returnDate: swap.return_date, today, dutyOf, staffIds,
+    returnDate: swap.return_date, today, dutyOf, staffIds, holidays,
   });
   if (err) return '교체할 수 없게 됐습니다 — ' + err;
   if (hasLeave(swap.to_user, swap.duty_date)) return fmtMd(swap.duty_date) + ' 에 연차가 있어 대신 설 수 없습니다';
@@ -154,13 +215,15 @@ export function checkSwapAccept({ swap, today, dutyOf, staffIds, hasLeave }) {
  *   used:  그 해 승인 + 대기 일수 (대기도 세야 여러 건으로 잔여를 넘기지 못한다)
  *   taken: 이미 대기·승인된 날짜 Set
  */
-export function checkLeaveRequest({ userId, dates, today, dutyOf, grant, used, taken }) {
+export function checkLeaveRequest({ userId, dates, today, dutyOf, grant, used, taken, holidays }) {
   const list = Array.from(new Set((dates || []).map(String))).sort();
   if (!list.length) return { error: '날짜를 골라주세요' };
   if (list.length > 31) return { error: '한 번에 31일까지만 신청할 수 있습니다' };
   for (const d of list) {
     if (!validYmd(d)) return { error: '날짜가 올바르지 않습니다' };
     if (!isWeekday(d)) return { error: fmtMd(d) + ' 은 주말입니다' };
+    /* 공휴일은 연차에서 빠진다 — 사장님: "법정공휴일은 체크 안되나" */
+    if (holidayErr(d, holidays)) return { error: holidayErr(d, holidays) + ' — 연차가 필요 없습니다' };
     if (d < today) return { error: '지난 날짜는 신청할 수 없습니다' };
   }
   const year = list[0].slice(0, 4);

@@ -28,12 +28,16 @@
  * POST ?action=duty_set_week {monday, user_id | clear, force?}     owner  — 월~금 5칸 일괄
  * POST ?action=edit          {user_id, work_date, check_in?: 'HH:MM'|null, note?}  owner
  * POST ?action=settings      {duty_start, normal_start, grace_minutes}  owner
+ * GET  ?view=holidays&year=YYYY                   그 해 공휴일 표 (법정·등록·대체)   (직원도)
+ * POST ?action=holiday_add   {ymd, name, sub?}    owner  — 음력 명절·선거일·임시공휴일 등록
+ * POST ?action=holiday_del   {ymd}                owner
  */
 
 import { checkAdmin, adminUnauthorized, ownerOnly, checkOriginCsrf } from "./_adminAuth.js";
 import { logAudit } from "./_audit.js";
 import {
   validYmd, validHm, addDays, isWeekday, mondayOf, weekdaysBetween,
+  holidayMap, isWorkday, workdaysBetween, HOLIDAY_SUB_RULES,
   dutyFor, expectedStart, isLate,
   checkSwapRequest, checkSwapAccept, checkLeaveRequest, checkLeaveApprove,
   suggestLeave, buildCsv, fmtMd,
@@ -81,8 +85,45 @@ async function ensureTables(db) {
       id INTEGER PRIMARY KEY CHECK (id = 1), duty_start TEXT DEFAULT '09:00',
       normal_start TEXT DEFAULT '09:30', grace_minutes INTEGER DEFAULT 1, updated_at TEXT)`,
     `INSERT OR IGNORE INTO staff_attendance_settings (id) VALUES (1)`,
+    /* 공휴일 등록분 (음력 명절 · 선거일 · 임시공휴일). 날짜 고정 공휴일·대체공휴일은 코드가 계산한다 (_attendance-core.js holidayMap) */
+    `CREATE TABLE IF NOT EXISTS staff_holidays (
+      ymd TEXT PRIMARY KEY, name TEXT NOT NULL, sub TEXT, source TEXT NOT NULL DEFAULT 'owner', created_at TEXT)`,
+    `ALTER TABLE staff_attendance_settings ADD COLUMN holidays_seeded INTEGER DEFAULT 0`,
   ];
   for (const sql of ddl) { try { await db.prepare(sql).run(); } catch (_) {} }
+  await seedHolidays(db);
+}
+
+/* 2026 음력 명절 + 지방선거일 — 한 번만 넣고, 그 뒤엔 사장님이 지우거나 바꿔도 다시 안 넣는다.
+   2027 이후 음력 날짜는 사장님이 [연차 부여] 탭에서 등록 (코드로 못 구한다). */
+const SEED_HOLIDAYS_2026 = [
+  ['2026-02-16', '설날 연휴', 'sunday'], ['2026-02-17', '설날', 'sunday'], ['2026-02-18', '설날 연휴', 'sunday'],
+  ['2026-05-24', '부처님오신날', 'weekend'],
+  ['2026-06-03', '제9회 전국동시지방선거', null],
+  ['2026-09-24', '추석 연휴', 'sunday'], ['2026-09-25', '추석', 'sunday'], ['2026-09-26', '추석 연휴', 'sunday'],
+];
+async function seedHolidays(db) {
+  try {
+    const s = await db.prepare(`SELECT holidays_seeded FROM staff_attendance_settings WHERE id = 1`).first();
+    if (s && Number(s.holidays_seeded) === 1) return;
+    const now = kst();
+    await db.batch(SEED_HOLIDAYS_2026.map(([ymd, name, sub]) =>
+      db.prepare(`INSERT OR IGNORE INTO staff_holidays (ymd, name, sub, source, created_at) VALUES (?, ?, ?, 'seed', ?)`).bind(ymd, name, sub, now)));
+    await db.prepare(`UPDATE staff_attendance_settings SET holidays_seeded = 1 WHERE id = 1`).run();
+  } catch (_) {}
+}
+
+/** from~to 가 걸친 연도의 공휴일 표 (고정 + 등록 + 대체). names 는 화면용 { ymd: 이름 } */
+async function loadHolidays(db, from, to) {
+  const y0 = Number(String(from).slice(0, 4)), y1 = Number(String(to).slice(0, 4));
+  const { results } = await db.prepare(`SELECT ymd, name, sub, source FROM staff_holidays WHERE ymd BETWEEN ? AND ?`)
+    .bind(y0 + '-01-01', y1 + '-12-31').all();
+  const rows = results || [];
+  const map = {};
+  for (let y = y0; y <= y1 && y <= y0 + 3; y++) Object.assign(map, holidayMap(y, rows));
+  const names = {};
+  for (const d of Object.keys(map)) names[d] = map[d].name;
+  return { map, names, rows };
 }
 
 /* ── 읽기 헬퍼 ── */
@@ -127,7 +168,11 @@ async function loadOverrides(db, from, to) {
 async function dutyCtx(db, from, to) {
   const rotations = await loadRotations(db);
   const { map, meta } = await loadOverrides(db, from, to);
-  return { rotations, overrides: map, overrideMeta: meta, dutyOf: (d) => dutyFor(d, rotations, map) };
+  const hol = await loadHolidays(db, from, to);
+  return {
+    rotations, overrides: map, overrideMeta: meta, holidays: hol.map, holidayNames: hol.names,
+    dutyOf: (d) => dutyFor(d, rotations, map, hol.map),
+  };
 }
 
 /** 본인 확인 — 세션 로그인 + 👑 관리자 + 근태 대상 */
@@ -169,6 +214,18 @@ async function leaveMap(db, from, to, statuses) {
   const m = {};
   for (const r of results || []) m[r.user_id + '|' + r.leave_date] = r.status;
   return m;
+}
+
+/** 그 해 공휴일 목록 — 화면용. source: fixed(법정 고정) | seed | owner | substitute(대체) */
+async function holidayList(db, year) {
+  const hol = await loadHolidays(db, year + '-01-01', year + '-12-31');
+  const srcOf = Object.fromEntries(hol.rows.map((r) => [r.ymd, r.source]));
+  const subOf = Object.fromEntries(hol.rows.map((r) => [r.ymd, r.sub || null]));
+  return Object.keys(hol.map).sort().map((ymd) => ({
+    ymd, name: hol.map[ymd].name,
+    source: hol.map[ymd].sub ? 'substitute' : (srcOf[ymd] || 'fixed'),
+    sub_rule: hol.map[ymd].sub ? null : (subOf[ymd] || null),
+  }));
 }
 
 /** 하루 한 사람의 판정 묶음 */
@@ -222,6 +279,12 @@ export async function onRequestGet(context) {
       return json({ ok: true, owner: !!auth.owner, pending_leave: pendingLeave, my_swaps: mySwaps });
     }
     if (view === 'duty') return await viewDuty(db, auth, url, today);
+    /* 그 해 공휴일 표 — 직원도 본다 (연차 달력·당번표에 쓴다) */
+    if (view === 'holidays') {
+      const year = Number(url.searchParams.get('year')) || Number(today.slice(0, 4));
+      if (year < 2000 || year > 2100) return bad('year 확인');
+      return json({ ok: true, year, owner: !!auth.owner, list: await holidayList(db, year) });
+    }
     if (!auth.owner) return ownerOnly();
     if (view === 'today') return await viewToday(db, auth, today);
     if (view === 'month') return await viewMonth(db, auth, url, today);
@@ -243,7 +306,9 @@ async function viewMe(db, auth, today) {
 
   const thisMon = mondayOf(today);
   const horizon = addDays(thisMon, 7 * 6 - 1);
-  const { dutyOf } = await dutyCtx(db, thisMon, horizon);
+  const { dutyOf, holidays, holidayNames } = await dutyCtx(db, thisMon, horizon);
+  /* 연차 달력용 — 올해 1월부터 1년 남짓 뒤까지의 공휴일 이름 (내 연차 달력은 지난 달도 본다) */
+  const calHol = await loadHolidays(db, today.slice(0, 4) + '-01-01', addDays(today, 400));
 
   const att = await db.prepare(`SELECT * FROM staff_attendance WHERE user_id = ? AND work_date = ?`).bind(me.id, today).first();
   const year = Number(today.slice(0, 4));
@@ -252,7 +317,7 @@ async function viewMe(db, auth, today) {
     ? (await db.prepare(`SELECT status FROM staff_leave_requests WHERE user_id = ? AND leave_date = ? AND status IN ('pending','approved')`).bind(me.id, today).first())?.status
     : null;
 
-  const week = (mon) => weekdaysBetween(mon, addDays(mon, 4)).map((d) => ({ date: d, user_id: dutyOf(d), name: nameOf[dutyOf(d)] || null }));
+  const week = (mon) => weekdaysBetween(mon, addDays(mon, 4)).map((d) => ({ date: d, user_id: dutyOf(d), name: nameOf[dutyOf(d)] || null, holiday: holidayNames[d] || null }));
   const myDuty = weekdaysBetween(today, horizon).filter((d) => dutyOf(d) === me.id);
 
   const { results: received } = await db.prepare(
@@ -286,7 +351,9 @@ async function viewMe(db, auth, today) {
     me: { id: me.id, name: me.name },
     settings,
     today_cell: dayCell(me.id, today, att, dutyOf(today), todayLeave, settings),
-    weekday: isWeekday(today),
+    weekday: isWorkday(today, holidays),
+    holiday: holidayNames[today] || null,
+    holidays: calHol.names,
     duty: { this_week: week(thisMon), next_week: week(addDays(thisMon, 7)), mine: myDuty },
     swaps: { received: (received || []).map(swapRow), sent: (sent || []).map(swapRow) },
     colleagues: staff.filter((s) => s.id !== me.id).map((s) => ({ id: s.id, name: s.name })),
@@ -304,13 +371,13 @@ async function viewMe(db, auth, today) {
 async function viewToday(db, auth, today) {
   const settings = await loadSettings(db);
   const staff = await loadStaff(db);
-  const { dutyOf } = await dutyCtx(db, today, today);
+  const { dutyOf, holidays, holidayNames } = await dutyCtx(db, today, today);
   const { results } = await db.prepare(`SELECT * FROM staff_attendance WHERE work_date = ?`).bind(today).all();
   const attBy = Object.fromEntries((results || []).map((a) => [a.user_id, a]));
   const lv = await leaveMap(db, today, today, ['approved', 'pending']);
   const duty = dutyOf(today);
   return json({
-    ok: true, today, weekday: isWeekday(today), settings, owner: !!auth.owner,
+    ok: true, today, weekday: isWorkday(today, holidays), holiday: holidayNames[today] || null, settings, owner: !!auth.owner,
     duty_user: duty, duty_name: (staff.find((s) => s.id === duty) || {}).name || null,
     rows: staff.map((s) => ({ id: s.id, name: s.name, ...dayCell(s.id, today, attBy[s.id], duty, lv[s.id + '|' + today], settings) })),
   });
@@ -327,7 +394,7 @@ async function monthData(db, month, today) {
   const staff = await loadStaff(db);
   const days = monthDays(month);
   const from = days[0], to = days[days.length - 1];
-  const { dutyOf } = await dutyCtx(db, from, to);
+  const { dutyOf, holidays, holidayNames } = await dutyCtx(db, from, to);
   const { results } = await db.prepare(`SELECT * FROM staff_attendance WHERE work_date BETWEEN ? AND ?`).bind(from, to).all();
   const att = {};
   for (const a of results || []) att[a.user_id + '|' + a.work_date] = a;
@@ -336,7 +403,8 @@ async function monthData(db, month, today) {
     const cells = {};
     const sum = { checked: 0, late: 0, leave: 0, duty: 0 };
     for (const d of days) {
-      if (!isWeekday(d) && !att[s.id + '|' + d]) continue;
+      /* 주말·공휴일은 출근 기록이 있을 때만 칸을 만든다 */
+      if (!isWorkday(d, holidays) && !att[s.id + '|' + d]) continue;
       const c = dayCell(s.id, d, att[s.id + '|' + d], dutyOf(d), lv[s.id + '|' + d], settings);
       cells[d] = c;
       if (c.check_in) sum.checked++;
@@ -346,7 +414,7 @@ async function monthData(db, month, today) {
     }
     return { id: s.id, name: s.name, cells, sum };
   });
-  return { settings, days, rows, today };
+  return { settings, days, rows, today, holidays: holidayNames };
 }
 
 async function viewMonth(db, auth, url, today) {
@@ -384,7 +452,7 @@ async function viewDuty(db, auth, url, today) {
   const to = addDays(from, weeks * 7 - 1);
   const staff = await loadStaff(db);
   const nameOf = Object.fromEntries(staff.map((s) => [s.id, s.name]));
-  const { rotations, overrideMeta, dutyOf } = await dutyCtx(db, from, to);
+  const { rotations, overrideMeta, dutyOf, holidayNames } = await dutyCtx(db, from, to);
   const lv = await leaveMap(db, from, to, ['approved']);
   const grid = [];
   for (let w = 0; w < weeks; w++) {
@@ -394,7 +462,7 @@ async function viewDuty(db, auth, url, today) {
       days: weekdaysBetween(mon, addDays(mon, 4)).map((d) => {
         const u = dutyOf(d);
         const o = overrideMeta[d];
-        return { date: d, user_id: u, name: nameOf[u] || null, override: o ? o.source : null, on_leave: !!lv[u + '|' + d] };
+        return { date: d, user_id: u, name: nameOf[u] || null, override: o ? o.source : null, on_leave: !!lv[u + '|' + d], holiday: holidayNames[d] || null };
       }),
     });
   }
@@ -451,6 +519,7 @@ async function viewLeave(db, auth, url, today) {
   }
   return json({
     ok: true, year, owner: !!auth.owner, settings, rows,
+    holidays: await holidayList(db, year),
     pending: pending.map((r) => ({
       ...r, name: nameOf[r.user_id] || '?', is_duty: dutyOf(r.leave_date) === Number(r.user_id),
       remaining: (rows.find((x) => x.id === r.user_id) || {}).remaining ?? null,
@@ -505,8 +574,8 @@ export async function onRequestPost(context) {
         const toUser = Number(body.to_user);
         const span = [dutyDate, returnDate].filter(validYmd).sort();
         const staff = await loadStaff(db);
-        const { dutyOf } = await dutyCtx(db, span[0] || today, span[span.length - 1] || today);
-        const err = checkSwapRequest({ fromUser: me.id, toUser, dutyDate, returnDate, today, dutyOf, staffIds: staff.map((s) => s.id) });
+        const { dutyOf, holidays } = await dutyCtx(db, span[0] || today, span[span.length - 1] || today);
+        const err = checkSwapRequest({ fromUser: me.id, toUser, dutyDate, returnDate, today, dutyOf, staffIds: staff.map((s) => s.id), holidays });
         if (err) return bad(err);
         const dup = await db.prepare(`SELECT id FROM staff_duty_swaps WHERE from_user = ? AND duty_date = ? AND status = 'pending'`).bind(me.id, dutyDate).first();
         if (dup) return bad(fmtMd(dutyDate) + ' 은 이미 교체 요청 중입니다');
@@ -528,11 +597,11 @@ export async function onRequestPost(context) {
         }
         const span = [swap.duty_date, swap.return_date].filter(Boolean).sort();
         const staff = await loadStaff(db);
-        const { dutyOf } = await dutyCtx(db, span[0], span[span.length - 1]);
+        const { dutyOf, holidays } = await dutyCtx(db, span[0], span[span.length - 1]);
         const lv = await leaveMap(db, span[0], span[span.length - 1], ['pending', 'approved']);
         const err = checkSwapAccept({
           swap, today, dutyOf, staffIds: staff.map((s) => s.id),
-          hasLeave: (u, d) => !!lv[Number(u) + '|' + d],
+          hasLeave: (u, d) => !!lv[Number(u) + '|' + d], holidays,
         });
         if (err) return bad(err);
         /* 맞교환이면 두 날을 같이 바꾼다 — 한쪽만 들어가면 한 사람이 이틀 당번이 된다 */
@@ -568,9 +637,9 @@ export async function onRequestPost(context) {
         const year = (sorted[0] || today).slice(0, 4);
         const grant = await grantOf(db, me.id, year);
         const lv = await leaveTaken(db, me.id, year);
-        const { dutyOf } = await dutyCtx(db, sorted[0] || today, sorted[sorted.length - 1] || today);
+        const { dutyOf, holidays } = await dutyCtx(db, sorted[0] || today, sorted[sorted.length - 1] || today);
         const chk = checkLeaveRequest({
-          userId: me.id, dates, today, dutyOf, grant, used: lv.approved + lv.pending, taken: lv.taken,
+          userId: me.id, dates, today, dutyOf, grant, used: lv.approved + lv.pending, taken: lv.taken, holidays,
         });
         if (chk.error) return json({ error: chk.error, duty_date: chk.duty_date || null }, 400);
         const reason = String(body.reason || '').trim().slice(0, 200) || null;
@@ -662,6 +731,8 @@ export async function onRequestPost(context) {
     if (action === 'duty_set') {
       const d = String(body.duty_date || '');
       if (!validYmd(d) || !isWeekday(d)) return bad('평일 날짜를 골라주세요');
+      const hol = await loadHolidays(db, d, d);
+      if (hol.names[d]) return bad(fmtMd(d) + ' 은 공휴일(' + hol.names[d] + ')입니다 — 당번이 없습니다');
       const before = await db.prepare(`SELECT user_id, source FROM staff_duty_overrides WHERE duty_date = ?`).bind(d).first();
       if (body.clear) {
         await db.prepare(`DELETE FROM staff_duty_overrides WHERE duty_date = ?`).bind(d).run();
@@ -685,8 +756,10 @@ export async function onRequestPost(context) {
       /* 사장님 2026-10-02: "한주씩 일괄지정하는거도 있음 좋겟어" — 그 주 월~금 5칸을 한 번에 */
       const mon = String(body.monday || '');
       if (!validYmd(mon) || mondayOf(mon) !== mon) return bad('월요일 날짜를 골라주세요');
-      const days = weekdaysBetween(mon, addDays(mon, 4));
-      const fri = days[days.length - 1];
+      const fri = addDays(mon, 4);
+      /* 공휴일은 건너뛴다 — 당번이 없는 날 */
+      const days = workdaysBetween(mon, fri, (await loadHolidays(db, mon, fri)).map);
+      if (!days.length) return bad('그 주는 전부 공휴일입니다');
       const { results: beforeRows } = await db.prepare(
         `SELECT duty_date, user_id, source FROM staff_duty_overrides WHERE duty_date BETWEEN ? AND ? ORDER BY duty_date`
       ).bind(mon, fri).all();
@@ -753,6 +826,32 @@ export async function onRequestPost(context) {
       await db.prepare(`UPDATE staff_attendance_settings SET duty_start = ?, normal_start = ?, grace_minutes = ?, updated_at = ? WHERE id = 1`)
         .bind(ds, ns, g, now).run();
       audit('attendance_settings', 'settings', 1, before, { duty_start: ds, normal_start: ns, grace_minutes: g });
+      return json({ ok: true });
+    }
+
+    /* 공휴일 등록·삭제 — 사장님: "법정공휴일은 체크 안되나" (음력 명절·선거일·임시공휴일은 코드로 못 구한다) */
+    if (action === 'holiday_add') {
+      const ymd = String(body.ymd || '');
+      const name = String(body.name || '').trim().slice(0, 30);
+      const sub = HOLIDAY_SUB_RULES.includes(body.sub) ? body.sub : null;
+      if (!validYmd(ymd)) return bad('날짜 형식은 YYYY-MM-DD');
+      if (!name) return bad('공휴일 이름을 적어주세요');
+      const fixed = holidayMap(ymd.slice(0, 4), []);
+      if (fixed[ymd] && !fixed[ymd].sub) return bad(fmtMd(ymd) + ' 은 이미 법정공휴일(' + fixed[ymd].name + ')입니다');
+      await db.prepare(
+        `INSERT INTO staff_holidays (ymd, name, sub, source, created_at) VALUES (?, ?, ?, 'owner', ?)
+         ON CONFLICT(ymd) DO UPDATE SET name = excluded.name, sub = excluded.sub, source = 'owner'`
+      ).bind(ymd, name, sub, now).run();
+      audit('holiday_add', 'staff_holiday', null, null, { ymd, name, sub });
+      return json({ ok: true });
+    }
+    if (action === 'holiday_del') {
+      const ymd = String(body.ymd || '');
+      if (!validYmd(ymd)) return bad('날짜 형식은 YYYY-MM-DD');
+      const before = await db.prepare(`SELECT name, sub, source FROM staff_holidays WHERE ymd = ?`).bind(ymd).first();
+      if (!before) return bad('등록된 공휴일이 아닙니다 (법정공휴일·대체공휴일은 지울 수 없습니다)', 404);
+      await db.prepare(`DELETE FROM staff_holidays WHERE ymd = ?`).bind(ymd).run();
+      audit('holiday_del', 'staff_holiday', null, { ymd, ...before }, null);
       return json({ ok: true });
     }
 

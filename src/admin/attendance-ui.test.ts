@@ -54,6 +54,11 @@ describe('오늘', () => {
   it('직원이 없으면 "👑 관리자" 안내', () => {
     expect(M._atTodayHtml({ ...d(true), rows: [] })).toContain('👑 관리자');
   });
+
+  it('공휴일이면 이름과 함께 안내', () => {
+    expect(M._atTodayHtml({ ...d(true), weekday: false, holiday: '한글날' })).toContain('오늘은 공휴일입니다 (한글날)');
+    expect(M._atTodayHtml({ ...d(true), weekday: false })).toContain('오늘은 주말입니다');
+  });
 });
 
 describe('월별', () => {
@@ -83,6 +88,22 @@ describe('월별', () => {
     expect(h).toContain('_atCsv()');
     expect(h).toContain('<td class="late">1</td>');
   });
+
+  /* 사장님 2026-10-02: "월별로 직원별로 연차 언제 썼는지 체크 좀 하자" + 공휴일 */
+  it('공휴일 열은 빨강 머리글 + 주말 취급, 아래에 "이달 연차 — 직원별" 표', () => {
+    const x: any = d(true);
+    x.holidays = { '2026-10-09': '한글날' };
+    x.days = ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-09'];
+    x.rows[0].cells['2026-10-09'] = cell({ check_in: '10:00' });   // 공휴일 출근 기록이 있으면 칸이 생긴다
+    const h = M._atMonthHtml(x);
+    expect(h).toContain('<th class="holi" title="한글날">9<br>금</th>');
+    expect(h).toContain('공휴일: 10/9(금) 한글날');
+    expect(h).toContain('이달 연차 — 직원별');
+    /* 이정상: 10/6 승인 1일 · 김당번: 없음 */
+    expect(h).toContain('<b>이정상</b></td><td><span class="pill leave" style="margin:1px 2px 1px 0">10/6(화)</span></td><td></td><td><b>1</b>일</td>');
+    expect(h).toContain('<b>김당번</b></td><td><span style="color:var(--text-mute)">—</span></td>');
+    expect(M._atMonthHtml({ ...d(true), rows: d(true).rows.map((r) => ({ ...r, cells: { '2026-10-05': cell() } })) })).toContain('이달에 쓴 연차가 없습니다');
+  });
 });
 
 describe('당번표', () => {
@@ -110,6 +131,16 @@ describe('당번표', () => {
     expect(viewer).not.toContain('_atSaveRotation');
     expect(viewer).not.toContain('_atDutySet(');
     expect(viewer).not.toContain('_atOrdMove');
+  });
+
+  it('공휴일 칸은 "휴" + 이름, select 없음', () => {
+    const x = d(true);
+    x.grid[0].days[4] = { ...x.grid[0].days[4], holiday: '한글날', user_id: null, name: null } as any;
+    const h = M._atDutyHtml(x, null);
+    expect(h).toContain('<td class="we holi" title="한글날"><span class="pill late">휴</span>');
+    expect(h).toContain('한글날</div></td>');
+    expect(h).not.toContain("_atDutySet('2026-10-09'");
+    expect(h).toContain("_atDutySet('2026-10-08'");
   });
 
   it('owner 만 [주 전체] 일괄 지정이 보이고, 월~금 전부 같은 사람 지정이면 그 사람이 선택돼 있다', () => {
@@ -283,7 +314,7 @@ describe('admin 홈 출근 카드 · 내 근태 탭', () => {
     expect(h).toContain('class="at-cal-d on duty" onclick="_atLvToggle(\'2026-10-12\')"');   // 고른 날 + 내 당번 점
     expect(h).toContain('class="at-cal-d on" onclick="_atLvToggle(\'2026-10-23\')"');        // 떨어진 날도 같이
     expect(h).toContain('class="at-cal-d today" onclick="_atLvToggle(\'2026-10-05\')"');
-    expect(h).toContain('<span class="at-cal-d taken" title="승인 대기">20</span>');         // 이미 신청한 날은 못 누름
+    expect(h).toContain('<span class="at-cal-d taken wait" title="승인 대기">20</span>');    // 이미 신청한 날은 못 누름
     expect(h).toContain("_atLvToggle('2026-10-21')");                                        // 반려된 날은 다시 신청 가능
     expect(h).not.toContain("_atLvToggle('2026-10-01')");                                    // 지난 날
     expect(h).not.toContain("_atLvToggle('2026-10-03')");                                    // 토요일
@@ -293,6 +324,60 @@ describe('admin 홈 출근 카드 · 내 근태 탭', () => {
     expect(h).toContain('잔여 13일');                                                         // 14 − 대기 1
     expect(h).toContain('onclick="_atLvMonth(1)"');
     expect(h).toContain('onclick="_atLvMonth(-1)" aria-label="이전 달" disabled');            // 이번 달 아래로는 못 감
+  });
+
+  /* 사장님: "법정공휴일은 체크 안되나" / "직원 본인도 본인 건 언제 쓰는지 볼 수 있도록" */
+  it('내 근태: 공휴일은 빨강으로 못 누르고, 내 연차 달력(보기 전용)에 승인·대기가 월별로 묶여 보인다', () => {
+    const d = me({
+      holidays: { '2026-10-09': '한글날', '2026-10-05': '개천절 대체공휴일' },
+      leave: { year: 2026, days: 15, approved: 2, pending: 1, remaining: 13,
+        requests: [{ id: 1, leave_date: '2026-10-20', status: 'approved', review_note: null }, { id: 2, leave_date: '2026-09-10', status: 'approved', review_note: null },
+          { id: 3, leave_date: '2026-11-03', status: 'pending', review_note: null }] },
+    });
+    /* 신청 폼: 공휴일은 span.holi, 버튼 아님 */
+    const pick = M2._atMeHtml(d, { kind: 'leave', dates: [] }, '');
+    expect(pick).toContain('<span class="at-cal-d holi" title="한글날">9</span>');
+    expect(pick).toContain('class="at-cal-d holi today" title="개천절 대체공휴일"');   // 오늘(10/5)이 공휴일
+    expect(pick).not.toContain("_atLvToggle('2026-10-09')");
+    expect(pick).toContain('공휴일: 5일 개천절 대체공휴일, 9일 한글날');
+    /* 보기 전용 달력: 폼이 닫혀 있을 때, 승인=보라 대기=연보라, 누르는 버튼 없음, 월별 묶음 */
+    const view = M2._atMeHtml(d, null, '');
+    expect(view).toContain('내 연차 달력');
+    expect(view).toContain('<span class="at-cal-d taken" title="승인된 연차">20</span>');
+    expect(view).not.toContain('_atLvToggle(');
+    expect(view).toContain('onclick="_atLvViewMonth(-1)"');
+    expect(view).toContain('10/20(화)');
+    expect(view).toContain('11/3(화) 대기');
+    expect(view).toContain('9월</span>');     // 지난 달 승인 건도 묶음에 (9/10)
+    expect(view).toContain('9/10(목)');
+    expect(view).toContain('10/20(화)</span></span><span style="color:var(--text-mute)">1일');
+  });
+
+  it('연차 부여 탭: 공휴일 표 — 법정·대체는 못 지우고 등록분만 삭제, 추가 폼은 사장님만', () => {
+    const base = {
+      year: 2026, settings, rows: [{ id: 11, name: '가', tracked: true, hire_date: '2023-03-02', suggested: 16, basis: 'x', days: 16, approved: 0, pending: 0, remaining: 16, requests: [] }],
+      holidays: [{ ymd: '2026-02-17', name: '설날', source: 'seed', sub_rule: 'sunday' }, { ymd: '2026-10-05', name: '개천절 대체공휴일', source: 'substitute', sub_rule: null },
+        { ymd: '2026-10-09', name: '한글날', source: 'fixed', sub_rule: null }, { ymd: '2026-10-30', name: '창립기념일', source: 'owner', sub_rule: null }],
+    };
+    const own = M._atGrantHtml({ ...base, owner: true });
+    expect(own).toContain('2026년 공휴일');
+    expect(own).toContain('<b>한글날</b><span class="pill gray">법정</span>');
+    expect(own).toContain('<b>개천절 대체공휴일</b><span class="pill gray">대체</span>');
+    expect(own).toContain("_atHolidayDel('2026-02-17')");
+    expect(own).toContain("_atHolidayDel('2026-10-30')");
+    expect(own).not.toContain("_atHolidayDel('2026-10-09')");
+    expect(own).toContain('id="atHolYmd"');
+    const viewer = M._atGrantHtml({ ...base, owner: false });
+    expect(viewer).toContain('한글날');
+    expect(viewer).not.toContain('_atHolidayDel');
+    expect(viewer).not.toContain('atHolYmd');
+  });
+
+  it('오늘이 공휴일이면 홈 카드·내 근태에 이름이 뜬다', () => {
+    const d = me({ weekday: false, holiday: '한글날', today: '2026-10-09' });
+    expect(M2._atHomeCardHtml(d)).toContain('오늘은 공휴일입니다 (한글날)');
+    expect(M2._atHomeCardHtml(d)).not.toContain('haPunch');
+    expect(M2._atMeHtml(d, null, '')).toContain('오늘은 공휴일입니다 (한글날)');
   });
 
   it('탭: 직원은 내 근태·당번표만, 사장님은 오늘·월별·승인함·부여까지', () => {
