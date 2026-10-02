@@ -190,10 +190,6 @@ function _atDutyHtml(d, order) {
     + '<button class="at-btn" onclick="_atDutyFrom=_atAdd(_atDutyFrom,28);_atGo(\'duty\')">4주 ▶</button>'
     + '<span class="sp"></span><span style="color:var(--text-mute)">당번 09:00 · 나머지 09:30 · 당번 없는 날은 전원 09:00</span></div>';
   if (!d.staff.length) return h + _atNoStaffHtml();
-  /* 사장님 2026-10-02 "당번표에서 교체 요청 이런 거 있음 좋을 듯" — 내 당번 칸(오늘 이후)에 [교체] 버튼.
-     이미 보낸 요청이 대기 중이면 버튼 대신 "요청 중". 요청 폼은 내 근태 탭의 것을 그대로 연다. */
-  var meId = d.me_id || null, swapPending = {};
-  (d.swaps || []).forEach(function (s) { if (s.status === 'pending' && s.from_user === meId) swapPending[s.duty_date] = 1; });
 
   /* 순서 */
   var cur = d.rotation;
@@ -254,16 +250,13 @@ function _atDutyHtml(d, order) {
           + d.staff.map(function (s) { return '<option value="' + s.id + '"' + (s.id === x.user_id ? ' selected' : '') + '>' + _atEsc(s.name) + '</option>'; }).join('')
           + '</select>' + tag + warn + '</td>';
       } else {
-        var mine = meId && x.user_id === meId && x.date >= d.today;
-        var act = !mine ? '' : swapPending[x.date] ? ' <span class="pill gray">요청 중</span>'
-          : ' <button type="button" class="at-btn at-swapbtn" onclick="_atDutySwap(\'' + x.date + '\')" aria-label="' + _atMd(x.date) + ' 당번 교체 요청">교체</button>';
-        h += '<td' + today + (mine ? ' class="mine"' : '') + '>' + _atEsc(x.name || '—') + tag + warn + act + '</td>';
+        /* 사장님 2026-10-02 "교체는 연차 쓸 때만 뜨도록" — 당번표는 보기만. 교체 요청은 연차 신청에서 당번 날을 고를 때 뜬다 */
+        h += '<td' + today + '>' + _atEsc(x.name || '—') + tag + warn + '</td>';
       }
     });
     h += '</tr>';
   });
   h += '</tbody></table>';
-  if (!d.owner && meId) h += '<div style="color:var(--text-mute);font-size:.9em;margin-top:6px">내 당번 날의 [교체] 를 누르면 동료에게 교체를 요청합니다. 상대가 수락하면 바로 바뀝니다.</div>';
 
   /* 교체 기록 */
   var ST = { pending: '대기', accepted: '수락', declined: '거절', cancelled: '취소' };
@@ -802,19 +795,18 @@ function _atMeHtml(d, form, err) {
   };
   h += '<div class="at-me-card"><div class="at-sec" style="margin-top:0">당번 (' + _atEsc((d.settings || {}).duty_start || '09:00') + ' 출근)</div>'
     + week('이번 주', d.duty && d.duty.this_week) + week('다음 주', d.duty && d.duty.next_week);
-  if (form && form.kind === 'swap') h += _atSwapFormHtml(d, form.date, err);
+  /* 사장님 2026-10-02 "교체는 연차 쓸 때만 뜨도록 — 본인 연차인데 본인이 당번일 때" → 칩은 보기만, 교체 요청은 연차 신청 안에서 */
   if (mine.length) {
     var byWeek = {};
     mine.forEach(function (x) { var w = _atMonday(x); (byWeek[w] = byWeek[w] || []).push(x); });
-    h += '<div class="at-wk-label" style="margin-top:10px">내 당번 날 — 바꿀 날을 누르세요</div>';
+    h += '<div class="at-wk-label" style="margin-top:10px">내 당번 날</div>';
     Object.keys(byWeek).sort().forEach(function (w) {
       h += '<div class="at-chips-row"><span class="at-chips-wk">' + _atMd(w).replace(/\(.\)/, '') + ' 주</span><span class="at-chips">'
         + byWeek[w].map(function (x) {
-          return pendingDates[x] ? '<span class="at-chip wait" title="교체 요청 중">' + _AT_WDN[_atWd(x)] + '</span>'
-            : '<button type="button" class="at-chip' + (form && form.kind === 'swap' && form.date === x ? ' on' : '') + '" onclick="_atMeOpenSwap(\'' + x + '\')" aria-label="' + _atMd(x) + ' 교체 요청">' + _AT_WDN[_atWd(x)] + '</button>';
+          return '<span class="at-chip' + (pendingDates[x] ? ' wait' : '') + '" title="' + _atMd(x) + (pendingDates[x] ? ' 교체 요청 중' : ' 내 당번') + '">' + _AT_WDN[_atWd(x)] + '</span>';
         }).join('') + '</span></div>';
     });
-    if (Object.keys(pendingDates).length) h += '<div style="color:var(--text-mute);font-size:.9em">회색 = 교체 요청 중</div>';
+    h += '<div style="color:var(--text-mute);font-size:.9em">' + (Object.keys(pendingDates).length ? '회색 = 교체 요청 중 · ' : '') + '당번 날에 쉬려면 연차 신청에서 그 날을 고르세요 — 교체 요청이 거기서 뜹니다</div>';
   } else if (d.duty && (d.duty.this_week || []).every(function (x) { return !x.user_id; })) {
     h += '<div style="color:var(--text-mute)">아직 당번 순서가 정해지지 않았어요</div>';
   }
@@ -862,15 +854,16 @@ function _atMeHtml(d, form, err) {
     + '<div style="color:var(--text-mute);margin-top:6px;font-size:.9em">폰 홈 화면 바로가기: <b>' + _atEsc(location.origin) + '/attend.html</b></div></div>';
   return h;
 }
+/* 연차 신청 폼 안에 겹쳐 뜨는 교체 요청 폼 (사장님 2026-10-02: 교체는 연차 쓸 때만) */
 function _atSwapFormHtml(d, date, err) {
   var opts = (d.colleagues || []).map(function (c) { return '<option value="' + c.id + '">' + _atEsc(c.name) + '</option>'; }).join('');
-  return '<div class="at-form"><div class="at-form-title">' + _atMd(date) + ' 당번 교체 요청</div>'
+  return '<div class="at-form at-swap"><div class="at-form-title">' + _atMd(date) + ' 당번 교체 요청 — 연차 쓰려면 먼저</div>'
     + (opts ? '<label>대신 서줄 동료</label><select id="atSwTo">' + opts + '</select>' : '<div style="color:var(--brand-danger)">교체할 동료가 없습니다</div>')
     + '<label>맞교환 (선택) — 상대 당번 날을 내가 대신</label><input type="date" id="atSwRet" min="' + _atEsc(d.today) + '">'
     + '<label>사유 (선택)</label><textarea id="atSwReason" rows="2" maxlength="200"></textarea>'
     + '<div style="color:var(--text-mute);font-size:.9em;margin-top:4px">상대가 수락하면 바로 바뀝니다</div>'
     + (err ? '<div class="at-err">' + _atEsc(err) + '</div>' : '')
-    + '<div class="at-form-acts"><button type="button" class="at-btn" onclick="_atMeCloseForm()">닫기</button>'
+    + '<div class="at-form-acts"><button type="button" class="at-btn" onclick="_atLvSwapClose()">닫기</button>'
     + (opts ? '<button type="button" class="at-btn pri" onclick="_atMeSendSwap(\'' + date + '\')">요청 보내기</button>' : '') + '</div></div>';
 }
 /* 사장님 2026-10-02: "연차 시작일·종료일 … 걍 달력 들어가서 체크체크 — 한번에 뛰엄뛰엄 두곳 들어갈 수 있음"
@@ -936,17 +929,25 @@ function _atMyLeaveHtml(d) {
 function _atLeaveFormHtml(d, form, err) {
   var sel = (form.dates || []).slice().sort(), mine = (d.duty && d.duty.mine) || [], L = d.leave || {};
   var duty = sel.filter(function (x) { return mine.indexOf(x) >= 0; });
+  /* 서버가 당번 날이라 거부한 날짜(내 당번 목록 밖일 수도) 도 같이 */
+  if (form.duty_date && duty.indexOf(form.duty_date) < 0) duty.push(form.duty_date);
+  var pend = {}; (((d.swaps || {}).sent) || []).forEach(function (s) { if (s.status === 'pending') pend[s.duty_date] = 1; });
+  /* 사장님 2026-10-02 "교체는 연차 쓸 때만 뜨도록 — 본인 연차인데 본인이 당번일 때": 고른 날이 내 당번이면 여기서 바로 교체 요청 */
+  var dutyHtml = !duty.length ? '' : '<div class="at-lv-duty"><div style="color:var(--brand-danger)">' + duty.map(_atMd).join(', ') + ' 은 내 당번 — 교체를 먼저 잡아야 해요</div>'
+    + duty.map(function (x) {
+      return pend[x] ? '<span class="pill gray">' + _atMd(x) + ' 교체 요청 중</span>'
+        : '<button type="button" class="at-btn' + (form.swap === x ? ' on' : '') + '" onclick="_atLvSwap(\'' + x + '\')" aria-label="' + _atMd(x) + ' 교체 요청">' + _atMd(x) + ' 교체 요청</button>';
+    }).join(' ') + '</div>';
   return '<div class="at-form"><div class="at-form-title">연차 신청</div>'
     + '<div style="color:var(--text-mute);font-size:.9em">쉴 날을 눌러 고르세요. 떨어진 날도 한 번에 됩니다. 주말·공휴일은 자동으로 빠집니다.</div>'
     + _atCalHtml(d, form, 'pick')
     + '<div id="atLvPrev" style="font-size:.9em;margin-top:8px">' + (sel.length
       ? '<b>' + sel.length + '일</b> 선택 — ' + sel.map(function (x) { return '<button type="button" class="at-lv-sel" onclick="_atLvToggle(\'' + x + '\')" aria-label="' + _atMd(x) + ' 빼기">' + _atMd(x) + ' ×</button>'; }).join(' ')
         + '<div style="color:var(--text-mute);margin-top:4px">잔여 ' + _atDays((L.remaining || 0) - (L.pending || 0)) + '</div>'
-        + (duty.length ? '<div style="color:var(--brand-danger)">' + duty.map(_atMd).join(', ') + ' 은 내 당번 — 교체를 먼저 잡아야 해요</div>' : '')
-      : '<span style="color:var(--text-mute)">아직 고른 날이 없어요</span>') + '</div>'
+      : '<span style="color:var(--text-mute)">아직 고른 날이 없어요</span>') + dutyHtml + '</div>'
+    + (form.swap ? _atSwapFormHtml(d, form.swap, err) : '')
     + '<label>사유 (선택)</label><textarea id="atLvReason" rows="2" maxlength="200">' + _atEsc(form.reason || '') + '</textarea>'
-    + (err ? '<div class="at-err">' + _atEsc(err) + '</div>' : '')
-    + (form.duty_date ? '<button type="button" class="at-btn" style="margin-top:6px" onclick="_atMeOpenSwap(\'' + form.duty_date + '\')">' + _atMd(form.duty_date) + ' 교체 요청하기</button>' : '')
+    + (err && !form.swap ? '<div class="at-err">' + _atEsc(err) + '</div>' : '')
     + '<div class="at-form-acts"><button type="button" class="at-btn" onclick="_atMeCloseForm()">닫기</button><button type="button" class="at-btn pri" onclick="_atMeSendLeave()">신청</button></div></div>';
 }
 
@@ -978,9 +979,13 @@ async function _atMeLeaveCancel(id) {
   if (r.error) return alert(r.error);
   _atMeRefresh();
 }
-function _atMeOpenSwap(date) { _atMeForm = { kind: 'swap', date: date }; _atMyErr = ''; _atRender(); var f = document.querySelector('#atBody .at-form'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'nearest' }); }
-/* 당번표 [교체] → 내 근태 탭으로 넘어가 그 날짜의 교체 폼을 연다 (사장님 2026-10-02) */
-async function _atDutySwap(date) { await _atGo('me'); if (_atTab !== 'me' || !_atMe) return; _atMeOpenSwap(date); }
+/* 연차 폼 안에서 당번 날 교체 요청 열기/닫기 — 고른 날짜·사유는 그대로 둔다 */
+function _atLvSwap(date) { if (!_atLvKeep()) return; _atMeForm.swap = date; _atMyErr = ''; _atRender(); var f = document.querySelector('#atBody .at-swap'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'nearest' }); }
+function _atLvSwapClose() { if (!_atLvKeep()) return; _atMeForm.swap = null; _atMyErr = ''; _atRender(); }
+/* 내 근태 데이터만 조용히 다시 받는다 (폼 상태 유지) */
+async function _atMeReload() {
+  try { var r = await fetch(_atUrl('view=me'), { credentials: 'same-origin', cache: 'no-store' }); var d = await r.json(); if (!d.error) { _atMe = d; _atMeOk = true; } } catch (_) {}
+}
 function _atMeOpenLeave() { _atMeForm = { kind: 'leave' }; _atMyErr = ''; _atRender(); }
 function _atMeCloseForm() { _atMeForm = null; _atMyErr = ''; _atRender(); }
 /* 달력 다시 그리기 전에 적어둔 사유를 잃지 않게 */
@@ -1006,8 +1011,10 @@ async function _atMeSendSwap(date) {
     return_date: (document.getElementById('atSwRet') || {}).value || null, reason: (document.getElementById('atSwReason') || {}).value };
   var r = await _atMeApi('action=swap_request', body);
   if (r.error) { _atMyErr = r.error; _atRender(); return; }
-  if (typeof showAdminToast === 'function') showAdminToast('교체 요청을 보냈어요');
-  _atMeRefresh();
+  if (typeof showAdminToast === 'function') showAdminToast('교체 요청을 보냈어요 — 상대가 수락하면 연차를 신청하세요');
+  /* 연차 폼(고른 날짜·사유)은 그대로 두고 데이터만 새로 — 그 날짜가 "교체 요청 중" 으로 바뀐다 */
+  var keep = _atMeForm; if (keep) keep.swap = null;
+  await _atMeReload(); _atMeForm = keep; _atMyErr = ''; _atRender(); _atHomeCard(true); _atBadge();
 }
 async function _atMeSendLeave() {
   if (!_atLvKeep()) return;

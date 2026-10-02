@@ -151,23 +151,10 @@ describe('당번표', () => {
     expect(viewer).not.toContain('_atOrdMove');
   });
 
-  /* 사장님 2026-10-02: "당번표에서 교체 요청 이런 거 있음 좋을 듯" */
-  it('직원: 내 당번 칸(오늘 이후)에만 [교체] 버튼, 보낸 요청이 대기 중이면 "요청 중"', () => {
-    const x = { ...d(false), me_id: 11, today: '2026-10-06',
-      swaps: [{ id: 2, from_user: 11, to_user: 12, from_name: '가', to_name: '나', duty_date: '2026-10-08', return_date: null, reason: '', status: 'pending', requested_at: '2026-10-05 10:00:00' }] };
-    const h = M._atDutyHtml(x, null);
-    expect(h).not.toContain("_atDutySwap('2026-10-05')");     // 지난 날
-    expect(h).toContain("_atDutySwap('2026-10-06')");         // 오늘
-    expect(h).not.toContain("_atDutySwap('2026-10-07')");     // 나(12) 당번
-    expect(h).not.toContain("_atDutySwap('2026-10-08')");     // 요청 중
-    expect(h).toContain('요청 중');
-    expect(h).toContain("_atDutySwap('2026-10-09')");
-    expect(h).toContain('내 당번 날의 [교체]');
-  });
-
-  it('me_id 가 없으면(사장님 비번 접속) 교체 버튼 없음, owner 화면에도 없음', () => {
-    expect(M._atDutyHtml({ ...d(false), me_id: null }, null)).not.toContain('_atDutySwap');
-    expect(M._atDutyHtml({ ...d(true), me_id: 11 }, null)).not.toContain('_atDutySwap');
+  /* 사장님 2026-10-02: "교체는 연차 쓸 때만 뜨도록" — 당번표는 보기만 (교체 입구 없음) */
+  it('당번표에는 교체 버튼이 없다 (직원·owner 모두)', () => {
+    expect(M._atDutyHtml({ ...d(false), today: '2026-10-06' }, null)).not.toContain('교체 요청');
+    expect(M._atDutyHtml(d(true), null)).not.toContain('교체 요청');
   });
 
   it('공휴일 칸은 "휴" + 이름, select 없음', () => {
@@ -372,15 +359,35 @@ describe('admin 홈 출근 카드 · 내 근태 탭', () => {
     expect(h.indexOf('ha-band')).toBeLessThan(h.indexOf('ha-card'));
   });
 
-  it('내 근태: 받은 요청이 맨 위, 내 당번 날은 요일 칩, 요청 중인 날은 회색', () => {
+  /* 사장님 2026-10-02: "교체는 연차 쓸 때만 뜨도록 — 본인 연차인데 본인이 당번일 때" → 당번 칩은 보기만 */
+  it('내 근태: 받은 요청이 맨 위, 내 당번 날은 요일 칩(누름 X), 요청 중인 날은 회색', () => {
     const d = me({ swaps: { received: [{ id: 1, from_name: '김가영', duty_date: '2026-10-07', reason: '병원' }], sent: [{ id: 5, status: 'pending', duty_date: '2026-10-13', to_name: '최다인' }] } });
     const h = M2._atMeHtml(d, null, '');
     expect(h.indexOf('at-band')).toBeLessThan(h.indexOf('at-me-card'));
     expect(h).toContain('_atMeSwapRespond(1,true)');
-    expect(h).toContain('aria-label="10/12(월) 교체 요청"');
-    expect(h).toContain('class="at-chip wait"');           // 10/13 요청 중
-    expect(h).not.toContain('aria-label="10/13(화) 교체 요청"');
+    expect(h).toContain('title="10/12(월) 내 당번"');
+    expect(h).not.toContain('onclick="_atLvSwap');           // 칩에서는 교체 못 연다
+    expect(h).toContain('class="at-chip wait"');             // 10/13 요청 중
+    expect(h).toContain('연차 신청에서 그 날을 고르세요');
     expect(h).toContain('_atMeSwapCancel(5)');
+  });
+
+  it('연차 폼: 고른 날이 내 당번이면 그 자리에 [교체 요청], 요청 중이면 배지, 누르면 폼 안에 교체 폼이 겹쳐 뜬다', () => {
+    const d = me({ swaps: { received: [], sent: [{ id: 5, status: 'pending', duty_date: '2026-10-13', to_name: '최다인' }] } });
+    const lv = M2._atMeHtml(d, { kind: 'leave', dates: ['2026-10-12', '2026-10-13', '2026-10-23'] }, '');
+    expect(lv).toContain('10/12(월), 10/13(화) 은 내 당번');
+    expect(lv).toContain("onclick=\"_atLvSwap('2026-10-12')\"");
+    expect(lv).not.toContain("_atLvSwap('2026-10-13')");      // 요청 중
+    expect(lv).toContain('10/13(화) 교체 요청 중');
+    expect(lv).not.toContain("_atLvSwap('2026-10-23')");      // 내 당번 아님
+    expect(lv).not.toContain('id="atSwTo"');                   // 아직 교체 폼 안 열림
+    const sw = M2._atMeHtml(d, { kind: 'leave', dates: ['2026-10-12'], swap: '2026-10-12', reason: '여행' }, '');
+    expect(sw).toContain('id="atSwTo"');
+    expect(sw).toContain('<option value="11">김가영</option>');
+    expect(sw).toContain('10/12(월) 당번 교체 요청 — 연차 쓰려면 먼저');
+    expect(sw).toContain('_atLvSwapClose()');
+    expect(sw).toContain('>여행</textarea>');                   // 고른 날·사유 유지
+    expect(sw).toContain("_atMeSendSwap('2026-10-12')");
   });
 
   it('내 근태: 연차 미확정이면 신청 버튼이 없다', () => {
@@ -389,16 +396,12 @@ describe('admin 홈 출근 카드 · 내 근태 탭', () => {
     expect(h).not.toContain('_atMeOpenLeave');
   });
 
-  it('내 근태: 교체 폼은 동료 select, 연차 폼은 당번 거부 시 교체 바로가기', () => {
-    const sw = M2._atMeHtml(me(), { kind: 'swap', date: '2026-10-12' }, '');
-    expect(sw).toContain('id="atSwTo"');
-    expect(sw).toContain('<option value="11">김가영</option>');
-    expect(sw).toContain('class="at-chip on"');
+  it('연차 폼: 서버가 당번 날이라 거부하면 그 날짜의 [교체 요청] 이 뜬다 (내 당번 목록 밖이어도)', () => {
     const lv = M2._atMeHtml(me(), { kind: 'leave', dates: ['2026-10-12'] }, '10/12(월) 은 당번입니다. 먼저 교체를 잡아주세요');
     expect(lv).toContain('at-err');
-    expect(lv).not.toContain('교체 요청하기');   // duty_date 없으면 폼 안 바로가기 없음 (당번 칩의 onclick 과는 별개)
-    const lv2 = M2._atMeHtml(me(), { kind: 'leave', duty_date: '2026-10-12' }, '당번');
-    expect(lv2).toContain('10/12(월) 교체 요청하기');
+    const lv2 = M2._atMeHtml(me(), { kind: 'leave', dates: ['2026-11-30'], duty_date: '2026-11-30' }, '당번');
+    expect(lv2).toContain("_atLvSwap('2026-11-30')");
+    expect(lv2).toContain('11/30(월) 교체 요청');
   });
 
   /* 사장님: "연차 시작일·종료일 … 걍 달력 들어가서 체크체크 — 한번에 뛰엄뛰엄 두곳 들어갈 수 있음" */
