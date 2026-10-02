@@ -63,6 +63,16 @@ describe('오늘', () => {
     expect(M._atTodayHtml(d(false))).not.toContain('_atEdit(');
   });
 
+  /* 사장님 2026-10-02: "당번이 다 없으면 9시가 출근임" */
+  it('당번 없는 날은 "당번 없음 · 전원 09:00", 당번 연차면 "당번 OO 연차 · 전원 09:00"', () => {
+    const none = M._atTodayHtml({ ...d(true), duty_user: null, duty_name: null, no_duty: true, duty_absent: false });
+    expect(none).toContain('당번 없음 · 전원 09:00');
+    expect(none).not.toContain('일반 09:30');
+    const absent = M._atTodayHtml({ ...d(true), no_duty: true, duty_absent: true });
+    expect(absent).toContain('당번 김당번 연차 · 전원 09:00');
+    expect(M._atTodayHtml(d(true))).toContain('일반 09:30');
+  });
+
   it('공휴일이면 이름과 함께 안내', () => {
     expect(M._atTodayHtml({ ...d(true), weekday: false, holiday: '한글날' })).toContain('오늘은 공휴일입니다 (한글날)');
     expect(M._atTodayHtml({ ...d(true), weekday: false })).toContain('오늘은 주말입니다');
@@ -314,6 +324,11 @@ describe('admin 홈 출근 카드 · 내 근태 탭', () => {
     expect(h).toContain('오늘 기준 09:30');
     expect(h).toContain('연차 잔여 <b>14일</b>');
     expect(h).toContain('박나래 님');
+  });
+
+  it('홈 카드: 당번 없는 날은 "오늘 당번 없음 · 전원 09:00"', () => {
+    expect(M2._atHomeCardHtml(me({ today_cell: cell({ no_duty: true, start: '09:00' }) }))).toContain('오늘 당번 없음 · 전원 09:00');
+    expect(M2._atMeHtml(me({ today_cell: cell({ no_duty: true, start: '09:00' }) }))).toContain('오늘 당번 없음 · 전원 09:00');
   });
 
   it('홈 카드: 찍은 뒤 — 시각과 지각', () => {

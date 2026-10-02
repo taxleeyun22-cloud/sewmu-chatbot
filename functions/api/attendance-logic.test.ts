@@ -10,11 +10,37 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  isLate, expectedStart, weekdaysBetween, checkLeaveRequest, checkLeaveApprove, dutyFor, buildCsv,
+  isLate, expectedStart, startFor, noDutyDay, weekdaysBetween, checkLeaveRequest, checkLeaveApprove, dutyFor, buildCsv,
   // @ts-expect-error — JS module 직접 import (Cloudflare Workers 패턴)
 } from './_attendance-core.js';
 
 const S = { duty_start: '09:00', normal_start: '09:30', grace_minutes: 1 };
+
+/* 사장님 2026-10-02: "당번이 다 없으면 9시가 출근임" */
+describe('출근 기준시각 — 당번 없는 날은 전원 09:00', () => {
+  it('당번이 있는 평일: 당번 09:00, 나머지 09:30', () => {
+    expect(startFor(11, 11, S)).toBe('09:00');
+    expect(startFor(12, 11, S)).toBe('09:30');
+    expect(noDutyDay(11, {})).toBe(false);
+  });
+  it('당번이 아예 없는 평일(순서 미지정): 전원 09:00', () => {
+    expect(startFor(12, null, S)).toBe('09:00');
+    expect(startFor(13, undefined, S, { workday: true })).toBe('09:00');
+    expect(noDutyDay(null, { workday: true })).toBe(true);
+    expect(isLate('2026-10-06 09:05:00', startFor(12, null, S), 0)).toBe(true);
+  });
+  it('당번이 연차인 평일: 나머지도 09:00', () => {
+    expect(startFor(12, 11, S, { dutyAbsent: true })).toBe('09:00');
+    expect(noDutyDay(11, { dutyAbsent: true })).toBe(true);
+  });
+  it('주말·공휴일은 당번 제도 밖 — 09:30 그대로, 당번 없음 표시도 안 한다', () => {
+    expect(startFor(12, null, S, { workday: false })).toBe('09:30');
+    expect(noDutyDay(null, { workday: false })).toBe(false);
+  });
+  it('문자열 id 라도 같은 사람이면 당번', () => {
+    expect(startFor('11', 11, S)).toBe('09:00');
+  });
+});
 
 describe('지각 — 1분 유예', () => {
   it('당번 09:00 기준', () => {
