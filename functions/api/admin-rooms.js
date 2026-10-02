@@ -539,23 +539,29 @@ export async function onRequestPost(context) {
         const { results } = await db.prepare(`SELECT image_key FROM documents WHERE room_id IN (${ph}) AND image_key IS NOT NULL`).bind(...ids).all();
         for (const row of (results || [])) if (row.image_key) keys.add(row.image_key);
       } catch {}
-      /* 다른 방(외부 상담방) 메시지가 같은 키를 쓰면 남긴다 */
-      const own = [];
-      for (const k of keys) {
-        let shared = false;
+      /* 다른 방(외부 상담방·챗봇) 메시지가 같은 키를 쓰면 남긴다.
+       * ⚠ 2026-10-02 사고: 키마다 conversations 전체를 LIKE 로 훑어서(첨부 N개 × 전체 행) 휴지통 한 번 열 때마다
+       *   수백만 행을 읽었고, D1 무료 한도(하루 500만 행)를 넘겨 서비스 전체가 멈췄다.
+       *   → 바깥 방의 첨부 메시지를 한 번만 읽어 키 집합을 만들고 메모리에서 비교한다 (전체 스캔 1회, 그것도 첨부 접두사만). */
+      const shared = new Set();
+      if (keys.size) {
         try {
-          /* 본문엔 키가 그대로(또는 인코딩돼) 박혀 있다 — 둘 다 본다 */
-          const r = await db.prepare(
-            `SELECT COUNT(*) AS c FROM conversations WHERE room_id NOT IN (${ph}) AND (content LIKE ? OR content LIKE ?)`
-          ).bind(...ids, '%k=' + k + '%', '%k=' + encodeURIComponent(k) + '%').first();
-          shared = Number(r && r.c) > 0;
-          if (!shared) {
-            const r2 = await db.prepare(`SELECT COUNT(*) AS c FROM documents WHERE (room_id IS NULL OR room_id NOT IN (${ph})) AND image_key = ?`).bind(...ids, k).first();
-            shared = Number(r2 && r2.c) > 0;
+          const { results } = await db.prepare(
+            `SELECT content FROM conversations WHERE (room_id IS NULL OR room_id NOT IN (${ph})) AND (content LIKE '[IMG]%' OR content LIKE '[FILE]%')`
+          ).bind(...ids).all();
+          for (const row of (results || [])) {
+            for (const m of String(row.content || '').matchAll(/\/api\/(?:image|file)\?k=([^"'\s&\\]+)/g)) {
+              shared.add(m[1]);
+              try { shared.add(decodeURIComponent(m[1])); } catch {}
+            }
           }
         } catch {}
-        if (!shared) own.push(k);
+        try {
+          const { results } = await db.prepare(`SELECT image_key FROM documents WHERE (room_id IS NULL OR room_id NOT IN (${ph})) AND image_key IS NOT NULL`).bind(...ids).all();
+          for (const row of (results || [])) if (row.image_key) shared.add(row.image_key);
+        } catch {}
       }
+      const own = [...keys].filter((k) => !shared.has(k) && !shared.has(encodeURIComponent(k)));
       counts.attachments = own.length;
       if (body.confirm !== true) return Response.json({ ok: true, deleted: false, ...counts });
 
