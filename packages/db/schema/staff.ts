@@ -81,7 +81,7 @@ export const staffAttendanceSettings = sqliteTable('staff_attendance_settings', 
   id: integer('id').primaryKey(),
   duty_start: text('duty_start').default('09:00'),
   normal_start: text('normal_start').default('09:30'),
-  grace_minutes: integer('grace_minutes').default(1),
+  grace_minutes: integer('grace_minutes').default(0),   // 2026-10-02 유예 폐지 — 코드는 항상 0 으로 본다
   holidays_seeded: integer('holidays_seeded').default(0),   // 2026 음력 명절 seed 1회 플래그
   updated_at: text('updated_at'),
 });

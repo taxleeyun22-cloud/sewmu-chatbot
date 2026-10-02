@@ -64,15 +64,25 @@ beforeEach(async () => {
 afterEach(() => { vi.useRealTimers(); });
 
 describe('출근', () => {
-  it('당번은 09:01 까지 정상 (1분 유예), 재찍기는 처음 시각 유지', async () => {
-    at('2026-10-12 09:01:40');
+  it('당번은 09:00 정각까지 정상 (유예 없음 — 사장님 "1분 유예도 빼버리자"), 재찍기는 처음 시각 유지', async () => {
+    at('2026-10-12 09:00:59');
     const p = await post(d1, GA, 'punch');
-    expect(p.body).toMatchObject({ ok: true, check_in: '09:01' });
+    expect(p.body).toMatchObject({ ok: true, check_in: '09:00' });
     const me = (await get(d1, GA, 'view=me')).body;
-    expect(me.today_cell).toMatchObject({ duty: true, start: '09:00', check_in: '09:01', late: false });
+    expect(me.today_cell).toMatchObject({ duty: true, start: '09:00', check_in: '09:00', late: false });
+    expect(me.settings.grace_minutes).toBe(0);
 
     at('2026-10-12 09:10:00');
-    expect((await post(d1, GA, 'punch')).body).toMatchObject({ already: true, check_in: '09:01' });
+    expect((await post(d1, GA, 'punch')).body).toMatchObject({ already: true, check_in: '09:00' });
+  });
+
+  it('당번 09:01:00 은 지각 — DB 에 유예 1 이 남아 있어도 무시', async () => {
+    await d1.prepare(`UPDATE staff_attendance_settings SET grace_minutes = 1 WHERE id = 1`).run();
+    at('2026-10-13 09:01:00');
+    await post(d1, GA, 'punch');
+    const me = (await get(d1, GA, 'view=me')).body;
+    expect(me.today_cell).toMatchObject({ duty: true, check_in: '09:01', late: true });
+    expect(me.settings.grace_minutes).toBe(0);
   });
 
   it('당번이 아니면 09:30 기준 — 09:32 는 지각', async () => {
