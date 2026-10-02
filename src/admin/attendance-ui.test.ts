@@ -266,11 +266,33 @@ describe('admin 홈 출근 카드 · 내 근태 탭', () => {
     expect(sw).toContain('id="atSwTo"');
     expect(sw).toContain('<option value="11">김가영</option>');
     expect(sw).toContain('class="at-chip on"');
-    const lv = M2._atMeHtml(me(), { kind: 'leave', from: '2026-10-12', to: '2026-10-12' }, '10/12(월) 은 당번입니다. 먼저 교체를 잡아주세요');
+    const lv = M2._atMeHtml(me(), { kind: 'leave', dates: ['2026-10-12'] }, '10/12(월) 은 당번입니다. 먼저 교체를 잡아주세요');
     expect(lv).toContain('at-err');
     expect(lv).not.toContain('교체 요청하기');   // duty_date 없으면 폼 안 바로가기 없음 (당번 칩의 onclick 과는 별개)
     const lv2 = M2._atMeHtml(me(), { kind: 'leave', duty_date: '2026-10-12' }, '당번');
     expect(lv2).toContain('10/12(월) 교체 요청하기');
+  });
+
+  /* 사장님: "연차 시작일·종료일 … 걍 달력 들어가서 체크체크 — 한번에 뛰엄뛰엄 두곳 들어갈 수 있음" */
+  it('내 근태: 연차는 달력에서 날을 눌러 고른다 — 떨어진 날도 한 번에, 주말·지난 날·이미 신청한 날은 못 누른다', () => {
+    const d = me({ leave: { year: 2026, days: 15, approved: 1, pending: 1, remaining: 14,
+      requests: [{ id: 9, leave_date: '2026-10-20', status: 'pending', review_note: null }, { id: 8, leave_date: '2026-10-21', status: 'rejected', review_note: '바쁨' }] } });
+    const h = M2._atMeHtml(d, { kind: 'leave', dates: ['2026-10-23', '2026-10-12'] }, '');
+    expect(h).toContain('2026년 10월');
+    expect(h).not.toContain('id="atLvFrom"');                                                 // 시작일/종료일 입력 없음
+    expect(h).toContain('class="at-cal-d on duty" onclick="_atLvToggle(\'2026-10-12\')"');   // 고른 날 + 내 당번 점
+    expect(h).toContain('class="at-cal-d on" onclick="_atLvToggle(\'2026-10-23\')"');        // 떨어진 날도 같이
+    expect(h).toContain('class="at-cal-d today" onclick="_atLvToggle(\'2026-10-05\')"');
+    expect(h).toContain('<span class="at-cal-d taken" title="승인 대기">20</span>');         // 이미 신청한 날은 못 누름
+    expect(h).toContain("_atLvToggle('2026-10-21')");                                        // 반려된 날은 다시 신청 가능
+    expect(h).not.toContain("_atLvToggle('2026-10-01')");                                    // 지난 날
+    expect(h).not.toContain("_atLvToggle('2026-10-03')");                                    // 토요일
+    expect(h).toContain('<b>2일</b> 선택');
+    expect(h).toContain('10/12(월) ×');
+    expect(h).toContain('10/12(월) 은 내 당번');
+    expect(h).toContain('잔여 13일');                                                         // 14 − 대기 1
+    expect(h).toContain('onclick="_atLvMonth(1)"');
+    expect(h).toContain('onclick="_atLvMonth(-1)" aria-label="이전 달" disabled');            // 이번 달 아래로는 못 감
   });
 
   it('탭: 직원은 내 근태·당번표만, 사장님은 오늘·월별·승인함·부여까지', () => {

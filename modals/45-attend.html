@@ -76,6 +76,21 @@
 #attendModal .at-form-acts{display:flex;gap:8px;margin-top:12px}
 #attendModal .at-form-acts .at-btn{flex:1;padding:10px}
 #attendModal .at-err{color:var(--brand-danger);font-size:.9em;margin-top:6px}
+/* 연차 신청 달력 — 눌러서 고르기 (떨어진 날도 한 번에) */
+#attendModal .at-cal{margin-top:8px;background:#fff;border:1px solid var(--neutral-border);border-radius:12px;padding:8px}
+#attendModal .at-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+#attendModal .at-cal-head .at-btn{width:40px;padding:6px 0;font-size:1.1em}
+#attendModal .at-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}
+#attendModal .at-cal-wd{font-size:.8em;color:var(--text-mute);padding:2px 0}
+#attendModal .at-cal-wd.we{color:#c4c9d1}
+#attendModal .at-cal-d{display:flex;align-items:center;justify-content:center;height:40px;border-radius:9px;font-size:1em;font-weight:700;font-family:inherit;background:#fff;border:1px solid var(--neutral-border);color:var(--text-main);cursor:pointer;touch-action:manipulation;position:relative;padding:0}
+#attendModal .at-cal-d.we,#attendModal .at-cal-d.past{border-color:transparent;background:transparent;color:#c4c9d1;cursor:default}
+#attendModal .at-cal-d.taken{border-color:transparent;background:#f5f3ff;color:#6d28d9;cursor:default;font-weight:800}
+#attendModal .at-cal-d.today{outline:2px solid var(--brand-primary);outline-offset:-2px}
+#attendModal .at-cal-d.on{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+#attendModal .at-cal-d.duty::after{content:"";position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:#1d4ed8}
+#attendModal .at-cal-d.on.duty::after{background:#fff}
+#attendModal .at-lv-sel{border:1px solid var(--neutral-border);background:#eff6ff;color:#1d4ed8;border-radius:999px;padding:2px 8px;font-size:.9em;font-weight:700;font-family:inherit;cursor:pointer;margin:2px 0}
 @media (max-width:720px){
   #attendModal .modal-card{width:100vw;height:100vh;max-height:100vh;border-radius:0}
   #attendModal .at-body{padding:12px}

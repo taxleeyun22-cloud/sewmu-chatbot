@@ -89,6 +89,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretend
 .sheet textarea{resize:none;line-height:1.4}
 .sheet .acts{display:flex;gap:8px;margin-top:16px}
 .sheet .acts .btn{flex:1;padding:12px}
+/* 연차 신청 달력 — 눌러서 고르기 (떨어진 날도 한 번에) */
+.cal{margin-top:8px;border:1px solid var(--border);border-radius:12px;padding:8px}
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.cal-head .btn{width:44px;padding:6px 0;font-size:18px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}
+.cal-wd{font-size:12px;color:var(--mute);padding:2px 0}
+.cal-wd.we{opacity:.5}
+.cal-d{display:flex;align-items:center;justify-content:center;height:42px;border-radius:9px;font-size:15px;font-weight:700;font-family:inherit;
+  background:var(--card);border:1px solid var(--border);color:var(--text);cursor:pointer;touch-action:manipulation;position:relative;padding:0}
+.cal-d.we,.cal-d.past{border-color:transparent;background:transparent;color:var(--mute);opacity:.5;cursor:default}
+.cal-d.taken{border-color:transparent;background:#ede9fe;color:#6d28d9;cursor:default;font-weight:800}
+.cal-d.today{outline:2px solid var(--primary);outline-offset:-2px}
+.cal-d.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.cal-d.duty::after{content:"";position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--duty-fg)}
+.cal-d.on.duty::after{background:#fff}
+.lv-sel{border:1px solid var(--border);background:var(--duty-bg);color:var(--duty-fg);border-radius:999px;padding:3px 9px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;margin:2px 0}
 .toast{position:fixed;left:50%;bottom:max(24px,env(safe-area-inset-bottom));transform:translateX(-50%);background:#191f28;
   color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;font-weight:700;display:none;z-index:20;max-width:90vw}
 </style>
@@ -113,7 +129,6 @@ function md(d){return Number(d.slice(5,7))+'/'+Number(d.slice(8,10))+'('+WD[wd(d
 function days(n){var v=Math.round(Number(n||0)*10)/10;return (v%1===0?String(v):v.toFixed(1))+'일'}
 function mondayOf(d){var w=wd(d);return addDays(d,w===0?-6:1-w)}
 function addDays(d,n){return new Date(Date.parse(d+'T00:00:00Z')+n*86400000).toISOString().slice(0,10)}
-function weekdaysBetween(a,b){var o=[];if(!a||!b||a>b)return o;for(var d=a,i=0;d<=b&&i<62;d=addDays(d,1),i++){var w=wd(d);if(w>=1&&w<=5)o.push(d)}return o}
 function toast(m){var t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(toast._t);toast._t=setTimeout(function(){t.style.display='none'},2200)}
 
 async function api(method, qs, body){
@@ -310,40 +325,60 @@ async function sendSwap(date){
   closeSheet(); toast('교체 요청을 보냈어요'); load();
 }
 
-function openLeave(){
+/* 사장님 2026-10-02: "연차 시작일·종료일 … 걍 달력 들어가서 체크체크 — 한번에 뛰엄뛰엄 두곳 들어갈 수 있음"
+ * 월 달력에서 쉴 날을 눌러 고른다. 주말·지난 날·이미 신청(대기/승인)한 날은 못 누르고, 내 당번 날엔 점. */
+var LV = null;   // 연차 신청 시트 상태 { dates:[], month:'YYYY-MM', reason:'' }
+function openLeave(){ LV = { dates: [], month: D.today.slice(0,7), reason: '' }; renderLeave('', null); }
+function lvKeep(){ var t = document.getElementById('lvReason'); if (t && LV) LV.reason = t.value; }
+function lvToggle(d){ if (!LV) return; lvKeep(); var i = LV.dates.indexOf(d); if (i >= 0) LV.dates.splice(i, 1); else LV.dates.push(d); renderLeave('', null); }
+function lvMonth(n){ if (!LV) return; lvKeep(); var p = LV.month.split('-'); LV.month = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1 + n, 1)).toISOString().slice(0,7); renderLeave('', null); }
+function calHtml(){
+  var month = LV.month, first = month+'-01', lead = wd(first);
+  var taken = {}; (D.leave.requests||[]).forEach(function(r){ if (r.status === 'pending' || r.status === 'approved') taken[r.leave_date] = r.status; });
+  var mine = {}; (D.duty.mine||[]).forEach(function(x){ mine[x] = 1; });
+  var minM = D.today.slice(0,7), maxM = addDays(D.today, 365).slice(0,7);
+  var h = '<div class="cal"><div class="cal-head"><button type="button" class="btn" onclick="lvMonth(-1)" aria-label="이전 달"'+(month <= minM ? ' disabled' : '')+'>‹</button>'
+    + '<b>'+month.slice(0,4)+'년 '+Number(month.slice(5))+'월</b>'
+    + '<button type="button" class="btn" onclick="lvMonth(1)" aria-label="다음 달"'+(month >= maxM ? ' disabled' : '')+'>›</button></div><div class="cal-grid">'
+    + WD.map(function(n, i){ return '<span class="cal-wd'+(i === 0 || i === 6 ? ' we' : '')+'">'+n+'</span>'; }).join('');
+  for (var i = 0; i < lead; i++) h += '<span></span>';
+  for (var day = first; day.slice(0,7) === month; day = addDays(day, 1)) {
+    var n = Number(day.slice(8)), w = wd(day);
+    if (w === 0 || w === 6) { h += '<span class="cal-d we">'+n+'</span>'; continue; }
+    if (day < D.today) { h += '<span class="cal-d past">'+n+'</span>'; continue; }
+    if (taken[day]) { h += '<span class="cal-d taken" title="'+(taken[day] === 'approved' ? '승인된 연차' : '승인 대기')+'">'+n+'</span>'; continue; }
+    var on = LV.dates.indexOf(day) >= 0;
+    h += '<button type="button" class="cal-d'+(on ? ' on' : '')+(mine[day] ? ' duty' : '')+(day === D.today ? ' today' : '')
+      + '" onclick="lvToggle(\''+day+'\')" aria-pressed="'+on+'" aria-label="'+md(day)+(mine[day] ? ' 내 당번' : '')+'">'+n+'</button>';
+  }
+  return h + '</div><div class="muted" style="margin-top:6px;font-size:12px">보라 = 이미 신청·승인된 날 · 점 = 내 당번 (교체 먼저)</div></div>';
+}
+function renderLeave(err, dutyDate){
+  var sel = LV.dates.slice().sort(), mine = D.duty.mine || [];
+  var duty = sel.filter(function(x){ return mine.indexOf(x) >= 0; });
+  var sheetEl = document.getElementById('sheet'), top = sheetEl.scrollTop;
   openSheet('<h3>연차 신청</h3>'
-    + '<label>시작일</label><input type="date" id="lvFrom" min="'+D.today+'" onchange="leavePreview()">'
-    + '<label>종료일</label><input type="date" id="lvTo" min="'+D.today+'" onchange="leavePreview()">'
-    + '<div class="muted" id="lvPrev" style="margin-top:6px">주말은 자동으로 빠집니다. 공휴일은 직접 빼고 신청해주세요.</div>'
-    + '<label>사유 (선택)</label><textarea id="lvReason" rows="2" maxlength="200"></textarea>'
-    + '<div class="err" id="lvErr"></div><div id="lvFix"></div>'
+    + '<div class="muted">쉴 날을 눌러 고르세요. 떨어진 날도 한 번에 됩니다. 공휴일은 빼고 눌러주세요.</div>'
+    + calHtml()
+    + '<div style="margin-top:8px;font-size:14px">' + (sel.length
+        ? '<b>'+sel.length+'일</b> 선택 — ' + sel.map(function(x){ return '<button type="button" class="lv-sel" onclick="lvToggle(\''+x+'\')" aria-label="'+md(x)+' 빼기">'+md(x)+' ×</button>'; }).join(' ')
+          + '<div class="muted" style="margin-top:4px">잔여 '+days(D.leave.remaining - D.leave.pending)+'</div>'
+          + (duty.length ? '<div class="err">'+duty.map(md).join(', ')+' 은 내 당번 — 교체를 먼저 잡아야 해요</div>' : '')
+        : '<span class="muted">아직 고른 날이 없어요</span>') + '</div>'
+    + '<label>사유 (선택)</label><textarea id="lvReason" rows="2" maxlength="200">'+esc(LV.reason)+'</textarea>'
+    + '<div class="err" id="lvErr">'+esc(err || '')+'</div><div id="lvFix">'
+    /* 당번 날이면 그 날짜로 바로 교체 요청 */
+    + (dutyDate ? '<button class="btn" style="margin-top:8px" onclick="openSwap(\''+dutyDate+'\')">'+md(dutyDate)+' 교체 요청하기</button>' : '') + '</div>'
     + '<div class="acts"><button class="btn" onclick="closeSheet()">닫기</button><button class="btn primary" onclick="sendLeave()">신청</button></div>');
-}
-function leaveDates(){
-  var a = document.getElementById('lvFrom').value, b = document.getElementById('lvTo').value || a;
-  return weekdaysBetween(a, b);
-}
-function leavePreview(){
-  var f = document.getElementById('lvFrom'), t = document.getElementById('lvTo');
-  if (f.value && (!t.value || t.value < f.value)) t.value = f.value;
-  var list = leaveDates(), mine = D.duty.mine || [];
-  var duty = list.filter(function(x){return mine.indexOf(x) >= 0});
-  document.getElementById('lvPrev').innerHTML = list.length
-    ? '평일 <b>'+list.length+'일</b> 신청 · 잔여 '+days(D.leave.remaining - D.leave.pending)
-      + (duty.length ? '<br><span style="color:var(--danger)">'+duty.map(md).join(', ')+' 은 내 당번 — 교체를 먼저 잡아야 해요</span>' : '')
-    : '평일이 없습니다';
+  sheetEl.scrollTop = top;
 }
 async function sendLeave(){
-  var list = leaveDates();
-  if (!list.length) { document.getElementById('lvErr').textContent = '날짜를 골라주세요'; return; }
-  var r = await api('POST', 'action=leave_request', { dates: list, reason: document.getElementById('lvReason').value });
-  if (r.error) {
-    document.getElementById('lvErr').textContent = r.error;
-    /* 당번 날이면 그 날짜로 바로 교체 요청 */
-    document.getElementById('lvFix').innerHTML = r.duty_date
-      ? '<button class="btn" style="margin-top:8px" onclick="openSwap(\''+r.duty_date+'\')">'+md(r.duty_date)+' 교체 요청하기</button>' : '';
-    return;
-  }
+  if (!LV) return;
+  lvKeep();
+  var list = LV.dates.slice().sort();
+  if (!list.length) { renderLeave('달력에서 쉴 날을 눌러주세요', null); return; }
+  var r = await api('POST', 'action=leave_request', { dates: list, reason: LV.reason });
+  if (r.error) { renderLeave(r.error, r.duty_date || null); return; }
   closeSheet(); toast(r.count+'일 신청했어요 — 사장님 승인 대기'); load();
 }
 
