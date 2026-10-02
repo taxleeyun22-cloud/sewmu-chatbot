@@ -416,8 +416,10 @@ if(_mainAppView){ _mainAppView.classList.remove('hidden'); _mainAppView.style.di
 loadList();
 refreshPendingBadge();
 refreshLiveBadge();
-setInterval(refreshPendingBadge,30000);
-setInterval(refreshLiveBadge,10000);
+/* 2026-10-02 D1 한도 사고: 배지 폴링이 탭마다 10초·30초로 DB 를 훑어 하루 읽기 한도를 넘겼다.
+ * → 60초·120초로 늦추고, 탭이 안 보일 땐 쉰다. 직원까지 admin 을 열면서(근태) 탭 수가 늘어난 것도 원인. */
+setInterval(function(){ if(!document.hidden) refreshPendingBadge(); },120000);
+setInterval(function(){ if(!document.hidden) refreshLiveBadge(); },60000);
 /* 이전 탭 복원 (유효한 owner 탭만) */
 try{
   var saved=localStorage.getItem('admin_last_tab');

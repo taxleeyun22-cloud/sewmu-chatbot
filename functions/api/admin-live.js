@@ -18,10 +18,12 @@ async function ensureTables(db) {
     updated_at TEXT,
     PRIMARY KEY (session_id, user_id)
   )`).run();
+  /* 2026-10-02: 목록·배지 쿼리가 10초마다 conversations 전체를 훑어 D1 행 읽기 한도를 잡아먹었다 → created_at 인덱스 + 비교식을 인덱스가 타게 */
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_conv_created ON conversations(created_at)`).run(); } catch {}
 }
 
-function kst() {
-  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+function kst(offsetMs) {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000 + (offsetMs || 0)).toISOString().replace('T', ' ').substring(0, 19);
 }
 
 // GET: 세션 목록 or 세션 상세
@@ -64,6 +66,9 @@ export async function onRequestGet(context) {
     }
 
     // 목록: 최근 30분 내 메시지 있는 세션
+    /* created_at 은 'YYYY-MM-DD HH:MM:SS'(KST) 문자열 — datetime() 으로 감싸면 인덱스를 못 타서 전체 스캔이 된다.
+       같은 형식의 문자열과 그냥 비교해야 idx_conv_created 를 탄다 (2026-10-02 D1 한도 사고). */
+    const since = kst(-30 * 60 * 1000);
     const { results } = await db.prepare(`
       SELECT
         c.session_id,
@@ -79,12 +84,12 @@ export async function onRequestGet(context) {
       FROM conversations c
       LEFT JOIN users u ON c.user_id = u.id
       LEFT JOIN live_sessions ls ON ls.session_id = c.session_id AND ls.user_id = c.user_id
-      WHERE c.user_id IS NOT NULL
-        AND datetime(c.created_at) > datetime('now', '+9 hours', '-30 minutes')
+      WHERE c.created_at > ?
+        AND c.user_id IS NOT NULL
       GROUP BY c.session_id, c.user_id
       ORDER BY last_at DESC
       LIMIT 50
-    `).all();
+    `).bind(since).all();
 
     // 마지막 user 메시지 미리보기 추가
     for (const s of results || []) {
@@ -103,9 +108,8 @@ export async function onRequestGet(context) {
       // 30분 내 유저 메시지 수 (세무사가 아직 확인 안 한 것)
       const recentUser = await db.prepare(`
         SELECT COUNT(*) as c FROM conversations
-        WHERE role = 'user' AND user_id IS NOT NULL
-          AND datetime(created_at) > datetime('now', '+9 hours', '-30 minutes')
-      `).first();
+        WHERE created_at > ? AND role = 'user' AND user_id IS NOT NULL
+      `).bind(since).first();
       totalUnread = recentUser?.c || 0;
     } catch {}
 

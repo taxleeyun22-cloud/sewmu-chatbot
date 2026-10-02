@@ -48,8 +48,11 @@ beforeEach(async () => {
   await msg('internal_now', '[IMG]/api/image?k=admin/only-internal.jpg');
   await msg('internal_now', '[FILE]{"url":"/api/file?k=admin/files/shared.pdf","name":"a.pdf","size":1}');
   await msg('internal_old', '옛 메시지');
+  await msg('internal_now', '[IMG]/api/image?k=admin/chat-shared.jpg');
   await msg('ABC123', '[FILE]{"url":"/api/file?k=admin/files/shared.pdf","name":"a.pdf","size":1}');   // 외부 방도 같은 키
   await msg('ABC123', '외부 방 메시지');
+  /* 챗봇 메시지(room_id NULL)가 같은 키를 쓰는 경우 — NOT IN 만 쓰면 NULL 행이 빠져 지워버린다 */
+  await d1.prepare(`INSERT INTO conversations (session_id, user_id, role, content, room_id, created_at) VALUES ('sess_x', 1, 'user', '[IMG]/api/image?k=admin/chat-shared.jpg', NULL, '2026-01-02')`).run();
   await d1.prepare(`INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES ('internal_now', 1, 'admin', '2026-01-01'), ('internal_now', 2, 'admin', '2026-01-01'), ('ABC123', 2, 'admin', '2026-01-01')`).run();
   await d1.prepare(`INSERT INTO memos (room_id, content, created_at) VALUES ('internal_now', '관리자방 메모', '2026-01-03'), ('ABC123', '외부 메모', '2026-01-03')`).run();
   await d1.prepare(`INSERT INTO room_notices (room_id, content, created_at) VALUES ('internal_now', '공지', '2026-01-03')`).run().catch(() => {});
@@ -59,7 +62,7 @@ describe('관리자방 영구삭제', () => {
   it('dry-run — 건수만 세고 아무것도 안 지운다', async () => {
     const r = await purge(d1, 'key', {});
     expect(r.status).toBe(200);
-    expect(r.body).toMatchObject({ ok: true, deleted: false, rooms: 2, messages: 4, members: 2, memos: 1, attachments: 1 });
+    expect(r.body).toMatchObject({ ok: true, deleted: false, rooms: 2, messages: 5, members: 2, memos: 1, attachments: 1 });
     expect(r.bucket.deleted).toEqual([]);
     expect(await count(d1, `SELECT COUNT(*) AS c FROM chat_rooms`)).toBe(3);
   });
@@ -71,8 +74,8 @@ describe('관리자방 영구삭제', () => {
 
   it('confirm — 관리자방만 전부, 외부 방은 그대로, R2 는 관리자방 전용 키만', async () => {
     const r = await purge(d1, 'key', { confirm: true });
-    expect(r.body).toMatchObject({ ok: true, deleted: true, rooms: 2, messages: 4, r2_deleted: 1 });
-    expect(r.bucket.deleted).toEqual(['admin/only-internal.jpg']);     // shared.pdf 는 외부 방이 쓰니 남긴다
+    expect(r.body).toMatchObject({ ok: true, deleted: true, rooms: 2, messages: 5, r2_deleted: 1 });
+    expect(r.bucket.deleted).toEqual(['admin/only-internal.jpg']);     // shared.pdf 는 외부 방이, chat-shared.jpg 는 챗봇이 쓰니 남긴다
     expect(await count(d1, `SELECT COUNT(*) AS c FROM chat_rooms WHERE is_internal = 1`)).toBe(0);
     expect(await count(d1, `SELECT COUNT(*) AS c FROM conversations WHERE room_id LIKE 'internal_%'`)).toBe(0);
     expect(await count(d1, `SELECT COUNT(*) AS c FROM room_members WHERE room_id LIKE 'internal_%'`)).toBe(0);
