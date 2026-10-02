@@ -342,17 +342,17 @@ function openSwap(date){
   var opts = (D.colleagues||[]).map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+'</option>'}).join('');
   if (!opts) return toast('교체할 동료가 없습니다');
   /* 사장님 2026-10-02 "교체는 연차 쓸 때만" — 연차 신청 시트에서만 들어오고, 닫으면 연차 시트로 돌아간다 */
+  /* 맞교환 없음 — 내 연차 날 하루를 상대가 대신 선다 (사장님 2026-10-02 "날짜별로 요청") */
   openSheet('<h3>'+md(date)+' 당번 교체 요청 — 연차 쓰려면 먼저</h3>'
-    + '<label>대신 서줄 동료</label><select id="swTo">'+opts+'</select>'
-    + '<label>맞교환 (선택) — 상대 당번 날을 내가 대신</label><input type="date" id="swRet" min="'+D.today+'">'
+    + '<label>이 날 내 당번을 대신 서줄 동료</label><select id="swTo">'+opts+'</select>'
     + '<label>사유 (선택)</label><textarea id="swReason" rows="2" maxlength="200"></textarea>'
-    + '<div class="muted" style="margin-top:6px">상대가 수락하면 바로 바뀝니다</div><div class="err" id="swErr"></div>'
+    + '<div class="muted" style="margin-top:6px">상대가 수락하면 '+md(date)+' 당번이 그 동료로 바뀝니다. 여러 날이면 날짜마다 따로 요청하세요.</div><div class="err" id="swErr"></div>'
     + '<div class="acts"><button class="btn" onclick="swapBack()">닫기</button><button class="btn primary" onclick="sendSwap(\''+date+'\')">요청 보내기</button></div>');
 }
 function swapBack(){ if (LV) renderLeave('', null); else closeSheet(); }
 async function sendSwap(date){
   var body = { duty_date: date, to_user: Number(document.getElementById('swTo').value),
-    return_date: document.getElementById('swRet').value || null, reason: document.getElementById('swReason').value };
+    return_date: null, reason: document.getElementById('swReason').value };
   var r = await api('POST', 'action=swap_request', body);
   if (r.error) { document.getElementById('swErr').textContent = r.error; return; }
   toast('교체 요청을 보냈어요 — 상대가 수락하면 연차를 신청하세요');

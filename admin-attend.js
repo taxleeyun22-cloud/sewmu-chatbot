@@ -857,11 +857,11 @@ function _atMeHtml(d, form, err) {
 /* 연차 신청 폼 안에 겹쳐 뜨는 교체 요청 폼 (사장님 2026-10-02: 교체는 연차 쓸 때만) */
 function _atSwapFormHtml(d, date, err) {
   var opts = (d.colleagues || []).map(function (c) { return '<option value="' + c.id + '">' + _atEsc(c.name) + '</option>'; }).join('');
+  /* 사장님 2026-10-02 "내 연차 때 요청하면 상대는 내 날짜에 (대신) — 날짜별로 요청": 맞교환 없음, 그 날 하루를 상대가 대신 선다 */
   return '<div class="at-form at-swap"><div class="at-form-title">' + _atMd(date) + ' 당번 교체 요청 — 연차 쓰려면 먼저</div>'
-    + (opts ? '<label>대신 서줄 동료</label><select id="atSwTo">' + opts + '</select>' : '<div style="color:var(--brand-danger)">교체할 동료가 없습니다</div>')
-    + '<label>맞교환 (선택) — 상대 당번 날을 내가 대신</label><input type="date" id="atSwRet" min="' + _atEsc(d.today) + '">'
+    + (opts ? '<label>이 날 내 당번을 대신 서줄 동료</label><select id="atSwTo">' + opts + '</select>' : '<div style="color:var(--brand-danger)">교체할 동료가 없습니다</div>')
     + '<label>사유 (선택)</label><textarea id="atSwReason" rows="2" maxlength="200"></textarea>'
-    + '<div style="color:var(--text-mute);font-size:.9em;margin-top:4px">상대가 수락하면 바로 바뀝니다</div>'
+    + '<div style="color:var(--text-mute);font-size:.9em;margin-top:4px">상대가 수락하면 ' + _atMd(date) + ' 당번이 그 동료로 바뀝니다. 날짜가 여러 날이면 날짜마다 따로 요청하세요.</div>'
     + (err ? '<div class="at-err">' + _atEsc(err) + '</div>' : '')
     + '<div class="at-form-acts"><button type="button" class="at-btn" onclick="_atLvSwapClose()">닫기</button>'
     + (opts ? '<button type="button" class="at-btn pri" onclick="_atMeSendSwap(\'' + date + '\')">요청 보내기</button>' : '') + '</div></div>';
@@ -1008,7 +1008,7 @@ function _atLvMonth(n) {
 }
 async function _atMeSendSwap(date) {
   var body = { duty_date: date, to_user: Number((document.getElementById('atSwTo') || {}).value),
-    return_date: (document.getElementById('atSwRet') || {}).value || null, reason: (document.getElementById('atSwReason') || {}).value };
+    return_date: null, reason: (document.getElementById('atSwReason') || {}).value };
   var r = await _atMeApi('action=swap_request', body);
   if (r.error) { _atMyErr = r.error; _atRender(); return; }
   if (typeof showAdminToast === 'function') showAdminToast('교체 요청을 보냈어요 — 상대가 수락하면 연차를 신청하세요');
