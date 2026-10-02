@@ -72,16 +72,28 @@ export async function checkAdmin(context) {
 
   const cookie = context.request.headers.get("Cookie") || "";
 
-  // (1b) admin_key_auth HMAC 쿠키 → owner (사장님 비번 한 번 → 30일 유지, 2026-06-05).
-  //      서명 secret = ADMIN_KEY (admin-key-login 과 동일). 추가 경로일 뿐 —
-  //      위조/만료/ADMIN_KEY 없음이면 false 로 아래 기존 경로 그대로 진행 (무영향).
+  // (1b) admin_key_auth HMAC 쿠키 (사장님 비번 한 번 → 30일 유지, 2026-06-05).
+  //      서명 secret = ADMIN_KEY (admin-key-login 과 동일). 위조/만료/ADMIN_KEY 없음이면 false.
   const akMatch = cookie.match(/admin_key_auth=([^;]+)/);
-  if (akMatch && adminKey && await verifyOwnerToken(akMatch[1], adminKey)) {
-    return { ok: true, owner: true, userId: null, adminRole: 'owner' };
+  const keyCookieOk = !!(akMatch && adminKey && await verifyOwnerToken(akMatch[1], adminKey));
+
+  // (2) 세션 쿠키 + 직원이면 그 사람의 신원(user_id·이름)을 우선.
+  //     2026-10-02 사장님: "내 아이디로 로그인했는데 이게 왜 어드민이지" — 비번 쿠키를 먼저 보던 탓에
+  //     카톡 로그인해도 user_id 가 비어 사이드바 "관리자" + 출근 카드 안 뜸.
+  //     비번 쿠키가 같이 있으면 owner 권한만 보탠다 (비번 쿠키만 있던 때와 권한 범위 동일, 신원만 생김).
+  const sessionAuth = await sessionAdmin(context.env.DB, cookie);
+  if (sessionAuth) {
+    if (keyCookieOk && !sessionAuth.owner) return { ...sessionAuth, owner: true, adminRole: 'owner' };
+    return sessionAuth;
   }
 
-  // (2) 세션 쿠키 + is_admin
-  const db = context.env.DB;
+  // (3) 비번 쿠키만 → 익명 사장님 (특정 user row 없음)
+  if (keyCookieOk) return { ok: true, owner: true, userId: null, adminRole: 'owner' };
+  return null;
+}
+
+/** 세션 쿠키 → 직원(관리자) 신원. 직원이 아니거나 세션 없으면 null. */
+async function sessionAdmin(db, cookie) {
   if (!db) return null;
   const m = cookie.match(/session=([^;]+)/);
   if (!m) return null;

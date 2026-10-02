@@ -3,9 +3,10 @@
  *
  * functions/api/_adminAuth.js 의 checkOriginCsrf — Origin/Referer 화이트리스트.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createTestDb } from '../../packages/db/src/test-db';
 // @ts-expect-error — JS module 직접 import (Cloudflare Workers 패턴)
-import { checkOriginCsrf } from './_adminAuth.js';
+import { checkOriginCsrf, checkAdmin } from './_adminAuth.js';
 
 /**
  * Origin / Referer 는 fetch spec 의 "forbidden header" 라 Request 생성자로 못 set.
@@ -159,5 +160,76 @@ describe('checkOriginCsrf', () => {
     });
     const res = checkOriginCsrf(req) as Response;
     expect(res?.status).toBe(403);
+  });
+});
+
+/**
+ * 2026-10-02 사장님: "내 아이디로 로그인했는데 이게 왜 어드민이지"
+ * 비번(admin_key_auth) 쿠키와 카톡 세션이 같이 있으면 → 세션의 신원(user_id) 을 쓰고, 비번 쿠키는 owner 권한만 보탠다.
+ */
+describe('checkAdmin — 비번 쿠키 + 세션 쿠키 겹침', () => {
+  const KEY = 'real_admin_key';
+  type AnyDb = ReturnType<typeof createTestDb>['d1'];
+  let d1: AnyDb;
+
+  /* admin-key-login.js 와 같은 토큰: "owner:{ts}.{base64(HMAC-SHA256(payload, ADMIN_KEY))}" */
+  async function ownerToken(secret = KEY, ts = Date.now()) {
+    const enc = new TextEncoder();
+    const payload = 'owner:' + ts;
+    const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(payload)));
+    return payload + '.' + btoa(String.fromCharCode(...sig));
+  }
+  const ctx = (cookie: string, qs = '') => ({
+    env: { DB: d1, ADMIN_KEY: KEY },
+    request: { url: 'https://sewmu-chatbot.pages.dev/api/admin-whoami' + qs, method: 'GET', headers: { get: (k: string) => (k.toLowerCase() === 'cookie' ? cookie : null) } },
+  });
+
+  beforeEach(async () => {
+    d1 = createTestDb().d1;
+    await d1.prepare(`INSERT INTO users (id, name, real_name, is_admin, approval_status) VALUES (1, '이재윤', '이재윤', 1, 'approved_client')`).run();
+    await d1.prepare(`INSERT INTO users (id, name, real_name, is_admin, approval_status, admin_role) VALUES (2, '직원', '김직원', 1, 'approved_client', 'editor')`).run();
+    await d1.prepare(`INSERT INTO users (id, name, real_name, is_admin, approval_status) VALUES (3, '거래처', '거래처', 0, 'approved_client')`).run();
+    for (const [tok, uid] of [['tok-owner', 1], ['tok-staff', 2], ['tok-client', 3]] as const) {
+      await d1.prepare(`INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, '2099-01-01 00:00:00')`).bind(tok, uid).run();
+    }
+  });
+
+  it('비번 쿠키만 → 익명 사장님 (userId null) — 종전 그대로', async () => {
+    const a = await checkAdmin(ctx('admin_key_auth=' + (await ownerToken())));
+    expect(a).toMatchObject({ ok: true, owner: true, userId: null, adminRole: 'owner' });
+  });
+
+  it('비번 쿠키 + 사장님 카톡 세션 → user_id=1 로 신원이 잡힌다', async () => {
+    const a = await checkAdmin(ctx('admin_key_auth=' + (await ownerToken()) + '; session=tok-owner'));
+    expect(a).toMatchObject({ ok: true, owner: true, userId: 1, adminRole: 'owner' });
+  });
+
+  it('비번 쿠키 + 직원(editor) 세션 → 직원 신원 + owner 권한 (비번 쿠키만 있던 때와 권한 범위 같음)', async () => {
+    const a = await checkAdmin(ctx('session=tok-staff; admin_key_auth=' + (await ownerToken())));
+    expect(a).toMatchObject({ ok: true, owner: true, userId: 2, adminRole: 'owner' });
+  });
+
+  it('직원 세션만 → editor, owner 아님', async () => {
+    const a = await checkAdmin(ctx('session=tok-staff'));
+    expect(a).toMatchObject({ ok: true, owner: false, userId: 2, adminRole: 'editor' });
+  });
+
+  it('위조·만료된 비번 쿠키는 권한을 못 보탠다', async () => {
+    const forged = await checkAdmin(ctx('session=tok-staff; admin_key_auth=' + (await ownerToken('wrong-secret'))));
+    expect(forged).toMatchObject({ owner: false, userId: 2, adminRole: 'editor' });
+    const expired = await checkAdmin(ctx('session=tok-staff; admin_key_auth=' + (await ownerToken(KEY, Date.now() - 31 * 86400 * 1000))));
+    expect(expired).toMatchObject({ owner: false, userId: 2, adminRole: 'editor' });
+    expect(await checkAdmin(ctx('admin_key_auth=' + (await ownerToken('wrong-secret'))))).toBeNull();
+  });
+
+  it('거래처 세션은 비번 쿠키가 있어도 신원이 안 잡힌다 → 익명 사장님, 없으면 null', async () => {
+    expect(await checkAdmin(ctx('session=tok-client; admin_key_auth=' + (await ownerToken())))).toMatchObject({ owner: true, userId: null });
+    expect(await checkAdmin(ctx('session=tok-client'))).toBeNull();
+  });
+
+  it('?key= 는 여전히 최우선 익명 사장님', async () => {
+    const a = await checkAdmin(ctx('session=tok-staff', '?key=' + KEY));
+    expect(a).toMatchObject({ ok: true, owner: true, userId: null, adminRole: 'owner' });
   });
 });
