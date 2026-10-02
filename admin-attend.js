@@ -116,7 +116,7 @@ function _atOffdayText(d) {
 function _atTodayHtml(d) {
   var h = '<div class="at-bar"><b>' + _atMd(d.today) + '</b>'
     + (d.duty_name ? '<span class="pill duty">당번 ' + _atEsc(d.duty_name) + ' · ' + _atEsc(d.settings.duty_start) + '</span>' : '')
-    + '<span style="color:var(--text-mute)">일반 ' + _atEsc(d.settings.normal_start) + ' · 유예 ' + d.settings.grace_minutes + '분</span>'
+    + '<span style="color:var(--text-mute)">일반 ' + _atEsc(d.settings.normal_start) + ' · 1분이라도 늦으면 지각</span>'
     + '<span class="sp"></span><button class="at-btn" onclick="_atGo(\'today\')">새로고침</button></div>';
   if (!d.weekday) h += '<div class="at-note">' + _atOffdayText(d) + '.</div>';
   if (!d.rows.length) return h + _atNoStaffHtml();
@@ -444,11 +444,10 @@ function _atGrantHtml(d) {
   if (d.owner) {
     h += '<div class="at-bar">당번 <input type="time" id="atSDuty" value="' + _atEsc(s.duty_start) + '">'
       + ' 일반 <input type="time" id="atSNorm" value="' + _atEsc(s.normal_start) + '">'
-      + ' 유예 <input type="number" id="atSGrace" min="0" max="30" style="width:60px" value="' + _atEsc(s.grace_minutes) + '">분'
       + ' <button class="at-btn pri" onclick="_atSaveSettings()">저장</button></div>'
-      + '<div style="color:var(--text-mute)">유예 1분 = 당번 09:01 까지 정상, 09:02 부터 지각.</div>';
+      + '<div style="color:var(--text-mute)">유예 없음 — 당번 ' + _atEsc(s.duty_start) + ' · 일반 ' + _atEsc(s.normal_start) + ' 정각까지 정상, 1분이라도 늦으면 지각.</div>';
   } else {
-    h += '<div>당번 ' + _atEsc(s.duty_start) + ' · 일반 ' + _atEsc(s.normal_start) + ' · 유예 ' + _atEsc(s.grace_minutes) + '분</div>';
+    h += '<div>당번 ' + _atEsc(s.duty_start) + ' · 일반 ' + _atEsc(s.normal_start) + ' · 유예 없음</div>';
   }
   return h + _atHolidaysHtml(d) + _atLinkHtml();
 }
@@ -658,8 +657,7 @@ async function _atProfile(userId, patch) {
   if (await _atPost('profile', patch, '저장됨')) _atGo('grant');
 }
 async function _atSaveSettings() {
-  var body = { duty_start: document.getElementById('atSDuty').value, normal_start: document.getElementById('atSNorm').value,
-    grace_minutes: Number(document.getElementById('atSGrace').value) };
+  var body = { duty_start: document.getElementById('atSDuty').value, normal_start: document.getElementById('atSNorm').value };
   if (await _atPost('settings', body, '✅ 출근 기준 저장됨')) _atGo('grant');
 }
 
@@ -845,7 +843,7 @@ function _atMeHtml(d, form, err) {
   /* 이번 달 */
   h += '<div class="at-me-card"><div class="at-sec" style="margin-top:0">이번 달</div><div class="at-stats two"><div><b>' + ((d.month || {}).checked || 0) + '</b><span>출근</span></div>'
     + '<div><b' + ((d.month || {}).late ? ' style="color:var(--brand-danger)"' : '') + '>' + ((d.month || {}).late || 0) + '</b><span>지각</span></div></div>'
-    + '<div style="color:var(--text-mute);margin-top:6px;font-size:.9em">지각 기준: 당번 ' + _atEsc((d.settings || {}).duty_start) + ' · 일반 ' + _atEsc((d.settings || {}).normal_start) + ' (유예 ' + _atEsc((d.settings || {}).grace_minutes) + '분)</div>'
+    + '<div style="color:var(--text-mute);margin-top:6px;font-size:.9em">지각 기준: 당번 ' + _atEsc((d.settings || {}).duty_start) + ' · 일반 ' + _atEsc((d.settings || {}).normal_start) + ' (1분이라도 늦으면 지각)</div>'
     + '<div style="color:var(--text-mute);margin-top:6px;font-size:.9em">폰 홈 화면 바로가기: <b>' + _atEsc(location.origin) + '/attend.html</b></div></div>';
   return h;
 }

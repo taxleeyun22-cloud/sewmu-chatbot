@@ -260,7 +260,7 @@ function render(){
   /* 5. 이번 달 */
   h += '<div class="card"><h2>이번 달</h2><div class="stats" style="grid-template-columns:repeat(2,1fr)">'
     + '<div><b>'+d.month.checked+'</b><span>출근</span></div><div><b'+(d.month.late?' style="color:var(--danger)"':'')+'>'+d.month.late+'</b><span>지각</span></div></div>'
-    + '<div class="muted" style="margin-top:8px">지각 기준: 당번 '+esc(d.settings.duty_start)+' · 일반 '+esc(d.settings.normal_start)+' (유예 '+d.settings.grace_minutes+'분)</div></div>';
+    + '<div class="muted" style="margin-top:8px">지각 기준: 당번 '+esc(d.settings.duty_start)+' · 일반 '+esc(d.settings.normal_start)+' (1분이라도 늦으면 지각)</div></div>';
 
   h += '<div class="muted" style="text-align:center;margin:4px 0 8px">홈 화면에 추가하면 바로 열립니다 (공유 → 홈 화면에 추가)</div>';
   document.getElementById('app').innerHTML = h;

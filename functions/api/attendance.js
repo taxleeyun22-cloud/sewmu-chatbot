@@ -28,7 +28,7 @@
  * POST ?action=duty_set_week {monday, user_id | clear, force?}     owner  — 월~금 5칸 일괄
  * POST ?action=edit          {user_id, work_date, check_in?: 'HH:MM'|null, note?}  owner
  * POST ?action=leave_review_many {ids[], approve, note?}  owner  — 묶음 승인·반려 ({done, failed[]})
- * POST ?action=settings      {duty_start, normal_start, grace_minutes}  owner
+ * POST ?action=settings      {duty_start, normal_start}  owner  (유예는 2026-10-02 폐지 — 항상 0)
  * GET  ?view=holidays&year=YYYY                   그 해 공휴일 표 (법정·등록·대체)   (직원도)
  * POST ?action=holiday_add   {ymd, name, sub?}    owner  — 음력 명절·선거일·임시공휴일 등록
  * POST ?action=holiday_del   {ymd}                owner
@@ -84,7 +84,7 @@ async function ensureTables(db) {
       ON staff_leave_requests(user_id, leave_date) WHERE status IN ('pending','approved')`,
     `CREATE TABLE IF NOT EXISTS staff_attendance_settings (
       id INTEGER PRIMARY KEY CHECK (id = 1), duty_start TEXT DEFAULT '09:00',
-      normal_start TEXT DEFAULT '09:30', grace_minutes INTEGER DEFAULT 1, updated_at TEXT)`,
+      normal_start TEXT DEFAULT '09:30', grace_minutes INTEGER DEFAULT 0, updated_at TEXT)`,
     `INSERT OR IGNORE INTO staff_attendance_settings (id) VALUES (1)`,
     /* 공휴일 등록분 (음력 명절 · 선거일 · 임시공휴일). 날짜 고정 공휴일·대체공휴일은 코드가 계산한다 (_attendance-core.js holidayMap) */
     `CREATE TABLE IF NOT EXISTS staff_holidays (
@@ -140,11 +140,12 @@ async function loadStaff(db) {
 }
 
 async function loadSettings(db) {
-  const s = await db.prepare(`SELECT duty_start, normal_start, grace_minutes FROM staff_attendance_settings WHERE id = 1`).first();
+  const s = await db.prepare(`SELECT duty_start, normal_start FROM staff_attendance_settings WHERE id = 1`).first();
   return {
     duty_start: (s && s.duty_start) || '09:00',
     normal_start: (s && s.normal_start) || '09:30',
-    grace_minutes: s && s.grace_minutes != null ? Number(s.grace_minutes) : 1,
+    /* 2026-10-02 사장님 "1분 유예도 빼버리자 그냥" — 유예 없음. 컬럼은 남겨두되 읽지 않는다 (prod 행에 1 이 들어 있어도 무시) */
+    grace_minutes: 0,
   };
 }
 
@@ -819,13 +820,12 @@ export async function onRequestPost(context) {
 
     if (action === 'settings') {
       const ds = String(body.duty_start || ''), ns = String(body.normal_start || '');
-      const g = Number(body.grace_minutes);
       if (!validHm(ds) || !validHm(ns)) return bad('시각은 HH:MM');
-      if (!Number.isInteger(g) || g < 0 || g > 30) return bad('유예는 0~30분');
       const before = await loadSettings(db);
-      await db.prepare(`UPDATE staff_attendance_settings SET duty_start = ?, normal_start = ?, grace_minutes = ?, updated_at = ? WHERE id = 1`)
-        .bind(ds, ns, g, now).run();
-      audit('attendance_settings', 'settings', 1, before, { duty_start: ds, normal_start: ns, grace_minutes: g });
+      /* 유예는 2026-10-02 폐지 — 항상 0 */
+      await db.prepare(`UPDATE staff_attendance_settings SET duty_start = ?, normal_start = ?, grace_minutes = 0, updated_at = ? WHERE id = 1`)
+        .bind(ds, ns, now).run();
+      audit('attendance_settings', 'settings', 1, before, { duty_start: ds, normal_start: ns });
       return json({ ok: true });
     }
 

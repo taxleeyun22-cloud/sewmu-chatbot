@@ -163,7 +163,8 @@ export function isLate(checkInAt, start, graceMinutes) {
   const t = hmToMin(hm);
   const s = hmToMin(start);
   if (t == null || s == null) return false;
-  const g = Number.isFinite(Number(graceMinutes)) ? Math.max(0, Number(graceMinutes)) : 1;
+  /* 2026-10-02 사장님 "1분 유예도 빼버리자" — 기본 0. 09:00:59 는 화면에 09:00 이라 정상, 09:01:00 부터 지각 */
+  const g = Number.isFinite(Number(graceMinutes)) ? Math.max(0, Number(graceMinutes)) : 0;
   return t > s + g;
 }
 

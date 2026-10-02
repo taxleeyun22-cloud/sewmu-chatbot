@@ -92,12 +92,12 @@ CREATE TABLE IF NOT EXISTS staff_leave_requests (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_leave_user_date_active
   ON staff_leave_requests(user_id, leave_date) WHERE status IN ('pending','approved');
 
--- 출근 기준시각 · 유예 (사장님: "1분까진 봐준다고 하자")
+-- 출근 기준시각. 유예(grace_minutes)는 2026-10-02 사장님 "1분 유예도 빼버리자" 로 폐지 — 코드가 항상 0 으로 본다 (컬럼만 남음)
 CREATE TABLE IF NOT EXISTS staff_attendance_settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   duty_start TEXT DEFAULT '09:00',
   normal_start TEXT DEFAULT '09:30',
-  grace_minutes INTEGER DEFAULT 1,
+  grace_minutes INTEGER DEFAULT 0,
   updated_at TEXT
 );
 INSERT OR IGNORE INTO staff_attendance_settings (id) VALUES (1);

@@ -270,8 +270,10 @@ describe('연차 부여', () => {
     expect(h).not.toContain('_atSaveSettings');
   });
 
-  it('유예 1분 안내', () => {
-    expect(M._atGrantHtml(d(true))).toContain('09:01 까지 정상');
+  it('유예 없음 안내 (사장님 2026-10-02 "1분 유예도 빼버리자")', () => {
+    const h = M._atGrantHtml(d(true));
+    expect(h).toContain('유예 없음');
+    expect(h).not.toContain('atSGrace');
   });
 });
 
