@@ -108,24 +108,21 @@ describe('출근', () => {
     expect(today.rows.find((r: any) => r.id === da)).toMatchObject({ start: '09:00', check_in: null, late: false });
   });
 
-  it('당번이 승인 연차로 빠진 날 — 나머지도 09:00 기준 (월별·CSV 도 같이)', async () => {
-    /* 나 = 10/19 주 당번. 사장님이 순서를 바꾸기 전 승인된 연차가 남은 상황을 DB 로 만든다 */
+  /* 2026-10-06 사장님 "당번 아닌데 9:30 이전인데 왜 지각?" — 당번 연차는 "당번 없음" 이 아니다. 09:27 정상 */
+  it('당번이 승인 연차로 빠진 날 — 나머지는 평소대로 09:30 (오늘·월별·CSV·이달 지각 수)', async () => {
     await d1.prepare(`INSERT INTO staff_leave_requests (user_id, leave_date, reason, status, requested_at, reviewed_at) VALUES (?, '2026-10-21', '병원', 'approved', '2026-10-01 09:00:00', '2026-10-01 10:00:00')`).bind(na).run();
-    at('2026-10-21 09:20:00');
+    at('2026-10-21 09:27:00');
     await post(d1, DA, 'punch');
     const today = (await get(d1, 'key', 'view=today')).body;
-    expect(today).toMatchObject({ duty_user: na, duty_name: '나', duty_absent: true, no_duty: true });
-    expect(today.rows.find((r: any) => r.id === da)).toMatchObject({ duty: false, no_duty: true, start: '09:00', check_in: '09:20', late: true });
+    expect(today).toMatchObject({ duty_user: na, duty_name: '나', duty_absent: true, no_duty: false });
+    expect(today.rows.find((r: any) => r.id === da)).toMatchObject({ duty: false, no_duty: false, start: '09:30', check_in: '09:27', late: false });
     expect(today.rows.find((r: any) => r.id === na)).toMatchObject({ duty: true, leave: 'approved', check_in: null, late: false });
-    /* 당번이 있는 다음 날은 다시 09:30 */
     const month = (await get(d1, 'key', 'view=month&month=2026-10')).body;
     const daRow = month.rows.find((r: any) => r.id === da);
-    expect(daRow.cells['2026-10-21']).toMatchObject({ no_duty: true, start: '09:00', late: true });
-    expect(daRow.cells['2026-10-22']).toMatchObject({ no_duty: false, start: '09:30' });
+    expect(daRow.cells['2026-10-21']).toMatchObject({ no_duty: false, start: '09:30', late: false });
     const csv = (await get(d1, 'key', 'view=month&month=2026-10&format=csv')).body as string;
-    expect(csv).toContain('2026-10-21,수,다,,09:00,09:20,지각');
-    /* 다 본인 화면의 이달 지각 수에도 반영 */
-    expect((await get(d1, DA, 'view=me')).body.month.late).toBe(1);
+    expect(csv).toContain('2026-10-21,수,다,,09:30,09:27,,');
+    expect((await get(d1, DA, 'view=me')).body.month.late).toBe(0);
   });
 
   it('주말에 찍은 건 당번 없음 취급 안 함 — 09:30 기준 그대로', async () => {
@@ -133,6 +130,39 @@ describe('출근', () => {
     await post(d1, GA, 'punch');
     const me = (await get(d1, GA, 'view=me')).body;
     expect(me.today_cell).toMatchObject({ no_duty: false, start: '09:30' });
+  });
+
+  /* 2026-10-06 사장님: "정은이라는 이름이 두 개 있거든 … 출근 누른 사람이랑 당번 지정된 사람이랑 다를 거야" */
+  it('같은 이름 직원이 둘이면 오늘·당번표·연차 부여에서 (카카오)/(네이버) 로 구분, 다른 이름은 그대로', async () => {
+    await d1.prepare(`UPDATE users SET provider = 'kakao' WHERE id = ?`).bind(ga).run();
+    const ga2 = await (async () => {
+      const r = await d1.prepare(`INSERT INTO users (name, real_name, is_admin, approval_status, provider) VALUES ('가', '가', 1, 'approved_client', 'naver')`).run();
+      await d1.prepare(`INSERT INTO sessions (token, user_id, expires_at) VALUES ('tok-ga2', ?, '2099-01-01 00:00:00')`).bind(r.meta.last_row_id).run();
+      return Number(r.meta.last_row_id);
+    })();
+    at('2026-10-13 09:10:00');
+    await post(d1, 'tok-ga2', 'punch');               // 네이버 '가' 가 출근, 당번은 카카오 '가'
+    const today = (await get(d1, 'key', 'view=today')).body;
+    const names = Object.fromEntries(today.rows.map((r: any) => [r.id, r.name]));
+    expect(names[ga]).toBe('가 (카카오)');
+    expect(names[ga2]).toBe('가 (네이버)');
+    expect(names[na]).toBe('나');
+    expect(today.duty_name).toBe('가 (카카오)');
+    expect(today.rows.find((r: any) => r.id === ga2)).toMatchObject({ duty: false, check_in: '09:10' });
+    expect(today.rows.find((r: any) => r.id === ga)).toMatchObject({ duty: true, check_in: null });
+    const duty = (await get(d1, 'key', 'view=duty&from=2026-10-12&weeks=1')).body;
+    expect(duty.rotation.names).toEqual(['가 (카카오)', '나', '다']);
+    const leave = (await get(d1, 'key', 'view=leave&year=2026')).body;
+    expect(leave.rows.map((r: any) => r.name)).toEqual(expect.arrayContaining(['가 (카카오)', '가 (네이버)', '나', '다']));
+  });
+
+  it('같은 이름 + 같은 로그인 종류면 #id 로 구분', async () => {
+    const r = await d1.prepare(`INSERT INTO users (name, real_name, is_admin, approval_status, provider) VALUES ('나', '나', 1, 'approved_client', NULL)`).run();
+    const na2 = Number(r.meta.last_row_id);
+    const today = (await get(d1, 'key', 'view=today')).body;
+    const names = Object.fromEntries(today.rows.map((x: any) => [x.id, x.name]));
+    expect(names[na]).toBe('나 (#' + na + ')');
+    expect(names[na2]).toBe('나 (#' + na2 + ')');
   });
 
   it('사장님 비번 접속으로는 찍을 수 없다 (누구 출근인지 모름)', async () => {

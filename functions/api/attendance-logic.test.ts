@@ -29,9 +29,12 @@ describe('출근 기준시각 — 당번 없는 날은 전원 09:00', () => {
     expect(noDutyDay(null, { workday: true })).toBe(true);
     expect(isLate('2026-10-06 09:05:00', startFor(12, null, S), 0)).toBe(true);
   });
-  it('당번이 연차인 평일: 나머지도 09:00', () => {
-    expect(startFor(12, 11, S, { dutyAbsent: true })).toBe('09:00');
-    expect(noDutyDay(11, { dutyAbsent: true })).toBe(true);
+  /* 2026-10-06 사장님 "당번 아닌데 9:30 이전인데 왜 지각?" — 당번 연차는 "당번 없음" 이 아니다 */
+  it('당번이 연차인 평일: 나머지는 평소대로 09:30 (옛 dutyAbsent 옵션은 무시)', () => {
+    expect(startFor(12, 11, S, { dutyAbsent: true })).toBe('09:30');
+    expect(startFor(12, 11, S)).toBe('09:30');
+    expect(noDutyDay(11, { dutyAbsent: true })).toBe(false);
+    expect(isLate('2026-10-06 09:27:00', startFor(12, 11, S), 0)).toBe(false);
   });
   it('주말·공휴일은 당번 제도 밖 — 09:30 그대로, 당번 없음 표시도 안 한다', () => {
     expect(startFor(12, null, S, { workday: false })).toBe('09:30');

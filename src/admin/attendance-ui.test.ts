@@ -64,12 +64,15 @@ describe('오늘', () => {
   });
 
   /* 사장님 2026-10-02: "당번이 다 없으면 9시가 출근임" */
-  it('당번 없는 날은 "당번 없음 · 전원 09:00", 당번 연차면 "당번 OO 연차 · 전원 09:00"', () => {
+  it('당번 없는 날은 "당번 없음 · 전원 09:00", 당번 연차면 "당번 OO (연차)" 에 나머지는 일반 09:30 그대로', () => {
     const none = M._atTodayHtml({ ...d(true), duty_user: null, duty_name: null, no_duty: true, duty_absent: false });
     expect(none).toContain('당번 없음 · 전원 09:00');
     expect(none).not.toContain('일반 09:30');
-    const absent = M._atTodayHtml({ ...d(true), no_duty: true, duty_absent: true });
-    expect(absent).toContain('당번 김당번 연차 · 전원 09:00');
+    /* 2026-10-06 사장님 "당번 아닌데 9:30 이전인데 왜 지각?" — 당번 연차는 전원 09:00 이 아니다 */
+    const absent = M._atTodayHtml({ ...d(true), no_duty: false, duty_absent: true });
+    expect(absent).toContain('당번 김당번 (연차)');
+    expect(absent).not.toContain('전원 09:00');
+    expect(absent).toContain('일반 09:30');
     expect(M._atTodayHtml(d(true))).toContain('일반 09:30');
   });
 

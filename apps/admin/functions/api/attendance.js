@@ -129,14 +129,31 @@ async function loadHolidays(db, from, to) {
 
 /* ── 읽기 헬퍼 ── */
 
+/* 2026-10-06 사장님: "정은이라는 이름이 두 개 있거든 … 오늘 출근 누른 사람이랑 당번 지정돼 있는 사람이랑 다를 거야"
+ * 같은 이름의 직원 계정이 둘이면 화면에서 구분이 안 된다 → 겹치는 이름에만 로그인 종류(카카오/네이버)를, 그것도 같으면 #id 를 붙인다 */
+const PROVIDER_KO = { kakao: '카카오', naver: '네이버', manual: '수동', merged: '통합' };
+export function dedupeNames(list) {
+  const groups = {};
+  for (const r of list) (groups[r.name] = groups[r.name] || []).push(r);
+  const provOf = (x) => PROVIDER_KO[String(x.provider || '').toLowerCase()] || null;
+  return list.map((r) => {
+    const g = groups[r.name];
+    if (g.length < 2) return r;
+    const provs = g.map(provOf);
+    const distinct = provs.every(Boolean) && new Set(provs).size === g.length;
+    return { ...r, name: r.name + ' (' + (distinct ? provOf(r) : '#' + r.id) + ')' };
+  });
+}
+
 async function loadStaff(db) {
   const { results } = await db.prepare(
-    `SELECT u.id, COALESCE(u.real_name, u.name, 'ID#' || u.id) AS name, p.hire_date
+    `SELECT u.id, COALESCE(u.real_name, u.name, 'ID#' || u.id) AS name, u.provider, p.hire_date
        FROM users u LEFT JOIN staff_profiles p ON p.user_id = u.id
       WHERE u.is_admin = 1 AND COALESCE(p.tracked, 1) = 1
       ORDER BY u.id ASC LIMIT 50`
   ).all();
-  return (results || []).map((r) => ({ id: Number(r.id), name: r.name, hire_date: r.hire_date || null }));
+  return dedupeNames((results || []).map((r) => ({ id: Number(r.id), name: r.name, provider: r.provider || null, hire_date: r.hire_date || null })))
+    .map((r) => ({ id: r.id, name: r.name, hire_date: r.hire_date }));
 }
 
 async function loadSettings(db) {
@@ -235,14 +252,15 @@ function dutyAbsentOn(duty, date, lv) {
   return duty != null && lv[duty + '|' + date] === 'approved';
 }
 
-/** 하루 한 사람의 판정 묶음. opts: { workday, dutyAbsent } — 당번 없는 평일은 전원 당번 시각 (사장님 2026-10-02) */
+/** 하루 한 사람의 판정 묶음. opts: { workday } — 당번 순서 없는 평일은 전원 당번 시각 (사장님 2026-10-02).
+ *  당번이 연차인 날은 나머지 평소대로 (2026-10-06 사장님 "당번 아닌데 9:30 이전인데 왜 지각?") */
 function dayCell(userId, date, att, duty, leave, settings, opts) {
   const isDuty = duty === userId;
   const start = startFor(userId, duty, settings, opts);
   const ci = att ? att.check_in_at : null;
   return {
     duty: isDuty,
-    no_duty: noDutyDay(duty, opts),   // 당번 없음·당번 연차 → 전원 duty_start 인 날
+    no_duty: noDutyDay(duty, opts),   // 당번 순서 없음 → 전원 duty_start 인 날
     start,
     check_in: ci ? ci.slice(11, 16) : null,
     late: ci ? isLate(ci, start, settings.grace_minutes) : false,
@@ -347,9 +365,7 @@ async function viewMe(db, auth, today) {
     `SELECT work_date, check_in_at FROM staff_attendance WHERE user_id = ? AND work_date BETWEEN ? AND ?`
   ).bind(me.id, monthFrom, today).all();
   const monthDuty = await dutyCtx(db, monthFrom, today);
-  /* 당번이 연차인 날은 전원 당번 시각 — 당번들의 승인 연차만 본다 */
-  const monthLv = await leaveMap(db, monthFrom, today, ['approved']);
-  const cellOpts = (d, ctx) => ({ workday: isWorkday(d, ctx.holidays), dutyAbsent: dutyAbsentOn(ctx.dutyOf(d), d, monthLv) });
+  const cellOpts = (d, ctx) => ({ workday: isWorkday(d, ctx.holidays) });
   let lateCount = 0;
   for (const a of monthAtt || []) {
     const st = startFor(me.id, monthDuty.dutyOf(a.work_date), settings, cellOpts(a.work_date, monthDuty));
@@ -387,11 +403,12 @@ async function viewToday(db, auth, today) {
   const attBy = Object.fromEntries((results || []).map((a) => [a.user_id, a]));
   const lv = await leaveMap(db, today, today, ['approved', 'pending']);
   const duty = dutyOf(today);
-  const opts = { workday: isWorkday(today, holidays), dutyAbsent: dutyAbsentOn(duty, today, lv) };
+  const opts = { workday: isWorkday(today, holidays) };
   return json({
     ok: true, today, weekday: opts.workday, holiday: holidayNames[today] || null, settings, owner: !!auth.owner,
     duty_user: duty, duty_name: (staff.find((s) => s.id === duty) || {}).name || null,
-    duty_absent: opts.dutyAbsent, no_duty: noDutyDay(duty, opts),
+    /* duty_absent 는 표시용(당번 OO 연차) — 기준시각엔 영향 없음 */
+    duty_absent: dutyAbsentOn(duty, today, lv), no_duty: noDutyDay(duty, opts),
     rows: staff.map((s) => ({ id: s.id, name: s.name, ...dayCell(s.id, today, attBy[s.id], duty, lv[s.id + '|' + today], settings, opts) })),
   });
 }
@@ -419,7 +436,7 @@ async function monthData(db, month, today) {
       /* 주말·공휴일은 출근 기록이 있을 때만 칸을 만든다 */
       if (!isWorkday(d, holidays) && !att[s.id + '|' + d]) continue;
       const du = dutyOf(d);
-      const c = dayCell(s.id, d, att[s.id + '|' + d], du, lv[s.id + '|' + d], settings, { workday: isWorkday(d, holidays), dutyAbsent: dutyAbsentOn(du, d, lv) });
+      const c = dayCell(s.id, d, att[s.id + '|' + d], du, lv[s.id + '|' + d], settings, { workday: isWorkday(d, holidays) });
       cells[d] = c;
       if (c.check_in) sum.checked++;
       if (c.late) sum.late++;
@@ -496,11 +513,12 @@ async function viewLeave(db, auth, url, today) {
   const year = Number(url.searchParams.get('year')) || Number(today.slice(0, 4));
   const settings = await loadSettings(db);
   /* 근태 대상에서 뺀 사람도 입사일·대상 토글은 사장님이 봐야 하므로 is_admin 전체 */
-  const { results: people } = await db.prepare(
-    `SELECT u.id, COALESCE(u.real_name, u.name, 'ID#' || u.id) AS name, p.hire_date, COALESCE(p.tracked, 1) AS tracked
+  const { results: peopleRaw } = await db.prepare(
+    `SELECT u.id, COALESCE(u.real_name, u.name, 'ID#' || u.id) AS name, u.provider, p.hire_date, COALESCE(p.tracked, 1) AS tracked
        FROM users u LEFT JOIN staff_profiles p ON p.user_id = u.id
       WHERE u.is_admin = 1 ORDER BY u.id ASC LIMIT 50`
   ).all();
+  const people = dedupeNames(peopleRaw || []);   // 같은 이름 둘이면 (카카오)/(네이버)/#id 로 구분
   const { results: grants } = await db.prepare(`SELECT * FROM staff_leave_grants WHERE year = ?`).bind(year).all();
   const gBy = Object.fromEntries((grants || []).map((g) => [g.user_id, g]));
   const { results: reqs } = await db.prepare(
