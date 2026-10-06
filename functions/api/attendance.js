@@ -129,14 +129,31 @@ async function loadHolidays(db, from, to) {
 
 /* ── 읽기 헬퍼 ── */
 
+/* 2026-10-06 사장님: "정은이라는 이름이 두 개 있거든 … 오늘 출근 누른 사람이랑 당번 지정돼 있는 사람이랑 다를 거야"
+ * 같은 이름의 직원 계정이 둘이면 화면에서 구분이 안 된다 → 겹치는 이름에만 로그인 종류(카카오/네이버)를, 그것도 같으면 #id 를 붙인다 */
+const PROVIDER_KO = { kakao: '카카오', naver: '네이버', manual: '수동', merged: '통합' };
+export function dedupeNames(list) {
+  const groups = {};
+  for (const r of list) (groups[r.name] = groups[r.name] || []).push(r);
+  const provOf = (x) => PROVIDER_KO[String(x.provider || '').toLowerCase()] || null;
+  return list.map((r) => {
+    const g = groups[r.name];
+    if (g.length < 2) return r;
+    const provs = g.map(provOf);
+    const distinct = provs.every(Boolean) && new Set(provs).size === g.length;
+    return { ...r, name: r.name + ' (' + (distinct ? provOf(r) : '#' + r.id) + ')' };
+  });
+}
+
 async function loadStaff(db) {
   const { results } = await db.prepare(
-    `SELECT u.id, COALESCE(u.real_name, u.name, 'ID#' || u.id) AS name, p.hire_date
+    `SELECT u.id, COALESCE(u.real_name, u.name, 'ID#' || u.id) AS name, u.provider, p.hire_date
        FROM users u LEFT JOIN staff_profiles p ON p.user_id = u.id
       WHERE u.is_admin = 1 AND COALESCE(p.tracked, 1) = 1
       ORDER BY u.id ASC LIMIT 50`
   ).all();
-  return (results || []).map((r) => ({ id: Number(r.id), name: r.name, hire_date: r.hire_date || null }));
+  return dedupeNames((results || []).map((r) => ({ id: Number(r.id), name: r.name, provider: r.provider || null, hire_date: r.hire_date || null })))
+    .map((r) => ({ id: r.id, name: r.name, hire_date: r.hire_date }));
 }
 
 async function loadSettings(db) {
@@ -496,11 +513,12 @@ async function viewLeave(db, auth, url, today) {
   const year = Number(url.searchParams.get('year')) || Number(today.slice(0, 4));
   const settings = await loadSettings(db);
   /* 근태 대상에서 뺀 사람도 입사일·대상 토글은 사장님이 봐야 하므로 is_admin 전체 */
-  const { results: people } = await db.prepare(
-    `SELECT u.id, COALESCE(u.real_name, u.name, 'ID#' || u.id) AS name, p.hire_date, COALESCE(p.tracked, 1) AS tracked
+  const { results: peopleRaw } = await db.prepare(
+    `SELECT u.id, COALESCE(u.real_name, u.name, 'ID#' || u.id) AS name, u.provider, p.hire_date, COALESCE(p.tracked, 1) AS tracked
        FROM users u LEFT JOIN staff_profiles p ON p.user_id = u.id
       WHERE u.is_admin = 1 ORDER BY u.id ASC LIMIT 50`
   ).all();
+  const people = dedupeNames(peopleRaw || []);   // 같은 이름 둘이면 (카카오)/(네이버)/#id 로 구분
   const { results: grants } = await db.prepare(`SELECT * FROM staff_leave_grants WHERE year = ?`).bind(year).all();
   const gBy = Object.fromEntries((grants || []).map((g) => [g.user_id, g]));
   const { results: reqs } = await db.prepare(

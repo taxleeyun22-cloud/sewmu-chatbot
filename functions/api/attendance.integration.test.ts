@@ -132,6 +132,39 @@ describe('출근', () => {
     expect(me.today_cell).toMatchObject({ no_duty: false, start: '09:30' });
   });
 
+  /* 2026-10-06 사장님: "정은이라는 이름이 두 개 있거든 … 출근 누른 사람이랑 당번 지정된 사람이랑 다를 거야" */
+  it('같은 이름 직원이 둘이면 오늘·당번표·연차 부여에서 (카카오)/(네이버) 로 구분, 다른 이름은 그대로', async () => {
+    await d1.prepare(`UPDATE users SET provider = 'kakao' WHERE id = ?`).bind(ga).run();
+    const ga2 = await (async () => {
+      const r = await d1.prepare(`INSERT INTO users (name, real_name, is_admin, approval_status, provider) VALUES ('가', '가', 1, 'approved_client', 'naver')`).run();
+      await d1.prepare(`INSERT INTO sessions (token, user_id, expires_at) VALUES ('tok-ga2', ?, '2099-01-01 00:00:00')`).bind(r.meta.last_row_id).run();
+      return Number(r.meta.last_row_id);
+    })();
+    at('2026-10-13 09:10:00');
+    await post(d1, 'tok-ga2', 'punch');               // 네이버 '가' 가 출근, 당번은 카카오 '가'
+    const today = (await get(d1, 'key', 'view=today')).body;
+    const names = Object.fromEntries(today.rows.map((r: any) => [r.id, r.name]));
+    expect(names[ga]).toBe('가 (카카오)');
+    expect(names[ga2]).toBe('가 (네이버)');
+    expect(names[na]).toBe('나');
+    expect(today.duty_name).toBe('가 (카카오)');
+    expect(today.rows.find((r: any) => r.id === ga2)).toMatchObject({ duty: false, check_in: '09:10' });
+    expect(today.rows.find((r: any) => r.id === ga)).toMatchObject({ duty: true, check_in: null });
+    const duty = (await get(d1, 'key', 'view=duty&from=2026-10-12&weeks=1')).body;
+    expect(duty.rotation.names).toEqual(['가 (카카오)', '나', '다']);
+    const leave = (await get(d1, 'key', 'view=leave&year=2026')).body;
+    expect(leave.rows.map((r: any) => r.name)).toEqual(expect.arrayContaining(['가 (카카오)', '가 (네이버)', '나', '다']));
+  });
+
+  it('같은 이름 + 같은 로그인 종류면 #id 로 구분', async () => {
+    const r = await d1.prepare(`INSERT INTO users (name, real_name, is_admin, approval_status, provider) VALUES ('나', '나', 1, 'approved_client', NULL)`).run();
+    const na2 = Number(r.meta.last_row_id);
+    const today = (await get(d1, 'key', 'view=today')).body;
+    const names = Object.fromEntries(today.rows.map((x: any) => [x.id, x.name]));
+    expect(names[na]).toBe('나 (#' + na + ')');
+    expect(names[na2]).toBe('나 (#' + na2 + ')');
+  });
+
   it('사장님 비번 접속으로는 찍을 수 없다 (누구 출근인지 모름)', async () => {
     const r = await post(d1, 'key', 'punch');
     expect(r.status).toBe(400);
