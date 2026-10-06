@@ -115,9 +115,10 @@ function _atOffdayText(d) {
 }
 function _atTodayHtml(d) {
   var h = '<div class="at-bar"><b>' + _atMd(d.today) + '</b>'
-    /* 사장님 2026-10-02 "당번이 다 없으면 9시가 출근" — 당번 없음·당번 연차인 평일은 전원 당번 시각 */
-    + (d.no_duty ? '<span class="pill late">' + (d.duty_name ? '당번 ' + _atEsc(d.duty_name) + ' 연차' : '당번 없음') + ' · 전원 ' + _atEsc(d.settings.duty_start) + '</span>'
-      : d.duty_name ? '<span class="pill duty">당번 ' + _atEsc(d.duty_name) + ' · ' + _atEsc(d.settings.duty_start) + '</span>' : '')
+    /* 사장님 2026-10-02 "당번이 다 없으면 9시가 출근" — 당번 순서가 없는 평일만 전원 당번 시각.
+       당번이 연차면 표시만 하고 나머지는 평소대로 (2026-10-06 "당번 아닌데 9:30 이전인데 왜 지각?") */
+    + (d.no_duty ? '<span class="pill late">당번 없음 · 전원 ' + _atEsc(d.settings.duty_start) + '</span>'
+      : d.duty_name ? '<span class="pill duty">당번 ' + _atEsc(d.duty_name) + (d.duty_absent ? ' (연차)' : ' · ' + _atEsc(d.settings.duty_start)) + '</span>' : '')
     + (d.no_duty ? '<span style="color:var(--text-mute)">1분이라도 늦으면 지각</span>'
       : '<span style="color:var(--text-mute)">일반 ' + _atEsc(d.settings.normal_start) + ' · 1분이라도 늦으면 지각</span>')
     + '<span class="sp"></span><button class="at-btn" onclick="_atGo(\'today\')">새로고침</button></div>';

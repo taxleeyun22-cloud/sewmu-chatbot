@@ -108,24 +108,21 @@ describe('출근', () => {
     expect(today.rows.find((r: any) => r.id === da)).toMatchObject({ start: '09:00', check_in: null, late: false });
   });
 
-  it('당번이 승인 연차로 빠진 날 — 나머지도 09:00 기준 (월별·CSV 도 같이)', async () => {
-    /* 나 = 10/19 주 당번. 사장님이 순서를 바꾸기 전 승인된 연차가 남은 상황을 DB 로 만든다 */
+  /* 2026-10-06 사장님 "당번 아닌데 9:30 이전인데 왜 지각?" — 당번 연차는 "당번 없음" 이 아니다. 09:27 정상 */
+  it('당번이 승인 연차로 빠진 날 — 나머지는 평소대로 09:30 (오늘·월별·CSV·이달 지각 수)', async () => {
     await d1.prepare(`INSERT INTO staff_leave_requests (user_id, leave_date, reason, status, requested_at, reviewed_at) VALUES (?, '2026-10-21', '병원', 'approved', '2026-10-01 09:00:00', '2026-10-01 10:00:00')`).bind(na).run();
-    at('2026-10-21 09:20:00');
+    at('2026-10-21 09:27:00');
     await post(d1, DA, 'punch');
     const today = (await get(d1, 'key', 'view=today')).body;
-    expect(today).toMatchObject({ duty_user: na, duty_name: '나', duty_absent: true, no_duty: true });
-    expect(today.rows.find((r: any) => r.id === da)).toMatchObject({ duty: false, no_duty: true, start: '09:00', check_in: '09:20', late: true });
+    expect(today).toMatchObject({ duty_user: na, duty_name: '나', duty_absent: true, no_duty: false });
+    expect(today.rows.find((r: any) => r.id === da)).toMatchObject({ duty: false, no_duty: false, start: '09:30', check_in: '09:27', late: false });
     expect(today.rows.find((r: any) => r.id === na)).toMatchObject({ duty: true, leave: 'approved', check_in: null, late: false });
-    /* 당번이 있는 다음 날은 다시 09:30 */
     const month = (await get(d1, 'key', 'view=month&month=2026-10')).body;
     const daRow = month.rows.find((r: any) => r.id === da);
-    expect(daRow.cells['2026-10-21']).toMatchObject({ no_duty: true, start: '09:00', late: true });
-    expect(daRow.cells['2026-10-22']).toMatchObject({ no_duty: false, start: '09:30' });
+    expect(daRow.cells['2026-10-21']).toMatchObject({ no_duty: false, start: '09:30', late: false });
     const csv = (await get(d1, 'key', 'view=month&month=2026-10&format=csv')).body as string;
-    expect(csv).toContain('2026-10-21,수,다,,09:00,09:20,지각');
-    /* 다 본인 화면의 이달 지각 수에도 반영 */
-    expect((await get(d1, DA, 'view=me')).body.month.late).toBe(1);
+    expect(csv).toContain('2026-10-21,수,다,,09:30,09:27,,');
+    expect((await get(d1, DA, 'view=me')).body.month.late).toBe(0);
   });
 
   it('주말에 찍은 건 당번 없음 취급 안 함 — 09:30 기준 그대로', async () => {

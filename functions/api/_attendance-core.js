@@ -155,23 +155,25 @@ export function expectedStart(isDuty, settings) {
 /**
  * 그날 한 사람의 출근 기준시각. 사장님 2026-10-02: "당번이 다 없으면 9시가 출근임".
  *   - 당번이면 duty_start, 아니면 normal_start
- *   - 그날 출근할 당번이 없으면(순서 미지정으로 duty 가 null · 당번이 연차) 전원 duty_start
+ *   - 당번 순서가 아예 없는 평일(duty 가 null) 은 전원 duty_start
+ *   - 당번이 연차인 날은 나머지 그대로 normal_start — 2026-10-06 사장님 "당번 아닌데 9:30 이전인데 왜 지각?"
+ *     (처음엔 당번 연차도 "당번 없음" 으로 쳐서 전원 09:00 이었다 → 지각 오판)
  *   - 주말·공휴일(workday=false) 은 당번 제도 밖이라 normal_start 그대로
- * duty: 그날 당번 user_id 또는 null · opts.dutyAbsent: 당번이 승인 연차라 안 나오는 날
+ * duty: 그날 당번 user_id 또는 null
  */
 export function startFor(userId, duty, settings, opts) {
   const o = opts || {};
   const workday = o.workday !== false;
   if (!workday) return expectedStart(false, settings);
-  if (duty == null || o.dutyAbsent) return expectedStart(true, settings);
+  if (duty == null) return expectedStart(true, settings);
   return expectedStart(Number(duty) === Number(userId), settings);
 }
 
-/** 그날 당번 자리가 비는지 — 당번 없음 또는 당번 연차. 평일에만 뜻이 있다 */
+/** 그날 당번 자리가 비는지 — 당번 순서 없음(null). 평일에만 뜻이 있다. 당번 연차는 여기 안 들어간다 */
 export function noDutyDay(duty, opts) {
   const o = opts || {};
   if (o.workday === false) return false;
-  return duty == null || !!o.dutyAbsent;
+  return duty == null;
 }
 
 /**
