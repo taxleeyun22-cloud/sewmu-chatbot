@@ -383,7 +383,8 @@ async function viewMe(db, auth, today) {
     holidays: calHol.names,
     duty: { this_week: week(thisMon), next_week: week(addDays(thisMon, 7)), mine: myDuty },
     swaps: { received: (received || []).map(swapRow), sent: (sent || []).map(swapRow) },
-    colleagues: staff.filter((s) => s.id !== me.id).map((s) => ({ id: s.id, name: s.name })),
+    /* duty: 그 동료의 앞으로의 당번 날 — 맞교환 날짜를 여기서 고른다 (사장님 2026-10-13) */
+    colleagues: staff.filter((s) => s.id !== me.id).map((s) => ({ id: s.id, name: s.name, duty: weekdaysBetween(today, horizon).filter((d) => dutyOf(d) === s.id) })),
     leave: {
       year,
       days: grant ? Number(grant.days) : null,
@@ -607,7 +608,7 @@ export async function onRequestPost(context) {
         const span = [dutyDate, returnDate].filter(validYmd).sort();
         const staff = await loadStaff(db);
         const { dutyOf, holidays } = await dutyCtx(db, span[0] || today, span[span.length - 1] || today);
-        const err = checkSwapRequest({ fromUser: me.id, toUser, dutyDate, returnDate, today, dutyOf, staffIds: staff.map((s) => s.id), holidays });
+        const err = checkSwapRequest({ fromUser: me.id, toUser, dutyDate, returnDate, today, dutyOf, staffIds: staff.map((s) => s.id), holidays, requireReturn: true });
         if (err) return bad(err);
         const dup = await db.prepare(`SELECT id FROM staff_duty_swaps WHERE from_user = ? AND duty_date = ? AND status = 'pending'`).bind(me.id, dutyDate).first();
         if (dup) return bad(fmtMd(dutyDate) + ' 은 이미 교체 요청 중입니다');

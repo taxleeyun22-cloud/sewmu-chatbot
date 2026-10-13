@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 type Ptr = { state: { startY: number | null; dy: number; armed: boolean; busy: boolean }; destroy: () => void };
-type Init = (el: HTMLElement, opts: { reload: () => void; pill?: HTMLElement; threshold?: number }) => Ptr;
+type Init = (el: HTMLElement, opts: { reload: () => void | Promise<void>; pill?: HTMLElement; threshold?: number; zIndex?: number }) => Ptr;
 
 const src = readFileSync('admin-ptr.js', 'utf8');
 
@@ -128,6 +128,38 @@ describe('당겨서 새로고침', () => {
     touch(main, 'touchend', 250);
     vi.advanceTimersByTime(200);
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  /* 사장님 2026-10-13 "새로고침 저기서도 하게 해도 — 근태연차 클릭쪽에": 모달 안에선 탭만 다시 불러온다 (Promise) */
+  it('reload 가 Promise 를 주면 끝난 뒤 알약이 내려가고 다시 당길 수 있다', async () => {
+    ptr.destroy();
+    let resolve: () => void = () => {};
+    const soft = vi.fn(() => new Promise<void>((r) => { resolve = r; }));
+    const pill2 = document.createElement('div');
+    ptr = init(main, { reload: soft, pill: pill2, threshold: 90 });
+    touch(main, 'touchstart', 100); touch(main, 'touchmove', 250); touch(main, 'touchend', 250);
+    vi.advanceTimersByTime(80);
+    expect(soft).toHaveBeenCalledTimes(1);
+    expect(ptr.state.busy).toBe(true);
+    expect(pill2.textContent).toBe('새로고침 중…');
+    /* 끝나기 전엔 다시 못 당긴다 */
+    touch(main, 'touchstart', 100); touch(main, 'touchmove', 250); touch(main, 'touchend', 250);
+    vi.advanceTimersByTime(80);
+    expect(soft).toHaveBeenCalledTimes(1);
+    resolve();
+    await Promise.resolve(); await Promise.resolve();
+    expect(ptr.state.busy).toBe(false);
+    expect(pill2.style.opacity).toBe('0');
+    touch(main, 'touchstart', 100); touch(main, 'touchmove', 250); touch(main, 'touchend', 250);
+    vi.advanceTimersByTime(80);
+    expect(soft).toHaveBeenCalledTimes(2);
+  });
+
+  it('zIndex 옵션으로 알약을 모달 위에 띄운다', () => {
+    const p2 = init(main, { reload: vi.fn(), zIndex: 12000 });
+    const pills = document.querySelectorAll('.ptr-pill');
+    expect([...pills].some((el) => (el as HTMLElement).style.zIndex === '12000')).toBe(true);
+    p2.destroy();
   });
 
   it('admin.html 이 admin.js 다음에 로드하고, 미러 목록에도 있다', () => {

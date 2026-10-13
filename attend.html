@@ -338,24 +338,38 @@ async function leaveCancel(id){
 function openSheet(html){ document.getElementById('sheet').innerHTML = html; document.getElementById('sheetBg').classList.add('on'); }
 function closeSheet(){ document.getElementById('sheetBg').classList.remove('on'); }
 
-function openSwap(date){
-  var opts = (D.colleagues||[]).map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+'</option>'}).join('');
-  if (!opts) return toast('교체할 동료가 없습니다');
-  /* 사장님 2026-10-02 "교체는 연차 쓸 때만" — 연차 신청 시트에서만 들어오고, 닫으면 연차 시트로 돌아간다 */
-  /* 맞교환 없음 — 내 연차 날 하루를 상대가 대신 선다 (사장님 2026-10-02 "날짜별로 요청") */
+/* 사장님 2026-10-02 "교체는 연차 쓸 때만" — 연차 신청 시트에서만 들어오고, 닫으면 연차 시트로 돌아간다
+ * 사장님 2026-10-13 "연차자가 요청하면 그 상대방 날짜도 고르는 게 돼야" — 맞교환 필수: 상대의 예정 당번 날 중 하나를 고른다 */
+var SW = null;   // { to, ret, reason }
+function openSwap(date, keep){
+  var cols = D.colleagues||[];
+  if (!cols.length) return toast('교체할 동료가 없습니다');
+  if (!keep || !SW) SW = { to: cols[0].id, ret: null, reason: '' };
+  var to = cols.filter(function(c){ return c.id === SW.to; })[0] || cols[0];
+  var opts = cols.map(function(c){return '<option value="'+c.id+'"'+(c.id===to.id?' selected':'')+'>'+esc(c.name)+'</option>'}).join('');
+  var days = (to.duty||[]).filter(function(x){ return x !== date; });
+  var ret = SW.ret && days.indexOf(SW.ret) >= 0 ? SW.ret : (days[0] || '');
+  var retOpts = days.map(function(x){ return '<option value="'+x+'"'+(x===ret?' selected':'')+'>'+md(x)+'</option>'; }).join('');
   openSheet('<h3>'+md(date)+' 당번 교체 요청 — 연차 쓰려면 먼저</h3>'
-    + '<label>이 날 내 당번을 대신 서줄 동료</label><select id="swTo">'+opts+'</select>'
-    + '<label>사유 (선택)</label><textarea id="swReason" rows="2" maxlength="200"></textarea>'
-    + '<div class="muted" style="margin-top:6px">상대가 수락하면 '+md(date)+' 당번이 그 동료로 바뀝니다. 여러 날이면 날짜마다 따로 요청하세요.</div><div class="err" id="swErr"></div>'
-    + '<div class="acts"><button class="btn" onclick="swapBack()">닫기</button><button class="btn primary" onclick="sendSwap(\''+date+'\')">요청 보내기</button></div>');
+    + '<label>이 날 내 당번을 대신 서줄 동료</label><select id="swTo" onchange="swapTo(\''+date+'\', this.value)">'+opts+'</select>'
+    + '<label>맞바꿀 날 — 내가 대신 설 '+esc(to.name)+' 님 당번 날</label>'
+    + (days.length ? '<select id="swRet">'+retOpts+'</select>' : '<div class="err">'+esc(to.name)+' 님의 예정 당번 날이 없어요 — 다른 동료를 고르거나 사장님께 말씀해 주세요</div>')
+    + '<label>사유 (선택)</label><textarea id="swReason" rows="2" maxlength="200">'+esc(SW.reason||'')+'</textarea>'
+    + '<div class="muted" style="margin-top:6px">상대가 수락하면 '+md(date)+' 은 '+esc(to.name)+' 님이, '+(ret ? md(ret)+' 은 내가' : '맞바꾼 날은 내가')+' 당번을 섭니다. 여러 날이면 날짜마다 따로 요청하세요.</div><div class="err" id="swErr"></div>'
+    + '<div class="acts"><button class="btn" onclick="swapBack()">닫기</button>'+(days.length ? '<button class="btn primary" onclick="sendSwap(\''+date+'\')">요청 보내기</button>' : '')+'</div>');
 }
-function swapBack(){ if (LV) renderLeave('', null); else closeSheet(); }
+function swapKeep(){ if (!SW) return; var r = document.getElementById('swReason'); if (r) SW.reason = r.value; var d = document.getElementById('swRet'); if (d && d.value) SW.ret = d.value; }
+function swapTo(date, v){ swapKeep(); SW.to = Number(v); SW.ret = null; openSwap(date, true); }
+function swapBack(){ SW = null; if (LV) renderLeave('', null); else closeSheet(); }
 async function sendSwap(date){
+  var retEl = document.getElementById('swRet');
+  if (!retEl || !retEl.value) { document.getElementById('swErr').textContent = '맞바꿀 상대방 당번 날을 골라주세요'; return; }
   var body = { duty_date: date, to_user: Number(document.getElementById('swTo').value),
-    return_date: null, reason: document.getElementById('swReason').value };
+    return_date: retEl.value, reason: document.getElementById('swReason').value };
   var r = await api('POST', 'action=swap_request', body);
   if (r.error) { document.getElementById('swErr').textContent = r.error; return; }
   toast('교체 요청을 보냈어요 — 상대가 수락하면 연차를 신청하세요');
+  SW = null;
   /* 연차 시트(고른 날짜·사유)로 돌아간다 — 데이터는 새로 받아 그 날이 "요청 중" 으로 */
   var p = load();
   var back = function(){ if (LV) renderLeave('', null); else closeSheet(); };

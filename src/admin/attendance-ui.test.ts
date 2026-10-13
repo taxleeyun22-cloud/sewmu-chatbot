@@ -321,7 +321,7 @@ describe('admin 홈 출근 카드 · 내 근태 탭', () => {
       mine: ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16'],
     },
     swaps: { received: [], sent: [] },
-    colleagues: [{ id: 11, name: '김가영' }, { id: 13, name: '최다인' }],
+    colleagues: [{ id: 11, name: '김가영', duty: ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09'] }, { id: 13, name: '최다인', duty: [] }],
     leave: { year: 2026, days: 15, approved: 1, pending: 0, remaining: 14, requests: [] },
     month: { checked: 3, late: 1 },
     ...over,
@@ -386,11 +386,28 @@ describe('admin 홈 출근 카드 · 내 근태 탭', () => {
     expect(lv).not.toContain('id="atSwTo"');                   // 아직 교체 폼 안 열림
     const sw = M2._atMeHtml(d, { kind: 'leave', dates: ['2026-10-12'], swap: '2026-10-12', reason: '여행' }, '');
     expect(sw).toContain('id="atSwTo"');
-    expect(sw).toContain('<option value="11">김가영</option>');
+    expect(sw).toContain('<option value="11" selected>김가영</option>');
     expect(sw).toContain('10/12(월) 당번 교체 요청 — 연차 쓰려면 먼저');
     expect(sw).toContain('_atLvSwapClose()');
     expect(sw).toContain('>여행</textarea>');                   // 고른 날·사유 유지
     expect(sw).toContain("_atMeSendSwap('2026-10-12')");
+    /* 사장님 2026-10-13 "그 상대방 날짜도 고르는 게 돼야": 맞교환 날은 상대 당번 날 목록에서 고른다 */
+    expect(sw).toContain('id="atSwRet"');
+    expect(sw).toContain('<option value="2026-10-05" selected>10/5(월)</option>');
+    expect(sw).toContain('<option value="2026-10-09">10/9(금)</option>');
+    expect(sw).toContain('10/12(월) 은 김가영 님이, 10/5(월) 은 내가 당번을 섭니다');
+  });
+
+  it('교체 폼: 동료를 바꾸면 그 동료 당번 날로, 예정 당번이 없으면 보내기 버튼 없음', () => {
+    const d = me();
+    const sw = M2._atMeHtml(d, { kind: 'leave', dates: ['2026-10-12'], swap: '2026-10-12', swap_to: 13, swap_reason: '병원' }, '');
+    expect(sw).toContain('<option value="13" selected>최다인</option>');
+    expect(sw).not.toContain('id="atSwRet"');
+    expect(sw).toContain('최다인 님의 예정 당번 날이 없어요');
+    expect(sw).not.toContain("_atMeSendSwap(");
+    expect(sw).toContain('>병원</textarea>');
+    const sw2 = M2._atMeHtml(d, { kind: 'leave', dates: ['2026-10-12'], swap: '2026-10-12', swap_to: 11, swap_ret: '2026-10-07' }, '');
+    expect(sw2).toContain('<option value="2026-10-07" selected>10/7(수)</option>');
   });
 
   it('내 근태: 연차 미확정이면 신청 버튼이 없다', () => {

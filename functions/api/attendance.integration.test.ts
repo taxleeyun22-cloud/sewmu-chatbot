@@ -191,19 +191,29 @@ describe('당번 날 연차 → 교체 → 승인', () => {
     expect(r.body.error).toContain('당번');
     expect(r.body.duty_date).toBe('2026-10-14');
 
-    /* 2. 가 → 나 교체 요청, 나 수락 */
+    /* 2. 가 → 나 교체 요청 — 사장님 2026-10-13 "그 상대방 날짜도 고르는 게 돼야": 맞교환 날짜 필수 */
     r = await post(d1, GA, 'swap_request', { to_user: na, duty_date: '2026-10-14', reason: '병원' });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toContain('맞바꿀');
+    /* 내 화면이 동료의 예정 당번 날을 준다 — 나 = 10/19 주 */
+    const meGa0 = (await get(d1, GA, 'view=me')).body;
+    const colNa = meGa0.colleagues.find((c: any) => c.id === na);
+    expect(colNa.duty.slice(0, 5)).toEqual(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']);
+    /* 상대 당번 날이 아닌 날은 거부 */
+    expect((await post(d1, GA, 'swap_request', { to_user: na, duty_date: '2026-10-14', return_date: '2026-10-27' })).body.error).toContain('상대방 당번이 아닙니다');
+    r = await post(d1, GA, 'swap_request', { to_user: na, duty_date: '2026-10-14', return_date: '2026-10-20', reason: '병원' });
     expect(r.body.ok).toBe(true);
     const meNa = (await get(d1, NA, 'view=me')).body;
     expect(meNa.swaps.received).toHaveLength(1);
-    expect(meNa.swaps.received[0]).toMatchObject({ from_name: '가', duty_date: '2026-10-14', reason: '병원' });
+    expect(meNa.swaps.received[0]).toMatchObject({ from_name: '가', duty_date: '2026-10-14', return_date: '2026-10-20', reason: '병원' });
     r = await post(d1, NA, 'swap_respond', { id: meNa.swaps.received[0].id, accept: true });
     expect(r.body).toMatchObject({ ok: true, status: 'accepted' });
 
-    /* 그날 당번은 나 — 나 기준 09:00 */
-    const duty = (await get(d1, 'key', 'view=duty&from=2026-10-12&weeks=1')).body;
+    /* 수락하면 양쪽이 바뀐다: 10/14 는 나, 10/20 은 가 */
+    const duty = (await get(d1, 'key', 'view=duty&from=2026-10-12&weeks=2')).body;
     const wed = duty.grid[0].days.find((x: any) => x.date === '2026-10-14');
     expect(wed).toMatchObject({ user_id: na, override: 'swap' });
+    expect(duty.grid[1].days.find((x: any) => x.date === '2026-10-20')).toMatchObject({ user_id: ga, override: 'swap' });
 
     /* 3. 이제 가 연차 신청 통과 */
     r = await post(d1, GA, 'leave_request', { dates: ['2026-10-14'], reason: '병원' });
@@ -227,7 +237,8 @@ describe('당번 날 연차 → 교체 → 승인', () => {
   it('대신 설 사람이 그날 연차면 수락이 안 된다', async () => {
     /* 다음 주(10/19~) 당번은 나. 다가 10/21 연차를 먼저 신청해 둠 */
     expect((await post(d1, DA, 'leave_request', { dates: ['2026-10-21'] })).body.ok).toBe(true);
-    const r = await post(d1, NA, 'swap_request', { to_user: da, duty_date: '2026-10-21' });
+    /* 다 = 10/26 주 당번 → 맞교환 10/27 */
+    const r = await post(d1, NA, 'swap_request', { to_user: da, duty_date: '2026-10-21', return_date: '2026-10-27' });
     expect(r.body.ok).toBe(true);
     const id = (await get(d1, DA, 'view=me')).body.swaps.received[0].id;
     const acc = await post(d1, DA, 'swap_respond', { id, accept: true });
@@ -354,7 +365,7 @@ describe('직원 권한 — 조회 OK · 수정 403', () => {
   });
 
   it('뱃지: 직원에겐 나에게 온 교체, 사장님에겐 승인 대기', async () => {
-    await post(d1, GA, 'swap_request', { to_user: na, duty_date: '2026-10-14' });
+    await post(d1, GA, 'swap_request', { to_user: na, duty_date: '2026-10-14', return_date: '2026-10-20' });
     await post(d1, DA, 'leave_request', { dates: ['2026-10-15'] });
     /* 직원 뱃지엔 동료 연차 대기 건수가 안 실린다 */
     expect((await get(d1, NA, 'view=badge')).body).toMatchObject({ owner: false, my_swaps: 1, pending_leave: 0 });

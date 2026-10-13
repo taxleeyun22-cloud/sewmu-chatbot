@@ -199,7 +199,7 @@ export function isLate(checkInAt, start, graceMinutes) {
  *   ctx.dutyOf(date) → 그날 현재 당번 user_id
  *   ctx.staffIds     → 근태 대상 직원 id 배열
  */
-export function checkSwapRequest({ fromUser, toUser, dutyDate, returnDate, today, dutyOf, staffIds, holidays }) {
+export function checkSwapRequest({ fromUser, toUser, dutyDate, returnDate, today, dutyOf, staffIds, holidays, requireReturn }) {
   if (!validYmd(dutyDate)) return '날짜가 올바르지 않습니다';
   if (!isWeekday(dutyDate)) return '주말에는 당번이 없습니다';
   if (holidayErr(dutyDate, holidays)) return holidayErr(dutyDate, holidays) + ' — 당번이 없습니다';
@@ -207,6 +207,9 @@ export function checkSwapRequest({ fromUser, toUser, dutyDate, returnDate, today
   if (!toUser || Number(toUser) === Number(fromUser)) return '교체할 동료를 골라주세요';
   if (!(staffIds || []).map(Number).includes(Number(toUser))) return '근태 대상 직원이 아닙니다';
   if (Number(dutyOf(dutyDate)) !== Number(fromUser)) return fmtMd(dutyDate) + ' 은 내 당번이 아닙니다';
+  /* 사장님 2026-10-13 "연차자가 요청하면 그 상대방 날짜도 고르는 게 돼야" — 새 요청은 맞교환 날짜 필수.
+     수락 재검사(checkSwapAccept)는 옛 요청(맞교환 없음)도 통과해야 하니 requireReturn 을 안 준다 */
+  if (requireReturn && !returnDate) return '맞바꿀 상대방 당번 날을 골라주세요';
   if (returnDate) {
     if (!validYmd(returnDate) || !isWeekday(returnDate)) return '맞교환 날짜가 올바르지 않습니다';
     if (holidayErr(returnDate, holidays)) return '맞교환 날짜 ' + holidayErr(returnDate, holidays);
