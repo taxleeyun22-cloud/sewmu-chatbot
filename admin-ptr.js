@@ -40,11 +40,11 @@
     return typeof t.clientY === 'number' ? t.clientY : null;
   }
 
-  function makePill(doc) {
+  function makePill(doc, zIndex) {
     var el = doc.createElement('div');
     el.className = 'ptr-pill';
     el.setAttribute('aria-live', 'polite');
-    el.style.cssText = 'position:fixed;top:10px;left:50%;z-index:58;transform:translate(-50%,-70px);'
+    el.style.cssText = 'position:fixed;top:10px;left:50%;z-index:' + (zIndex || 58) + ';transform:translate(-50%,-70px);'
       + 'background:#fff;color:#4e5968;border:1px solid #e5e8eb;border-radius:999px;padding:7px 14px;font-size:12.5px;'
       + 'box-shadow:0 4px 14px rgba(0,0,0,.12);pointer-events:none;opacity:0;white-space:nowrap;'
       + 'transition:transform .12s,opacity .12s;font-family:inherit';
@@ -53,7 +53,9 @@
   }
 
   /**
-   * el: 스크롤 컨테이너 (#mainView). opts.reload: 새로고침 함수 (기본 location.reload)
+   * el: 스크롤 컨테이너 (#mainView, 근태 모달 #atBody …). opts.reload: 새로고침 함수 (기본 location.reload).
+   *   reload 가 Promise 를 돌려주면(모달 안 탭 다시 불러오기 등) 끝난 뒤 알약을 내리고 다시 당길 수 있게 한다.
+   *   opts.zIndex: 알약 z-index (모달 위에 띄우려면 모달보다 크게)
    * 반환: { destroy, state } — 테스트·재초기화용
    */
   function init(el, opts) {
@@ -61,7 +63,7 @@
     var doc = el.ownerDocument || document;
     var reload = opts.reload || function () { (doc.defaultView || window).location.reload(); };
     var threshold = opts.threshold || THRESHOLD;
-    var pill = opts.pill || makePill(doc);
+    var pill = opts.pill || makePill(doc, opts.zIndex);
     var st = { startY: null, dy: 0, armed: false, busy: false };
 
     function show(dy) {
@@ -102,7 +104,13 @@
       pill.textContent = '새로고침 중…';
       pill.style.opacity = '1';
       pill.style.transform = 'translate(-50%,0)';
-      setTimeout(function () { reload(); }, 60);
+      setTimeout(function () {
+        var p = null;
+        try { p = reload(); } catch (e) { p = null; }
+        /* 페이지 reload 면 여기 못 온다. 모달 탭 다시 불러오기처럼 Promise 를 주면 끝난 뒤 원상복구 */
+        var done = function () { st.busy = false; st.dy = 0; st.armed = false; hide(); };
+        if (p && typeof p.then === 'function') p.then(done, done);
+      }, 60);
     }
     el.addEventListener('touchstart', onStart, { passive: true });
     el.addEventListener('touchmove', onMove, { passive: true });
