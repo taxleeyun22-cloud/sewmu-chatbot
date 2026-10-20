@@ -8,7 +8,7 @@
  * 응답에 생년월일 값은 싣지 않는다 — 고객이 적었는지(has_birth)와 위하고와 맞는지(evidence.birth)만.
  */
 import { checkAdmin, adminUnauthorized } from "./_adminAuth.js";
-import { findMatchCandidates, ensureClaimColumns } from "./_client-match.js";
+import { findMatchCandidates, ensureClaimColumns, isMergeable } from "./_client-match.js";
 
 export async function onRequestGet(context) {
   const auth = await checkAdmin(context);
@@ -40,6 +40,8 @@ export async function onRequestGet(context) {
         has_birth: !!u.claim_birth_date, claim_at: u.claim_at || null,
       },
       ...r,
+      /* 합칠 수 있는 사람 = 위하고·직접 등록 (카톡·네이버 계정이 아닌 사람) — [연결] 버튼과 같은 기준 */
+      persons: r.persons.map((p) => ({ ...p, mergeable: isMergeable(p) })),
     });
   } catch (e) {
     console.error('[admin-client-match]', e);
