@@ -93,10 +93,50 @@ async function getUserFromSession(db, cookieHeader) {
   } catch { return null; }
 }
 
-// 기장거래처 사업장 조회 (복수 지원)
+/* 기장거래처 사업장 조회 (복수 지원)
+ * 2026-10-20 사장님: "A 가 갑을병정 4개 사업체 (갑을 법인, 병정 개인) … 챗봇에 '내 무슨 업체 뭐가 얼마지?' 하면 답하게"
+ * 기준 = business_members (사람 ↔ 사업장 연결표, 사장님이 승인 화면에서 확정한 것). 법인 검토표(getClientBizFilings) 와 같은 출처라
+ * "갑 숫자는 나오는데 사업장 목록엔 갑이 없다" 같은 어긋남이 없다.
+ * 옛 client_businesses / client_profiles 는 연결표로 옮기기 전 거래처를 위해 뒤에 붙이되, 같은 사업자번호·상호는 한 번만. */
+const _BIZ_FORM = (f) => {
+  const s = String(f || '');
+  if (s.includes('법인')) return '법인사업자';
+  if (s.includes('간이')) return '간이과세 개인사업자';
+  if (s.includes('개인')) return '개인사업자';
+  return s || null;
+};
+const _bizKey = (b) => {
+  const no = String(b.business_number || '').replace(/\D/g, '');
+  return no ? 'no:' + no : 'nm:' + String(b.company_name || '').replace(/\s|\(주\)|주식회사|㈜/g, '');
+};
 async function getClientBusinesses(db, userId) {
   if (!db || !userId) return [];
-  // 신규 client_businesses 우선 조회
+  const out = [], seen = new Set();
+  const push = (b) => { const k = _bizKey(b); if (seen.has(k)) return; seen.add(k); out.push(b); };
+  /* 1. 연결표 — 본인이 연결된(removed_at 없음) 살아 있는 사업장만. 폐업 사업장도 보여주되 표시한다 (작년 매출 질문은 가능) */
+  try {
+    const { results } = await db.prepare(
+      `SELECT b.company_name, b.business_number, b.ceo_name, b.industry, b.business_category,
+              b.company_form, b.tax_type, b.establishment_date, b.phone, b.notes, b.status, b.closed_date,
+              b.parent_business_id, m.role, m.is_primary
+         FROM business_members m
+         JOIN businesses b ON b.id = m.business_id AND (b.deleted_at IS NULL OR b.deleted_at = '')
+        WHERE m.user_id = ? AND (m.removed_at IS NULL OR m.removed_at = '')
+        ORDER BY COALESCE(m.is_primary, 0) DESC, b.id ASC`
+    ).bind(userId).all();
+    for (const r of results || []) {
+      push({
+        company_name: r.company_name, business_number: r.business_number, ceo_name: r.ceo_name,
+        industry: [r.business_category, r.industry].filter(Boolean).join(' / ') || null,
+        business_type: _BIZ_FORM(r.company_form), tax_type: r.tax_type, establishment_date: r.establishment_date,
+        phone: r.phone, notes: r.notes, is_primary: r.is_primary ? 1 : 0, role: r.role || null,
+        closed: r.status === 'closed' || !!r.closed_date, closed_date: r.closed_date || null,
+        branch: r.parent_business_id ? 1 : 0,
+      });
+    }
+  } catch {}
+  /* 2. 옛 client_businesses (복수) → 없으면 client_profiles (1:1) */
+  let legacy = [];
   try {
     const { results } = await db.prepare(
       `SELECT company_name, business_number, ceo_name, industry, business_type,
@@ -104,25 +144,32 @@ async function getClientBusinesses(db, userId) {
               vat_period, notes, is_primary FROM client_businesses
        WHERE user_id = ? ORDER BY is_primary DESC, id ASC`
     ).bind(userId).all();
-    if (results && results.length > 0) return results;
+    legacy = results || [];
   } catch {}
-  // fallback: 기존 client_profiles 1:1 테이블
-  try {
-    const old = await db.prepare(
-      `SELECT company_name, business_number, ceo_name, industry, business_type,
-              tax_type, establishment_date, phone, employee_count, last_revenue,
-              vat_period, notes, 1 as is_primary FROM client_profiles WHERE user_id = ?`
-    ).bind(userId).first();
-    return old ? [old] : [];
-  } catch { return []; }
+  if (!legacy.length) {
+    try {
+      const old = await db.prepare(
+        `SELECT company_name, business_number, ceo_name, industry, business_type,
+                tax_type, establishment_date, phone, employee_count, last_revenue,
+                vat_period, notes, 1 as is_primary FROM client_profiles WHERE user_id = ?`
+      ).bind(userId).first();
+      if (old) legacy = [old];
+    } catch {}
+  }
+  /* 연결표에 이미 주 사업장이 있으면 옛 표의 is_primary 는 무시 (주 사업장 둘 방지) */
+  const hasPrimary = out.some((b) => b.is_primary);
+  for (const b of legacy) push(hasPrimary ? { ...b, is_primary: 0 } : b);
+  return out;
 }
 
 function businessLine(b, idx) {
   const parts = [];
-  const prefix = idx != null ? `[사업장 ${idx + 1}${b.is_primary ? ' · 주 사업장' : ''}]` : '';
+  const tags = [b.is_primary ? '주 사업장' : '', b.closed ? '폐업' : '', b.branch ? '지점' : '', b.role === '담당자' ? '담당자로 연결' : ''].filter(Boolean);
+  const prefix = idx != null ? `[사업장 ${idx + 1}${tags.length ? ' · ' + tags.join(' · ') : ''}]` : (tags.length ? `[${tags.join(' · ')}]` : '');
   if (prefix) parts.push(prefix);
   if (b.company_name) parts.push(`- 상호: ${b.company_name}`);
   if (b.business_type) parts.push(`- 사업 형태: ${b.business_type}`);
+  if (b.closed) parts.push(`- 상태: 폐업${b.closed_date ? ' (' + b.closed_date + ')' : ''}`);
   if (b.tax_type) parts.push(`- 과세 유형: ${b.tax_type}`);
   if (b.industry) parts.push(`- 업종: ${b.industry}`);
   if (b.vat_period) parts.push(`- 부가세 신고 주기: ${b.vat_period}`);
@@ -137,11 +184,12 @@ function buildClientContext(businesses, userRealName) {
   const header = userRealName ? `- 대화 상대: ${userRealName}님\n` : "";
   if (businesses.length === 1) {
     const lines = businessLine(businesses[0], null);
-    return `\n\n===== 현재 상담 거래처 정보 (기장거래처) =====\n${header}${lines}\n\n[활용 지침]\n- 답변 시 위 정보를 자연스럽게 반영. "○○상사님(간이과세)은..." 같이 맞춤 호칭·상황 반영.\n- 과세유형·업종 특수 사항 고려 (예: 음식점 의제매입세액, 건설업 기성고 등).\n- 세무사 메모가 있으면 그 맥락 반영.\n- 사업자번호는 답변에 노출 자제. 단, "로그인한 본인"이 본인의 매출·세금을 물으면 아래 "신고 검토표 데이터"의 숫자로 정확히 답변 가능 (본인 데이터이므로 OK).\n`;
+    return `\n\n===== 현재 상담 거래처 정보 (기장거래처) =====\n${header}${lines}\n\n[활용 지침]\n- 이 분께 연결된 사업장은 위 1곳(${businesses[0].company_name || '상호 미상'})뿐입니다. 다른 상호의 매출·세금을 물으면 숫자를 지어내지 말고 "확인된 사업장이 아니어서 답변드릴 수 없습니다. 세무사에게 확인 부탁드립니다"라고 안내.\n- 답변 시 위 정보를 자연스럽게 반영. "○○상사님(간이과세)은..." 같이 맞춤 호칭·상황 반영.\n- 과세유형·업종 특수 사항 고려 (예: 음식점 의제매입세액, 건설업 기성고 등).\n- 세무사 메모가 있으면 그 맥락 반영.\n- 사업자번호는 답변에 노출 자제. 단, "로그인한 본인"이 본인의 매출·세금을 물으면 아래 "신고 검토표 데이터"의 숫자로 정확히 답변 가능 (본인 데이터이므로 OK).\n`;
   }
   // 복수 사업장
   const blocks = businesses.map((b, i) => businessLine(b, i)).join('\n\n');
-  return `\n\n===== 현재 상담 거래처 정보 (기장거래처 · ${businesses.length}개 사업장) =====\n${header}${blocks}\n\n[활용 지침]\n- 위 ${businesses.length}개 사업장을 운영 중이신 대표자입니다.\n- 질문이 특정 사업장에 해당하는지 맥락 파악 필요 (예: "우리 음식점"이라면 음식점 사업장 기준).\n- 사업장별 과세유형·업종이 다를 수 있으므로 구분해서 안내.\n- 사업자별 매출 합산·비교 등 질문 가능성도 고려.\n- 세무사 메모가 있으면 그 맥락 반영.\n- 사업자번호는 직접 노출 자제. 단, "로그인한 본인"이 본인의 매출·세금을 물으면 아래 "신고 검토표 데이터"의 숫자로 정확히 답변 가능 (본인 데이터이므로 OK).\n`;
+  const names = businesses.map((b) => b.company_name).filter(Boolean).join(', ');
+  return `\n\n===== 현재 상담 거래처 정보 (기장거래처 · ${businesses.length}개 사업장) =====\n${header}${blocks}\n\n[활용 지침]\n- 위 ${businesses.length}개 사업장을 운영 중이신 대표자입니다.\n- 이 분께 연결된 사업장은 위 목록(${names})뿐입니다. 목록에 없는 상호의 매출·세금을 물으면 숫자를 지어내지 말고 "확인된 사업장이 아니어서 답변드릴 수 없습니다. 세무사에게 확인 부탁드립니다"라고 안내.\n- 질문이 특정 사업장에 해당하는지 맥락 파악 필요 (예: "우리 음식점"이라면 음식점 사업장 기준). 어느 사업장인지 애매하면 사업장 이름을 되물을 것.\n- 사업장별 과세유형·업종이 다를 수 있으므로 구분해서 안내.\n- 사업자별 매출 합산·비교 등 질문 가능성도 고려.\n- 세무사 메모가 있으면 그 맥락 반영.\n- 사업자번호는 직접 노출 자제. 단, "로그인한 본인"이 본인의 매출·세금을 물으면 아래 "신고 검토표 데이터"의 숫자로 정확히 답변 가능 (본인 데이터이므로 OK).\n`;
 }
 
 /* 본인 신고 검토표(filings) 조회 — 사장님 명령 (2026-06-05): "작년 매출?" 챗봇 답변용.
