@@ -305,7 +305,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=102', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=103', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -335,7 +335,7 @@ setTimeout(function(){
 <script src="/admin-rooms-list.js?v=12"></script>
 <script src="/admin-rooms-msg.js?v=7"></script>
 <script src="/admin-rooms-misc.js?v=3"></script>
-<script src="/admin-users-tab.js?v=33"></script>
+<script src="/admin-users-tab.js?v=34"></script>
 <!-- Phase 16 (2026-05-17) A 부채정리: admin-docs / admin-anal-review-faq lazy 근본제거.
      사장님 명령 "lazy 의존 근본제거". 오늘 lazy 사고 4건(docsCustomers/$g/openRoomForCurrentCustomer/loadDocsTab)
      근본 원인 = 이 두 파일이 lazy 인데 cross-module 함수 노출. 다른 admin-*.js 처럼 항상 로드. -->
