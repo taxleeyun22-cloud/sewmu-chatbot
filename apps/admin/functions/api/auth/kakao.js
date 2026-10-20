@@ -236,7 +236,13 @@ export async function onRequestGet(context) {
            * 기존 user link 시도. 사장님 보고: 카카오 로그인 → 관리자 페이지 진입 안 됨.
            * Root cause: 사장님 이재윤 (is_admin=1) row 의 provider_id 가 사장님 카카오 ID 와 다름
            * → 신규 row 로 INSERT (is_admin=0) → admin login 화면 회귀.
-           * Fix: email/phone 매칭하는 활성 user 가 있고 provider_id 미설정/다름이면 link 만 (is_admin 변경 X). */
+           * Fix: email/phone 매칭하는 활성 user 가 있고 provider_id 미설정/다름이면 link 만 (is_admin 변경 X).
+           *
+           * 2026-10-20 사장님: "자동 연결은 하지 말고 내 버튼은 있어야" — 거래처 계정은 여기서 자동으로 넘겨받지 않는다.
+           * 전화·이메일은 본인 확인이 안 된 값이라(사무실 공용 번호·가족 번호) 위하고 거래처 계정이 엉뚱한 사람에게
+           * 통째로 넘어갈 수 있었다. 이 자동 연결은 원래 목적대로 직원·사장님(is_admin=1) 계정에만 쓴다.
+           * 거래처는 새 pending 계정으로 들어와 가입창에 실명·생년월일·사업자번호를 적고,
+           * 사장님이 승인 화면에서 위하고 대조 결과를 보고 버튼으로 연결한다 (admin-client-match.js). */
           let linkedUser = null;
           if (email || phone) {
             try {
@@ -250,7 +256,8 @@ export async function onRequestGet(context) {
                    WHERE (${conditions.join(' OR ')})
                      AND (deleted_at IS NULL OR deleted_at = '')
                      AND COALESCE(approval_status, 'pending') NOT IN ('merged', 'deleted', 'withdrawn')
-                   ORDER BY COALESCE(is_admin, 0) DESC, id ASC
+                     AND COALESCE(is_admin, 0) = 1
+                   ORDER BY id ASC
                    LIMIT 1`
                 ).bind(...params).first();
                 if (candidate?.id) {

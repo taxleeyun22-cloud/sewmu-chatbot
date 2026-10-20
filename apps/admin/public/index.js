@@ -2903,6 +2903,28 @@ function showNameModal(defaultName,defaultPhone){
   m.style.display='flex';
   setTimeout(function(){document.getElementById('nameInput').focus()},100);
 }
+/* 2026-10-20: 기장거래처를 고르면 생년월일·사업자번호 칸 (위하고 대조용, 사장님 버튼으로 확정) */
+function toggleClientClaims(){
+  var typeEl=document.querySelector('input[name="userType"]:checked');
+  var box=document.getElementById('clientClaims');
+  if(box)box.style.display=(typeEl&&typeEl.value==='client')?'block':'none';
+}
+function formatBizNo(el){
+  var d=el.value.replace(/\D/g,'').slice(0,10);
+  if(d.length<4)el.value=d;
+  else if(d.length<6)el.value=d.slice(0,3)+'-'+d.slice(3);
+  else el.value=d.slice(0,3)+'-'+d.slice(3,5)+'-'+d.slice(5);
+}
+/* 'YYYYMMDD' 형식·달력에 있는 날·미래 아님 (서버 normBirth 와 같은 규칙) */
+function validBirth8(s){
+  var d=String(s||'').replace(/\D/g,'');
+  if(d.length!==8)return false;
+  var y=+d.slice(0,4),m=+d.slice(4,6),dd=+d.slice(6,8);
+  if(y<1900||m<1||m>12||dd<1||dd>31)return false;
+  var t=new Date(Date.UTC(y,m-1,dd));
+  if(t.getUTCFullYear()!==y||t.getUTCMonth()!==m-1||t.getUTCDate()!==dd)return false;
+  return t.getTime()<=Date.now();
+}
 function formatPhone(el){
   var d=el.value.replace(/\D/g,'').slice(0,11);
   if(d.length<4)el.value=d;
@@ -2929,8 +2951,17 @@ async function submitName(){
     if(document.getElementById('phoneInput')) document.getElementById('phoneInput').value=kFmt;
     return;
   }
+  var payload={real_name:v,phone:p,user_type:userType};
+  if(userType==='client'){
+    var bi=(document.getElementById('birthInput')||{}).value||'';
+    var bn=((document.getElementById('bizNoInput')||{}).value||'').replace(/\D/g,'');
+    if(!validBirth8(bi)){err.textContent='생년월일 8자리를 입력해 주세요. (예: 19720420)';err.style.display='block';return}
+    if(bn.length!==10){err.textContent='사업자등록번호 10자리를 입력해 주세요.';err.style.display='block';return}
+    payload.birth_date=bi.replace(/\D/g,'');
+    payload.business_number=bn;
+  }
   try{
-    var r=await fetch('/api/auth/confirm-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({real_name:v,phone:p,user_type:userType})});
+    var r=await fetch('/api/auth/confirm-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     var d=await r.json();
     if(d.ok){
       document.getElementById('nameModal').style.display='none';

@@ -108,6 +108,13 @@ async function findExistingUser(db, row, salt) {
     birth_date = parsed.birth_date;
     if (parsed.back_raw) back_hash = await sha256Hex(parsed.back_raw + ':' + salt);
   }
+  /* 2026-10-20 사장님 "위하고에 법인 대표이사 주민등록번호 들어가 있지" — 법인 대표 생년월일.
+     브라우저(admin.js _wiBirthFromRrn)가 생년월일만 보낸다 (주민번호 없음). 형식이 맞을 때만 쓴다.
+     효과: 법인 대표도 "이름 + 생년월일" 로 같은 사람을 찾는다 — 동명이인 대표가 한 사람으로 묶이지 않고,
+     카톡 가입자의 생년월일과 법인(갑·을)도 대조할 수 있다. */
+  if (isCorp && typeof row.rep_birth === 'string' && /^(18|19|20)\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(row.rep_birth)) {
+    birth_date = row.rep_birth;
+  }
 
   if (!row.ceo) {
     return { user: null, match_by: null, back_hash, birth_date, is_corp: isCorp };
@@ -122,6 +129,10 @@ async function findExistingUser(db, row, salt) {
   ).bind(row.ceo, row.ceo).all();
 
   for (const u of (results || [])) {
+    /* 2026-10-20 사장님 "자동 연결은 하지 말고 내 버튼은 있어야" — 사장님이 아직 승인 안 한 카톡·네이버 가입자에게
+       이름만으로 사업장을 붙이지 않는다. 연결은 사용자 관리의 [연결] 버튼으로만. */
+    if (u.provider && u.provider !== 'manual' && !u.is_admin
+        && u.approval_status !== 'approved_client' && u.approval_status !== 'approved_guest') continue;
     /* 사장님 룰: 둘 다 birth_date 있고 다르면 → 동명이인 → skip */
     if (u.birth_date && birth_date && u.birth_date !== birth_date) continue;
     /* 그 외 모두 매칭 (둘 다 같음 / 한쪽 없음 / 둘 다 없음) */

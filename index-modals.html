@@ -33,19 +33,28 @@
     <label style="font-size:.8em;font-weight:600;display:block;margin:14px 0 6px">이용 유형</label>
     <div style="display:flex;flex-direction:column;gap:8px">
       <label style="display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--border);background:var(--card);border-radius:10px;cursor:pointer">
-        <input type="radio" name="userType" value="client" style="margin-top:3px">
+        <input type="radio" name="userType" value="client" style="margin-top:3px" onchange="toggleClientClaims()">
         <div style="flex:1">
           <div style="font-size:.9em;font-weight:600">🏢 세무회계 이윤 기장거래처</div>
           <div style="font-size:.75em;color:var(--text2);margin-top:2px">승인 후 <b>무제한</b> 이용 (사장님 확인 후 승인)</div>
         </div>
       </label>
       <label style="display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--border);background:var(--card);border-radius:10px;cursor:pointer">
-        <input type="radio" name="userType" value="guest" checked style="margin-top:3px">
+        <input type="radio" name="userType" value="guest" checked style="margin-top:3px" onchange="toggleClientClaims()">
         <div style="flex:1">
           <div style="font-size:.9em;font-weight:600">✨ 무료 이용</div>
           <div style="font-size:.75em;color:var(--text2);margin-top:2px">바로 시작 · <b>일 5건</b> 무료</div>
         </div>
       </label>
+    </div>
+
+    <!-- 2026-10-20 사장님: 기장거래처 매칭을 위하고와 대조해 확실하게 — 기장거래처를 고르면 두 칸 더 (주민번호는 받지 않음) -->
+    <div id="clientClaims" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--card)">
+      <div style="font-size:.75em;color:var(--text2);margin-bottom:8px;line-height:1.5">사무실 기장 자료와 맞춰 보는 데만 씁니다. 사장님 확인 후 연결됩니다.</div>
+      <label style="font-size:.8em;font-weight:600;display:block;margin:0 0 4px">생년월일 8자리</label>
+      <input id="birthInput" type="tel" inputmode="numeric" placeholder="19720420" maxlength="10" style="width:100%;padding:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:10px;font-size:.95em;outline:none;font-family:inherit">
+      <label style="font-size:.8em;font-weight:600;display:block;margin:12px 0 4px">사업자등록번호 <span style="font-weight:400;color:var(--text2)">(사업장이 여러 곳이면 아무 곳 하나)</span></label>
+      <input id="bizNoInput" type="tel" inputmode="numeric" placeholder="123-45-67890" maxlength="12" style="width:100%;padding:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:10px;font-size:.95em;outline:none;font-family:inherit" oninput="formatBizNo(this)">
     </div>
 
     <div id="nameErr" style="display:none;color:var(--toss-red);font-size:.78em;margin-top:10px"></div>

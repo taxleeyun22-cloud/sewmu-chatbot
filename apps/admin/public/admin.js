@@ -4381,6 +4381,18 @@ function _wiLoadXLSX(){
     document.head.appendChild(s);
   });
 }
+/* 대표자 주민번호 문자열 → 'YYYY-MM-DD' (앞 6자리 + 뒤 첫 자리 세기 구분만 읽는다. 나머지 뒷자리는 안 읽는다).
+   1·2·5·6 = 1900년대, 3·4·7·8 = 2000년대, 9·0 = 1800년대. 형식이 아니거나 달력에 없는 날이면 null. */
+function _wiBirthFromRrn(rrn){
+  var m=String(rrn||'').match(/(\d{6})\s*-?\s*(\d)/);
+  if(!m)return null;
+  var yy=m[1].slice(0,2),mm=m[1].slice(2,4),dd=m[1].slice(4,6),g=m[2];
+  var c=('1256'.indexOf(g)>=0)?'19':('3478'.indexOf(g)>=0)?'20':('90'.indexOf(g)>=0)?'18':null;
+  if(!c)return null;
+  var y=+(c+yy),mo=+mm,da=+dd,t=new Date(Date.UTC(y,mo-1,da));
+  if(t.getUTCFullYear()!==y||t.getUTCMonth()!==mo-1||t.getUTCDate()!==da)return null;
+  return c+yy+'-'+mm+'-'+dd;
+}
 async function _wiParseFile(ev){
   var f=ev.target.files&&ev.target.files[0];
   var out=document.getElementById('wiParseResult');
@@ -4415,15 +4427,19 @@ async function _wiParseFile(ev){
       rows.push({
         no:i+2, company:name, biz_no:bn, corp_or_indiv:corp,
         resident_or_corp_no: corp==='법인'?String(r['법인번호']||'').trim():(rrnMap[bn]||''),
+        /* 2026-10-20 사장님: "위하고에 법인 대표이사 주민등록번호 들어가 있지" — 법인 대표도 생년월일로 사람을 구분·검증.
+           브라우저에서 생년월일(YYYY-MM-DD)만 뽑아 보낸다. 법인 대표 주민번호는 서버로 안 나간다. */
+        rep_birth: corp==='법인'?_wiBirthFromRrn(rrnMap[bn]):null,
         ceo:String(r['대표자명']||'').trim(), phone:String(r['대표연락처']||'').trim(),
       });
     });
     _wiRows=rows;_wiFileName=f.name;_wiBatchId=null;
     var withRrn=rows.filter(function(r){return r.corp_or_indiv==='개인'&&r.resident_or_corp_no}).length;
+    var corpBirth=rows.filter(function(r){return r.corp_or_indiv==='법인'&&r.rep_birth}).length;
     out.innerHTML='<div style="background:#fff;border:1px solid var(--neutral-border);border-radius:10px;padding:10px 14px;font-size:.8em;line-height:1.7">'
       +'<b>'+e(f.name)+'</b> 파싱 완료 — 대상 <b>'+rows.length+'건</b>'
       +(closed?' · 폐업 제외 '+closed:'')+(noName?' · 이름없음 제외 '+noName:'')
-      +'<br>개인 '+rows.filter(function(r){return r.corp_or_indiv==='개인'}).length+' (주민번호 확보 '+withRrn+') · 법인 '+rows.filter(function(r){return r.corp_or_indiv==='법인'}).length
+      +'<br>개인 '+rows.filter(function(r){return r.corp_or_indiv==='개인'}).length+' (주민번호 확보 '+withRrn+') · 법인 '+rows.filter(function(r){return r.corp_or_indiv==='법인'}).length+' (대표 생년월일 확보 '+corpBirth+')'
       +'<div style="margin-top:8px"><button onclick="_wiPreview()" style="background:var(--brand-primary);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:1em;font-weight:700;cursor:pointer;font-family:inherit">🔍 서버 미리보기 (DB 변경 0)</button></div>'
       +'</div>';
   }catch(err){out.innerHTML='<div style="font-size:.8em;color:var(--toss-red)">파싱 오류: '+e(err.message)+'</div>'}
