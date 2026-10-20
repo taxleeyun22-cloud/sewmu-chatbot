@@ -1,4 +1,12 @@
 // 본명 확인 (카톡 로그인 직후 1회)
+//
+// 2026-10-20 사장님: "매칭 … 위하고랑 엮어서 2차 검증까지 자동화. 자동 연결은 하지 말고 내 버튼은 있어야."
+//  - 기장거래처(client) 신청이면 생년월일(8자리)·사업자번호(아무 사업장 하나)도 받아 claim_* 에 적어 둔다.
+//    승인 화면이 이 값으로 위하고 데이터와 대조한다 (_client-match.js). 주민번호는 받지 않는다.
+//  - 예전 "전화번호가 명단(unbound_client_profiles)과 같으면 자동 승인" 은 없앴다 — 본인이 친 번호는 확인이 안 되고,
+//    사장님이 버튼으로 확정하기로 했다.
+import { ensureClaimColumns, normBirth, digits as onlyDigits } from "../_client-match.js";
+
 export async function onRequestPost(context) {
   const db = context.env.DB;
   if (!db) return Response.json({ error: "DB error" }, { status: 500 });
@@ -39,6 +47,19 @@ export async function onRequestPost(context) {
       return Response.json({ error: "올바른 휴대폰 번호를 입력해 주세요. (예: 010-1234-5678)" }, { status: 400 });
     }
 
+    /* 기장거래처 신청 = 생년월일 8자리 + 사업자번호 10자리 필수 (위하고 대조용) */
+    let claimBirth = null, claimBn = null;
+    if (userType === 'client') {
+      claimBirth = normBirth(body.birth_date);
+      if (!claimBirth) {
+        return Response.json({ error: "생년월일 8자리를 입력해 주세요. (예: 19720420)" }, { status: 400 });
+      }
+      claimBn = onlyDigits(body.business_number);
+      if (claimBn.length !== 10) {
+        return Response.json({ error: "사업자등록번호 10자리를 입력해 주세요. (사업장이 여러 곳이면 아무 곳 하나)" }, { status: 400 });
+      }
+    }
+
     // user_type 'client' = 기장거래처 신청 (사장님 승인 대기)
     // user_type 'guest' = 무료 사용 (바로 approved_guest)
     let approvalStatus = 'pending';
@@ -54,55 +75,28 @@ export async function onRequestPost(context) {
     const kst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
     const approvedAt = approvalStatus === 'approved_guest' ? kst : null;
 
+    /* 이미 승인된 사람(재가입·재확인)의 상태는 이 화면이 바꾸지 않는다 — pending/guest 가입 흐름에서만 */
+    const cur = await db.prepare(`SELECT approval_status FROM users WHERE id = ?`).bind(session.user_id).first();
+    const curStatus = cur ? (cur.approval_status || 'pending') : 'pending';
+    const keepStatus = ['approved_client', 'rejected', 'terminated'].includes(curStatus);
+    const nextStatus = keepStatus ? curStatus : approvalStatus;
+
     await db.prepare(
       `UPDATE users SET real_name = ?, phone = ?, name_confirmed = 1,
-         approval_status = ?, declared_client = ?, approved_at = ?
+         approval_status = ?, declared_client = ?, approved_at = COALESCE(approved_at, ?)
        WHERE id = ?`
-    ).bind(realName, phone, approvalStatus, declaredClient, approvedAt, session.user_id).run();
+    ).bind(realName, phone, nextStatus, declaredClient, keepStatus ? null : approvedAt, session.user_id).run();
 
-    // 📋 unbound_client_profiles 에 이 전화번호로 매칭되는 거래처 있으면 자동 승격
-    let autoMatched = false;
-    try {
-      const unbound = await db.prepare(
-        `SELECT * FROM unbound_client_profiles WHERE phone = ? LIMIT 1`
-      ).bind(phone).first();
-      if (unbound) {
-        await db.prepare(`
-          INSERT INTO client_profiles (
-            user_id, company_name, business_number, ceo_name, industry,
-            business_type, tax_type, establishment_date, address, phone,
-            employee_count, last_revenue, vat_period, notes, updated_at, updated_by
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'auto-match')
-          ON CONFLICT(user_id) DO UPDATE SET
-            company_name = excluded.company_name,
-            business_number = excluded.business_number,
-            updated_at = excluded.updated_at
-        `).bind(
-          session.user_id,
-          unbound.company_name, unbound.business_number, unbound.ceo_name,
-          unbound.industry, unbound.business_type, unbound.tax_type,
-          unbound.establishment_date, unbound.address, unbound.phone,
-          unbound.employee_count, unbound.last_revenue, unbound.vat_period,
-          unbound.notes, kst
-        ).run();
-        try {
-          await db.prepare(
-            `UPDATE unbound_client_profiles SET matched_user_id = ? WHERE id = ?`
-          ).bind(session.user_id, unbound.id).run();
-        } catch {}
-        await db.prepare(
-          `UPDATE users SET approval_status = 'approved_client', approved_at = ?, approved_by = 'auto-match' WHERE id = ?`
-        ).bind(kst, session.user_id).run();
-        autoMatched = true;
-      }
-    } catch (e) { console.error("unbound match error:", e); }
+    if (claimBirth && claimBn) {
+      await ensureClaimColumns(db);
+      await db.prepare(
+        `UPDATE users SET claim_birth_date = ?, claim_business_number = ?, claim_at = ? WHERE id = ?`
+      ).bind(claimBirth, claimBn, kst, session.user_id).run();
+    }
 
-    return Response.json({
-      ok: true,
-      approval_status: autoMatched ? 'approved_client' : approvalStatus,
-      auto_matched: autoMatched
-    });
+    return Response.json({ ok: true, approval_status: nextStatus, auto_matched: false });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    console.error('[confirm-name]', e);
+    return Response.json({ error: "저장 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." }, { status: 500 });
   }
 }
