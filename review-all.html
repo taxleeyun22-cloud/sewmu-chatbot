@@ -92,15 +92,23 @@
       <select id="yr" class="f" onchange="render()"><option value="">귀속연도 · 전체</option></select>
       <select id="st" class="f" onchange="render()">
         <option value="">상태 · 전체</option><option value="작성중">작성중</option>
-        <option value="결재대기">결재대기</option><option value="완료">완료</option><option value="반려">반려</option>
+        <option value="결재대기">결재대기</option><option value="보관완료">보관완료</option>
       </select>
+      <select id="cr" class="f" onchange="render()" title="이 공제·감면을 받은 검토표만">
+        <option value="">공제·감면 · 전체</option><option value="any">공제·감면 있는 것만</option>
+        <option value="emp_all">고용 관련 전체</option><option value="emp_inc">고용증대</option><option value="emp_int">통합고용</option>
+        <option value="sme">중소기업특별세액감면</option><option value="startup">창업중소기업감면</option>
+        <option value="rnd">연구·인력개발비</option><option value="invest">투자세액공제</option>
+        <option value="faithful">성실신고확인비용</option><option value="efile">전자신고</option>
+      </select>
+      <input id="crq" class="sch" style="min-width:140px" placeholder="공제명 검색…" oninput="_deb()" title="공제·감면 이름에 이 글자가 들어간 검토표만">
     </span>
   </div>
-  <div class="note" id="note">▸ <b>종소세</b> 검토표 — 행의 업체는 클릭 시 업체 화면으로 이동. 작성중·결재대기·완료 상태별 확인.</div>
+  <div class="note" id="note">▸ <b>종소세</b> 검토표 — 행의 업체는 클릭 시 업체 화면으로 이동. 작성중·결재대기·보관완료 상태별 확인. 공제·감면 필터는 검토표에 적힌 공제 이름 기준 — 신고서 PDF 로 가져온 검토표의 세액감면(중소기업특별·창업)은 아직 항목별로 안 들어와 있을 수 있음.</div>
 
   <table>
-    <thead><tr><th style="width:30%">세분류 (대상)</th><th style="width:12%">구분</th><th style="width:12%">귀속연도</th><th style="width:16%">상태</th><th>검토 메모</th></tr></thead>
-    <tbody id="list"><tr><td colspan="5" class="load">불러오는 중…</td></tr></tbody>
+    <thead><tr><th style="width:24%">세분류 (대상)</th><th style="width:8%">구분</th><th style="width:10%">귀속연도</th><th style="width:11%">상태</th><th style="width:25%">공제·감면</th><th>검토 메모</th></tr></thead>
+    <tbody id="list"><tr><td colspan="6" class="load">불러오는 중…</td></tr></tbody>
   </table>
 </div>
 
@@ -117,26 +125,65 @@ function bizUrl(id){ return '/business.html?id='+id+'&key='+encodeURIComponent(K
  * 거래처(개인) dashboard 진입 = admin.html#tab=users&cust=N (admin.js 가 해시 소비 →
  * openCustomerDashboard 자동 호출 → cdFilingsReview 종소세 검토표 표시). */
 function custUrl(id){ return '/admin.html?key='+encodeURIComponent(KEY)+'#tab=users&cust='+id; }
-function stClass(s){ if(s==='완료')return'done'; if(s==='결재대기')return'wait'; if(s==='작성중')return'ing'; if(s==='반려')return'rej'; return'etc'; }
+function stClass(s){ if(s==='완료'||s==='보관완료')return'done'; if(s==='결재대기')return'wait'; if(s==='작성중')return'ing'; if(s==='반려')return'rej'; return'etc'; }
 function pick(el){
   document.querySelectorAll('.tab').forEach(function(b){b.classList.remove('on')});
   el.classList.add('on'); curType=el.dataset.t;
-  document.getElementById('note').innerHTML='▸ <b>'+esc(curType)+'</b> 검토표 — 행의 업체는 클릭 시 업체 화면으로 이동. 작성중·결재대기·완료 상태별 확인.';
+  document.getElementById('note').innerHTML='▸ <b>'+esc(curType)+'</b> 검토표 — 행의 업체는 클릭 시 업체 화면으로 이동. 작성중·결재대기·보관완료 상태별 확인. 공제·감면 필터는 검토표에 적힌 공제 이름 기준 — 신고서 PDF 로 가져온 검토표의 세액감면(중소기업특별·창업)은 아직 항목별로 안 들어와 있을 수 있음.';
   render();
 }
-/* 현재 탭+필터 적용된 행 — render·exportCsv 공용 */
-function getFiltered(){
+/* 💰 세액공제·감면 필터 (2026-11-11 사장님 "어떤 세액 감면 공제가 적용됐냐 — 고용증대 하면 그거 받은 업체들 다 나오게").
+ * 이름으로만 맞춘다 (공백 제거 후). 코드는 쓰지 않는다 — 신고서 PDF 는 서식 ⑬ 코드, 직접 입력은 카탈로그 코드라
+ * 체계가 달라 같은 숫자가 다른 공제일 수 있다.
+ *  - 고용증대: 조특법 29조의7 "고용을 증대시킨 기업에 대한 세액공제" (청년 고용증대 포함)
+ *  - 통합고용: 조특법 29조의8 "통합고용세액공제" (2023~)
+ *  - 고용 관련 전체: 위 둘 + 정규직 전환·육아휴직 복귀·고용유지·사회보험료 */
+var CREDIT_GROUPS={
+  emp_all:/고용을?증대|통합고용|정규직.?전환|육아휴직|고용유지|사회보험료/,
+  emp_inc:/고용을?증대/,
+  emp_int:/통합고용/,
+  sme:/중소기업.*특별세액감면|중소기업특별|중특/,
+  startup:/창업/,
+  rnd:/연구.*개발|인력개발/,
+  invest:/투자/,
+  faithful:/성실신고/,
+  efile:/전자신고/
+};
+function _nm(s){ return String(s==null?'':s).replace(/\s+/g,''); }
+/* 이 검토표에서 지금 필터에 맞는 공제·감면 항목들. 필터가 없으면 null, 안 맞으면 [] */
+function creditHits(f, cr, crq){
+  if(!cr && !crq) return null;
+  var list=f.credits||[];
+  if(cr==='any') return list.length ? list : ((f.deduction_total>0)?[{name:'공제·감면 합계',amount:f.deduction_total}]:[]);
+  var re=cr?CREDIT_GROUPS[cr]:null, qq=_nm(crq);
+  return list.filter(function(d){
+    var n=_nm(d.name);
+    if(re && !re.test(n)) return false;
+    if(qq && n.indexOf(qq)<0) return false;
+    return true;
+  });
+}
+function _won(n){ return (n==null||!isFinite(n))?'':Number(n).toLocaleString('ko-KR')+'원'; }
+function creditText(list){ return (list||[]).map(function(d){ return d.name+(d.amount!=null?' '+_won(d.amount):''); }).join('; '); }
+/* 현재 탭+필터 적용된 행 — render·exportCsv 공용. type 을 주면 그 탭 기준 (탭 숫자용) */
+function getFiltered(type){
   var q=(document.getElementById('q').value||'').trim();
   var sf=document.getElementById('st').value;
   var yf=document.getElementById('yr').value;
+  var cr=(document.getElementById('cr')||{}).value||'';
+  var crq=((document.getElementById('crq')||{}).value||'').trim();
+  var t=type||curType;
   return ALL.filter(function(f){
-    if(f.type!==curType) return false;
+    if(f.type!==t) return false;
     if(sf && f.review_status!==sf) return false;
     if(yf && String(f.fiscal_year)!==String(yf)) return false;
     if(q){
       var nm=f.owner_type==='Business'?(f.business_name||''):(f.person_real_name||f.person_name||'');
       if(nm.indexOf(q)<0) return false;
     }
+    var hits=creditHits(f, cr, crq);
+    if(hits && !hits.length) return false;
+    f._hits=hits;
     return true;
   });
 }
@@ -145,14 +192,15 @@ function exportCsv(){
   var rows=getFiltered();
   if(!rows.length){ alert('내보낼 행이 없습니다'); return; }
   function q(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; }
-  var hdr=['대분류','중분류','세분류(대상)','구분','귀속연도','상태','검토 메모'];
+  var hdr=['대분류','중분류','세분류(대상)','구분','귀속연도','상태','공제·감면 내역','공제·감면 합계','검토 메모'];
   var lines=[hdr.map(q).join(',')];
   rows.forEach(function(f){
     var isBiz=f.owner_type==='Business';
     var nm=isBiz?(f.business_name||'업체 #'+f.owner_id):(f.person_real_name||f.person_name||'거래처 #'+f.owner_id);
     lines.push([
       '검토표', f.type, nm, isBiz?'업체':'기장',
-      (f.fiscal_year||'')+'귀속', f.review_status||'', f.reviewer_comment||''
+      (f.fiscal_year||'')+'귀속', f.review_status||'',
+      creditText(f.credits), f.deduction_total!=null?f.deduction_total:'', f.reviewer_comment||''
     ].map(q).join(','));
   });
   var csv='﻿'+lines.join('\r\n');
@@ -168,17 +216,13 @@ async function loadReviews(){
   /* 2026-06-15 사장님 보고("검토표 모아보기 인증 필요 뜸"): 쿠키 로그인(30일 유지)이면 KEY=''
    * 인데 옛 코드가 !KEY 면 fetch도 안 하고 막았음. 쿠키(admin_key_auth)는 same-origin fetch 에
    * 자동 첨부되어 서버가 인증함 → 일단 fetch 시도하고, 진짜 미인증(401)일 때만 안내. */
-  var box=document.getElementById('list'); box.innerHTML='<tr><td colspan="5" class="load">불러오는 중…</td></tr>';
+  var box=document.getElementById('list'); box.innerHTML='<tr><td colspan="6" class="load">불러오는 중…</td></tr>';
   try{
     var r=await fetch('/api/admin-filings?all=1&key='+encodeURIComponent(KEY),{credentials:'same-origin'});
     if(r.status===401){ document.body.dataset.auth='false'; return; }
     var d=await r.json();
-    if(!d.ok){ box.innerHTML='<tr><td colspan="5" class="empty" style="color:#dc2626">불러오기 실패: '+esc(d.error||'unknown')+'</td></tr>'; return; }
+    if(!d.ok){ box.innerHTML='<tr><td colspan="6" class="empty" style="color:#dc2626">불러오기 실패: '+esc(d.error||'unknown')+'</td></tr>'; return; }
     ALL=d.filings||[];
-    ['종소세','법인세','부가세'].forEach(function(t){
-      var n=ALL.filter(function(f){return f.type===t}).length;
-      var el=document.getElementById('c-'+t); if(el) el.textContent=n;
-    });
     /* 귀속연도 옵션 — distinct(fiscal_year) desc */
     var years={}; ALL.forEach(function(f){ if(f.fiscal_year) years[f.fiscal_year]=1; });
     var ySel=document.getElementById('yr');
@@ -190,12 +234,23 @@ async function loadReviews(){
           }).join('');
     }
     render();
-  }catch(e){ box.innerHTML='<tr><td colspan="5" class="empty" style="color:#dc2626">오류: '+esc(e.message)+'</td></tr>'; }
+  }catch(e){ box.innerHTML='<tr><td colspan="6" class="empty" style="color:#dc2626">오류: '+esc(e.message)+'</td></tr>'; }
+}
+/* 공제·감면 칸 — 필터가 걸리면 맞은 항목만 굵게, 아니면 앞 2개 + 외 N */
+function creditCell(f){
+  var all=f.credits||[];
+  if(f._hits) return f._hits.map(function(d){ return '<b>'+esc(d.name)+'</b>'+(d.amount!=null?' <span style="color:#6b7280">'+esc(_won(d.amount))+'</span>':''); }).join('<br>');
+  if(!all.length) return '<span style="color:#d1d5db">—</span>';
+  return all.slice(0,2).map(function(d){ return esc(d.name); }).join('<br>')+(all.length>2?' <span style="color:#9ca3af">외 '+(all.length-2)+'</span>':'');
 }
 function render(){
+  /* 탭 숫자 = 지금 필터(연도·상태·검색·공제감면) 기준 */
+  ['종소세','법인세','부가세'].forEach(function(t){
+    var el=document.getElementById('c-'+t); if(el) el.textContent=getFiltered(t).length;
+  });
   var rows=getFiltered();
   var box=document.getElementById('list');
-  if(!rows.length){ box.innerHTML='<tr><td colspan="5" class="empty">'+esc(curType)+' 검토표가 없습니다</td></tr>'; return; }
+  if(!rows.length){ box.innerHTML='<tr><td colspan="6" class="empty">'+esc(curType)+' 검토표가 없습니다</td></tr>'; return; }
   box.innerHTML=rows.map(function(f){
     var isBiz=f.owner_type==='Business';
     var nm=isBiz?(f.business_name||'업체 #'+f.owner_id):(f.person_real_name||f.person_name||'거래처 #'+f.owner_id);
@@ -210,6 +265,7 @@ function render(){
       +'<td>'+(isBiz?'업체':'기장')+'</td>'
       +'<td style="color:#6b7280">'+esc(String(f.fiscal_year||'—'))+'귀속</td>'
       +'<td><span class="st '+stClass(stv)+'">'+esc(stv)+'</span></td>'
+      +'<td style="font-size:12.5px">'+creditCell(f)+'</td>'
       +'<td style="white-space:pre-wrap;word-break:break-word;color:#6b7280">'+esc(f.reviewer_comment||'—')+'</td>'
       +'</tr>';
   }).join('');

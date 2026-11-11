@@ -55,6 +55,26 @@ async function ensureFilingsTable(db) {
   await addMemoCol(`ALTER TABLE memos ADD COLUMN related_filings_json TEXT`);
 }
 
+/** 검토표 모아보기용 — auto_fields 의 공제감면 목록(옛 키 deductions 포함)을 {name, amount} 로만 (최대 30개) */
+export function filingCredits(raw) {
+  let af = null;
+  try { af = raw ? JSON.parse(raw) : null; } catch { af = null; }
+  /* 새 키 공제감면 이 비어 있고 옛 키 deductions 에만 있는 옛 데이터도 잡는다 */
+  const list = af && (Array.isArray(af.공제감면) && af.공제감면.length ? af.공제감면 : (Array.isArray(af.deductions) ? af.deductions : []));
+  const credits = [];
+  for (const d of list || []) {
+    if (!d || typeof d !== 'object') continue;
+    const name = String(d.name ?? d['종류'] ?? '').trim().slice(0, 60);
+    if (!name) continue;
+    const v = d.amount ?? d['금액'];
+    const n = v === null || v === undefined || v === '' ? NaN : Number(v);
+    credits.push({ name, amount: Number.isFinite(n) ? n : null });
+    if (credits.length >= 30) break;
+  }
+  const t = af && af.deduction_total !== null && af.deduction_total !== '' ? Number(af.deduction_total) : NaN;
+  return { credits, deduction_total: Number.isFinite(t) ? t : null };
+}
+
 export async function onRequestGet(context) {
   const auth = await checkAdmin(context);
   if (!auth) return adminUnauthorized();
@@ -143,7 +163,7 @@ export async function onRequestGet(context) {
       if (yF) { where.push('f.fiscal_year = ?'); binds.push(yF); }
       const { results } = await db.prepare(`
         SELECT f.id, f.type, f.fiscal_year, f.owner_type, f.owner_id,
-               f.review_status, f.reviewer_comment, f.created_at, f.updated_at,
+               f.review_status, f.reviewer_comment, f.created_at, f.updated_at, f.auto_fields,
                u.real_name AS person_real_name, u.name AS person_name,
                b.company_name AS business_name
           FROM filings f
@@ -153,9 +173,13 @@ export async function onRequestGet(context) {
          ORDER BY f.fiscal_year DESC, f.type ASC, f.updated_at DESC
          LIMIT 800
       `).bind(...binds).all();
-      return Response.json({ ok: true, filings: results || [] });
+      /* 2026-11-11 사장님 "어떤 세액 감면·공제가 적용됐냐 필터링 — 고용증대 하면 그거 받은 업체들 다 나오게".
+         auto_fields 원문은 내려주지 않고 공제·감면 목록(이름·금액)과 합계만 붙인다. */
+      const filings = (results || []).map(({ auto_fields, ...f }) => ({ ...f, ...filingCredits(auto_fields) }));
+      return Response.json({ ok: true, filings });
     } catch (e) {
-      return Response.json({ error: e.message }, { status: 500 });
+      console.error('[admin-filings all]', e);
+      return Response.json({ error: '검토표 목록을 불러오지 못했습니다' }, { status: 500 });
     }
   }
 
