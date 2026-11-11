@@ -33,7 +33,8 @@ Auth.js v5 + 자체 admin_key 비번 진입 + RBAC catalog.
 - 새 admin (TypeScript): `import { PERMISSIONS, hasPermission } from '@sewmu/auth/rbac'`
 - 옛 admin (plain JS): `scripts/export-permissions.mjs` 가 build 시 `public/permissions.json` 생성
 
-= 권한 추가/삭제 시 한 곳 (rbac.ts) 만 수정 → 양쪽 자동 반영.
+= 권한 추가/삭제 시 한 곳 (rbac.ts) 만 수정 → 옛 admin 은 빌드 때 permissions.json 으로 자동 반영.
+> 2026-11-11 새 admin(apps/admin) 동결 — export 는 root(`public/`, `functions/api/`) 로만 쓴다. apps/admin 쪽 사본은 스냅샷 그대로.
 
 ## Auth flow
 

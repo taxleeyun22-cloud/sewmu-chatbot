@@ -1,3 +1,6 @@
+// ⛔ 동결 (2026-11-11 사장님 "Next.js 는 그냥 두고 기존 언어로 계속"):
+// 새 admin(apps/admin)은 청구서·영업타겟 전용 스냅샷. 이 스크립트는 pre-commit·빌드에서 뺐다.
+// 실행하면 apps/admin 이 다시 바뀐다 — 사장님 확인 없이 돌리지 말 것.
 // Phase Next-Day28 (2026-05-11): functions/api/[file].js -> Next.js app/api/[name]/route.ts.
 // 사장님 명령: "그냥복사말고 넥스트js변환하면서 복사란거지" — wrapper 패턴.
 //

@@ -1,6 +1,8 @@
 # packages/api — Claude 작업 규약 (tRPC + audit)
 
-tRPC v11 procedures. 모든 admin / 거래처 데이터 access 의 진입점.
+tRPC v11 procedures.
+> ⛔ 2026-11-11 새 admin 동결 — 지금 이 패키지를 실제로 쓰는 곳은 새 admin 의 청구서(billing)·영업타겟(salesTargets) 뿐이다.
+> 옛 admin(실제 업무)은 `functions/api/*.js` 를 쓴다. 새 기능을 여기 만들지 말 것.
 
 ## 영역
 - `src/routers/` — tRPC routers (users / businesses / rooms / memos / etc)

@@ -16,6 +16,7 @@ D1 SQLite schema. 옛 admin 의 raw SQL + lazy migration 패턴과 새 Drizzle O
 > "같은 D1 DB 공유 — 사장님 카톡 = 양쪽에서 같은 user_id"
 
 = sewmu-chatbot.pages.dev (옛 admin) 와 sewmu-admin.pages.dev (새 admin) 같은 D1 binding `DB` 사용.
+> 2026-11-11 새 admin 동결 — 스키마는 옛 functions/api 의 raw SQL·lazy ALTER 가 기준. 새 admin 은 청구서·영업타겟만.
 
 ## Lazy migration 패턴 (옛 admin 호환)
 

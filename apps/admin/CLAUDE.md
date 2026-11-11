@@ -1,7 +1,12 @@
 # apps/admin — Claude 작업 규약 (admin UI 영역)
 
 세무회계 이윤 admin 사이트. `sewmu-admin.pages.dev` 진입.
-**현재 모드**: 옛 admin.html / admin-*.js / functions/api/*.js 를 Next.js wrapper 로 import (2026-05-11 cutover).
+
+> ⛔ **동결 (2026-11-11 사장님 "Next.js 는 그냥 두고 기존 언어로 계속, 지금 너무 분답다")**
+> - `apps/admin/**` 은 손대지 않는다. 새 기능·수정은 옛 admin(repo root) 에만.
+> - 살아 있는 화면: 청구서(`app/admin/billing*`) · 영업타겟(`app/admin/sales-targets`). 나머지는 옛 admin.html 로 넘기기만.
+> - `public/`, `functions/api/` 는 2026-11-11 스냅샷 — 아래 "미러 자동화" 는 **중단됨** (pre-commit·prebuild 에서 뺌).
+> - 이 파일의 admin UI 규칙(디자인 토큰·모달·mutationDone·에러 로그 등)은 **옛 admin(root) 작업에 그대로 적용**된다.
 
 ## 🧩 admin-modals.html = 생성 아티팩트 (모듈화 #1, 2026-05-18)
 **`admin-modals.html` 직접 수정 금지.** `modals/*.html` 파티션의 concat 생성물.
@@ -11,7 +16,7 @@
 - 모달 추가/수정 시 해당 `modals/*.html` 만 편집 → 빌드가 admin-modals.html 재생성
 - 검증: 빌드 후 `git diff admin-modals.html` 비어야 정상 (런타임 0 변화)
 
-## 🔁 미러 자동화 (A-3, 2026-05-17 — 수동 cp 폐지 · 2026-07-02 functions/api 확장)
+## 🔁 미러 자동화 — ⛔ 중단 (2026-11-11 동결). 아래는 기록용
 **`apps/admin/public/` 과 `apps/admin/functions/api/` 는 repo-root 의 자동 미러.** 직접 편집·수동 `cp` 금지.
 - 정본 = repo root 의 `admin*.js` / `*.html` / `admin.css` 등 (31개, `scripts/sync-mirror.mjs` FILES 목록)
 - **functions/api (2026-07-02, P0 #1)**: root `functions/api/**/*.{js,json}` → `apps/admin/functions/api/` 자동 미러.
