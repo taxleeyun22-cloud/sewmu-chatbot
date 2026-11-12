@@ -172,6 +172,8 @@ export default defineConfig({
         { src: 'home-preview.html', dest: '.' },
         { src: 'memo-all.html', dest: '.' },
         { src: 'review-all.html', dest: '.' },
+        /* 2026-11-12 기장료 수납 (옛 admin 사이드바 → 새 탭) */
+        { src: 'bk-fees.html', dest: '.' },
         { src: 'billing-preview.html', dest: '.' },
         /* 2026-10-01 직원 출근·당번·연차 (폰 전용). 빠지면 _redirects SPA fallback 이
            /attend.html 을 index.html(거래처 챗봇)로 조용히 보여준다 — 반드시 복사 */

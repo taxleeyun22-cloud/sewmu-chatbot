@@ -154,6 +154,10 @@ if ('serviceWorker' in navigator) {
       <button class="of-sb-item" type="button" id="sbReviewAllBtn" title="검토표 모아보기 — 종소세·법인세·부가세 한 곳에">
         <span class="ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h10v16l-1.7-1.3L11.6 18 10 16.7 8.4 18l-1.7-1.3L5 18V2z"/><path d="M8 6.5h4M8 10h4"/></svg></span><span class="lb">검토표 모아보기</span>
       </button>
+      <!-- 💰 기장료 수납 (2026-11-12 사장님 "거래처 깔아놓고 입금 됐다 안 됐다만 확인") — bk-fees.html 새 탭 -->
+      <button class="of-sb-item" type="button" id="sbBkFeesBtn" title="기장료 수납 — 거래처 × 월 입금 격자, CMS·통장 업로드, 수임·폐업 기록">
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="15" height="13" rx="1.5"/><path d="M2.5 8h15M7 3.5v13M12 3.5v13"/></svg></span><span class="lb">기장료 수납</span><span style="margin-left:auto;font-size:10px;color:#94a3b8">↗</span>
+      </button>
       <a class="of-sb-item" href="https://sewmu-admin.pages.dev/admin/billing" target="_blank" rel="noopener" title="청구서 시스템 (조정료) — 새 admin 으로 새 탭" style="text-decoration:none;color:inherit;display:flex;align-items:center">
         <span class="ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5.5" width="16" height="9.5" rx="1.5"/><circle cx="10" cy="10.2" r="2.2"/></svg></span><span class="lb">청구서 (조정료)</span><span style="margin-left:auto;font-size:10px;color:#94a3b8">↗</span>
       </a>
@@ -317,7 +321,7 @@ setTimeout(function(){
 </script>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-<script src="/admin.js?v=233"></script>
+<script src="/admin.js?v=234"></script>
 <!-- 📱 폰 당겨서 새로고침 (2026-10-02 사장님) — body overflow:hidden + PWA 라 브라우저 기본 기능이 안 뜬다 -->
 <script src="/admin-ptr.js?v=3"></script>
 <!-- 모듈화 #3 Step9 (2026-05-18): PC 알림 admin.js 에서 분리 (classic, admin.js 다음 로드) -->

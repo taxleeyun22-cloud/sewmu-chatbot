@@ -3971,6 +3971,13 @@ function _adminSidebarClick(e){
     return;
   }
 
+  /* 2026-11-12 💰 기장료 수납 — 독립 새 창 (bk-fees.html) */
+  if(it.id === 'sbBkFeesBtn'){
+    document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
+    it.classList.add('on');
+    window.open('/bk-fees.html?key=' + encodeURIComponent((typeof KEY!=='undefined'&&KEY)||''), '_blank', 'noopener');
+    return;
+  }
   /* 본적용 #2 (2026-05-19): 🧾 검토표 모아보기 — 독립 새 창. 추가형, 기존 분기 0 변경 */
   if(it.id === 'sbReviewAllBtn'){
     document.querySelectorAll('.of-sb-item').forEach(function(b){ b.classList.remove('on') });
