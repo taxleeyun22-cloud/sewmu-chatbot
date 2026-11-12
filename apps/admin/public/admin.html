@@ -61,6 +61,11 @@ if ('serviceWorker' in navigator) {
 <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/dist/ag-grid-community.min.js"></script>
 </head>
 <body>
+<!-- ⛔ 동결 안내 (2026-11-11 사장님 "Next.js 는 그냥 두고 기존 언어로 계속") — 이 주소의 admin.html 은 옛 복사본(더 이상 갱신 안 됨) -->
+<div style="background:#fef3c7;color:#92400e;padding:8px 14px;font-size:13px;text-align:center;border-bottom:1px solid #fcd34d">
+  이 주소(sewmu-admin)는 <b>청구서·영업타겟 전용</b>입니다. 이 화면은 예전 복사본이라 새 기능이 없습니다 —
+  업무는 <a href="https://sewmu-chatbot.pages.dev/admin.html" style="color:#92400e;font-weight:700">sewmu-chatbot.pages.dev/admin.html</a> 에서 해 주세요.
+</div>
 
 <!-- 로그인 (Phase Next-Day29 2026-05-12 사장님 명령: 카톡 로그인 + 노션 권한) -->
 <div class="login" id="loginView">
@@ -305,7 +310,7 @@ if ('serviceWorker' in navigator) {
 setTimeout(function(){
   if(typeof window.__loadAdminModals !== 'function' && !document.getElementById('adminModalsSlot').children.length){
     console.warn('[admin-modals] ES module fallback');
-    fetch('/admin-modals.html?v=102', {cache: 'no-cache'})
+    fetch('/admin-modals.html?v=103', {cache: 'no-cache'})
       .then(r => r.ok ? r.text() : Promise.reject(r.status))
       .then(html => {
         var slot = document.getElementById('adminModalsSlot');
@@ -335,7 +340,7 @@ setTimeout(function(){
 <script src="/admin-rooms-list.js?v=12"></script>
 <script src="/admin-rooms-msg.js?v=7"></script>
 <script src="/admin-rooms-misc.js?v=3"></script>
-<script src="/admin-users-tab.js?v=33"></script>
+<script src="/admin-users-tab.js?v=34"></script>
 <!-- Phase 16 (2026-05-17) A 부채정리: admin-docs / admin-anal-review-faq lazy 근본제거.
      사장님 명령 "lazy 의존 근본제거". 오늘 lazy 사고 4건(docsCustomers/$g/openRoomForCurrentCustomer/loadDocsTab)
      근본 원인 = 이 두 파일이 lazy 인데 cross-module 함수 노출. 다른 admin-*.js 처럼 항상 로드. -->

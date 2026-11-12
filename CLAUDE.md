@@ -91,7 +91,7 @@
 
 prod URLs:
 - 옛 admin: https://sewmu-chatbot.pages.dev/admin.html
-- 새 admin: https://sewmu-admin.pages.dev/admin.html
+- 새 admin (동결 — 청구서·영업타겟 전용): https://sewmu-admin.pages.dev/admin/billing , /admin/sales-targets
 - 옛 거래처 챗봇: https://sewmu-chatbot.pages.dev/index.html
 
 ---
@@ -104,17 +104,22 @@ prod URLs:
 - `functions/api/admin-*.js` (77개 endpoints)
 - D1 SQLite + R2 + KV
 
-### 새 admin (Next.js, 2026-05-11 cutover 시작)
-- `apps/admin/` — Next.js App Router + next-on-pages
-- `apps/admin/public/` — 옛 정적 자산 통째 (admin.html 그대로)
-- `apps/admin/functions/api/` — 옛 API 통째
-- `apps/admin/app/api/[name]/route.ts` — Next.js wrapper (옛 *.js 호출)
-- 같은 D1 인스턴스 공유
+### 새 admin (Next.js) — ⛔ 동결 (2026-11-11 사장님 "Next.js 는 그냥 두고 기존 언어로 계속, 지금 너무 분답다")
+- **새 기능·수정은 옛 admin(root: `admin.html`, `admin-*.js`, `modals/`, `functions/api/`) 에만.**
+- `apps/admin/` 은 손대지 않는다: 새 페이지 X, 새 `app/api/[name]/route.ts` wrapper X, 미러 복사 X.
+  (pre-commit·빌드의 `sync-mirror` / `sync-assets` 는 2026-11-11 에 뺐다 — 다시 넣으려면 사장님 확인)
+- 남겨 둔 이유: **청구서(`/admin/billing*`)·영업타겟(`/admin/sales-targets`)** 은 아직 새 admin 에만 있다 (사장님 사용 중).
+  옛 admin 메뉴에서 새 탭으로 열린다. 청구서는 tRPC(`packages/api`) 로 살아 있는 코드를 쓴다.
+- `apps/admin/public`, `apps/admin/functions/api` = 2026-11-11 시점 스냅샷 (지우지 말 것 — 위 두 화면이 쓴다).
+  - 옛 `functions/api/sales-pipeline.js` 의 sales_leads 구조를 바꾸면 영업타겟이 어긋날 수 있다 →
+    그때만 그 한 파일을 `apps/admin/functions/api/` 로 같이 복사.
+- 알려진 잠재 문제 (고치지 않음, 기록만): 로그인 쿠키 서명 키가 옛(ADMIN_KEY)·새(AUTH_SECRET) 다름 /
+  청구서 링크에 ADMIN_KEY 가 URL 로 붙음 (`admin-customer-dash.js`, `business.js` 의 billing/new 링크).
 
-### 새 인프라 (점진)
-- `packages/api` — tRPC + audit log
-- `packages/db` — Drizzle ORM
-- `packages/auth` — Auth.js + RBAC catalog
+### 공용 패키지 (packages/*)
+- `packages/api` — tRPC (새 admin 청구서·영업타겟 전용)
+- `packages/db` — Drizzle 스키마 + 테스트 DB(`src/test-db.ts`, 옛 functions 테스트도 씀)
+- `packages/auth` — RBAC catalog (`rbac.ts` → 빌드 때 옛 admin `permissions.json` 생성 — 옛 admin 도 씀)
 - `packages/ai` — FAQ / RAG / chat 로직
 - `packages/types` / `packages/ui` — 공통
 
@@ -125,7 +130,7 @@ prod URLs:
 - Cloudflare Pages 자동 배포 (main 푸시 시)
 - 두 prod project:
   - `sewmu-chatbot` (옛, root functions/) — 거래처 챗봇 + 옛 admin
-  - `sewmu-admin` (새, apps/admin/) — Next.js 새 admin (옛 코드 통째 import)
+  - `sewmu-admin` (새, apps/admin/) — ⛔ 동결 스냅샷. 청구서·영업타겟 전용
 - 환경변수 (양쪽 동일): `OPENAI_API_KEY`, `LAW_API_OC`, `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`, `ADMIN_KEY`, `AUTH_SECRET`
 - 바인딩 (양쪽 동일): `DB` (D1), `MEDIA_BUCKET` (R2), `KV` (있다면)
 

@@ -49,6 +49,9 @@ const FORM = (f) => {
   return s || '';
 };
 
+/** 합칠 수 있는 위하고 사람 = 카톡·네이버 계정이 아닌 사람 (위하고 가져오기·직접 등록). [연결] 버튼 서버 검증과 화면이 같이 씀 */
+export const isMergeable = (p) => !['kakao', 'naver', 'merged'].includes(String((p && p.provider) || ''));
+
 /** 순수 판정 — 한 사업장의 근거 묶음 → 등급 */
 export function gradeOf(ev) {
   if (ev.name && ev.birth) return 'sure';
@@ -108,6 +111,7 @@ export async function findMatchCandidates(db, claims, excludeUserId) {
       user_id: u.id, name: u.real_name || u.name, provider: u.provider || null,
       birth_match: birthMatch, phone_match: !!(phone && digits(u.phone) === phone),
       has_birth: !!u.birth_date,
+      business_ids: [],
     });
   }
   /* 생년월일까지 맞는 사람이 있으면 그 사람만 남긴다 (동명이인 중 생년월일 없는 쪽은 버림) */
@@ -121,9 +125,14 @@ export async function findMatchCandidates(db, claims, excludeUserId) {
   if (personIds.length) {
     const ph = personIds.map(() => '?').join(',');
     const { results } = await db.prepare(
-      `SELECT DISTINCT business_id FROM business_members WHERE user_id IN (${ph}) AND (removed_at IS NULL OR removed_at = '')`
+      `SELECT DISTINCT business_id, user_id FROM business_members WHERE user_id IN (${ph}) AND (removed_at IS NULL OR removed_at = '')`
     ).bind(...personIds).all();
-    for (const r of results || []) ids.add(r.business_id);
+    for (const r of results || []) {
+      ids.add(r.business_id);
+      /* 이 사람과 합치면 따라오는 사업장 (승인 화면에서 "합치면 같이 연결" 로 보여줌) */
+      const p = out.persons.find((x) => x.user_id === r.user_id);
+      if (p) (p.business_ids = p.business_ids || []).push(r.business_id);
+    }
   }
   const corpNo = entered ? digits(entered.corporate_number) : '';
   if (corpNo.length === 13) {

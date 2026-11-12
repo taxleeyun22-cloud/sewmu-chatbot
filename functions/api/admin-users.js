@@ -1,6 +1,7 @@
 // 관리자 사용자 리스트
 import { checkAdmin, adminUnauthorized, checkOriginCsrf } from "./_adminAuth.js";
 import { checkRole, roleForbidden } from "./_authz.js";
+import { mergeManualIntoKakao } from "./_user-merge.js";
 
 export async function onRequestGet(context) {
   const auth = await checkAdmin(context);
@@ -419,152 +420,21 @@ export async function onRequestPost(context) {
 
   /* Phase (2026-05-07 사장님 명령 정정): 진짜 merge — 카카오 가입자와 수동 user 합치기.
    * action=merge_users { kakao_user_id, manual_user_id }
-   * 결과: manual_user 가 살아남음. kakao_user 의 카카오 정보 (provider/provider_user_id/profile_image)
-   * 를 manual_user 에 흡수 + kakao_user 는 deleted_at = now (archive).
-   * 모든 매핑·메모·메시지·등 → manual_user 로 이전.
+   * 결과 (2026-05-08 룰 반전): kakao_user 가 살아남음. manual_user 는 archived ('merged'),
+   * 위하고 정보는 카톡 user 의 빈 칸만 채움. 모든 매핑·메모·메시지·등 → kakao_user 로 이전.
    * - admin-users.js onRequestPost owner 가드 통과 후 (전체 함수 owner only) */
   if (action === "merge_users") {
-    const kakaoUid = Number(body.kakao_user_id);
-    const manualUid = Number(body.manual_user_id);
-    if (!kakaoUid || !manualUid) return Response.json({ error: "kakao_user_id/manual_user_id required" }, { status: 400 });
-    if (kakaoUid === manualUid) return Response.json({ error: "same user" }, { status: 400 });
+    /* 합치기 본체는 _user-merge.js (승인 화면 [연결] 버튼과 같이 씀). 카톡 user 가 살아남는다. */
     try {
-      try { await db.prepare(`ALTER TABLE users ADD COLUMN provider TEXT`).run(); } catch {}
-      try { await db.prepare(`ALTER TABLE users ADD COLUMN provider_user_id TEXT`).run(); } catch {}
-      try { await db.prepare(`ALTER TABLE users ADD COLUMN profile_image TEXT`).run(); } catch {}
-      try { await db.prepare(`ALTER TABLE users ADD COLUMN deleted_at TEXT`).run(); } catch {}
-
-      /* 사장님 명령 (2026-05-07): user_merges audit log — 분리 시 원상복구 위해.
-       * snapshot 만 저장. 데이터는 admin user 에 그대로 (사장님 워크플로). */
-      try { await db.prepare(`CREATE TABLE IF NOT EXISTS user_merges (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        manual_user_id INTEGER NOT NULL,
-        kakao_user_id INTEGER NOT NULL,
-        kakao_snapshot TEXT,
-        manual_snapshot TEXT,
-        merged_at TEXT,
-        merged_by_admin TEXT,
-        unmerged_at TEXT,
-        unmerged_by_admin TEXT
-      )`).run(); } catch {}
-
-      const kakao = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(kakaoUid).first();
-      const manual = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(manualUid).first();
-      if (!kakao || !manual) return Response.json({ error: "user not found" }, { status: 404 });
-
-      const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
-      const stats = { mappings: 0, memos: 0, conversations: 0, room_members: 0, documents: 0, filings: 0 };
-
-      /* 0. snapshot 저장 — 분리 시 원상복구용 */
-      const kakaoSnapshot = JSON.stringify({
-        provider: kakao.provider, provider_user_id: kakao.provider_user_id,
-        name: kakao.name, profile_image: kakao.profile_image,
-        email: kakao.email, phone: kakao.phone,
-        approval_status: kakao.approval_status,
+      const r = await mergeManualIntoKakao(db, {
+        kakaoUid: body.kakao_user_id, manualUid: body.manual_user_id, actor: authz.role || 'admin',
       });
-      const manualSnapshot = JSON.stringify({
-        provider: manual.provider, provider_user_id: manual.provider_user_id,
-        approval_status: manual.approval_status,
-        profile_image: manual.profile_image, email: manual.email,
-      });
-      let mergeAuditId = null;
-      try {
-        const mr = await db.prepare(`INSERT INTO user_merges (manual_user_id, kakao_user_id, kakao_snapshot, manual_snapshot, merged_at, merged_by_admin) VALUES (?, ?, ?, ?, ?, ?)`)
-          .bind(manualUid, kakaoUid, kakaoSnapshot, manualSnapshot, now, (auth && auth.role) || 'admin').run();
-        mergeAuditId = mr.meta?.last_row_id || null;
-      } catch (e) {
-        /* audit 실패해도 합치기는 진행 — silent */
-      }
-
-      /* 사장님 명령 (2026-05-08): "카톡으로 온 사람이 무조건 제일 상위다 거기서 임의로 만든 또는 위하고로 올린 것들을 덮는다"
-       * = 룰 반전: 카톡 user 가 살아남고 manual user 가 archived.
-       *   카톡 user 의 OAuth 정보 유지 + manual 의 위하고 데이터 (birth_date, resident_back_hash, real_name) 흡수.
-       *   매핑 / 메모 / 메시지 / 등 → 카톡 user 로 이전. */
-
-      /* 1. manual user archive — UNIQUE 회피 위해 먼저 */
-      const manualArchivedProviderId = `merged_manual:${manualUid}:${manual.provider_id || ''}`;
-      await db.prepare(`
-        UPDATE users SET
-          deleted_at = ?,
-          approval_status = 'merged',
-          provider = 'merged',
-          provider_id = ?,
-          provider_user_id = NULL
-        WHERE id = ?
-      `).bind(now, manualArchivedProviderId, manualUid).run();
-
-      /* 2. 카카오 user 살아남음 — manual 의 정보 흡수 (카카오 빈 컬럼만 채움, 카카오 데이터 유지). */
-      let hasProviderIdCol = false;
-      try {
-        const info = await db.prepare(`PRAGMA table_info(users)`).all();
-        hasProviderIdCol = (info?.results || []).some(c => c.name === 'provider_id');
-      } catch {}
-      await db.prepare(`
-        UPDATE users SET
-          real_name = COALESCE(NULLIF(real_name, ''), ?),
-          name = COALESCE(NULLIF(name, ''), ?),
-          phone = COALESCE(NULLIF(phone, ''), NULLIF(phone, '000-000-0000'), NULLIF(?, '000-000-0000'), ?),
-          email = COALESCE(NULLIF(email, ''), ?),
-          birth_date = COALESCE(birth_date, ?),
-          resident_back_hash = COALESCE(resident_back_hash, ?),
-          name_confirmed = 1,
-          approval_status = 'approved_client',
-          approved_at = COALESCE(approved_at, ?),
-          last_login_at = ?,
-          deleted_at = NULL,
-          withdrawal_reason = NULL
-        WHERE id = ?
-      `).bind(
-        manual.real_name, manual.name, manual.phone, manual.phone, manual.email,
-        manual.birth_date, manual.resident_back_hash, now, now, kakaoUid
-      ).run();
-
-      /* 3. 매핑 / 데이터 이전 — manual_user_id → kakao_user_id (카카오 master) */
-      try {
-        const r1 = await db.prepare(`UPDATE business_members SET user_id = ? WHERE user_id = ? AND (removed_at IS NULL OR removed_at = '')`).bind(kakaoUid, manualUid).run();
-        stats.mappings = r1?.meta?.changes || 0;
-      } catch {}
-      try {
-        const r2 = await db.prepare(`UPDATE memos SET target_user_id = ? WHERE target_user_id = ?`).bind(kakaoUid, manualUid).run();
-        stats.memos += r2?.meta?.changes || 0;
-      } catch {}
-      try {
-        const r3 = await db.prepare(`UPDATE memos SET author_user_id = ? WHERE author_user_id = ?`).bind(kakaoUid, manualUid).run();
-        stats.memos += r3?.meta?.changes || 0;
-      } catch {}
-      try {
-        const r4 = await db.prepare(`UPDATE conversations SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run();
-        stats.conversations = r4?.meta?.changes || 0;
-      } catch {}
-      try {
-        const r5 = await db.prepare(`UPDATE room_members SET user_id = ? WHERE user_id = ? AND (left_at IS NULL OR left_at = '')`).bind(kakaoUid, manualUid).run();
-        stats.room_members = r5?.meta?.changes || 0;
-      } catch {}
-      try {
-        const r6 = await db.prepare(`UPDATE documents SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run();
-        stats.documents = r6?.meta?.changes || 0;
-      } catch {}
-      try { await db.prepare(`UPDATE daily_usage SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run(); } catch {}
-      try { await db.prepare(`UPDATE sessions SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run(); } catch {}
-      try { await db.prepare(`UPDATE business_documents SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run(); } catch {}
-      /* 사장님 보고 (2026-06-12 데이터 audit): 병합 시 검토표·거래처사업장 끊김 방지.
-       * filings 는 owner_id(owner_type='Person') 기준, client_businesses/client_profiles 는 user_id 기준
-       * — 위 user_id 일괄 이전에서 누락돼 있었음. 챗봇 "내 매출/업체" 연동 유지 위해 같이 이전. */
-      try { const rf = await db.prepare(`UPDATE filings SET owner_id = ? WHERE owner_type = 'Person' AND owner_id = ?`).bind(kakaoUid, manualUid).run(); stats.filings = rf?.meta?.changes || 0; } catch {}
-      try { await db.prepare(`UPDATE client_businesses SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run(); } catch {}
-      try { await db.prepare(`UPDATE client_profiles SET user_id = ? WHERE user_id = ?`).bind(kakaoUid, manualUid).run(); } catch {}
-      /* manual user 의 import_batch_id 도 그대로 — rollback 시 archived manual 자동 제거 */
-
-      return Response.json({
-        ok: true,
-        survived_user_id: kakaoUid,
-        archived_user_id: manualUid,
-        survived_real_name: kakao.real_name || manual.real_name,
-        moved: stats,
-        merge_id: mergeAuditId,
-      });
+      if (!r.ok) return Response.json({ error: r.error }, { status: r.status });
+      const { ok, ...rest } = r;
+      return Response.json({ ok: true, ...rest });
     } catch (e) {
-      return Response.json({ error: e.message }, { status: 500 });
+      console.error('[admin-users merge_users]', e);
+      return Response.json({ error: "합치기 중 오류가 발생했습니다" }, { status: 500 });
     }
   }
 
@@ -624,7 +494,7 @@ export async function onRequestPost(context) {
 
       /* 3. user_merges.unmerged_at = now */
       await db.prepare(`UPDATE user_merges SET unmerged_at = ?, unmerged_by_admin = ? WHERE id = ?`)
-        .bind(now, (auth && auth.role) || 'admin', mergeId).run();
+        .bind(now, authz.role || 'admin', mergeId).run();
 
       return Response.json({
         ok: true,

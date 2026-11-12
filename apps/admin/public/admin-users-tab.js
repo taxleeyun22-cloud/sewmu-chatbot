@@ -139,6 +139,7 @@ actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +'</div>';
 } else if(status==='pending'){
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
++(IS_OWNER?'<button onclick="openClientLink('+u.id+',\''+jsArg(nm)+'\',\''+jsArg(u.phone||'')+'\')" style="background:#059669;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="가입 때 적은 생년월일·사업자번호를 위하고 데이터와 대조 → 사장님이 골라서 연결">🔗 위하고 대조·연결</button>':'')
 +'<button onclick="openApproveWithBusiness('+u.id+',\''+jsArg(nm)+'\',\''+jsArg(u.phone||'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="승인 + 업체·역할 연결을 한 번에">✓ 기장거래처 승인</button>'
 +'<button onclick="openCustomerDashboard('+u.id+',\''+jsArg(nm)+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
 +'<button onclick="rejectUser('+u.id+')" style="background:#f04452;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">✕ 거절</button>'
@@ -316,6 +317,7 @@ actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
 +'</div>';
 } else if(status==='pending'){
 actions='<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
++(IS_OWNER?'<button onclick="openClientLink('+u.id+',\''+jsArg(nm)+'\',\''+jsArg(u.phone||'')+'\')" style="background:#059669;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="가입 때 적은 생년월일·사업자번호를 위하고 데이터와 대조 → 사장님이 골라서 연결">🔗 위하고 대조·연결</button>':'')
 +'<button onclick="openApproveWithBusiness('+u.id+',\''+jsArg(nm)+'\',\''+jsArg(u.phone||'')+'\',\'approve_client\','+(prefill?'JSON.parse(this.dataset.pf)':'null')+')" '+(prefill?'data-pf="'+prefill+'"':'')+' style="background:#3182f6;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600" title="승인 + 업체·역할 연결을 한 번에">✓ 기장거래처 승인</button>'
 /* '○ 일반 승인' 버튼 폐지 (사장님 명령 2026-05-02). pending 사용자는 → 기장거래처 승인 또는 거절만. */
 +'<button onclick="openCustomerDashboard('+u.id+',\''+jsArg(nm)+'\')" style="background:#fff;color:#3182f6;border:1px solid #3182f6;padding:8px 14px;border-radius:8px;font-size:.8em;cursor:pointer;font-family:inherit;font-weight:600">📋 거래처정보</button>'
@@ -488,6 +490,127 @@ function closeApproveBizModal(){
   _apbUser=null;_apbSelectedBizId=null;_apbSelectedExistUserId=null;
   const userBox=$g('apbSelectedUserBox'); if(userBox) userBox.style.display='none';
   const userSearch=$g('apbUserSearch'); if(userSearch) userSearch.value='';
+}
+
+/* 🔗 위하고 대조·연결 — 사장님 2026-10-20: "매칭 … 위하고랑 엮어서 2차 검증까지 자동화. 자동 연결은 하지 말고 내 버튼은 있어야."
+   GET /api/admin-client-match 로 후보·근거·등급을 보여주고, 사장님이 고른 것만 POST /api/admin-client-link 로 한 번에
+   (위하고 사람과 합치기 → 사업장 연결 → 기장거래처 승인 → 상담방). 서버가 후보를 다시 계산해서 검증한다. */
+let _clm=null; /* { user, persons, businesses, notes, claims_ok, entered, mergeId, nm, phone } */
+const _CLM_GRADE={sure:['확실','#dcfce7','#166534'],likely:['유력','#dbeafe','#1e40af'],check:['확인 필요','#fef3c7','#92400e']};
+const _CLM_EV=[['biz_no','적은 사업자번호'],['name','대표자 이름'],['birth','생년월일'],['phone','전화'],['corp_group','같은 법인']];
+function _clmBn(s){const d=String(s||'').replace(/\D/g,'');return d.length===10?d.slice(0,3)+'-'+d.slice(3,5)+'-'+d.slice(5):(s||'');}
+async function openClientLink(uid,nm,phone){
+  const m=$g('clientLinkModal');if(!m||!m.style)return;
+  _clm={nm:nm,phone:phone||''};
+  $g('clmBody').innerHTML='<div style="padding:30px;text-align:center;color:var(--text-mute)">위하고 데이터와 대조하는 중...</div>';
+  $g('clmSummary').textContent='';
+  m.style.display='flex';document.body.style.overflow='hidden';
+  try{
+    const r=await fetch('/api/admin-client-match?key='+encodeURIComponent(KEY)+'&user_id='+uid);
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||'불러오기 실패');
+    Object.assign(_clm,d);
+    /* 기본 선택: 생년월일까지 맞는 합칠 수 있는 사람이 딱 1명일 때만 */
+    const sure=(d.persons||[]).filter(p=>p.mergeable&&p.birth_match);
+    _clm.mergeId=sure.length===1?sure[0].user_id:null;
+    _clm.checked={};_clm.roles={};
+    (d.businesses||[]).forEach(b=>{_clm.checked[b.business_id]=b.grade!=='check';_clm.roles[b.business_id]=b.suggested_role;});
+    _clmRender();
+  }catch(err){
+    $g('clmBody').innerHTML='<div style="padding:20px;color:#dc2626">'+e(err.message||'오류')+'</div>';
+  }
+}
+function closeClientLink(){const m=$g('clientLinkModal');if(m&&m.style)m.style.display='none';document.body.style.overflow='';_clm=null;}
+function _clmLockedIds(){
+  const p=(_clm.persons||[]).find(x=>x.user_id===_clm.mergeId);
+  return new Set(p?(p.business_ids||[]):[]);
+}
+function _clmRender(){
+  if(!_clm)return;
+  const u=_clm.user||{};const locked=_clmLockedIds();
+  let h='<div style="padding:10px 12px;background:#eff6ff;border-radius:8px;color:#1e3a8a;margin-bottom:12px">'
+    +'<b>'+e(u.real_name||u.name||'')+'</b>'+(u.phone?' · '+e(u.phone):'')
+    +'<div style="font-size:.86em;margin-top:4px">가입 때 적은 값 — 사업자번호 <b>'+(u.claim_business_number?e(_clmBn(u.claim_business_number)):'없음')+'</b>'
+    +(_clm.entered?' ('+e(_clm.entered.company_name||'')+')':'')
+    +' · 생년월일 <b>'+(u.has_birth?'입력함':'없음')+'</b></div></div>';
+  if(!_clm.claims_ok){
+    h+='<div style="padding:9px 12px;background:#fef3c7;border-radius:8px;color:#92400e;margin-bottom:12px;font-size:.92em">⚠️ 생년월일·사업자번호가 없는 가입(예전 가입)이라 대조가 약합니다. 후보가 맞지 않으면 '
+      +'<a href="#" onclick="event.preventDefault();var x=_clm;closeClientLink();openApproveWithBusiness('+u.id+',\''+jsArg(x.nm)+'\',\''+jsArg(x.phone)+'\',\'approve_client\',null)" style="color:#92400e;font-weight:700">기존 승인 화면</a>으로 처리하세요.</div>';
+  }
+  (_clm.notes||[]).forEach(n=>{h+='<div style="font-size:.84em;color:#6b7280;margin-bottom:4px">· '+e(n)+'</div>';});
+
+  /* 1) 위하고의 같은 사람 */
+  h+='<div style="font-weight:700;margin:12px 0 6px">👤 위하고에 있는 같은 사람 <span style="font-weight:400;font-size:.82em;color:var(--text-mute)">— 고르면 그 사람의 사업장·검토표·메모가 이 카톡 계정으로 합쳐집니다</span></div>';
+  const persons=_clm.persons||[];
+  h+='<label style="display:flex;gap:8px;align-items:center;padding:7px 10px;border:1px solid var(--neutral-border);border-radius:8px;margin-bottom:5px;cursor:pointer">'
+    +'<input type="radio" name="clmPerson" '+(_clm.mergeId?'':'checked')+' onchange="_clm.mergeId=null;_clmRender()"> 합치지 않음 (사업장만 연결)</label>';
+  persons.forEach(p=>{
+    const tags=(p.birth_match?'<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:4px;font-size:.8em">생년월일 일치</span> ':(p.has_birth?'':'<span style="background:#f3f4f6;color:#6b7280;padding:1px 6px;border-radius:4px;font-size:.8em">위하고 생년월일 없음</span> '))
+      +(p.phone_match?'<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;font-size:.8em">전화 일치</span> ':'')
+      +'<span style="color:var(--text-mute);font-size:.8em">사업장 '+((p.business_ids||[]).length)+'곳</span>';
+    h+='<label style="display:flex;gap:8px;align-items:center;padding:7px 10px;border:1px solid '+(p.user_id===_clm.mergeId?'#3182f6':'var(--neutral-border)')+';border-radius:8px;margin-bottom:5px;'+(p.mergeable?'cursor:pointer':'opacity:.6')+'">'
+      +'<input type="radio" name="clmPerson" '+(p.user_id===_clm.mergeId?'checked':'')+(p.mergeable?'':' disabled')+' onchange="_clm.mergeId='+p.user_id+';_clmRender()">'
+      +'<span><b>'+e(p.name||'')+'</b> <span style="color:var(--text-mute);font-size:.8em">#'+p.user_id+'</span> '+tags
+      +(p.mergeable?'':' <span style="color:#dc2626;font-size:.8em">이미 다른 카톡·네이버 계정 — 여기서 합치지 않음</span>')+'</span></label>';
+  });
+  if(!persons.length)h+='<div style="font-size:.84em;color:var(--text-mute);padding:4px 2px">위하고 대표자 중 이름이 같은 사람이 없습니다 (직원·경리라면 담당자로 연결).</div>';
+
+  /* 2) 사업장 */
+  const biz=_clm.businesses||[];
+  h+='<div style="font-weight:700;margin:14px 0 6px">🏢 사업장 <span style="font-weight:400;font-size:.82em;color:var(--text-mute)">— 체크한 곳만 연결</span></div>';
+  if(!biz.length)h+='<div style="font-size:.84em;color:var(--text-mute);padding:4px 2px">후보 사업장이 없습니다.</div>';
+  biz.forEach(b=>{
+    const g=_CLM_GRADE[b.grade]||_CLM_GRADE.check;const isLocked=locked.has(b.business_id);
+    const on=isLocked||!!_clm.checked[b.business_id];
+    const ev=_CLM_EV.filter(([k])=>b.evidence&&b.evidence[k]).map(([,l])=>'<span style="background:#f1f5f9;color:#334155;padding:1px 6px;border-radius:4px;font-size:.78em">✓ '+l+'</span>').join(' ');
+    h+='<div style="padding:8px 10px;border:1px solid '+(on?'#86efac':'var(--neutral-border)')+';border-radius:8px;margin-bottom:5px;background:'+(on?'#f0fdf4':'#fff')+'">'
+      +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      +'<input type="checkbox" '+(on?'checked':'')+(isLocked?' disabled':'')+' onchange="_clm.checked['+b.business_id+']=this.checked;_clmRender()">'
+      +'<b>'+e(b.company_name||'')+'</b>'
+      +(b.form?' <span style="font-size:.78em;color:#6b7280">'+e(b.form)+'</span>':'')
+      +(b.closed?' <span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:4px;font-size:.78em">폐업</span>':'')
+      +(b.branch?' <span style="background:#ede9fe;color:#5b21b6;padding:1px 6px;border-radius:4px;font-size:.78em">지점</span>':'')
+      +' <span style="font-size:.8em;color:var(--text-mute)">'+e(_clmBn(b.business_number))+'</span>'
+      +' <span style="background:'+g[1]+';color:'+g[2]+';padding:1px 7px;border-radius:4px;font-size:.78em;font-weight:700;margin-left:auto">'+g[0]+'</span>'
+      +'</div>'
+      +'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:5px;padding-left:22px">'+(ev||'<span style="font-size:.78em;color:#9ca3af">맞는 근거 없음</span>')
+      +(isLocked?' <span style="font-size:.78em;color:#1e40af;margin-left:auto">합치면 같이 연결 (위하고 역할 그대로)</span>'
+        :' <select onchange="_clm.roles['+b.business_id+']=this.value" style="margin-left:auto;font-size:.8em;padding:2px 4px;border:1px solid var(--neutral-border);border-radius:5px;font-family:inherit"'+(on?'':' disabled')+'>'
+          +['대표자','담당자'].map(r=>'<option'+(_clm.roles[b.business_id]===r?' selected':'')+'>'+r+'</option>').join('')+'</select>')
+      +'</div>'
+      +((b.already_linked_kakao||[]).length?'<div style="font-size:.78em;color:#b45309;padding-left:22px;margin-top:3px">이미 연결된 카톡 계정: '+e(b.already_linked_kakao.join(', '))+'</div>':'')
+      +'</div>';
+  });
+  h+='<label style="display:flex;gap:6px;align-items:center;margin-top:10px;font-size:.88em;cursor:pointer"><input type="checkbox" id="clmJoinRooms" '+(_clm.joinRooms===false?'':'checked')+' onchange="_clm.joinRooms=this.checked"> 연결한 사업장의 상담방에도 넣기 (열린 방이 있을 때만)</label>';
+  $g('clmBody').innerHTML=h;
+  const n=_clmPicked().length+locked.size;
+  $g('clmSummary').textContent=n?('사업장 '+n+'곳 연결 + 기장거래처 승인'+(_clm.mergeId?' + 위하고 #'+_clm.mergeId+' 합치기':'')):'연결할 것을 골라 주세요';
+}
+function _clmPicked(){
+  const locked=_clmLockedIds();
+  return (_clm.businesses||[]).filter(b=>!locked.has(b.business_id)&&_clm.checked[b.business_id])
+    .map(b=>({business_id:b.business_id,role:_clm.roles[b.business_id]||b.suggested_role}));
+}
+async function submitClientLink(){
+  if(!_clm||!_clm.user)return;
+  const links=_clmPicked();const locked=_clmLockedIds();
+  if(!links.length&&!_clm.mergeId){alert('연결할 사업장이나 합칠 사람을 골라 주세요');return;}
+  const names=(_clm.businesses||[]).filter(b=>locked.has(b.business_id)||links.some(l=>l.business_id===b.business_id)).map(b=>b.company_name);
+  if(!confirm((_clm.user.real_name||_clm.nm)+' 님을 기장거래처로 승인하고 아래 사업장을 연결합니다.\n\n· '+names.join('\n· ')
+    +(_clm.mergeId?'\n\n위하고 #'+_clm.mergeId+' 와 합칩니다 (사용자 탭 🔀 분리로 되돌릴 수 있음).':'')+'\n\n진행할까요?'))return;
+  const btn=$g('clmSubmit');btn.disabled=true;btn.textContent='연결 중...';
+  try{
+    const r=await fetch('/api/admin-client-link?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:_clm.user.id,merge_user_id:_clm.mergeId||null,links:links,join_rooms:_clm.joinRooms!==false})});
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||'연결 실패');
+    closeClientLink();
+    if(typeof mutationDone==='function')mutationDone({users:true,toast:'연결 완료 — 사업장 '+d.total_businesses+'곳'+(d.rooms_joined?' · 상담방 '+d.rooms_joined+'개':'')});
+    else if(typeof loadUsers==='function')loadUsers(typeof currentStatus!=='undefined'?currentStatus:'pending');
+    refreshPendingBadge();
+  }catch(err){
+    alert('❌ '+(err.message||'오류'));
+  }finally{btn.disabled=false;btn.textContent='🔗 연결';}
 }
 
 /* Phase P1 (2026-05-07 사장님 명령): 카카오 가입자 승인 시 비슷한 기존 사용자 추천.
