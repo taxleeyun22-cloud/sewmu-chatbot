@@ -167,6 +167,17 @@ export function activeIn(period, b, events) {
   return active;
 }
 
+/** 공공데이터포털 인증키 → URL 에 넣을 serviceKey (한 번만 인코딩).
+ *  포털은 Encoding 키(%2B 처럼 이미 인코딩됨)와 Decoding 키 두 가지를 준다. 어느 쪽을 넣어도 되게:
+ *  인코딩돼 있으면 풀고 다시 한 번만 인코딩한다. (예전처럼 Encoding 키를 또 인코딩하면 %252B 가 돼서 인증 실패) */
+export function ntsServiceKey(raw) {
+  const k = String(raw || '').trim();
+  if (!k) return '';
+  let plain = k;
+  if (/%[0-9A-Fa-f]{2}/.test(k)) { try { plain = decodeURIComponent(k); } catch { plain = k; } }
+  return encodeURIComponent(plain);
+}
+
 const errJson = (msg, status = 400) => Response.json({ error: msg }, { status });
 
 /* ============================ GET ============================ */
@@ -554,7 +565,7 @@ export async function onRequestPost(context) {
        키는 Cloudflare 대시보드(sewmu-chatbot) 환경변수 NTS_API_KEY — 코드로 우회 금지 룰.
        b_stt 값: "계속사업자" | "휴업자" | "폐업자" (미등록은 빈 값 + tax_type 안내문). */
     if (action === 'check_biz_status') {
-      const key = context.env.NTS_API_KEY;
+      const key = ntsServiceKey(context.env.NTS_API_KEY);
       if (!key) return errJson('국세청 조회 키(NTS_API_KEY)가 아직 설정되지 않았습니다 — Cloudflare 대시보드에서 넣어 주세요');
       const limit = Math.min(Number(body.limit) || 100, 100);   // API 1회 100건 제한
       const { results } = await db.prepare(
@@ -568,10 +579,13 @@ export async function onRequestPost(context) {
       if (!list.length) return Response.json({ ok: true, checked: 0, changed: [] });
 
       const res = await fetch(
-        `https://api.odcloud.kr/api/nts-businessman/v1/status?serviceKey=${encodeURIComponent(key)}`,
+        `https://api.odcloud.kr/api/nts-businessman/v1/status?serviceKey=${key}`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ b_no: list.map(b => normBiz(b.business_number)) }) }
       );
+      if (res.status === 401 || res.status === 403) {
+        return errJson('국세청 조회 키가 맞지 않습니다 — 활용신청 직후면 승인 반영까지 몇 시간 걸릴 수 있습니다', 502);
+      }
       if (!res.ok) return errJson('국세청 조회가 실패했습니다 (' + res.status + ')', 502);
       const data = await res.json();
       const byNo = {};
