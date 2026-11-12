@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createTestDb } from '../../packages/db/src/test-db';
 // @ts-expect-error — JS module
-import { onRequestGet, onRequestPost, cmsPeriod, lastClosedMonth, activeIn, normYm } from './admin-bk-fees.js';
+import { onRequestGet, onRequestPost, cmsPeriod, lastClosedMonth, activeIn, normYm, ntsServiceKey } from './admin-bk-fees.js';
 
 const KEY = 'test-admin-key';
 const ORIGIN = 'https://sewmu-chatbot.pages.dev';
@@ -233,6 +233,28 @@ describe('국세청 폐업 체크', () => {
       expect(ev.results).toEqual([{ business_id: 1, kind: '폐업확인', event_date: '2026-09-30' }]);
       const b: any = await d1.prepare(`SELECT bk_end, nts_status FROM businesses WHERE id = 1`).first();
       expect(b).toEqual({ bk_end: null, nts_status: '폐업자' });
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
+
+describe('국세청 인증키 — Encoding·Decoding 아무거나', () => {
+  it('Decoding 키(+ / = 그대로)는 한 번 인코딩, Encoding 키(%2B…)는 두 번 인코딩하지 않는다', () => {
+    const dec = 'abc+def/ghi==';
+    const enc = 'abc%2Bdef%2Fghi%3D%3D';
+    expect(ntsServiceKey(dec)).toBe(enc);
+    expect(ntsServiceKey(enc)).toBe(enc);
+    expect(ntsServiceKey('  ' + enc + '\n')).toBe(enc);
+    expect(ntsServiceKey('')).toBe('');
+  });
+  it('실제 호출 URL 에 serviceKey 가 한 번만 인코딩돼 들어가고, 401 이면 키 안내', async () => {
+    env.NTS_API_KEY = 'abc%2Bdef%3D%3D';
+    let calledUrl = '';
+    vi.stubGlobal('fetch', vi.fn(async (u: string) => { calledUrl = u; return { ok: false, status: 401, json: async () => ({}) }; }));
+    try {
+      const r = await post('check_biz_status', {});
+      expect(calledUrl).toContain('serviceKey=abc%2Bdef%3D%3D');
+      expect(calledUrl).not.toContain('%25');
+      expect(r.body.error).toContain('키가 맞지 않습니다');
     } finally { vi.unstubAllGlobals(); }
   });
 });
