@@ -71,16 +71,16 @@
   <span class="mark">이</span><b>세무회계 이윤</b>
   <span class="bc">/ 기장료 수납</span>
   <span class="r">
-    <button class="btn" id="bMaster" onclick="pickFile('master')" title="기장료 마스터 엑셀(상호·대표자·사업자번호·기장료·CMS회원번호·수납수단·담당·기장시작)">📋 기장료 마스터 올리기</button>
+    <button class="btn pri" id="bUp" onclick="pickFile()" title="CMS 회원정보·CMS 결과(계좌·카드)·위하고 명부·통장 내역·기장료 마스터 — 여러 개 한꺼번에, 종류는 알아서 가림">📂 파일 올리기</button>
     <button class="btn" id="bCommit" onclick="commitMaster()" style="display:none">✅ 확정 등록</button>
-    <button class="btn" id="bCms" onclick="pickFile('cms')" title="세무포털 CMS 출금결과 파일">💳 CMS 결과 올리기</button>
-    <button class="btn" id="bBank" onclick="pickFile('bank')" title="사무실 통장 거래내역 파일">🏦 통장 내역 올리기</button>
+    <button class="btn" onclick="toggleHelp()" id="bHelp">❓ 어떤 파일을 올리나?</button>
+    <button class="btn" onclick="openNew()" title="새로 기장 맡은 거래처 등록">＋ 신규 수임</button>
     <button class="btn" id="bNts" onclick="checkNts()" title="국세청 사업자 상태조회 (1회 100곳)">🔎 폐업 체크</button>
     <button class="btn" onclick="load()">🔄</button>
     <button class="btn" onclick="window.close()">✕ 닫기</button>
   </span>
 </div>
-<input type="file" id="fileIn" accept=".xlsx,.xls,.csv" style="display:none" onchange="onFile(this)">
+<input type="file" id="fileIn" accept=".xlsx,.xls,.csv" multiple style="display:none" onchange="onFile(this)">
 
 <div id="authBox" class="auth">
   🔐 인증이 필요합니다.<br>
@@ -98,11 +98,12 @@
     <label style="font-size:13px;color:var(--sub);display:flex;gap:5px;align-items:center;cursor:pointer"><input type="checkbox" id="onlyOpen" checked onchange="render()"> 미납 있는 곳만</label>
   </div>
   <div class="kpi" id="kpi"></div>
+  <div class="note" id="help" style="display:none;background:#fff;border-color:var(--line);color:var(--sub)"></div>
   <div class="msg" id="msg"></div>
   <div class="note">✕ 를 누르면 그 달 입금확인(수기), 수기로 확인한 ○ 를 누르면 해제. CMS·통장으로 들어온 ○ 는 파일 기준이라 여기서 못 지움. 거래처명을 누르면 계약(기장료·담당·기간)과 수임·중단·폐업 기록.</div>
   <div class="tw"><table>
-    <thead><tr><th class="l" style="min-width:200px">거래처</th><th>담당</th><th>월 청구</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th><th>11</th><th>12</th></tr></thead>
-    <tbody id="list"><tr><td colspan="15" class="load">불러오는 중…</td></tr></tbody>
+    <thead><tr><th class="l" style="min-width:200px">거래처</th><th>담당</th><th>월 청구</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th><th>11</th><th>12</th><th>안 들어온 돈</th></tr></thead>
+    <tbody id="list"><tr><td colspan="16" class="load">불러오는 중…</td></tr></tbody>
   </table></div>
 </div>
 
@@ -113,7 +114,7 @@
  * 서버: /api/admin-bk-fees (functions/api/admin-bk-fees.js). 엑셀은 브라우저에서 SheetJS 로 읽어 JSON 만 보낸다.
  * 검토표 모아보기(review-all.html) 패턴 — 쿠키 로그인이면 KEY 없이도 same-origin fetch 로 인증된다. */
 var KEY = new URLSearchParams(location.search).get('key') || (function(){ try{return sessionStorage.getItem('admin_key')||''}catch(_){return ''} })();
-var GRID = null, PENDING = null, SEL = null, PICK = '';
+var GRID = null, PENDING = null, SEL = null;
 var EVENT_KINDS = ['수임','재개','중단','해지','폐업','담당변경'];
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
 function won(n){ return Number(n||0).toLocaleString('ko-KR'); }
@@ -135,7 +136,7 @@ async function post(action, body, qs){
 async function load(){
   var y=document.getElementById('yr').value;
   var box=document.getElementById('list');
-  box.innerHTML='<tr><td colspan="15" class="load">불러오는 중…</td></tr>';
+  box.innerHTML='<tr><td colspan="16" class="load">불러오는 중…</td></tr>';
   try{
     var r=await fetch(api('grid','&year='+y),{credentials:'same-origin'});
     if(r.status===401){ document.body.dataset.auth='false'; return; }
@@ -148,7 +149,7 @@ async function load(){
       return '<option'+(s===keep?' selected':'')+'>'+esc(s)+'</option>'; }).join('');
     render();
     if(SEL){ var again=d.rows.find(function(r){return r.id===SEL.id}); if(again) openPanel(again.id); }
-  }catch(e){ box.innerHTML='<tr><td colspan="15" class="empty" style="color:#dc2626">'+esc(e.message||'오류')+'</td></tr>'; }
+  }catch(e){ box.innerHTML='<tr><td colspan="16" class="empty" style="color:#dc2626">'+esc(e.message||'오류')+'</td></tr>'; }
 }
 function filtered(){
   if(!GRID) return [];
@@ -179,14 +180,17 @@ function render(){
     ? '<div>기장료 등록 거래처<b>'+won(GRID.total.biz)+'곳</b></div><div class="red">미납 거래처 (현재 목록)<b>'+won(openBiz)+'곳</b></div>'
       +'<div class="red">미수 합계 (현재 목록)<b>'+won(open)+'원</b></div><div>마감 기준<b>'+(GRID.lastClosed? GRID.lastClosed+'월까지':'아직 없음')+'</b></div>'
     : '';
-  if(!rows.length){ box.innerHTML='<tr><td colspan="15" class="empty">'+(GRID&&GRID.rows.length?'조건에 맞는 거래처가 없습니다':'기장료가 등록된 거래처가 없습니다 — [기장료 마스터 올리기] 부터')+'</td></tr>'; return; }
+  if(!rows.length){ box.innerHTML='<tr><td colspan="16" class="empty">'+(GRID&&GRID.rows.length?'조건에 맞는 거래처가 없습니다':'기장료가 등록된 거래처가 없습니다 — [📂 파일 올리기] 로 기장료 마스터부터')+'</td></tr>'; return; }
   box.innerHTML=rows.map(function(r){
     var tags=(r.end?'<span class="tag end">'+esc((r.end_reason||'종료')+' '+r.end)+'</span>':'')
-      +(r.nts&&r.nts!=='계속사업자'?'<span class="tag nts">국세청 '+esc(r.nts)+'</span>':'');
+      +(r.nts&&r.nts!=='계속사업자'?'<span class="tag nts">국세청 '+esc(r.nts)+'</span>':'')
+      +(r.cms_st&&r.cms_st!=='출금가능'&&r.cms_st!=='신청완료'?'<span class="tag nts">CMS '+esc(r.cms_st)+'</span>':'');
+    var openAmt=r.cells.reduce(function(a,c){ return a+(c.s==='x'?(c.a||0):0); },0);
     return '<tr><td class="l"><span class="nm" onclick="openPanel('+r.id+')">'+esc(r.name)+'</span>'+tags
       +'<div style="font-size:11.5px;color:var(--mut)">'+esc(r.ceo||'')+(r.cms?' · '+esc(r.cms):'')+(r.pay?' · '+esc(r.pay):'')+'</div></td>'
       +'<td>'+esc(r.staff||'—')+'</td><td>'+won(r.fee)+'</td>'
-      +r.cells.map(function(c,i){ return cellHtml(r,c,i); }).join('')+'</tr>';
+      +r.cells.map(function(c,i){ return cellHtml(r,c,i); }).join('')
+      +'<td style="text-align:right;padding-right:14px;'+(openAmt?'color:#DC2626;font-weight:600':'color:#D1D5DB')+'">'+(openAmt?won(openAmt)+'원':'–')+'</td></tr>';
   }).join('');
 }
 async function mark(id,p,amt){
@@ -255,14 +259,17 @@ function loadXLSX(){
     document.head.appendChild(s);
   });
 }
-/* 헤더가 첫 줄에 없는 파일이 있다 (은행 거래내역조회는 3번째 줄) — 헤더 줄을 찾아서 읽는다 */
-var HEADER_HINTS=['거래일시','거래일자','회원번호','승인일','상호','거래처명','회사명'];
-function rowsFromMatrix(matrix){
-  var hr=0;
+/* 헤더가 첫 줄에 없는 파일이 있다 (은행 거래내역조회는 3번째 줄, 세무포털은 5번째 줄) — 헤더 줄을 찾아서 읽는다 */
+var HEADER_HINTS=['거래일시','거래일자','회원번호','승인일','결제일','약정일','상호','거래처명','회사명','세무대리담당자','기장료'];
+function headerRow(matrix){
   for(var i=0;i<Math.min(matrix.length,15);i++){
     var cells=(matrix[i]||[]).map(function(x){return String(x==null?'':x).trim()});
-    if(cells.some(function(c){return HEADER_HINTS.indexOf(c)>=0})){ hr=i; break; }
+    if(cells.some(function(c){return HEADER_HINTS.indexOf(c)>=0})) return i;
   }
+  return 0;
+}
+function rowsFromMatrix(matrix){
+  var hr=headerRow(matrix);
   var head=(matrix[hr]||[]).map(function(x){return String(x==null?'':x).trim()});
   var out=[];
   for(var j=hr+1;j<matrix.length;j++){
@@ -272,19 +279,53 @@ function rowsFromMatrix(matrix){
   }
   return out;
 }
-async function sheetRows(file){
+async function readSheet(file){
   var X=await loadXLSX();
   var wb=X.read(await file.arrayBuffer(),{type:'array'});
   var sh=wb.Sheets[wb.SheetNames[0]];
-  return rowsFromMatrix(X.utils.sheet_to_json(sh,{header:1,defval:'',raw:false,blankrows:false}));
+  var matrix=X.utils.sheet_to_json(sh,{header:1,defval:'',raw:false,blankrows:false});
+  var hr=headerRow(matrix);
+  return { matrix:matrix, hr:hr, header:(matrix[hr]||[]).map(function(x){return String(x==null?'':x).trim()}), rows:rowsFromMatrix(matrix) };
+}
+/* 파일 종류를 헤더로 알아낸다 — 버튼을 고를 필요 없게 */
+var KIND_LABEL={cms_members:'CMS 회원정보',cms_bank:'CMS 계좌이체 결과',cms_card:'CMS 신용카드 결과',wehago:'위하고 거래처 명부',bank:'통장 거래내역',master:'기장료 마스터'};
+function detect(header){
+  var h={}; header.forEach(function(x){ h[x]=1; });
+  if(h['세무대리담당자']||(h['사업자등록번호']&&h['상호']&&!h['기장료'])) return 'wehago';
+  if(h['회원번호']&&h['약정일']) return 'cms_members';
+  if(h['회원번호']&&h['승인일']) return 'cms_card';
+  if(h['회원번호']&&h['결제일']) return 'cms_bank';
+  if(h['거래일시']||h['거래일자']) return 'bank';
+  if(h['기장료']&&(h['상호']||h['거래처명']||h['회사명'])) return 'master';
+  return null;
 }
 function num(x){ return Number(String(x==null?'':x).replace(/[^\d]/g,''))||0; }
-/* 파일 행 → 서버로 보낼 행 (컬럼 이름은 보내주신 화면과 같음) */
-function toCms(raw){
+/* 파일 행 → 서버로 보낼 행 */
+function toCms(raw, kind){
   return raw.map(function(r){ return {
     member_no:r['회원번호'], member_name:r['회원명'], tx_date:r['결제일']||r['승인일'],
     amount:num(r['결제금액']||r['승인금액']||r['신청금액']), status:r['결제상태']||r['승인상태'], reason:r['비고']||'',
-    method:r['승인일']?'CMS카드':'CMS계좌' }; }).filter(function(r){ return r.member_no && r.tx_date; });
+    method:(kind?kind==='cms_card':!!r['승인일'])?'CMS카드':'CMS계좌' }; }).filter(function(r){ return r.member_no && r.tx_date; });
+}
+function toCmsMembers(raw){
+  return raw.map(function(r){ return {
+    member_no:r['회원번호'], member_name:r['회원명'], pay_day:num(r['약정일']), amount:num(r['기본금액']),
+    member_status:r['회원상태']||'', payer:r['결제자명']||'', can_withdraw:r['결제신청가능']||'' }; })
+    .filter(function(r){ return r.member_no; });
+}
+/* 위하고 명부는 한 거래처가 두 줄 — 첫 줄 상호·사업자번호·담당, 둘째 줄(첫 칸 빈칸) 대표자 */
+function toWehago(matrix, hr){
+  var out=[];
+  for(var i=(hr||0)+1;i<matrix.length;i++){
+    var a=(matrix[i]||[]).map(function(v){return String(v==null?'':v).trim()});
+    if(!a[0]||!a[2]) continue;
+    var b=(matrix[i+1]||[]).map(function(v){return String(v==null?'':v).trim()});
+    var two=b.length&&!b[0];
+    if(!/^\d{3}-\d{2}-\d{5}$/.test(a[5]||'')){ if(two) i++; continue; }
+    out.push({ code:a[1], company_name:a[2], business_number:a[5], staff_name:a[10]||a[9]||'', ceo_name:two?(b[2]||''):'' });
+    if(two) i++;
+  }
+  return out;
 }
 function toBank(raw){
   return raw.map(function(r){ return {
@@ -300,36 +341,135 @@ function toMaster(raw){
     cms_member_no:r['CMS회원번호']||'', pay_method:r['수납수단']||'', staff_name:r['담당']||'', bk_start:r['기장시작']||'' }; })
     .filter(function(r){ return r.company_name && r.monthly_fee>0; });
 }
-function pickFile(kind){ PICK=kind; var f=document.getElementById('fileIn'); f.value=''; f.click(); }
+function pickFile(){ var f=document.getElementById('fileIn'); f.value=''; f.click(); }
 async function onFile(inp){
-  var file=inp.files&&inp.files[0]; if(!file) return;
+  var files=Array.prototype.slice.call(inp.files||[]); if(!files.length) return;
+  setMsg('파일 읽는 중… '+files.map(function(f){return f.name}).join(', '));
+  var log=[];
+  for(var i=0;i<files.length;i++){
+    try{ log=log.concat(await uploadOne(files[i])); }
+    catch(e){ log.push('❌ '+files[i].name+': '+(e.message||'실패')); }
+  }
+  setMsg(log.join('\n'));
+  await load();
+}
+/* 파일 하나 올리기 — 결과를 줄 단위로 돌려준다 */
+async function uploadOne(file){
   var y=document.getElementById('yr').value;
-  setMsg('파일 읽는 중… '+file.name);
+  var sh=await readSheet(file), kind=detect(sh.header), d, rows;
+  if(!kind) return ['❓ '+file.name+': 어떤 자료인지 모르겠습니다 — [❓ 어떤 파일을 올리나?] 의 파일인지 확인해 주세요'];
+  var L=KIND_LABEL[kind], out=[];
+  if(kind==='cms_members'){
+    rows=toCmsMembers(sh.rows);
+    d=await post('import_cms_members',{rows:rows,source_file:file.name});
+    out.push('✅ '+L+' '+d.rows+'건 — 회원번호 새로 연결 '+d.linked+'곳, 갱신 '+d.updated+'곳'+(d.unlinked_count?' · 거래처 못 찾음 '+d.unlinked_count+'곳':''));
+    if(d.mismatch&&d.mismatch.length) out.push('   금액 다름 (장부 기장료×1.1 ≠ CMS 출금액): '+d.mismatch.slice(0,8).map(function(m){return m.name+'(장부 '+won(m.fee_based)+' / CMS '+won(m.cms_amount)+')'}).join(', '));
+    if(d.blocked&&d.blocked.length) out.push('   CMS 출금불가: '+d.blocked.slice(0,10).map(function(b){return b.name}).join(', '));
+    if(d.suggest&&d.suggest.length) out.push('   이름이 비슷한 후보 (자동 연결 안 함 — 맞으면 거래처명 눌러 CMS 회원번호 넣기): '+d.suggest.slice(0,8).map(function(s){return s.member_name+'('+s.member_no+') → '+s.candidates.map(function(c){return c.name}).join('/')}).join(', '));
+  }else if(kind==='wehago'){
+    rows=toWehago(sh.matrix, sh.hr);
+    if(!rows.length) return ['❓ '+file.name+': 위하고 명부에서 읽을 행이 없습니다'];
+    d=await post('import_wehago',{rows:rows,source_file:file.name});
+    out.push('✅ '+L+' '+d.rows+'건 — 담당·사업자번호 채움 '+d.filled+'곳 (사업자번호 새로 '+d.business_number_filled+'곳)'+(d.not_found_count?' · 못 찾음 '+d.not_found_count+'곳':''));
+    if(d.business_number_diff&&d.business_number_diff.length) out.push('   사업자번호가 위하고와 다름 (안 바꿈, 확인 필요): '+d.business_number_diff.slice(0,8).map(function(x){return x.name+'('+x.current+' / 위하고 '+x.wehago+')'}).join(', '));
+    if(d.closed_flag&&d.closed_flag.length) out.push('   위하고에 폐업 표시: '+d.closed_flag.slice(0,10).map(function(c){return c.name}).join(', '));
+  }else if(kind==='cms_bank'||kind==='cms_card'){
+    rows=toCms(sh.rows, kind);
+    if(!rows.length) return ['❓ '+file.name+': 읽을 행이 없습니다 (회원번호·결제일·결제금액·결제상태)'];
+    d=await post('import_cms',{rows:rows,source_file:file.name});
+    out.push('✅ '+L+' '+d.saved+'건 저장'+(d.duplicate?' (이미 올린 '+d.duplicate+'건 제외)':'')+', '+d.paid+'건 수납 반영'
+      +(d.unknown_members&&d.unknown_members.length?' · 연결 안 된 회원번호 '+d.unknown_members.length+'개 (CMS 회원정보 파일을 같이 올리면 연결됩니다)':''));
+  }else if(kind==='bank'){
+    rows=toBank(sh.rows);
+    if(!rows.length) return ['❓ '+file.name+': 입금 행이 없습니다 (거래일시·입금액·적요)'];
+    d=await post('import_bank',{rows:rows,source_file:file.name});
+    out.push('✅ '+L+' '+d.saved+'건 저장, '+d.matched+'건 자동 매칭'+(d.review&&d.review.length?' · 확인 필요 '+d.review.length+'건':''));
+    if(d.review&&d.review.length) out.push('   확인 필요 (금액·입금자명이 하나로 안 맞음 — 기장료면 ✕ 눌러 입금확인): '+d.review.slice(0,12).map(function(x){return x.tx_date+' '+x.payer+' '+won(x.amount)}).join(' / '));
+  }else{
+    rows=toMaster(sh.rows);
+    if(!rows.length) return ['❓ '+file.name+': 읽을 행이 없습니다 (상호·기장료)'];
+    d=await post('import_master',{rows:rows,source_file:file.name},'&mode=preview&year='+y);
+    PENDING={rows:rows,file:file.name};
+    document.getElementById('bCommit').style.display='';
+    out.push('📋 '+L+' 미리보기 — 맞는 거래처 '+d.matched_count+'곳 / 못 찾음 '+d.unmatched_count+'곳 / 애매함 '+d.ambiguous_count+'곳 → [✅ 확정 등록] 을 누르면 반영');
+    if(d.unmatched_count) out.push('   못 찾은 곳: '+d.unmatched.slice(0,15).map(function(u){return u.company_name}).join(', ')+(d.unmatched_count>15?' 외':'')+' (admin 에서 거래처를 먼저 만든 뒤 다시 올리면 됩니다)');
+    if(d.ambiguous_count) out.push('   같은 상호가 여러 곳: '+d.ambiguous.slice(0,10).map(function(u){return u.company_name}).join(', ')+' (사업자번호 칸을 채우면 정확히 맞춰집니다)');
+  }
+  return out;
+}
+/* ❓ 어떤 파일을 올리나 (세무포털 화면 캡처는 거래처 이름이 보여서 넣지 않음 — 글로만) */
+var GUIDE=[
+  ['CMS 회원정보','세무포털 세무사CMS','회원관리 → 회원조회 → [엑셀다운로드]','거래처별 CMS 회원번호·약정일·기본금액(실제 출금액)·출금가능 여부. 올리면 상호가 똑같은 거래처에 회원번호가 자동 연결됩니다 (비슷하기만 한 곳은 후보로만 알려 드림). 맨 끝 합계 줄은 알아서 거릅니다.'],
+  ['CMS 계좌이체 결과','세무포털 세무사CMS','결제관리 → 결제내역 조회 → [엑셀다운로드]','출금 성공·실패와 사유(잔액부족 등). 성공 건이 격자에서 ○ 로 바뀝니다.'],
+  ['CMS 신용카드 결과','세무포털 세무사CMS','결제관리 → 카드결제 내역 → [엑셀다운로드]','카드로 받는 거래처 분. 계좌이체 파일과 같이 올리면 됩니다.'],
+  ['위하고 거래처 명부','위하고(WEHAGO)','거래처(회사) 코드 전체 LIST 내려받기','담당자를 채우고, 사업자번호가 비어 있는 곳만 채웁니다 (이미 있는데 다르면 바꾸지 않고 알려 드림). 사업자번호가 있어야 폐업 체크가 됩니다.'],
+  ['통장 거래내역','은행 인터넷뱅킹','거래내역조회 → 엑셀 받기 (월별)','CMS 로 들어온 돈은 통장에 「CMS집금」 한 줄로 합쳐져서 거래처를 가릴 수 없습니다 — 그 줄은 건너뛰고, 직접 이체로 받은 건만 금액 + 입금자명(상호·대표자·CMS 결제자명)으로 맞춥니다.']
+];
+function toggleHelp(){
+  var h=document.getElementById('help');
+  if(h.style.display==='none'){
+    h.innerHTML='<b>[📂 파일 올리기] 에 아래 파일을 한꺼번에 넣으세요.</b> 어떤 자료인지는 제목 줄을 보고 알아서 가립니다. 같은 파일을 또 올려도 중복으로 쌓이지 않습니다.'
+      +'<ol style="margin:8px 0 6px 18px">'+GUIDE.map(function(g){ return '<li style="margin:6px 0"><b>'+esc(g[0])+'</b> — '+esc(g[1])+' · <span style="color:#1D4ED8">'+esc(g[2])+'</span><br><span style="font-size:12px">'+esc(g[3])+'</span></li>'; }).join('')+'</ol>'
+      +'기장료 마스터 엑셀은 처음 한 번만 씁니다. 그 뒤 신규 수임은 [＋ 신규 수임], 기장료 변경·해지·폐업은 거래처명을 눌러서 하세요.';
+    h.style.display=''; document.getElementById('bHelp').textContent='도움말 닫기';
+  }else{ h.style.display='none'; document.getElementById('bHelp').textContent='❓ 어떤 파일을 올리나?'; }
+}
+/* ＋ 신규 수임 — 거래처 찾기 → 기장료·CMS번호·담당·시작월 → 등록 (시작월~지난달 청구 자동) */
+var _nq=null;
+function openNew(){
+  SEL=null;
+  var month=new Date(Date.now()+9*3600e3).toISOString().slice(0,7);
+  document.getElementById('pn').innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center"><h2>＋ 신규 수임</h2><button class="btn" onclick="closePanel()">✕</button></div>'
+    +'<div class="sub">거래처가 admin 에 아직 없으면 거래처를 먼저 만든 뒤 여기서 찾으세요.</div>'
+    +'<label>거래처 찾기</label><input id="nQ" placeholder="상호·대표자·사업자번호" oninput="clearTimeout(_nq);_nq=setTimeout(searchNew,250)">'
+    +'<div id="nHits" style="margin-top:6px"></div>'
+    +'<div id="nForm" style="display:none">'
+    +'<h3 id="nPicked"></h3>'
+    +'<div class="row2"><div><label>월 기장료 (공급가)</label><input id="nFee" inputmode="numeric" placeholder="예: 150000"></div>'
+    +'<div><label>담당</label><input id="nStaff"></div></div>'
+    +'<div class="row2"><div><label>CMS 회원번호</label><input id="nCms" placeholder="나중에 넣어도 됨"></div>'
+    +'<div><label>수납수단</label><select id="nPay">'+['','CMS계좌','CMS카드','직접이체','현금'].map(function(v){return '<option>'+v+'</option>'}).join('')+'</select></div></div>'
+    +'<label>기장 시작 (YYYY-MM)</label><input id="nStart" value="'+month+'">'
+    +'<div style="font-size:11.5px;color:var(--mut);margin-top:6px">시작월부터 지난달까지 청구가 자동으로 잡힙니다 (✕ 로 표시).</div>'
+    +'<div style="margin-top:10px"><button class="btn pri" onclick="saveNew()">등록</button></div></div>';
+  document.getElementById('ov').classList.add('on');
+  setTimeout(function(){ var q=document.getElementById('nQ'); if(q) q.focus(); },50);
+}
+var NEW_PICK=null;
+async function searchNew(){
+  var q=v('nQ'), box=document.getElementById('nHits');
+  if(!q){ box.innerHTML=''; return; }
   try{
-    var raw=await sheetRows(file), d;
-    if(PICK==='cms'){
-      var rows=toCms(raw); if(!rows.length) throw new Error('읽을 행이 없습니다. 컬럼 이름(회원번호·결제일·결제금액·결제상태)을 확인해 주세요');
-      d=await post('import_cms',{rows:rows,source_file:file.name});
-      setMsg('CMS '+d.saved+'건 저장'+(d.duplicate?' (이미 올린 '+d.duplicate+'건 제외)':'')+', '+d.paid+'건 수납 반영'
-        +(d.unknown_members&&d.unknown_members.length?'\n연결 안 된 회원번호 '+d.unknown_members.length+'개: '+d.unknown_members.slice(0,10).join(', ')+' → 거래처명 눌러 CMS 회원번호를 넣어 주세요':''));
-    }else if(PICK==='bank'){
-      var rows2=toBank(raw); if(!rows2.length) throw new Error('읽을 입금 행이 없습니다. 컬럼 이름(거래일시·입금액·적요)을 확인해 주세요');
-      d=await post('import_bank',{rows:rows2,source_file:file.name});
-      setMsg('통장 '+d.saved+'건 저장, '+d.matched+'건 자동 매칭'
-        +(d.review&&d.review.length?'\n확인 필요 '+d.review.length+'건 (금액·입금자명이 하나로 안 맞음): '+d.review.slice(0,12).map(function(x){return x.tx_date+' '+x.payer+' '+won(x.amount)}).join(' / '):''));
-    }else{
-      var rows3=toMaster(raw); if(!rows3.length) throw new Error('읽을 행이 없습니다. 컬럼 이름(상호·기장료)을 확인해 주세요');
-      d=await post('import_master',{rows:rows3,source_file:file.name},'&mode=preview&year='+y);
-      PENDING={rows:rows3,file:file.name};
-      document.getElementById('bCommit').style.display='';
-      setMsg('미리보기 — 맞는 거래처 '+d.matched_count+'곳 / 못 찾음 '+d.unmatched_count+'곳 / 애매함 '+d.ambiguous_count+'곳'
-        +(d.unmatched_count?'\n못 찾은 곳: '+d.unmatched.slice(0,15).map(function(u){return u.company_name}).join(', ')+(d.unmatched_count>15?' 외':'')+' (admin 에서 거래처를 먼저 만든 뒤 다시 올리면 됩니다)':'')
-        +(d.ambiguous_count?'\n같은 상호가 여러 곳: '+d.ambiguous.slice(0,10).map(function(u){return u.company_name}).join(', ')+' (사업자번호 칸을 채우면 정확히 맞춰집니다)':'')
-        +'\n→ [✅ 확정 등록] 을 누르면 반영됩니다.');
-      return;
-    }
-    await load();
-  }catch(e){ setMsg('❌ '+(e.message||'업로드 실패')); }
+    var r=await fetch(api('search_biz','&q='+encodeURIComponent(q)),{credentials:'same-origin'});
+    var d=await r.json(); var list=d.results||[];
+    window._newHits=list;
+    box.innerHTML=list.length? list.map(function(b,i){
+      return '<div class="ev" style="cursor:pointer" onclick="pickNew('+i+')"><b>'+esc(b.company_name)+'</b>'+esc(b.ceo_name||'')
+        +(b.business_number?' · '+esc(b.business_number):'')
+        +(b.monthly_fee?' <span class="tag end">이미 등록 '+won(Math.round(b.monthly_fee*1.1))+'원</span>':'')+'</div>'; }).join('')
+      : '<div class="ev">찾는 거래처가 없습니다 — admin 에서 거래처를 먼저 만들어 주세요.</div>';
+  }catch(e){ box.innerHTML='<div class="ev" style="color:#dc2626">'+esc(e.message||'검색 실패')+'</div>'; }
+}
+function pickNew(i){
+  var b=(window._newHits||[])[i]; if(!b) return; NEW_PICK=b;
+  document.getElementById('nForm').style.display='';
+  document.getElementById('nPicked').textContent=b.company_name+(b.ceo_name?' · '+b.ceo_name:'');
+  if(b.monthly_fee) document.getElementById('nFee').value=b.monthly_fee;
+  if(b.staff_name) document.getElementById('nStaff').value=b.staff_name;
+  if(b.cms_member_no) document.getElementById('nCms').value=b.cms_member_no;
+}
+async function saveNew(){
+  if(!NEW_PICK) return;
+  var fee=v('nFee').replace(/[^\d]/g,'');
+  if(!fee){ alert('월 기장료를 적어 주세요'); return; }
+  try{
+    var d=await post('save_contract',{business_id:NEW_PICK.id, as_new:true, monthly_fee:fee, staff_name:v('nStaff'),
+      cms_member_no:v('nCms'), pay_method:v('nPay'), bk_start:v('nStart')});
+    closePanel();
+    setMsg(NEW_PICK.company_name+' 신규 수임 등록 — 청구 '+(d.ledger_rows||0)+'개월 잡았습니다.');
+    NEW_PICK=null; await load();
+  }catch(e){ alert('❌ '+e.message); }
 }
 async function commitMaster(){
   if(!PENDING) return;

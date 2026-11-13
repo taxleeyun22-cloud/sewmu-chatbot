@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createTestDb } from '../../packages/db/src/test-db';
 // @ts-expect-error — JS module
-import { onRequestGet, onRequestPost, cmsPeriod, lastClosedMonth, activeIn, normYm, ntsServiceKey } from './admin-bk-fees.js';
+import { onRequestGet, onRequestPost, cmsPeriod, lastClosedMonth, activeIn, normYm, ntsServiceKey, normLoose } from './admin-bk-fees.js';
 
 const KEY = 'test-admin-key';
 const ORIGIN = 'https://sewmu-chatbot.pages.dev';
@@ -256,6 +256,96 @@ describe('국세청 인증키 — Encoding·Decoding 아무거나', () => {
       expect(calledUrl).not.toContain('%25');
       expect(r.body.error).toContain('키가 맞지 않습니다');
     } finally { vi.unstubAllGlobals(); }
+  });
+});
+
+describe('2차 — CMS 회원정보', () => {
+  it('상호가 똑같으면(괄호 꼬리표 떼고) 회원번호 자동 연결 + 출금액·출금가능·결제자명 기록, 합계 줄 제외', async () => {
+    await d1.prepare(`UPDATE businesses SET cms_member_no = NULL WHERE id = 1`).run();
+    const r = (await post('import_cms_members', { rows: [
+      { member_no: 'M001', member_name: '갑[홍길동]', pay_day: 25, amount: 110000, payer: '홍길동', can_withdraw: '출금가능' },
+      { member_no: 'M002', member_name: '을식당', pay_day: 25, amount: 200000, payer: '김을순', can_withdraw: '출금불가' },
+      { member_no: '합계', member_name: '', amount: 310000 },
+    ] })).body;
+    expect(r).toMatchObject({ rows: 2, linked: 2, updated: 2 });
+    const b: any = await d1.prepare(`SELECT cms_member_no, cms_amount, cms_status, cms_payer, cms_pay_day FROM businesses WHERE id = 1`).first();
+    expect(b).toEqual({ cms_member_no: 'M001', cms_amount: 110000, cms_status: '출금가능', cms_payer: '홍길동', cms_pay_day: 25 });
+    expect(r.mismatch.map((m: any) => m.name)).toEqual(['을식당']);     /* 장부 165,000 vs CMS 200,000 */
+    expect(r.blocked.map((m: any) => m.name)).toEqual(['을식당']);
+  });
+  it('상호가 "포함" 으로만 맞으면 연결하지 않고 후보로만 알려준다', async () => {
+    await d1.prepare(`UPDATE businesses SET company_name = '병카페 성서본점' WHERE id = 3`).run();
+    const r = (await post('import_cms_members', { rows: [{ member_no: 'M003', member_name: '병카페 성서본점 2호', amount: 110000 }] })).body;
+    expect(r).toMatchObject({ linked: 0, unlinked_count: 1 });
+    expect(r.suggest[0].candidates.map((c: any) => c.id)).toEqual([3]);
+    const b: any = await d1.prepare(`SELECT cms_member_no FROM businesses WHERE id = 3`).first();
+    expect(b.cms_member_no).toBeNull();
+  });
+  it('회원번호가 둘인 거래처(M001/M005) — CMS 결과에서 두 번호 다 연결', async () => {
+    await d1.prepare(`UPDATE businesses SET cms_member_no = 'M001/M005' WHERE id = 1`).run();
+    const r = (await post('import_cms', { rows: [
+      { member_no: 'M001', tx_date: '2026-03-25', amount: 110000, status: '출금성공' },
+      { member_no: 'M005', tx_date: '2026-04-25', amount: 110000, status: '승인성공', method: 'CMS카드' },
+    ] })).body;
+    expect(r).toMatchObject({ paid: 2, unknown_members: [] });
+  });
+  it('괄호 정리', () => {
+    expect(normLoose('휴대폰성지 옆커폰 미아점[정미정]')).toBe(normLoose('휴대폰성지 옆커폰 미아점'));
+  });
+});
+
+describe('2차 — 위하고 명부', () => {
+  it('비어 있는 사업자번호만 채우고, 다르면 바꾸지 않고 보고 / 담당 채움 / 폐업 표시', async () => {
+    await d1.prepare(`UPDATE businesses SET business_number = NULL WHERE id = 3`).run();
+    const r = (await post('import_wehago', { rows: [
+      { company_name: '(주)갑', ceo_name: '홍길동', business_number: '999-99-99999', staff_name: '이직원' },
+      { company_name: '병카페', ceo_name: '박병철', business_number: '301-00-00003', staff_name: '박직원' },
+      { company_name: '을식당[폐업]', ceo_name: '김을순', business_number: '201-00-00002', staff_name: '' },
+    ] })).body;
+    expect(r.business_number_filled).toBe(1);
+    expect(r.business_number_diff.map((x: any) => x.name)).toEqual(['(주)갑']);
+    const g: any = await d1.prepare(`SELECT id, business_number, staff_name FROM businesses WHERE id IN (1,3) ORDER BY id`).all();
+    expect(g.results).toEqual([
+      { id: 1, business_number: '1018100001', staff_name: '이직원' },
+      { id: 3, business_number: '301-00-00003', staff_name: '박직원' },
+    ]);
+    expect(r.closed_flag.map((c: any) => c.name)).toEqual(['을식당']);
+  });
+});
+
+describe('2차 — 신규 수임 · 거래처 검색', () => {
+  it('검색은 기장료 없는 거래처도, 지운 거래처는 빼고', async () => {
+    await biz(5, { company_name: '정공업', ceo_name: '정사장', business_number: '4010000005' });
+    const r = await get('action=search_biz&q=' + encodeURIComponent('공업'));
+    expect(r.body.results.map((x: any) => x.id)).toEqual([5]);
+    expect((await get('action=search_biz&q=' + encodeURIComponent('지운'))).body.results).toEqual([]);
+    expect((await get('action=search_biz&q=401000')).body.results.map((x: any) => x.id)).toEqual([5]);
+  });
+  it('신규 수임: 수임 기록 + 시작월(작년 11월)부터 올해 마감월까지 청구 행, 기장료 없으면 400', async () => {
+    await biz(5, { company_name: '정공업', ceo_name: '정사장' });
+    expect((await post('save_contract', { business_id: 5, as_new: true, bk_start: '2025-11' })).status).toBe(400);
+    const r = (await post('save_contract', { business_id: 5, as_new: true, monthly_fee: '100000', bk_start: '2025-11', staff_name: '담당A' })).body;
+    expect(r.ledger_rows).toBe(12);     /* 2025-11·12 + 2026-01~10 */
+    const ev: any = await d1.prepare(`SELECT kind, event_date FROM bk_events WHERE business_id = 5`).all();
+    expect(ev.results).toEqual([{ kind: '수임', event_date: '2025-11-01' }]);
+    const g = (await get('action=grid&year=2026')).body;
+    expect(sym(row(g, 5))).toBe('xxxxxxxxxx--');
+  });
+  it('예전에 해지된 거래처를 다시 수임: 예전 이력은 남고, 그 사이는 –', async () => {
+    await d1.prepare(`UPDATE businesses SET bk_start = '2026-01', bk_end = '2026-03', bk_end_reason = '해지' WHERE id = 3`).run();
+    await post('mark_paid', { business_id: 3, period: '2026-02' });
+    await post('save_contract', { business_id: 3, as_new: true, monthly_fee: 100000, bk_start: '2026-07' });
+    const r = row((await get('action=grid&year=2026')).body, 3);
+    expect(sym(r)).toBe('xox---xxxx--');
+    expect(r).toMatchObject({ start: '2026-01', end: '' });
+  });
+});
+
+describe('2차 — 통장 매칭에 CMS 결제자명', () => {
+  it('입금자명이 상호·대표자와 달라도 CMS 결제자명과 맞으면 붙인다', async () => {
+    await d1.prepare(`UPDATE businesses SET cms_payer = '김배우자' WHERE id = 2`).run();
+    const r = (await post('import_bank', { rows: [{ tx_date: '2026-06-10', amount: 165000, payer: '김배우자' }] })).body;
+    expect(r.matched).toBe(1);
   });
 });
 
