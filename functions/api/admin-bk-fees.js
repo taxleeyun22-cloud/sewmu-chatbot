@@ -79,74 +79,90 @@ const BK_COLS = [
   ['cms_payer', 'TEXT'],               // 결제자명 — 통장 매칭 입금자명 후보
 ];
 
+/* 테이블·컬럼 준비 — 요청마다 수십 번 ALTER 하던 것을 줄인다 (D1 은 요청 하나당 쿼리 수 제한이 있다).
+   없는 컬럼만 ALTER, 테이블·인덱스는 batch 한 번. 같은 isolate 에서는 한 번만. */
+const _schemaReady = new WeakSet();   /* DB 바인딩 객체별 */
 async function ensureSchema(db) {
-  for (const [col, type] of BK_COLS) {
+  if (_schemaReady.has(db)) return;
+  let have = new Set();
+  try {
+    const { results } = await db.prepare(`PRAGMA table_info(businesses)`).all();
+    have = new Set((results || []).map((c) => c.name));
+  } catch {}
+  for (const [col, type] of [...BK_COLS, ['updated_at', 'TEXT']]) {
+    if (have.has(col)) continue;
     try { await db.prepare(`ALTER TABLE businesses ADD COLUMN ${col} ${type}`).run(); } catch {}
   }
-  try { await db.prepare(`ALTER TABLE businesses ADD COLUMN updated_at TEXT`).run(); } catch {}
-  // 월 기장료 청구·수납 원장 — 한 줄 = 거래처 × 귀속월 하나
-  await db.prepare(`CREATE TABLE IF NOT EXISTS bk_fee_ledger (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    business_id INTEGER NOT NULL,
-    period TEXT NOT NULL,
-    amount INTEGER,
-    paid_at TEXT,
-    source TEXT,
-    source_ref TEXT,
-    memo TEXT,
-    confirmed_by_id INTEGER,
-    created_at TEXT,
-    updated_at TEXT,
-    UNIQUE(business_id, period)
-  )`).run();
-  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_bkfee_period ON bk_fee_ledger(period)`).run(); } catch {}
-
-  // 거래처 생애주기 이벤트
-  await db.prepare(`CREATE TABLE IF NOT EXISTS bk_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    business_id INTEGER NOT NULL,
-    event_date TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    memo TEXT,
-    created_by_id INTEGER,
-    created_at TEXT
-  )`).run();
-  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_bkev_biz ON bk_events(business_id, event_date DESC)`).run(); } catch {}
-
-  // CMS 출금결과 원본 (재업로드해도 중복 안 쌓이게 UNIQUE)
-  await db.prepare(`CREATE TABLE IF NOT EXISTS bk_cms_tx (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    member_no TEXT,
-    member_name TEXT,
-    tx_date TEXT,
-    amount INTEGER,
-    status TEXT,
-    reason TEXT,
-    method TEXT,
-    business_id INTEGER,
-    period TEXT,
-    source_file TEXT,
-    created_at TEXT,
-    UNIQUE(member_no, tx_date, amount, status, method)
-  )`).run();
-  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_bkcms_period ON bk_cms_tx(period)`).run(); } catch {}
-
-  // 통장 입금내역 원본
-  await db.prepare(`CREATE TABLE IF NOT EXISTS bk_bank_tx (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tx_date TEXT,
-    amount INTEGER,
-    payer TEXT,
-    memo TEXT,
-    business_id INTEGER,
-    period TEXT,
-    matched_by TEXT,
-    source_file TEXT,
-    created_at TEXT,
-    UNIQUE(tx_date, amount, payer, memo)
-  )`).run();
-  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_bkbank_date ON bk_bank_tx(tx_date)`).run(); } catch {}
+  /* bk_fee_ledger: 거래처 × 귀속월 청구·수납 / bk_events: 생애주기 / bk_cms_tx: CMS 원본 (UNIQUE 로 재업로드 중복 X) / bk_bank_tx: 통장 원본 */
+  await db.batch([
+    `CREATE TABLE IF NOT EXISTS bk_fee_ledger (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        business_id INTEGER NOT NULL,
+        period TEXT NOT NULL,
+        amount INTEGER,
+        paid_at TEXT,
+        source TEXT,
+        source_ref TEXT,
+        memo TEXT,
+        confirmed_by_id INTEGER,
+        created_at TEXT,
+        updated_at TEXT,
+        UNIQUE(business_id, period)
+      )`,
+    `CREATE INDEX IF NOT EXISTS idx_bkfee_period ON bk_fee_ledger(period)`,
+    `CREATE TABLE IF NOT EXISTS bk_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        business_id INTEGER NOT NULL,
+        event_date TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        memo TEXT,
+        created_by_id INTEGER,
+        created_at TEXT
+      )`,
+    `CREATE INDEX IF NOT EXISTS idx_bkev_biz ON bk_events(business_id, event_date DESC)`,
+    `CREATE TABLE IF NOT EXISTS bk_cms_tx (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        member_no TEXT,
+        member_name TEXT,
+        tx_date TEXT,
+        amount INTEGER,
+        status TEXT,
+        reason TEXT,
+        method TEXT,
+        business_id INTEGER,
+        period TEXT,
+        source_file TEXT,
+        created_at TEXT,
+        UNIQUE(member_no, tx_date, amount, status, method)
+      )`,
+    `CREATE INDEX IF NOT EXISTS idx_bkcms_period ON bk_cms_tx(period)`,
+    `CREATE TABLE IF NOT EXISTS bk_bank_tx (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tx_date TEXT,
+        amount INTEGER,
+        payer TEXT,
+        memo TEXT,
+        business_id INTEGER,
+        period TEXT,
+        matched_by TEXT,
+        source_file TEXT,
+        created_at TEXT,
+        UNIQUE(tx_date, amount, payer, memo)
+      )`,
+    `CREATE INDEX IF NOT EXISTS idx_bkbank_date ON bk_bank_tx(tx_date)`,
+  ].map((sql) => db.prepare(sql)));
+  _schemaReady.add(db);
 }
+/** 쓰기를 묶어서 실행 (D1 batch = 한 번 왕복). 결과는 문장 순서대로. */
+async function runBatch(db, stmts, size = 50) {
+  const out = [];
+  for (let i = 0; i < stmts.length; i += size) {
+    const res = await db.batch(stmts.slice(i, i + size));
+    out.push(...res);
+  }
+  return out;
+}
+const didChange = (r) => !!(r && r.meta && r.meta.changes);
 
 /* CMS 출금일 → 귀속월
  * 1차 출금은 25~28일, 실패분 재출금은 다음달 1~10일에 흩어진다.
@@ -466,8 +482,10 @@ export async function onRequestPost(context) {
       /* 회원번호가 둘인 거래처는 'M001/M002' 로 저장된다 — 각각 연결 */
       for (const b of (biz || [])) for (const n of cmsNos(b.cms_member_no)) byCms[n] = b.id;
 
-      let saved = 0, dup = 0, paid = 0;
+      let paid = 0;
       const unknown = new Set();
+      const txStmts = [], ledStmts = [];
+      const now = kst();
       for (const r of rows) {
         const no = String(r.member_no || '').trim();
         if (!no || SKIP_ROW.test(no)) continue;
@@ -476,19 +494,18 @@ export async function onRequestPost(context) {
         const p = cmsPeriod(r.tx_date);
         const amount = Math.round(Number(String(r.amount ?? '').replace(/[^\d.-]/g, ''))) || 0;
         const status = String(r.status || '').trim();
-        const ins = await db.prepare(
+        txStmts.push(db.prepare(
           `INSERT OR IGNORE INTO bk_cms_tx (member_no, member_name, tx_date, amount, status, reason, method,
                                             business_id, period, source_file, created_at)
            VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)`
         ).bind(no, r.member_name || null, String(r.tx_date || ''), amount,
                status, r.reason || '', r.method || 'CMS계좌',
-               bid, p, body.source_file || null, kst()).run();
-        if (ins?.meta?.changes) saved++; else dup++;
+               bid, p, body.source_file || null, now));
         // 성공 건은 원장에 수납으로 반영 (이미 입금 표시된 달은 그대로)
         if (bid && p && CMS_OK.includes(status)) {
           const d = String(r.tx_date).replace(/\D/g, '');
           const paidAt = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
-          await db.prepare(
+          ledStmts.push(db.prepare(
             `INSERT INTO bk_fee_ledger (business_id, period, amount, paid_at, source, source_ref, created_at, updated_at)
              VALUES (?1,?2,?3,?4,'CMS',?5,?6,?6)
              ON CONFLICT(business_id, period) DO UPDATE SET
@@ -496,10 +513,13 @@ export async function onRequestPost(context) {
                source = COALESCE(bk_fee_ledger.source, excluded.source),
                source_ref = COALESCE(bk_fee_ledger.source_ref, excluded.source_ref),
                updated_at = excluded.updated_at`
-          ).bind(bid, p, amount, paidAt, no + '@' + r.tx_date, kst()).run();
+          ).bind(bid, p, amount, paidAt, no + '@' + r.tx_date, now));
           paid++;
         }
       }
+      const txRes = await runBatch(db, txStmts);
+      const saved = txRes.filter(didChange).length, dup = txRes.length - saved;
+      await runBatch(db, ledStmts);
       return Response.json({ ok: true, saved, duplicate: dup, paid, unknown_members: [...unknown].slice(0, 100) });
     }
 
@@ -517,8 +537,8 @@ export async function onRequestPost(context) {
         keys: [normName(b.company_name), normName(b.ceo_name), normName(b.cms_payer)].filter(k => k.length >= 2),
       }));
 
-      let saved = 0, matched = 0;
-      const review = [];
+      /* 1) 파일 행 정리 + 자동 매칭 (DB 안 씀) */
+      const items = [];
       for (const r of rows) {
         const amt = Math.round(Number(String(r.amount ?? '').replace(/[^\d.-]/g, ''))) || 0;
         if (amt <= 0) continue;                       // 입금만 본다
@@ -533,25 +553,39 @@ export async function onRequestPost(context) {
         const hit = np.length >= 2
           ? cands.filter(c => c.bill === amt && c.keys.some(k => np.includes(k) || k.includes(np)))
           : [];
-        const bid = hit.length === 1 ? hit[0].id : null;
-        // 미납 상태인 가장 오래된 월에 붙인다
-        let period = null;
-        if (bid) {
-          const open = await db.prepare(
-            `SELECT period FROM bk_fee_ledger WHERE business_id = ?1 AND paid_at IS NULL AND period <= ?2 ORDER BY period LIMIT 1`
-          ).bind(bid, txDate.substring(0, 7)).first();
-          period = open?.period || txDate.substring(0, 7);
-        }
-        /* memo 는 NULL 대신 '' — UNIQUE 에서 NULL 은 서로 다른 값이라 같은 파일을 다시 올리면 중복으로 쌓인다 */
-        const ins = await db.prepare(
-          `INSERT OR IGNORE INTO bk_bank_tx (tx_date, amount, payer, memo, business_id, period, matched_by, source_file, created_at)
-           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)`
-        ).bind(txDate, amt, payer, String(r.memo || '').trim(), bid, period,
-               bid ? '금액+입금자명' : null, body.source_file || null, kst()).run();
-        if (!ins?.meta?.changes) continue;            // 이미 올린 거래 — 다시 붙이지 않음
+        items.push({ amt, txDate, payer, memo: String(r.memo || '').trim(), bid: hit.length === 1 ? hit[0].id : null, period: null });
+      }
+      /* 2) 붙일 달 = 그 거래처의 미납 중 가장 오래된 달 (입금일 이전) — 한 번에 읽고, 같은 파일 안에서 순서대로 채움 */
+      const bids = [...new Set(items.filter(x => x.bid).map(x => x.bid))];
+      const openBy = {};
+      for (let i = 0; i < bids.length; i += 90) {
+        const part = bids.slice(i, i + 90);
+        const { results } = await db.prepare(
+          `SELECT business_id, period FROM bk_fee_ledger WHERE paid_at IS NULL AND business_id IN (${part.map(() => '?').join(',')}) ORDER BY period`
+        ).bind(...part).all();
+        for (const o of results || []) (openBy[o.business_id] ||= []).push(o.period);
+      }
+      for (const it of items.sort((x, y) => x.txDate.localeCompare(y.txDate))) {
+        if (!it.bid) continue;
+        const list = openBy[it.bid] || [];
+        const i = list.findIndex(p => p <= it.txDate.substring(0, 7));
+        it.period = i >= 0 ? list.splice(i, 1)[0] : it.txDate.substring(0, 7);
+      }
+      /* 3) 원본 저장 (memo 는 NULL 대신 '' — UNIQUE 에서 NULL 은 서로 다른 값이라 재업로드가 중복으로 쌓인다) */
+      const now = kst();
+      const insRes = await runBatch(db, items.map(it => db.prepare(
+        `INSERT OR IGNORE INTO bk_bank_tx (tx_date, amount, payer, memo, business_id, period, matched_by, source_file, created_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)`
+      ).bind(it.txDate, it.amt, it.payer, it.memo, it.bid, it.period,
+             it.bid ? '금액+입금자명' : null, body.source_file || null, now)));
+      /* 4) 새로 들어간 거래만 원장 반영 (이미 올린 거래는 다시 붙이지 않음) */
+      let saved = 0, matched = 0;
+      const review = [], led = [];
+      items.forEach((it, i) => {
+        if (!didChange(insRes[i])) return;
         saved++;
-        if (bid && period) {
-          await db.prepare(
+        if (it.bid && it.period) {
+          led.push(db.prepare(
             `INSERT INTO bk_fee_ledger (business_id, period, amount, paid_at, source, source_ref, created_at, updated_at)
              VALUES (?1,?2,?3,?4,'통장',?5,?6,?6)
              ON CONFLICT(business_id, period) DO UPDATE SET
@@ -559,12 +593,11 @@ export async function onRequestPost(context) {
                source = COALESCE(bk_fee_ledger.source, excluded.source),
                source_ref = COALESCE(bk_fee_ledger.source_ref, excluded.source_ref),
                updated_at = excluded.updated_at`
-          ).bind(bid, period, amt, txDate, payer + '@' + txDate, kst()).run();
+          ).bind(it.bid, it.period, it.amt, it.txDate, it.payer + '@' + it.txDate, now));
           matched++;
-        } else {
-          review.push({ tx_date: txDate, amount: amt, payer });
-        }
-      }
+        } else review.push({ tx_date: it.txDate, amount: it.amt, payer: it.payer });
+      });
+      await runBatch(db, led);
       return Response.json({ ok: true, saved, matched, review: review.slice(0, 200) });
     }
 
@@ -618,27 +651,29 @@ export async function onRequestPost(context) {
       }
       const year = Number(url.searchParams.get('year')) || new Date().getFullYear();
       const lastClosed = lastClosedMonth(year);
-      let updated = 0, seeded = 0;
+      let updated = 0;
+      const now = kst(), ups = [], seeds = [];
       for (const m of matched) {
-        await db.prepare(
+        ups.push(db.prepare(
           `UPDATE businesses SET monthly_fee = ?1, cms_member_no = ?2, pay_method = ?3,
                   staff_name = ?4, bk_start = COALESCE(?5, bk_start), updated_at = ?6
             WHERE id = ?7`
         ).bind(m.monthly_fee, m.cms_member_no || null, m.pay_method || null,
-               m.staff_name || null, m.bk_start || null, kst(), m.business_id).run();
+               m.staff_name || null, m.bk_start || null, now, m.business_id));
         updated++;
         // 청구 행 생성 — 기장시작~마감월까지, 이미 있으면 건드리지 않음
         const startM = (m.bk_start && m.bk_start.startsWith(String(year))) ? +m.bk_start.slice(5, 7)
           : (m.bk_start && m.bk_start > `${year}-12`) ? 13 : 1;
         const bill = Math.round(m.monthly_fee * 1.1);
         for (let mo = startM; mo <= lastClosed; mo++) {
-          const r = await db.prepare(
+          seeds.push(db.prepare(
             `INSERT OR IGNORE INTO bk_fee_ledger (business_id, period, amount, created_at, updated_at)
              VALUES (?1,?2,?3,?4,?4)`
-          ).bind(m.business_id, ym(year, mo), bill, kst()).run();
-          if (r?.meta?.changes) seeded++;
+          ).bind(m.business_id, ym(year, mo), bill, now));
         }
       }
+      await runBatch(db, ups);
+      const seeded = (await runBatch(db, seeds)).filter(didChange).length;
       await logAudit(db, { actor, action: 'bk_master_import', entity_type: 'business', entity_id: null,
         after: { updated, ledger_rows: seeded, unmatched: unmatched.length, ambiguous: ambiguous.length, source_file: body.source_file || null },
         request: context.request });
@@ -666,7 +701,8 @@ export async function onRequestPost(context) {
         for (const n of cmsNos(b.cms_member_no)) byNo[n] = b;
       }
       let linked = 0, updated = 0;
-      const mismatch = [], blocked = [], unlinked = [], suggest = [];
+      const mismatch = [], blocked = [], unlinked = [], suggest = [], writes = [];
+      const now = kst();
       for (const r of rows) {
         const no = String(r.member_no || '').trim();
         const amt = Math.round(Number(String(r.amount ?? '').replace(/[^\d.]/g, ''))) || 0;
@@ -681,8 +717,8 @@ export async function onRequestPost(context) {
             const cur = cmsNos(b.cms_member_no);
             if (!cur.includes(no)) cur.push(no);
             b.cms_member_no = cur.join('/');
-            await db.prepare(`UPDATE businesses SET cms_member_no = ?1, updated_at = ?2 WHERE id = ?3`)
-              .bind(b.cms_member_no, kst(), b.id).run();
+            writes.push(db.prepare(`UPDATE businesses SET cms_member_no = ?1, updated_at = ?2 WHERE id = ?3`)
+              .bind(b.cms_member_no, now, b.id));
             byNo[no] = b;
             linked++;
           } else {
@@ -697,11 +733,11 @@ export async function onRequestPost(context) {
             continue;
           }
         }
-        await db.prepare(
+        writes.push(db.prepare(
           `UPDATE businesses SET cms_amount = ?1, cms_status = ?2, cms_pay_day = ?3, cms_payer = ?4, updated_at = ?5
             WHERE id = ?6`
         ).bind(amt || null, canW || mSt || null, Number(r.pay_day) || null,
-               r.payer ? String(r.payer).trim().slice(0, 60) : null, kst(), b.id).run();
+               r.payer ? String(r.payer).trim().slice(0, 60) : null, now, b.id));
         updated++;
         if (b.monthly_fee && amt && Math.abs(Math.round(b.monthly_fee * 1.1) - amt) > 1000) {
           mismatch.push({ business_id: b.id, name: b.company_name, member_no: no,
@@ -709,6 +745,7 @@ export async function onRequestPost(context) {
         }
         if (canW && canW !== '출금가능') blocked.push({ name: b.company_name, member_no: no, status: canW, member_status: mSt });
       }
+      await runBatch(db, writes);
       await logAudit(db, { actor, action: 'bk_cms_members_import', entity_type: 'business', entity_id: null,
         after: { rows: rows.length, linked, updated, unlinked: unlinked.length, source_file: body.source_file || null }, request: context.request });
       return Response.json({ ok: true, rows: rows.length, linked, updated, mismatch, blocked,
@@ -728,7 +765,7 @@ export async function onRequestPost(context) {
       const src = rows.map(r => ({ ...r, _n: normLoose(r.company_name), _rep: normName(r.ceo_name),
                                    _closed: /폐업|\[x\]|\[out\]/i.test(String(r.company_name)) }));
       let filled = 0, bnFilled = 0;
-      const closedFlag = [], notFound = [], bnDiff = [];
+      const closedFlag = [], notFound = [], bnDiff = [], writes = [];
       for (const b of (biz || [])) {
         const n = normLoose(b.company_name), rep = normName(b.ceo_name);
         const bn = normBiz(b.business_number);
@@ -750,11 +787,12 @@ export async function onRequestPost(context) {
         if (st && st !== (b.staff_name || '')) { sets.push('staff_name = ?'); vals.push(st.slice(0, 60)); }
         if (sets.length) {
           sets.push('updated_at = ?'); vals.push(kst()); vals.push(b.id);
-          await db.prepare(`UPDATE businesses SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+          writes.push(db.prepare(`UPDATE businesses SET ${sets.join(', ')} WHERE id = ?`).bind(...vals));
           filled++;
         }
         if (!live.length) closedFlag.push({ name: b.company_name, wehago: pick.company_name });
       }
+      await runBatch(db, writes);
       await logAudit(db, { actor, action: 'bk_wehago_import', entity_type: 'business', entity_id: null,
         after: { rows: rows.length, filled, business_number_filled: bnFilled, business_number_diff: bnDiff.length, source_file: body.source_file || null },
         request: context.request });
@@ -794,7 +832,7 @@ export async function onRequestPost(context) {
       const byNo = {};
       for (const d of (data.data || [])) byNo[String(d.b_no)] = d;
 
-      const changed = [];
+      const changed = [], writes = [], now = kst();
       for (const b of list) {
         const d = byNo[normBiz(b.business_number)];
         if (!d) continue;
@@ -803,19 +841,20 @@ export async function onRequestPost(context) {
           changed.push({ business_id: b.id, name: b.company_name, before: b.nts_status || '', after: st,
                          end_date: d.end_dt || '' });
         }
-        await db.prepare(`UPDATE businesses SET nts_status = ?1, nts_checked_at = ?2 WHERE id = ?3`)
-          .bind(st || null, kst(), b.id).run();
+        writes.push(db.prepare(`UPDATE businesses SET nts_status = ?1, nts_checked_at = ?2 WHERE id = ?3`)
+          .bind(st || null, now, b.id));
       }
       // 폐업으로 바뀐 곳은 이벤트만 남긴다. 기장 종료 처리는 사람이 확인 후 (이벤트 kind '폐업확인' 은 구간을 안 움직임).
       for (const c of changed) {
         if (c.after === '폐업자') {
           const ed = /^\d{8}$/.test(c.end_date) ? `${c.end_date.slice(0, 4)}-${c.end_date.slice(4, 6)}-${c.end_date.slice(6, 8)}` : today();
-          await db.prepare(
+          writes.push(db.prepare(
             `INSERT INTO bk_events (business_id, event_date, kind, memo, created_at)
              VALUES (?1,?2,'폐업확인',?3,?4)`
-          ).bind(c.business_id, ed, '국세청 조회 자동 감지 — 기장 종료 처리는 확인 후 수동', kst()).run();
+          ).bind(c.business_id, ed, '국세청 조회 자동 감지 — 기장 종료 처리는 확인 후 수동', now));
         }
       }
+      await runBatch(db, writes);
       return Response.json({ ok: true, checked: list.length, changed });
     }
 
