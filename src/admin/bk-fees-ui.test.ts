@@ -1,7 +1,7 @@
 /**
  * 💰 기장료 수납 (bk-fees.html) — 화면 계약. 실제 배포 파일을 띄우고 fetch 만 가짜로 바꾼다.
- * 지키는 것: 격자 기호(○·✕·–), "미납 있는 곳만", ✕ 누르면 입금일 묻고 POST, 수기 ○ 만 해제 가능,
- *           엑셀 헤더 줄 자동 탐지(은행 파일 3번째 줄), 통장 집금 행 제외, 이름 escape.
+ * 지키는 것: 격자 기호(○·✕·⋯·–), "미납 있는 곳만", ✕ 누르면 입금일 묻고 client_id 로 POST, 수기 ○ 만 해제 가능,
+ *           파일 4종 자동 인식(2026-11-13 사장님 "이 4개로 다 할 수 있게"), 위하고 주민번호 뒷자리 안 보냄, 이름 escape.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -32,7 +32,7 @@ beforeEach(async () => {
     calls.push({ url, init });
     return { status: 200, ok: true, json: async () => (url.includes('action=grid') ? JSON.parse(JSON.stringify(GRID)) : { ok: true }) };
   };
-  api = new Function('fetch', 'prompt', 'confirm', 'alert', script + '\nreturn {render, mark, unmark, rowsFromMatrix, toBank, toCms, toMaster, detect, toWehago, toCmsMembers, headerRow, openNew, pickNew, saveNew, toggleHelp};')(
+  api = new Function('fetch', 'prompt', 'confirm', 'alert', script + '\nreturn {render, mark, unmark, setGrid: function(g){ GRID=g; }, rowsFromMatrix, toBank, toCms, toMaster, detect, toWehago, toCmsMembers, headerRow, openNew, pickNew, saveNew, toggleHelp};')(
     fetchStub, () => promptVal, () => true, vi.fn());
   /* 실제 페이지에서는 classic script 의 전역 함수 — 인라인 onclick 이 찾을 수 있게 */
   Object.assign(window as any, { mark: api.mark, unmark: api.unmark });
@@ -63,7 +63,7 @@ describe('기장료 수납 화면', () => {
     (trs()[0].querySelector('.c.x') as HTMLButtonElement).click();
     await new Promise((r) => setTimeout(r, 0));
     const p = calls.find((c) => c.url.includes('action=mark_paid'))!;
-    expect(JSON.parse(p.init.body)).toEqual({ business_id: 1, period: '2026-03', amount: 110000, paid_at: '2026-03-31' });
+    expect(JSON.parse(p.init.body)).toEqual({ client_id: 1, period: '2026-03', amount: 110000, paid_at: '2026-03-31' });
     calls = []; promptVal = null;
     await api.mark(1, '2026-03', 110000);
     expect(calls.some((c) => c.url.includes('mark_paid'))).toBe(false);
@@ -90,42 +90,70 @@ describe('엑셀 행 변환', () => {
 });
 
 describe('2차 — 파일 종류 자동 인식 · 위하고 · 신규 수임', () => {
-  it('제목 줄로 6종을 가린다 (세무포털은 5번째 줄이어도)', () => {
+  it('제목 줄로 가린다 — 사장님이 올리는 4종 (CMS 회원목록·결제조회·카드 승인조회·위하고) + 세무포털 5번째 줄 헤더', () => {
     expect(api.detect(['순번', '회원번호', '회원명', '약정일', '기본금액'])).toBe('cms_members');
     expect(api.detect(['회원번호', '회원명', '결제일', '결제금액', '결제상태'])).toBe('cms_bank');
-    expect(api.detect(['회원번호', '회원명', '승인일', '승인금액', '승인상태'])).toBe('cms_card');
+    expect(api.detect(['승인일', '회원번호', '회원명', '승인상태', '신청금액', '승인금액'])).toBe('cms_card');
     expect(api.detect(['코드', '상호', '대표자', '사업자등록번호', '세무대리담당자'])).toBe('wehago');
-    expect(api.detect(['거래일시', '적요', '출금액', '입금액'])).toBe('bank');
-    expect(api.detect(['상호', '대표자', '기장료'])).toBe('master');
     expect(api.detect(['아무거나'])).toBeNull();
-    const m = [['세무사CMS'], [''], ['회원조회'], ['총 2건'], ['순번', '회원번호', '회원명', '약정일', '기본금액', '결제자명', '결제신청가능'], ['1', 'M001', '갑', '25일', '110,000', '홍길동', '출금가능']];
+    const m = [['세무사CMS'], [''], ['회원조회'], ['총 2건'],
+      ['회원번호', '회원명', '약정일', '기본금액', '회원상태', '결제구분', '생년월일/사업자번호', '결제자명', '결제신청가능', '결제시작일', '결제종료일', '가입일'],
+      ['M001', '갑', '25', '110,000', '신청완료', '계좌', '850101', '홍길동', '출금가능', '2025-03-10', '9999-12-31', '2025-03-01'],
+      ['M002', '을', '25', '220,000', '신청불능', '카드', '10181*****', '', '출금불가', '', '2026-08-31', '2024-02-01'],
+      ['M003', '병', '25', '110,000', '신청완료', '계좌', '850101-1234567', '', '출금가능', '', '9999-12-31', '2024-02-01']];
     expect(api.headerRow(m)).toBe(4);
-    expect(api.toCmsMembers(api.rowsFromMatrix(m))).toEqual([{ member_no: 'M001', member_name: '갑', pay_day: 25, amount: 110000, member_status: '', payer: '홍길동', can_withdraw: '출금가능' }]);
+    expect(api.toCmsMembers(api.rowsFromMatrix(m))).toEqual([
+      { member_no: 'M001', member_name: '갑', pay_day: 25, amount: 110000, member_status: '신청완료', payer: '홍길동', can_withdraw: '출금가능',
+        pay_type: '계좌', start_date: '2025-03-10', end_date: '9999-12-31', key: '850101' },
+      { member_no: 'M002', member_name: '을', pay_day: 25, amount: 220000, member_status: '신청불능', payer: '', can_withdraw: '출금불가',
+        pay_type: '카드', start_date: '2024-02-01', end_date: '2026-08-31', key: '10181' },
+      expect.objectContaining({ member_no: 'M003', key: '850101' }),
+    ]);
+    expect(JSON.stringify(api.toCmsMembers(api.rowsFromMatrix(m)))).not.toContain('1234567');
   });
-  it('위하고 명부 두 줄 형식 — 첫 줄 상호·사업자번호·담당, 둘째 줄 대표자', () => {
+  it('위하고 명부 두 줄 형식 — 상호·사업자번호·담당 + 대표자, 주민번호는 앞 6자리만 (뒷자리는 절대 안 보냄)', () => {
     const m = [
-      ['구분', '코드', '상호', '', '', '사업자등록번호', '', '', '', '', '세무대리담당자'],
+      ['구분', '코드', '상호', '', '', '사업자등록번호', '주민등록번호', '', '', '', '세무대리담당자'],
       ['1', '0001', '(주)갑', '', '', '101-81-00001', '', '', '', '', '이직원'],
       ['', '', '홍길동', '', '', '', '', '', '', '', ''],
-      ['2', '0002', '사업자번호없음', '', '', '', '', '', '', '', ''],
+      ['2', '0002', '을식당', '', '', '201-00-00002', '850101-1234567', '', '', '', '김직원'],
+      ['3', '0003', '사업자번호없음', '', '', '', '', '', '', '', ''],
     ];
-    expect(api.toWehago(m, 0)).toEqual([{ code: '0001', company_name: '(주)갑', business_number: '101-81-00001', staff_name: '이직원', ceo_name: '홍길동' }]);
+    const rows = api.toWehago(m, 0);
+    expect(rows).toEqual([
+      { company_name: '(주)갑', business_number: '101-81-00001', staff_name: '이직원', ceo_name: '홍길동', birth6: '' },
+      { company_name: '을식당', business_number: '201-00-00002', staff_name: '김직원', ceo_name: '', birth6: '850101' },
+    ]);
+    expect(JSON.stringify(rows)).not.toContain('1234567');
   });
-  it('신규 수임: 거래처 고르고 등록하면 save_contract as_new POST', async () => {
+  it('신규 수임 (이체): 이름·기장료로 save_client POST, admin 업체 고르면 business_id 같이', async () => {
     api.openNew();
-    (window as any)._newHits = [{ id: 7, company_name: '정공업', ceo_name: '정사장' }];
+    (window as any)._newHits = [{ id: 7, company_name: '정공업', ceo_name: '정사장', business_number: '3010000003' }];
     api.pickNew(0);
-    (document.getElementById('nFee') as HTMLInputElement).value = '150,000';
+    (document.getElementById('nFee') as HTMLInputElement).value = '165,000';
     (document.getElementById('nStart') as HTMLInputElement).value = '2026-09';
     await api.saveNew();
-    const p = calls.find((c) => c.url.includes('action=save_contract'))!;
-    expect(JSON.parse(p.init.body)).toMatchObject({ business_id: 7, as_new: true, monthly_fee: '150000', bk_start: '2026-09' });
+    const p = calls.find((c) => c.url.includes('action=save_client'))!;
+    expect(JSON.parse(p.init.body)).toMatchObject({ name: '정공업', business_id: 7, bill: '165000', bk_start: '2026-09', pay_method: '직접이체', business_number: '3010000003' });
+  });
+  it('⋯ 출금 중 · 자료 없는 달 – 에 이유 표시, CMS 자료 범위는 계좌·카드 따로', () => {
+    const g = JSON.parse(JSON.stringify(GRID));
+    g.coverage_by = { 'CMS계좌': { from: '2026-05', to: '2026-10' }, 'CMS카드': { from: '2026-06', to: '2026-10' } };
+    g.rows[0].cells[9] = { s: 'p', a: 110000, why: '출금중' };
+    g.rows[0].cells[3] = { s: '-', nodata: true };
+    g.rows[0].cells[2] = { s: 'x', a: 110000, why: '재출금실패 · 잔액부족' };
+    api.setGrid(g); api.render();
+    const tr = trs()[0];
+    expect(tr.querySelector('.c.p')!.getAttribute('title')).toContain('출금중');
+    expect(tr.querySelectorAll('.c.n')[0].getAttribute('title')).toContain('자료가 없는');
+    expect(tr.querySelector('.c.x')!.getAttribute('title')).toContain('잔액부족');
+    expect(document.getElementById('kpi')!.textContent).toContain('계좌 2026년 5월 ~ 10월 · 카드 2026년 6월 ~ 10월');
   });
   it('거래처별 안 들어온 돈 칸 + 도움말에 캡처 이미지 없음', () => {
     expect(trs()[0].lastElementChild!.textContent).toBe('110,000원');
     api.toggleHelp();
     const h = document.getElementById('help')!;
-    expect(h.textContent).toContain('회원관리 → 회원조회');
+    expect(h.textContent).toContain('CMS 회원목록');
     expect(h.querySelector('img')).toBeNull();
   });
 });

@@ -1,30 +1,35 @@
-// 기장료 수납 관리 — 거래처 월 기장료 청구·수납 원장 + 생애주기 이벤트
+// 기장료 수납 관리 — CMS 회원목록 기준 수납 원장
 //
-// 사장님 요구 (2026-11-12):
-//   "거래처 깔아놓고 입금 됐다 안 됐다만 확인. 통장 거래내역이랑 CMS 입금내역이랑."
-//   "기장이 들어왔다, 언제 들어왔다, 이거 안됐다, 폐업됐다, 이것도 체크할 수 있도록."
-//   권한: 직원 전체 (사장님 답, 2026-11-12). 화면 = 옛 admin 독립 페이지 bk-fees.html (새 admin 동결).
+// 사장님 요구:
+//   2026-11-12 "거래처 깔아놓고 입금 됐다 안 됐다만 확인. 통장 거래내역이랑 CMS 입금내역이랑."
+//              "기장이 들어왔다, 언제 들어왔다, 이거 안됐다, 폐업됐다, 이것도 체크할 수 있도록."
+//   2026-11-13 "난 이 4개만 올릴거야 (CMS 회원목록 · CMS 결제조회 · 신용카드 승인조회 · 위하고 명부). 이 4개로 다 할 수 있게."
+//              "기본은 CMS 회원목록이고, 정지했거나 그런 건 따로 빼면 됨. 위하고는 사업자번호 등 참조하라고 넣은 거."
+//              "이체하는 곳이 있다면 거긴 수기로 등록할 거야."
+//   권한: 직원 전체. 화면 = 옛 admin 독립 페이지 bk-fees.html (새 admin 동결).
 //
-// 설계 원칙:
-//   - businesses 테이블 재사용(중복 구현 금지 룰). 기장료 관련 컬럼만 lazy ALTER 추가.
-//   - billing_invoices(조정료 청구서)와 별개. 이쪽은 "월 기장료" 전용.
-//   - 격자 칸은 계약 구간(bk_start~bk_end) 안이고, 중단·해지·폐업 ~ 재개 사이가 아닐 때만 ○/✕.
+// 설계:
+//   - 기준 단위 = bk_clients (기장료 거래처 명단). admin 업체(businesses)와는 별개 —
+//     CMS 회원이 admin 업체 목록에 없어도 격자에 나온다. 사업자번호가 같으면 business_id 로 연결만 해 둔다.
+//   - CMS 회원목록 = 명단 (회원번호 · 기본금액=월 청구액(부가세 포함) · 결제시작일=시작월 · 결제종료일/신청불능=정지·해지)
+//   - CMS 결제조회 · 신용카드 승인조회 = 입금 (성공 건 → ○). 출금일 20일 이후 당월분, 19일 이전 전월분(재출금).
+//   - 위하고 명부 = 참조 (상호 + 생년월일/사업자번호 앞자리로 맞춰 사업자번호·대표자·담당만 채움). 주민번호는 앞 6자리만 받는다.
+//   - 직접이체 거래처 = [＋ 신규 수임] 으로 수기 등록, ✕ 눌러 입금확인. 통장 내역 업로드도 그대로 지원.
+//   - CMS 결과가 올라온 달(자료 범위) 밖은 ✕ 대신 '–' — 자료가 없는 달을 미납으로 보이지 않게.
 //
 // Endpoints (전부 ?key=ADMIN_KEY 또는 admin 세션):
-//   GET  ?action=grid&year=2026            → 거래처 × 월 격자
-//   GET  ?action=contracts                 → 기장료 계약 목록(마스터)
-//   POST ?action=save_contract             { business_id, monthly_fee, cms_member_no, pay_method, staff_name, bk_start, bk_end, bk_end_reason }
-//   POST ?action=event                     { business_id, kind, event_date, memo }  kind: 수임|재개|중단|해지|폐업|담당변경
-//   POST ?action=mark_paid                 { business_id, period, paid_at, amount, memo }  (수기 입금확인)
-//   POST ?action=unmark_paid               { business_id, period }
-//   POST ?action=import_cms                { rows:[{member_no,member_name,tx_date,amount,status,reason,method}], source_file }
-//   POST ?action=import_bank               { rows:[{tx_date,amount,payer,memo}], source_file }
-//   POST ?action=import_master&mode=preview|commit  { rows:[...], source_file }
-//   GET  ?action=search_biz&q=            → 신규 수임용 거래처 검색 (기장료 미등록 포함)
-//   POST ?action=save_contract { ..., as_new: true }  → 신규 수임 (수임 기록 + 청구 행)
-//   POST ?action=import_cms_members        { rows:[{member_no,member_name,pay_day,amount,member_status,payer,can_withdraw}] }
-//   POST ?action=import_wehago             { rows:[{company_name,ceo_name,business_number,staff_name,code}] }
-//   POST ?action=check_biz_status          { limit }  → 국세청 사업자등록상태 조회(휴·폐업 자동 체크)
+//   GET  ?action=grid&year=2026&view=active|stopped|all
+//   GET  ?action=search_biz&q=        → admin 업체 검색 (거래처 연결·신규 수임용)
+//   POST ?action=save_client          { id?, name, ceo_name, business_id, business_number, bill, pay_method, staff_name, bk_start, bk_end, bk_end_reason, memo, as_new }
+//   POST ?action=event                { client_id, kind, event_date, memo }   kind: 수임|재개|중단|해지|폐업|담당변경
+//   POST ?action=mark_paid            { client_id, period, paid_at, amount, memo }   (수기 입금확인)
+//   POST ?action=unmark_paid          { client_id, period }
+//   POST ?action=import_cms_members   { rows:[{member_no,member_name,pay_day,amount,member_status,can_withdraw,payer,pay_type,start_date,end_date,key}] }
+//   POST ?action=import_cms           { rows:[{member_no,member_name,tx_date,amount,status,reason,method}] }   (계좌 결제조회 · 카드 승인조회)
+//   POST ?action=import_wehago        { rows:[{company_name,ceo_name,business_number,staff_name,birth6,closed}] }
+//   POST ?action=import_bank          { rows:[{tx_date,amount,payer,memo}] }
+//   POST ?action=import_master&mode=preview|commit   { rows:[{company_name,ceo_name,business_number,monthly_fee(공급가),cms_member_no,pay_method,staff_name,bk_start}] }
+//   POST ?action=check_biz_status     { limit }   → 국세청 사업자등록상태 (휴·폐업)
 //
 // 엑셀 파싱은 브라우저(SheetJS)에서 하고 여기로는 JSON rows 만 들어온다.
 
@@ -43,129 +48,164 @@ export function normLoose(s) {
   for (let i = 0; i < 3; i++) v = v.replace(/\[[^\]]*\]/g, ' ').replace(/\([^)]*\)/g, ' ');
   return normName(v);
 }
+/** 상호 비교용 이름들 — 원래 이름, 괄호 뗀 이름, 대괄호 안 이름(위하고는 '[상호]대표자[메모]' 식으로 적기도 한다) */
+export function nameKeys(s) {
+  const v = new Set([normName(s), normLoose(s)]);
+  for (const x of String(s || '').match(/\[[^\]]+\]/g) || []) v.add(normName(x.slice(1, -1)));
+  return [...v].filter((x) => x.length >= 2);
+}
 const SKIP_ROW = /^(합계|총계|소계)/;
-/** 'M001/M002' → ['M001','M002'] (CMS 회원번호가 둘인 거래처) */
-const cmsNos = (s) => String(s || '').split('/').map((x) => x.trim()).filter(Boolean);
 function ym(y, m) { return `${y}-${String(m).padStart(2, '0')}`; }
-/** '2024-03' / '2024.3' / '2024-03-01' / '202403' → '2024-03' (아니면 null) */
+/** '2024-03' / '2024.3' / '2024-03-01' / '202403' / '20240301' → '2024-03' (아니면 null) */
 export function normYm(s) {
   const t = String(s || '').trim();
-  let m = t.match(/^(\d{4})\D+(\d{1,2})(?:\D|$)/) || t.match(/^(\d{4})(\d{2})(?:\d{2})?$/);
+  const m = t.match(/^(\d{4})\D+(\d{1,2})(?:\D|$)/) || t.match(/^(\d{4})(\d{2})(?:\d{2})?$/);
   if (!m) return null;
   const mo = Number(m[2]);
   if (mo < 1 || mo > 12) return null;
   return ym(m[1], mo);
 }
+/** '20261112' / '2026-11-12' / '2026.11.12 14:00' → '2026-11-12' */
+function normYmd(s) {
+  const d = String(s || '').replace(/\D/g, '').slice(0, 8);
+  return d.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : null;
+}
 const isYmd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+const money = (v) => Math.round(Number(String(v ?? '').replace(/[^\d.-]/g, ''))) || 0;
 const NOT_DELETED = `(deleted_at IS NULL OR deleted_at = '')`;
 export const EVENT_KINDS = ['수임', '재개', '중단', '해지', '폐업', '담당변경'];
 const START_KINDS = ['수임', '재개'];
 const STOP_KINDS = ['중단', '해지', '폐업'];
+const CMS_OK = ['출금성공', '재출금성공', '승인성공'];
+const CMS_PENDING = ['출금중', '재출금중', '승인중'];
 
-/* ---------- lazy migration ---------- */
-const BK_COLS = [
-  ['monthly_fee', 'INTEGER'],          // 월 기장료(공급가)
-  ['cms_member_no', 'TEXT'],           // 세무사CMS 회원번호 (M0000123)
-  ['pay_method', 'TEXT'],              // CMS계좌 | CMS카드 | 직접이체 | 현금
-  ['staff_name', 'TEXT'],              // 담당 직원
-  ['bk_start', 'TEXT'],                // 기장 시작 YYYY-MM
-  ['bk_end', 'TEXT'],                  // 기장 종료 YYYY-MM (NULL = 진행중)
-  ['bk_end_reason', 'TEXT'],           // 폐업 | 해지 | 중단 | 신고대리전환 | 담당자변경
-  ['nts_status', 'TEXT'],              // 국세청 조회 결과 원문: 계속사업자 | 휴업자 | 폐업자
-  ['nts_checked_at', 'TEXT'],
-  ['cms_amount', 'INTEGER'],           // CMS 회원정보의 기본금액(VAT 포함 실제 출금액)
-  ['cms_status', 'TEXT'],              // 결제신청가능(출금가능 | 출금불가) 또는 회원상태
-  ['cms_pay_day', 'INTEGER'],          // 약정일(출금일)
-  ['cms_payer', 'TEXT'],               // 결제자명 — 통장 매칭 입금자명 후보
+/* ---------- 테이블 ---------- */
+const CLIENT_SQL = `CREATE TABLE IF NOT EXISTS bk_clients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_no TEXT,
+    name TEXT NOT NULL,
+    ceo_name TEXT,
+    business_number TEXT,
+    business_id INTEGER,
+    bill INTEGER,
+    pay_method TEXT,
+    pay_day INTEGER,
+    staff_name TEXT,
+    bk_start TEXT,
+    bk_end TEXT,
+    bk_end_reason TEXT,
+    cms_state TEXT,
+    can_withdraw TEXT,
+    payer TEXT,
+    cms_key TEXT,
+    wehago_name TEXT,
+    wehago_closed INTEGER DEFAULT 0,
+    nts_status TEXT,
+    nts_checked_at TEXT,
+    source TEXT,
+    memo TEXT,
+    created_at TEXT,
+    updated_at TEXT,
+    deleted_at TEXT
+  )`;
+const DDL = [
+  CLIENT_SQL,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_bkcl_member ON bk_clients(member_no)`,
+  `CREATE TABLE IF NOT EXISTS bk_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    period TEXT NOT NULL,
+    amount INTEGER,
+    paid_at TEXT,
+    source TEXT,
+    source_ref TEXT,
+    memo TEXT,
+    confirmed_by_id INTEGER,
+    created_at TEXT,
+    updated_at TEXT,
+    UNIQUE(client_id, period)
+  )`,
+  `CREATE TABLE IF NOT EXISTS bk_client_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    event_date TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    memo TEXT,
+    created_by_id INTEGER,
+    created_at TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_bkce_client ON bk_client_events(client_id, event_date)`,
+  /* CMS 출금·승인 원본 (재업로드해도 중복 안 쌓이게 UNIQUE). 2026-11-12 부터 있던 표 그대로 */
+  `CREATE TABLE IF NOT EXISTS bk_cms_tx (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_no TEXT,
+    member_name TEXT,
+    tx_date TEXT,
+    amount INTEGER,
+    status TEXT,
+    reason TEXT,
+    method TEXT,
+    business_id INTEGER,
+    period TEXT,
+    source_file TEXT,
+    created_at TEXT,
+    UNIQUE(member_no, tx_date, amount, status, method)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_bkcms_period ON bk_cms_tx(period)`,
+  `CREATE TABLE IF NOT EXISTS bk_bank_tx (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tx_date TEXT,
+    amount INTEGER,
+    payer TEXT,
+    memo TEXT,
+    business_id INTEGER,
+    period TEXT,
+    matched_by TEXT,
+    source_file TEXT,
+    created_at TEXT,
+    UNIQUE(tx_date, amount, payer, memo)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_bkbank_date ON bk_bank_tx(tx_date)`,
+  /* 위하고 명부 (참조용) — 사업자번호 기준 한 줄. 주민번호는 앞 6자리(생년월일)만 */
+  `CREATE TABLE IF NOT EXISTS bk_wehago (
+    business_number TEXT PRIMARY KEY,
+    name TEXT,
+    ceo_name TEXT,
+    staff_name TEXT,
+    birth6 TEXT,
+    closed INTEGER DEFAULT 0,
+    updated_at TEXT
+  )`,
 ];
 
-/* 테이블·컬럼 준비 — 요청마다 수십 번 ALTER 하던 것을 줄인다 (D1 은 요청 하나당 쿼리 수 제한이 있다).
-   없는 컬럼만 ALTER, 테이블·인덱스는 batch 한 번. 같은 isolate 에서는 한 번만. */
-const _schemaReady = new WeakSet();   /* DB 바인딩 객체별 */
+/* 테이블 준비 — 같은 DB 객체에는 한 번만 (D1 은 요청당 쿼리 수 제한이 있다) */
+const _schemaReady = new WeakSet();
 async function ensureSchema(db) {
   if (_schemaReady.has(db)) return;
-  let have = new Set();
+  await db.batch(DDL.map((sql) => db.prepare(sql)));
+  /* 2026-11-13 오전에 올린 CMS 결과는 날짜가 '20261112' 꼴로 저장됐다 — 'YYYY-MM-DD' 로 맞춰 재업로드 중복을 막는다 */
   try {
-    const { results } = await db.prepare(`PRAGMA table_info(businesses)`).all();
-    have = new Set((results || []).map((c) => c.name));
+    await db.prepare(`UPDATE OR IGNORE bk_cms_tx SET tx_date = substr(tx_date,1,4)||'-'||substr(tx_date,5,2)||'-'||substr(tx_date,7,2)
+                       WHERE length(tx_date) = 8 AND tx_date NOT LIKE '%-%'`).run();
   } catch {}
-  for (const [col, type] of [...BK_COLS, ['updated_at', 'TEXT']]) {
-    if (have.has(col)) continue;
-    try { await db.prepare(`ALTER TABLE businesses ADD COLUMN ${col} ${type}`).run(); } catch {}
-  }
-  /* bk_fee_ledger: 거래처 × 귀속월 청구·수납 / bk_events: 생애주기 / bk_cms_tx: CMS 원본 (UNIQUE 로 재업로드 중복 X) / bk_bank_tx: 통장 원본 */
-  await db.batch([
-    `CREATE TABLE IF NOT EXISTS bk_fee_ledger (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        business_id INTEGER NOT NULL,
-        period TEXT NOT NULL,
-        amount INTEGER,
-        paid_at TEXT,
-        source TEXT,
-        source_ref TEXT,
-        memo TEXT,
-        confirmed_by_id INTEGER,
-        created_at TEXT,
-        updated_at TEXT,
-        UNIQUE(business_id, period)
-      )`,
-    `CREATE INDEX IF NOT EXISTS idx_bkfee_period ON bk_fee_ledger(period)`,
-    `CREATE TABLE IF NOT EXISTS bk_events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        business_id INTEGER NOT NULL,
-        event_date TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        memo TEXT,
-        created_by_id INTEGER,
-        created_at TEXT
-      )`,
-    `CREATE INDEX IF NOT EXISTS idx_bkev_biz ON bk_events(business_id, event_date DESC)`,
-    `CREATE TABLE IF NOT EXISTS bk_cms_tx (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        member_no TEXT,
-        member_name TEXT,
-        tx_date TEXT,
-        amount INTEGER,
-        status TEXT,
-        reason TEXT,
-        method TEXT,
-        business_id INTEGER,
-        period TEXT,
-        source_file TEXT,
-        created_at TEXT,
-        UNIQUE(member_no, tx_date, amount, status, method)
-      )`,
-    `CREATE INDEX IF NOT EXISTS idx_bkcms_period ON bk_cms_tx(period)`,
-    `CREATE TABLE IF NOT EXISTS bk_bank_tx (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tx_date TEXT,
-        amount INTEGER,
-        payer TEXT,
-        memo TEXT,
-        business_id INTEGER,
-        period TEXT,
-        matched_by TEXT,
-        source_file TEXT,
-        created_at TEXT,
-        UNIQUE(tx_date, amount, payer, memo)
-      )`,
-    `CREATE INDEX IF NOT EXISTS idx_bkbank_date ON bk_bank_tx(tx_date)`,
-  ].map((sql) => db.prepare(sql)));
+  /* bk_bank_tx 에 client_id 칸 (옛 표에는 business_id 만 있었다) */
+  try {
+    const { results } = await db.prepare(`PRAGMA table_info(bk_bank_tx)`).all();
+    if (!(results || []).some((c) => c.name === 'client_id')) {
+      try { await db.prepare(`ALTER TABLE bk_bank_tx ADD COLUMN client_id INTEGER`).run(); } catch {}
+    }
+  } catch {}
   _schemaReady.add(db);
 }
 /** 쓰기를 묶어서 실행 (D1 batch = 한 번 왕복). 결과는 문장 순서대로. */
 async function runBatch(db, stmts, size = 50) {
   const out = [];
-  for (let i = 0; i < stmts.length; i += size) {
-    const res = await db.batch(stmts.slice(i, i + size));
-    out.push(...res);
-  }
+  for (let i = 0; i < stmts.length; i += size) out.push(...(await db.batch(stmts.slice(i, i + size))));
   return out;
 }
 const didChange = (r) => !!(r && r.meta && r.meta.changes);
 
-/* CMS 출금일 → 귀속월
- * 1차 출금은 25~28일, 실패분 재출금은 다음달 1~10일에 흩어진다.
+/* CMS 출금일 → 귀속월. 1차 출금은 25~28일, 실패분 재출금은 다음달 1~10일.
  * 20일 이후 = 당월분 / 19일 이전 = 전월분 재출금 으로 본다. */
 export function cmsPeriod(txDate) {
   const d = String(txDate || '').replace(/\D/g, '');
@@ -176,7 +216,6 @@ export function cmsPeriod(txDate) {
   if (day < 20) { m -= 1; if (m === 0) { m = 12; y -= 1; } }
   return ym(y, m);
 }
-const CMS_OK = ['출금성공', '재출금성공', '승인성공'];
 
 /** 지금(KST) 기준 그 해의 마감된 마지막 달. CMS 출금일이 25~26일이라 27일 전이면 이번 달은 아직 미도래. */
 export function lastClosedMonth(year, now = new Date(Date.now() + 9 * 3600 * 1000)) {
@@ -187,10 +226,10 @@ export function lastClosedMonth(year, now = new Date(Date.now() + 9 * 3600 * 100
 }
 
 /** 그 달에 기장 중이었나 — 계약 구간 안 + (중단·해지·폐업 ~ 재개·수임) 사이가 아님.
- *  중단 이벤트가 있는 달은 그 달까지 청구(bk_end 와 같은 규칙), 재개 이벤트가 있는 달부터 다시 청구. */
-export function activeIn(period, b, events) {
-  if (b.bk_start && period < b.bk_start) return false;
-  if (b.bk_end && period > b.bk_end) return false;
+ *  중단 이벤트가 있는 달은 그 달까지 청구, 재개 이벤트가 있는 달부터 다시 청구. */
+export function activeIn(period, c, events) {
+  if (c.bk_start && period < c.bk_start) return false;
+  if (c.bk_end && period > c.bk_end) return false;
   let active = true;
   for (const e of events || []) {                     /* event_date 오름차순 */
     const em = String(e.event_date || '').substring(0, 7);
@@ -200,15 +239,139 @@ export function activeIn(period, b, events) {
   return active;
 }
 
-/** 공공데이터포털 인증키 → URL 에 넣을 serviceKey (한 번만 인코딩).
- *  포털은 Encoding 키(%2B 처럼 이미 인코딩됨)와 Decoding 키 두 가지를 준다. 어느 쪽을 넣어도 되게:
- *  인코딩돼 있으면 풀고 다시 한 번만 인코딩한다. (예전처럼 Encoding 키를 또 인코딩하면 %252B 가 돼서 인증 실패) */
+/** 정지·해지 사유 ('' = 진행 중) — CMS 신청불능 / 결제종료일이 지남 / 해지·폐업으로 종료 /
+    출금불가인데 올린 결제조회 기간 내내 출금 시도가 한 번도 없음 (hasTx === false 일 때만 — 결제조회를 안 올렸으면 판단 안 함) */
+export function stopReason(c, nowYm = today().substring(0, 7), hasTx) {
+  if (c.cms_state && c.cms_state !== '신청완료') return 'CMS ' + c.cms_state;
+  if (c.bk_end && c.bk_end < nowYm) return (c.bk_end_reason || '종료') + ' ' + c.bk_end;
+  if (c.member_no && c.can_withdraw && c.can_withdraw !== '출금가능' && hasTx === false) return c.can_withdraw + ' · 출금 기록 없음';
+  return '';
+}
+export function isStopped(c, nowYm, hasTx) { return !!stopReason(c, nowYm, hasTx); }
+
+/** 출금 기록이 있는 회원번호 (결제조회를 아직 안 올렸으면 null) */
+async function membersWithTx(db) {
+  const { results } = await db.prepare(`SELECT DISTINCT member_no FROM bk_cms_tx`).all();
+  return results && results.length ? new Set(results.map((r) => r.member_no)) : null;
+}
+
+/** CMS 생년월일/사업자번호 칸 → 맞춤용 키만: 개인 = 생년월일 6자리, 사업자 = 앞 5자리.
+    주민번호 뒷자리는 (가려져 있지 않아도) 절대 저장하지 않는다. */
+export function cmsKey(raw) {
+  const v = String(raw || '').trim();
+  if (/^\d{6}(-|$|\s|\*)/.test(v)) return v.slice(0, 6);
+  /* 사업자번호 — CMS 파일은 '12345*****' 처럼 앞 5자리만 보여 준다 (2026-11-13 실제 파일 38곳) */
+  const d = v.replace(/-/g, '');
+  if (/^\d{5}[\d*]{5}$/.test(d) || /^\d{5}$/.test(d)) return d.slice(0, 5);   /* 화면이 이미 5자리로 잘라 보냄 */
+  return null;
+}
+
+/** 공공데이터포털 인증키 → URL 에 넣을 serviceKey (한 번만 인코딩). Encoding·Decoding 키 아무거나. */
 export function ntsServiceKey(raw) {
   const k = String(raw || '').trim();
   if (!k) return '';
   let plain = k;
   if (/%[0-9A-Fa-f]{2}/.test(k)) { try { plain = decodeURIComponent(k); } catch { plain = k; } }
   return encodeURIComponent(plain);
+}
+
+/** CMS 성공 거래 → 원장 ○ (회원번호로 거래처 연결). 이미 ○ 인 달은 그대로. 언제 돌려도 같은 결과. */
+/* CMS 기록 → 장부. 다시 돌려도 결과가 같다 (회원목록·결제조회 어느 쪽을 먼저 올려도 됨).
+   귀속월 = 그 거래처 약정일 기준: 출금일이 약정일(25일 넘으면 25일 — 말일 약정이 2월·휴일로 당겨져도) 이후면 그 달, 전이면 전달(재출금).
+   약정일을 모르면 20일 기준. 2026-11-13 실제 파일: 약정일 25일 189곳·19일·30일·1일 각 1곳.
+   CMS 가 만든 칸(source CMS·CMS카드)만 지우고 다시 만든다 — 수기 입금확인은 그대로. */
+async function deriveCmsLedger(db) {
+  const now = kst();
+  await db.batch([
+    db.prepare(
+      `UPDATE bk_cms_tx SET period = CASE
+         WHEN CAST(substr(tx_date, 9, 2) AS INTEGER) >= MIN(25, COALESCE((
+              SELECT c.pay_day FROM bk_clients c WHERE c.member_no = bk_cms_tx.member_no
+                AND c.pay_day BETWEEN 1 AND 31 AND (c.deleted_at IS NULL OR c.deleted_at = '') LIMIT 1), 20))
+           THEN substr(tx_date, 1, 7)
+         ELSE strftime('%Y-%m', substr(tx_date, 1, 7) || '-01', '-1 month') END
+       WHERE tx_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*'`
+    ),
+    db.prepare(`DELETE FROM bk_ledger WHERE source IN ('CMS', 'CMS카드')`),
+    db.prepare(
+      `INSERT INTO bk_ledger (client_id, period, amount, paid_at, source, source_ref, created_at, updated_at)
+       SELECT c.id, t.period, MAX(t.amount), MIN(substr(t.tx_date, 1, 10)),
+              CASE WHEN MAX(t.method) = 'CMS카드' THEN 'CMS카드' ELSE 'CMS' END, MIN(t.member_no), ?1, ?1
+         FROM bk_cms_tx t JOIN bk_clients c ON c.member_no = t.member_no AND (c.deleted_at IS NULL OR c.deleted_at = '')
+        WHERE t.status IN ('출금성공','재출금성공','승인성공') AND t.period IS NOT NULL
+        GROUP BY c.id, t.period
+       ON CONFLICT(client_id, period) DO UPDATE SET
+         paid_at = COALESCE(bk_ledger.paid_at, excluded.paid_at),
+         source = COALESCE(bk_ledger.source, excluded.source),
+         source_ref = COALESCE(bk_ledger.source_ref, excluded.source_ref),
+         amount = COALESCE(bk_ledger.amount, excluded.amount),
+         updated_at = excluded.updated_at`
+    ).bind(now),
+  ]);
+}
+
+/** 위하고 명부·admin 업체와 다시 맞추기 — 회원목록·위하고 어느 쪽을 먼저 올려도 결과가 같게.
+ *  자동으로 채우는 건 확실할 때만: 상호가 정확히 같고 한 곳, 또는 이름이 비슷하고 생년월일·사업자번호 앞자리까지 맞을 때.
+ *  이미 들어 있는 사업자번호·대표자·담당은 덮어쓰지 않는다. */
+async function relink(db) {
+  const { results: clients } = await db.prepare(
+    `SELECT id, name, ceo_name, business_number, business_id, staff_name, cms_key, wehago_name, wehago_closed FROM bk_clients WHERE ${NOT_DELETED}`
+  ).all();
+  const { results: wh } = await db.prepare(`SELECT * FROM bk_wehago`).all();
+  const { results: biz } = await db.prepare(
+    `SELECT id, business_number FROM businesses WHERE ${NOT_DELETED} AND business_number IS NOT NULL AND business_number != ''`
+  ).all();
+  const wrows = (wh || []).map((w) => ({ ...w, keys: nameKeys(w.name) }));
+  const byKey = {};
+  for (const w of wrows) for (const k of w.keys) (byKey[k] ||= []).push(w);
+  const bizByBn = {};
+  for (const b of biz || []) { const k = normBiz(b.business_number); if (k.length === 10) (bizByBn[k] ||= []).push(b.id); }
+
+  const writes = [], unmatched = [];
+  let matched = 0, linked = 0;
+  const now = kst();
+  for (const c of clients || []) {
+    const sets = [], vals = [];
+    let bn = normBiz(c.business_number);
+    let w = null;
+    if (bn.length === 10) w = wrows.find((x) => normBiz(x.business_number) === bn) || null;
+    if (!w && wrows.length) {
+      const ck = nameKeys(c.name);
+      let cand = [...new Set(ck.flatMap((k) => byKey[k] || []))];
+      let exact = cand.length > 0;
+      if (!cand.length) {
+        cand = wrows.filter((x) => x.keys.some((k) => k.length >= 4 && ck.some((q) => q.length >= 4 && (k.includes(q) || q.includes(k)))));
+      }
+      const live = cand.filter((x) => !x.closed);
+      if (live.length) cand = live;
+      /* 생년월일(개인) · 사업자번호 앞 5자리(법인)로 가린다 */
+      const key = String(c.cms_key || '').trim();
+      const byBirth = /^\d{6}$/.test(key) ? cand.filter((x) => x.birth6 === key) : [];
+      const byPrefix = /^\d{5}/.test(key) && !/^\d{6}$/.test(key) ? cand.filter((x) => normBiz(x.business_number).startsWith(key.slice(0, 5))) : [];
+      const verified = byBirth.length === 1 ? byBirth : byPrefix.length === 1 ? byPrefix : null;
+      if (verified) w = verified[0];
+      else if (exact && cand.length === 1) w = cand[0];
+    }
+    if (w) {
+      matched++;
+      if (bn.length !== 10) { bn = normBiz(w.business_number); sets.push('business_number = ?'); vals.push(w.business_number); }
+      if (!c.ceo_name && w.ceo_name) { sets.push('ceo_name = ?'); vals.push(w.ceo_name); }
+      if (!c.staff_name && w.staff_name) { sets.push('staff_name = ?'); vals.push(w.staff_name); }
+      if (c.wehago_name !== w.name || Number(c.wehago_closed || 0) !== (w.closed ? 1 : 0)) {
+        sets.push('wehago_name = ?', 'wehago_closed = ?'); vals.push(w.name, w.closed ? 1 : 0);
+      }
+    } else if (wrows.length) unmatched.push({ id: c.id, name: c.name });
+    /* admin 업체 연결 — 사업자번호가 같은 곳이 딱 한 곳일 때만 */
+    if (!c.business_id && bn.length === 10 && (bizByBn[bn] || []).length === 1) {
+      sets.push('business_id = ?'); vals.push(bizByBn[bn][0]); linked++;
+    }
+    if (sets.length) {
+      sets.push('updated_at = ?'); vals.push(now, c.id);
+      writes.push(db.prepare(`UPDATE bk_clients SET ${sets.join(', ')} WHERE id = ?`).bind(...vals));
+    }
+  }
+  await runBatch(db, writes);
+  return { matched, linked, unmatched };
 }
 
 const errJson = (msg, status = 400) => Response.json({ error: msg }, { status });
@@ -225,86 +388,104 @@ export async function onRequestGet(context) {
     const action = url.searchParams.get('action') || 'grid';
     const year = Number(url.searchParams.get('year')) || new Date().getFullYear();
 
-    /* 신규 수임용 거래처 검색 — 기장료 미등록 거래처까지 */
+    /* admin 업체 검색 — 거래처 연결 · 신규 수임 */
     if (action === 'search_biz') {
       const q = (url.searchParams.get('q') || '').trim().slice(0, 40);
       if (!q) return Response.json({ ok: true, results: [] });
       const dq = q.replace(/\D/g, '');
       const { results } = await db.prepare(
-        `SELECT id, company_name, ceo_name, business_number, monthly_fee, cms_member_no,
-                pay_method, staff_name, bk_start, bk_end, bk_end_reason
-           FROM businesses
+        `SELECT id, company_name, ceo_name, business_number FROM businesses
           WHERE ${NOT_DELETED} AND (company_name LIKE ?1 OR ceo_name LIKE ?1
                 OR (?2 != '' AND REPLACE(business_number, '-', '') LIKE ?3))
-          ORDER BY (monthly_fee IS NOT NULL AND monthly_fee > 0) ASC, company_name
-          LIMIT 30`
+          ORDER BY company_name LIMIT 30`
       ).bind(`%${q}%`, dq, `%${dq}%`).all();
       return Response.json({ ok: true, results: results || [] });
     }
 
-    if (action === 'contracts') {
-      const { results } = await db.prepare(
-        `SELECT id, company_name, ceo_name, business_number, monthly_fee, cms_member_no,
-                pay_method, staff_name, bk_start, bk_end, bk_end_reason, nts_status, nts_checked_at
-           FROM businesses
-          WHERE ${NOT_DELETED} AND (monthly_fee IS NOT NULL OR cms_member_no IS NOT NULL OR bk_start IS NOT NULL)
-          ORDER BY staff_name, company_name`
-      ).all();
-      return Response.json({ ok: true, contracts: results || [] });
-    }
-
     if (action === 'grid') {
-      const { results: biz } = await db.prepare(
-        `SELECT id, company_name, ceo_name, business_number, monthly_fee, cms_member_no,
-                pay_method, staff_name, bk_start, bk_end, bk_end_reason, nts_status,
-                cms_amount, cms_status, cms_pay_day
-           FROM businesses
-          WHERE ${NOT_DELETED} AND monthly_fee IS NOT NULL AND monthly_fee > 0
-          ORDER BY staff_name, company_name`
+      const view = ['stopped', 'all'].includes(url.searchParams.get('view')) ? url.searchParams.get('view') : 'active';
+      const { results: cl } = await db.prepare(
+        `SELECT * FROM bk_clients WHERE ${NOT_DELETED} AND bill IS NOT NULL AND bill > 0 ORDER BY staff_name, name`
       ).all();
       const { results: led } = await db.prepare(
-        `SELECT business_id, period, amount, paid_at, source, memo
-           FROM bk_fee_ledger WHERE period LIKE ?1`
+        `SELECT client_id, period, amount, paid_at, source FROM bk_ledger WHERE period LIKE ?1`
       ).bind(`${year}-%`).all();
       const { results: evs } = await db.prepare(
-        `SELECT business_id, event_date, kind, memo FROM bk_events ORDER BY event_date, id`
+        `SELECT client_id, event_date, kind, memo FROM bk_client_events ORDER BY event_date, id`
       ).all();
+      /* CMS 시도 기록 (실패 사유·출금중) + 자료 범위 */
+      const { results: tx } = await db.prepare(
+        `SELECT member_no, period, status, reason, tx_date FROM bk_cms_tx WHERE period LIKE ?1 ORDER BY tx_date`
+      ).bind(`${year}-%`).all();
+      /* 자료 범위 — 결제수단별로. 시작 = 그 달 본출금(약정일 이후 출금)이 파일에 있는 첫 달.
+         (5월 초 재출금만 있는 4월은 본출금이 빠져 있어 ✕ 로 찍으면 안 된다 — 2026-11-13 실제 파일) */
+      const { results: covRows } = await db.prepare(
+        `SELECT method, period, COUNT(DISTINCT member_no) AS n FROM bk_cms_tx
+          WHERE period IS NOT NULL AND substr(tx_date, 1, 7) = period GROUP BY method, period`
+      ).all();
+      /* 본출금 회원 수가 가장 많은 달의 절반 이상인 달만 "자료 있음" — 약정일 1일 한 곳의 11/2 출금만으로
+         11월을 자료 있음으로 보면 27일 이후 나머지 거래처가 전부 ✕ 가 된다 (2026-11-13 검토) */
+      const covBy = {};
+      const closedYm = (() => { const t = today(); const y = +t.slice(0, 4), m = +t.slice(5, 7);
+        return +t.slice(8, 10) >= 27 ? ym(y, m) : (m === 1 ? ym(y - 1, 12) : ym(y, m - 1)); })();
+      const perMethod = {};
+      for (const r of covRows || []) (perMethod[r.method] ||= []).push(r);
+      for (const [mth, list] of Object.entries(perMethod)) {
+        const max = Math.max(...list.map((r) => r.n));
+        const ok = list.filter((r) => r.n * 2 >= max && r.period <= closedYm).map((r) => r.period).sort();
+        if (ok.length) covBy[mth] = { from: ok[0], to: ok[ok.length - 1] };
+      }
+      const covOf = (c) => covBy[c.pay_method === 'CMS카드' ? 'CMS카드' : 'CMS계좌'] || null;
 
-      const byBiz = {};
-      for (const r of (led || [])) (byBiz[r.business_id] ||= {})[r.period] = r;
+      const ledBy = {};
+      for (const r of led || []) (ledBy[r.client_id] ||= {})[r.period] = r;
       const evBy = {};
-      for (const e of (evs || [])) (evBy[e.business_id] ||= []).push(e);
+      for (const e of evs || []) (evBy[e.client_id] ||= []).push(e);
+      const txBy = {};
+      for (const t of tx || []) (txBy[t.member_no + '|' + t.period] ||= []).push(t);
 
       const lastClosed = lastClosedMonth(year);
-      const rows = (biz || []).map(b => {
-        const bill = Math.round((b.monthly_fee || 0) * 1.1);
-        const events = evBy[b.id] || [];
+      const nowYm = today().substring(0, 7);
+      const txMembers = await membersWithTx(db);
+      let stoppedCount = 0, activeCount = 0;
+      const rows = [];
+      for (const c of cl || []) {
+        const stop = stopReason(c, nowYm, txMembers && c.member_no ? txMembers.has(c.member_no) : undefined);
+        const stopped = !!stop;
+        if (stopped) stoppedCount++; else activeCount++;
+        if ((view === 'active' && stopped) || (view === 'stopped' && !stopped)) continue;
+        const events = evBy[c.id] || [];
+        const isCms = !!c.member_no;
+        const cov = isCms ? covOf(c) : null;
         const cells = [];
         for (let m = 1; m <= 12; m++) {
           const p = ym(year, m);
-          const rec = byBiz[b.id]?.[p];
-          /* 입금 기록이 있으면 구간 밖이어도 보여준다 (기록을 숨기지 않음) */
-          if (rec && rec.paid_at) { cells.push({ s: 'o', d: rec.paid_at, a: rec.amount || bill, src: rec.source || '' }); continue; }
-          if (!activeIn(p, b, events)) { cells.push({ s: '-' }); continue; }
+          const rec = ledBy[c.id]?.[p];
+          if (rec && rec.paid_at) { cells.push({ s: 'o', d: rec.paid_at, a: rec.amount || c.bill, src: rec.source || '' }); continue; }
+          if (!activeIn(p, c, events)) { cells.push({ s: '-' }); continue; }
           if (m > lastClosed) { cells.push({ s: '-', future: true }); continue; }
-          cells.push({ s: 'x', a: (rec && rec.amount) || bill, p });
+          if (isCms && (!cov || p < cov.from || p > cov.to)) { cells.push({ s: '-', nodata: true }); continue; }
+          const tries = isCms ? (txBy[c.member_no + '|' + p] || []) : [];
+          const last = tries[tries.length - 1];
+          if (last && CMS_PENDING.includes(last.status)) { cells.push({ s: 'p', a: c.bill, why: last.status }); continue; }
+          const why = last ? (last.status + (last.reason && last.reason !== '정상' ? ' · ' + last.reason : ''))
+            : isCms ? (c.can_withdraw && c.can_withdraw !== '출금가능' ? c.can_withdraw + ' — CMS 출금 시도 없음' : 'CMS 출금 기록 없음')
+            : '';
+          cells.push({ s: 'x', a: (rec && rec.amount) || c.bill, why });
         }
-        return {
-          id: b.id, name: b.company_name, ceo: b.ceo_name, biz_no: b.business_number,
-          staff: b.staff_name || '', fee: bill, cms: b.cms_member_no || '', pay: b.pay_method || '',
-          start: b.bk_start || '', end: b.bk_end || '', end_reason: b.bk_end_reason || '',
-          nts: b.nts_status || '', cms_amt: b.cms_amount || null, cms_st: b.cms_status || '',
-          cms_day: b.cms_pay_day || null, events, cells,
-        };
-      });
-      const openAmt = rows.reduce((a, r) => a + r.cells.filter(c => c.s === 'x').reduce((s, c) => s + (c.a || 0), 0), 0);
+        rows.push({
+          id: c.id, name: c.name, ceo: c.ceo_name || '', biz_no: c.business_number || '', business_id: c.business_id || null,
+          staff: c.staff_name || '', fee: c.bill, cms: c.member_no || '', pay: c.pay_method || '', pay_day: c.pay_day || null,
+          start: c.bk_start || '', end: c.bk_end || '', end_reason: c.bk_end_reason || '',
+          nts: c.nts_status || '', cms_st: c.can_withdraw || '', cms_state: c.cms_state || '',
+          wehago: c.wehago_name || '', wehago_closed: !!c.wehago_closed, source: c.source || '',
+          stopped, stop_reason: stop, events, cells,
+        });
+      }
+      const openAmt = rows.reduce((a, r) => a + r.cells.filter(x => x.s === 'x').reduce((s, x) => s + (x.a || 0), 0), 0);
       return Response.json({
-        ok: true, year, lastClosed, rows,
-        total: {
-          biz: rows.length,
-          openAmt,
-          openBiz: rows.filter(r => r.cells.some(c => c.s === 'x')).length,
-        },
+        ok: true, year, view, lastClosed, coverage: covBy['CMS계좌'] || covBy['CMS카드'] || null, coverage_by: covBy, rows,
+        total: { active: activeCount, stopped: stoppedCount, biz: rows.length, openAmt, openBiz: rows.filter(r => r.cells.some(x => x.s === 'x')).length },
       });
     }
 
@@ -317,7 +498,6 @@ export async function onRequestGet(context) {
 
 /* ============================ POST ============================ */
 export async function onRequestPost(context) {
-  /* Phase 14 패턴 — CSRF Origin/Referer 가드 */
   const __csrf = checkOriginCsrf(context.request, context.env);
   if (__csrf) return __csrf;
   const auth = await checkAdmin(context);
@@ -331,269 +511,309 @@ export async function onRequestPost(context) {
   const uid = auth.userId || null;
   const actor = auth.owner ? 'owner' : ('staff#' + (uid || '?'));
   const audit = (act, entity_id, after) =>
-    logAudit(db, { actor, action: act, entity_type: 'business', entity_id, after, request: context.request });
+    logAudit(db, { actor, action: act, entity_type: 'bk_client', entity_id, after, request: context.request });
 
   try {
     await ensureSchema(db);
 
-    /* ---- 기장료 계약 저장 ---- */
-    if (action === 'save_contract') {
-      const business_id = Number(body.business_id);
-      if (!business_id) return errJson('business_id 가 필요합니다');
-      const sets = [], vals = [], after = {};
-      const put = (k, v) => { sets.push(`${k} = ?`); vals.push(v); after[k] = v; };
-      if ('monthly_fee' in body) {
-        const n = body.monthly_fee === '' || body.monthly_fee == null ? null : Number(body.monthly_fee);
-        if (n !== null && (!Number.isFinite(n) || n < 0)) return errJson('기장료는 숫자로 적어 주세요');
-        put('monthly_fee', n === null ? null : Math.round(n));
+    /* ---- 거래처 저장 (수정 · 신규 수임) ---- */
+    if (action === 'save_client') {
+      const id = Number(body.id) || null;
+      const sets = {}, now = kst();
+      if ('name' in body) {
+        const n = String(body.name || '').trim().slice(0, 80);
+        if (!n) return errJson('거래처 이름을 적어 주세요');
+        sets.name = n;
       }
-      for (const k of ['cms_member_no', 'pay_method', 'staff_name', 'bk_end_reason']) {
-        if (k in body) put(k, body[k] === '' || body[k] == null ? null : String(body[k]).trim().slice(0, 60));
+      if ('bill' in body) {
+        const n = body.bill === '' || body.bill == null ? null : money(body.bill);
+        if (n !== null && n <= 0) return errJson('월 기장료(부가세 포함)를 숫자로 적어 주세요');
+        sets.bill = n;
       }
+      for (const k of ['ceo_name', 'business_number', 'pay_method', 'staff_name', 'bk_end_reason', 'memo']) {
+        if (k in body) sets[k] = body[k] === '' || body[k] == null ? null : String(body[k]).trim().slice(0, k === 'memo' ? 300 : 60);
+      }
+      if ('business_id' in body) sets.business_id = Number(body.business_id) || null;
       for (const k of ['bk_start', 'bk_end']) {
         if (!(k in body)) continue;
-        if (body[k] === '' || body[k] == null) { put(k, null); continue; }
+        if (body[k] === '' || body[k] == null) { sets[k] = null; continue; }
         const v = normYm(body[k]);
         if (!v) return errJson('기장 시작·종료는 YYYY-MM 으로 적어 주세요');
-        put(k, v);
+        sets[k] = v;
       }
-      /* 신규 수임인데 예전에 기장했다 끝난 거래처면: 예전 시작월은 그대로 두고(이력 보존),
-         예전 종료가 이벤트로 안 남아 있으면 종료 기록을 남겨 그 사이가 격자에서 '–' 가 되게 한다 */
-      let prevEndToRecord = null;
-      if (body.as_new && !(Number(after.monthly_fee) > 0)) return errJson('신규 수임은 기장료를 적어 주세요');
-      if (body.as_new) {
-        const start = after.bk_start || today().substring(0, 7);
-        const cur = await db.prepare(`SELECT bk_start, bk_end, bk_end_reason FROM businesses WHERE id = ?1`).bind(business_id).first();
-        if (cur && cur.bk_start && cur.bk_start < start && cur.bk_end && cur.bk_end < start) {
-          const ev = await db.prepare(
-            `SELECT 1 FROM bk_events WHERE business_id = ?1 AND kind IN ('중단','해지','폐업') AND substr(event_date,1,7) = ?2 LIMIT 1`
-          ).bind(business_id, cur.bk_end).first();
-          if (!ev) prevEndToRecord = { month: cur.bk_end, kind: STOP_KINDS.includes(cur.bk_end_reason) ? cur.bk_end_reason : '해지' };
-          const i = sets.indexOf('bk_start = ?');
-          if (i >= 0) { sets.splice(i, 1); vals.splice(i, 1); }
-          after.bk_start = start;
-        } else if (!after.bk_start) put('bk_start', start);
-      }
-      if (!sets.length) return errJson('바꿀 내용이 없습니다');
-      sets.push('updated_at = ?'); vals.push(kst());
-      vals.push(business_id);
-      await db.prepare(`UPDATE businesses SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
-
-      /* 신규 수임 (화면 [+ 신규 수임]) — 수임 기록 + 시작월~마감월 청구 행 (해가 바뀌어도) */
-      let seeded = 0;
-      if (body.as_new) {
-        const start = after.bk_start || today().substring(0, 7);
-        const fee = Number(after.monthly_fee) || 0;
-        if (prevEndToRecord) {
-          await db.prepare(
-            `INSERT INTO bk_events (business_id, event_date, kind, memo, created_by_id, created_at) VALUES (?1,?2,?3,?4,?5,?6)`
-          ).bind(business_id, prevEndToRecord.month + '-01', prevEndToRecord.kind, '신규 수임 전 이전 기장 종료 (자동 기록)', uid, kst()).run();
-        }
+      let clientId = id;
+      if (!id) {
+        if (!sets.name || !sets.bill) return errJson('신규 수임은 거래처 이름과 월 기장료가 필요합니다');
+        sets.bk_start = sets.bk_start || today().substring(0, 7);
+        sets.pay_method = sets.pay_method || '직접이체';
+        const cols = Object.keys(sets);
+        const r = await db.prepare(
+          `INSERT INTO bk_clients (${cols.join(', ')}, source, created_at, updated_at) VALUES (${cols.map(() => '?').join(', ')}, 'manual', ?, ?)`
+        ).bind(...cols.map((k) => sets[k]), now, now).run();
+        clientId = r.meta?.last_row_id;
         await db.prepare(
-          `INSERT INTO bk_events (business_id, event_date, kind, memo, created_by_id, created_at)
-           VALUES (?1,?2,'수임',?3,?4,?5)`
-        ).bind(business_id, start + '-01', body.memo ? String(body.memo).slice(0, 300) : null, uid, kst()).run();
-        await db.prepare(`UPDATE businesses SET bk_end = NULL, bk_end_reason = NULL WHERE id = ?1`).bind(business_id).run();
-        const sy = Number(start.slice(0, 4)), sm = Number(start.slice(5, 7));
-        const cy = new Date(Date.now() + 9 * 3600 * 1000).getUTCFullYear();
-        const bill = Math.round(fee * 1.1);
-        for (let y = sy; y <= cy; y++) {
-          const to = lastClosedMonth(y);
-          for (let mo = (y === sy ? sm : 1); mo <= to; mo++) {
-            const r = await db.prepare(
-              `INSERT OR IGNORE INTO bk_fee_ledger (business_id, period, amount, created_at, updated_at)
-               VALUES (?1,?2,?3,?4,?4)`
-            ).bind(business_id, ym(y, mo), bill, kst()).run();
-            if (r?.meta?.changes) seeded++;
-          }
-        }
+          `INSERT INTO bk_client_events (client_id, event_date, kind, memo, created_by_id, created_at) VALUES (?1,?2,'수임',?3,?4,?5)`
+        ).bind(clientId, sets.bk_start + '-01', sets.memo || null, uid, now).run();
+      } else {
+        const cols = Object.keys(sets);
+        if (!cols.length) return errJson('바꿀 내용이 없습니다');
+        await db.prepare(`UPDATE bk_clients SET ${cols.map((k) => k + ' = ?').join(', ')}, updated_at = ? WHERE id = ?`)
+          .bind(...cols.map((k) => sets[k]), now, id).run();
       }
-      await audit(body.as_new ? 'bk_new_contract' : 'bk_contract_save', business_id, { ...after, ledger_rows: seeded });
-      return Response.json({ ok: true, ledger_rows: seeded });
+      await audit(id ? 'bk_client_save' : 'bk_client_new', clientId, sets);
+      return Response.json({ ok: true, id: clientId });
     }
 
-    /* ---- 생애주기 이벤트 (수임/재개/중단/해지/폐업/담당변경) ---- */
+    /* ---- 생애주기 이벤트 ---- */
     if (action === 'event') {
-      const business_id = Number(body.business_id);
+      const client_id = Number(body.client_id);
       const kind = String(body.kind || '');
-      if (!business_id || !EVENT_KINDS.includes(kind)) return errJson('거래처와 구분(수임·재개·중단·해지·폐업·담당변경)이 필요합니다');
+      if (!client_id || !EVENT_KINDS.includes(kind)) return errJson('거래처와 구분(수임·재개·중단·해지·폐업·담당변경)이 필요합니다');
       const d = body.event_date ? String(body.event_date) : today();
       if (!isYmd(d)) return errJson('날짜는 YYYY-MM-DD 로 적어 주세요');
       const p = d.substring(0, 7);
       const memo = body.memo ? String(body.memo).slice(0, 300) : null;
       await db.prepare(
-        `INSERT INTO bk_events (business_id, event_date, kind, memo, created_by_id, created_at)
-         VALUES (?1,?2,?3,?4,?5,?6)`
-      ).bind(business_id, d, kind, memo, uid, kst()).run();
-
-      /* 이벤트가 계약 구간을 움직인다.
-         재개·수임은 시작월을 덮어쓰지 않는다 (덮어쓰면 그 전 입금 이력이 격자에서 사라짐) —
-         중단~재개 사이는 격자가 이벤트로 '-' 처리한다. 시작월이 없거나 더 늦을 때만 당긴다. */
+        `INSERT INTO bk_client_events (client_id, event_date, kind, memo, created_by_id, created_at) VALUES (?1,?2,?3,?4,?5,?6)`
+      ).bind(client_id, d, kind, memo, uid, kst()).run();
+      /* 재개·수임은 시작월을 덮어쓰지 않는다 (덮어쓰면 그 전 입금 이력이 격자에서 사라짐) */
       if (START_KINDS.includes(kind)) {
         await db.prepare(
-          `UPDATE businesses SET bk_start = CASE WHEN bk_start IS NULL OR bk_start = '' OR bk_start > ?1 THEN ?1 ELSE bk_start END,
+          `UPDATE bk_clients SET bk_start = CASE WHEN bk_start IS NULL OR bk_start = '' OR bk_start > ?1 THEN ?1 ELSE bk_start END,
                   bk_end = NULL, bk_end_reason = NULL, updated_at = ?2 WHERE id = ?3`
-        ).bind(p, kst(), business_id).run();
+        ).bind(p, kst(), client_id).run();
       } else if (STOP_KINDS.includes(kind)) {
-        await db.prepare(`UPDATE businesses SET bk_end = ?1, bk_end_reason = ?2, updated_at = ?3 WHERE id = ?4`)
-          .bind(p, kind, kst(), business_id).run();
+        await db.prepare(`UPDATE bk_clients SET bk_end = ?1, bk_end_reason = ?2, updated_at = ?3 WHERE id = ?4`)
+          .bind(p, kind, kst(), client_id).run();
       }
-      await audit('bk_event', business_id, { kind, event_date: d, memo });
+      await audit('bk_event', client_id, { kind, event_date: d, memo });
       return Response.json({ ok: true });
     }
 
     /* ---- 수기 입금확인 / 해제 ---- */
     if (action === 'mark_paid' || action === 'unmark_paid') {
-      const business_id = Number(body.business_id);
+      const client_id = Number(body.client_id);
       const period = normYm(body.period);
-      if (!business_id || !period) return errJson('거래처와 귀속월(YYYY-MM)이 필요합니다');
+      if (!client_id || !period) return errJson('거래처와 귀속월(YYYY-MM)이 필요합니다');
       if (action === 'unmark_paid') {
-        await db.prepare(`UPDATE bk_fee_ledger SET paid_at = NULL, source = NULL, source_ref = NULL, updated_at = ?1
-                           WHERE business_id = ?2 AND period = ?3`).bind(kst(), business_id, period).run();
-        await audit('bk_unmark_paid', business_id, { period });
+        await db.prepare(`UPDATE bk_ledger SET paid_at = NULL, source = NULL, source_ref = NULL, updated_at = ?1
+                           WHERE client_id = ?2 AND period = ?3 AND source = '수기'`).bind(kst(), client_id, period).run();
+        await audit('bk_unmark_paid', client_id, { period });
         return Response.json({ ok: true });
       }
       const paidAt = body.paid_at ? String(body.paid_at) : today();
       if (!isYmd(paidAt)) return errJson('입금일은 YYYY-MM-DD 로 적어 주세요');
-      const b = await db.prepare(`SELECT monthly_fee FROM businesses WHERE id = ?1`).bind(business_id).first();
+      const c = await db.prepare(`SELECT bill FROM bk_clients WHERE id = ?1`).bind(client_id).first();
       const given = Number(body.amount);
-      const amt = Number.isFinite(given) && given > 0 ? Math.round(given) : Math.round((b?.monthly_fee || 0) * 1.1);
+      const amt = Number.isFinite(given) && given > 0 ? Math.round(given) : (c?.bill || 0);
       const memo = body.memo ? String(body.memo).slice(0, 300) : null;
       await db.prepare(
-        `INSERT INTO bk_fee_ledger (business_id, period, amount, paid_at, source, memo, confirmed_by_id, created_at, updated_at)
+        `INSERT INTO bk_ledger (client_id, period, amount, paid_at, source, memo, confirmed_by_id, created_at, updated_at)
          VALUES (?1,?2,?3,?4,'수기',?5,?6,?7,?7)
-         ON CONFLICT(business_id, period) DO UPDATE SET
+         ON CONFLICT(client_id, period) DO UPDATE SET
            paid_at = excluded.paid_at, source = excluded.source, memo = excluded.memo,
-           amount = COALESCE(bk_fee_ledger.amount, excluded.amount),
+           amount = COALESCE(bk_ledger.amount, excluded.amount),
            confirmed_by_id = excluded.confirmed_by_id, updated_at = excluded.updated_at`
-      ).bind(business_id, period, amt, paidAt, memo, uid, kst()).run();
-      await audit('bk_mark_paid', business_id, { period, amount: amt, paid_at: paidAt });
+      ).bind(client_id, period, amt, paidAt, memo, uid, kst()).run();
+      await audit('bk_mark_paid', client_id, { period, amount: amt, paid_at: paidAt });
       return Response.json({ ok: true });
     }
 
-    /* ---- CMS 출금결과 업로드 ---- */
-    if (action === 'import_cms') {
-      const rows = Array.isArray(body.rows) ? body.rows.slice(0, 5000) : [];
-      if (!rows.length) return errJson('읽을 행이 없습니다');
-      const { results: biz } = await db.prepare(
-        `SELECT id, cms_member_no FROM businesses WHERE ${NOT_DELETED} AND cms_member_no IS NOT NULL AND cms_member_no != ''`
-      ).all();
-      const byCms = {};
-      /* 회원번호가 둘인 거래처는 'M001/M002' 로 저장된다 — 각각 연결 */
-      for (const b of (biz || [])) for (const n of cmsNos(b.cms_member_no)) byCms[n] = b.id;
-
-      let paid = 0;
-      const unknown = new Set();
-      const txStmts = [], ledStmts = [];
-      const now = kst();
-      for (const r of rows) {
+    /* ---- CMS 회원목록 = 기장료 거래처 명단 ----
+       회원번호마다 한 거래처. 기본금액 = 월 청구액(부가세 포함), 결제시작일 = 시작월(이미 있으면 유지),
+       결제종료일(9999 아닌 것) = 종료월, 회원상태 신청불능 = 정지. 다시 올리면 금액·상태만 최신으로. */
+    if (action === 'import_cms_members') {
+      const rows = (Array.isArray(body.rows) ? body.rows.slice(0, 3000) : []).filter((r) => {
         const no = String(r.member_no || '').trim();
-        if (!no || SKIP_ROW.test(no)) continue;
-        const bid = byCms[no] || null;
-        if (!bid) unknown.add(no + ' / ' + (r.member_name || ''));
-        const p = cmsPeriod(r.tx_date);
-        const amount = Math.round(Number(String(r.amount ?? '').replace(/[^\d.-]/g, ''))) || 0;
-        const status = String(r.status || '').trim();
-        txStmts.push(db.prepare(
-          `INSERT OR IGNORE INTO bk_cms_tx (member_no, member_name, tx_date, amount, status, reason, method,
-                                            business_id, period, source_file, created_at)
-           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)`
-        ).bind(no, r.member_name || null, String(r.tx_date || ''), amount,
-               status, r.reason || '', r.method || 'CMS계좌',
-               bid, p, body.source_file || null, now));
-        // 성공 건은 원장에 수납으로 반영 (이미 입금 표시된 달은 그대로)
-        if (bid && p && CMS_OK.includes(status)) {
-          const d = String(r.tx_date).replace(/\D/g, '');
-          const paidAt = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
-          ledStmts.push(db.prepare(
-            `INSERT INTO bk_fee_ledger (business_id, period, amount, paid_at, source, source_ref, created_at, updated_at)
-             VALUES (?1,?2,?3,?4,'CMS',?5,?6,?6)
-             ON CONFLICT(business_id, period) DO UPDATE SET
-               paid_at = COALESCE(bk_fee_ledger.paid_at, excluded.paid_at),
-               source = COALESCE(bk_fee_ledger.source, excluded.source),
-               source_ref = COALESCE(bk_fee_ledger.source_ref, excluded.source_ref),
-               updated_at = excluded.updated_at`
-          ).bind(bid, p, amount, paidAt, no + '@' + r.tx_date, now));
-          paid++;
-        }
+        return /^M\d+$/i.test(no) && !SKIP_ROW.test(String(r.member_name || '').trim());
+      });
+      if (!rows.length) return errJson('읽을 회원 행이 없습니다');
+      const { results: had } = await db.prepare(`SELECT member_no FROM bk_clients WHERE member_no IS NOT NULL`).all();
+      const known = new Set((had || []).map((x) => x.member_no));
+      const now = kst();
+      let added = 0, updated = 0;
+      const stmts = [];
+      for (const r of rows) {
+        const no = String(r.member_no).trim().toUpperCase();
+        const name = String(r.member_name || '').trim().slice(0, 80) || no;
+        const bill = money(r.amount) || null;
+        const start = normYm(r.start_date);
+        const endRaw = String(r.end_date || '').replace(/\D/g, '');
+        const end = endRaw && !endRaw.startsWith('9999') ? normYm(endRaw) : null;
+        const payType = String(r.pay_type || '').trim();
+        const method = /카드/.test(payType) ? 'CMS카드' : 'CMS계좌';
+        if (known.has(no)) updated++; else { added++; known.add(no); }
+        stmts.push(db.prepare(
+          `INSERT INTO bk_clients (member_no, name, bill, pay_method, pay_day, bk_start, bk_end, bk_end_reason,
+                                   cms_state, can_withdraw, payer, cms_key, source, created_at, updated_at)
+           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,'cms',?13,?13)
+           ON CONFLICT(member_no) DO UPDATE SET
+             name = excluded.name, bill = COALESCE(excluded.bill, bk_clients.bill), pay_method = excluded.pay_method,
+             pay_day = excluded.pay_day, bk_start = COALESCE(bk_clients.bk_start, excluded.bk_start),
+             bk_end = CASE WHEN excluded.bk_end IS NOT NULL THEN excluded.bk_end
+                           WHEN bk_clients.bk_end_reason = 'CMS종료' THEN NULL ELSE bk_clients.bk_end END,
+             bk_end_reason = CASE WHEN excluded.bk_end IS NOT NULL THEN COALESCE(bk_clients.bk_end_reason, 'CMS종료')
+                                  WHEN bk_clients.bk_end_reason = 'CMS종료' THEN NULL ELSE bk_clients.bk_end_reason END,
+             cms_state = excluded.cms_state, can_withdraw = excluded.can_withdraw, payer = excluded.payer,
+             cms_key = excluded.cms_key, deleted_at = NULL, updated_at = excluded.updated_at`
+        ).bind(no, name, bill, method, Number(String(r.pay_day || '').replace(/\D/g, '')) || null, start, end, end ? 'CMS종료' : null,
+               String(r.member_status || '').trim() || null, String(r.can_withdraw || '').trim() || null,
+               r.payer ? String(r.payer).trim().slice(0, 60) : null,
+               cmsKey(r.key), now));
       }
-      const txRes = await runBatch(db, txStmts);
-      const saved = txRes.filter(didChange).length, dup = txRes.length - saved;
-      await runBatch(db, ledStmts);
-      return Response.json({ ok: true, saved, duplicate: dup, paid, unknown_members: [...unknown].slice(0, 100) });
+      await runBatch(db, stmts);
+      await deriveCmsLedger(db);
+      const link = await relink(db);
+      const txm = await membersWithTx(db);
+      const { results: all } = await db.prepare(
+        `SELECT member_no, cms_state, can_withdraw, bk_end, bk_end_reason FROM bk_clients
+          WHERE member_no IS NOT NULL AND ${NOT_DELETED} AND bill IS NOT NULL AND bill > 0`
+      ).all();
+      const nowYm = today().substring(0, 7);
+      const st = { active: 0, stopped: 0, blocked: 0 };
+      for (const c of all || []) {
+        if (isStopped(c, nowYm, txm ? txm.has(c.member_no) : undefined)) st.stopped++;
+        else { st.active++; if (c.can_withdraw && c.can_withdraw !== '출금가능') st.blocked++; }
+      }
+      await logAudit(db, { actor, action: 'bk_cms_members_import', entity_type: 'bk_client', entity_id: null,
+        after: { rows: rows.length, added, updated, source_file: body.source_file || null }, request: context.request });
+      return Response.json({ ok: true, rows: rows.length, added, updated,
+        active: st?.active || 0, stopped: st?.stopped || 0, blocked: st?.blocked || 0,
+        wehago_matched: link.matched, business_linked: link.linked,
+        wehago_unmatched: link.unmatched.slice(0, 60).map((x) => x.name), wehago_unmatched_count: link.unmatched.length });
     }
 
-    /* ---- 통장 거래내역 업로드 (금액 + 입금자명으로 후보 매칭) ---- */
+    /* ---- CMS 결과 (계좌 결제조회 · 카드 승인조회) ---- */
+    if (action === 'import_cms') {
+      const rows = Array.isArray(body.rows) ? body.rows.slice(0, 8000) : [];
+      if (!rows.length) return errJson('읽을 행이 없습니다');
+      const { results: had } = await db.prepare(`SELECT member_no FROM bk_clients WHERE member_no IS NOT NULL AND ${NOT_DELETED}`).all();
+      const known = new Set((had || []).map((x) => x.member_no));
+      const unknown = new Set();
+      const now = kst();
+      const stmts = [];
+      let ok = 0, fail = 0, pending = 0;
+      for (const r of rows) {
+        const no = String(r.member_no || '').trim().toUpperCase();
+        if (!/^M\d+$/.test(no)) continue;                 /* 합계 줄 등 */
+        const d = normYmd(r.tx_date);
+        if (!d) continue;
+        if (!known.has(no)) unknown.add(no + ' / ' + (r.member_name || ''));
+        const status = String(r.status || '').trim();
+        if (CMS_OK.includes(status)) ok++; else if (CMS_PENDING.includes(status)) pending++; else fail++;
+        stmts.push(db.prepare(
+          `INSERT OR IGNORE INTO bk_cms_tx (member_no, member_name, tx_date, amount, status, reason, method, period, source_file, created_at)
+           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)`
+        ).bind(no, r.member_name || null, d, money(r.amount), status, String(r.reason || '').trim(),
+               r.method === 'CMS카드' ? 'CMS카드' : 'CMS계좌', cmsPeriod(d), body.source_file || null, now));
+      }
+      const res = await runBatch(db, stmts);
+      const saved = res.filter(didChange).length;
+      await deriveCmsLedger(db);
+      /* 회원목록을 아직 안 올렸으면 "모르는 회원" 이 아니라 "회원목록 올리면 반영" — 순서 상관없이 올려도 된다 */
+      const membersPending = known.size === 0;
+      return Response.json({ ok: true, saved, duplicate: res.length - saved, success: ok, failed: fail, pending,
+                             members_pending: membersPending,
+                             unknown_members: membersPending ? [] : [...unknown].slice(0, 100) });
+    }
+
+    /* ---- 위하고 명부 (참조) — 사업자번호 기준으로 저장해 두고 거래처와 다시 맞춘다 ---- */
+    if (action === 'import_wehago') {
+      const rows = (Array.isArray(body.rows) ? body.rows.slice(0, 6000) : [])
+        .filter((r) => r && r.company_name && normBiz(r.business_number).length === 10);
+      if (!rows.length) return errJson('읽을 행이 없습니다');
+      const now = kst();
+      const stmts = rows.map((r) => db.prepare(
+        `INSERT INTO bk_wehago (business_number, name, ceo_name, staff_name, birth6, closed, updated_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7)
+         ON CONFLICT(business_number) DO UPDATE SET name = excluded.name, ceo_name = excluded.ceo_name,
+           staff_name = excluded.staff_name, birth6 = excluded.birth6, closed = excluded.closed, updated_at = excluded.updated_at`
+      ).bind(String(r.business_number).trim(), String(r.company_name).trim().slice(0, 80),
+             String(r.ceo_name || '').trim().slice(0, 40) || null, String(r.staff_name || '').trim().slice(0, 40) || null,
+             /^\d{6}$/.test(String(r.birth6 || '')) ? String(r.birth6) : null,
+             (r.closed || /폐업|\[x\]|\[out\]/i.test(String(r.company_name))) ? 1 : 0, now));
+      await runBatch(db, stmts);
+      const link = await relink(db);
+      await logAudit(db, { actor, action: 'bk_wehago_import', entity_type: 'bk_client', entity_id: null,
+        after: { rows: rows.length, matched: link.matched, linked: link.linked, source_file: body.source_file || null }, request: context.request });
+      const anyClient = await db.prepare(`SELECT 1 AS x FROM bk_clients WHERE ${NOT_DELETED} LIMIT 1`).first();
+      return Response.json({ ok: true, rows: rows.length, matched: link.matched, business_linked: link.linked,
+                             members_pending: !anyClient,
+                             unmatched: link.unmatched.slice(0, 60).map((x) => x.name), unmatched_count: link.unmatched.length });
+    }
+
+    /* ---- 통장 거래내역 (직접이체 거래처) — 금액 + 입금자명(상호·대표자·결제자명) ---- */
     if (action === 'import_bank') {
       const rows = Array.isArray(body.rows) ? body.rows.slice(0, 5000) : [];
       if (!rows.length) return errJson('읽을 행이 없습니다');
-      const { results: biz } = await db.prepare(
-        `SELECT id, company_name, ceo_name, cms_payer, monthly_fee FROM businesses
-          WHERE ${NOT_DELETED} AND monthly_fee IS NOT NULL AND monthly_fee > 0`
+      const { results: cl } = await db.prepare(
+        `SELECT id, name, ceo_name, payer, wehago_name, bill FROM bk_clients WHERE ${NOT_DELETED} AND bill > 0`
       ).all();
-      /* 입금자명 후보 = 상호 · 대표자 · CMS 결제자명(회원정보 업로드로 채워짐) */
-      const cands = (biz || []).map(b => ({
-        id: b.id, bill: Math.round((b.monthly_fee || 0) * 1.1),
-        keys: [normName(b.company_name), normName(b.ceo_name), normName(b.cms_payer)].filter(k => k.length >= 2),
+      const cands = (cl || []).map((c) => ({
+        id: c.id, bill: c.bill,
+        keys: [...nameKeys(c.name), ...nameKeys(c.wehago_name), normName(c.ceo_name), normName(c.payer)].filter((k) => k && k.length >= 2),
       }));
-
-      /* 1) 파일 행 정리 + 자동 매칭 (DB 안 씀) */
       const items = [];
       for (const r of rows) {
-        const amt = Math.round(Number(String(r.amount ?? '').replace(/[^\d.-]/g, ''))) || 0;
-        if (amt <= 0) continue;                       // 입금만 본다
-        const d = String(r.tx_date || '').replace(/\D/g, '').slice(0, 8);
-        if (d.length !== 8) continue;
-        const txDate = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+        const amt = money(r.amount);
+        if (amt <= 0) continue;
+        const txDate = normYmd(r.tx_date);
+        if (!txDate) continue;
         const payer = String(r.payer || '').trim();
-        /* CMS·카드 집금은 여러 거래처가 합산된 한 줄 — 거래처를 가릴 수 없다 (CMS 파일로 처리) */
-        if (/집금/.test(payer)) continue;
+        if (/집금/.test(payer)) continue;                 /* CMS 합산 입금 — CMS 파일로 처리 */
         const np = normName(payer);
-        /* 입금자명이 2글자 미만이면 금액만으로 붙어 버리므로 자동 매칭 안 함 (사람이 확인) */
-        const hit = np.length >= 2
-          ? cands.filter(c => c.bill === amt && c.keys.some(k => np.includes(k) || k.includes(np)))
-          : [];
-        items.push({ amt, txDate, payer, memo: String(r.memo || '').trim(), bid: hit.length === 1 ? hit[0].id : null, period: null });
+        const hit = np.length >= 2 ? cands.filter((c) => c.bill === amt && c.keys.some((k) => np.includes(k) || k.includes(np))) : [];
+        items.push({ amt, txDate, payer, memo: String(r.memo || '').trim(), cid: hit.length === 1 ? hit[0].id : null, period: null });
       }
-      /* 2) 붙일 달 = 그 거래처의 미납 중 가장 오래된 달 (입금일 이전) — 한 번에 읽고, 같은 파일 안에서 순서대로 채움 */
-      const bids = [...new Set(items.filter(x => x.bid).map(x => x.bid))];
+      /* 어느 달 기장료인가 — 그 거래처가 기장 중이었고 아직 안 받은 가장 이른 달 (입금월 이하, 최근 24개월).
+         없으면 입금월 (선납). 예: 10월분을 11/5 에 이체 → 10월. */
+      const cids = [...new Set(items.filter((x) => x.cid).map((x) => x.cid))];
       const openBy = {};
-      for (let i = 0; i < bids.length; i += 90) {
-        const part = bids.slice(i, i + 90);
-        const { results } = await db.prepare(
-          `SELECT business_id, period FROM bk_fee_ledger WHERE paid_at IS NULL AND business_id IN (${part.map(() => '?').join(',')}) ORDER BY period`
-        ).bind(...part).all();
-        for (const o of results || []) (openBy[o.business_id] ||= []).push(o.period);
+      for (let i = 0; i < cids.length; i += 90) {
+        const part = cids.slice(i, i + 90), ph = part.map(() => '?').join(',');
+        const [{ results: cs }, { results: paid }, { results: evs }] = await Promise.all([
+          db.prepare(`SELECT id, bk_start, bk_end FROM bk_clients WHERE id IN (${ph})`).bind(...part).all(),
+          db.prepare(`SELECT client_id, period FROM bk_ledger WHERE paid_at IS NOT NULL AND client_id IN (${ph})`).bind(...part).all(),
+          db.prepare(`SELECT client_id, event_date, kind FROM bk_client_events WHERE client_id IN (${ph}) ORDER BY event_date, id`).bind(...part).all(),
+        ]);
+        const paidSet = new Set((paid || []).map((x) => x.client_id + '|' + x.period));
+        const evBy = {};
+        for (const e of evs || []) (evBy[e.client_id] ||= []).push(e);
+        const t = today(), endY = +t.slice(0, 4), endM = +t.slice(5, 7);
+        for (const c of cs || []) {
+          const list = [];
+          for (let k = 24; k >= 0; k--) {
+            let y = endY, m = endM - k; while (m < 1) { m += 12; y--; }
+            const per = ym(y, m);
+            if (activeIn(per, c, evBy[c.id] || []) && !paidSet.has(c.id + '|' + per)) list.push(per);
+          }
+          openBy[c.id] = list;
+        }
       }
       for (const it of items.sort((x, y) => x.txDate.localeCompare(y.txDate))) {
-        if (!it.bid) continue;
-        const list = openBy[it.bid] || [];
-        const i = list.findIndex(p => p <= it.txDate.substring(0, 7));
+        if (!it.cid) continue;
+        const list = openBy[it.cid] || [];
+        const i = list.findIndex((p) => p <= it.txDate.substring(0, 7));
         it.period = i >= 0 ? list.splice(i, 1)[0] : it.txDate.substring(0, 7);
       }
-      /* 3) 원본 저장 (memo 는 NULL 대신 '' — UNIQUE 에서 NULL 은 서로 다른 값이라 재업로드가 중복으로 쌓인다) */
       const now = kst();
-      const insRes = await runBatch(db, items.map(it => db.prepare(
-        `INSERT OR IGNORE INTO bk_bank_tx (tx_date, amount, payer, memo, business_id, period, matched_by, source_file, created_at)
+      const insRes = await runBatch(db, items.map((it) => db.prepare(
+        `INSERT OR IGNORE INTO bk_bank_tx (tx_date, amount, payer, memo, client_id, period, matched_by, source_file, created_at)
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)`
-      ).bind(it.txDate, it.amt, it.payer, it.memo, it.bid, it.period,
-             it.bid ? '금액+입금자명' : null, body.source_file || null, now)));
-      /* 4) 새로 들어간 거래만 원장 반영 (이미 올린 거래는 다시 붙이지 않음) */
+      ).bind(it.txDate, it.amt, it.payer, it.memo, it.cid, it.period, it.cid ? '금액+입금자명' : null, body.source_file || null, now)));
       let saved = 0, matched = 0;
       const review = [], led = [];
       items.forEach((it, i) => {
         if (!didChange(insRes[i])) return;
         saved++;
-        if (it.bid && it.period) {
+        if (it.cid && it.period) {
           led.push(db.prepare(
-            `INSERT INTO bk_fee_ledger (business_id, period, amount, paid_at, source, source_ref, created_at, updated_at)
+            `INSERT INTO bk_ledger (client_id, period, amount, paid_at, source, source_ref, created_at, updated_at)
              VALUES (?1,?2,?3,?4,'통장',?5,?6,?6)
-             ON CONFLICT(business_id, period) DO UPDATE SET
-               paid_at = COALESCE(bk_fee_ledger.paid_at, excluded.paid_at),
-               source = COALESCE(bk_fee_ledger.source, excluded.source),
-               source_ref = COALESCE(bk_fee_ledger.source_ref, excluded.source_ref),
-               updated_at = excluded.updated_at`
-          ).bind(it.bid, it.period, it.amt, it.txDate, it.payer + '@' + it.txDate, now));
+             ON CONFLICT(client_id, period) DO UPDATE SET
+               paid_at = COALESCE(bk_ledger.paid_at, excluded.paid_at), source = COALESCE(bk_ledger.source, excluded.source),
+               source_ref = COALESCE(bk_ledger.source_ref, excluded.source_ref), updated_at = excluded.updated_at`
+          ).bind(it.cid, it.period, it.amt, it.txDate, it.payer + '@' + it.txDate, now));
           matched++;
         } else review.push({ tx_date: it.txDate, amount: it.amt, payer: it.payer });
       });
@@ -601,258 +821,87 @@ export async function onRequestPost(context) {
       return Response.json({ ok: true, saved, matched, review: review.slice(0, 200) });
     }
 
-    /* ---- 기장료 마스터 일괄 등록 (preview → commit) ----
-       rows: [{ company_name, ceo_name, business_number, monthly_fee, cms_member_no, pay_method, staff_name, bk_start }]
-       businesses 에 이미 있는 거래처만 UPDATE, 없으면 미매칭으로 보고만 하고 INSERT 안 함(중복 생성 방지). */
+    /* ---- 기장료 마스터 (선택) — 이체 거래처를 한꺼번에 넣을 때. 기장료 칸 = 공급가 (×1.1 = 청구액) ----
+       CMS 회원번호가 있으면 그 회원 거래처를, 없으면 사업자번호·이름이 같은 거래처를 고친다. 없으면 새 수기 거래처. */
     if (action === 'import_master') {
       const mode = url.searchParams.get('mode') === 'commit' ? 'commit' : 'preview';
-      const rows = Array.isArray(body.rows) ? body.rows.slice(0, 3000) : [];
+      const rows = (Array.isArray(body.rows) ? body.rows.slice(0, 3000) : []).map((r) => ({
+        company_name: String(r.company_name || '').trim(), ceo_name: String(r.ceo_name || '').trim(),
+        business_number: String(r.business_number || '').trim(), bill: Math.round(money(r.monthly_fee) * 1.1),
+        member_no: String(r.cms_member_no || '').trim().toUpperCase(), pay_method: String(r.pay_method || '').trim(),
+        staff_name: String(r.staff_name || '').trim(), bk_start: normYm(r.bk_start),
+      })).filter((r) => r.company_name && r.bill > 0);
       if (!rows.length) return errJson('읽을 행이 없습니다');
-      const { results: biz } = await db.prepare(
-        `SELECT id, company_name, ceo_name, business_number FROM businesses WHERE ${NOT_DELETED}`
-      ).all();
-      const byBizNo = {}, byName = {};
-      for (const b of (biz || [])) {
-        const bn = normBiz(b.business_number);
-        if (bn.length === 10) byBizNo[bn] = b;
-        (byName[normName(b.company_name)] ||= []).push(b);
+      const { results: cl } = await db.prepare(`SELECT id, member_no, name, business_number FROM bk_clients WHERE ${NOT_DELETED}`).all();
+      const byNo = {}, byBn = {}, byName = {};
+      for (const c of cl || []) {
+        if (c.member_no) byNo[c.member_no] = c;
+        const bn = normBiz(c.business_number); if (bn.length === 10) (byBn[bn] ||= []).push(c);
+        (byName[normLoose(c.name)] ||= []).push(c);
       }
-      const matched = [], unmatched = [], ambiguous = [];
-      for (const r0 of rows) {
-        const r = {
-          company_name: String(r0.company_name || '').trim(), ceo_name: String(r0.ceo_name || '').trim(),
-          business_number: String(r0.business_number || '').trim(),
-          monthly_fee: Math.round(Number(String(r0.monthly_fee ?? '').replace(/[^\d.]/g, ''))) || 0,
-          cms_member_no: String(r0.cms_member_no || '').trim(), pay_method: String(r0.pay_method || '').trim(),
-          staff_name: String(r0.staff_name || '').trim(), bk_start: normYm(r0.bk_start),
-        };
-        if (!r.company_name || r.monthly_fee <= 0) continue;
+      const plan = rows.map((r) => {
         const bn = normBiz(r.business_number);
-        let hit = (bn.length === 10 && byBizNo[bn]) || null;
-        let how = hit ? '사업자번호' : '';
-        if (!hit) {
-          const c = byName[normName(r.company_name)] || [];
-          if (c.length === 1) { hit = c[0]; how = '상호'; }
-          else if (c.length > 1) {
-            const c2 = c.filter(x => normName(x.ceo_name) === normName(r.ceo_name));
-            if (c2.length === 1) { hit = c2[0]; how = '상호+대표자'; }
-            else { ambiguous.push({ ...r, candidates: c.map(x => ({ id: x.id, name: x.company_name, ceo: x.ceo_name })) }); continue; }
-          }
-        }
-        if (hit) matched.push({ business_id: hit.id, db_name: hit.company_name, how, ...r });
-        else unmatched.push(r);
-      }
-      if (mode === 'preview') {
-        return Response.json({
-          ok: true, mode, matched_count: matched.length, unmatched_count: unmatched.length,
-          ambiguous_count: ambiguous.length,
-          matched: matched.slice(0, 500), unmatched, ambiguous,
-        });
-      }
-      const year = Number(url.searchParams.get('year')) || new Date().getFullYear();
-      const lastClosed = lastClosedMonth(year);
-      let updated = 0;
-      const now = kst(), ups = [], seeds = [];
-      for (const m of matched) {
-        ups.push(db.prepare(
-          `UPDATE businesses SET monthly_fee = ?1, cms_member_no = ?2, pay_method = ?3,
-                  staff_name = ?4, bk_start = COALESCE(?5, bk_start), updated_at = ?6
-            WHERE id = ?7`
-        ).bind(m.monthly_fee, m.cms_member_no || null, m.pay_method || null,
-               m.staff_name || null, m.bk_start || null, now, m.business_id));
-        updated++;
-        // 청구 행 생성 — 기장시작~마감월까지, 이미 있으면 건드리지 않음
-        const startM = (m.bk_start && m.bk_start.startsWith(String(year))) ? +m.bk_start.slice(5, 7)
-          : (m.bk_start && m.bk_start > `${year}-12`) ? 13 : 1;
-        const bill = Math.round(m.monthly_fee * 1.1);
-        for (let mo = startM; mo <= lastClosed; mo++) {
-          seeds.push(db.prepare(
-            `INSERT OR IGNORE INTO bk_fee_ledger (business_id, period, amount, created_at, updated_at)
-             VALUES (?1,?2,?3,?4,?4)`
-          ).bind(m.business_id, ym(year, mo), bill, now));
-        }
-      }
-      await runBatch(db, ups);
-      const seeded = (await runBatch(db, seeds)).filter(didChange).length;
-      await logAudit(db, { actor, action: 'bk_master_import', entity_type: 'business', entity_id: null,
-        after: { updated, ledger_rows: seeded, unmatched: unmatched.length, ambiguous: ambiguous.length, source_file: body.source_file || null },
-        request: context.request });
-      return Response.json({ ok: true, mode, updated, ledger_rows: seeded, unmatched, ambiguous });
-    }
-
-    /* ---- CMS 회원정보 업로드 — 회원번호 연결 + 실제 출금액·출금가능·약정일·결제자명 기록 ----
-       rows: [{member_no, member_name, pay_day, amount, member_status, payer, can_withdraw}]
-       기장료(monthly_fee)는 덮어쓰지 않는다. CMS 금액과 다르면 보고만.
-       회원번호 자동 연결은 상호가 정확히(괄호 꼬리표 떼고) 같고 한 곳일 때만 — '포함' 으로만 맞으면 후보로 보고만. */
-    if (action === 'import_cms_members') {
-      /* 세무포털 엑셀 맨 끝 '합계' 행 등은 회원번호 형식(M+숫자)이 아니라 걸러진다 */
-      const rows = (Array.isArray(body.rows) ? body.rows.slice(0, 3000) : []).filter(r => {
-        const no = String(r.member_no || '').trim();
-        return /^M\d+$/i.test(no) && !SKIP_ROW.test(String(r.member_name || '').trim());
+        const hit = (r.member_no && byNo[r.member_no]) || (bn.length === 10 && (byBn[bn] || []).length === 1 && byBn[bn][0])
+          || ((byName[normLoose(r.company_name)] || []).length === 1 && byName[normLoose(r.company_name)][0]) || null;
+        return { ...r, client_id: hit ? hit.id : null };
       });
-      if (!rows.length) return errJson('읽을 회원 행이 없습니다');
-      const { results: biz } = await db.prepare(
-        `SELECT id, company_name, ceo_name, monthly_fee, cms_member_no FROM businesses WHERE ${NOT_DELETED}`
-      ).all();
-      const exact = {}, loose = {}, byNo = {};
-      for (const b of (biz || [])) {
-        (exact[normName(b.company_name)] ||= []).push(b);
-        (loose[normLoose(b.company_name)] ||= []).push(b);
-        for (const n of cmsNos(b.cms_member_no)) byNo[n] = b;
+      if (mode === 'preview') {
+        return Response.json({ ok: true, mode, update_count: plan.filter((p) => p.client_id).length,
+                               new_count: plan.filter((p) => !p.client_id).length, rows: plan.slice(0, 500) });
       }
-      let linked = 0, updated = 0;
-      const mismatch = [], blocked = [], unlinked = [], suggest = [], writes = [];
       const now = kst();
-      for (const r of rows) {
-        const no = String(r.member_no || '').trim();
-        const amt = Math.round(Number(String(r.amount ?? '').replace(/[^\d.]/g, ''))) || 0;
-        const canW = String(r.can_withdraw || '').trim();
-        const mSt = String(r.member_status || '').trim();
-        const nm = String(r.member_name || '');
-        let b = byNo[no] || null;
-        if (!b) {
-          const c = (exact[normName(nm)] || []).length ? exact[normName(nm)] : (loose[normLoose(nm)] || []);
-          if (c.length === 1) {
-            b = c[0];
-            const cur = cmsNos(b.cms_member_no);
-            if (!cur.includes(no)) cur.push(no);
-            b.cms_member_no = cur.join('/');
-            writes.push(db.prepare(`UPDATE businesses SET cms_member_no = ?1, updated_at = ?2 WHERE id = ?3`)
-              .bind(b.cms_member_no, now, b.id));
-            byNo[no] = b;
-            linked++;
-          } else {
-            /* 상호 '포함' 으로만 맞는 건 자동 연결하지 않고 후보로만 (엉뚱한 거래처가 ○ 로 바뀌지 않게) */
-            const q = normLoose(nm);
-            const pool = q.length >= 4 ? (biz || []).filter(x => {
-              const t = normLoose(x.company_name);
-              return t.length >= 4 && (t.includes(q) || q.includes(t));
-            }) : [];
-            if (pool.length) suggest.push({ member_no: no, member_name: nm, candidates: pool.slice(0, 3).map(x => ({ id: x.id, name: x.company_name })) });
-            unlinked.push({ member_no: no, member_name: nm, amount: amt });
-            continue;
-          }
-        }
-        writes.push(db.prepare(
-          `UPDATE businesses SET cms_amount = ?1, cms_status = ?2, cms_pay_day = ?3, cms_payer = ?4, updated_at = ?5
-            WHERE id = ?6`
-        ).bind(amt || null, canW || mSt || null, Number(r.pay_day) || null,
-               r.payer ? String(r.payer).trim().slice(0, 60) : null, now, b.id));
-        updated++;
-        if (b.monthly_fee && amt && Math.abs(Math.round(b.monthly_fee * 1.1) - amt) > 1000) {
-          mismatch.push({ business_id: b.id, name: b.company_name, member_no: no,
-                          fee_based: Math.round(b.monthly_fee * 1.1), cms_amount: amt });
-        }
-        if (canW && canW !== '출금가능') blocked.push({ name: b.company_name, member_no: no, status: canW, member_status: mSt });
-      }
-      await runBatch(db, writes);
-      await logAudit(db, { actor, action: 'bk_cms_members_import', entity_type: 'business', entity_id: null,
-        after: { rows: rows.length, linked, updated, unlinked: unlinked.length, source_file: body.source_file || null }, request: context.request });
-      return Response.json({ ok: true, rows: rows.length, linked, updated, mismatch, blocked,
-                             suggest: suggest.slice(0, 100), unlinked: unlinked.slice(0, 200), unlinked_count: unlinked.length });
+      const stmts = plan.map((p) => p.client_id
+        ? db.prepare(`UPDATE bk_clients SET bill = ?1, staff_name = COALESCE(NULLIF(?2,''), staff_name),
+                        business_number = COALESCE(business_number, NULLIF(?3,'')), ceo_name = COALESCE(ceo_name, NULLIF(?4,'')),
+                        bk_start = COALESCE(bk_start, ?5), updated_at = ?6 WHERE id = ?7`)
+            .bind(p.bill, p.staff_name, p.business_number, p.ceo_name, p.bk_start, now, p.client_id)
+        : db.prepare(`INSERT INTO bk_clients (name, ceo_name, business_number, bill, pay_method, staff_name, bk_start, source, created_at, updated_at)
+                      VALUES (?1,?2,?3,?4,?5,?6,?7,'manual',?8,?8)`)
+            .bind(p.company_name, p.ceo_name || null, p.business_number || null, p.bill, p.pay_method || '직접이체',
+                  p.staff_name || null, p.bk_start || today().substring(0, 7), now));
+      await runBatch(db, stmts);
+      const link = await relink(db);
+      await logAudit(db, { actor, action: 'bk_master_import', entity_type: 'bk_client', entity_id: null,
+        after: { rows: plan.length, source_file: body.source_file || null }, request: context.request });
+      return Response.json({ ok: true, mode, updated: plan.filter((p) => p.client_id).length,
+                             added: plan.filter((p) => !p.client_id).length, business_linked: link.linked });
     }
 
-    /* ---- 위하고 거래처 명부 업로드 — 담당 채우기, 사업자번호는 비어 있을 때만 ----
-       rows: [{company_name, ceo_name, business_number, staff_name, code}]
-       사업자번호는 매칭·챗봇·검토표가 다 쓰는 핵심 값이라 덮어쓰지 않는다 — 다르면 보고만. */
-    if (action === 'import_wehago') {
-      const rows = (Array.isArray(body.rows) ? body.rows.slice(0, 5000) : []).filter(r => r && r.company_name);
-      if (!rows.length) return errJson('읽을 행이 없습니다');
-      const { results: biz } = await db.prepare(
-        `SELECT id, company_name, ceo_name, business_number, staff_name, monthly_fee FROM businesses
-          WHERE ${NOT_DELETED} AND monthly_fee IS NOT NULL AND monthly_fee > 0`
-      ).all();
-      const src = rows.map(r => ({ ...r, _n: normLoose(r.company_name), _rep: normName(r.ceo_name),
-                                   _closed: /폐업|\[x\]|\[out\]/i.test(String(r.company_name)) }));
-      let filled = 0, bnFilled = 0;
-      const closedFlag = [], notFound = [], bnDiff = [], writes = [];
-      for (const b of (biz || [])) {
-        const n = normLoose(b.company_name), rep = normName(b.ceo_name);
-        const bn = normBiz(b.business_number);
-        /* 사업자번호가 이미 있으면 그 번호로 먼저 찾는다 (상호가 달라도 정확) */
-        let pool = bn.length === 10 ? src.filter(x => normBiz(x.business_number) === bn) : [];
-        if (!pool.length) pool = src.filter(x => x._n === n);
-        if (!pool.length) { notFound.push(b.company_name); continue; }
-        const byRep = rep ? pool.filter(x => x._rep === rep) : [];
-        const base = byRep.length ? byRep : pool;
-        const live = base.filter(x => !x._closed);
-        const pick = (live.length ? live : base)[0];
-        const sets = [], vals = [];
-        const pbn = normBiz(pick.business_number);
-        if (pbn.length === 10) {
-          if (!bn) { sets.push('business_number = ?'); vals.push(String(pick.business_number).trim()); bnFilled++; }
-          else if (bn !== pbn) bnDiff.push({ name: b.company_name, current: b.business_number, wehago: pick.business_number });
-        }
-        const st = String(pick.staff_name || '').trim();
-        if (st && st !== (b.staff_name || '')) { sets.push('staff_name = ?'); vals.push(st.slice(0, 60)); }
-        if (sets.length) {
-          sets.push('updated_at = ?'); vals.push(kst()); vals.push(b.id);
-          writes.push(db.prepare(`UPDATE businesses SET ${sets.join(', ')} WHERE id = ?`).bind(...vals));
-          filled++;
-        }
-        if (!live.length) closedFlag.push({ name: b.company_name, wehago: pick.company_name });
-      }
-      await runBatch(db, writes);
-      await logAudit(db, { actor, action: 'bk_wehago_import', entity_type: 'business', entity_id: null,
-        after: { rows: rows.length, filled, business_number_filled: bnFilled, business_number_diff: bnDiff.length, source_file: body.source_file || null },
-        request: context.request });
-      return Response.json({ ok: true, rows: rows.length, filled, business_number_filled: bnFilled,
-                             business_number_diff: bnDiff.slice(0, 100), closed_flag: closedFlag,
-                             not_found: notFound.slice(0, 100), not_found_count: notFound.length });
-    }
-
-    /* ---- 국세청 사업자등록상태 조회 (휴·폐업 자동 체크) ----
-       공공데이터포털 "국세청_사업자등록정보 진위확인 및 상태조회" 서비스.
-       키는 Cloudflare 대시보드(sewmu-chatbot) 환경변수 NTS_API_KEY — 코드로 우회 금지 룰.
-       b_stt 값: "계속사업자" | "휴업자" | "폐업자" (미등록은 빈 값 + tax_type 안내문). */
+    /* ---- 국세청 사업자등록상태 (휴·폐업) — 사업자번호가 있는 거래처 (위하고 명부로 채워짐) ---- */
     if (action === 'check_biz_status') {
       const key = ntsServiceKey(context.env.NTS_API_KEY);
       if (!key) return errJson('국세청 조회 키(NTS_API_KEY)가 아직 설정되지 않았습니다 — Cloudflare 대시보드에서 넣어 주세요');
-      const limit = Math.min(Number(body.limit) || 100, 100);   // API 1회 100건 제한
+      const limit = Math.min(Number(body.limit) || 100, 100);
       const { results } = await db.prepare(
-        `SELECT id, company_name, business_number, nts_status FROM businesses
-          WHERE ${NOT_DELETED} AND business_number IS NOT NULL AND business_number != ''
-            AND monthly_fee IS NOT NULL AND monthly_fee > 0
-            AND (bk_end IS NULL OR bk_end = '')
+        `SELECT id, name, business_number, nts_status FROM bk_clients
+          WHERE ${NOT_DELETED} AND business_number IS NOT NULL AND business_number != '' AND bill > 0
           ORDER BY COALESCE(nts_checked_at, '') ASC LIMIT ?1`
       ).bind(limit).all();
-      const list = (results || []).filter(b => normBiz(b.business_number).length === 10);
+      const list = (results || []).filter((b) => normBiz(b.business_number).length === 10);
       if (!list.length) return Response.json({ ok: true, checked: 0, changed: [] });
-
-      const res = await fetch(
-        `https://api.odcloud.kr/api/nts-businessman/v1/status?serviceKey=${key}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ b_no: list.map(b => normBiz(b.business_number)) }) }
-      );
-      if (res.status === 401 || res.status === 403) {
-        return errJson('국세청 조회 키가 맞지 않습니다 — 활용신청 직후면 승인 반영까지 몇 시간 걸릴 수 있습니다', 502);
-      }
+      const res = await fetch(`https://api.odcloud.kr/api/nts-businessman/v1/status?serviceKey=${key}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ b_no: list.map((b) => normBiz(b.business_number)) }),
+      });
+      if (res.status === 401 || res.status === 403) return errJson('국세청 조회 키가 맞지 않습니다 — 활용신청 직후면 승인 반영까지 몇 시간 걸릴 수 있습니다', 502);
       if (!res.ok) return errJson('국세청 조회가 실패했습니다 (' + res.status + ')', 502);
       const data = await res.json();
       const byNo = {};
-      for (const d of (data.data || [])) byNo[String(d.b_no)] = d;
-
+      for (const d of data.data || []) byNo[String(d.b_no)] = d;
       const changed = [], writes = [], now = kst();
       for (const b of list) {
         const d = byNo[normBiz(b.business_number)];
         if (!d) continue;
         const st = d.b_stt || (d.tax_type && d.tax_type.includes('등록되지') ? '미등록' : '');
-        if (st && st !== b.nts_status) {
-          changed.push({ business_id: b.id, name: b.company_name, before: b.nts_status || '', after: st,
-                         end_date: d.end_dt || '' });
-        }
-        writes.push(db.prepare(`UPDATE businesses SET nts_status = ?1, nts_checked_at = ?2 WHERE id = ?3`)
-          .bind(st || null, now, b.id));
+        if (st && st !== b.nts_status) changed.push({ client_id: b.id, name: b.name, before: b.nts_status || '', after: st, end_date: d.end_dt || '' });
+        writes.push(db.prepare(`UPDATE bk_clients SET nts_status = ?1, nts_checked_at = ?2 WHERE id = ?3`).bind(st || null, now, b.id));
       }
-      // 폐업으로 바뀐 곳은 이벤트만 남긴다. 기장 종료 처리는 사람이 확인 후 (이벤트 kind '폐업확인' 은 구간을 안 움직임).
+      /* 폐업자는 '폐업확인' 기록만 (기장 종료는 사람이 확인 후 — 이 기록은 구간을 안 움직임) */
       for (const c of changed) {
-        if (c.after === '폐업자') {
-          const ed = /^\d{8}$/.test(c.end_date) ? `${c.end_date.slice(0, 4)}-${c.end_date.slice(4, 6)}-${c.end_date.slice(6, 8)}` : today();
-          writes.push(db.prepare(
-            `INSERT INTO bk_events (business_id, event_date, kind, memo, created_at)
-             VALUES (?1,?2,'폐업확인',?3,?4)`
-          ).bind(c.business_id, ed, '국세청 조회 자동 감지 — 기장 종료 처리는 확인 후 수동', now));
-        }
+        if (c.after !== '폐업자') continue;
+        const ed = /^\d{8}$/.test(c.end_date) ? `${c.end_date.slice(0, 4)}-${c.end_date.slice(4, 6)}-${c.end_date.slice(6, 8)}` : today();
+        writes.push(db.prepare(`INSERT INTO bk_client_events (client_id, event_date, kind, memo, created_at) VALUES (?1,?2,'폐업확인',?3,?4)`)
+          .bind(c.client_id, ed, '국세청 조회 자동 감지 — 기장 종료 처리는 확인 후 수동', now));
       }
       await runBatch(db, writes);
       return Response.json({ ok: true, checked: list.length, changed });
