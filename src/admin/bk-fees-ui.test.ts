@@ -32,10 +32,11 @@ beforeEach(async () => {
     calls.push({ url, init });
     return { status: 200, ok: true, json: async () => (url.includes('action=grid') ? JSON.parse(JSON.stringify(GRID)) : { ok: true }) };
   };
-  api = new Function('fetch', 'prompt', 'confirm', 'alert', script + '\nreturn {render, mark, unmark, rowsFromMatrix, toBank, toCms, toMaster};')(
+  api = new Function('fetch', 'prompt', 'confirm', 'alert', script + '\nreturn {render, mark, unmark, rowsFromMatrix, toBank, toCms, toMaster, detect, toWehago, toCmsMembers, headerRow, openNew, pickNew, saveNew, toggleHelp};')(
     fetchStub, () => promptVal, () => true, vi.fn());
   /* 실제 페이지에서는 classic script 의 전역 함수 — 인라인 onclick 이 찾을 수 있게 */
   Object.assign(window as any, { mark: api.mark, unmark: api.unmark });
+  (window as any)._newHits = [];
   await new Promise((r) => setTimeout(r, 0));
   await new Promise((r) => setTimeout(r, 0));
 });
@@ -87,3 +88,45 @@ describe('엑셀 행 변환', () => {
     expect(ms).toEqual([{ company_name: '을식당', ceo_name: '김을순', business_number: '', monthly_fee: 150000, cms_member_no: '', pay_method: '', staff_name: '담당B', bk_start: '2026-04' }]);
   });
 });
+
+describe('2차 — 파일 종류 자동 인식 · 위하고 · 신규 수임', () => {
+  it('제목 줄로 6종을 가린다 (세무포털은 5번째 줄이어도)', () => {
+    expect(api.detect(['순번', '회원번호', '회원명', '약정일', '기본금액'])).toBe('cms_members');
+    expect(api.detect(['회원번호', '회원명', '결제일', '결제금액', '결제상태'])).toBe('cms_bank');
+    expect(api.detect(['회원번호', '회원명', '승인일', '승인금액', '승인상태'])).toBe('cms_card');
+    expect(api.detect(['코드', '상호', '대표자', '사업자등록번호', '세무대리담당자'])).toBe('wehago');
+    expect(api.detect(['거래일시', '적요', '출금액', '입금액'])).toBe('bank');
+    expect(api.detect(['상호', '대표자', '기장료'])).toBe('master');
+    expect(api.detect(['아무거나'])).toBeNull();
+    const m = [['세무사CMS'], [''], ['회원조회'], ['총 2건'], ['순번', '회원번호', '회원명', '약정일', '기본금액', '결제자명', '결제신청가능'], ['1', 'M001', '갑', '25일', '110,000', '홍길동', '출금가능']];
+    expect(api.headerRow(m)).toBe(4);
+    expect(api.toCmsMembers(api.rowsFromMatrix(m))).toEqual([{ member_no: 'M001', member_name: '갑', pay_day: 25, amount: 110000, member_status: '', payer: '홍길동', can_withdraw: '출금가능' }]);
+  });
+  it('위하고 명부 두 줄 형식 — 첫 줄 상호·사업자번호·담당, 둘째 줄 대표자', () => {
+    const m = [
+      ['구분', '코드', '상호', '', '', '사업자등록번호', '', '', '', '', '세무대리담당자'],
+      ['1', '0001', '(주)갑', '', '', '101-81-00001', '', '', '', '', '이직원'],
+      ['', '', '홍길동', '', '', '', '', '', '', '', ''],
+      ['2', '0002', '사업자번호없음', '', '', '', '', '', '', '', ''],
+    ];
+    expect(api.toWehago(m, 0)).toEqual([{ code: '0001', company_name: '(주)갑', business_number: '101-81-00001', staff_name: '이직원', ceo_name: '홍길동' }]);
+  });
+  it('신규 수임: 거래처 고르고 등록하면 save_contract as_new POST', async () => {
+    api.openNew();
+    (window as any)._newHits = [{ id: 7, company_name: '정공업', ceo_name: '정사장' }];
+    api.pickNew(0);
+    (document.getElementById('nFee') as HTMLInputElement).value = '150,000';
+    (document.getElementById('nStart') as HTMLInputElement).value = '2026-09';
+    await api.saveNew();
+    const p = calls.find((c) => c.url.includes('action=save_contract'))!;
+    expect(JSON.parse(p.init.body)).toMatchObject({ business_id: 7, as_new: true, monthly_fee: '150000', bk_start: '2026-09' });
+  });
+  it('거래처별 안 들어온 돈 칸 + 도움말에 캡처 이미지 없음', () => {
+    expect(trs()[0].lastElementChild!.textContent).toBe('110,000원');
+    api.toggleHelp();
+    const h = document.getElementById('help')!;
+    expect(h.textContent).toContain('회원관리 → 회원조회');
+    expect(h.querySelector('img')).toBeNull();
+  });
+});
+
