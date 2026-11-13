@@ -349,6 +349,56 @@ describe('2차 — 통장 매칭에 CMS 결제자명', () => {
   });
 });
 
+describe('대용량 — 1년치 파일도 요청 하나의 쿼리 한도(1,000) 안에서', () => {
+  /* D1 왕복 횟수 세기: prepare(...).run/all/first 1번 = 1, batch 1번 = 1 */
+  function counting(db: any) {
+    let n = 0, inBatch = false;
+    const wrap = (st: any): any => new Proxy(st, { get(t, k) {
+      if (k === 'bind') return (...a: unknown[]) => wrap(t.bind(...a));
+      if (k === 'run' || k === 'all' || k === 'first') return (...a: unknown[]) => { if (!inBatch) n++; return t[k](...a); };
+      const v = t[k]; return typeof v === 'function' ? v.bind(t) : v;
+    } });
+    const proxied = new Proxy(db, { get(t, k) {
+      if (k === 'prepare') return (sql: string) => wrap(t.prepare(sql));
+      /* 테스트 DB 의 batch 는 문장마다 run 을 부른다 — D1 처럼 batch 1번 = 왕복 1번으로 센다 */
+      if (k === 'batch') return async (stmts: any[]) => { n++; inBatch = true; try { return await t.batch(stmts); } finally { inBatch = false; } };
+      const v = t[k]; return typeof v === 'function' ? v.bind(t) : v;
+    } });
+    return { db: proxied, count: () => n };
+  }
+  it('CMS 결과 3,000줄 · 통장 2,000줄 · 회원정보 300곳 — 각각 왕복 150번 이하, 결과는 그대로', async () => {
+    for (let i = 0; i < 300; i++) {
+      await biz(1000 + i, { company_name: '대량' + i + '상사', ceo_name: '대표' + i });
+    }
+    await d1.prepare(`UPDATE businesses SET monthly_fee = 100000, bk_start = '2026-01' WHERE id >= 1000`).run();
+    const c = counting(d1);
+    env = { DB: c.db, ADMIN_KEY: KEY };
+    const members = Array.from({ length: 300 }, (_, i) => ({ member_no: 'M' + (5000 + i), member_name: '대량' + i + '상사', amount: 110000, can_withdraw: '출금가능' }));
+    let before = c.count();
+    const m = (await post('import_cms_members', { rows: members })).body;
+    expect(m).toMatchObject({ linked: 300, updated: 300 });
+    expect(c.count() - before).toBeLessThan(150);
+
+    const cms = [];
+    for (let i = 0; i < 300; i++) for (let mo = 1; mo <= 10; mo++) {
+      cms.push({ member_no: 'M' + (5000 + i), tx_date: `2026-${String(mo).padStart(2, '0')}-25`, amount: 110000, status: '출금성공' });
+    }
+    before = c.count();
+    const r = (await post('import_cms', { rows: cms })).body;
+    expect(r).toMatchObject({ saved: 3000, paid: 3000 });
+    expect(c.count() - before).toBeLessThan(150);
+
+    const bank = Array.from({ length: 2000 }, (_, i) => ({ tx_date: `2026-05-${String(1 + (i % 28)).padStart(2, '0')}`, amount: 1000 + i, payer: '모름' + i }));
+    before = c.count();
+    const b = (await post('import_bank', { rows: bank })).body;
+    expect(b.saved).toBe(2000);
+    expect(c.count() - before).toBeLessThan(150);
+
+    const g = (await get('action=grid&year=2026')).body;
+    expect(g.rows.filter((x: any) => x.id >= 1000).every((x: any) => x.cells.slice(0, 10).every((cc: any) => cc.s === 'o'))).toBe(true);
+  }, 30000);
+});
+
 describe('인증·보안', () => {
   it('키 없으면 401, Origin 없는 POST(키 없이)는 CSRF 403', async () => {
     expect((await onRequestGet(req('GET', 'action=grid', undefined, false))).status).toBe(401);

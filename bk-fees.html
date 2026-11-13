@@ -344,12 +344,19 @@ function toMaster(raw){
 function pickFile(){ var f=document.getElementById('fileIn'); f.value=''; f.click(); }
 async function onFile(inp){
   var files=Array.prototype.slice.call(inp.files||[]); if(!files.length) return;
-  setMsg('파일 읽는 중… '+files.map(function(f){return f.name}).join(', '));
-  var log=[];
-  for(var i=0;i<files.length;i++){
-    try{ log=log.concat(await uploadOne(files[i])); }
-    catch(e){ log.push('❌ '+files[i].name+': '+(e.message||'실패')); }
-  }
+  var log=[], btn=document.getElementById('bUp');
+  btn.disabled=true;
+  /* 파일마다 진행 상황을 보여준다 — 1년치 CMS 처럼 큰 파일은 서버 반영에 몇 초 걸린다 */
+  window._upStep=function(t){ setMsg(log.concat(['⏳ ('+(window._upIdx+1)+'/'+files.length+') '+t]).join('\n')); };
+  try{
+    for(var i=0;i<files.length;i++){
+      window._upIdx=i;
+      window._upStep(files[i].name+' — 읽는 중…');
+      try{ log=log.concat(await uploadOne(files[i])); }
+      catch(e){ log.push('❌ '+files[i].name+': '+(e.message||'실패')); }
+      setMsg(log.join('\n'));
+    }
+  }finally{ btn.disabled=false; window._upStep=null; }
   setMsg(log.join('\n'));
   await load();
 }
@@ -359,6 +366,7 @@ async function uploadOne(file){
   var sh=await readSheet(file), kind=detect(sh.header), d, rows;
   if(!kind) return ['❓ '+file.name+': 어떤 자료인지 모르겠습니다 — [❓ 어떤 파일을 올리나?] 의 파일인지 확인해 주세요'];
   var L=KIND_LABEL[kind], out=[];
+  if(window._upStep) window._upStep(file.name+' — '+L+'(으)로 인식, 서버에 반영 중…');
   if(kind==='cms_members'){
     rows=toCmsMembers(sh.rows);
     d=await post('import_cms_members',{rows:rows,source_file:file.name});
