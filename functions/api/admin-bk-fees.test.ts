@@ -16,7 +16,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createTestDb } from '../../packages/db/src/test-db';
 // @ts-expect-error — JS module
-import { onRequestGet, onRequestPost, cmsPeriod, lastClosedMonth, activeIn, normYm, ntsServiceKey, normLoose, nameKeys, stopReason } from './admin-bk-fees.js';
+import { onRequestGet, onRequestPost, cmsPeriod, lastClosedMonth, activeIn, normYm, ntsServiceKey, normLoose, nameKeys, stopReason, cmsKey } from './admin-bk-fees.js';
 
 const KEY = 'test-admin-key';
 const ORIGIN = 'https://sewmu-chatbot.pages.dev';
@@ -291,7 +291,7 @@ describe('위하고 명부 (참조)', () => {
     ] });
     await post('import_cms_members', { rows: [
       mem('M0001', '옆커폰 동남점', { key: '900202' }),
-      mem('M0002', '대백마트', { key: '4448144444' }),
+      mem('M0002', '대백마트', { key: '44481' }),   /* 화면이 CMS 의 '44481*****' 를 잘라 보낸 값 */
       mem('M0003', '같은이름', { key: '' }),
     ] });
     const g = await grid();
@@ -310,6 +310,45 @@ describe('위하고 명부 (참조)', () => {
     await post('import_wehago', { rows: [wh('101-81-00001', '갑', { birth6: '850101-1234567' }), wh('201-00-00002', '을', { birth6: '900202' })] });
     const { results }: any = await d1.prepare(`SELECT birth6 FROM bk_wehago ORDER BY business_number`).all();
     expect(results.map((x: any) => x.birth6)).toEqual([null, '900202']);
+  });
+});
+
+describe('2바퀴 검토 반영', () => {
+  it('CMS 생년월일/사업자번호 칸: 생년 6자리 · 사업자 앞 5자리만 — 주민번호 뒷자리는 가려져 있지 않아도 저장 안 함', async () => {
+    expect(cmsKey('850101')).toBe('850101');
+    expect(cmsKey('850101-1******')).toBe('850101');
+    expect(cmsKey('850101-1234567')).toBe('850101');
+    expect(cmsKey('8501011234567')).toBeNull();
+    expect(cmsKey('101-81-00001')).toBe('10181');
+    expect(cmsKey('10181*****')).toBe('10181');   /* 실제 CMS 파일 모양 */
+    expect(cmsKey('10181')).toBe('10181');        /* 화면이 이미 잘라 보낸 값 */
+    expect(cmsKey('')).toBeNull();
+    await post('import_cms_members', { rows: [mem('M0001', '갑', { key: '850101-1234567' }), mem('M0002', '을', { key: '8501011234567' })] });
+    const { results }: any = await d1.prepare(`SELECT cms_key FROM bk_clients ORDER BY member_no`).all();
+    expect(results.map((x: any) => x.cms_key)).toEqual(['850101', null]);
+  });
+  it('약정일 1일 한 곳의 11/2 출금만으로 11월을 "자료 있음" 으로 보지 않는다 — 27일이 지나도 나머지는 ✕ 아닌 –', async () => {
+    vi.setSystemTime(new Date('2026-11-28T03:00:00Z'));
+    await post('import_cms_members', { rows: [mem('M0001', '갑'), mem('M0002', '을'), mem('M0003', '병', { pay_day: 1 })] });
+    await post('import_cms', { rows: [...monthly('M0001'), ...monthly('M0002'), tx('M0003', '2026-10-01'), tx('M0003', '2026-11-02')] });
+    const g = await grid();
+    expect(g.coverage_by['CMS계좌']).toEqual({ from: '2026-05', to: '2026-10' });
+    expect(byCms(g, 'M0001').cells[10]).toMatchObject({ s: '-', nodata: true });
+    expect(byCms(g, 'M0003').cells[10]).toMatchObject({ s: 'o' });
+  });
+  it('업로드 결과 곳수 = 격자 곳수 (기본금액 0 인 회원은 둘 다 빼고 셈)', async () => {
+    const r = (await post('import_cms_members', { rows: [mem('M0001', '갑'), mem('M0002', '을', { amount: 0 })] })).body;
+    expect(r.active).toBe(1);
+    expect((await grid()).total.active).toBe(1);
+  });
+  it('이체 입금은 기장 중이었고 아직 안 받은 가장 이른 달로 (10월분을 11/5 이체 → 10월)', async () => {
+    const { id } = (await post('save_client', { name: '이체상사', bill: 110000, bk_start: '2026-09', ceo_name: '김대표' })).body;
+    await post('mark_paid', { client_id: id, period: '2026-09' });
+    const r = (await post('import_bank', { rows: [{ tx_date: '2026-11-05', amount: 110000, payer: '이체상사', memo: '' }] })).body;
+    expect(r).toMatchObject({ saved: 1, matched: 1 });
+    const row = (await grid()).rows.find((x: any) => x.id === id);
+    expect(sym(row)).toBe('--------oo--');
+    expect(row.cells[9]).toMatchObject({ src: '통장', d: '2026-11-05' });
   });
 });
 

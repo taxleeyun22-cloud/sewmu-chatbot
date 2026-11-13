@@ -255,6 +255,17 @@ async function membersWithTx(db) {
   return results && results.length ? new Set(results.map((r) => r.member_no)) : null;
 }
 
+/** CMS 생년월일/사업자번호 칸 → 맞춤용 키만: 개인 = 생년월일 6자리, 사업자 = 앞 5자리.
+    주민번호 뒷자리는 (가려져 있지 않아도) 절대 저장하지 않는다. */
+export function cmsKey(raw) {
+  const v = String(raw || '').trim();
+  if (/^\d{6}(-|$|\s|\*)/.test(v)) return v.slice(0, 6);
+  /* 사업자번호 — CMS 파일은 '12345*****' 처럼 앞 5자리만 보여 준다 (2026-11-13 실제 파일 38곳) */
+  const d = v.replace(/-/g, '');
+  if (/^\d{5}[\d*]{5}$/.test(d) || /^\d{5}$/.test(d)) return d.slice(0, 5);   /* 화면이 이미 5자리로 잘라 보냄 */
+  return null;
+}
+
 /** 공공데이터포털 인증키 → URL 에 넣을 serviceKey (한 번만 인코딩). Encoding·Decoding 키 아무거나. */
 export function ntsServiceKey(raw) {
   const k = String(raw || '').trim();
@@ -266,7 +277,7 @@ export function ntsServiceKey(raw) {
 
 /** CMS 성공 거래 → 원장 ○ (회원번호로 거래처 연결). 이미 ○ 인 달은 그대로. 언제 돌려도 같은 결과. */
 /* CMS 기록 → 장부. 다시 돌려도 결과가 같다 (회원목록·결제조회 어느 쪽을 먼저 올려도 됨).
-   귀속월 = 그 거래처 약정일 기준: 출금일이 약정일(28일 넘으면 28일) 이후면 그 달, 전이면 전달(재출금).
+   귀속월 = 그 거래처 약정일 기준: 출금일이 약정일(25일 넘으면 25일 — 말일 약정이 2월·휴일로 당겨져도) 이후면 그 달, 전이면 전달(재출금).
    약정일을 모르면 20일 기준. 2026-11-13 실제 파일: 약정일 25일 189곳·19일·30일·1일 각 1곳.
    CMS 가 만든 칸(source CMS·CMS카드)만 지우고 다시 만든다 — 수기 입금확인은 그대로. */
 async function deriveCmsLedger(db) {
@@ -274,7 +285,7 @@ async function deriveCmsLedger(db) {
   await db.batch([
     db.prepare(
       `UPDATE bk_cms_tx SET period = CASE
-         WHEN CAST(substr(tx_date, 9, 2) AS INTEGER) >= MIN(28, COALESCE((
+         WHEN CAST(substr(tx_date, 9, 2) AS INTEGER) >= MIN(25, COALESCE((
               SELECT c.pay_day FROM bk_clients c WHERE c.member_no = bk_cms_tx.member_no
                 AND c.pay_day BETWEEN 1 AND 31 AND (c.deleted_at IS NULL OR c.deleted_at = '') LIMIT 1), 20))
            THEN substr(tx_date, 1, 7)
@@ -409,18 +420,20 @@ export async function onRequestGet(context) {
       /* 자료 범위 — 결제수단별로. 시작 = 그 달 본출금(약정일 이후 출금)이 파일에 있는 첫 달.
          (5월 초 재출금만 있는 4월은 본출금이 빠져 있어 ✕ 로 찍으면 안 된다 — 2026-11-13 실제 파일) */
       const { results: covRows } = await db.prepare(
-        `SELECT method,
-                MIN(CASE WHEN substr(tx_date, 1, 7) = period THEN period END) AS lo,
-                MAX(period) AS hi
-           FROM bk_cms_tx WHERE period IS NOT NULL AND tx_date IS NOT NULL GROUP BY method`
+        `SELECT method, period, COUNT(DISTINCT member_no) AS n FROM bk_cms_tx
+          WHERE period IS NOT NULL AND substr(tx_date, 1, 7) = period GROUP BY method, period`
       ).all();
+      /* 본출금 회원 수가 가장 많은 달의 절반 이상인 달만 "자료 있음" — 약정일 1일 한 곳의 11/2 출금만으로
+         11월을 자료 있음으로 보면 27일 이후 나머지 거래처가 전부 ✕ 가 된다 (2026-11-13 검토) */
       const covBy = {};
-      /* 끝은 마감된 달까지만 (약정일 1일 거래처의 11/2 출금 = 11월분이 있어도 11월은 아직 마감 전) */
       const closedYm = (() => { const t = today(); const y = +t.slice(0, 4), m = +t.slice(5, 7);
         return +t.slice(8, 10) >= 27 ? ym(y, m) : (m === 1 ? ym(y - 1, 12) : ym(y, m - 1)); })();
-      for (const r of covRows || []) {
-        const hi = r.hi && r.hi > closedYm ? closedYm : r.hi;
-        if (r.lo && hi && r.lo <= hi) covBy[r.method] = { from: r.lo, to: hi };
+      const perMethod = {};
+      for (const r of covRows || []) (perMethod[r.method] ||= []).push(r);
+      for (const [mth, list] of Object.entries(perMethod)) {
+        const max = Math.max(...list.map((r) => r.n));
+        const ok = list.filter((r) => r.n * 2 >= max && r.period <= closedYm).map((r) => r.period).sort();
+        if (ok.length) covBy[mth] = { from: ok[0], to: ok[ok.length - 1] };
       }
       const covOf = (c) => covBy[c.pay_method === 'CMS카드' ? 'CMS카드' : 'CMS계좌'] || null;
 
@@ -646,14 +659,15 @@ export async function onRequestPost(context) {
         ).bind(no, name, bill, method, Number(String(r.pay_day || '').replace(/\D/g, '')) || null, start, end, end ? 'CMS종료' : null,
                String(r.member_status || '').trim() || null, String(r.can_withdraw || '').trim() || null,
                r.payer ? String(r.payer).trim().slice(0, 60) : null,
-               String(r.key || '').trim().slice(0, 13) || null, now));
+               cmsKey(r.key), now));
       }
       await runBatch(db, stmts);
       await deriveCmsLedger(db);
       const link = await relink(db);
       const txm = await membersWithTx(db);
       const { results: all } = await db.prepare(
-        `SELECT member_no, cms_state, can_withdraw, bk_end, bk_end_reason FROM bk_clients WHERE member_no IS NOT NULL AND ${NOT_DELETED}`
+        `SELECT member_no, cms_state, can_withdraw, bk_end, bk_end_reason FROM bk_clients
+          WHERE member_no IS NOT NULL AND ${NOT_DELETED} AND bill IS NOT NULL AND bill > 0`
       ).all();
       const nowYm = today().substring(0, 7);
       const st = { active: 0, stopped: 0, blocked: 0 };
@@ -751,14 +765,30 @@ export async function onRequestPost(context) {
         const hit = np.length >= 2 ? cands.filter((c) => c.bill === amt && c.keys.some((k) => np.includes(k) || k.includes(np))) : [];
         items.push({ amt, txDate, payer, memo: String(r.memo || '').trim(), cid: hit.length === 1 ? hit[0].id : null, period: null });
       }
+      /* 어느 달 기장료인가 — 그 거래처가 기장 중이었고 아직 안 받은 가장 이른 달 (입금월 이하, 최근 24개월).
+         없으면 입금월 (선납). 예: 10월분을 11/5 에 이체 → 10월. */
       const cids = [...new Set(items.filter((x) => x.cid).map((x) => x.cid))];
       const openBy = {};
       for (let i = 0; i < cids.length; i += 90) {
-        const part = cids.slice(i, i + 90);
-        const { results } = await db.prepare(
-          `SELECT client_id, period FROM bk_ledger WHERE paid_at IS NULL AND client_id IN (${part.map(() => '?').join(',')}) ORDER BY period`
-        ).bind(...part).all();
-        for (const o of results || []) (openBy[o.client_id] ||= []).push(o.period);
+        const part = cids.slice(i, i + 90), ph = part.map(() => '?').join(',');
+        const [{ results: cs }, { results: paid }, { results: evs }] = await Promise.all([
+          db.prepare(`SELECT id, bk_start, bk_end FROM bk_clients WHERE id IN (${ph})`).bind(...part).all(),
+          db.prepare(`SELECT client_id, period FROM bk_ledger WHERE paid_at IS NOT NULL AND client_id IN (${ph})`).bind(...part).all(),
+          db.prepare(`SELECT client_id, event_date, kind FROM bk_client_events WHERE client_id IN (${ph}) ORDER BY event_date, id`).bind(...part).all(),
+        ]);
+        const paidSet = new Set((paid || []).map((x) => x.client_id + '|' + x.period));
+        const evBy = {};
+        for (const e of evs || []) (evBy[e.client_id] ||= []).push(e);
+        const t = today(), endY = +t.slice(0, 4), endM = +t.slice(5, 7);
+        for (const c of cs || []) {
+          const list = [];
+          for (let k = 24; k >= 0; k--) {
+            let y = endY, m = endM - k; while (m < 1) { m += 12; y--; }
+            const per = ym(y, m);
+            if (activeIn(per, c, evBy[c.id] || []) && !paidSet.has(c.id + '|' + per)) list.push(per);
+          }
+          openBy[c.id] = list;
+        }
       }
       for (const it of items.sort((x, y) => x.txDate.localeCompare(y.txDate))) {
         if (!it.cid) continue;

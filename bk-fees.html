@@ -169,7 +169,8 @@ function filtered(){
 /* 자료 범위 — 계좌·카드 따로 (그 달 본출금이 파일에 있는 달부터) */
 function covText(G){
   var b=G&&G.coverage_by||{}, a=[];
-  function mm(x){ return x? x.from.slice(2).replace('-','.')+'~'+x.to.slice(5) : ''; }
+  function mm(x){ if(!x) return ''; var a=x.from.split('-'), b=x.to.split('-');
+    return a[0]+'년 '+(+a[1])+'월 ~ '+(a[0]===b[0]?'':b[0]+'년 ')+(+b[1])+'월'; }
   if(b['CMS계좌']) a.push('계좌 '+mm(b['CMS계좌']));
   if(b['CMS카드']) a.push('카드 '+mm(b['CMS카드']));
   return a.length? esc(a.join(' · ')) : '아직 없음';
@@ -329,13 +330,20 @@ function toCms(raw, kind){
     amount:num(r['결제금액']||r['승인금액']||r['신청금액']), status:r['결제상태']||r['승인상태'], reason:r['비고']||'',
     method:(kind?kind==='cms_card':!!r['승인일'])?'CMS카드':'CMS계좌' }; }).filter(function(r){ return r.member_no && r.tx_date; });
 }
+/* 맞춤용 키만 보낸다: 개인 = 생년월일 6자리, 사업자 = 사업자번호 앞 5자리. 주민번호 뒷자리는 절대 안 보냄 */
+function cmsKey(raw){
+  var v=String(raw||'').trim();
+  if(/^\d{6}(-|$|\s|\*)/.test(v)) return v.slice(0,6);
+  var d=v.replace(/-/g,'');
+  return /^\d{5}[\d*]{5}$/.test(d)? d.slice(0,5) : '';   /* CMS 는 '12345*****' 로 가려서 준다 */
+}
 function toCmsMembers(raw){
   /* CMS 회원목록 = 기장료 거래처 명단. 생년월일/사업자번호 칸은 앞자리만 (가려진 값 그대로) — 위하고 명부와 맞출 때 씀 */
   return raw.map(function(r){ return {
     member_no:r['회원번호'], member_name:r['회원명'], pay_day:num(r['약정일']), amount:num(r['기본금액']),
     member_status:r['회원상태']||'', payer:r['결제자명']||'', can_withdraw:r['결제신청가능']||'',
     pay_type:r['결제구분']||'', start_date:r['결제시작일']||r['가입일']||'', end_date:r['결제종료일']||'',
-    key:String(r['생년월일/사업자번호']||'').slice(0,10) }; })
+    key:cmsKey(r['생년월일/사업자번호']) }; })
     .filter(function(r){ return r.member_no; });
 }
 /* 위하고 명부는 한 거래처가 두 줄 — 첫 줄 상호·사업자번호·주민(법인)번호·담당, 둘째 줄(첫 칸 빈칸) 대표자.
@@ -433,8 +441,8 @@ async function uploadOne(file){
 /* ❓ 어떤 파일을 올리나 (세무포털 화면 캡처는 거래처 이름이 보여서 넣지 않음 — 글로만) */
 var GUIDE=[
   ['CMS 회원목록 (기본)','세무포털 세무사CMS','회원관리 → 회원조회 → [엑셀다운로드]','기장료 거래처 명단입니다. 회원번호마다 한 거래처, 기본금액 = 월 기장료(부가세 포함), 결제시작일 = 시작월. 신청불능·결제종료일이 지난 곳은 [정지·해지] 로 따로 빠집니다. 맨 끝 합계 줄은 알아서 거릅니다.'],
-  ['CMS 결제조회 (계좌)','세무포털 세무사CMS','결제관리 → 결제내역 조회 → [엑셀다운로드]','출금 성공·실패와 사유(잔액부족 등). 성공 건이 ○ 로, 실패만 있으면 ✕ (마우스를 올리면 사유). 올린 기간만 판단하고, 자료가 없는 달은 – 로 둡니다.'],
-  ['신용카드 승인조회','세무포털 세무사CMS','결제관리 → 카드결제 내역 → [엑셀다운로드]','카드로 받는 거래처 분. 계좌 파일과 같이 올리면 됩니다.'],
+  ['CMS 결제조회 (계좌)','세무포털 세무사CMS','결제관리 → 결제내역 조회 → [엑셀다운로드]','조회 기간을 길게(올해 1월 1일 ~ 오늘) 잡아 받으세요. 출금 성공·실패와 사유(잔액부족 등). 성공 건이 ○ 로, 실패만 있으면 ✕ (마우스를 올리면 사유). 올린 기간만 판단하고, 자료가 없는 달은 – 로 둡니다.'],
+  ['신용카드 승인조회','세무포털 세무사CMS','결제관리 → 카드결제 내역 → [엑셀다운로드]','카드로 받는 거래처 분. 계좌 파일처럼 기간을 길게(올해 1월 1일 ~ 오늘) 잡아 받으세요.'],
   ['위하고 거래처 명부 (참조)','위하고(WEHAGO)','거래처(회사) 코드 전체 LIST','사업자번호·대표자·담당을 채우는 데만 씁니다. 상호가 똑같거나, 비슷하면서 생년월일·사업자번호 앞자리까지 맞을 때만 채웁니다. 주민번호는 앞 6자리(생년월일)만 읽습니다. 사업자번호가 있어야 폐업 체크가 됩니다.']
 ];
 function toggleHelp(){
@@ -464,7 +472,7 @@ function openNew(){
     +'<div><label>담당</label><input id="nStaff"></div></div>'
     +'<div class="row2"><div><label>수납수단</label><select id="nPay"><option>직접이체</option><option>현금</option><option>기타</option></select></div>'
     +'<div><label>기장 시작 (YYYY-MM)</label><input id="nStart" value="'+month+'"></div></div>'
-    +'<div style="font-size:11.5px;color:var(--mut);margin-top:6px">시작월부터 ✕ 로 잡히고, 입금되면 ✕ 를 눌러 확인합니다.</div>'
+    +'<div style="font-size:11.5px;color:var(--mut);margin-top:6px">시작월부터, 그 달이 마감되면(매달 27일) ✕ 로 잡히고, 입금되면 ✕ 를 눌러 확인합니다.</div>'
     +'<div style="margin-top:10px"><button class="btn pri" onclick="saveNew()">등록</button></div>';
   document.getElementById('ov').classList.add('on');
   setTimeout(function(){ var q=document.getElementById('nName'); if(q) q.focus(); },50);

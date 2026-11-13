@@ -99,14 +99,17 @@ describe('2차 — 파일 종류 자동 인식 · 위하고 · 신규 수임', (
     const m = [['세무사CMS'], [''], ['회원조회'], ['총 2건'],
       ['회원번호', '회원명', '약정일', '기본금액', '회원상태', '결제구분', '생년월일/사업자번호', '결제자명', '결제신청가능', '결제시작일', '결제종료일', '가입일'],
       ['M001', '갑', '25', '110,000', '신청완료', '계좌', '850101', '홍길동', '출금가능', '2025-03-10', '9999-12-31', '2025-03-01'],
-      ['M002', '을', '25', '220,000', '신청불능', '카드', '1018100001', '', '출금불가', '', '2026-08-31', '2024-02-01']];
+      ['M002', '을', '25', '220,000', '신청불능', '카드', '10181*****', '', '출금불가', '', '2026-08-31', '2024-02-01'],
+      ['M003', '병', '25', '110,000', '신청완료', '계좌', '850101-1234567', '', '출금가능', '', '9999-12-31', '2024-02-01']];
     expect(api.headerRow(m)).toBe(4);
     expect(api.toCmsMembers(api.rowsFromMatrix(m))).toEqual([
       { member_no: 'M001', member_name: '갑', pay_day: 25, amount: 110000, member_status: '신청완료', payer: '홍길동', can_withdraw: '출금가능',
         pay_type: '계좌', start_date: '2025-03-10', end_date: '9999-12-31', key: '850101' },
       { member_no: 'M002', member_name: '을', pay_day: 25, amount: 220000, member_status: '신청불능', payer: '', can_withdraw: '출금불가',
-        pay_type: '카드', start_date: '2024-02-01', end_date: '2026-08-31', key: '1018100001' },
+        pay_type: '카드', start_date: '2024-02-01', end_date: '2026-08-31', key: '10181' },
+      expect.objectContaining({ member_no: 'M003', key: '850101' }),
     ]);
+    expect(JSON.stringify(api.toCmsMembers(api.rowsFromMatrix(m)))).not.toContain('1234567');
   });
   it('위하고 명부 두 줄 형식 — 상호·사업자번호·담당 + 대표자, 주민번호는 앞 6자리만 (뒷자리는 절대 안 보냄)', () => {
     const m = [
@@ -144,7 +147,7 @@ describe('2차 — 파일 종류 자동 인식 · 위하고 · 신규 수임', (
     expect(tr.querySelector('.c.p')!.getAttribute('title')).toContain('출금중');
     expect(tr.querySelectorAll('.c.n')[0].getAttribute('title')).toContain('자료가 없는');
     expect(tr.querySelector('.c.x')!.getAttribute('title')).toContain('잔액부족');
-    expect(document.getElementById('kpi')!.textContent).toContain('계좌 26.05~10 · 카드 26.06~10');
+    expect(document.getElementById('kpi')!.textContent).toContain('계좌 2026년 5월 ~ 10월 · 카드 2026년 6월 ~ 10월');
   });
   it('거래처별 안 들어온 돈 칸 + 도움말에 캡처 이미지 없음', () => {
     expect(trs()[0].lastElementChild!.textContent).toBe('110,000원');
