@@ -318,10 +318,43 @@ async function relink(db) {
     `SELECT id, name, ceo_name, business_number, business_id, staff_name, cms_key, wehago_name, wehago_closed FROM bk_clients WHERE ${NOT_DELETED}`
   ).all();
   const { results: wh } = await db.prepare(`SELECT * FROM bk_wehago`).all();
-  const { results: biz } = await db.prepare(
-    `SELECT id, business_number FROM businesses WHERE ${NOT_DELETED} AND business_number IS NOT NULL AND business_number != ''`
-  ).all();
-  const wrows = (wh || []).map((w) => ({ ...w, keys: nameKeys(w.name) }));
+  /* admin 업체 목록 = 기본 참조 (예전에 위하고에서 일괄 등록한 상호·사업자번호·대표자).
+     사장님 2026-11-13 "위하고 파일은 빼고" — 위하고 명부는 담당자 채울 때만 선택으로 올린다. */
+  let biz;
+  try {
+    ({ results: biz } = await db.prepare(
+      `SELECT b.id, b.company_name, b.business_number, b.ceo_name, b.status, b.closed_date,
+              (SELECT u.birth_date FROM business_members m JOIN users u ON u.id = m.user_id
+                WHERE m.business_id = b.id AND (m.removed_at IS NULL OR m.removed_at = '')
+                  AND (m.role = '대표자' OR m.is_primary = 1) AND u.birth_date IS NOT NULL AND u.birth_date != ''
+                ORDER BY m.is_primary DESC LIMIT 1) AS birth_date
+         FROM businesses b WHERE (b.deleted_at IS NULL OR b.deleted_at = '') AND b.business_number IS NOT NULL AND b.business_number != ''`
+    ).all());
+  } catch {
+    /* users.birth_date 등 lazy 컬럼이 아직 없을 때 */
+    ({ results: biz } = await db.prepare(
+      `SELECT id, company_name, business_number, ceo_name, status, closed_date, NULL AS birth_date FROM businesses
+        WHERE ${NOT_DELETED} AND business_number IS NOT NULL AND business_number != ''`
+    ).all());
+  }
+  /* 사업자번호가 같으면 위하고 행이 우선 (담당자가 있음), 빈 칸은 admin 값으로 */
+  const refByBn = new Map();
+  for (const b of biz || []) {
+    const bn = normBiz(b.business_number);
+    if (bn.length !== 10) continue;
+    const bd = String(b.birth_date || '').replace(/\D/g, '');
+    refByBn.set(bn, {
+      business_number: b.business_number, name: b.company_name, ceo_name: b.ceo_name || null, staff_name: null,
+      birth6: bd.length === 8 ? bd.slice(2) : null,
+      closed: (b.closed_date && b.closed_date !== '') || /closed|폐업/.test(String(b.status || '')) ? 1 : 0,
+    });
+  }
+  for (const w of wh || []) {
+    const bn = normBiz(w.business_number);
+    const a = refByBn.get(bn);
+    refByBn.set(bn, a ? { ...a, ...w, ceo_name: w.ceo_name || a.ceo_name, birth6: w.birth6 || a.birth6, closed: w.closed || a.closed } : w);
+  }
+  const wrows = [...refByBn.values()].map((w) => ({ ...w, keys: nameKeys(w.name) }));
   const byKey = {};
   for (const w of wrows) for (const k of w.keys) (byKey[k] ||= []).push(w);
   const bizByBn = {};

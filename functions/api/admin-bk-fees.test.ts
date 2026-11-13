@@ -270,14 +270,15 @@ describe('위하고 명부 (참조)', () => {
   const wh = (bn: string, name: string, o: Record<string, unknown> = {}) => ({ business_number: bn, company_name: name, ceo_name: '', staff_name: '', birth6: '', ...o });
   it('이름이 같으면 사업자번호·대표자·담당을 빈칸만 채우고, admin 업체가 한 곳이면 연결', async () => {
     await d1.prepare(`INSERT INTO businesses (id, company_name, business_number) VALUES (11, '(주)갑상사', '101-81-00001')`).run();
-    await post('import_cms_members', { rows: [mem('M0001', '(주)갑상사'), mem('M0002', '을식당')] });
+    /* admin 업체는 회원목록 올릴 때 이미 연결된다 (위하고 파일 없이도) */
+    expect((await post('import_cms_members', { rows: [mem('M0001', '(주)갑상사'), mem('M0002', '을식당')] })).body.business_linked).toBe(1);
     const id2 = byCms(await grid(), 'M0002').id;
     await post('save_client', { id: id2, staff_name: '내가넣은담당' });
     const r = (await post('import_wehago', { rows: [
       wh('101-81-00001', '주식회사 갑상사', { ceo_name: '홍길동', staff_name: '이직원' }),
       wh('201-00-00002', '을식당', { ceo_name: '김을순', staff_name: '김직원' }),
     ] })).body;
-    expect(r).toMatchObject({ rows: 2, matched: 2, business_linked: 1, unmatched_count: 0, members_pending: false });
+    expect(r).toMatchObject({ rows: 2, matched: 2, business_linked: 0, unmatched_count: 0, members_pending: false });
     const g = await grid();
     expect(byCms(g, 'M0001')).toMatchObject({ biz_no: '101-81-00001', ceo: '홍길동', staff: '이직원', business_id: 11 });
     expect(byCms(g, 'M0002')).toMatchObject({ biz_no: '201-00-00002', ceo: '김을순', staff: '내가넣은담당' });
@@ -310,6 +311,37 @@ describe('위하고 명부 (참조)', () => {
     await post('import_wehago', { rows: [wh('101-81-00001', '갑', { birth6: '850101-1234567' }), wh('201-00-00002', '을', { birth6: '900202' })] });
     const { results }: any = await d1.prepare(`SELECT birth6 FROM bk_wehago ORDER BY business_number`).all();
     expect(results.map((x: any) => x.birth6)).toEqual([null, '900202']);
+  });
+});
+
+describe('위하고 파일 없이 — admin 거래처 목록으로 연결 (사장님 2026-11-13 "위하고 파일은 빼고")', () => {
+  async function addBiz(id: number, name: string, bn: string, ceo: string, birth?: string, extra: Record<string, unknown> = {}) {
+    const cols = ['id', 'company_name', 'business_number', 'ceo_name', ...Object.keys(extra)];
+    await d1.prepare(`INSERT INTO businesses (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`).bind(id, name, bn, ceo, ...Object.values(extra)).run();
+    if (birth) {
+      await d1.prepare(`INSERT INTO users (id, name, real_name, birth_date) VALUES (?, ?, ?, ?)`).bind(id, ceo, ceo, birth).run();
+      await d1.prepare(`INSERT INTO business_members (business_id, user_id, role, is_primary) VALUES (?, ?, '대표자', 1)`).bind(id, id).run();
+    }
+  }
+  it('회원목록만 올려도 사업자번호·대표자·admin 업체가 연결되고, 같은 상호는 대표자 생년월일로 가린다', async () => {
+    await addBiz(21, '(주)갑상사', '101-81-00001', '홍길동');
+    await addBiz(22, '옆커폰 동남점', '111-11-11111', '김가', '1985-01-01');
+    await addBiz(23, '옆커폰 동남점', '222-22-22222', '이나', '1990-02-02');
+    await addBiz(24, '폐업한곳', '333-33-33333', '박다', undefined, { status: 'closed', closed_date: '2026-03-31' });
+    const r = (await post('import_cms_members', { rows: [
+      mem('M0001', '갑상사'), mem('M0002', '옆커폰 동남점', { key: '900202' }), mem('M0003', '폐업한곳'),
+    ] })).body;
+    expect(r).toMatchObject({ wehago_matched: 3, business_linked: 3 });
+    const g = await grid();
+    expect(byCms(g, 'M0001')).toMatchObject({ biz_no: '101-81-00001', ceo: '홍길동', business_id: 21 });
+    expect(byCms(g, 'M0002')).toMatchObject({ biz_no: '222-22-22222', ceo: '이나', business_id: 23 });
+    expect(byCms(g, 'M0003')).toMatchObject({ business_id: 24, wehago_closed: true, stopped: false });
+  });
+  it('위하고 명부를 같이 올리면 담당자는 위하고에서, 나머지는 같은 값', async () => {
+    await addBiz(21, '(주)갑상사', '101-81-00001', '홍길동');
+    await post('import_wehago', { rows: [{ business_number: '101-81-00001', company_name: '(주)갑상사', ceo_name: '', staff_name: '이직원', birth6: '' }] });
+    await post('import_cms_members', { rows: [mem('M0001', '갑상사')] });
+    expect(byCms(await grid(), 'M0001')).toMatchObject({ biz_no: '101-81-00001', ceo: '홍길동', staff: '이직원', business_id: 21 });
   });
 });
 
