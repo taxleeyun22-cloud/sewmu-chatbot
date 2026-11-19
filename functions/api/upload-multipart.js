@@ -22,6 +22,14 @@ const PART_MIN = 5 * 1024 * 1024;        // R2/S3 멀티파트 최소 5MB (마�
 const PART_MAX = 95 * 1024 * 1024;       // Workers 요청 본문 100MB 한계 아래 버퍼
 
 const EXT_WHITELIST = ['pdf','xls','xlsx','doc','docx','ppt','pptx','hwp','hwpx','txt','csv','zip','mp4','mov','m4v','webm','mp3','m4a','wav'];
+const EXT_MIME = {
+  pdf: 'application/pdf', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  hwp: 'application/x-hwp', hwpx: 'application/octet-stream', txt: 'text/plain; charset=utf-8', csv: 'text/csv; charset=utf-8',
+  zip: 'application/zip', mp4: 'video/mp4', mov: 'video/quicktime', m4v: 'video/mp4', webm: 'video/webm',
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav',
+};
 
 async function resolveAuth(context) {
   const url = new URL(context.request.url);
@@ -92,8 +100,9 @@ async function handleStart(context, bucket, auth) {
   const prefix = auth.isAdmin ? 'admin/files' : `u${auth.userId}/files`;
   const key = `${prefix}/${Date.now()}_${crypto.randomUUID().replace(/-/g,'').slice(0,12)}.${rawExt}`;
 
+  /* 보안 (2026-11-19 점검 H2): 저장 형식은 확장자로 정한다 (브라우저가 보낸 type 을 그대로 믿지 않음) */
   const mpu = await bucket.createMultipartUpload(key, {
-    httpMetadata: { contentType: type },
+    httpMetadata: { contentType: EXT_MIME[rawExt] || 'application/octet-stream' },
     customMetadata: {
       user_id: auth.isAdmin ? 'admin' : String(auth.userId),
       original_name: name,
@@ -157,8 +166,16 @@ async function handleComplete(context, bucket, auth) {
   let messageId = null;
   let msgError = null;
   if (room_id && db) {
+    /* 보안 (2026-11-19 점검 H7): 거래처는 자기가 들어가 있는(나가지 않은) 열린 방에만 파일 메시지를 남긴다 */
+    if (!auth.isAdmin) {
+      const mem = await db.prepare(
+        `SELECT 1 AS ok FROM room_members m JOIN chat_rooms r ON r.id = m.room_id
+          WHERE m.room_id = ? AND m.user_id = ? AND m.left_at IS NULL AND COALESCE(r.status, 'active') = 'active'`
+      ).bind(room_id, auth.userId).first().catch(() => null);
+      if (!mem) return Response.json({ error: '이 방에 파일을 보낼 권한이 없습니다' }, { status: 403 });
+    }
     try {
-      const payload = JSON.stringify({ url: fileUrl, name: name || 'file', size: size || 0 });
+      const payload = JSON.stringify({ url: fileUrl, name: String(name || 'file').replace(/[\x00-\x1f\\\/"<>]/g, '_').slice(0, 200), size: Number(size) || 0 });
       const content = `[FILE]${payload}`;
       const role = auth.isAdmin ? 'admin' : 'user';
       const r = await db.prepare(
@@ -167,7 +184,8 @@ async function handleComplete(context, bucket, auth) {
       ).bind(`room_${room_id}`, auth.isAdmin ? null : auth.userId, role, content, room_id, kst()).run();
       messageId = r.meta?.last_row_id;
     } catch (e) {
-      msgError = e.message || String(e);
+      console.error('[upload-multipart] message insert', e);
+      msgError = '메시지 기록 실패';   /* 내부 오류 원문은 내보내지 않음 */
     }
   }
 

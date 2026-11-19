@@ -29,7 +29,7 @@ const ALLOWED_TYPES = [
   'text/markdown',
   /* 이미지 — 영수증·사진 핵심 */
   'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
-  'image/heic', 'image/heif', 'image/bmp', 'image/svg+xml', 'image/tiff',
+  'image/heic', 'image/heif', 'image/bmp', 'image/tiff',   /* svg 제외 — 안에 스크립트를 넣을 수 있음 (2026-11-19 점검 H2) */
   /* 영상 — 화면 녹화 등 */
   'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm', 'video/x-matroska',
   /* 음성 */
@@ -50,7 +50,7 @@ const EXT_WHITELIST = [
   'rtf','odt','ods','odp',
   'txt','csv','md',
   /* 이미지 */
-  'jpg','jpeg','png','gif','webp','heic','heif','bmp','svg','tif','tiff',
+  'jpg','jpeg','png','gif','webp','heic','heif','bmp','tif','tiff',
   /* 영상 */
   'mp4','mov','avi','webm','mkv',
   /* 음성 */

@@ -56,6 +56,14 @@ let KEY='';
 function _noop(){return {style:{},classList:{add:function(){},remove:function(){},toggle:function(){},contains:function(){return false}},dataset:{},children:[],value:'',innerHTML:'',textContent:'',checked:false,disabled:false,className:'',addEventListener:function(){},removeEventListener:function(){},focus:function(){},click:function(){},blur:function(){},scrollIntoView:function(){},closest:function(){return null},querySelector:function(){return null},querySelectorAll:function(){return []},appendChild:function(a){return a},removeChild:function(a){return a},setAttribute:function(){},getAttribute:function(){return null},removeAttribute:function(){},insertAdjacentHTML:function(){}}}
 function $g(id){return document.getElementById(id)||_noop()}
 function e(t){return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+/* 보안 (2026-11-19 점검 C1): 메시지 속 그림·파일 주소는 우리 서버 경로만 그림·링크로 만든다.
+   사진 = /api/image?k=키 (따옴표·괄호·& 불가 — onclick 안에 들어가도 탈출 못 함), 파일 = /api/file?k=키[&name=이름] */
+function isSafeMediaUrl(u,kind){
+  if(typeof u!=='string')return false;
+  if(kind==='image')return /^\/api\/image\?k=[A-Za-z0-9%._\-\/]+$/.test(u);
+  if(kind==='file')return /^\/api\/file\?k=[A-Za-z0-9%._\-\/]+(&name=[^\s"<>&]*)?$/.test(u);
+  return isSafeMediaUrl(u,'image')||isSafeMediaUrl(u,'file');
+}
 function escAttr(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/[\r\n]+/g,' ')}
 /* URL 자동링크: escape 된 문자열에만 적용(XSS 안전). http(s)://, www. 만 대상 */
 function linkify(s){
@@ -219,10 +227,10 @@ function parseMsg(content){
   if(md)return {reply:reply,image:null,file:null,doc_id:parseInt(md[1],10),alert:null,chatbot_share:null,text:md[3]||''};
   const mf=/^\[FILE\](\{[^\n]+\})(\n([\s\S]*))?$/.exec(content);
   if(mf){
-    try{const obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,doc_id:null,alert:null,chatbot_share:null,text:mf[3]||''}}catch{}
+    try{const obj=JSON.parse(mf[1]);if(obj&&isSafeMediaUrl(obj.url,'file'))return {reply:reply,image:null,file:obj,doc_id:null,alert:null,chatbot_share:null,text:mf[3]||''}}catch{}
   }
   const m=/^\[IMG\](\S+)(\n([\s\S]*))?$/.exec(content);
-  if(m)return {reply:reply,image:m[1],file:null,doc_id:null,alert:null,chatbot_share:null,text:m[3]||''};
+  if(m&&isSafeMediaUrl(m[1],'image'))return {reply:reply,image:m[1],file:null,doc_id:null,alert:null,chatbot_share:null,text:m[3]||''};
   return {reply:reply,image:null,file:null,doc_id:null,alert:null,chatbot_share:null,text:content};
 }
 
@@ -316,7 +324,7 @@ function renderMsgBody(content, attachedDoc){
   const p=parseMsg(content);
   let h='';
   if(p.reply){
-    const s=p.reply.s||'', t=(p.reply.t||'').slice(0,100), ji=p.reply.i||'';
+    const s=p.reply.s||'', t=(p.reply.t||'').slice(0,100), ji=String(p.reply.i||'').replace(/[^A-Za-z0-9_-]/g,'');
     h+='<div class="rc-quote" data-jump-mid="'+escAttr(String(ji))+'" onclick="jumpToOriginalMsgAdmin(\''+escAttr(String(ji))+'\')" style="cursor:pointer"><div class="rc-quote-sender">↩︎ '+e(s)+'</div><div class="rc-quote-text">'+e(t)+'</div></div>';
   }
   if(p.chatbot_share){
@@ -353,13 +361,13 @@ function renderMsgBody(content, attachedDoc){
   if(p.image){
     /* 관리자 채널: 이미지 wrapper + 의심 배지 overlay (onload 휴리스틱) */
     h+='<span class="rc-img-wrap" style="position:relative;display:inline-block;line-height:0">'
-      +  '<img class="rc-img-msg" src="'+e(p.image)+'" alt="이미지" loading="lazy" style="display:inline-block;max-width:220px;max-height:300px;border-radius:10px;background:rgba(0,0,0,.06);object-fit:cover;cursor:zoom-in" onload="rcCheckDocSuspect(this)" onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:var(--toss-red);font-size:.8em\\\'>이미지 로드 실패</div>\'">'
+      +  '<img class="rc-img-msg" src="'+escAttr(p.image)+'" alt="이미지" loading="lazy" style="display:inline-block;max-width:220px;max-height:300px;border-radius:10px;background:rgba(0,0,0,.06);object-fit:cover;cursor:zoom-in" onload="rcCheckDocSuspect(this)" onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:var(--toss-red);font-size:.8em\\\'>이미지 로드 실패</div>\'">'
       +  '<span class="rc-doc-badge" style="display:none;position:absolute;top:6px;right:6px;background:rgba(255,255,255,.92);border:1px solid #fcd34d;color:var(--warn-text);font-size:.68em;font-weight:700;padding:2px 7px;border-radius:10px;line-height:1.4;box-shadow:0 1px 3px rgba(0,0,0,.15);pointer-events:none"></span>'
       +'</span>';
   }
   if(p.file){
     const nm=p.file.name||'파일';
-    h+='<a href="'+e(p.file.url||'#')+'" download="'+e(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,0,0,.05);border-radius:10px;text-decoration:none;color:inherit;max-width:260px">'
+    h+='<a href="'+escAttr(p.file.url||'#')+'" download="'+escAttr(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,0,0,.05);border-radius:10px;text-decoration:none;color:inherit;max-width:260px">'
       +'<div style="font-size:1.8em;line-height:1">'+fileIconFor(nm)+'</div>'
       +'<div style="flex:1;min-width:0;overflow:hidden"><div style="font-weight:600;font-size:.88em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(nm)+'</div>'
       +'<div style="font-size:.72em;color:var(--text-mute);margin-top:2px">'+fmtSize(p.file.size)+' · 다운로드</div></div></a>';

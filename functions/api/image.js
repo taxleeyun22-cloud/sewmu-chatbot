@@ -9,6 +9,9 @@ import { checkAdmin } from "./_adminAuth.js";
 
 const KEY_RE = /^[A-Za-z0-9_.\-\/]{1,256}$/;
 
+const SAFE_INLINE_IMAGE = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+  'image/heic', 'image/heif', 'image/bmp', 'image/tiff']);
+
 export async function onRequestGet(context) {
   const bucket = context.env.MEDIA_BUCKET;
   if (!bucket) return new Response("R2 not configured", { status: 500 });
@@ -36,6 +39,21 @@ export async function onRequestGet(context) {
     headers.set('etag', obj.httpEtag);
     headers.set('X-Content-Type-Options', 'nosniff');
     headers.set('Referrer-Policy', 'no-referrer');
+    /* 보안 (2026-11-19 점검 H2): 화면에 바로 띄우는 건 일반 사진 형식만.
+       svg·html·xml 등 스크립트를 품을 수 있는 형식은 다운로드로만, 그리고 어떤 경우든 스크립트 실행 금지 */
+    headers.set('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
+    let ct = String(headers.get('Content-Type') || '').toLowerCase().split(';')[0].trim();
+    /* 브라우저가 형식을 몰라 octet-stream 으로 올린 사진(HEIC 등)은 확장자로 다시 판단 */
+    if (!ct || ct === 'application/octet-stream') {
+      const ext = (key.split('.').pop() || '').toLowerCase();
+      const byExt = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+        heic: 'image/heic', heif: 'image/heif', bmp: 'image/bmp', tif: 'image/tiff', tiff: 'image/tiff' }[ext];
+      if (byExt) { ct = byExt; headers.set('Content-Type', byExt); }
+    }
+    if (!SAFE_INLINE_IMAGE.has(ct)) {
+      headers.set('Content-Type', 'application/octet-stream');
+      headers.set('Content-Disposition', 'attachment');
+    }
 
     return new Response(obj.body, { headers });
   } catch (e) {

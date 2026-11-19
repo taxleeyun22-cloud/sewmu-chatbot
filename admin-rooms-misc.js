@@ -97,8 +97,8 @@ async function loadRoomMedia(){
       photoEl.innerHTML=d.photos.map(function(m){
         const match=String(m.content||'').match(/^\[IMG\](\S+)/);
         const url=match?match[1]:'';
-        if(!url)return '';
-        return '<div class="ri-photo" style="cursor:zoom-in"><img class="rc-img-msg" src="'+e(url)+'" loading="lazy" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onclick="openImgViewer(this.src,collectImagesNear(this))"></div>';
+        if(!url||(typeof isSafeMediaUrl==='function'&&!isSafeMediaUrl(url,'image')))return '';
+        return '<div class="ri-photo" style="cursor:zoom-in"><img class="rc-img-msg" src="'+escAttr(url)+'" loading="lazy" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onclick="openImgViewer(this.src,collectImagesNear(this))"></div>';
       }).join('');
     }
     if(!d.links||d.links.length===0){
@@ -127,10 +127,10 @@ async function loadRoomFiles(){
     if(!d.files||d.files.length===0){el.innerHTML='<div style="text-align:center;color:#8b95a1;font-size:.8em;padding:30px 0">파일 없음</div>';return}
     el.innerHTML=d.files.map(function(m){
       let obj=null;try{const mm=String(m.content||'').match(/^\[FILE\](\{[^\n]+\})/);if(mm)obj=JSON.parse(mm[1])}catch{}
-      if(!obj)return '';
+      if(!obj||(typeof isSafeMediaUrl==='function'&&!isSafeMediaUrl(obj.url,'file')))return '';
       const who=m.role==='human_advisor'?'세무사':m.role==='assistant'?'AI':(m.real_name||m.name||'사용자');
       const nm=obj.name||'파일';
-      return '<a href="'+e(obj.url||'#')+'" download="'+e(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" class="ri-link-item" style="display:flex;gap:10px;text-decoration:none;color:inherit;align-items:center">'
+      return '<a href="'+escAttr(obj.url||'#')+'" download="'+escAttr(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" class="ri-link-item" style="display:flex;gap:10px;text-decoration:none;color:inherit;align-items:center">'
         +'<div style="font-size:1.7em;line-height:1">'+fileIconFor(nm)+'</div>'
         +'<div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e(nm)+'</div>'
         +'<div class="ri-meta">'+fmtSize(obj.size)+' · '+who+' · '+e(m.created_at||'')+'</div></div></a>';

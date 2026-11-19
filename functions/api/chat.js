@@ -175,7 +175,7 @@ function businessLine(b, idx) {
   if (b.vat_period) parts.push(`- 부가세 신고 주기: ${b.vat_period}`);
   if (b.establishment_date) parts.push(`- 개업일: ${b.establishment_date}`);
   if (b.employee_count != null) parts.push(`- 직원 수: ${b.employee_count}명`);
-  if (b.notes) parts.push(`- 특이사항: ${b.notes}`);
+  /* 업체 "특이사항"(직원 메모)은 넣지 않는다 — 거래처가 물으면 내부 메모가 그대로 보일 수 있음 (2026-11-19 점검 M7) */
   return parts.join('\n');
 }
 
@@ -184,12 +184,12 @@ function buildClientContext(businesses, userRealName) {
   const header = userRealName ? `- 대화 상대: ${userRealName}님\n` : "";
   if (businesses.length === 1) {
     const lines = businessLine(businesses[0], null);
-    return `\n\n===== 현재 상담 거래처 정보 (기장거래처) =====\n${header}${lines}\n\n[활용 지침]\n- 이 분께 연결된 사업장은 위 1곳(${businesses[0].company_name || '상호 미상'})뿐입니다. 다른 상호의 매출·세금을 물으면 숫자를 지어내지 말고 "확인된 사업장이 아니어서 답변드릴 수 없습니다. 세무사에게 확인 부탁드립니다"라고 안내.\n- 답변 시 위 정보를 자연스럽게 반영. "○○상사님(간이과세)은..." 같이 맞춤 호칭·상황 반영.\n- 과세유형·업종 특수 사항 고려 (예: 음식점 의제매입세액, 건설업 기성고 등).\n- 세무사 메모가 있으면 그 맥락 반영.\n- 사업자번호는 답변에 노출 자제. 단, "로그인한 본인"이 본인의 매출·세금을 물으면 아래 "신고 검토표 데이터"의 숫자로 정확히 답변 가능 (본인 데이터이므로 OK).\n`;
+    return `\n\n===== 현재 상담 거래처 정보 (기장거래처) =====\n${header}${lines}\n\n[활용 지침]\n- 이 분께 연결된 사업장은 위 1곳(${businesses[0].company_name || '상호 미상'})뿐입니다. 다른 상호의 매출·세금을 물으면 숫자를 지어내지 말고 "확인된 사업장이 아니어서 답변드릴 수 없습니다. 세무사에게 확인 부탁드립니다"라고 안내.\n- 답변 시 위 정보를 자연스럽게 반영. "○○상사님(간이과세)은..." 같이 맞춤 호칭·상황 반영.\n- 과세유형·업종 특수 사항 고려 (예: 음식점 의제매입세액, 건설업 기성고 등).\n- 사업자번호는 답변에 노출 자제. 단, "로그인한 본인"이 본인의 매출·세금을 물으면 아래 "신고 검토표 데이터"의 숫자로 정확히 답변 가능 (본인 데이터이므로 OK).\n`;
   }
   // 복수 사업장
   const blocks = businesses.map((b, i) => businessLine(b, i)).join('\n\n');
   const names = businesses.map((b) => b.company_name).filter(Boolean).join(', ');
-  return `\n\n===== 현재 상담 거래처 정보 (기장거래처 · ${businesses.length}개 사업장) =====\n${header}${blocks}\n\n[활용 지침]\n- 위 ${businesses.length}개 사업장을 운영 중이신 대표자입니다.\n- 이 분께 연결된 사업장은 위 목록(${names})뿐입니다. 목록에 없는 상호의 매출·세금을 물으면 숫자를 지어내지 말고 "확인된 사업장이 아니어서 답변드릴 수 없습니다. 세무사에게 확인 부탁드립니다"라고 안내.\n- 질문이 특정 사업장에 해당하는지 맥락 파악 필요 (예: "우리 음식점"이라면 음식점 사업장 기준). 어느 사업장인지 애매하면 사업장 이름을 되물을 것.\n- 사업장별 과세유형·업종이 다를 수 있으므로 구분해서 안내.\n- 사업자별 매출 합산·비교 등 질문 가능성도 고려.\n- 세무사 메모가 있으면 그 맥락 반영.\n- 사업자번호는 직접 노출 자제. 단, "로그인한 본인"이 본인의 매출·세금을 물으면 아래 "신고 검토표 데이터"의 숫자로 정확히 답변 가능 (본인 데이터이므로 OK).\n`;
+  return `\n\n===== 현재 상담 거래처 정보 (기장거래처 · ${businesses.length}개 사업장) =====\n${header}${blocks}\n\n[활용 지침]\n- 위 ${businesses.length}개 사업장을 운영 중이신 대표자입니다.\n- 이 분께 연결된 사업장은 위 목록(${names})뿐입니다. 목록에 없는 상호의 매출·세금을 물으면 숫자를 지어내지 말고 "확인된 사업장이 아니어서 답변드릴 수 없습니다. 세무사에게 확인 부탁드립니다"라고 안내.\n- 질문이 특정 사업장에 해당하는지 맥락 파악 필요 (예: "우리 음식점"이라면 음식점 사업장 기준). 어느 사업장인지 애매하면 사업장 이름을 되물을 것.\n- 사업장별 과세유형·업종이 다를 수 있으므로 구분해서 안내.\n- 사업자별 매출 합산·비교 등 질문 가능성도 고려.\n- 사업자번호는 직접 노출 자제. 단, "로그인한 본인"이 본인의 매출·세금을 물으면 아래 "신고 검토표 데이터"의 숫자로 정확히 답변 가능 (본인 데이터이므로 OK).\n`;
 }
 
 /* 본인 신고 검토표(filings) 조회 — 사장님 명령 (2026-06-05): "작년 매출?" 챗봇 답변용.
@@ -909,7 +909,7 @@ export async function onRequestPost(context) {
             if (r.vat_payable != null) parts.push('부가세 ' + fmt(r.vat_payable));
             if (r.income_tax != null) parts.push('소득세 ' + fmt(r.income_tax));
             if (r.payroll_total != null) parts.push('인건비 ' + fmt(r.payroll_total));
-            if (r.notes) parts.push('(' + r.notes + ')');
+            /* 재무 메모(notes)도 직원용이라 거래처 챗봇에는 넣지 않음 (M7) */
             return '  · ' + parts.join(' / ');
           });
           financeContext = `
