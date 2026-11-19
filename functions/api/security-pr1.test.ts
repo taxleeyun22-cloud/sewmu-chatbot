@@ -72,6 +72,7 @@ describe('C1 — 메시지 앞머리 위조 차단', () => {
     expect(r.status).toBe(200);
     const row: any = await d1.prepare(`SELECT content FROM conversations`).first();
     expect(row.content).toBe('[CHATBOT_SHARE]{"q":"부가세 언제?","a":"1월 25일입니다","t":1700000000000}');
+    expect((await send('tok1', 'R1', { content: '[CHATBOT_SHARE]' + JSON.stringify({ q: 'q'.repeat(1000), a: 'a'.repeat(3000), t: 1 }) })).status).toBe(200);
     expect((await send('tok1', 'R1', { content: '[CHATBOT_SHARE]["x"]' })).status).toBe(400);
     expect((await send('tok1', 'R1', { content: '[REPLY]{"t":"a","s":"b","i":"1"}\n[CHATBOT_SHARE]{"q":"a","a":"b"}' })).status).toBe(400);
   });

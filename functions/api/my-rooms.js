@@ -384,7 +384,9 @@ export async function onRequestPost(context) {
       const fileName = (body.file_name || "").trim();
       const fileSize = Number(body.file_size || 0);
       if (!rawContent && !imageUrl && !fileUrl) return Response.json({ error: "content or image_url or file_url required" }, { status: 400 });
-      if (rawContent.length > 3000) return Response.json({ error: "메시지가 너무 깁니다" }, { status: 400 });
+      /* 챗봇 Q&A 공유는 질문 1,000 + 답 3,000 자까지 담으므로 한도를 따로 */
+      const maxLen = rawContent.startsWith('[CHATBOT_SHARE]') ? 4500 : 3000;
+      if (rawContent.length > maxLen) return Response.json({ error: "메시지가 너무 깁니다" }, { status: 400 });
       const clean = rawContent ? sanitizeUserMessage(rawContent) : { content: '' };
       if (clean.error) return Response.json({ error: clean.error }, { status: 400 });
       const content = clean.content;
