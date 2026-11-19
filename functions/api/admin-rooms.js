@@ -774,7 +774,8 @@ export async function onRequestPost(context) {
       if (content.length > 5000) return Response.json({ error: "메시지가 너무 깁니다" }, { status: 400 });
       /* 보안: image_url / file_url은 내부 프록시 경로만. 외부 URL·javascript:·data: 차단.
        * Phase R6 (2026-05-05): name 파라미터 한글·공백 등 URL encoded 허용. */
-      if (imageUrl && !/^\/api\/image\?k=[A-Za-z0-9%._\-\/]+(&[A-Za-z_]+=[^&"<>]*)*$/.test(imageUrl)) {
+      /* 사진 주소는 업로드가 돌려준 모양 그대로만 — 화면도 이 모양만 그림으로 그린다 (2026-11-19 보안 점검) */
+      if (imageUrl && !/^\/api\/image\?k=[A-Za-z0-9%._\-\/]+$/.test(imageUrl)) {
         return Response.json({ error: '허용되지 않은 image_url' }, { status: 400 });
       }
       if (fileUrl && !/^\/api\/file\?k=[A-Za-z0-9%._\-\/]+(&[A-Za-z_]+=[^&"<>]*)*$/.test(fileUrl)) {

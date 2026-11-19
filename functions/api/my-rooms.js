@@ -4,6 +4,35 @@
 // - POST?action=send: 방에 메시지 전송
 // - POST?action=leave: 방 나가기
 
+/* 보안 (2026-11-19 점검 C1): 메시지 앞머리 [IMG]·[FILE]·[DOC:n]·[ALERT]·[CHATBOT_SHARE] 는 서버만 붙인다.
+   거래처가 글자로 직접 보내면 화면이 그림·파일·영수증으로 해석해 관리자 화면에서 스크립트가 돌 수 있었다.
+   [REPLY] 는 화면이 붙여 보내므로 허용하되, 정해진 칸(s·t·i)만 남기고 i 는 영문·숫자만.
+   [CHATBOT_SHARE] ("상담방에 공유" 버튼)도 화면이 보내므로 메시지 전체가 그것일 때만, 칸(q·a·t)을 다시 만들어 허용. */
+const SYSTEM_PREFIX = /^\[(?:IMG|FILE|DOC:\d*|ALERT|CHATBOT_SHARE|REPLY)\]/;
+export function sanitizeUserMessage(content) {
+  let reply = '';
+  let rest = String(content || '');
+  const mr = /^\[REPLY\](\{[^\n]+\})\n([\s\S]*)$/.exec(rest);
+  if (mr) {
+    let r;
+    try { r = JSON.parse(mr[1]); } catch { return { error: '답장 형식이 올바르지 않습니다' }; }
+    if (!r || typeof r !== 'object' || Array.isArray(r)) return { error: '답장 형식이 올바르지 않습니다' };
+    const i = String(r.i ?? '');
+    if (!/^[A-Za-z0-9_-]{0,40}$/.test(i)) return { error: '답장 형식이 올바르지 않습니다' };
+    reply = '[REPLY]' + JSON.stringify({ t: String(r.t ?? '').slice(0, 200), s: String(r.s ?? '').slice(0, 50), i }) + '\n';
+    rest = mr[2];
+  }
+  const ms = !reply && /^\[CHATBOT_SHARE\](\{[\s\S]+\})$/.exec(rest);
+  if (ms) {
+    let o;
+    try { o = JSON.parse(ms[1]); } catch { return { error: '공유 형식이 올바르지 않습니다' }; }
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return { error: '공유 형식이 올바르지 않습니다' };
+    return { content: '[CHATBOT_SHARE]' + JSON.stringify({ q: String(o.q ?? '').slice(0, 1000), a: String(o.a ?? '').slice(0, 3000), t: Number(o.t) || Date.now() }) };
+  }
+  if (SYSTEM_PREFIX.test(rest)) return { error: '보낼 수 없는 메시지 형식입니다' };
+  return { content: reply + rest };
+}
+
 async function getUserFromCookie(db, request) {
   const cookie = request.headers.get("Cookie") || "";
   const match = cookie.match(/session=([^;]+)/);
@@ -212,8 +241,11 @@ export async function onRequestGet(context) {
             `SELECT id, user_id, doc_type, image_key, ocr_status, ocr_confidence,
                     vendor, vendor_biz_no, amount, vat_amount, receipt_date,
                     category, category_src, status, note, created_at
-             FROM documents WHERE id IN (${placeholders})`
-          ).bind(...docIds).all();
+             FROM documents WHERE id IN (${placeholders})
+               AND (room_id = ? OR user_id IN (SELECT user_id FROM room_members WHERE room_id = ?))`
+          ).bind(...docIds, roomId, roomId).all();
+          /* 보안 (2026-11-19 점검 C2): 이 방 것(이 방에 올렸거나 방 멤버가 올린 것)만 붙인다 —
+             다른 거래처 영수증 번호를 적어 보내 내용을 빼 보는 것 차단 */
           const byId = {};
           (docs || []).forEach(d => byId[d.id] = d);
           for (const m of messages) {
@@ -346,20 +378,26 @@ export async function onRequestPost(context) {
       if (room.status !== 'active') {
         return Response.json({ error: "종료된 방입니다" }, { status: 403 });
       }
-      const content = (body.content || "").trim();
+      const rawContent = (body.content || "").trim();
       const imageUrl = (body.image_url || "").trim();
       const fileUrl = (body.file_url || "").trim();
       const fileName = (body.file_name || "").trim();
       const fileSize = Number(body.file_size || 0);
-      if (!content && !imageUrl && !fileUrl) return Response.json({ error: "content or image_url or file_url required" }, { status: 400 });
-      if (content.length > 3000) return Response.json({ error: "메시지가 너무 깁니다" }, { status: 400 });
+      if (!rawContent && !imageUrl && !fileUrl) return Response.json({ error: "content or image_url or file_url required" }, { status: 400 });
+      /* 챗봇 Q&A 공유는 질문 1,000 + 답 3,000 자까지 담으므로 한도를 따로 */
+      const maxLen = rawContent.startsWith('[CHATBOT_SHARE]') ? 4500 : 3000;
+      if (rawContent.length > maxLen) return Response.json({ error: "메시지가 너무 깁니다" }, { status: 400 });
+      const clean = rawContent ? sanitizeUserMessage(rawContent) : { content: '' };
+      if (clean.error) return Response.json({ error: clean.error }, { status: 400 });
+      const content = clean.content;
 
       /* 보안: image_url / file_url은 우리 R2 프록시 경로만 허용.
          javascript:, data:, 외부 도메인 주입 차단.
          Phase R6 (2026-05-05 사장님 보고: "허용되지 않은 file_url"):
          name 파라미터는 한글·공백 등 다양 → URL encoded form 까지 허용.
          핵심은 path 가 /api/(image|file)?k=... 인지. */
-      const isSafeImageUrl = (u) => /^\/api\/image\?k=[A-Za-z0-9%._\-\/]+(&[A-Za-z_]+=[^&"<>]*)*$/.test(u);
+      /* 사진 주소는 업로드가 돌려준 모양 그대로(/api/image?k=키)만 — 뒤에 다른 값을 붙여 따옴표·괄호를 넣는 것 차단 (2026-11-19) */
+      const isSafeImageUrl = (u) => /^\/api\/image\?k=[A-Za-z0-9%._\-\/]+$/.test(u);
       const isSafeFileUrl  = (u) => /^\/api\/file\?k=[A-Za-z0-9%._\-\/]+(&[A-Za-z_]+=[^&"<>]*)*$/.test(u);
       if (imageUrl && !isSafeImageUrl(imageUrl)) {
         return Response.json({ error: '허용되지 않은 image_url' }, { status: 400 });
@@ -368,7 +406,7 @@ export async function onRequestPost(context) {
         return Response.json({ error: '허용되지 않은 file_url' }, { status: 400 });
       }
       /* 파일명: 경로 구분자·제어문자 금지 (렌더링 시 XSS는 esc로 처리됨) */
-      if (fileName && /[\r\n\t\\\/\x00-\x1f]/.test(fileName)) {
+      if (fileName && /[\r\n\t\\\/\x00-\x1f"<>]/.test(fileName)) {
         return Response.json({ error: '파일명에 금지된 문자가 있습니다' }, { status: 400 });
       }
       if (fileName.length > 200) {

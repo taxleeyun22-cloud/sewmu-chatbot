@@ -521,7 +521,7 @@ function renderPhotoGroupAdmin(m){
   const cols=n===1?1:(n<=4?2:3);
   const showMax=Math.min(n,9);
   const allUrls=photos.slice(0,9).map(p=>p.url);
-  const allUrlsJs=JSON.stringify(allUrls).replace(/"/g,'&quot;');
+  const allUrlsJs=escAttr(JSON.stringify(allUrls));   /* 보안: 속성용 이스케이프 (2026-11-19 점검) */
   /* 꾹 누름(long-press)용 데이터: 각 타일이 독립 메시지라 자기 msgId 사용 */
   const isAdvisor=m.role==='human_advisor';
   const mineFlag=isAdvisor?1:0;
@@ -534,8 +534,8 @@ function renderPhotoGroupAdmin(m){
       ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4em;font-weight:800">+'+(n-9)+'</div>'
       : '';
     tiles+='<div class="rc-msg-bubble" data-msg="'+p.msgId+'" data-sender="'+escAttr(senderName)+'" data-text="[사진]" data-mine="'+mineFlag+'" data-deletable="'+canDel+'" data-kind="img" data-img-src="'+escAttr(p.url)+'" style="position:relative;aspect-ratio:1/1;overflow:hidden;background:#f3f4f6;cursor:zoom-in" '
-      +'onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer(\''+p.url+'\','+allUrlsJs+')">'
-      +'<img src="'+p.url+'" alt="사진" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">'
+      +'onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer('+escAttr(JSON.stringify(p.url))+','+allUrlsJs+')">'
+      +'<img src="'+escAttr(p.url)+'" alt="사진" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">'
       +overlay+'</div>';
   }
   const grid='<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:2px;width:'+(cols===1?'240px':'260px')+';max-width:75%;border-radius:12px;overflow:hidden;background:#e5e8eb">'+tiles+'</div>';

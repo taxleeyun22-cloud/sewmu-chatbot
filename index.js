@@ -185,6 +185,13 @@ function showDots(){
 }
 function hideDots(){const d=document.getElementById("dots");if(d)d.remove()}
 function esc(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")}
+/* 보안 (2026-11-19 점검 C1): 메시지 속 그림·파일 주소는 우리 서버 경로만 */
+function isSafeMediaUrl(u,kind){
+  if(typeof u!=='string')return false;
+  if(kind==='image')return /^\/api\/image\?k=[A-Za-z0-9%._\-\/]+$/.test(u);
+  if(kind==='file')return /^\/api\/file\?k=[A-Za-z0-9%._\-\/]+(&name=[^\s"<>&]*)?$/.test(u);
+  return isSafeMediaUrl(u,'image')||isSafeMediaUrl(u,'file');
+}
 function escAttr(t){return String(t==null?'':t).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/'/g,"&#39;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/[\r\n]+/g," ")}
 /* 사장님 명령 (2026-05-31): 답변의 [신뢰도:…] 라벨은 사용자 화면에서 숨김 (비전문가 불안 유발).
    ⚠️ 내부 검수·자동 플래그(chat.js extractConfidence)는 그대로 유지 — 서버가 모델 출력에서 추출하므로
@@ -2199,10 +2206,10 @@ function parseMessageContent(content){
   if(md)return {reply:reply,image:null,file:null,doc_id:parseInt(md[1],10),alert:null,chatbot_share:null,text:md[3]||''};
   var mf=/^\[FILE\](\{[^\n]+\})(\n([\s\S]*))?$/.exec(content);
   if(mf){
-    try{var obj=JSON.parse(mf[1]);return {reply:reply,image:null,file:obj,doc_id:null,alert:null,chatbot_share:null,text:mf[3]||''}}catch(e){}
+    try{var obj=JSON.parse(mf[1]);if(obj&&isSafeMediaUrl(obj.url,'file'))return {reply:reply,image:null,file:obj,doc_id:null,alert:null,chatbot_share:null,text:mf[3]||''}}catch(e){}
   }
   var m=/^\[IMG\](\S+)(\n([\s\S]*))?$/.exec(content);
-  if(m)return {reply:reply,image:m[1],file:null,doc_id:null,alert:null,chatbot_share:null,text:m[3]||''};
+  if(m&&isSafeMediaUrl(m[1],'image'))return {reply:reply,image:m[1],file:null,doc_id:null,alert:null,chatbot_share:null,text:m[3]||''};
   return {reply:reply,image:null,file:null,doc_id:null,alert:null,chatbot_share:null,text:content};
 }
 
@@ -2408,8 +2415,8 @@ function renderPhotoGroup(m, isMe, nm){
       _canDel=_elapsed<5*60*1000?1:0;
     }
     tiles+='<div class="rc-msg-bubble" data-msg="'+p.msgId+'" data-sender="'+escAttr(senderName)+'" data-text="[사진]" data-mine="'+(isMe?1:0)+'" data-deletable="'+_canDel+'" data-kind="img" data-img-src="'+escAttr(p.url)+'" style="position:relative;aspect-ratio:1/1;overflow:hidden;background:#f3f4f6;cursor:zoom-in" '
-      +'onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer(\''+p.url+'\','+allUrlsJs.replace(/"/g,'&quot;')+')">'
-      +'<img src="'+p.url+'" alt="사진" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">'
+      +'onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer('+escAttr(JSON.stringify(p.url))+','+escAttr(allUrlsJs)+')">'
+      +'<img src="'+escAttr(p.url)+'" alt="사진" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">'
       +overlay+'</div>';
   }
   var grid='<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:2px;width:'+(cols===1?'60vw':'240px')+';max-width:75vw;border-radius:12px;overflow:hidden;background:var(--border)">'+tiles+'</div>';
@@ -2447,7 +2454,7 @@ function renderMessageBody(content, attachedDoc){
   var parsed=parseMessageContent(content);
   var html='';
   if(parsed.reply){
-    var s=parsed.reply.s||'', t=(parsed.reply.t||'').slice(0,100), ji=parsed.reply.i||'';
+    var s=parsed.reply.s||'', t=(parsed.reply.t||'').slice(0,100), ji=String(parsed.reply.i||'').replace(/[^A-Za-z0-9_-]/g,'');
     html+='<div class="rc-quote" data-jump-mid="'+escAttr(String(ji))+'" onclick="jumpToOriginalMsg(\''+escAttr(String(ji))+'\')" style="cursor:pointer"><div class="rc-quote-sender">↩︎ '+esc(s)+'</div><div class="rc-quote-text">'+esc(t)+'</div></div>';
   }
   if(parsed.alert){
@@ -2482,13 +2489,13 @@ function renderMessageBody(content, attachedDoc){
     return html;
   }
   if(parsed.image){
-    html+='<img class="rc-img-msg" src="'+parsed.image+'" alt="이미지" loading="lazy" onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">';
+    html+='<img class="rc-img-msg" src="'+escAttr(parsed.image)+'" alt="이미지" loading="lazy" onclick="if(window._lpJustFired){window._lpJustFired=false;return}openImgViewer(this.src,collectImagesNear(this))" onerror="this.outerHTML=\'<div style=\\\'padding:10px;color:#f04452;font-size:.8em\\\'>이미지 로드 실패</div>\'">';
   }
   if(parsed.file){
     var nm=parsed.file.name||'파일';
     var sz=fmtFileSize(parsed.file.size);
     /* 카톡 스타일: 파일명 2줄 + 용량 + 다운로드 아이콘 */
-    html+='<a href="'+esc(parsed.file.url||'#')+'" download="'+esc(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border:1px solid #e5e8eb;border-radius:12px;text-decoration:none;color:inherit;min-width:220px;max-width:280px">'
+    html+='<a href="'+escAttr(parsed.file.url||'#')+'" download="'+escAttr(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border:1px solid #e5e8eb;border-radius:12px;text-decoration:none;color:inherit;min-width:220px;max-width:280px">'
       +'<div style="flex:1;min-width:0">'
       +  '<div style="font-weight:600;font-size:.95em;color:#191f28;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all">'+esc(nm)+'</div>'
       +  '<div style="font-size:.72em;color:#8b95a1;margin-top:6px">용량 '+sz+'</div>'
@@ -2590,8 +2597,8 @@ async function loadUriMedia(){
     if(!d.photos||d.photos.length===0)photoEl.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">사진 없음</div>';
     else photoEl.innerHTML=d.photos.map(function(m){
       var mm=String(m.content||'').match(/^\[IMG\](\S+)/);
-      var u=mm?mm[1]:'';if(!u)return '';
-      return '<div class="uri-photo"><img src="'+esc(u)+'" loading="lazy" alt="" class="uri-photo" onclick="openImgViewer(this.src,collectImagesNear(this))" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in"></div>';
+      var u=mm?mm[1]:'';if(!u||!isSafeMediaUrl(u,'image'))return '';
+      return '<div class="uri-photo"><img src="'+escAttr(u)+'" loading="lazy" alt="" class="uri-photo" onclick="openImgViewer(this.src,collectImagesNear(this))" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in"></div>';
     }).join('');
     if(!d.links||d.links.length===0)linkEl.innerHTML='<div style="text-align:center;color:var(--text2);font-size:.8em;padding:30px 0">링크 없음</div>';
     else linkEl.innerHTML=d.links.map(function(l){
@@ -2612,7 +2619,8 @@ async function loadUriFiles(){
       if(!obj)return '';
       var who=m.role==='human_advisor'?'세무사':m.role==='assistant'?'AI':(m.real_name||m.name||'사용자');
       var nm=obj.name||'파일';
-      return '<a href="'+esc(obj.url||'#')+'" download="'+esc(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" class="uri-item" style="display:flex;gap:10px;text-decoration:none;color:inherit;align-items:center">'
+      if(!isSafeMediaUrl(obj.url,'file'))return '';
+      return '<a href="'+escAttr(obj.url||'#')+'" download="'+escAttr(nm)+'" onclick="if(!confirm(\'파일을 다운로드 하시겠습니까?\')){event.preventDefault();return false}" class="uri-item" style="display:flex;gap:10px;text-decoration:none;color:inherit;align-items:center">'
         +'<div style="font-size:1.7em;line-height:1">'+fileIconFor(nm)+'</div>'
         +'<div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(nm)+'</div>'
         +'<div class="uri-meta">'+fmtFileSize(obj.size)+' · '+who+' · '+esc(m.created_at||'')+'</div></div></a>';
