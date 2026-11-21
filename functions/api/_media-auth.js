@@ -55,10 +55,11 @@ export async function canViewMedia(context, key) {
     const enc = encodeURIComponent(key);
     const img = '[IMG]/api/image?k=' + enc;
     const file = '[FILE]{"url":"/api/file?k=' + enc;
-    /* 키 안의 업로드 시각(ms)으로 찾는 범위를 좁힌다 (하루 전 ~ 30일 뒤) — 방 메시지 전체를 매번 읽지 않게 */
+    /* 키 안의 업로드 시각(ms)으로 찾는 범위를 좁힌다 (하루 전 ~ 1년 뒤) — 방 메시지 전체를 매번 읽지 않게.
+       직원이 예전에 올린 사진을 나중에 다시 보내도 1년 안이면 거래처가 본다 */
     const ts = /\/(\d{13})_/.exec(key);
     const from = ts ? kstAt(Number(ts[1]) - 864e5) : '0000';
-    const to = ts ? kstAt(Number(ts[1]) + 30 * 864e5) : '9999';
+    const to = ts ? kstAt(Number(ts[1]) + 366 * 864e5) : '9999';
     const inRoom = await db.prepare(
       `SELECT 1 AS ok FROM room_members m
          JOIN conversations c ON c.room_id = m.room_id AND c.created_at BETWEEN ? AND ?

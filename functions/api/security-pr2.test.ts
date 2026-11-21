@@ -110,8 +110,8 @@ describe('2바퀴 검토 반영 — 남의 키를 내 방에 적어 권한 얻�
     /* send 는 지금 시각으로 저장되므로, 키 시각 범위 확인용으로 시각을 키 근처로 맞춘다 */
     await d1.prepare(`UPDATE conversations SET created_at = '2026-11-21 10:05:00' WHERE content LIKE '[FILE]%' || ? || '%'`).bind(String(ts)).run();
     expect(await view('/api/file', key, 'tok2')).toBe(200);
-    /* 범위(하루 전~30일 뒤) 밖에 있는 메시지면 인정 안 함 */
-    await d1.prepare(`UPDATE conversations SET created_at = '2027-03-01 00:00:00' WHERE content LIKE '[FILE]%' || ? || '%'`).bind(String(ts)).run();
+    /* 범위(하루 전~1년 뒤) 밖에 있는 메시지면 인정 안 함 */
+    await d1.prepare(`UPDATE conversations SET created_at = '2028-01-01 00:00:00' WHERE content LIKE '[FILE]%' || ? || '%'`).bind(String(ts)).run();
     expect(await view('/api/file', key, 'tok2')).toBe(403);
   });
 });
