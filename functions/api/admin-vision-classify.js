@@ -28,13 +28,15 @@ export async function onRequestPost(context) {
   let imgForOpenAI = imageUrl;
   if (isInternal) {
     try {
-      const origin = new URL(context.request.url).origin;
-      /* 내부 fetch — Workers 에서 같은 도메인 호출. 세션 쿠키 전달 */
-      const cookie = context.request.headers.get('Cookie') || '';
-      const ir = await fetch(origin + imageUrl, { headers: cookie ? { Cookie: cookie } : {} });
-      if (!ir.ok) return Response.json({ error: "내부 이미지 접근 실패: " + ir.status }, { status: 500 });
-      const ct = ir.headers.get('content-type') || 'image/jpeg';
-      const buf = await ir.arrayBuffer();
+      /* 관리자 확인은 위에서 끝났으니 저장소(R2)에서 바로 읽는다 — 예전엔 같은 서버로 다시 요청하면서 쿠키만 넘겨,
+         비번(?key=)으로만 들어온 경우 /api/image 열람 권한(보안 점검 PR-2)에서 막힐 수 있었다 */
+      const key = decodeURIComponent((/[?&]k=([^&]+)/.exec(imageUrl) || [])[1] || '');
+      if (!/^[A-Za-z0-9_.\-\/]{1,256}$/.test(key) || key.includes('..')) return Response.json({ error: "이미지 주소가 올바르지 않습니다" }, { status: 400 });
+      const bucket = context.env.MEDIA_BUCKET;
+      const obj = bucket ? await bucket.get(key) : null;
+      if (!obj) return Response.json({ error: "이미지를 찾을 수 없습니다" }, { status: 404 });
+      const ct = (obj.httpMetadata && obj.httpMetadata.contentType) || 'image/jpeg';
+      const buf = await obj.arrayBuffer();
       if (buf.byteLength > 8 * 1024 * 1024) return Response.json({ error: "이미지 8MB 초과 — Vision 분석 불가" }, { status: 400 });
       /* base64 인코딩 (chunk 로 call stack 회피) */
       const u8 = new Uint8Array(buf);
@@ -46,7 +48,8 @@ export async function onRequestPost(context) {
       const b64 = btoa(bin);
       imgForOpenAI = `data:${ct};base64,${b64}`;
     } catch (e) {
-      return Response.json({ error: "이미지 변환 실패: " + e.message }, { status: 500 });
+      console.error('[admin-vision-classify] image', e);
+      return Response.json({ error: "이미지 변환 실패" }, { status: 500 });
     }
   }
 

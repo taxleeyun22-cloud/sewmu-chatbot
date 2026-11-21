@@ -4,9 +4,9 @@
 // - R2 키는 CSPRNG 랜덤 (업로드 라우트) → 추측 불가
 // - 키 regex로 path traversal 차단
 // - 파일명은 제어문자·경로 구분자 제거 후 Content-Disposition 세팅
-// - memos/ prefix (메모 첨부) 는 관리자 인증 필수 — 거래처 민감 자료 보호
+// - 열람 권한은 _media-auth.js (관리자 전부 / 거래처 본인 것 + 내 상담방 것 / memos·guides 관리자만)
 
-import { checkAdmin } from "./_adminAuth.js";
+import { canViewMedia } from "./_media-auth.js";
 
 const KEY_RE = /^[A-Za-z0-9_.\-\/]{1,256}$/;
 
@@ -26,11 +26,9 @@ export async function onRequestGet(context) {
     return new Response("bad key", { status: 400 });
   }
 
-  /* 메모 첨부는 관리자만 접근 가능 (사업자등록증·영수증 등 민감 자료) */
-  if (key.startsWith('memos/')) {
-    const auth = await checkAdmin(context);
-    if (!auth) return new Response("Unauthorized", { status: 401 });
-  }
+  /* 열람 권한 — 관리자 전부 / 거래처는 본인 것 + 내 상담방 것 / memos·guides 관리자만 (보안 점검 PR-2) */
+  const perm = await canViewMedia(context, key);
+  if (!perm.ok) return new Response(perm.status === 401 ? "Unauthorized" : "Forbidden", { status: perm.status });
 
   const name = sanitizeDownloadName(nameRaw);
 

@@ -111,6 +111,8 @@ prod URLs:
 - 남겨 둔 이유: **청구서(`/admin/billing*`)·영업타겟(`/admin/sales-targets`)** 은 아직 새 admin 에만 있다 (사장님 사용 중).
   옛 admin 메뉴에서 새 탭으로 열린다. 청구서는 tRPC(`packages/api`) 로 살아 있는 코드를 쓴다.
 - `apps/admin/public`, `apps/admin/functions/api` = 2026-11-11 시점 스냅샷 (지우지 말 것 — 위 두 화면이 쓴다).
+  - 예외 (2026-11-21 사장님 승인): 보안 수정 `image.js`·`file.js`·`_media-auth.js` 3파일은 옛 쪽과 같은 내용으로 복사해 둠
+    (같은 R2 저장소라 새 admin 주소로도 파일이 열리면 안 됨). 옛 쪽 이 3파일을 고치면 같이 복사할 것.
   - 옛 `functions/api/sales-pipeline.js` 의 sales_leads 구조를 바꾸면 영업타겟이 어긋날 수 있다 →
     그때만 그 한 파일을 `apps/admin/functions/api/` 로 같이 복사.
 - 알려진 잠재 문제 (고치지 않음, 기록만): 로그인 쿠키 서명 키가 옛(ADMIN_KEY)·새(AUTH_SECRET) 다름 /

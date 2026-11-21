@@ -405,6 +405,13 @@ export async function onRequestPost(context) {
       if (fileUrl && !isSafeFileUrl(fileUrl)) {
         return Response.json({ error: '허용되지 않은 file_url' }, { status: 400 });
       }
+      /* 보안 점검 PR-2 (2026-11-21): 거래처는 본인이 올린 사진·파일만 보낼 수 있다.
+         남의 파일 주소를 내 방에 붙여 "방에 올라온 파일" 로 만들어 열람 권한을 얻는 것 차단 */
+      const keyOf = (u) => { try { return decodeURIComponent((/[?&]k=([^&]+)/.exec(u) || [])[1] || ''); } catch { return ''; } };
+      const ownPrefix = `u${user.user_id}/`;
+      if ((imageUrl && !keyOf(imageUrl).startsWith(ownPrefix)) || (fileUrl && !keyOf(fileUrl).startsWith(ownPrefix))) {
+        return Response.json({ error: '본인이 올린 사진·파일만 보낼 수 있습니다' }, { status: 403 });
+      }
       /* 파일명: 경로 구분자·제어문자 금지 (렌더링 시 XSS는 esc로 처리됨) */
       if (fileName && /[\r\n\t\\\/\x00-\x1f"<>]/.test(fileName)) {
         return Response.json({ error: '파일명에 금지된 문자가 있습니다' }, { status: 400 });
