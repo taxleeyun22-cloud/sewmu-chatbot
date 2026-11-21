@@ -407,6 +407,15 @@ KEY=k;
 /* 보안: ADMIN_KEY는 세션 단위(탭 닫히면 삭제)로만 보관. localStorage 영구 저장 금지 */
 try{sessionStorage.setItem('admin_key',k)}catch{}
 try{localStorage.removeItem('admin_key')}catch{}
+/* 보안 점검 PR-2 (2026-11-21): 사진·파일(/api/image·/api/file)은 이제 쿠키로 관리자 확인을 한다 (주소에 키 안 붙임).
+ * 비번으로 들어온 탭은 owner 쿠키를 12시간마다 새로 받아 둔다 (서명 쿠키라 DB 에 아무것도 안 쌓임) */
+try{
+  var _akAt=+(sessionStorage.getItem('ak_cookie_at')||0);
+  if(Date.now()-_akAt>12*3600e3){
+    fetch('/api/admin-key-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k}),credentials:'same-origin'})
+      .then(function(r){ if(r.ok) try{sessionStorage.setItem('ak_cookie_at',String(Date.now()))}catch(_){} }).catch(function(){});
+  }
+}catch(_){}
 /* Phase #10 메타: 로그인 성공 후 role 정보 fetch (IS_MANAGER 등 결정) */
 try{ _refreshAdminRole(); }catch(_){}
 /* Phase #6 적용 (2026-05-06): shared store sync — 다른 모듈이 KEY/IS_OWNER subscribe */
@@ -449,6 +458,7 @@ return false;
  * @returns {void}
  */
 function logout(){
+try{sessionStorage.removeItem('ak_cookie_at')}catch(_){}   /* 다음 로그인 때 owner 쿠키 다시 받게 (보안 점검 PR-2) */
 KEY='';
 try{sessionStorage.removeItem('admin_key')}catch{}
 try{localStorage.removeItem('admin_key')}catch{}

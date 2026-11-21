@@ -152,7 +152,7 @@ describe('H2 — 업로드 파일 보여주기', () => {
   }
   async function view(key: string, ct: string) {
     env = { DB: d1, MEDIA_BUCKET: bucketWith(ct) };
-    const r = await imageGet(req('GET', '/api/image?k=' + encodeURIComponent(key), null));
+    const r = await imageGet(req('GET', '/api/image?k=' + encodeURIComponent(key), 'tok1'))   /* 본인(u1) 파일 */;
     return r.headers as Headers;
   }
   it('svg·html 은 다운로드로만 + 스크립트 금지', async () => {
